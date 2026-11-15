@@ -140,6 +140,7 @@ export class FakeSources {
   public remoteToolCallViewing: boolean | null = true;
   public jevEnabled: boolean | null = true;
   public heyHeyContextReminder: boolean | null = false;
+  public preciseFileChangeTracking: boolean | null = false;
   public jevKeyDefined = true;
   public readonly optionsObservers = new Set<OptionsObserver>();
   public readonly setIntentFirst = vi.fn<(intentFirst: boolean) => Promise<void>>((intentFirst) => {
@@ -258,6 +259,7 @@ export class FakeSources {
             remoteToolCallViewing: this.remoteToolCallViewing,
             jevEnabled: this.jevEnabled,
             heyHeyContextReminder: this.heyHeyContextReminder,
+            preciseFileChangeTracking: this.preciseFileChangeTracking,
             jevKeyDefined: this.jevKeyDefined,
           },
           unsubscribe: () => this.optionsObservers.delete(observer),
@@ -266,6 +268,10 @@ export class FakeSources {
       setIntentFirst: (intentFirst: boolean) => this.setIntentFirst(intentFirst),
       setRemoteToolCallViewing: (enabled: boolean) => this.setRemoteToolCallViewing(enabled),
       setHeyHeyContextReminder: (enabled: boolean) => this.setHeyHeyContextReminder(enabled),
+      setPreciseFileChangeTracking: (enabled: boolean) => {
+        this.preciseFileChangeTracking = enabled;
+        return Promise.resolve();
+      },
       setJevEnabled: (enabled: boolean) => this.setJevEnabled(enabled),
     },
   };
@@ -288,6 +294,7 @@ export class FakeSources {
         remoteToolCallViewing,
         jevEnabled,
         heyHeyContextReminder,
+        preciseFileChangeTracking: this.preciseFileChangeTracking,
         jevKeyDefined,
       });
     }

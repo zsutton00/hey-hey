@@ -154,7 +154,11 @@ export class ContentSnapshot {
             progress.rootFailed(root.serviceId, 'root-path-changed');
             continue;
           }
-          await this.walk(root, '', snapshot.entries, progress, []);
+          if (root.paths) {
+            await this.captureNamedPaths(root, root.paths, snapshot.entries, progress);
+          } else {
+            await this.walk(root, '', snapshot.entries, progress, []);
+          }
         } catch (error) {
           progress.failure(
             error instanceof Error ? error.name : 'NonErrorThrow',
@@ -169,6 +173,28 @@ export class ContentSnapshot {
       return snapshot;
     } finally {
       progress.close();
+    }
+  }
+
+  /** Reads only the named files; one that does not exist is recorded as absent, not as a gap. */
+  private async captureNamedPaths(
+    root: CaptureRoot,
+    paths: readonly string[],
+    entries: SnapshotEntry[],
+    progress: SnapshotProgress,
+  ): Promise<void> {
+    for (const repoRelativePath of paths) {
+      const filePath = path.join(root.root, repoRelativePath);
+      const startedAt = Date.now();
+      const absent = await fs.lstat(filePath).then(
+        () => false,
+        (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ENOENT',
+      );
+      const entry: SnapshotEntry = absent
+        ? { serviceId: root.serviceId, path: repoRelativePath, mode: 0, hash: null, gap: null }
+        : await this.captureFile(root.serviceId, repoRelativePath, filePath, progress);
+      entries.push(entry);
+      progress.file(entry, startedAt);
     }
   }
 

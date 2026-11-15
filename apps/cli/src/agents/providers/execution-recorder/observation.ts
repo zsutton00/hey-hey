@@ -15,6 +15,11 @@ export type CaptureIdentity = z.infer<typeof captureIdentitySchema>;
 const captureRootSchema = z.object({
   serviceId: z.string().min(1),
   root: z.string().min(1),
+  /**
+   * Repo-relative files to read instead of walking the whole root. Edit tools
+   * name the files they change, so only those are read; shell commands omit it.
+   */
+  paths: z.array(z.string().min(1)).optional(),
 });
 export type CaptureRoot = z.infer<typeof captureRootSchema>;
 const snapshotEntrySchema = z.object({

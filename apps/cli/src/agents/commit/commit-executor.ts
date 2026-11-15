@@ -368,73 +368,125 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
   const planId = run.session.contextMetadata.launchPlanId;
 
   const commits: Array<{ service: string; hash: string; branch: string; files: string[] }> = [];
-  for (const scope of scopes) {
-    const trailers = buildCommitTrailers(traceability, scope.serviceId, planId);
-    logger.info('local.commit_runtime.staging_started', {
-      runId: run.runId,
-      serviceId: scope.serviceId,
-      repositoryRoot: scope.repoPath,
-      files: scope.files,
-    });
-    const context = {
-      runId: run.runId,
-      serviceId: scope.serviceId,
-      repositoryRoot: scope.repoPath,
-      files: scope.files,
-    };
-    // Already-staged deletions are absent from both disk and index. They remain
-    // in commit --only's HEAD-based scope, but cannot be passed to git add again.
-    const stagingFiles = await runGitOperation(
-      logger,
-      { ...context, operation: 'read_staged_deletions' },
-      () => filesToStage(scope),
-    );
-    if (stagingFiles.length > 0) {
-      await runGitOperation(logger, { ...context, operation: 'add' }, () =>
-        git(scope.repoPath, ['add', '--', ...stagingFiles]),
-      );
-    }
-    await runGitOperation(logger, { ...context, operation: 'commit' }, () =>
-      git(scope.repoPath, [
-        'commit',
-        '--only',
-        '-m',
-        message,
-        '-m',
-        trailers.join('\n'),
-        '--',
-        ...scope.files,
-      ]),
-    );
-    const hash = await runGitOperation(logger, { ...context, operation: 'read_head' }, () =>
-      git(scope.repoPath, ['rev-parse', '--short', 'HEAD']),
-    );
-    // Traceability only: the branch name is recorded, never the (machine-local) repoPath.
-    const branch = await runGitOperation(logger, { ...context, operation: 'read_branch' }, () =>
-      git(scope.repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-    );
-    const committedFiles = await runGitOperation(
-      logger,
-      { ...context, operation: 'read_committed_files' },
-      () => readCommittedFiles(scope.repoPath, hash),
-    );
-    commits.push({ service: scope.serviceId, hash, branch, files: committedFiles });
-    logger.info('local.commit_runtime.commit_succeeded', {
-      runId: run.runId,
-      serviceId: scope.serviceId,
+  const chain = run.readReportChain();
+  const claimed = new Set(
+    chain
+      .filter((entry) => entry.sourceRunId === run.runId && entry.reportType === 'COMMIT')
+      .flatMap(
+        (entry) => entry.commitHashes?.flatMap((hash) => hash.implementReportIds ?? []) ?? [],
+      ),
+  );
+  const outcomeHashes = () =>
+    commits.map(({ service, hash, branch }) => ({
+      service,
       hash,
       branch,
-      files: committedFiles,
-    });
+      implementReportIds: [
+        ...new Set(
+          chain
+            .filter(
+              (entry) =>
+                entry.reportType === 'IMPLEMENT' &&
+                entry.sourceRunId === run.runId &&
+                entry.serviceId === service &&
+                !claimed.has(entry.reportId),
+            )
+            .map((entry) => entry.reportId),
+        ),
+      ],
+    }));
+  let commitFailure: unknown;
+  try {
+    for (const scope of scopes) {
+      const trailers = buildCommitTrailers(traceability, scope.serviceId, planId);
+      logger.info('local.commit_runtime.staging_started', {
+        runId: run.runId,
+        serviceId: scope.serviceId,
+        repositoryRoot: scope.repoPath,
+        files: scope.files,
+      });
+      const context = {
+        runId: run.runId,
+        serviceId: scope.serviceId,
+        repositoryRoot: scope.repoPath,
+        files: scope.files,
+      };
+      const stagingFiles = await runGitOperation(
+        logger,
+        { ...context, operation: 'read_staged_deletions' },
+        () => filesToStage(scope),
+      );
+      if (stagingFiles.length > 0) {
+        await runGitOperation(logger, { ...context, operation: 'add' }, () =>
+          git(scope.repoPath, ['add', '--', ...stagingFiles]),
+        );
+      }
+      await runGitOperation(logger, { ...context, operation: 'commit' }, () =>
+        git(scope.repoPath, [
+          'commit',
+          '--only',
+          '-m',
+          message,
+          '-m',
+          trailers.join('\n'),
+          '--',
+          ...scope.files,
+        ]),
+      );
+      const hash = await runGitOperation(logger, { ...context, operation: 'read_head' }, () =>
+        git(scope.repoPath, ['rev-parse', '--short', 'HEAD']),
+      );
+      // Traceability only: the branch name is recorded, never the (machine-local) repoPath.
+      const branch = await runGitOperation(logger, { ...context, operation: 'read_branch' }, () =>
+        git(scope.repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
+      );
+      const committedFiles = await runGitOperation(
+        logger,
+        { ...context, operation: 'read_committed_files' },
+        () => readCommittedFiles(scope.repoPath, hash),
+      );
+      commits.push({ service: scope.serviceId, hash, branch, files: committedFiles });
+      await run.reportProvenance.retain({
+        summary: message,
+        files: commits.flatMap((commit) => commit.files),
+        hashes: outcomeHashes(),
+      });
+      logger.info('local.commit_runtime.commit_succeeded', {
+        runId: run.runId,
+        serviceId: scope.serviceId,
+        hash,
+        branch,
+        files: committedFiles,
+      });
+    }
+  } catch (error) {
+    commitFailure = error;
   }
-
-  const hashes = commits.map(({ service, hash, branch }) => ({ service, hash, branch }));
+  if (commits.length === 0) {
+    throw commitFailure;
+  }
+  const hashes = outcomeHashes();
   const files = commits.flatMap(({ files: committedFiles }) => committedFiles);
-  await commitReportTool.execute({
-    runId: run.runId,
-    run,
-    args: { summary: message, files, hashes },
-  });
+  await run.reportProvenance.retain({ summary: message, files, hashes });
+  try {
+    await commitReportTool.execute({
+      runId: run.runId,
+      run,
+      args: { summary: message, files, hashes },
+    });
+  } catch (error) {
+    logger.error('local.commit_runtime.report_failed', {
+      runId: run.runId,
+      hashes,
+      files,
+      summary: message,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+  if (commitFailure) {
+    throw commitFailure;
+  }
   logger.info('local.commit_runtime.report_succeeded', {
     runId: run.runId,
     hashes,
@@ -444,6 +496,16 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
 
 export const executeCanonicalCommit = async (input: ExecuteCanonicalCommitInput): Promise<void> => {
   try {
+    await input.run.ensureSeeded();
+    const pending = input.run.reportProvenance.pending;
+    if (pending) {
+      await input.commitReportTool.execute({
+        runId: input.run.runId,
+        run: input.run,
+        args: pending,
+      });
+      return;
+    }
     await executeValidatedCommit(input);
   } catch (error) {
     input.logger.error('local.commit_runtime.failed', {

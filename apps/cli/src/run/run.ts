@@ -1,4 +1,5 @@
 import { CommitGitError } from '../agents/commit/commit-git-error';
+import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
@@ -107,6 +108,7 @@ import {
 } from '../agents/submission-tools/types';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { SubmissionActionPoster } from '../agents/submission-tools/action-poster';
+import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
 import { ActivePlatformToolCatalog } from '../agents/platform-mcp-proxy/catalog';
 import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
 import type { McpSessionContext } from '../agents/mcp-server-config';
@@ -164,7 +166,7 @@ import type { MessagePoster } from './message-poster';
 import { normalizeEvent } from './normalize';
 import { isLegacyHandoffReport } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
-import { emitOpenImplementReportIfNeeded } from './open-implement-report';
+import { emitTurnImplementReports } from './turn-implement-reports';
 import { resolvePrompt } from './resolve-prompt';
 import { resolveOwnerFollowup } from '../agents/resolve-owner-followup';
 import type { RunnerContext } from './runners/types';
@@ -888,6 +890,7 @@ export class Run {
   private readonly browserAnnotations: BrowserAnnotationDelivery | undefined;
   private readonly browserTabNotices: BrowserTabNoticeDelivery | undefined;
   private readonly runStore: RunStore;
+  readonly reportProvenance: ReportProvenance;
   private readonly implementationReadinessOwner: ImplementationReadinessOwner;
   private readonly repoStore: RepoMappingStore;
   private readonly poster: MessagePoster;
@@ -950,6 +953,7 @@ export class Run {
     this.browserAnnotations = collaborators.browserAnnotations;
     this.browserTabNotices = collaborators.browserTabNotices;
     this.runStore = collaborators.runStore;
+    this.reportProvenance = new ReportProvenance(this.runStore, this.runId);
     this.implementationReadinessOwner = new ImplementationReadinessOwner(
       this.runStore,
       collaborators.logger,
@@ -1162,6 +1166,12 @@ export class Run {
     // via ensureSeeded). Each seed logs and swallows its own failure — a seed
     // must not block the Run, so the combined promise resolves either way.
     const seedSubPromises: Promise<void>[] = [];
+    const localReportSeed = this.reportProvenance.restore().then((entries) => {
+      for (const entry of entries) {
+        this.appendReportChainEntry(entry);
+      }
+    });
+    seedSubPromises.push(localReportSeed);
 
     // Report chain from the task scope — only when a task is in scope.
     const taskReportChainReader = collaborators.taskReportChainReader;
@@ -1170,7 +1180,10 @@ export class Run {
       seedSubPromises.push(
         taskReportChainReader
           .read(taskId)
-          .then((entries) => {
+          .then(async (entries) => {
+            // Durable Run-local entries retain ownership and commit claims that
+            // the task-history projection omits, regardless of read order.
+            await localReportSeed;
             for (const entry of entries) {
               this.appendReportChainEntry(entry);
             }
@@ -1725,6 +1738,7 @@ export class Run {
     this.runner = runner;
   }
 
+  /** Set only for a Run whose provider hooks are sent; null means every edit stays approximate. */
   notePermissionDecisionDelivered(input: {
     requestId: string;
     decision: PermissionDecision;
@@ -1895,13 +1909,6 @@ export class Run {
           }
         : { serviceId: 'legacy', repoRelativePath: candidatePath };
     });
-  }
-
-  logImplementReportValidation(
-    event: string,
-    metadata: Record<string, string | number | boolean | null | readonly string[]>,
-  ): void {
-    this.logger.warn(event, { runId: this.runId, ...metadata });
   }
 
   /**
@@ -2985,6 +2992,9 @@ export class Run {
    * and `cleanup()` deliberately leaves it intact.
    */
   appendReportChainEntry(entry: ReportChainEntry): void {
+    if (this._reportChain.some((existing) => existing.reportId === entry.reportId)) {
+      return;
+    }
     if (!entry.createdAt) throw new Error('ReportChainEntry.createdAt is required');
     if (!entry.phase) throw new Error('ReportChainEntry.phase is required');
     if (!entry.reportId) throw new Error('ReportChainEntry.reportId is required');
@@ -3003,6 +3013,19 @@ export class Run {
       summary: entry.summary,
       audience: entry.audience,
       ...(entry.serviceId ? { serviceId: entry.serviceId } : {}),
+      ...(entry.sourceRunId ? { sourceRunId: entry.sourceRunId } : {}),
+      ...(entry.commitHashes
+        ? {
+            commitHashes: Object.freeze(
+              entry.commitHashes.map((hash) =>
+                Object.freeze({
+                  ...hash,
+                  implementReportIds: Object.freeze([...(hash.implementReportIds ?? [])]),
+                }),
+              ),
+            ),
+          }
+        : {}),
       ...(entry.touchPoints
         ? { touchPoints: Object.freeze(entry.touchPoints.map((tp) => Object.freeze({ ...tp }))) }
         : {}),
@@ -3049,7 +3072,7 @@ export class Run {
   async prepareTurnCompletionArtifacts(turn: Turn, activeDispatchId?: symbol): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS, activeDispatchId);
     try {
-      await this._fileChangeMutation;
+      await Promise.all([this._fileChangeMutation, turn.changedFileReporting.settleReports()]);
     } catch (error) {
       this.logger.error('local.run.turn_completion.file_change_settle_failed', {
         runId: this.runId,
@@ -3067,16 +3090,17 @@ export class Run {
     );
 
     try {
-      await emitOpenImplementReportIfNeeded({
+      await emitTurnImplementReports({
         run: this,
+        turn,
         logger: this.logger,
-        promptType: turn.handler.promptType,
-        fileChanges: this.getFileChangeProjection(turn.turnId),
+        facts: this._fileChangeFacts,
+        capturedVersions: this.runner?.executionRecorder ?? null,
         reportsSinceTurnStart,
-        createReportTool: createReportTool ?? null,
+        createReportTool: createReportTool instanceof CreateReportTool ? createReportTool : null,
       });
     } catch (error) {
-      this.logger.error('local.run.open_implement_report.emit.failed', {
+      this.logger.error('local.run.turn_implement_reports.emit.failed', {
         runId: this.runId,
         turnId: turn.turnId,
         promptType: turn.handler.promptType,

@@ -7,6 +7,8 @@ import { createTestRun } from '../../run/run.test-support';
 import type { ReportChainEntry } from '../../run/types';
 import type { Turn } from '../../turn/turn';
 import { SubmissionToolCorrectableError, type SubmissionToolMcpContent } from './types';
+import { TurnChangeRecord } from '../../turn/turn-change-record';
+import { NOOP_LOGGER } from '../../server/logger';
 import {
   jointDecision,
   overlappingDecisions,
@@ -23,7 +25,6 @@ interface TestRunOptions {
   providerSessionId?: string;
   activeTurnId?: string | null;
   completedAssistantMessageId?: string | null;
-  fileChangeProjection?: ReturnType<Run['getFileChangeProjection']>;
 }
 
 const makeRun = (options: TestRunOptions = {}): Run => {
@@ -32,12 +33,11 @@ const makeRun = (options: TestRunOptions = {}): Run => {
   run.session.provider_session_id = options.providerSessionId ?? 'provider-session-1';
   vi.spyOn(run, 'appendReportChainEntry').mockImplementation(() => undefined);
   vi.spyOn(run, 'observePersistedPlanReady').mockImplementation(() => undefined);
-  vi.spyOn(run, 'getFileChangeProjection').mockReturnValue(options.fileChangeProjection ?? []);
-  vi.spyOn(run, 'logImplementReportValidation').mockImplementation(() => undefined);
   if (options.activeTurnId !== null) {
     run.setActiveTurn({
       turnId: options.activeTurnId ?? 'turn-authoritative',
       completedAssistantMessageId: options.completedAssistantMessageId ?? null,
+      changeRecord: new TurnChangeRecord(options.activeTurnId ?? 'turn-authoritative', NOOP_LOGGER),
     } as Turn);
   }
   return run;
@@ -447,170 +447,44 @@ describe('createCreateReportTool', () => {
     );
   });
 
-  it('sanitizes IMPLEMENT filesChanged against canonical Run facts and records the service on the chain entry', async () => {
+  it('holds an agent IMPLEMENT summary and decisions on the Turn instead of persisting a report', async () => {
     const proxy = makeCreateReportProxy();
-    vi.mocked(proxy.create).mockResolvedValue({
-      content: makePlatformContent('report-implement'),
-      reportId: 'report-implement',
-    });
-
     const tool = new CreateReportTool(proxy, () => FIXED_NOW);
-    const run = makeRun({
-      fileChangeProjection: [
-        { serviceId: 'service-1', repoRelativePath: 'src/z.ts' },
-        { serviceId: 'service-1', repoRelativePath: 'src/a.ts' },
-      ],
-    });
-
-    await tool.execute({
-      runId: 'run-1',
-      run,
-      args: makeArgs({
-        reportType: 'IMPLEMENT',
-        payload: {
-          reportType: 'IMPLEMENT',
-          summary: 'implemented report validation',
-          filesChanged: ['/tmp/host.ts', 'src/z.ts', 'src/missing.ts', 'src/a.ts'],
-        },
-        entities: [
-          { entityType: 'TASK', entityId: 'task-1', relation: 'PRIMARY' },
-          { entityType: 'SERVICE', entityId: 'service-1', relation: 'CONTEXT' },
-        ],
-      }),
-    });
-
-    expect(proxy.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        args: expect.objectContaining({
-          payload: expect.objectContaining({
-            filesChanged: ['src/a.ts', 'src/z.ts'],
-          }),
-        }),
-      }),
-    );
-    expect(run.logImplementReportValidation).toHaveBeenCalledWith(
-      'local.run.create_report.implement.rejected_files',
-      expect.objectContaining({
-        rejectedFiles: ['/tmp/host.ts', 'src/missing.ts'],
-      }),
-    );
-    const entry = vi.mocked(run.appendReportChainEntry).mock.calls[0]![0] as ReportChainEntry;
-    expect(entry.serviceId).toBe('service-1');
-  });
-
-  it('does not persist an IMPLEMENT report when no requested files match canonical Run facts', async () => {
-    const proxy = makeCreateReportProxy();
-    vi.mocked(proxy.create).mockResolvedValue({
-      content: makePlatformContent('report-implement'),
-      reportId: 'report-implement',
-    });
-
-    const tool = new CreateReportTool(proxy, () => FIXED_NOW);
-    const run = makeRun({
-      fileChangeProjection: [{ serviceId: 'service-1', repoRelativePath: 'src/a.ts' }],
-    });
-
-    const result = await tool.execute({
-      runId: 'run-1',
-      run,
-      args: makeArgs({
-        reportType: 'IMPLEMENT',
-        payload: {
-          reportType: 'IMPLEMENT',
-          summary: 'bad report',
-          filesChanged: ['/tmp/host.ts', 'src/missing.ts'],
-        },
-        entities: [{ entityType: 'SERVICE', entityId: 'service-1', relation: 'CONTEXT' }],
-      }),
-    });
-
-    expect(proxy.create).not.toHaveBeenCalled();
-    expect(run.appendReportChainEntry).not.toHaveBeenCalled();
-    expect(result.content[0]!['text']).toContain('no-canonical-files-after-validation');
-  });
-
-  it('persists one IMPLEMENT report per matching service when service context is omitted', async () => {
-    const proxy = makeCreateReportProxy();
-    vi.mocked(proxy.create)
-      .mockResolvedValueOnce({ content: makePlatformContent('report-a'), reportId: 'report-a' })
-      .mockResolvedValueOnce({ content: makePlatformContent('report-b'), reportId: 'report-b' });
-
-    const tool = new CreateReportTool(proxy, () => FIXED_NOW);
-    const run = makeRun({
-      fileChangeProjection: [
-        { serviceId: 'service-a', repoRelativePath: 'src/shared.ts' },
-        { serviceId: 'service-b', repoRelativePath: 'src/shared.ts' },
-      ],
-    });
-
-    const result = await tool.execute({
-      runId: 'run-1',
-      run,
-      args: makeArgs({
-        reportType: 'IMPLEMENT',
-        payload: {
-          reportType: 'IMPLEMENT',
-          summary: 'multi-service report',
-          filesChanged: ['src/shared.ts'],
-        },
-        entities: [
-          { entityType: 'TASK', entityId: 'task-1', relation: 'PRIMARY' },
-          { entityType: 'AGENT_SESSION', entityId: 'session-1', relation: 'CONTEXT' },
-        ],
-      }),
-    });
-
-    expect(proxy.create).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(proxy.create).mock.calls.map(([call]) => call.args)).toEqual([
-      expect.objectContaining({
-        payload: expect.objectContaining({ filesChanged: ['src/shared.ts'] }),
-        entities: expect.arrayContaining([
-          expect.objectContaining({ entityType: 'TASK', entityId: 'task-1' }),
-          expect.objectContaining({ entityType: 'AGENT_SESSION', entityId: 'session-1' }),
-          expect.objectContaining({ entityType: 'SERVICE', entityId: 'service-a' }),
-        ]),
-      }),
-      expect.objectContaining({
-        payload: expect.objectContaining({ filesChanged: ['src/shared.ts'] }),
-        entities: expect.arrayContaining([
-          expect.objectContaining({ entityType: 'TASK', entityId: 'task-1' }),
-          expect.objectContaining({ entityType: 'AGENT_SESSION', entityId: 'session-1' }),
-          expect.objectContaining({ entityType: 'SERVICE', entityId: 'service-b' }),
-        ]),
-      }),
-    ]);
-    expect(result.content).toEqual([
-      ...makePlatformContent('report-a'),
-      ...makePlatformContent('report-b'),
-    ]);
-    expect(
-      vi.mocked(run.appendReportChainEntry).mock.calls.map(([entry]) => entry.serviceId),
-    ).toEqual(['service-a', 'service-b']);
-  });
-
-  it('fails actionably when explicit Service context has no canonical partition', async () => {
-    const proxy = makeCreateReportProxy();
-    const run = makeRun({
-      fileChangeProjection: [{ serviceId: 'service-a', repoRelativePath: 'src/a.ts' }],
-    });
-
-    await expect(
-      new CreateReportTool(proxy).execute({
+    const run = makeRun({ promptType: 'implement' });
+    const execute = (summary: string) =>
+      tool.execute({
         runId: 'run-1',
         run,
         args: makeArgs({
           reportType: 'IMPLEMENT',
           payload: {
             reportType: 'IMPLEMENT',
-            summary: 'unknown service',
+            summary,
             filesChanged: ['src/a.ts'],
+            edits: [{ path: 'src/a.ts' }],
+            decisions: [
+              {
+                topic: 'Storage',
+                choice: 'Git objects',
+                location: { file: 'src/a.ts', startLine: 3 },
+              },
+            ],
           },
-          entities: [{ entityType: 'SERVICE', entityId: 'service-b', relation: 'CONTEXT' }],
         }),
-      }),
-    ).rejects.toThrow('unknown-service-context');
+      });
+
+    const result = await execute('first summary');
+    await execute('second summary');
+
     expect(proxy.create).not.toHaveBeenCalled();
     expect(run.appendReportChainEntry).not.toHaveBeenCalled();
+    expect(result.content[0]!['text']).toContain('held');
+    expect(run.activeTurn!.changeRecord.heldReport()).toEqual({
+      summary: 'second summary',
+      decisions: [
+        { topic: 'Storage', choice: 'Git objects', location: { file: 'src/a.ts', startLine: 3 } },
+      ],
+    });
   });
 
   it('classifies WORKFLOW_ONLY as internal in the report chain', async () => {

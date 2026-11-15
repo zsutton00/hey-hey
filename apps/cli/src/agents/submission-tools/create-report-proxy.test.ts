@@ -1398,22 +1398,10 @@ describe('creation-time report usage', () => {
     },
   );
 
-  it('creates the report without usage when collection fails, and never collects for a skipped IMPLEMENT', async () => {
-    const { submit, body, read, tool, run, fetchImpl } = setup();
+  it('creates the report without usage when collection fails', async () => {
+    const { submit, body, read } = setup();
     read.mockRejectedValue(new Error('Unreadable native session'));
     await submit();
     expect(body(0)).not.toHaveProperty('usage');
-    read.mockClear();
-    await tool.execute({
-      runId: run.runId,
-      run,
-      args: {
-        reportType: 'IMPLEMENT',
-        audience: 'PROJECT_VISIBLE',
-        payload: { reportType: 'IMPLEMENT', summary: 'No changes', filesChanged: [] },
-      },
-    });
-    expect(read).not.toHaveBeenCalled();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

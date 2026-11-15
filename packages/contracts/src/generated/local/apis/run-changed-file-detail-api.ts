@@ -27,7 +27,13 @@ import type { CliReadRunChangedFileDetailErrorResponseDto } from '../models.js';
 // @ts-ignore
 import type { CliReadRunChangedFileDetailSuccessResponseDto } from '../models.js';
 // @ts-ignore
+import type { CliReadRunRecordedEditErrorResponseDto } from '../models.js';
+// @ts-ignore
+import type { CliReadRunRecordedEditSuccessResponseDto } from '../models.js';
+// @ts-ignore
 import type { LocalRunChangedFileDetailRequest } from '../models.js';
+// @ts-ignore
+import type { LocalRunRecordedEditRequest } from '../models.js';
 /**
  * RunChangedFileDetailApi - axios parameter creator
  * @export
@@ -74,6 +80,46 @@ export const RunChangedFileDetailApiAxiosParamCreator = function (configuration?
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * Returns the same outcome as the remote `run.recorded_edit.read` CLI read when the submitted paired-machine identity identifies this CLI. Only versions retained for this Run in the Service\'s repository are read; the working tree is never read.
+         * @summary Read the stored before and after versions of one recorded edit
+         * @param {string} runId
+         * @param {LocalRunRecordedEditRequest} localRunRecordedEditRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        readLocalRunRecordedEdit: async (runId: string, localRunRecordedEditRequest: LocalRunRecordedEditRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'runId' is not null or undefined
+            assertParamExists('readLocalRunRecordedEdit', 'runId', runId)
+            // verify required parameter 'localRunRecordedEditRequest' is not null or undefined
+            assertParamExists('readLocalRunRecordedEdit', 'localRunRecordedEditRequest', localRunRecordedEditRequest)
+            const localVarPath = `/runs/{runId}/recorded-edits/read`
+                .replace(`{${"runId"}}`, encodeURIComponent(String(runId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(localRunRecordedEditRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -98,6 +144,20 @@ export const RunChangedFileDetailApiFp = function(configuration?: Configuration)
             const localVarOperationServerBasePath = operationServerMap['RunChangedFileDetailApi.readLocalRunChangedFileDetail']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * Returns the same outcome as the remote `run.recorded_edit.read` CLI read when the submitted paired-machine identity identifies this CLI. Only versions retained for this Run in the Service\'s repository are read; the working tree is never read.
+         * @summary Read the stored before and after versions of one recorded edit
+         * @param {string} runId
+         * @param {LocalRunRecordedEditRequest} localRunRecordedEditRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async readLocalRunRecordedEdit(runId: string, localRunRecordedEditRequest: LocalRunRecordedEditRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CliReadRunRecordedEditSuccessResponseDto>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.readLocalRunRecordedEdit(runId, localRunRecordedEditRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['RunChangedFileDetailApi.readLocalRunRecordedEdit']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -118,6 +178,16 @@ export const RunChangedFileDetailApiFactory = function (configuration?: Configur
         readLocalRunChangedFileDetail(requestParameters: RunChangedFileDetailApiReadLocalRunChangedFileDetailRequest, options?: RawAxiosRequestConfig): AxiosPromise<CliReadRunChangedFileDetailSuccessResponseDto> {
             return localVarFp.readLocalRunChangedFileDetail(requestParameters.runId, requestParameters.localRunChangedFileDetailRequest, options).then((request) => request(axios, basePath));
         },
+        /**
+         * Returns the same outcome as the remote `run.recorded_edit.read` CLI read when the submitted paired-machine identity identifies this CLI. Only versions retained for this Run in the Service\'s repository are read; the working tree is never read.
+         * @summary Read the stored before and after versions of one recorded edit
+         * @param {RunChangedFileDetailApiReadLocalRunRecordedEditRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        readLocalRunRecordedEdit(requestParameters: RunChangedFileDetailApiReadLocalRunRecordedEditRequest, options?: RawAxiosRequestConfig): AxiosPromise<CliReadRunRecordedEditSuccessResponseDto> {
+            return localVarFp.readLocalRunRecordedEdit(requestParameters.runId, requestParameters.localRunRecordedEditRequest, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -136,6 +206,16 @@ export interface RunChangedFileDetailApiInterface {
      * @memberof RunChangedFileDetailApiInterface
      */
     readLocalRunChangedFileDetail(requestParameters: RunChangedFileDetailApiReadLocalRunChangedFileDetailRequest, options?: RawAxiosRequestConfig): AxiosPromise<CliReadRunChangedFileDetailSuccessResponseDto>;
+
+    /**
+     * Returns the same outcome as the remote `run.recorded_edit.read` CLI read when the submitted paired-machine identity identifies this CLI. Only versions retained for this Run in the Service\'s repository are read; the working tree is never read.
+     * @summary Read the stored before and after versions of one recorded edit
+     * @param {RunChangedFileDetailApiReadLocalRunRecordedEditRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof RunChangedFileDetailApiInterface
+     */
+    readLocalRunRecordedEdit(requestParameters: RunChangedFileDetailApiReadLocalRunRecordedEditRequest, options?: RawAxiosRequestConfig): AxiosPromise<CliReadRunRecordedEditSuccessResponseDto>;
 
 }
 
@@ -161,6 +241,27 @@ export interface RunChangedFileDetailApiReadLocalRunChangedFileDetailRequest {
 }
 
 /**
+ * Request parameters for readLocalRunRecordedEdit operation in RunChangedFileDetailApi.
+ * @export
+ * @interface RunChangedFileDetailApiReadLocalRunRecordedEditRequest
+ */
+export interface RunChangedFileDetailApiReadLocalRunRecordedEditRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof RunChangedFileDetailApiReadLocalRunRecordedEdit
+     */
+    readonly runId: string
+
+    /**
+     *
+     * @type {LocalRunRecordedEditRequest}
+     * @memberof RunChangedFileDetailApiReadLocalRunRecordedEdit
+     */
+    readonly localRunRecordedEditRequest: LocalRunRecordedEditRequest
+}
+
+/**
  * RunChangedFileDetailApi - object-oriented interface
  * @export
  * @class RunChangedFileDetailApi
@@ -177,5 +278,17 @@ export class RunChangedFileDetailApi extends BaseAPI implements RunChangedFileDe
      */
     public readLocalRunChangedFileDetail(requestParameters: RunChangedFileDetailApiReadLocalRunChangedFileDetailRequest, options?: RawAxiosRequestConfig) {
         return RunChangedFileDetailApiFp(this.configuration).readLocalRunChangedFileDetail(requestParameters.runId, requestParameters.localRunChangedFileDetailRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns the same outcome as the remote `run.recorded_edit.read` CLI read when the submitted paired-machine identity identifies this CLI. Only versions retained for this Run in the Service\'s repository are read; the working tree is never read.
+     * @summary Read the stored before and after versions of one recorded edit
+     * @param {RunChangedFileDetailApiReadLocalRunRecordedEditRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof RunChangedFileDetailApi
+     */
+    public readLocalRunRecordedEdit(requestParameters: RunChangedFileDetailApiReadLocalRunRecordedEditRequest, options?: RawAxiosRequestConfig) {
+        return RunChangedFileDetailApiFp(this.configuration).readLocalRunRecordedEdit(requestParameters.runId, requestParameters.localRunRecordedEditRequest, options).then((request) => request(this.axios, this.basePath));
     }
 }

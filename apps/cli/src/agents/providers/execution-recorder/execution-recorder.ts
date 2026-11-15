@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import type { ServerLogger } from '../../../server/logger';
 import { ObservationStore } from './observation-store';
 import { ContentSnapshot } from './content-snapshot';
-import type { CaptureGap, CaptureIdentity, CaptureRoot, ExecutionObservation } from './observation';
+import type {
+  CaptureGap,
+  CaptureIdentity,
+  CaptureRoot,
+  ContentSnapshotData,
+  ExecutionObservation,
+  SnapshotEntry,
+} from './observation';
 
 const identityKey = (identity: CaptureIdentity): string =>
   JSON.stringify([
@@ -16,12 +23,66 @@ const identityKey = (identity: CaptureIdentity): string =>
     identity.toolName,
   ]);
 
+/** One file a tool changed, with the content hashes seen immediately before and after it ran. */
+export interface CapturedFileChange {
+  serviceId: string;
+  path: string;
+  startedAt: number;
+  /** Null when the file did not exist. */
+  beforeHash: string | null;
+  afterHash: string | null;
+}
+
+const entryKey = (serviceId: string, repoRelativePath: string): string =>
+  `${serviceId}\0${repoRelativePath}`;
+
+/**
+ * Paths whose content both snapshots read cleanly and that differ between them.
+ * A path missing from a whole-root snapshot did not exist; a path with a read
+ * gap in either snapshot is unknown and never reported.
+ */
+const changedBetween = (
+  observation: ExecutionObservation,
+  before: ContentSnapshotData,
+  after: ContentSnapshotData,
+): CapturedFileChange[] => {
+  const scoped = new Set(observation.roots.filter((root) => root.paths).map((r) => r.serviceId));
+  const index = (snapshot: ContentSnapshotData): Map<string, SnapshotEntry> =>
+    new Map(snapshot.entries.map((entry) => [entryKey(entry.serviceId, entry.path), entry]));
+  const beforeEntries = index(before);
+  const afterEntries = index(after);
+  const failedRoots = new Set([...before.rootFailures, ...after.rootFailures]);
+  const changes: CapturedFileChange[] = [];
+  for (const key of new Set([...beforeEntries.keys(), ...afterEntries.keys()])) {
+    const earlier = beforeEntries.get(key);
+    const later = afterEntries.get(key);
+    const serviceId = (earlier ?? later)!.serviceId;
+    const repoRelativePath = (earlier ?? later)!.path;
+    if (failedRoots.has(serviceId) || earlier?.gap || later?.gap) continue;
+    // A scoped snapshot names every path it read, so a missing entry is not "absent".
+    if (scoped.has(serviceId) && (!earlier || !later)) continue;
+    const beforeHash = earlier?.hash ?? null;
+    const afterHash = later?.hash ?? null;
+    if (beforeHash === afterHash) continue;
+    changes.push({
+      serviceId,
+      path: repoRelativePath,
+      startedAt: observation.startedAt,
+      beforeHash,
+      afterHash,
+    });
+  }
+  return changes;
+};
+
 /** Owns execution evidence only. It has no canonical file-change writer or membership dependency. */
 export class ExecutionRecorder {
   public readonly store: ObservationStore;
   private readonly snapshot: ContentSnapshot;
   private readonly pending = new Map<string, ExecutionObservation>();
   private readonly mutations = new Map<string, Promise<void>>();
+  /** Files each finished tool changed, per `runId:turnId`, until the Turn's report has read them. */
+  private readonly capturedChanges = new Map<string, CapturedFileChange[]>();
 
   public constructor(
     directory: string,
@@ -169,6 +230,7 @@ export class ExecutionRecorder {
       await this.store.save(observation);
       await this.store.recordOverlaps(observation);
       this.pending.delete(key);
+      this.rememberChanges(observation);
       this.logger.debug('execution_capture.finalized', {
         ...identity,
         observationId: observation.id,
@@ -176,6 +238,39 @@ export class ExecutionRecorder {
         gaps: observation.gaps,
       });
     });
+  }
+
+  private rememberChanges(observation: ExecutionObservation): void {
+    if (observation.outcome !== 'success' || !observation.before || !observation.after) return;
+    const changes = changedBetween(observation, observation.before, observation.after);
+    if (changes.length === 0) return;
+    const turnKey = `${observation.identity.runId}:${observation.identity.turnId}`;
+    this.capturedChanges.set(turnKey, [...(this.capturedChanges.get(turnKey) ?? []), ...changes]);
+  }
+
+  /** What tools in this Turn changed in one file, in the order they started. */
+  public capturedFileChanges(
+    runId: string,
+    turnId: string,
+    serviceId: string,
+    repoRelativePath: string,
+  ): CapturedFileChange[] {
+    return (this.capturedChanges.get(`${runId}:${turnId}`) ?? [])
+      .filter((change) => change.serviceId === serviceId && change.path === repoRelativePath)
+      .sort((left, right) => left.startedAt - right.startedAt);
+  }
+
+  public readCapturedContent(hash: string): Promise<Buffer> {
+    return this.store.readBlob(hash);
+  }
+
+  /** Drops a finished Run's captured changes; its reports have been written. */
+  public releaseRun(runId: string): void {
+    for (const key of [...this.capturedChanges.keys()]) {
+      if (key.startsWith(`${runId}:`)) {
+        this.capturedChanges.delete(key);
+      }
+    }
   }
 
   public async interrupt(runId: string, turnId: string): Promise<void> {

@@ -164,6 +164,7 @@ const journey = (
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     },
     read() {
       return Promise.resolve({ ...this.saved });
@@ -467,6 +468,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +On +Enter to turn off/u);
 
@@ -476,6 +478,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     expect(j.frame()).toMatch(/Intent-first \(experimental\) +Off/u);
 
@@ -485,6 +488,7 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     expect(j.frame()).toMatch(/Remote tool-call viewing +Off +Enter to turn on/u);
 
@@ -493,11 +497,17 @@ describe('terminal journeys (real sources, owner and Ink)', () => {
     expect(j.frame()).toMatch(/Hey Hey context reminder +On +Enter to turn off/u);
 
     await j.press(KEY.down, KEY.enter);
+    expect(j.optionsStore.saved.preciseFileChangeTracking).toBe(true);
+    expect(j.frame()).toMatch(/Precise file change tracking +On +Enter to turn off/u);
+    expect(j.frame()).toContain('Applies to sessions started afterward');
+
+    await j.press(KEY.down, KEY.enter);
     expect(j.optionsStore.saved).toEqual({
       intentFirst: false,
       remoteToolCallViewing: false,
       jevEnabled: false,
       heyHeyContextReminder: true,
+      preciseFileChangeTracking: true,
     });
     expect(j.frame()).toMatch(/Jev +Off +Enter to turn on/u);
 

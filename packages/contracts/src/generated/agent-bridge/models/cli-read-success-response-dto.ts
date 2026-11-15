@@ -34,6 +34,9 @@ import type { CliReadRunChangedFilesInventorySuccessResponseDto } from './cli-re
 import type { CliReadRunContextUsageGetSuccessResponseDto } from './cli-read-run-context-usage-get-success-response-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadRunRecordedEditSuccessResponseDto } from './cli-read-run-recorded-edit-success-response-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadRunSkillsListSuccessResponseDto } from './cli-read-run-skills-list-success-response-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -52,6 +55,6 @@ import type { CliReadWorkspaceSkillsListSuccessResponseDto } from './cli-read-wo
  * @type CliReadSuccessResponseDto
  * @export
  */
-export type CliReadSuccessResponseDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListSuccessResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetSuccessResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountSuccessResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailSuccessResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventorySuccessResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetSuccessResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListSuccessResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnSuccessResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetSuccessResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListSuccessResponseDto;
+export type CliReadSuccessResponseDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListSuccessResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetSuccessResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountSuccessResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailSuccessResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventorySuccessResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetSuccessResponseDto | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditSuccessResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListSuccessResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnSuccessResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetSuccessResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListSuccessResponseDto;
 
-export const CliReadSuccessResponseDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","workspace.skills.list","project.session_costs.list","provider.usage.get","runtime.model_catalog.get"] as const;
+export const CliReadSuccessResponseDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.recorded_edit.read","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","workspace.skills.list","project.session_costs.list","provider.usage.get","runtime.model_catalog.get"] as const;

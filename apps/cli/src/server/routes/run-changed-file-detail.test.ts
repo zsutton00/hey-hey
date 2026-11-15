@@ -19,6 +19,18 @@ const file = {
   filePath: 'src/example.ts',
 };
 
+const recordedEdit = {
+  path: 'src/example.ts',
+  turnId: 'turn-1',
+  occurredAt: '2026-11-13T12:00:00Z',
+  beforeObjectId: 'a'.repeat(40),
+  afterObjectId: 'b'.repeat(40),
+  beforeRanges: [{ startLine: 1, endLine: 2 }],
+  afterRanges: [{ startLine: 1, endLine: 3 }],
+  approximate: false,
+  versionsRecorded: true,
+};
+
 const OTHER_SERVICE_ID = '66666666-6666-4666-8666-666666666666';
 const inventory = [
   { ...file, status: 'modify' as const },
@@ -95,6 +107,17 @@ describe('createRunChangedFileDetailRouter', () => {
     const getLiveRunChangedFilesInventory = vi.fn(() =>
       options.inventoryError ? Promise.reject(options.inventoryError) : Promise.resolve(inventory),
     );
+    const getRecordedEdit = vi.fn(() =>
+      Promise.resolve({
+        serviceId: SERVICE_ID,
+        repoPath: '/workspace/service',
+        filePath: recordedEdit.path,
+        status: 'modify' as const,
+        diff: '',
+        preContent: 'stored before',
+        postContent: 'stored after',
+      }),
+    );
     const loadCurrentMachineId = vi.fn(() =>
       Promise.resolve(options.machineId === undefined ? MACHINE_ID : options.machineId),
     );
@@ -106,7 +129,11 @@ describe('createRunChangedFileDetailRouter', () => {
         allowedOrigins: [ALLOWED_ORIGIN],
         keyPairStore: { loadCurrentMachineId },
         restoreCoordinator: { restore },
-        runChangedFilesReader: { getLiveRunChangedFileDetail, getLiveRunChangedFilesInventory },
+        runChangedFilesReader: {
+          getLiveRunChangedFileDetail,
+          getLiveRunChangedFilesInventory,
+          getRecordedEdit,
+        },
         logger: NOOP_LOGGER,
       }),
     );
@@ -121,6 +148,7 @@ describe('createRunChangedFileDetailRouter', () => {
       restore,
       getLiveRunChangedFileDetail,
       getLiveRunChangedFilesInventory,
+      getRecordedEdit,
       loadCurrentMachineId,
       run,
       projection,
@@ -282,6 +310,63 @@ describe('createRunChangedFileDetailRouter', () => {
     expect(response.status).toBe(500);
     expect(payload.error?.code).toBe(CliReadErrorCode.ReadFailed);
     expect(payload).not.toHaveProperty('result');
+  });
+
+  describe('recorded edit read', () => {
+    const postRecordedEdit = (
+      baseUrl: string,
+      body: unknown = { machineId: MACHINE_ID, serviceId: SERVICE_ID, edit: recordedEdit },
+    ) =>
+      fetch(`${baseUrl}/api/local/runs/${RUN_ID}/recorded-edits/read`, {
+        method: 'POST',
+        headers: { origin: ALLOWED_ORIGIN, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('returns the stored versions for the restored Run on a matched machine', async () => {
+      const harness = await createHarness();
+      const response = await postRecordedEdit(harness.baseUrl);
+      const payload = await readPayload(response);
+
+      expect(response.status).toBe(200);
+      expect(payload).toMatchObject({
+        operation: 'run.recorded_edit.read',
+        status: 'success',
+        result: {
+          runId: RUN_ID,
+          file: { preContent: 'stored before', postContent: 'stored after' },
+        },
+      });
+      expect(harness.getRecordedEdit).toHaveBeenCalledWith(
+        harness.run.session,
+        harness.projection,
+        RUN_ID,
+        SERVICE_ID,
+        recordedEdit,
+      );
+    });
+
+    it('rejects another machine before restoring the Run', async () => {
+      const harness = await createHarness({ machineId: 'machine-2' });
+      const response = await postRecordedEdit(harness.baseUrl);
+
+      expect(response.ok).toBe(false);
+      expect(harness.restore).not.toHaveBeenCalled();
+      expect(harness.getRecordedEdit).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed edit before restoring the Run', async () => {
+      const harness = await createHarness();
+      const response = await postRecordedEdit(harness.baseUrl, {
+        machineId: MACHINE_ID,
+        serviceId: SERVICE_ID,
+        edit: { ...recordedEdit, beforeRanges: 'all' },
+      });
+
+      expect(response.status).toBe(400);
+      expect((await readPayload(response)).error?.code).toBe(CliReadErrorCode.InvalidRequest);
+      expect(harness.restore).not.toHaveBeenCalled();
+    });
   });
 
   describe('changed-file inventory', () => {

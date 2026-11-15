@@ -178,6 +178,7 @@ describe("deployment login", () => {
     );
     expect(completed).toBe(true);
     expect(screen.queryByLabelText(/email|password/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
     expect(screen.queryByText(session.user.email)).not.toBeInTheDocument();
   });
 

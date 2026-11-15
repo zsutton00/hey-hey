@@ -1,3 +1,4 @@
+import { recordedEditSchema } from './recorded-edit-schema';
 /**
  * Zod schemas mirroring the generated trigger-frame and signed-envelope types.
  * Used at the upstream websocket boundary to reject unknown fields and
@@ -259,6 +260,17 @@ const cliReadRunChangedFileDetailBodySchema = z
   })
   .strict();
 
+const cliReadRunRecordedEditBodySchema = z
+  .object({
+    requestId: z.string().uuid(),
+    agentSessionId: z.string().uuid().optional(),
+    operation: z.literal('run.recorded_edit.read'),
+    runId: z.string().uuid(),
+    serviceId: z.string().uuid(),
+    edit: recordedEditSchema,
+  })
+  .strict();
+
 const cliReadRunContextUsageGetBodySchema = z
   .object({
     requestId: z.string().uuid(),
@@ -287,6 +299,7 @@ const cliReadBodySchema = z.discriminatedUnion('operation', [
   cliReadRunChangedFilesCountBodySchema,
   cliReadRunChangedFilesInventoryBodySchema,
   cliReadRunChangedFileDetailBodySchema,
+  cliReadRunRecordedEditBodySchema,
   cliReadRunContextUsageGetBodySchema,
   cliReadProjectSessionCostsListBodySchema,
 ]);

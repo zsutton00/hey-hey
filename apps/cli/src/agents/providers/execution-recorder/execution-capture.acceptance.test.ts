@@ -85,6 +85,7 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
       session_id: `${runId}-provider`,
       tool_use_id: `${runId}-call`,
       tool_name: toolName,
+      ...(tool === 'Edit' ? { tool_input: { file_path: path.join(root, 'dirty.txt') } } : {}),
       ...(provider === 'codex' ? { turn_id: `${runId}-native-turn` } : {}),
     };
     if (adapter instanceof CodexExecutionCaptureHooks) {
@@ -158,14 +159,17 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
     await runHook(launch, event);
     await fs.writeFile(path.join(root, 'dirty.txt'), 'direct edit');
     await runHook(launch, { ...event, hook_event_name: 'PostToolUse' });
-    expect((await recorder.store.read())[0]!.state).toBe('completed');
+    const observation = (await recorder.store.read())[0]!;
+    expect(observation.state).toBe('completed');
+    // An edit tool reads only the file it names, not the rest of the repository.
+    expect(observation.before!.entries.map((entry) => entry.path)).toEqual(['dirty.txt']);
     expect(await fs.readFile(path.join(root, '.git', 'index'))).toEqual(indexBefore);
     expect(await fs.readdir(directory)).toEqual(expect.arrayContaining(['repo', 'evidence']));
     expect(await fs.readdir(path.join(directory, 'evidence'))).not.toContain('runs');
   });
 
   it('prunes ignored caches and applies nested, anchored and negated .gitignore rules', async () => {
-    const { recorder, launch, event } = await setup('Edit');
+    const { recorder, launch, event } = await setup('Bash');
     await fs.writeFile(path.join(root, '.gitignore'), 'cache/\n*.generated\n/root-only.txt\n');
     await fs.mkdir(path.join(root, 'cache'));
     await fs.writeFile(path.join(root, 'cache', '.gitignore'), '!keep.txt\n');
@@ -287,7 +291,7 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
   });
 
   it('does not follow symlinks out of the selected root', async () => {
-    const { recorder, launch, event } = await setup('Edit');
+    const { recorder, launch, event } = await setup('Bash');
     await fs.writeFile(path.join(directory, 'outside'), 'outside contents');
     await fs.symlink(path.join(directory, 'outside'), path.join(root, 'escape'));
     await runHook(launch, event);

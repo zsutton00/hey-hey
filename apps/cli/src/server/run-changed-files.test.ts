@@ -331,3 +331,74 @@ describe('getLiveRunChangedFileDetail', () => {
     ).rejects.toMatchObject({ code: 'INVALID_FILE_MEMBERSHIP' });
   });
 });
+
+describe('recorded change history', () => {
+  it('reads retained versions after overwrite, commit and git cleanup, without using current dirty state', async () => {
+    const { anchorBlobs, writeBlob } = await import('../git/object-store');
+    const repoPath = await initializeRepo();
+    const beforeObjectId = await writeBlob(repoPath, 'historical before\n');
+    const afterObjectId = await writeBlob(repoPath, 'historical after\n');
+    await anchorBlobs(repoPath, 'history-run', 'record', [beforeObjectId, afterObjectId]);
+    await writeFile(path.join(repoPath, 'foo.ts'), 'later content\n');
+    await execFileAsync('git', ['add', 'foo.ts'], { cwd: repoPath });
+    await execFileAsync('git', ['commit', '-m', 'later'], { cwd: repoPath });
+    await execFileAsync('git', ['gc', '--prune=now'], { cwd: repoPath });
+    const reader = new RunChangedFilesReader(repoStore);
+    const run = createRun('history-run', repoPath);
+    const membership = [{ serviceId: 'service-a', repoRelativePath: 'foo.ts' }];
+    const edit = {
+      path: 'foo.ts',
+      turnId: 'turn-1',
+      occurredAt: '2026-11-13T12:00:00Z',
+      beforeObjectId,
+      afterObjectId,
+      beforeRanges: [{ startLine: 1, endLine: 1 }],
+      afterRanges: [{ startLine: 1, endLine: 1 }],
+      approximate: true,
+      versionsRecorded: true,
+    };
+    expect(
+      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', edit),
+    ).toMatchObject({
+      serviceId: 'service-a',
+      repoPath,
+      filePath: 'foo.ts',
+      preContent: 'historical before\n',
+      postContent: 'historical after\n',
+    });
+    // The Service must resolve to this Run's repository.
+    await expect(
+      reader.getRecordedEdit(run, membership, 'history-run', 'service-b', edit),
+    ).rejects.toMatchObject({ code: 'REPOSITORY_NOT_FOUND' });
+    // Versions retained for the Run stay readable after its local file-change records are gone.
+    expect(await reader.getRecordedEdit(run, [], 'history-run', 'service-a', edit)).toMatchObject({
+      preContent: 'historical before\n',
+      postContent: 'historical after\n',
+    });
+    const unrelated = await writeBlob(repoPath, 'not captured by this Run\n');
+    await expect(
+      reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+        ...edit,
+        afterObjectId: unrelated,
+      }),
+    ).rejects.toMatchObject({ code: 'GIT_READ_FAILED' });
+    await expect(
+      reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+        ...edit,
+        versionsRecorded: false,
+      }),
+    ).rejects.toMatchObject({ code: 'GIT_READ_FAILED' });
+    expect(
+      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+        ...edit,
+        beforeObjectId: null,
+      }),
+    ).toMatchObject({ status: 'create', preContent: null });
+    expect(
+      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+        ...edit,
+        afterObjectId: null,
+      }),
+    ).toMatchObject({ status: 'delete', postContent: null });
+  });
+});

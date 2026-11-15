@@ -1,3 +1,6 @@
+import { Link as RouterLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Button as ChangesLinkButton } from "@mui/material";
 import { WebPathService } from "@hey-hey/ui-common";
 import { TaskMonitorActivityTab } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
@@ -49,6 +52,7 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
   projectId,
   userId,
 }) => {
+  const { t } = useTranslation();
   const { workItemTypes, isReady, error } = useWorkItemTypes(organizationId, {
     projectId,
   });
@@ -83,6 +87,13 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
 
   return (
     <Box data-testid="project-agents-tab" sx={{ mt: 2 }}>
+      <ChangesLinkButton
+        component={RouterLink}
+        to={WebPathService.projectChanges(projectId)}
+        data-testid="open-changes"
+      >
+        {t("changes.title")}
+      </ChangesLinkButton>
       <Box sx={{ mb: 3, maxWidth: "100%", minWidth: 0 }}>
         <SegmentedToggle
           segments={segments}

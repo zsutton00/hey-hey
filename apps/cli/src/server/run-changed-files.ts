@@ -1,3 +1,5 @@
+import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import { readRecordedEdit } from './recorded-edit-reader';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -274,6 +276,26 @@ export class RunChangedFilesReader {
     private readonly repoStore: RepoMappingStore,
     private readonly logger: ServerLogger = NOOP_LOGGER,
   ) {}
+
+  public async getRecordedEdit(
+    run: AgenticSession,
+    fileChanges: readonly FileChangeProjection[],
+    runId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadChangedFileDetail> {
+    // The Run's anchor ref is the authority for which versions may be read. The local
+    // file-change projection can be gone for older Runs while the retained objects remain.
+    this.logger.debug('local.run_changed_files.recorded_edit_read', {
+      runId,
+      serviceId,
+      knownToProjection: fileChanges.some(
+        (entry) => entry.serviceId === serviceId && entry.repoRelativePath === edit.path,
+      ),
+    });
+    const { repoPath } = await resolveRepoPathForService(run, this.repoStore, serviceId);
+    return readRecordedEdit(repoPath, runId, serviceId, edit);
+  }
 
   public async getLiveRunChangedFilesInventory(
     run: AgenticSession,

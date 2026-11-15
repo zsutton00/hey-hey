@@ -219,4 +219,24 @@ describe("Login", () => {
       await screen.findByTestId("password-recovery-acknowledgement")
     ).toHaveTextContent("We've sent an email with recovery instructions");
   });
+
+  it("separates the password and passkey actions only when passkeys are supported", () => {
+    vi.stubGlobal("PublicKeyCredential", class {});
+    vi.stubGlobal("navigator", { credentials: { get: vi.fn() } });
+    const { unmount } = renderLogin("/login");
+
+    expect(screen.getByRole("separator", { name: "or" })).toBeInTheDocument();
+    expect(screen.getByTestId("passkey-sign-in-button")).toBeInTheDocument();
+    unmount();
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal("PublicKeyCredential", undefined);
+    renderLogin("/login");
+
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("passkey-sign-in-button")
+    ).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
 });

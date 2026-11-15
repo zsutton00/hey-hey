@@ -13,6 +13,8 @@ const persistedMachineOptionsSchema = z
     // Files written before this option existed lack the field; they read as enabled.
     remoteToolCallViewing: z.boolean().default(true),
     heyHeyContextReminder: z.boolean().default(false),
+    // Files written before this option existed lack the field; they read as off.
+    preciseFileChangeTracking: z.boolean().default(false),
     jevEnabled: z.boolean().optional(),
     // The name this option was saved under while it only gated the parent feature filter.
     jevParentFeatureFilter: z.boolean().optional(),
@@ -23,6 +25,7 @@ export interface MachineOptions {
   intentFirst: boolean;
   remoteToolCallViewing: boolean;
   heyHeyContextReminder: boolean;
+  preciseFileChangeTracking: boolean;
   jevEnabled: boolean;
 }
 
@@ -30,6 +33,7 @@ const DEFAULT_MACHINE_OPTIONS: MachineOptions = {
   intentFirst: false,
   remoteToolCallViewing: true,
   heyHeyContextReminder: false,
+  preciseFileChangeTracking: false,
   jevEnabled: true,
 };
 
@@ -58,6 +62,7 @@ export class MachineOptionsStore {
       intentFirst: parsed.intentFirst,
       remoteToolCallViewing: parsed.remoteToolCallViewing,
       heyHeyContextReminder: parsed.heyHeyContextReminder,
+      preciseFileChangeTracking: parsed.preciseFileChangeTracking,
       jevEnabled: parsed.jevEnabled ?? parsed.jevParentFeatureFilter ?? true,
     };
   }
@@ -96,5 +101,10 @@ export class MachineOptionsStore {
   /** Read for every turn so an Options change applies without restarting the CLI. */
   public async isHeyHeyContextReminderEnabled(): Promise<boolean> {
     return (await this.read()).heyHeyContextReminder;
+  }
+
+  /** Read when a Run's provider runner is created, so a change applies to sessions started afterward. */
+  public async isPreciseFileChangeTrackingEnabled(): Promise<boolean> {
+    return (await this.read()).preciseFileChangeTracking;
   }
 }

@@ -14,6 +14,8 @@ export interface OptionsSnapshot {
   /** Null until the saved per-turn reminder choice has been read. */
   readonly heyHeyContextReminder: boolean | null;
   /** Null until the saved choice has been read. */
+  readonly preciseFileChangeTracking: boolean | null;
+  /** Null until the saved choice has been read. */
   readonly jevEnabled: boolean | null;
   /** Whether the user's environment defines a Jev key; the saved choice is kept either way. */
   readonly jevKeyDefined: boolean;
@@ -61,6 +63,10 @@ export class OptionsSource {
     await this.save({ heyHeyContextReminder });
   }
 
+  public async setPreciseFileChangeTracking(preciseFileChangeTracking: boolean): Promise<void> {
+    await this.save({ preciseFileChangeTracking });
+  }
+
   public async setJevEnabled(jevEnabled: boolean): Promise<void> {
     await this.save({ jevEnabled });
   }
@@ -92,6 +98,7 @@ export class OptionsSource {
       intentFirst: this.options?.intentFirst ?? null,
       remoteToolCallViewing: this.options?.remoteToolCallViewing ?? null,
       heyHeyContextReminder: this.options?.heyHeyContextReminder ?? null,
+      preciseFileChangeTracking: this.options?.preciseFileChangeTracking ?? null,
       jevEnabled: this.options?.jevEnabled ?? null,
       jevKeyDefined: this.jevKeyDefined,
     });

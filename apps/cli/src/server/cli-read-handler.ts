@@ -1,3 +1,4 @@
+import { RecordedEditTooLargeError } from './recorded-edit-reader';
 import { hashControllerAction } from '../shared/api/generated/controller-action-contract';
 import type { HostActionPreparation } from '@hey-hey/contracts/api/models';
 import { createHash } from 'node:crypto';
@@ -11,6 +12,8 @@ import {
   type CliReadProviderUsageGetErrorResponseDto,
   type CliReadProviderUsageGetSuccessResponseDto,
   type CliReadResponseDto,
+  type CliReadRunRecordedEditSuccessResponseDto,
+  type CliReadRunRecordedEditErrorResponseDto,
   type CliReadRunChangedFilesCountErrorResponseDto,
   type CliReadRunChangedFilesCountSuccessResponseDto,
   type CliReadRunChangedFileDetailErrorResponseDto,
@@ -275,11 +278,14 @@ export class CliReadHandler {
           resolvedError instanceof RunReadPreparationError ||
           body.operation === 'run.changed_files.count' ||
           body.operation === 'run.changed_files.inventory' ||
-          body.operation === 'run.changed_files.detail'
+          body.operation === 'run.changed_files.detail' ||
+          body.operation === 'run.recorded_edit.read'
             ? safeChangedFilesErrorName(resolvedError)
             : error instanceof Error
               ? error.message
               : String(error),
+        // Recorded-edit messages carry only ids, paths and git error text, never file content.
+        ...(body.operation === 'run.recorded_edit.read' ? { reason: resolvedError.message } : {}),
       });
       return this.toErrorResponse(verification.verified, resolvedError);
     }
@@ -291,6 +297,8 @@ export class CliReadHandler {
         return this.readChangedFilesCount(verified);
       case 'run.changed_files.inventory':
         return this.readChangedFilesInventory(verified);
+      case 'run.recorded_edit.read':
+        return this.readRecordedEdit(verified);
       case 'run.changed_files.detail':
         return this.readChangedFileDetail(verified);
       case 'project.session_costs.list':
@@ -348,6 +356,43 @@ export class CliReadHandler {
       operation: 'run.changed_files.inventory',
       status: 'success',
       result: { runId: body.runId, entries },
+    };
+  }
+
+  private async readRecordedEdit(
+    verified: VerifiedCliReadFrame,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto> {
+    if (verified.body.operation !== 'run.recorded_edit.read') {
+      throw new Error('Expected a recorded edit read');
+    }
+    const { body, frame } = verified;
+    const run = await this.fileContextReader.read(body.runId);
+    if (
+      body.agentSessionId !== body.runId ||
+      run.runId !== body.runId ||
+      run.organizationId !== frame.organizationId ||
+      run.projectId !== frame.projectId ||
+      run.conversationId !== frame.conversationId
+    ) {
+      throw new RunReadPreparationError(
+        'INVALID_RUN_CONTEXT',
+        'The signed context does not match this Run.',
+      );
+    }
+    const file = this.assertBoundedDetail(
+      await this.dependencies.runChangedFilesReader.getRecordedEdit(
+        run.session,
+        run.getFileChangeProjection(),
+        body.runId,
+        body.serviceId,
+        body.edit,
+      ),
+    );
+    return {
+      requestId: body.requestId,
+      operation: 'run.recorded_edit.read',
+      status: 'success',
+      result: { runId: body.runId, file },
     };
   }
 
@@ -908,6 +953,7 @@ export class CliReadHandler {
     | CliReadRunChangedFilesCountErrorResponseDto
     | CliReadRunChangedFilesInventoryErrorResponseDto
     | CliReadRunChangedFileDetailErrorResponseDto
+    | CliReadRunRecordedEditErrorResponseDto
     | CliReadProjectSessionCostsListErrorResponseDto
     | CliReadProviderUsageGetErrorResponseDto
     | CliReadRuntimeModelCatalogGetErrorResponseDto
@@ -957,6 +1003,14 @@ export class CliReadHandler {
         error: { code, message },
       };
     }
+    if (verified.body.operation === 'run.recorded_edit.read') {
+      return {
+        requestId: verified.body.requestId,
+        operation: 'run.recorded_edit.read',
+        status: 'error',
+        error: { code, message },
+      };
+    }
     if (verified.body.operation === 'run.changed_files.detail') {
       return {
         requestId: verified.body.requestId,
@@ -1000,7 +1054,10 @@ export class CliReadHandler {
   private resolveErrorCode(error: Error): CliReadErrorCode {
     if (error instanceof RunReadPreparationError) return error.code;
     if (error instanceof ProjectSessionCostsRequestError) return error.code;
-    if (error instanceof ChangedFilesReadBoundsError) {
+    if (
+      error instanceof ChangedFilesReadBoundsError ||
+      error instanceof RecordedEditTooLargeError
+    ) {
       return CliReadErrorCode.ResultTooLarge;
     }
     if (
