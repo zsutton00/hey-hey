@@ -108,6 +108,8 @@ export const getWorkItemTypePluralDisplayName = (
       return "Goals";
     case WORK_ITEM_TYPE_KEYS.Contract:
       return "Contracts";
+    case WORK_ITEM_TYPE_KEYS.Eval:
+      return name === "Eval" ? "Evals" : name;
     default:
       return name;
   }
