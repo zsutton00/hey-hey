@@ -124,6 +124,21 @@ export const attachWorktree = async (options: AttachWorktreeOptions): Promise<Wo
   };
 };
 
+// Puts an already-registered worktree back on `branch`. `git switch` refuses to
+// overwrite uncommitted changes, so a dirty worktree surfaces git's own error
+// instead of losing work.
+export const switchWorktreeToBranch = async (
+  options: AttachWorktreeOptions,
+): Promise<WorktreeInfo> => {
+  await execGit(['switch', options.branch], options.worktreePath);
+
+  return {
+    worktreePath: options.worktreePath,
+    branch: options.branch,
+    repoPath: options.repoPath,
+  };
+};
+
 const removeWorktree = async (options: RemoveWorktreeOptions): Promise<void> => {
   const args = ['worktree', 'remove', options.worktreePath];
   if (options.force) {

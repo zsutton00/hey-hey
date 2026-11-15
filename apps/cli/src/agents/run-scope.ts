@@ -17,6 +17,7 @@ import {
   attachWorktree,
   createWorktree,
   getBranchWorktreeState,
+  switchWorktreeToBranch,
   toBranchSafeName,
   type BranchWorktreeState,
   type WorktreeInfo,
@@ -405,6 +406,29 @@ const resolveWorktreeForService = async (
       worktreePath: checkedOutWorktree.worktreePath,
       branch,
     };
+  }
+
+  // The session's own worktree can be left on another branch (for example a
+  // release branch cut inside it). Adding a second worktree at the same path
+  // would fail, so put the registered one back on the session's branch.
+  const driftedWorktree = branchState.worktrees.find((entry) =>
+    areSamePath(entry.worktreePath, worktreePath),
+  );
+  if (driftedWorktree && branchState.branchExists) {
+    logWarn(logger, 'local.run_scope.worktree.service.branch_drift_detected', {
+      ...baseFields,
+      currentBranch: driftedWorktree.branch,
+    });
+    const restored = await switchWorktreeToBranch({
+      repoPath: repositoryPath,
+      worktreePath,
+      branch,
+    });
+    logDebug(logger, 'local.run_scope.worktree.service.branch_drift_restored', {
+      ...baseFields,
+      worktreePath: restored.worktreePath,
+    });
+    return restored;
   }
 
   if (branchState.branchExists) {
