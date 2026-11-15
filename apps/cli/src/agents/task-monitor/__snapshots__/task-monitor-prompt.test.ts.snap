@@ -68,6 +68,12 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "title": "Implement release checks",
     "type": "STANDARD",
     "status": "IN_PROGRESS",
+    "typeStatuses": [
+      {
+        "name": "IN_PROGRESS",
+        "meaning": "IN_PROGRESS"
+      }
+    ],
     "sections": [
       {
         "key": "description",
@@ -252,6 +258,12 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "title": "Implement release checks",
     "type": "STANDARD",
     "status": "IN_PROGRESS",
+    "typeStatuses": [
+      {
+        "name": "IN_PROGRESS",
+        "meaning": "IN_PROGRESS"
+      }
+    ],
     "sections": [
       {
         "key": "description",

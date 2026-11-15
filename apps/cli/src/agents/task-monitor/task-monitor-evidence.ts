@@ -17,6 +17,7 @@ import type {
 import { TaskMonitorPlanContext } from '../../server/task-monitor-plan-context';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { TaskMonitorCoordinationLocalState } from './task-monitor-coordination';
+import { workItemTypeStatusesEnvelopeSchema, type TaskTypeStatus } from './task-finished-status';
 
 const sectionSchema = z.object({
   key: z.string(),
@@ -149,6 +150,8 @@ export interface TaskMonitorSelectedTaskEvidence {
   title: string;
   type: string;
   status: string;
+  /** The selected task type's own statuses, used to judge whether `status` means delivered. */
+  typeStatuses: ReadonlyArray<TaskTypeStatus>;
   sections: ReadonlyArray<{ key: string; materializedMarkdown: string }>;
   featureHierarchy: ReadonlyArray<TaskMonitorFeatureEvidence>;
   contracts: ReadonlyArray<TaskMonitorContractEvidence>;
@@ -401,6 +404,13 @@ export const loadTaskMonitorCanonicalEvidence = async (
       input.projectId,
     );
   }
+  const selectedTypeEnvelope = await readValidated(
+    deps,
+    `${projectBase}/work-item-types/${encode(selectedTask.type)}`,
+    'Selected Task type read',
+    workItemTypeStatusesEnvelopeSchema,
+    input.accessToken,
+  );
   const session = currentNode.agentSessionId
     ? (
         await readValidated(
@@ -411,14 +421,16 @@ export const loadTaskMonitorCanonicalEvidence = async (
           input.accessToken,
         )
       ).data
-      : null;
+    : null;
   if (
     session &&
     (session.id !== currentNode.agentSessionId ||
       session.organizationId !== input.organizationId ||
       session.projectId !== input.projectId)
   ) {
-    throw new Error('Selected Agent Session identity or ownership did not match the execution plan.');
+    throw new Error(
+      'Selected Agent Session identity or ownership did not match the execution plan.',
+    );
   }
   const serviceIds = session ? [...new Set(session.serviceIds ?? [])] : [];
   const selectedSession = (() => {
@@ -526,6 +538,7 @@ export const loadTaskMonitorCanonicalEvidence = async (
       title: selectedTask.name,
       type: selectedTask.type,
       status: selectedTask.status,
+      typeStatuses: selectedTypeEnvelope.data.definition.statuses,
       sections: selectedTask.sections ?? [],
       featureHierarchy,
       contracts,

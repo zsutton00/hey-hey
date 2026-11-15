@@ -71,6 +71,7 @@ const evidence: TaskMonitorCanonicalEvidence = {
     title: 'Implement release checks',
     type: 'STANDARD',
     status: 'IN_PROGRESS',
+    typeStatuses: [{ name: 'IN_PROGRESS', meaning: 'IN_PROGRESS' }],
     sections: [
       { key: 'description', materializedMarkdown: 'Implement the release checks.' },
       { key: 'acceptanceCriteria', materializedMarkdown: 'Focused checks pass.' },

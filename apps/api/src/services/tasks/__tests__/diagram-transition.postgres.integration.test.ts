@@ -20,7 +20,8 @@ describeDatabase('Diagram transition traversal SQL', () => {
       'utf8',
     );
     const [definition, updates] = statements.split('$function$;');
-    if (!definition || !updates) throw new Error('Migration SQL structure changed');
+    if (!definition || !updates)
+      throw new Error('Migration SQL structure changed');
     const original: WorkItemTypeGraphCapability = {
       nodeChildType: 'workflow_step',
       layout: {

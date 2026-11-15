@@ -122,7 +122,7 @@ const EXERCISED_AXES = [
   "sections",
   "requiredScalars",
   "forbiddenScalars",
-  "allowedStatuses",
+  "statuses",
   "agentSettableStatuses",
   "allowedParentTypes",
   "allowedParentEntityTypes",

@@ -122,7 +122,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -257,7 +256,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -386,7 +384,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: true,
         rendersInline: false,
       },
     },
@@ -521,7 +518,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -635,7 +631,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: false,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: true,
       },
     },
@@ -761,7 +756,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: false,
         requiresParent: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },

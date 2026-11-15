@@ -45,7 +45,7 @@ InitiativeResponseDto:
       type: string
       description: Reasoning for why this initiative was suggested
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
     priority:
       $ref: "./common.yaml#/Priority"
     creatorType:
@@ -113,7 +113,7 @@ CreateInitiativeDto:
       type: string
       description: Reasoning for why this initiative was suggested
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       default: REFINING_DESCRIPTION
     priority:
       $ref: "./common.yaml#/Priority"
@@ -164,7 +164,7 @@ UpdateInitiativeDto:
       type: string
       description: Optional new reasoning for the initiative
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
       description: Optional new status for the initiative
     priority:
       $ref: "./common.yaml#/Priority"

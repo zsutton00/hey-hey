@@ -98,7 +98,6 @@ const CAPABILITY_LABELS: Record<string, string> = {
   requiresParent: "Parent required",
   showsInExplorerSidebar: "Sidebar",
   planEligible: "Plan eligible",
-  hasSetInitialStatus: "Initial status fixed",
   graph: "Graph",
 };
 

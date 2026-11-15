@@ -5,10 +5,9 @@ import type {
   TaskMonitorLifecycleCause,
 } from '../../shared/agent-bridge-contract/generated/api';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
+import { isDeliveredStatus } from './task-finished-status';
 
-const reportTypeSchema = z.enum(
-  Object.values(ReportType) as [ReportType, ...ReportType[]],
-);
+const reportTypeSchema = z.enum(Object.values(ReportType) as [ReportType, ...ReportType[]]);
 
 export interface TaskMonitorCoordinationSettledRun {
   readonly runId: string;
@@ -203,8 +202,11 @@ export const validateTaskMonitorDecision = (
       }
       return { ok: true, value: decision };
     case 'ACCEPT_TASK': {
-      if (evidence.selectedTask.status !== 'COMPLETED') {
-        return { ok: false, reason: 'Task acceptance requires a canonically completed Task.' };
+      if (!isDeliveredStatus(evidence.selectedTask.typeStatuses, evidence.selectedTask.status)) {
+        return {
+          ok: false,
+          reason: 'Task acceptance requires a Task in a finished, non-cancelled status.',
+        };
       }
       if (
         evidence.monitor.reviewMode === 'REQUIRE_REVIEW' &&

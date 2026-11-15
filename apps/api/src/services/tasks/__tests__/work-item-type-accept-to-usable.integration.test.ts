@@ -103,7 +103,6 @@ const experimentDefinition: WorkItemTypeDefinitionDto = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     showsInExplorerSidebar: true,
   },
 };

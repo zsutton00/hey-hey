@@ -14,7 +14,6 @@
 export const WORK_ITEM_CAPABILITY_KEYS = {
   requiresParent: 'requiresParent',
   planEligible: 'planEligible',
-  hasSetInitialStatus: 'hasSetInitialStatus',
   rendersInline: 'rendersInline',
   showsInExplorerSidebar: 'showsInExplorerSidebar',
 } as const;

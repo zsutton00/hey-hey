@@ -358,7 +358,6 @@ const graphCapabilitySchema = z
 const capabilitiesShape = {
   requiresParent: z.boolean().optional(),
   planEligible: z.boolean().optional(),
-  hasSetInitialStatus: z.boolean().optional(),
   supportsSupersession: z.boolean().optional(),
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
@@ -371,9 +370,6 @@ const capabilitiesSchema = z
     (value): WorkItemTypeCapabilities => ({
       ...(value.requiresParent !== undefined ? { requiresParent: value.requiresParent } : {}),
       ...(value.planEligible !== undefined ? { planEligible: value.planEligible } : {}),
-      ...(value.hasSetInitialStatus !== undefined
-        ? { hasSetInitialStatus: value.hasSetInitialStatus }
-        : {}),
       ...(value.supportsSupersession !== undefined
         ? { supportsSupersession: value.supportsSupersession }
         : {}),

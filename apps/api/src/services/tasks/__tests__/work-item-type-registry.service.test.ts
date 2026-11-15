@@ -330,7 +330,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -351,7 +350,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -369,7 +367,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: true,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -390,7 +387,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -424,7 +420,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -455,7 +450,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: true,
       showsInExplorerSidebar: false,
     },
@@ -480,7 +474,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -511,7 +504,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -727,48 +719,30 @@ describe('WorkItemTypeRegistryService', () => {
     );
   });
 
-  it.each([true, false])(
-    'derives forced canonical Mockup Active while preserving a complete override (forced=%s)',
-    async (hasSetInitialStatus) => {
-      const canonical = {
-        ...buildTemplate('STANDARD', 1),
-        typeKey: 'mockup',
-        name: 'Mockup',
-        statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
-        capabilities: { hasSetInitialStatus: true },
-      };
-      const override = buildProjectOwnedRow('STANDARD', 'override-project', {
-        typeKey: 'mockup',
-        statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'READY', 'ARCHIVED']),
-        capabilities: { hasSetInitialStatus },
-      });
-      const { registry } = buildRegistry(
-        [override],
-        [canonical],
-        ['canonical-project', 'override-project'],
-      );
-      await registry.onModuleInit();
-      expect(
-        registry.getInitialStatusPolicy('mockup', 'canonical-project'),
-      ).toEqual({
-        initialStatus: WorkStatus.Active,
-        hasSetInitialStatus: true,
-      });
-      expect(
-        registry.getInitialStatusPolicy('mockup', 'override-project'),
-      ).toEqual({ initialStatus: WorkStatus.Backlog, hasSetInitialStatus });
-      expect(
-        registry
-          .getDefinition('canonical-project', 'mockup')
-          ?.definition.statuses.map((status) => status.name),
-      ).toEqual(['ACTIVE', 'BACKLOG', 'READY']);
-      expect(
-        registry
-          .getDefinition('override-project', 'mockup')
-          ?.definition.statuses.map((status) => status.name),
-      ).toEqual(['BACKLOG', 'ACTIVE', 'READY']);
-    },
-  );
+  it("derives each Mockup definition's initial status from its first status", async () => {
+    const canonical = {
+      ...buildTemplate('STANDARD', 1),
+      typeKey: 'mockup',
+      name: 'Mockup',
+      statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
+    };
+    const override = buildProjectOwnedRow('STANDARD', 'override-project', {
+      typeKey: 'mockup',
+      statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'READY', 'ARCHIVED']),
+    });
+    const { registry } = buildRegistry(
+      [override],
+      [canonical],
+      ['canonical-project', 'override-project'],
+    );
+    await registry.onModuleInit();
+    expect(
+      registry.getInitialStatusPolicy('mockup', 'canonical-project'),
+    ).toEqual({ initialStatus: WorkStatus.Active });
+    expect(
+      registry.getInitialStatusPolicy('mockup', 'override-project'),
+    ).toEqual({ initialStatus: WorkStatus.Backlog });
+  });
 
   it('resolves canonical Decision for projects without a row and a complete decision row as that project override', async () => {
     const canonical = {
@@ -777,13 +751,13 @@ describe('WorkItemTypeRegistryService', () => {
       name: 'Decision',
       role: 'project-info',
       statuses: legacyStatuses(['ACTIVE', 'SUPERSEDED', 'ARCHIVED']),
-      capabilities: { requiresParent: true, hasSetInitialStatus: false },
+      capabilities: { requiresParent: true },
     };
     const override = buildProjectOwnedRow('STANDARD', 'override-project', {
       typeKey: 'decision',
       name: 'Project Decision',
       statuses: legacyStatuses(['ACTIVE', 'ARCHIVED']),
-      capabilities: { requiresParent: true, hasSetInitialStatus: false },
+      capabilities: { requiresParent: true },
     });
     const { registry } = buildRegistry(
       [override],
@@ -818,7 +792,7 @@ describe('WorkItemTypeRegistryService', () => {
     });
     expect(
       registry.getInitialStatusPolicy('decision', 'canonical-project'),
-    ).toEqual({ initialStatus: WorkStatus.Active, hasSetInitialStatus: false });
+    ).toEqual({ initialStatus: WorkStatus.Active });
   });
 
   describe('five-second independent recovery', () => {
@@ -1798,16 +1772,15 @@ describe('WorkItemTypeRegistryService', () => {
       ).toBe(false);
     });
 
-    it('GOAL initial status is ACTIVE with hasSetInitialStatus=true', () => {
+    it('GOAL initial status is ACTIVE', () => {
       const p = registry.getInitialStatusPolicy(
         WORK_ITEM_TYPE_KEYS.Goal,
         TEST_PROJECT,
       );
       expect(p.initialStatus).toBe(WorkStatus.Active);
-      expect(p.hasSetInitialStatus).toBe(true);
     });
 
-    it('STANDARD/BUG/TASK_MONITOR initial status is BACKLOG, FEATURE/CONTRACT is ACTIVE — none forced', () => {
+    it('STANDARD/BUG/TASK_MONITOR initial status is BACKLOG, FEATURE/CONTRACT is ACTIVE', () => {
       expect(
         registry.getInitialStatusPolicy(
           WORK_ITEM_TYPE_KEYS.Standard,
@@ -1816,22 +1789,10 @@ describe('WorkItemTypeRegistryService', () => {
       ).toBe(WorkStatus.Backlog);
       expect(
         registry.getInitialStatusPolicy(
-          WORK_ITEM_TYPE_KEYS.Standard,
-          TEST_PROJECT,
-        ).hasSetInitialStatus,
-      ).toBe(false);
-      expect(
-        registry.getInitialStatusPolicy(
           WORK_ITEM_TYPE_KEYS.Feature,
           TEST_PROJECT,
         ).initialStatus,
       ).toBe(WorkStatus.Active);
-      expect(
-        registry.getInitialStatusPolicy(
-          WORK_ITEM_TYPE_KEYS.Feature,
-          TEST_PROJECT,
-        ).hasSetInitialStatus,
-      ).toBe(false);
       expect(
         registry.getInitialStatusPolicy(WORK_ITEM_TYPE_KEYS.Bug, TEST_PROJECT)
           .initialStatus,
@@ -1848,12 +1809,6 @@ describe('WorkItemTypeRegistryService', () => {
           TEST_PROJECT,
         ).initialStatus,
       ).toBe(WorkStatus.Active);
-      expect(
-        registry.getInitialStatusPolicy(
-          WORK_ITEM_TYPE_KEYS.Contract,
-          TEST_PROJECT,
-        ).hasSetInitialStatus,
-      ).toBe(false);
     });
 
     it('only STANDARD carries acceptanceCriteria section', () => {
@@ -3643,7 +3598,6 @@ describe('WorkItemTypeRegistryService', () => {
       capabilities: {
         requiresParent: false,
         planEligible: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
         showsInExplorerSidebar: true,
       },
@@ -3666,7 +3620,6 @@ describe('WorkItemTypeRegistryService', () => {
       capabilities: {
         requiresParent: false,
         planEligible: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
         showsInExplorerSidebar: false,
       },
@@ -3684,7 +3637,6 @@ describe('WorkItemTypeRegistryService', () => {
       capabilities: {
         requiresParent: false,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
       graphConfiguration: graphCapability('GRAPH_ALPHA_NODE'),
@@ -3698,7 +3650,6 @@ describe('WorkItemTypeRegistryService', () => {
       capabilities: {
         requiresParent: false,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
       graphConfiguration: graphCapability('GRAPH_BETA_NODE'),

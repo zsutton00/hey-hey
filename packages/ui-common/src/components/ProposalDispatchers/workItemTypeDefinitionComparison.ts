@@ -98,7 +98,6 @@ function definitionFields(
     Capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
       ...d.capabilities,

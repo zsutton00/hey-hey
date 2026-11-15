@@ -4,7 +4,7 @@ import {
   AgentSessionCurrentState,
   AgentSessionStatus,
   OpenItemGoalTrackedWorkFilter,
-  WorkStatus,
+  WorkItemStatusMeaning,
   type TrackedEntitySnapshot,
 } from "../../api";
 import { agentSessionListQueryOptions } from "../collections/agentSessions";
@@ -29,7 +29,9 @@ export function useOpenItemGoalWork(
   const activeCandidates = useMemo(
     () =>
       filter === OpenItemGoalTrackedWorkFilter.Active
-        ? trackedWork.filter((work) => work.status !== WorkStatus.Active)
+        ? trackedWork.filter(
+            (work) => work.statusMeaning !== WorkItemStatusMeaning.InProgress,
+          )
         : EMPTY_WORK,
     [filter, trackedWork],
   );
@@ -88,13 +90,10 @@ export function useOpenItemGoalWork(
       case OpenItemGoalTrackedWorkFilter.All:
         return true;
       case OpenItemGoalTrackedWorkFilter.ActiveAndBacklog:
-        return (
-          item.status !== WorkStatus.Completed &&
-          item.status !== WorkStatus.Cancelled
-        );
+        return item.statusMeaning !== WorkItemStatusMeaning.Finished;
       case OpenItemGoalTrackedWorkFilter.Active:
         return (
-          item.status === WorkStatus.Active ||
+          item.statusMeaning === WorkItemStatusMeaning.InProgress ||
           activeWorkKeys.has(`${item.targetEntityType}:${item.targetEntityId}`)
         );
     }

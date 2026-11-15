@@ -14,6 +14,12 @@ import {
   type LocalTaskMonitorCoordinatorDecision,
 } from '../../../shared/agent-bridge-contract/generated/api';
 import { buildCodeReviewRequest } from '../../review-subagent/review-request';
+import {
+  isDeliveredStatus,
+  resolveCompletionStatus,
+  workItemTypeStatusesEnvelopeSchema,
+  type TaskTypeStatus,
+} from '../task-finished-status';
 import type { TaskMonitorDecisionStore } from '../task-monitor-decision-store';
 import {
   toTaskMonitorReviewLifecycleMessage,
@@ -41,8 +47,18 @@ import type {
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
 
-const workItemStatusSchema = z.object({ status: z.string().min(1) }).passthrough();
-const workItemStatusEnvelopeSchema = z.object({ data: workItemStatusSchema }).passthrough();
+const workItemLifecycleEnvelopeSchema = z
+  .object({
+    data: z.object({ type: z.string().min(1), status: z.string().min(1) }).passthrough(),
+  })
+  .passthrough();
+
+interface TaskLifecycle {
+  readonly id: string;
+  readonly type: string;
+  readonly status: string;
+  readonly typeStatuses: readonly TaskTypeStatus[];
+}
 const guidanceEffectResponseSchema = z
   .object({ data: z.object({ messageId: z.string().uuid() }).passthrough() })
   .passthrough();
@@ -101,30 +117,54 @@ class TaskMonitorSupervisionOwners {
     await this.patch(auth, `/agent-sessions/${encodeURIComponent(agentSessionId)}`, update);
   }
 
-  public async completeTask(auth: PlatformAuth, taskId: string): Promise<void> {
+  public async completeTask(auth: PlatformAuth, taskId: string, status: string): Promise<void> {
     await this.patch(auth, `/work-items/${encodeURIComponent(taskId)}`, {
-      status: WorkStatus.Completed,
+      status,
       reason: 'Apply an accepted Task Monitor decision through Work Items.',
     });
   }
 
-  public async readTaskStatus(
-    auth: PlatformAuth,
-    taskId: string,
-  ): Promise<TaskResponseDto['status']> {
-    const response = await this.dependencies.fetchImpl(
-      this.urlFor(auth, `/work-items/${encodeURIComponent(taskId)}`),
-      { headers: { Authorization: `Bearer ${auth.accessToken}` } },
+  /** Reads a Task's type and status, plus that type's statuses, validated once at the boundary. */
+  public async readTaskLifecycle(auth: PlatformAuth, taskId: string): Promise<TaskLifecycle> {
+    const task = await this.getJson(
+      auth,
+      `/work-items/${encodeURIComponent(taskId)}`,
+      'Selected Task read',
+      workItemLifecycleEnvelopeSchema,
     );
+    const type = await this.getJson(
+      auth,
+      `/work-item-types/${encodeURIComponent(task.data.type)}`,
+      'Selected Task type read',
+      workItemTypeStatusesEnvelopeSchema,
+    );
+
+    return {
+      id: taskId,
+      type: task.data.type,
+      status: task.data.status,
+      typeStatuses: type.data.definition.statuses,
+    };
+  }
+
+  private async getJson<T>(
+    auth: PlatformAuth,
+    path: string,
+    action: string,
+    schema: z.ZodType<T>,
+  ): Promise<T> {
+    const response = await this.dependencies.fetchImpl(this.urlFor(auth, path), {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    });
     if (!response.ok) {
-      throw new Error(`Selected Task read failed with status ${String(response.status)}.`);
+      throw new Error(`${action} failed with status ${String(response.status)}.`);
     }
-    const payload: unknown = await response.json();
-    const envelope = workItemStatusEnvelopeSchema.safeParse(payload);
-    const direct = workItemStatusSchema.safeParse(payload);
-    if (envelope.success) return envelope.data.data.status;
-    if (direct.success) return direct.data.status;
-    throw new Error('Selected Task read returned an invalid response.');
+    const parsed = schema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new Error(`${action} returned an invalid response.`);
+    }
+
+    return parsed.data;
   }
 
   public requestReview(agentSessionId: string, rationale: string): Promise<void> {
@@ -760,16 +800,28 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
             'Task acceptance requires a successful Review bound to the current selected work.',
           );
         }
+        const lifecycle = await this.owners.readTaskLifecycle(auth, taskId);
+        const alreadyDelivered = isDeliveredStatus(lifecycle.typeStatuses, lifecycle.status);
+        const completion = alreadyDelivered
+          ? { ok: true as const, status: lifecycle.status }
+          : resolveCompletionStatus(lifecycle.typeStatuses, lifecycle);
+        if (!completion.ok) {
+          this.dependencies.logger.error('task_monitor.supervision.completion_status_unresolved', {
+            taskId,
+            taskType: lifecycle.type,
+            reason: completion.reason,
+          });
+          return this.failed(effect, completion.reason);
+        }
         if (completeAgentSession) {
           await this.owners.completeAgentSession(auth, effect.agentSessionId);
         }
-        const currentTaskStatus = await this.owners.readTaskStatus(auth, taskId);
-        if (currentTaskStatus !== WorkStatus.Completed) {
-          await this.owners.completeTask(auth, taskId);
+        if (!alreadyDelivered) {
+          await this.owners.completeTask(auth, taskId, completion.status);
         }
-        const taskStatus = await this.owners.readTaskStatus(auth, taskId);
-        if (taskStatus !== WorkStatus.Completed) {
-          return this.failed(effect, `Selected Task did not settle completed (${taskStatus}).`);
+        const settled = await this.owners.readTaskLifecycle(auth, taskId);
+        if (!isDeliveredStatus(settled.typeStatuses, settled.status)) {
+          return this.failed(effect, `Selected Task did not settle finished (${settled.status}).`);
         }
         const latestMonitor = await this.dependencies.taskMonitorStartRuntime.readMonitor({
           monitorId: effect.taskMonitorId,
@@ -779,10 +831,10 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
         const remaining = latestMonitor.definition.executionPlan.slice(
           latestMonitor.definition.cursor + 1,
         );
-        const remainingStatuses = await Promise.all(
-          remaining.map((entry) => this.owners.readTaskStatus(auth, entry.taskId)),
+        const remainingTasks = await Promise.all(
+          remaining.map((entry) => this.owners.readTaskLifecycle(auth, entry.taskId)),
         );
-        if (remainingStatuses.every((status) => status === WorkStatus.Completed)) {
+        if (remainingTasks.every((task) => isDeliveredStatus(task.typeStatuses, task.status))) {
           await this.dependencies.taskMonitorStartRuntime.completeMonitor({
             monitorId: effect.taskMonitorId,
             organizationId: effect.organizationId,

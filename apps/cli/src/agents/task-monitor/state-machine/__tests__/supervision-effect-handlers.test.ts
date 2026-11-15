@@ -180,10 +180,27 @@ describe('Task Monitor settled-Run evaluation', () => {
           )
         : init?.method === 'PATCH'
           ? new Response(null, { status: 204 })
-          : new Response(JSON.stringify({ status: WorkStatus.Completed }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            }),
+          : new Response(
+              JSON.stringify(
+                String(_input).includes('/work-item-types/')
+                  ? {
+                      data: {
+                        definition: {
+                          statuses: [
+                            { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+                            {
+                              name: 'COMPLETED',
+                              meaning: 'FINISHED',
+                              completionBehavior: 'COMPLETED',
+                            },
+                          ],
+                        },
+                      },
+                    }
+                  : { data: { type: 'STANDARD', status: WorkStatus.Completed } },
+              ),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
     );
     const completeMonitor = vi.fn().mockResolvedValue(undefined);
     const haltMonitor = vi.fn().mockResolvedValue(undefined);

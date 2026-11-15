@@ -65,7 +65,9 @@ describe('Deliberate Contract integration migration', () => {
     expect(sql).toContain(
       '> At <interaction point>, when <input or triggering conditions>, <provider> guarantees <provider-controlled observable behavior>.',
     );
-    expect(sql).toContain('The guaranteed behavior need not be a response payload.');
+    expect(sql).toContain(
+      'The guaranteed behavior need not be a response payload.',
+    );
     expect(sql).toContain('workflow continuation');
   });
 

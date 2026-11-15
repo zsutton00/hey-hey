@@ -30,6 +30,12 @@ const evidence = (
     title: 'Selected Task',
     type: 'STANDARD',
     status: 'ACTIVE',
+    typeStatuses: [
+      { name: 'BACKLOG', meaning: 'NOT_STARTED' },
+      { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+      { name: 'COMPLETED', meaning: 'FINISHED', completionBehavior: 'COMPLETED' },
+      { name: 'CANCELLED', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+    ],
     sections: [],
     featureHierarchy: [],
     contracts: [],
@@ -59,7 +65,28 @@ describe('Task Monitor coordination policy', () => {
 
     expect(validateTaskMonitorDecision(snapshot(), decision)).toEqual({
       ok: false,
-      reason: 'Task acceptance requires a canonically completed Task.',
+      reason: 'Task acceptance requires a Task in a finished, non-cancelled status.',
+    });
+  });
+
+  it('accepts a Task in a custom finished status and rejects a cancelled one', () => {
+    const decision: LocalTaskMonitorCoordinatorDecision = {
+      action: 'ACCEPT_TASK',
+      rationale: 'The work is done.',
+    };
+    const typeStatuses = [
+      { name: 'Doing', meaning: 'IN_PROGRESS' },
+      { name: 'Done', meaning: 'FINISHED' },
+      { name: 'Dropped', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+    ] as const;
+    const withStatus = (status: string) =>
+      snapshot({
+        selectedTask: { ...evidence().selectedTask, status, typeStatuses },
+      });
+
+    expect(validateTaskMonitorDecision(withStatus('Done'), decision)).toMatchObject({ ok: true });
+    expect(validateTaskMonitorDecision(withStatus('Dropped'), decision)).toMatchObject({
+      ok: false,
     });
   });
 
