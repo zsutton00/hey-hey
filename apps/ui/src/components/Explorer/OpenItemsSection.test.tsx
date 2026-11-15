@@ -234,6 +234,7 @@ vi.mock("@hey-hey/ui-common/components/InteractionComponent", () => ({
       removeAllAbove: { hasTargets: boolean; onSelect: () => void };
       removeAllBelow: { hasTargets: boolean; onSelect: () => void };
       removeAll: { hasTargets: boolean; onSelect: () => void };
+      rename?: { label: string; onSelect: () => void };
       whyOpen: { kind: "add" | "edit"; onSelect: () => void };
       pin: { hasTargets: boolean; onSelect: () => void };
       unpin: { hasTargets: boolean; onSelect: () => void };
@@ -335,6 +336,15 @@ vi.mock("@hey-hey/ui-common/components/InteractionComponent", () => ({
         >
           Remove All
         </button>
+        {openItemActions.rename && (
+          <button
+            data-testid="rename-session-action"
+            onClick={openItemActions.rename.onSelect}
+            type="button"
+          >
+            {openItemActions.rename.label}
+          </button>
+        )}
         <button onClick={openItemActions.whyOpen.onSelect} type="button">
           {openItemActions.whyOpen.kind === "add" ? "Add note" : "Edit note"}
         </button>
@@ -3997,6 +4007,75 @@ describe("OpenItemsSection", () => {
     ).toBeInTheDocument();
     expect(useAgentSessionMock).not.toHaveBeenCalled();
   });
+
+  it.each(Object.values(AgentSessionType))(
+    "offers Rename only for stored conversation-backed %s rows without detail reads",
+    async (sessionType) => {
+      const withConversation = "550e8400-e29b-41d4-a716-446655440000";
+      const withoutConversation = "550e8400-e29b-41d4-a716-446655440001";
+      localStorage.setItem(
+        "open-items:v1:project-1",
+        JSON.stringify({
+          version: 1,
+          items: [
+            {
+              entityId: withConversation,
+              entityType: "agent_session",
+              presentation: {
+                kind: "agent_session",
+                label: "Conversation-backed session",
+                sessionType,
+                conversationId: "550e8400-e29b-41d4-a716-446655440002",
+              },
+            },
+            {
+              entityId: withoutConversation,
+              entityType: "agent_session",
+              presentation: {
+                kind: "agent_session",
+                label: "Session without conversation",
+                sessionType,
+                conversationId: null,
+              },
+            },
+          ],
+        }),
+      );
+      render(
+        <MemoryRouter>
+          <OpenItemsProvider
+            organizationId="org-1"
+            userId={openItemsTestUserId()}
+            projectId="project-1"
+          >
+            <OpenItemsSection organizationId="org-1" projectId="project-1" />
+            <CanonicalOpenItemsReady />
+          </OpenItemsProvider>
+        </MemoryRouter>,
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("canonical-open-items-ready"),
+        ).toHaveAttribute("data-ready", "true"),
+      );
+      expect(
+        within(
+          screen.getByTestId(`open-item-interaction-${withConversation}`),
+        ).getByTestId("rename-session-action"),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByTestId(`open-item-interaction-${withoutConversation}`),
+        ).queryByTestId("rename-session-action"),
+      ).not.toBeInTheDocument();
+      fireEvent.contextMenu(
+        screen.getByTestId(`open-item-interaction-${withConversation}`),
+      );
+      expect(useAgentSessionMock).not.toHaveBeenCalled();
+      expect(useServiceMock).not.toHaveBeenCalled();
+      expect(useConversationMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("shows the stored conversation title on an Open Item without detail reads", async () => {
     localStorage.setItem(

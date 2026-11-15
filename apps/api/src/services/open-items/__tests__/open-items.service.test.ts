@@ -1,3 +1,4 @@
+import { OpenItemsController } from '../../../controllers/open-items.controller';
 import { OpenItemsRepository } from '../open-items.repository';
 import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import type {
@@ -5,7 +6,10 @@ import type {
   OpenItemRow,
   OpenItemsChangeSet,
 } from '../open-items.domain';
-import { OpenItemsConflictException } from '../open-items.errors';
+import {
+  OpenItemsConflictException,
+  OpenItemsValidationException,
+} from '../open-items.errors';
 import type {
   LockedOpenItemsCollection,
   OpenItemsIdempotencyRecord,
@@ -257,7 +261,11 @@ describe('OpenItemsService', () => {
       idempotencyKey: key(70),
       name: 'Review',
     });
-    const groupId = group.groups[0].groupId;
+    const [createdGroup] = group.groups;
+    if (!createdGroup) {
+      throw new Error('Expected the created group');
+    }
+    const groupId = createdGroup.groupId;
     const types = [
       'CODING',
       'ENTITY_CONVERSATION',
@@ -310,11 +318,20 @@ describe('OpenItemsService', () => {
       id: ref(100).entityId,
       title: 'Latest renamed conversation',
     });
-    const saved = await service.refreshOpenItemPresentation(
-      scope(),
-      ref(10, 'AGENT_SESSION'),
-      request,
-    );
+    const controller = new OpenItemsController(service, {} as never);
+    const refresh = (body: unknown) =>
+      controller.refreshOpenItemPresentation(
+        scope().organizationId,
+        scope().projectId,
+        'AGENT_SESSION',
+        ref(10).entityId,
+        scope().userId,
+        body,
+      );
+    expect(() =>
+      refresh({ ...request, title: 'Untrusted client title' }),
+    ).toThrow(OpenItemsValidationException);
+    const saved = await refresh(request);
     expect(saved.items[0]).toEqual({
       ...oldRow,
       revision: saved.collectionRevision,
@@ -341,7 +358,11 @@ describe('OpenItemsService', () => {
       ref(10, 'AGENT_SESSION'),
       { idempotencyKey: key(94) },
     );
-    expect(latest.items[0].presentation.label).toBe('An even newer title');
+    expect(latest.items).toEqual([
+      expect.objectContaining({
+        presentation: expect.objectContaining({ label: 'An even newer title' }),
+      }),
+    ]);
     expect(
       publish.mock.calls.every(
         (call) =>
@@ -509,7 +530,7 @@ describe('OpenItemsService', () => {
       idempotencyKey: key(101),
       item: ref(2, 'AGENT_SESSION'),
       lineage: [ref(1)],
-      presentation: { label: 'Coding session' },
+      presentation: { label: 'Coding session', conversationId: null },
     };
     const opened = await service.activateOpenItem(scope(), sessionRequest);
     expect(opened.items[0]).toMatchObject({ groupId, lineage: [ref(1)] });
@@ -705,6 +726,7 @@ describe('OpenItemsService', () => {
         lineage: [ref(4)],
         presentation: {
           label: 'Eval run',
+          conversationId: null,
           agentSessionType: 'PROJECT_CONVERSATION',
         },
       });
@@ -739,6 +761,7 @@ describe('OpenItemsService', () => {
           lineage: [ref(4)],
           presentation: {
             label: 'Eval run',
+            conversationId: null,
             agentSessionType: 'PROJECT_CONVERSATION',
           },
         }),

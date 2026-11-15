@@ -89,12 +89,7 @@ export type BuiltInMenuAction =
 export type MenuAction = BuiltInMenuAction | (string & {});
 
 export type MenuContributionSection =
-  | "primary"
-  | "shared"
-  | "secondary"
-  | "removal"
-  | "async"
-  | "provenance";
+  "primary" | "shared" | "secondary" | "removal" | "async" | "provenance";
 
 export type MenuContributionController = "discuss" | "star";
 
@@ -131,9 +126,7 @@ export interface MenuContributionContext extends LineageContext {
  * creation actions can provide a caller-owned form opener.
  */
 export type InlineInteractionActionName =
-  | "discuss"
-  | "create_task"
-  | "create_bug";
+  "discuss" | "create_task" | "create_bug";
 
 export interface InlineInteractionAction {
   action: InlineInteractionActionName;
@@ -230,6 +223,7 @@ export interface OpenItemActions {
   removeAllBelow: OpenItemBulkAction;
   removeAll: OpenItemBulkAction;
   whyOpen: WhyOpenAction;
+  rename?: { label: string; onSelect: () => void };
 }
 
 /**

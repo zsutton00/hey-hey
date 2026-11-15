@@ -102,6 +102,11 @@ OpenItemPresentation:
       maxLength: 64
       nullable: true
       description: Registry work-item type key for registry-backed icons (work items only).
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.
     agentSessionType:
       type: string
       maxLength: 64
@@ -465,7 +470,8 @@ MigrateOpenItemsGroup:
 MigrateOpenItemsItem:
   type: object
   additionalProperties: false
-  required: [entityType, entityId, note, pinned, localGroupId, lineage, presentation]
+  required:
+    [entityType, entityId, note, pinned, localGroupId, lineage, presentation]
   description: Browser-local item. Array order is collection order; within a group, relative array order is member order.
   properties:
     entityType:
@@ -531,7 +537,15 @@ OpenItemsValidationError:
       enum: [false]
     code:
       type: string
-      enum: [INVALID_REQUEST, ITEM_NOT_OPEN, GROUP_NOT_FOUND, INVALID_PLACEMENT, INVALID_MIGRATION_MEMBERSHIP, COLLECTION_LIMIT_EXCEEDED]
+      enum:
+        [
+          INVALID_REQUEST,
+          ITEM_NOT_OPEN,
+          GROUP_NOT_FOUND,
+          INVALID_PLACEMENT,
+          INVALID_MIGRATION_MEMBERSHIP,
+          COLLECTION_LIMIT_EXCEEDED,
+        ]
     message:
       type: string
     violations:
@@ -651,3 +665,11 @@ PromoteGroupToGoalResult:
         $ref: "#/OpenItemRef"
     replayed:
       type: boolean
+
+RefreshOpenItemPresentationRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"

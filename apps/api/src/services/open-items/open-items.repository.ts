@@ -45,6 +45,13 @@ export const CLEANUP_BATCH_SIZE = 500;
 
 type ItemRecord = Prisma.OpenItemGetPayload<object>;
 type GroupRecord = Prisma.OpenItemGroupGetPayload<object>;
+const sessionConversationSelect = {
+  id: true,
+  conversation: { select: { id: true, title: true } },
+} satisfies Prisma.AgentSessionSelect;
+type SessionConversationRecord = Prisma.AgentSessionGetPayload<{
+  select: typeof sessionConversationSelect;
+}>;
 
 const toItemRow = (record: ItemRecord): OpenItemRow => ({
   id: record.id,
@@ -209,19 +216,20 @@ export class OpenItemsRepository {
     scope: OpenItemsScope,
     sessionIds: string[],
   ) {
-    const sessions = await tx.agentSession.findMany({
-      where: {
-        id: { in: sessionIds },
-        organizationId: scope.organizationId,
-        projectId: scope.projectId,
-        conversation: {
+    const sessions: SessionConversationRecord[] =
+      await tx.agentSession.findMany({
+        where: {
+          id: { in: sessionIds },
           organizationId: scope.organizationId,
           projectId: scope.projectId,
+          conversation: {
+            organizationId: scope.organizationId,
+            projectId: scope.projectId,
+          },
         },
-      },
-      select: { id: true, conversation: { select: { id: true, title: true } } },
-      take: 100,
-    });
+        select: sessionConversationSelect,
+        take: 100,
+      });
     return new Map(
       sessions.map((session) => [session.id, session.conversation]),
     );

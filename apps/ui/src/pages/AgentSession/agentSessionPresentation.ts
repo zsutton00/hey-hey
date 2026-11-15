@@ -39,6 +39,7 @@ export const buildAgentSessionPresentation = (
         parentLabel,
       ),
     sessionType: agentSession.type,
+    conversationId: route.conversationId ?? agentSession.conversationId ?? null,
     ...(hasEntityConversationRoute
       ? {
           entityConversationRoute: {

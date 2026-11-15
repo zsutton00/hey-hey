@@ -468,6 +468,13 @@ export class OpenItemsAdapter {
   ): Promise<OpenItemsMutationResult> {
     const scope = this.scope;
     switch (operation.kind) {
+      case "refreshOpenItemPresentation":
+        return (
+          await this.client.refreshOpenItemPresentation({
+            ...scope,
+            ...operation.parameters,
+          })
+        ).data.data;
       case "setOpenItemGoalFilter":
         return (
           await this.client.setOpenItemGoalFilter({

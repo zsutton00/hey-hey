@@ -733,6 +733,16 @@ function buildOpenItemPrimaryMenuItems(
     ...(openItemActions.unpin.hasTargets
       ? [OPEN_ITEM_PIN_MENU_ITEMS.unpin]
       : []),
+    ...(openItemActions.rename
+      ? [
+          {
+            action: "rename_open_session",
+            label: openItemActions.rename.label,
+            icon: EditOutlinedIcon,
+            testId: "interaction-menu-rename-session",
+          },
+        ]
+      : []),
     buildWhyOpenMenuItem(openItemActions.whyOpen),
   ];
 }
@@ -1741,6 +1751,9 @@ function useOpenItemActionHandler(
   return useCallback(
     (action: MenuAction) => {
       switch (action) {
+        case "rename_open_session":
+          openItemActions.rename?.onSelect();
+          return;
         case "preview":
           if (previewCapability?.kind === "supported") {
             previewHost.openPreview(

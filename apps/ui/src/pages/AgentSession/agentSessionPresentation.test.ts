@@ -1,4 +1,9 @@
-import { AgentSessionType, type AgentSessionDto } from "@hey-hey/contracts/api";
+import {
+  AgentSessionStatus,
+  AgentSessionCurrentState,
+  AgentSessionType,
+  type AgentSessionDto,
+} from "@hey-hey/contracts/api";
 import { describe, expect, it } from "vitest";
 import { buildAgentSessionLabel } from "./agentic/agentSessionLabel";
 import { buildAgentSessionPresentation } from "./agentSessionPresentation";
@@ -21,6 +26,7 @@ describe("buildAgentSessionPresentation", () => {
       kind: "agent_session",
       label: "API - Discuss retries",
       sessionType: AgentSessionType.EntityConversation,
+      conversationId: "conversation-1",
       entityConversationRoute: {
         conversationId: "conversation-1",
         entityId: "task-1",
@@ -76,3 +82,43 @@ describe("Agent Session labels", () => {
     },
   );
 });
+
+// Every session kind carries editing identity independently of specialized routes.
+it.each(Object.values(AgentSessionType))(
+  "stores conversation identity and title for %s without changing route semantics",
+  (type) => {
+    const session = {
+      id: "session",
+      organizationId: "org",
+      projectId: "project",
+      userId: "user",
+      status: AgentSessionStatus.InProgress,
+      currentState: AgentSessionCurrentState.Idle,
+      sessionDate: "2026-11-13T00:00:00.000Z",
+      hasUnsyncedChanges: false,
+      monitoringEnabled: true,
+      autoDecide: false,
+      type,
+      title: "Session's separate title",
+      conversationId: "conversation",
+      entityId: "task",
+      entityType: "TASK",
+    } satisfies AgentSessionDto;
+    const presentation = buildAgentSessionPresentation(
+      session,
+      undefined,
+      undefined,
+      "Conversation's title",
+    );
+    expect(presentation.label).toBe("Conversation's title");
+    expect(presentation.conversationId).toBe("conversation");
+    expect(presentation.entityConversationRoute !== undefined).toBe(
+      type === AgentSessionType.EntityConversation,
+    );
+    expect(
+      buildAgentSessionPresentation({ ...session, conversationId: null })
+        .conversationId,
+    ).toBeNull();
+    expect(session.title).toBe("Session's separate title");
+  },
+);

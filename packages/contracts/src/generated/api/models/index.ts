@@ -2711,6 +2711,7 @@ export * from './refine-work-item200-response-all-of.js';
 export * from './refine-work-item200-response-all-of-data.js';
 export * from './refinement-level.js';
 export * from './refresh-browser-session-dto.js';
+export * from './refresh-open-item-presentation-request.js';
 export * from './register201-response.js';
 export * from './register201-response-all-of.js';
 export * from './register-dto.js';

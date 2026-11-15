@@ -3,6 +3,7 @@ import type { AxiosRequestConfig } from "axios";
 import type {
   ConversationResponseDto,
   ConversationStatus,
+  UpdateConversationDto,
   GetWorkflowConversationsSortByEnum,
   GetWorkflowConversationsSortOrderEnum,
   WorkflowName,
@@ -362,4 +363,26 @@ export function removeConversation(
     },
     (current) => current?.filter((row) => row.id !== conversationId),
   );
+}
+
+/** Version-checked title write, shared by editors and canonical conversation views. */
+export async function updateConversation(
+  queryClient: QueryClient,
+  organizationId: string,
+  projectId: string,
+  conversationId: string,
+  updateConversationDto: UpdateConversationDto,
+) {
+  const response = await platformClient.updateConversation({
+    organizationId,
+    projectId,
+    conversationId,
+    updateConversationDto,
+  });
+  const conversation = response.data?.data;
+  if (!conversation) {
+    throw new Error("No conversation data returned from API");
+  }
+  writeConversation(queryClient, organizationId, projectId, conversation);
+  return conversation;
 }

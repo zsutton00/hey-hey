@@ -256,6 +256,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_STARS_PATH = '/organizations/{organiza
 export const ORGANIZATIONS_ORGANIZATIONID_STARS_ENTITYTYPE_ENTITYID_PATH = '/organizations/{organizationId}/stars/{entityType}/{entityId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ACTIVATIONS_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items/activations';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_PRESENTATION_REFRESH_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/presentation-refresh';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_NOTE_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/note';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_PIN_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/pin';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_OPEN_ITEMS_ITEMS_ENTITYTYPE_ENTITYID_MOVE_PATH = '/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/move';
