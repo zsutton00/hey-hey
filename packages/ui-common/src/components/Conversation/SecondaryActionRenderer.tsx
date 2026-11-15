@@ -1,6 +1,6 @@
 import { Alert, Button, Stack } from "@mui/material";
 import { useQueryClient } from "@tanstack/react-query";
-import { ProjectTopologyViewSessionButton } from "../shared/ProjectTopologyButton";
+import { VerificationStartedLink } from "../shared/ProjectTopologyButton";
 import { conversationKeys } from "../../data/collections/conversations";
 import { VerifyFeatureAction } from "./SecondaryActions/VerifyFeatureAction";
 import { isVerifyFeaturePayload } from "../../types/secondaryActions";
@@ -274,7 +274,7 @@ export const SecondaryActionRenderer: React.FC<
     if (startedSessionId) {
       return (
         <Stack spacing={1} alignItems="flex-start">
-          <ProjectTopologyViewSessionButton
+          <VerificationStartedLink
             to={paths.agentSession({
               projectId: context.projectId,
               agentSessionId: startedSessionId,

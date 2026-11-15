@@ -1,6 +1,8 @@
 export { ConversationCard } from "./ConversationCard";
 export type {
   ConversationCardAction,
+  ConversationCardActionsFooter,
+  ConversationCardContentFooter,
   ConversationCardFooter,
   ConversationCardProps,
   ConversationCardToneSelector,

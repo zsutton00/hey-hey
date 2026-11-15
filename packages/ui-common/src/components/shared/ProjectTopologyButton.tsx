@@ -1,6 +1,5 @@
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import { Button, CircularProgress, type Theme } from "@mui/material";
+import { Button, CircularProgress, Link, type Theme } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 
 const PROJECT_TOPOLOGY_BUTTON_LABEL = "Potential project sync issue";
@@ -63,19 +62,20 @@ export const ProjectTopologyButton = ({
 );
 
 /**
- * The topology button once the action it offered has been started: same
- * appearance, with a check icon, linking to the session that was created.
+ * The control shown once the action the topology button offered has been
+ * started: a text link to the session that was created.
  */
-export const ProjectTopologyViewSessionButton = ({ to }: { to: string }) => (
-  <Button
+export const VerificationStartedLink = ({ to }: { to: string }) => (
+  <Link
     component={RouterLink}
     to={to}
     data-testid="verify-feature-started-link"
-    color="heyhey"
-    variant="contained"
-    startIcon={<CheckCircleOutlineIcon />}
-    sx={projectTopologyButtonSx}
+    underline="hover"
+    sx={(theme) => ({
+      color: theme.palette.conversationCard.roles.projectSync.main,
+      fontWeight: 600,
+    })}
   >
-    View session
-  </Button>
+    Verification started
+  </Link>
 );

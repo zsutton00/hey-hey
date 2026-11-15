@@ -179,6 +179,26 @@ describe("ConversationCard disabled primary", () => {
   });
 });
 
+describe("ConversationCard content footer", () => {
+  it("renders host content inside the footer strip", () => {
+    render(
+      withTheme(
+        "light",
+        <ConversationCard
+          tone={{ role: "projectSync" }}
+          icon={<span />}
+          kindLabel="Project sync"
+          footer={{ content: <button type="button">Host action</button> }}
+        />,
+      ),
+    );
+
+    expect(screen.getByTestId("conversation-card-footer")).toContainElement(
+      screen.getByRole("button", { name: "Host action" }),
+    );
+  });
+});
+
 describe("ConversationCardRelatedRows", () => {
   const mention = {
     entityType: "TASK",

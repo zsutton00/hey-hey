@@ -15,10 +15,18 @@ export interface ConversationCardAction {
   testId?: string;
 }
 
-export interface ConversationCardFooter {
+export interface ConversationCardActionsFooter {
   primary: ConversationCardAction;
   secondary?: readonly ConversationCardAction[];
 }
+
+/** Host-owned footer content, for actions the shell can't draw itself. */
+export interface ConversationCardContentFooter {
+  content: React.ReactNode;
+}
+
+export type ConversationCardFooter =
+  ConversationCardActionsFooter | ConversationCardContentFooter;
 
 export interface ConversationCardProps {
   tone: ConversationCardToneSelector;
@@ -102,6 +110,7 @@ export const ConversationCard: React.FC<ConversationCardProps> = ({
 
       {lead ? (
         <Typography
+          component="div"
           data-testid="conversation-card-lead"
           variant="body1"
           sx={{ fontWeight: 600, px: 1.5, pt: 1.5 }}
@@ -134,41 +143,49 @@ export const ConversationCard: React.FC<ConversationCardProps> = ({
             pb: 1.5,
           }}
         >
-          <Button
-            variant="contained"
-            size="small"
-            disableElevation
-            data-testid={footer.primary.testId ?? "conversation-card-primary"}
-            disabled={footer.primary.disabled}
-            onClick={footer.primary.onClick}
-            sx={(theme) => ({
-              backgroundColor: "var(--card-main)",
-              color: "var(--card-contrast)",
-              "&:hover": {
-                backgroundColor: "var(--card-main)",
-                filter: "brightness(0.92)",
-              },
-              "&.Mui-disabled": {
-                backgroundColor: theme.palette.action.disabledBackground,
-                color: theme.palette.action.disabled,
-              },
-            })}
-          >
-            {footer.primary.label}
-          </Button>
-          {footer.secondary?.map((action) => (
-            <Button
-              key={action.label}
-              variant="text"
-              size="small"
-              data-testid={action.testId}
-              disabled={action.disabled}
-              onClick={action.onClick}
-              sx={{ color: "text.secondary" }}
-            >
-              {action.label}
-            </Button>
-          ))}
+          {"content" in footer ? (
+            footer.content
+          ) : (
+            <>
+              <Button
+                variant="contained"
+                size="small"
+                disableElevation
+                data-testid={
+                  footer.primary.testId ?? "conversation-card-primary"
+                }
+                disabled={footer.primary.disabled}
+                onClick={footer.primary.onClick}
+                sx={(theme) => ({
+                  backgroundColor: "var(--card-main)",
+                  color: "var(--card-contrast)",
+                  "&:hover": {
+                    backgroundColor: "var(--card-main)",
+                    filter: "brightness(0.92)",
+                  },
+                  "&.Mui-disabled": {
+                    backgroundColor: theme.palette.action.disabledBackground,
+                    color: theme.palette.action.disabled,
+                  },
+                })}
+              >
+                {footer.primary.label}
+              </Button>
+              {footer.secondary?.map((action) => (
+                <Button
+                  key={action.label}
+                  variant="text"
+                  size="small"
+                  data-testid={action.testId}
+                  disabled={action.disabled}
+                  onClick={action.onClick}
+                  sx={{ color: "text.secondary" }}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </>
+          )}
         </Box>
       ) : null}
     </Box>
