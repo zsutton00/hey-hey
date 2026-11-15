@@ -1,6 +1,3 @@
-import { Link as RouterLink } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { Button as ChangesLinkButton } from "@mui/material";
 import { WebPathService } from "@hey-hey/ui-common";
 import { TaskMonitorActivityTab } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
@@ -19,10 +16,12 @@ import {
 import { buildPlanTaskMonitorPath } from "../Plan/planSessionRoutes";
 import { ProjectWorkItemsTab } from "../../components/Tabs/ProjectWorkItemsTab";
 import { selectProjectEvalType } from "./projectEvalDiscovery";
+import { ChangesView } from "../Changes/ChangesView";
 import { CostsView, UsageTrendsView, UsageView } from "./views";
 
 const projectAgentsViews = [
   "agent-sessions",
+  "changes",
   "conversations",
   "automation",
   "evals",
@@ -34,6 +33,7 @@ type ProjectAgentsView = (typeof projectAgentsViews)[number];
 
 const projectAgentsSegments: readonly Segment<ProjectAgentsView>[] = [
   { value: "agent-sessions", label: "Agent Sessions" },
+  { value: "changes", label: "Changes" },
   { value: "conversations", label: "Conversations" },
   { value: "automation", label: "Automation" },
   { value: "costs", label: "Costs" },
@@ -52,7 +52,6 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
   projectId,
   userId,
 }) => {
-  const { t } = useTranslation();
   const { workItemTypes, isReady, error } = useWorkItemTypes(organizationId, {
     projectId,
   });
@@ -60,9 +59,9 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
   const evalsLabel = getWorkItemTypePluralDisplayName(evalType?.definition);
   const segments: readonly Segment<ProjectAgentsView>[] = evalType
     ? [
-        ...projectAgentsSegments.slice(0, 3),
+        ...projectAgentsSegments.slice(0, 4),
         { value: "evals", label: evalsLabel },
-        ...projectAgentsSegments.slice(3),
+        ...projectAgentsSegments.slice(4),
       ]
     : projectAgentsSegments;
   const [agentsView, setAgentsView] = useQueryState(
@@ -87,13 +86,6 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
 
   return (
     <Box data-testid="project-agents-tab" sx={{ mt: 2 }}>
-      <ChangesLinkButton
-        component={RouterLink}
-        to={WebPathService.projectChanges(projectId)}
-        data-testid="open-changes"
-      >
-        {t("changes.title")}
-      </ChangesLinkButton>
       <Box sx={{ mb: 3, maxWidth: "100%", minWidth: 0 }}>
         <SegmentedToggle
           segments={segments}
@@ -111,6 +103,9 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
           organizationId={organizationId}
           projectId={projectId}
         />
+      )}
+      {displayedView === "changes" && (
+        <ChangesView organizationId={organizationId} projectId={projectId} />
       )}
       {displayedView === "conversations" && (
         <PaginatedSessionFeed

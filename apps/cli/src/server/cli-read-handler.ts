@@ -382,7 +382,7 @@ export class CliReadHandler {
     const file = this.assertBoundedDetail(
       await this.dependencies.runChangedFilesReader.getRecordedEdit(
         run.session,
-        run.getFileChangeProjection(),
+        { organizationId: run.organizationId, projectId: run.projectId },
         body.runId,
         body.serviceId,
         body.edit,

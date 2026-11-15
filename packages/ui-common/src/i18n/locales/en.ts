@@ -56,7 +56,6 @@ export const en = {
   "changes.committed": "Committed",
   "changes.uncommitted": "Uncommitted",
   "changes.approximate": "Approximate",
-  "changes.unavailable": "Recorded file versions are unavailable.",
   "changes.loading": "Loading\u2026",
   "changes.loadFailed": "Unable to load changes.",
   "changes.empty": "No changes match these filters.",
@@ -64,7 +63,35 @@ export const en = {
   "changes.next": "Next",
   "changes.close": "Close",
   "changes.contextUnavailable": "Context unavailable",
-  "changes.ranges": "Before: {{before}} \u00b7 After: {{after}}",
+  "changes.subtitle": "What coding agents changed, newest first",
+  "changes.exact": "Exact",
+  "changes.approximateHint": "Another change may have landed in the same lines",
+  "changes.newFile": "(new file)",
+  "changes.versionsNotRecorded": "Versions not recorded",
+  "changes.pageRange": "{{from}}\u2013{{to}}",
+  "changes.sessionLabel": "Session",
+  "changes.taskLabel": "Task",
+  "changes.serviceLabel": "Service",
+  "changes.clearSession": "Clear session filter",
+  "changes.clearService": "Clear Service filter",
+  "changes.clearTask": "Clear task filter",
+  "changes.clearFeature": "Clear feature filter",
+  "changes.retry": "Retry",
+  "changes.dialogContext":
+    "{{service}} \u00b7 Before \u2192 after this edit \u00b7 {{time}}",
+  "changes.dialogHeading": "This edit can't be shown right now.",
+  "changes.reason.offline":
+    "The computer that ran this session is offline. The record stays in the list; open it again once that computer is connected.",
+  "changes.reason.tooLarge": "This file is too large to show here.",
+  "changes.reason.versionsGone":
+    "The saved versions of this file can no longer be read on the computer that ran the session.",
+  "changes.reason.notInRecord":
+    "This edit is not part of the session's recorded changes.",
+  "changes.reason.denied":
+    "Access to the computer that ran this session was denied.",
+  "changes.reason.sessionUnavailable": "The session could not be loaded.",
+  "changes.reason.generic": "Something went wrong reading this edit.",
+  "changes.ranges": "Before {{before}} \u00b7 After {{after}}",
 
   "localLogin.title": "Welcome back",
   "localLogin.note": "Use your passkey to continue where you left off.",
@@ -905,6 +932,7 @@ export const en = {
   [KEYS.auth.mustChangePassword]:
     "You must set a new password before continuing",
   [KEYS.auth.setNewPassword]: "Set New Password",
+  [KEYS.auth.or]: "OR",
 
   // Beta onboarding translations
   [KEYS.betaOnboarding.title]: "Beta User Onboarding",

@@ -7,12 +7,16 @@ import { CollatedFileDiffModal } from "@hey-hey/ui-common/components/AgentSessio
 import { selectLocatedDecisions } from "@hey-hey/ui-common/components/AgentSession/CollatedFileDiffModal/locatedDecisions";
 import {
   Alert,
+  AlertTitle,
+  Button,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
-  Button,
+  Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { recordedEditUnavailableReason } from "./recordedEditUnavailableReason";
 
 export function RecordedEditModal({
   organizationId,
@@ -43,20 +47,45 @@ export function RecordedEditModal({
     open: selection.edit.versionsRecorded,
   });
   if (!state.file) {
+    const isLoading = state.status !== "unavailable";
     return (
       <Dialog open onClose={onClose} fullWidth>
         <DialogTitle>{selection.edit.path}</DialogTitle>
         <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t("changes.dialogContext", {
+              service: service?.displayName ?? t("changes.contextUnavailable"),
+              time: new Date(selection.edit.occurredAt).toLocaleString(),
+            })}
+          </Typography>
           <Alert
-            severity={state.status === "loading" ? "info" : "warning"}
+            severity={isLoading ? "info" : "warning"}
             data-testid="recorded-edit-state"
           >
-            {state.status === "loading"
-              ? t("changes.loading")
-              : t("changes.unavailable")}
+            {state.status === "unavailable" ? (
+              <>
+                <AlertTitle>{t("changes.dialogHeading")}</AlertTitle>
+                {t(recordedEditUnavailableReason(state.cause))}
+              </>
+            ) : (
+              t("changes.loading")
+            )}
           </Alert>
-          <Button onClick={onClose}>{t("changes.close")}</Button>
         </DialogContent>
+        <DialogActions>
+          {!isLoading && (
+            <Button
+              variant="contained"
+              onClick={state.retry}
+              data-testid="recorded-edit-retry"
+            >
+              {t("changes.retry")}
+            </Button>
+          )}
+          <Button onClick={onClose} data-testid="recorded-edit-close">
+            {t("changes.close")}
+          </Button>
+        </DialogActions>
       </Dialog>
     );
   }

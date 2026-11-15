@@ -10,6 +10,7 @@ import {
   type ReadAgentSessionCliState200Response,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
+import { logger } from "../../utils/logger";
 import { useAgentSession } from "./useAgentSession";
 import { useControllerAuthorizedAction } from "./useControllerAuthorizedAction";
 import { useUserPairedMachines } from "./useUserPairedMachines";
@@ -19,28 +20,51 @@ import {
   resolveLocalDirectoryRuntimeBaseUrl,
 } from "../../components/AgentSession/runtime/directoryBindingApi";
 
+export type RecordedEditUnavailableCause =
+  | { kind: "session-unavailable" }
+  | { kind: "machine-unreachable" }
+  | { kind: "denied" }
+  | { kind: "read-error"; code: CliReadErrorCode }
+  | { kind: "unexpected" };
+
 export type RecordedEditState =
-  | { status: "idle"; file: null; error: null; errorCode: null }
-  | { status: "loading"; file: null; error: null; errorCode: null }
+  | { status: "idle"; file: null; error: null; cause: null }
+  | { status: "loading"; file: null; error: null; cause: null }
   | {
       status: "success";
       file: CliReadChangedFileDetail;
       error: null;
-      errorCode: null;
+      cause: null;
     }
   | {
       status: "unavailable";
       file: null;
       error: string;
-      errorCode: CliReadErrorCode | null;
+      cause: RecordedEditUnavailableCause;
     };
 
 const idleState: RecordedEditState = {
   status: "idle",
   file: null,
   error: null,
-  errorCode: null,
+  cause: null,
 };
+
+const unavailable = (
+  cause: RecordedEditUnavailableCause,
+  error: string,
+): RecordedEditState => {
+  logger.warn("data_hooks", "[useRecordedEdit] Recorded edit unavailable", {
+    cause,
+    error,
+  });
+  return { status: "unavailable", file: null, error, cause };
+};
+
+const readErrorCause = (
+  code: CliReadErrorCode | null,
+): RecordedEditUnavailableCause =>
+  code ? { kind: "read-error", code } : { kind: "unexpected" };
 
 export const useRecordedEdit = (params: {
   organizationId: string;
@@ -54,14 +78,29 @@ export const useRecordedEdit = (params: {
   const [state, setState] = useState<RecordedEditState>(idleState);
   const [retryGeneration, setRetryGeneration] = useState(0);
   const activeRequestRef = useRef(0);
-  const retry = useCallback(() => setRetryGeneration((value) => value + 1), []);
-  const { agentSession, error: agentSessionError } = useAgentSession(
+  const {
+    agentSession,
+    error: agentSessionError,
+    refetch: refetchSession,
+  } = useAgentSession(
     params.organizationId,
     params.projectId,
     params.agentSessionId,
     { enabled: params.open && params.edit !== null },
   );
-  const { machines } = useUserPairedMachines();
+  const { machines, refetch: refetchMachines } = useUserPairedMachines();
+  // Retry reloads what the failed read depended on first: a cached session error
+  // would otherwise be returned again, and a machine that connected since the
+  // list was read would stay unseen.
+  const retry = useCallback(() => {
+    setState({ status: "loading", file: null, error: null, cause: null });
+    const prerequisite = agentSessionError
+      ? refetchSession()
+      : refetchMachines();
+    void prerequisite
+      .catch(() => undefined)
+      .then(() => setRetryGeneration((value) => value + 1));
+  }, [agentSessionError, refetchMachines, refetchSession]);
   const { mutate: authorize } =
     useControllerAuthorizedAction<
       AxiosResponse<ReadAgentSessionCliState200Response>
@@ -79,14 +118,14 @@ export const useRecordedEdit = (params: {
     }
     const runId = params.runId;
 
-    setState({ status: "loading", file: null, error: null, errorCode: null });
+    setState({ status: "loading", file: null, error: null, cause: null });
     if (agentSessionError) {
-      setState({
-        status: "unavailable",
-        file: null,
-        error: `The session could not be loaded: ${agentSessionError.message}`,
-        errorCode: null,
-      });
+      setState(
+        unavailable(
+          { kind: "session-unavailable" },
+          `The session could not be loaded: ${agentSessionError.message}`,
+        ),
+      );
       return;
     }
     // Until the session loads, the machine that ran it is unknown. Stay
@@ -117,22 +156,22 @@ export const useRecordedEdit = (params: {
                 status: "success",
                 file: response.result.file,
                 error: null,
-                errorCode: null,
+                cause: null,
               });
               return;
             } catch (error) {
               if (activeRequestRef.current !== requestGeneration) return;
               if (!(error instanceof TypeError)) {
-                setState({
-                  status: "unavailable",
-                  file: null,
-                  error:
+                setState(
+                  unavailable(
+                    readErrorCause(
+                      error instanceof LocalCliRequestError ? error.code : null,
+                    ),
                     error instanceof Error
                       ? error.message
                       : "The local CLI recorded-edit read failed.",
-                  errorCode:
-                    error instanceof LocalCliRequestError ? error.code : null,
-                });
+                  ),
+                );
                 return;
               }
               // The loopback route disappeared after discovery. Continue
@@ -150,13 +189,12 @@ export const useRecordedEdit = (params: {
       );
       if (!machine) {
         if (activeRequestRef.current === requestGeneration) {
-          setState({
-            status: "unavailable",
-            file: null,
-            error:
+          setState(
+            unavailable(
+              { kind: "machine-unreachable" },
               "The execution machine for this protected read is unavailable.",
-            errorCode: null,
-          });
+            ),
+          );
         }
         return;
       }
@@ -201,50 +239,49 @@ export const useRecordedEdit = (params: {
         });
         if (activeRequestRef.current !== requestGeneration) return;
         if (response.outcome === "DENIED") {
-          setState({
-            status: "unavailable",
-            file: null,
-            error: "The controller denied this protected read.",
-            errorCode: null,
-          });
+          setState(
+            unavailable(
+              { kind: "denied" },
+              "The controller denied this protected read.",
+            ),
+          );
           return;
         }
         const result = response.data.data.data;
         if (!result || result.operation !== "run.recorded_edit.read") {
-          setState({
-            status: "unavailable",
-            file: null,
-            error: result
-              ? "The CLI returned a different read result."
-              : "The CLI read returned no result.",
-            errorCode: null,
-          });
+          setState(
+            unavailable(
+              { kind: "unexpected" },
+              result
+                ? "The CLI returned a different read result."
+                : "The CLI read returned no result.",
+            ),
+          );
         } else if ("error" in result) {
-          setState({
-            status: "unavailable",
-            file: null,
-            error: result.error.message,
-            errorCode: result.error.code,
-          });
+          setState(
+            unavailable(
+              readErrorCause(result.error.code),
+              result.error.message,
+            ),
+          );
         } else {
           setState({
             status: "success",
             file: result.result.file,
             error: null,
-            errorCode: null,
+            cause: null,
           });
         }
       } catch (error) {
         if (activeRequestRef.current === requestGeneration)
-          setState({
-            status: "unavailable",
-            file: null,
-            error:
+          setState(
+            unavailable(
+              { kind: "unexpected" },
               error instanceof Error && error.message
                 ? error.message
                 : "The CLI read failed.",
-            errorCode: null,
-          });
+            ),
+          );
       }
     };
     void readDetail();

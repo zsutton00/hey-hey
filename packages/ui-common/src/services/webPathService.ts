@@ -57,6 +57,8 @@ export interface ProjectAgentsCodingParams {
   projectId: string;
 }
 
+export type ProjectChangesFilters = Record<string, string>;
+
 export interface ProjectDocumentEditParams {
   projectId: string;
   documentId: string;
@@ -345,6 +347,7 @@ export interface PathService {
   projectInitiatives(params: ProjectInitiativesParams): string;
   projectLanding(params: ProjectLandingParams): string;
   projectAgentsCoding(params: ProjectAgentsCodingParams): string;
+  projectChanges(projectId: string, filters?: ProjectChangesFilters): string;
   projectDocumentEdit(params: ProjectDocumentEditParams): string;
   scratchpad(projectId: string): string;
   recentlyViewed(params: ProjectLandingParams): string;
@@ -736,6 +739,19 @@ const defaultPathService: PathService = {
     return `${this.project(params.projectId)}${buildQueryString(searchParams)}`;
   },
 
+  projectChanges(
+    projectId: string,
+    filters: ProjectChangesFilters = {},
+  ): string {
+    const searchParams = new URLSearchParams();
+    searchParams.set("tab", "agents");
+    searchParams.set("agentsSubTab", "changes");
+    for (const [key, value] of Object.entries(filters)) {
+      searchParams.set(key, value);
+    }
+    return `${this.project(projectId)}${buildQueryString(searchParams)}`;
+  },
+
   projectDocumentEdit(params: ProjectDocumentEditParams): string {
     return `/projects/${params.projectId}/documents/${params.documentId}/edit`;
   },
@@ -907,10 +923,9 @@ export class WebPathService {
 
   static projectChanges(
     projectId: string,
-    filters: { agentSessionId?: string; serviceId?: string } = {},
+    filters: ProjectChangesFilters = {},
   ): string {
-    const query = new URLSearchParams(filters).toString();
-    return `/projects/${projectId}/changes${query ? `?${query}` : ""}`;
+    return getPathService().projectChanges(projectId, filters);
   }
 
   static projectReportHistory(projectId: string): string {

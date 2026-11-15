@@ -17,8 +17,11 @@ import {
   isExistingEntityConversationAgentSession,
   LoadingPanel,
 } from "@hey-hey/ui-common/components";
-import { Alert, Box } from "@mui/material";
+import { Alert, Box, Button } from "@mui/material";
 import React from "react";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+import { WebPathService } from "@hey-hey/ui-common/services";
 import { AgenticAgentSessionPage } from "./agentic/AgenticAgentSessionPage";
 import { FeatureTreeConversationPage } from "./FeatureTreeConversationPage";
 
@@ -35,6 +38,7 @@ export const AgentSessionContent: React.FC<AgentSessionContentProps> = ({
   agentSessionId,
   preview = false,
 }) => {
+  const { t } = useTranslation();
   const { agentSession, error, isFetched, isLoading } = useAgentSession(
     organizationId || undefined,
     projectId,
@@ -190,6 +194,17 @@ export const AgentSessionContent: React.FC<AgentSessionContentProps> = ({
       projectId={projectId}
       agentSessionId={agentSessionId}
       preview={preview}
+      actions={
+        preview ? undefined : (
+          <Button
+            component={RouterLink}
+            to={WebPathService.projectChanges(projectId, { agentSessionId })}
+            data-testid="open-changes"
+          >
+            {t("changes.title")}
+          </Button>
+        )
+      }
     />
   );
 };

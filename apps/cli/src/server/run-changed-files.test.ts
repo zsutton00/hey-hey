@@ -10,6 +10,12 @@ import { RepoMappingStore } from '../repo';
 import type { CanonicalFileChangeFact, FileChangeProjection } from '../run/file-change-facts';
 import type { AgenticSession, AgenticSessionContextMetadata } from '../session/types';
 import { NOOP_LOGGER, type ServerLogger } from './logger';
+import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import {
+  RecordedEditLedger,
+  RecordedEditLedgerUnavailableError,
+  isSameRecordedEdit,
+} from './recorded-edit-ledger';
 import { RunChangedFilesContextError, RunChangedFilesReader } from './run-changed-files';
 
 const execFileAsync = promisify(execFile);
@@ -343,9 +349,16 @@ describe('recorded change history', () => {
     await execFileAsync('git', ['add', 'foo.ts'], { cwd: repoPath });
     await execFileAsync('git', ['commit', '-m', 'later'], { cwd: repoPath });
     await execFileAsync('git', ['gc', '--prune=now'], { cwd: repoPath });
-    const reader = new RunChangedFilesReader(repoStore);
+    const stored: ImplementReportEdit[] = [];
+    const ledger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+    const contains = vi
+      .spyOn(ledger, 'contains')
+      .mockImplementation((_scope, candidate) =>
+        Promise.resolve(stored.some((edit) => isSameRecordedEdit(edit, candidate))),
+      );
+    const reader = new RunChangedFilesReader(repoStore, undefined, ledger);
+    const scope = { organizationId: 'org', projectId: 'project' };
     const run = createRun('history-run', repoPath);
-    const membership = [{ serviceId: 'service-a', repoRelativePath: 'foo.ts' }];
     const edit = {
       path: 'foo.ts',
       turnId: 'turn-1',
@@ -357,8 +370,15 @@ describe('recorded change history', () => {
       approximate: true,
       versionsRecorded: true,
     };
+    stored.push(
+      edit,
+      { ...edit, afterObjectId: 'f'.repeat(40) },
+      { ...edit, versionsRecorded: false },
+      { ...edit, beforeObjectId: null },
+      { ...edit, afterObjectId: null },
+    );
     expect(
-      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', edit),
+      await reader.getRecordedEdit(run, scope, 'history-run', 'service-a', edit),
     ).toMatchObject({
       serviceId: 'service-a',
       repoPath,
@@ -368,34 +388,55 @@ describe('recorded change history', () => {
     });
     // The Service must resolve to this Run's repository.
     await expect(
-      reader.getRecordedEdit(run, membership, 'history-run', 'service-b', edit),
+      reader.getRecordedEdit(run, scope, 'history-run', 'service-b', edit),
     ).rejects.toMatchObject({ code: 'REPOSITORY_NOT_FOUND' });
     // Versions retained for the Run stay readable after its local file-change records are gone.
-    expect(await reader.getRecordedEdit(run, [], 'history-run', 'service-a', edit)).toMatchObject({
+    expect(
+      await reader.getRecordedEdit(run, scope, 'history-run', 'service-a', edit),
+    ).toMatchObject({
       preContent: 'historical before\n',
       postContent: 'historical after\n',
     });
     const unrelated = await writeBlob(repoPath, 'not captured by this Run\n');
+    stored.push({ ...edit, afterObjectId: unrelated });
     await expect(
-      reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+      reader.getRecordedEdit(run, scope, 'history-run', 'service-a', {
         ...edit,
         afterObjectId: unrelated,
       }),
     ).rejects.toMatchObject({ code: 'GIT_READ_FAILED' });
+    // Fabricated edits built from this Run's own retained blobs are not in its stored reports.
+    for (const fabricated of [
+      { ...edit, beforeObjectId: afterObjectId, afterObjectId: beforeObjectId },
+      { ...edit, path: 'secrets.ts' },
+      { ...edit, turnId: 'another-turn' },
+      { ...edit, afterRanges: [{ startLine: 9, endLine: 9 }] },
+    ]) {
+      await expect(
+        reader.getRecordedEdit(run, scope, 'history-run', 'service-a', fabricated),
+      ).rejects.toMatchObject({ code: 'INVALID_FILE_MEMBERSHIP' });
+    }
+    // Membership is unknown while the stored reports cannot be consulted, so nothing is read.
+    contains.mockRejectedValueOnce(
+      new RecordedEditLedgerUnavailableError('the report lookup failed'),
+    );
     await expect(
-      reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+      reader.getRecordedEdit(run, scope, 'history-run', 'service-a', edit),
+    ).rejects.toMatchObject({ code: 'GIT_READ_FAILED' });
+    await expect(
+      reader.getRecordedEdit(run, scope, 'history-run', 'service-a', {
         ...edit,
         versionsRecorded: false,
       }),
     ).rejects.toMatchObject({ code: 'GIT_READ_FAILED' });
     expect(
-      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+      await reader.getRecordedEdit(run, scope, 'history-run', 'service-a', {
         ...edit,
         beforeObjectId: null,
       }),
     ).toMatchObject({ status: 'create', preContent: null });
     expect(
-      await reader.getRecordedEdit(run, membership, 'history-run', 'service-a', {
+      await reader.getRecordedEdit(run, scope, 'history-run', 'service-a', {
         ...edit,
         afterObjectId: null,
       }),

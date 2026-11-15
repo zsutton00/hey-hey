@@ -218,7 +218,7 @@ export const createRunChangedFileDetailRouter = ({
       const run = await restoreCoordinator.restore(runId);
       const file = await runChangedFilesReader.getRecordedEdit(
         run.session,
-        run.getFileChangeProjection(),
+        { organizationId: run.organizationId, projectId: run.projectId },
         runId,
         body.serviceId,
         body.edit,

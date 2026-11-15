@@ -1,6 +1,6 @@
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { ChangesPage } from "./ChangesPage";
+import { MemoryRouter } from "react-router-dom";
+import { ChangesView } from "./ChangesView";
 import { FullFileSplitView } from "@hey-hey/ui-common/components/AgentSession/CollatedFileDiffModal/FullFileSplitView";
 import { installDiffViewerLayoutShims } from "@hey-hey/ui-common/components/AgentSession/CollatedFileDiffModal/__tests__/diffViewerLayoutShims";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -116,7 +116,12 @@ const record = {
     ],
   },
   commits: [
-    { reportId: "commit", service: "service", hash: "abc123", branch: "main" },
+    {
+      reportId: "commit",
+      service: "service",
+      hash: "9f1cf0211111111111111111111111111111aaaa",
+      branch: "main",
+    },
   ],
 } satisfies ProjectChangeRecord;
 
@@ -128,13 +133,8 @@ describe("change records", () => {
     });
     render(
       <NuqsTestingAdapter searchParams="?agentSessionId=session&serviceId=service&taskId=task&featureId=feature&committed=false&offset=50">
-        <MemoryRouter initialEntries={["/projects/project/changes"]}>
-          <Routes>
-            <Route
-              path="/projects/:projectId/changes"
-              element={<ChangesPage />}
-            />
-          </Routes>
+        <MemoryRouter>
+          <ChangesView organizationId="org" projectId="project" />
         </MemoryRouter>
       </NuqsTestingAdapter>,
     );
@@ -183,23 +183,82 @@ describe("change records", () => {
     }
   });
 
-  it("shows provenance and approximation and selects the exact recorded edit", () => {
+  it("labels session, task and Service, shows the short commit hash, and selects a recorded edit", () => {
     const select = vi.fn();
-    render(<ChangeRecordRow record={record} onSelect={select} />);
-    expect(screen.getByText("History session")).toBeInTheDocument();
-    expect(screen.getByText("Application")).toBeInTheDocument();
-    expect(screen.getByText("Browse changes")).toBeInTheDocument();
-    expect(screen.getByText("abc123")).toBeInTheDocument();
+    render(
+      <MemoryRouter>
+        <ChangeRecordRow record={record} onSelect={select} />
+      </MemoryRouter>,
+    );
+    const labelled = (label: string, value: string) => {
+      const term = screen.getByText(label, { selector: "dt" });
+      const link = term.nextElementSibling?.querySelector("a");
+      expect(link).toHaveTextContent(value);
+      return link;
+    };
+    expect(labelled("changes.sessionLabel", "History session")).toHaveAttribute(
+      "href",
+      expect.stringContaining("session"),
+    );
+    labelled("changes.taskLabel", "Browse changes");
+    labelled("changes.serviceLabel", "Application");
+    expect(screen.getByText("changes.committed")).toBeInTheDocument();
+    expect(screen.getByText("9f1cf021")).toBeInTheDocument();
     expect(screen.getByText("changes.approximate")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("change-edit"));
     expect(select).toHaveBeenCalledWith(edit);
   });
 
+  it("marks uncommitted records and exact edits, and lists unrecorded edits without opening them", () => {
+    const select = vi.fn();
+    const mixed = {
+      ...record,
+      commits: [],
+      report: {
+        ...record.report,
+        payload: {
+          ...record.report.payload,
+          edits: [
+            { ...edit, approximate: false },
+            {
+              ...edit,
+              path: "assets/logo.png",
+              approximate: true,
+              versionsRecorded: false,
+            },
+          ],
+        },
+      },
+    } satisfies ProjectChangeRecord;
+    render(
+      <MemoryRouter>
+        <ChangeRecordRow record={mixed} onSelect={select} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("changes.uncommitted")).toBeInTheDocument();
+    expect(screen.getByText("changes.exact")).toBeInTheDocument();
+    expect(screen.getAllByTestId("change-edit")).toHaveLength(1);
+    const unrecorded = screen.getByTestId("change-edit-unrecorded");
+    expect(unrecorded).toHaveTextContent("assets/logo.png");
+    expect(unrecorded.tagName).not.toBe("BUTTON");
+    expect(screen.getByText("changes.versionsNotRecorded")).toBeInTheDocument();
+    fireEvent.click(unrecorded);
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it("keeps the durable record rendered when its machine is unavailable", () => {
-    read.mockReturnValue({ status: "unavailable", file: null, retry: vi.fn() });
+    read.mockReturnValue({
+      status: "unavailable",
+      file: null,
+      error: "raw failure",
+      cause: { kind: "machine-unreachable" },
+      retry: vi.fn(),
+    });
     render(
       <>
-        <ChangeRecordRow record={record} onSelect={() => {}} />
+        <MemoryRouter>
+          <ChangeRecordRow record={record} onSelect={() => {}} />
+        </MemoryRouter>
         <RecordedEditModal
           organizationId="org"
           projectId="project"
@@ -210,7 +269,7 @@ describe("change records", () => {
     );
     expect(screen.getByTestId("change-record")).toBeInTheDocument();
     expect(screen.getByTestId("recorded-edit-state")).toHaveTextContent(
-      "changes.unavailable",
+      "changes.reason.offline",
     );
     expect(read).toHaveBeenCalledWith(
       expect.objectContaining({

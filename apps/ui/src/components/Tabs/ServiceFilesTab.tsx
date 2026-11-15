@@ -1,6 +1,5 @@
 import { WebPathService } from "@hey-hey/ui-common/services";
 import { useTranslation } from "react-i18next";
-import { Button as ChangesLinkButton } from "@mui/material";
 import HistoryIcon from "@mui/icons-material/History";
 import {
   Alert,
@@ -103,13 +102,6 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
 
   return (
     <Box data-testid="service-files-tab" sx={{ p: 3 }}>
-      <ChangesLinkButton
-        component={RouterLink}
-        to={WebPathService.projectChanges(projectId, { serviceId })}
-        data-testid="open-changes"
-      >
-        {t("changes.title")}
-      </ChangesLinkButton>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
         <TextField
           label="Filter paths"
@@ -167,6 +159,14 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
             </MenuItem>
           </Select>
         </FormControl>
+        <Button
+          component={RouterLink}
+          to={WebPathService.projectChanges(projectId, { serviceId })}
+          data-testid="open-changes"
+          sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+        >
+          {t("changes.title")}
+        </Button>
       </Stack>
 
       {state.status === "loading" && (

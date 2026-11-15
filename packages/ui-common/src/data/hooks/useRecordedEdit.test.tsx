@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 import axios from "axios";
@@ -131,5 +131,84 @@ describe("useRecordedEdit", () => {
 
     await waitFor(() => expect(result.current.status).toBe("unavailable"));
     expect(result.current.file).toBeNull();
+    expect(result.current.cause).toEqual({ kind: "machine-unreachable" });
+  });
+
+  it("reports the CLI's typed failure code as the cause", async () => {
+    globalThis.mswServer.use(
+      ...serveSession("machine-1"),
+      http.get("http://localhost:3847/api/local/repos", () =>
+        HttpResponse.json({ machineId: "machine-1", bindings: [] }),
+      ),
+      http.post(
+        "http://localhost:3847/api/local/runs/:runId/recorded-edits/read",
+        () =>
+          HttpResponse.json(
+            {
+              error: { code: "FILE_TOO_LARGE", message: "File exceeds 1 MiB" },
+            },
+            { status: 413 },
+          ),
+      ),
+    );
+
+    const { result } = renderHook(() => useRecordedEdit(params), { wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe("unavailable"));
+    expect(result.current.cause).toEqual({
+      kind: "read-error",
+      code: "FILE_TOO_LARGE",
+    });
+  });
+
+  it("reloads a session that failed to load when the read is retried", async () => {
+    let sessionRequests = 0;
+    const [currentState, getSession] = serveSession("machine-1");
+    globalThis.mswServer.use(
+      currentState,
+      http.get("*/agent-sessions/:agentSessionId", (info) => {
+        sessionRequests += 1;
+        return sessionRequests === 1
+          ? HttpResponse.json({ message: "unavailable" }, { status: 404 })
+          : getSession.resolver(info);
+      }),
+      http.get("http://localhost:3847/api/local/repos", () =>
+        HttpResponse.json({ machineId: "machine-1", bindings: [] }),
+      ),
+      http.post(
+        "http://localhost:3847/api/local/runs/:runId/recorded-edits/read",
+        () =>
+          HttpResponse.json({
+            requestId: "66666666-6666-4666-8666-666666666666",
+            operation: "run.recorded_edit.read",
+            status: "success",
+            result: {
+              runId: params.runId,
+              file: {
+                serviceId,
+                repoPath: "/workspace/service",
+                filePath: edit.path,
+                status: "modify",
+                diff: "",
+                preContent: "stored before\n",
+                postContent: "stored after\n",
+              },
+            },
+          }),
+      ),
+    );
+
+    const { result } = renderHook(() => useRecordedEdit(params), { wrapper });
+
+    await waitFor(() => expect(result.current.status).toBe("unavailable"));
+    expect(result.current.cause).toEqual({ kind: "session-unavailable" });
+
+    act(() => result.current.retry());
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(sessionRequests).toBeGreaterThan(1);
+    expect(result.current.file).toMatchObject({
+      postContent: "stored after\n",
+    });
   });
 });

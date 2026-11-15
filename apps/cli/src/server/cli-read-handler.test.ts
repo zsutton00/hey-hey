@@ -27,6 +27,8 @@ import { createTestRun as createBaseTestRun, createTestRunStore } from '../run/r
 import { createTestRunRegistryWiring } from './__tests__/helpers/test-run-registry';
 import { CliReadHandler } from './cli-read-handler';
 import { NOOP_LOGGER, type ServerLogger } from './logger';
+import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import { RecordedEditLedger, isSameRecordedEdit } from './recorded-edit-ledger';
 import { RunChangedFilesContextError, RunChangedFilesReader } from './run-changed-files';
 import { RunReadPreparationError, RunReadRestoreCoordinator } from './restore-persisted-runs';
 import { createTestTriggerVerificationRuntime } from './trigger-verification/test-owners.test-support';
@@ -193,6 +195,17 @@ const denialCases = [
   ['stale prior authority', 'GRANT_NOT_ACTIVE'],
 ] as const satisfies readonly (readonly [string, ControllerAuthorizationDenialReason])[];
 
+/** Edits the stored IMPLEMENT reports hold for the Run under test. */
+const storedRecordedEdits: ImplementReportEdit[] = [];
+
+const storedRecordedEditLedger = (): RecordedEditLedger => {
+  const ledger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+  vi.spyOn(ledger, 'contains').mockImplementation((_scope, edit) =>
+    Promise.resolve(storedRecordedEdits.some((stored) => isSameRecordedEdit(stored, edit))),
+  );
+  return ledger;
+};
+
 const createSubject = (
   restore: (requestedRunId: string) => Promise<Run>,
   verification: VerifyCliReadResult = verified,
@@ -235,7 +248,11 @@ const createSubject = (
   });
   const repoStore = new RepoMappingStore();
   vi.spyOn(repoStore, 'getBinding').mockResolvedValue(null);
-  const runChangedFilesReader = new RunChangedFilesReader(repoStore);
+  const recordedEditLedger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+  vi.spyOn(recordedEditLedger, 'contains').mockImplementation((_scope, edit) =>
+    Promise.resolve(storedRecordedEdits.some((stored) => isSameRecordedEdit(stored, edit))),
+  );
+  const runChangedFilesReader = new RunChangedFilesReader(repoStore, undefined, recordedEditLedger);
   const verifyRead = vi.spyOn(triggerVerificationRuntime, 'verifyCliReadFrame');
   if (subjectOptions.platformVerifier) {
     verifyRead.mockImplementation((raw) =>
@@ -471,7 +488,11 @@ describe('CliReadHandler', () => {
           runStore,
           runRegistry: wiring.runRegistry,
           triggerVerificationRuntime,
-          runChangedFilesReader: new RunChangedFilesReader(repoStore),
+          runChangedFilesReader: new RunChangedFilesReader(
+            repoStore,
+            undefined,
+            storedRecordedEditLedger(),
+          ),
           sessionActivity: { snapshot: vi.fn() },
           isRemoteToolCallViewingEnabled: vi.fn().mockResolvedValue(true),
           logger: NOOP_LOGGER,
@@ -527,6 +548,14 @@ describe('CliReadHandler', () => {
         const beforeObjectId = await writeBlob(repoPath, 'recorded before\n');
         const afterObjectId = await writeBlob(repoPath, 'recorded after\n');
         await anchorBlobs(repoPath, runId, 'history fixture', [beforeObjectId, afterObjectId]);
+        const recordedEdit = {
+          ...readBodiesByOperation['run.recorded_edit.read'].edit,
+          path: 'owned.ts',
+          beforeObjectId,
+          afterObjectId,
+        };
+        storedRecordedEdits.push(recordedEdit);
+        // A fabricated edit that pairs this Run's retained blobs differently is not recorded.
         verify.mockReturnValue(
           verifiedRead({
             requestId,
@@ -534,12 +563,21 @@ describe('CliReadHandler', () => {
             runId,
             serviceId,
             operation: 'run.recorded_edit.read',
-            edit: {
-              ...readBodiesByOperation['run.recorded_edit.read'].edit,
-              path: 'owned.ts',
-              beforeObjectId,
-              afterObjectId,
-            },
+            edit: { ...recordedEdit, beforeObjectId: afterObjectId, afterObjectId: beforeObjectId },
+          }),
+        );
+        await expect(handler.handle({})).resolves.toMatchObject({
+          status: 'error',
+          error: { code: 'INVALID_FILE_MEMBERSHIP' },
+        });
+        verify.mockReturnValue(
+          verifiedRead({
+            requestId,
+            agentSessionId: runId,
+            runId,
+            serviceId,
+            operation: 'run.recorded_edit.read',
+            edit: recordedEdit,
           }),
         );
         await expect(handler.handle({})).resolves.toMatchObject({
