@@ -17689,6 +17689,10 @@
         "feature": {
           "$ref": "#/definitions/VerifyFeatureReference"
         },
+        "lead": {
+          "type": "string",
+          "description": "One sentence naming the specific discrepancy, shown as the card\\'s lead. The explanation carries the detail. Suggestions saved before the field existed have no lead."
+        },
         "explanation": {
           "type": "string"
         },
@@ -25843,7 +25847,7 @@
         "affectedEntities": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/FeatureSyncReportSourceRef"
+            "$ref": "#/definitions/FeatureSyncDecisionAffectedEntity"
           }
         },
         "title": {
@@ -25866,7 +25870,31 @@
         "summary",
         "choices"
       ],
-      "description": "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence."
+      "description": "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity\\'s optional reason is display-only: it plays no part in group identity, target uniqueness or the user\\'s response."
+    },
+    "FeatureSyncDecisionAffectedEntity": {
+      "type": "object",
+      "properties": {
+        "entityType": {
+          "$ref": "#/definitions/FeatureSyncReportSourceType"
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the referenced entity (the `|title` half of the mention)."
+        },
+        "reason": {
+          "type": "string",
+          "description": "One-line, display-only explanation of why the decision affects this entity."
+        }
+      },
+      "required": [
+        "entityId",
+        "entityType",
+        "title"
+      ]
     },
     "FeatureSyncDecisionChoice": {
       "type": "object",

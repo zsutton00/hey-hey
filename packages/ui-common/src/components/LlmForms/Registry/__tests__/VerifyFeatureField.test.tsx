@@ -9,7 +9,10 @@ import { SecondaryActionRenderer } from "../../../Conversation/SecondaryActionRe
 import { VerificationRuntimeContext } from "../../../Conversation/SecondaryActions/verificationRuntimeContext";
 import type { EntityConversationPromptRuntimeSelection } from "../../../InteractionComponent/EntityConversationPromptDialog";
 
-const mocks = vi.hoisted(() => ({ launch: vi.fn(), next: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  launch: vi.fn(),
+  next: vi.fn(),
+}));
 vi.mock(
   "../../../InteractionComponent/useFeatureSyncConversationLauncher",
   () => ({
@@ -315,6 +318,76 @@ describe("Verify Feature field and secondary action", () => {
     );
   });
 
+  it("shows the supplied lead and keeps the whole explanation under Details", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={{
+          ...field.payload,
+          lead: "A new Decision requires core entity types, but Configuration does not state that rule.",
+          explanation:
+            "A new Decision states that product data uses core types. Configuration never mentions this storage rule, so readers would choose their own.",
+          impactedEntities: [
+            {
+              entityType: "feature",
+              entityId: "3782302e-54ad-4908-b168-0b2260a89b3c",
+              title: "Configuration",
+            },
+          ],
+        }}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent("A new Decision requires core entity types");
+    expect(lead).not.toHaveTextContent("readers would choose");
+    expect(
+      screen.getAllByTestId("conversation-card-section")[0],
+    ).toHaveTextContent(
+      "A new Decision states that product data uses core types.",
+    );
+  });
+
+  it("renders a suggestion stored before leads existed with the first-sentence split", () => {
+    // Shape of a suggestion stored before the lead field: no `lead`.
+    const stored = {
+      feature: {
+        entityType: "FEATURE" as const,
+        entityId: "3782302e-54ad-4908-b168-0b2260a89b3c",
+      },
+      explanation:
+        "The card derives its lead from the first sentence. The Mockup shows a separate summary of the discrepancy.",
+      impactedEntities: [
+        {
+          entityType: "mockup",
+          entityId: "39f9e923-da6e-4c7c-ade0-a4736ab30b67",
+          title: "Verify Feature Suggestion",
+        },
+      ],
+    };
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={stored}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent(
+      "The card derives its lead from the first sentence.",
+    );
+    expect(lead).not.toHaveTextContent("The Mockup shows");
+    expect(
+      screen.getAllByTestId("conversation-card-section")[0],
+    ).toHaveTextContent(
+      "The Mockup shows a separate summary of the discrepancy.",
+    );
+  });
+
   it("renders footer actions inside the card footer", () => {
     renderField(
       <VerifyFeatureField
@@ -429,7 +502,9 @@ describe("Verify Feature field and secondary action", () => {
     );
     expect(mocks.launch).not.toHaveBeenCalled();
     const verifyButton = screen.getByTestId("project-topology-button");
-    expect(verifyButton).toHaveAccessibleName("Potential project sync issue");
+    expect(verifyButton).toHaveAccessibleName(
+      "Start a conversation to verify this feature",
+    );
     fireEvent.click(verifyButton);
     expect(mocks.launch).not.toHaveBeenCalled();
     expect(

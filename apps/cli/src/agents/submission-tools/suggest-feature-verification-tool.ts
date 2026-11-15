@@ -5,6 +5,7 @@ export const SUGGEST_FEATURE_VERIFICATION_TOOL_NAME = 'suggest_feature_verificat
 
 const CORRECTIONS: Record<string, string> = {
   featureId: "Supply /featureId as the most affected feature's UUID, then retry.",
+  lead: 'Supply /lead as one non-empty sentence naming the specific discrepancy (what diverges from what), then retry.',
   discrepancy: 'Supply /discrepancy as a non-empty description of what diverges, then retry.',
   impactedEntities:
     'Supply /impactedEntities as a list (possibly empty) of { entityType, entityId, title } objects with the mention type, the UUID id and the exact title of each entity as they appear in its @[type:id|title] mention, then retry.',
@@ -20,12 +21,13 @@ export const suggestFeatureVerificationTool = {
   kind: 'pass_through',
   name: SUGGEST_FEATURE_VERIFICATION_TOOL_NAME,
   description:
-    'Offer the user a Verify Feature session for one feature whose Diagram, Mockup or requirements the code now diverges from, or that a Decision you created or changed affects. Pass the most affected feature id, the specific discrepancy you observed (what the code does versus what the feature, Diagram or Mockup says, or the impact the Decision has), and impactedEntities: the entities of any type (features, tasks, design docs, Contracts, Mockups, Diagrams, Decisions) you think may be impacted, each as { entityType, entityId, title } using the mention type, id and exact title from the context you already hold (do not look entities up just to find a title). They are where the Verify Feature session starts looking, not the limit of its search; pass an empty list when the concern is only the code diverging from that one feature. Raise a concern once; never repeat one already suggested in this session.',
+    'Offer the user a Verify Feature session for one feature whose Diagram, Mockup or requirements the code now diverges from, or that a Decision you created or changed affects. Pass the most affected feature id, a lead (exactly one sentence stating the specific discrepancy, what diverges from what, not the premise or background; the card shows it as its bold headline), the full discrepancy you observed as the explanation carrying the detail (what the code does versus what the feature, Diagram or Mockup says, or the impact the Decision has), and impactedEntities: the entities of any type (features, tasks, design docs, Contracts, Mockups, Diagrams, Decisions) you think may be impacted, each as { entityType, entityId, title } using the mention type, id and exact title from the context you already hold (do not look entities up just to find a title). They are where the Verify Feature session starts looking, not the limit of its search; pass an empty list when the concern is only the code diverging from that one feature. Raise a concern once; never repeat one already suggested in this session.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
       featureId: { type: 'string' },
+      lead: { type: 'string' },
       discrepancy: { type: 'string' },
       impactedEntities: {
         type: 'array',
@@ -41,7 +43,7 @@ export const suggestFeatureVerificationTool = {
         },
       },
     },
-    required: ['featureId', 'discrepancy', 'impactedEntities'],
+    required: ['featureId', 'lead', 'discrepancy', 'impactedEntities'],
   },
   execute(ctx) {
     const run = ctx.run;
@@ -72,6 +74,7 @@ export const suggestFeatureVerificationTool = {
     }
     const recorded = turn.recordFeatureVerificationSuggestion({
       feature: { entityType: 'FEATURE', entityId: parsed.data.featureId },
+      lead: parsed.data.lead,
       explanation: parsed.data.discrepancy,
       impactedEntities: parsed.data.impactedEntities,
     });

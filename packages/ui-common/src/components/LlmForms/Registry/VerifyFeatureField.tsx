@@ -36,10 +36,13 @@ export function VerifyFeatureField({
     () => getUniqueImpactedEntities(value?.impactedEntities),
     [value?.impactedEntities],
   );
-  const { lead, details } = useMemo(
-    () => splitExplanation(value?.explanation ?? ""),
-    [value?.explanation],
-  );
+  const { lead, details } = useMemo(() => {
+    // Suggestions saved before the lead field existed have none.
+    if (value?.lead) {
+      return { lead: value.lead, details: value.explanation };
+    }
+    return splitExplanation(value?.explanation ?? "");
+  }, [value?.lead, value?.explanation]);
 
   return (
     <ConversationCard

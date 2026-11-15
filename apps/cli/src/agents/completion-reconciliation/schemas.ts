@@ -5,6 +5,7 @@ import type { VerifyFeaturePayload } from '@hey-hey/contracts/api/models';
 export const featureVerificationSuggestionSchema = z
   .object({
     featureId: z.string().uuid(),
+    lead: z.string().trim().min(1),
     discrepancy: z.string().trim().min(1),
     impactedEntities: z.array(
       z

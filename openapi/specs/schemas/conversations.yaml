@@ -5115,6 +5115,10 @@ VerifyFeaturePayload:
   properties:
     feature:
       $ref: "#/VerifyFeatureReference"
+    lead:
+      type: string
+      minLength: 1
+      description: One sentence naming the specific discrepancy, shown as the card's lead. The explanation carries the detail. Suggestions saved before the field existed have no lead.
     explanation:
       type: string
       minLength: 1
