@@ -34,6 +34,12 @@ import {
   renderWithMentions,
 } from "../../shared/MarkdownRenderer";
 
+import {
+  SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR,
+  SYSTEM_MESSAGE_INLINE_CODE_BG_VAR,
+  SYSTEM_MESSAGE_LINK_COLOR_VAR,
+} from "./systemMessageStyleVars";
+
 const MermaidCodeBlock = React.lazy(() =>
   import("../../shared/MermaidCodeBlock").then((mod) => ({
     default: mod.MermaidCodeBlock,
@@ -167,7 +173,7 @@ const SystemMessageAnchor = ({
         target="_blank"
         rel="noopener noreferrer"
         style={{
-          color: theme.palette.primary.contrastText,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -204,7 +210,7 @@ const SystemMessageAnchor = ({
         data-testid="system-message-source-link"
         data-source-path={sourceReference.path}
         style={{
-          color: theme.palette.primary.contrastText,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -547,20 +553,22 @@ function getStyles(
           marginBottom: 2,
         },
         "& pre": {
-          backgroundColor:
+          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${
             theme.palette.mode === "dark"
               ? theme.palette.grey[900]
-              : theme.palette.grey[100],
+              : theme.palette.grey[100]
+          })`,
           borderRadius: 1,
           padding: 1,
           overflowX: "auto",
           whiteSpace: "pre-wrap",
         },
         "& code": {
-          backgroundColor:
+          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${
             theme.palette.mode === "dark"
               ? "rgba(255, 255, 255, 0.04)"
-              : "rgba(0, 0, 0, 0.04)",
+              : "rgba(0, 0, 0, 0.04)"
+          })`,
           borderRadius: "4px",
           padding: "0 4px",
           fontSize: "0.95em",

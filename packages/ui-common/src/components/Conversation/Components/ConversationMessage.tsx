@@ -14,6 +14,7 @@ import type {
 import {
   AgentSessionCurrentState,
   MessageType,
+  SystemMessageDataNoticeSeverityEnum,
   SystemMessageDataTypeEnum,
 } from "../../../api";
 import type { ConversationMessage as ConversationMessageType } from "../../../types/conversation";
@@ -32,6 +33,12 @@ import {
   UserMessageBubble,
 } from "./UserMessageBubble";
 import { SystemMessageWithRetry } from "./SystemMessageWithRetry";
+import {
+  SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR,
+  SYSTEM_MESSAGE_INLINE_CODE_BG_VAR,
+  SYSTEM_MESSAGE_LINK_COLOR_VAR,
+} from "./systemMessageStyleVars";
+import { SolidAlert } from "../Card/SolidAlert";
 import { SupervisionDecisionMessage } from "./SupervisionDecisionMessage";
 import { TaskMonitorInterventionMessage } from "./TaskMonitorInterventionMessage";
 import { ReportActions } from "../../shared/ReportActions";
@@ -106,6 +113,26 @@ const toUserMessageDisplayText = (
  * @param props - Component props (significantly reduced due to context)
  * @returns JSX element displaying a single conversation message
  */
+/** Strips the agent bubble's chrome so a warning notice reads as plain text on the solid alert. */
+const FLAT_ALERT_BODY_SX = {
+  backgroundColor: "transparent",
+  border: "none",
+  boxShadow: "none",
+  minHeight: "auto",
+  minWidth: 0,
+  maxWidth: "100%",
+  p: 0,
+  mb: 0,
+  opacity: 1,
+  color: "inherit",
+  "& *": { color: "inherit" },
+  [SYSTEM_MESSAGE_LINK_COLOR_VAR]: "currentcolor",
+  // Code keeps the alert's dark foreground, so its fill must be a shade over
+  // the amber rather than the bubble's dark-mode grey.
+  [SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR]: "rgba(0, 0, 0, 0.12)",
+  [SYSTEM_MESSAGE_INLINE_CODE_BG_VAR]: "rgba(0, 0, 0, 0.12)",
+} as const;
+
 export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
   ({
     conversationMessage,
@@ -314,27 +341,41 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
                 (conversationMessage.message.data?.response ||
                   inlineReports.length > 0 ||
                   conversationMessage.state === "error") &&
-                !shouldHideSystemMessage && (
-                  <SystemMessageWithRetry
-                    animationType={animationType}
-                    enableTypingAnimation={enableTypingAnimation}
-                    uiHints={uiHints}
-                    message={conversationMessage.message}
-                    state={conversationMessage.state}
-                    project={project}
-                    onRetrySuccess={handleRetrySuccess}
-                    renderTimestamp={renderTimestamp}
-                    sx={
-                      noticeSeverity
-                        ? getNoticeVisualTreatmentSx(theme, noticeSeverity)
-                        : conversationMessage.message.data?.type ===
-                            "SESSION_MONITOR"
-                          ? getMonitorVisualTreatmentSx(theme)
-                          : undefined
-                    }
-                    inlineReports={inlineReports}
-                  />
-                )
+                !shouldHideSystemMessage &&
+                (() => {
+                  const isWarningNotice =
+                    noticeSeverity ===
+                    SystemMessageDataNoticeSeverityEnum.Warning;
+                  const body = (
+                    <SystemMessageWithRetry
+                      animationType={animationType}
+                      enableTypingAnimation={enableTypingAnimation}
+                      uiHints={uiHints}
+                      message={conversationMessage.message}
+                      state={conversationMessage.state}
+                      project={project}
+                      onRetrySuccess={handleRetrySuccess}
+                      renderTimestamp={renderTimestamp}
+                      sx={
+                        isWarningNotice
+                          ? FLAT_ALERT_BODY_SX
+                          : noticeSeverity
+                            ? getNoticeVisualTreatmentSx(theme)
+                            : conversationMessage.message.data?.type ===
+                                "SESSION_MONITOR"
+                              ? getMonitorVisualTreatmentSx(theme)
+                              : undefined
+                      }
+                      inlineReports={inlineReports}
+                    />
+                  );
+
+                  return isWarningNotice ? (
+                    <SolidAlert severity="warning">{body}</SolidAlert>
+                  ) : (
+                    body
+                  );
+                })()
               )}
 
               {conversationMessage.message.type === MessageType.System &&

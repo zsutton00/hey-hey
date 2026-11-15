@@ -1,4 +1,5 @@
-import { Alert, Box, Button, Chip, Stack, Typography } from "@mui/material";
+import { Box, Button, Chip, Stack, Typography } from "@mui/material";
+import { SolidAlert } from "../Card/SolidAlert";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
@@ -217,9 +218,12 @@ export const TaskMonitorInterventionMessage = ({
           </Typography>
         )}
         {errorMessage ? (
-          <Alert severity="error" data-testid="task-monitor-intervention-error">
+          <SolidAlert
+            severity="error"
+            data-testid="task-monitor-intervention-error"
+          >
             {errorMessage}
-          </Alert>
+          </SolidAlert>
         ) : null}
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {choices.map((choice) => {

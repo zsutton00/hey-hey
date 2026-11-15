@@ -5,12 +5,49 @@ import {
   ThemeProvider as MuiThemeProvider,
 } from "@mui/material/styles";
 import type { ThemeOptions } from "@mui/material/styles";
+import { alpha } from "@mui/material/styles";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import {
   DIAGRAM_GROUP_THEME_COLORS,
   type DiagramGroupColorPalette,
 } from "../types/theme";
+
+export type ConversationCardRole =
+  "projectSync" | "needsAnswer" | "agentMessage" | "informational";
+
+/** Red is deliberately absent: it is reserved for error alerts. */
+export type ConversationCardSeverity = "high" | "medium" | "low";
+
+export interface ConversationCardTone {
+  /** Border and primary button color. */
+  main: string;
+  /** Header strip tint. */
+  soft: string;
+  /** Text on `main`. */
+  contrastText: string;
+}
+
+export interface ConversationAlertTone {
+  main: string;
+  contrastText: string;
+}
+
+export interface ConversationCardPalette {
+  roles: Record<ConversationCardRole, ConversationCardTone>;
+  severities: Record<ConversationCardSeverity, ConversationCardTone>;
+}
+
+export interface ConversationAlertPalette {
+  warning: ConversationAlertTone;
+  error: ConversationAlertTone;
+}
+
+export interface MonitorMessageTone {
+  /** Neutral fill for monitor-authored messages. */
+  soft: string;
+  border: string;
+}
 
 // Extend the palette interface to include custom colors
 declare module "@mui/material/styles" {
@@ -32,6 +69,9 @@ declare module "@mui/material/styles" {
     ready: Palette["primary"];
     warning: Palette["primary"];
     active: Palette["primary"];
+    conversationCard: ConversationCardPalette;
+    conversationAlert: ConversationAlertPalette;
+    monitorMessage: MonitorMessageTone;
   }
 
   interface PaletteOptions {
@@ -52,6 +92,9 @@ declare module "@mui/material/styles" {
     ready?: PaletteOptions["primary"];
     warning?: PaletteOptions["primary"];
     active?: PaletteOptions["primary"];
+    conversationCard?: ConversationCardPalette;
+    conversationAlert?: ConversationAlertPalette;
+    monitorMessage?: MonitorMessageTone;
   }
 }
 
@@ -123,6 +166,42 @@ export const useTheme = () => {
 };
 
 // Base theme configuration that works for both light and dark modes
+const buildConversationPalette = (isDark: boolean) => {
+  const softAlpha = isDark ? 0.16 : 0.12;
+  const tone = (main: string, contrastText: string): ConversationCardTone => ({
+    main,
+    soft: alpha(main, softAlpha),
+    contrastText,
+  });
+  const warningMain = "#E4A93A";
+  const neutralMain = isDark ? "#5a5a5a" : "#b5b9c0";
+  const lowMain = isDark ? "#6b6b6b" : "#a3a8b0";
+
+  const conversationCard: ConversationCardPalette = {
+    roles: {
+      projectSync: tone("rgb(8, 126, 139)", "#ffffff"),
+      needsAnswer: tone("#8e6fd8", "#1a1a1a"),
+      agentMessage: tone("rgb(60, 114, 160)", "#ffffff"),
+      informational: tone(neutralMain, isDark ? "#ffffff" : "#1a1a1a"),
+    },
+    severities: {
+      high: tone("#e07a2e", "#1a1a1a"),
+      medium: tone(warningMain, "#000000"),
+      low: tone(lowMain, isDark ? "#ffffff" : "#1a1a1a"),
+    },
+  };
+  const conversationAlert: ConversationAlertPalette = {
+    warning: { main: warningMain, contrastText: "#1a1a1a" },
+    error: { main: "#c9443f", contrastText: "#ffffff" },
+  };
+  const monitorMessage: MonitorMessageTone = {
+    soft: isDark ? "rgba(176, 184, 196, 0.14)" : "rgba(97, 110, 128, 0.10)",
+    border: isDark ? "rgba(176, 184, 196, 0.30)" : "rgba(97, 110, 128, 0.28)",
+  };
+
+  return { conversationCard, conversationAlert, monitorMessage };
+};
+
 export const createHeyTheme = (mode: ThemeMode) => {
   const isDark = mode === "dark";
 
@@ -136,6 +215,7 @@ export const createHeyTheme = (mode: ThemeMode) => {
     cssVariables: true,
     palette: {
       diagramGroups: DIAGRAM_GROUP_THEME_COLORS[mode],
+      ...buildConversationPalette(isDark),
       mode,
       primary: {
         main: isDark ? "rgb(86, 150, 200)" : "rgb(60, 114, 160)",

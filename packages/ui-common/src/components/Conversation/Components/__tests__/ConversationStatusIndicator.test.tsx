@@ -1,6 +1,7 @@
 import React from "react";
 import { screen, waitFor } from "@testing-library/react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   createMockConversation,
@@ -27,7 +28,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 describe("ConversationStatusIndicator", () => {
-  const theme = createTheme();
+  const theme = createHeyTheme("light");
   const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <ThemeProvider theme={theme}>{children}</ThemeProvider>
   );
@@ -50,7 +51,7 @@ describe("ConversationStatusIndicator", () => {
           status: "failed",
           message: "Something went wrong",
         },
-      }
+      },
     );
 
     const alert = screen.getByRole("alert");
@@ -69,7 +70,7 @@ describe("ConversationStatusIndicator", () => {
         workflowStatus: {
           status: "failed",
         },
-      }
+      },
     );
 
     await waitFor(() => {
@@ -96,7 +97,7 @@ describe("ConversationStatusIndicator", () => {
         conversationOverride: createMockConversation({
           status: ConversationStatus.GeneratingResponse,
         }),
-      }
+      },
     );
 
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();

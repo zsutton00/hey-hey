@@ -51,18 +51,11 @@ export const getNoticeSeverity = (
     ? (messageData.noticeSeverity ?? SystemMessageDataNoticeSeverityEnum.Info)
     : null;
 
-export const getNoticeVisualTreatmentSx = (
-  theme: Theme,
-  severity: NoticeSeverity,
-) => {
-  const palette =
-    severity === SystemMessageDataNoticeSeverityEnum.Warning
-      ? theme.palette.warning
-      : theme.palette.info;
-
+/** Outlined treatment for informational notices; warnings use SolidAlert. */
+export const getNoticeVisualTreatmentSx = (theme: Theme) => {
   return {
     backgroundColor: theme.palette.background.paper,
-    border: `1px solid ${palette.main}`,
+    border: `1px solid ${theme.palette.info.main}`,
     borderRadius: 1,
     px: 1.5,
     py: 1,
