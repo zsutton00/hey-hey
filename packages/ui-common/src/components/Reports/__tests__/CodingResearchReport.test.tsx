@@ -226,6 +226,40 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
+  it("lists several references on one uncertainty as related-item rows", () => {
+    const payload: CodingResearchReportPayload = {
+      ...fullPayload,
+      uncertainties: [
+        {
+          category: "conflict",
+          severity: "high",
+          statement: "Two sources disagree.",
+          references: [
+            {
+              entityType: EntityType.Task,
+              entityId: FOCAL_TASK_ID,
+              title: "First source",
+            },
+            {
+              entityType: EntityType.Task,
+              entityId: "22222222-2222-4222-8222-222222222222",
+              title: "Second source",
+            },
+          ],
+        },
+      ],
+    };
+    renderReport(payload, "research");
+
+    const card = screen.getByTestId(
+      "research-coding-research-uncertainty-conflict-0",
+    );
+    const rows = within(card).getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("First source");
+    expect(rows[1]).toHaveTextContent("Second source");
+  });
+
   it("shows structured open questions below analysis with severity and canonical references", () => {
     renderReport(fullPayload, "research");
 

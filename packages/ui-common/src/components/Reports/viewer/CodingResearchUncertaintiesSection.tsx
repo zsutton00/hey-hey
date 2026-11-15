@@ -5,7 +5,8 @@ import {
   UNCERTAINTY_CATEGORY_LABELS,
   UncertaintyItem,
 } from "../../Uncertainties";
-import { ReportEntityMention, ReportPanel } from "./reportPrimitives";
+import { ConversationCardRelatedRows } from "../../Conversation/Card";
+import { ReportPanel } from "./reportPrimitives";
 
 export interface CodingResearchUncertaintiesSectionProps {
   uncertainties: CodingResearchUncertainty[];
@@ -48,16 +49,18 @@ export const CodingResearchUncertaintiesSection: React.FC<
                     statement={uncertainty.statement}
                     showAnswerBand={false}
                   >
-                    <Stack spacing={0.5}>
-                      {uncertainty.references.map((reference) => (
-                        <ReportEntityMention
-                          key={`${reference.entityType}-${reference.entityId}`}
-                          entityId={reference.entityId}
-                          entityName={reference.title}
-                          entityType={reference.entityType}
-                        />
-                      ))}
-                    </Stack>
+                    {uncertainty.references.length > 0 ? (
+                      <ConversationCardRelatedRows
+                        rows={uncertainty.references.map((reference) => ({
+                          key: `${reference.entityType}-${reference.entityId}`,
+                          mention: {
+                            entityType: reference.entityType,
+                            entityId: reference.entityId,
+                            entityName: reference.title,
+                          },
+                        }))}
+                      />
+                    ) : null}
                   </UncertaintyItem>
                 ))}
             </Stack>

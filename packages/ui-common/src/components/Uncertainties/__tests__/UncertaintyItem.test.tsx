@@ -87,7 +87,7 @@ describe("UncertaintyItem", () => {
   ];
 
   it.each(otherCategories)(
-    "does not mark %s uncertainties as needing an answer",
+    "frames %s uncertainties by severity with label, severity and category",
     (category) => {
       render(
         <UncertaintyItem
@@ -99,9 +99,45 @@ describe("UncertaintyItem", () => {
       );
 
       expect(screen.queryByText("Needs your answer")).not.toBeInTheDocument();
-      expect(screen.getByTestId("uncertainty")).not.toHaveAttribute(
+      expect(screen.getByTestId("uncertainty")).toHaveAttribute(
         "data-tone",
+        "medium",
       );
+      expect(screen.getByText("Uncertainty")).toBeVisible();
+      expect(screen.getByText("medium")).toBeVisible();
+      expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
+        "The available evidence is incomplete.",
+      );
+    },
+  );
+
+  it.each([
+    ["light", "high"],
+    ["dark", "high"],
+    ["light", "medium"],
+    ["dark", "low"],
+  ] as const)(
+    "colors the full border by severity in the %s theme (%s), never red",
+    (mode, severity) => {
+      const theme = createHeyTheme(mode);
+      baseRender(
+        <ThemeProvider theme={theme}>
+          <UncertaintyItem
+            category={AgentUncertaintySystemMessageDataCategoryEnum.Conflict}
+            severity={severity}
+            statement="Two sources disagree."
+            testId="uncertainty"
+          />
+        </ThemeProvider>,
+      );
+
+      const tone = theme.palette.conversationCard.severities[severity];
+      expect(screen.getByTestId("uncertainty")).toHaveStyle({
+        borderStyle: "solid",
+        borderWidth: "2px",
+        borderColor: tone.main,
+      });
+      expect(screen.getByText("Conflict")).toBeVisible();
     },
   );
 

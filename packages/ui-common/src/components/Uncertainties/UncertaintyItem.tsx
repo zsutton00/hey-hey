@@ -1,4 +1,4 @@
-import { Box, Chip, Paper, Stack, Typography } from "@mui/material";
+import { Box, Chip } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
@@ -53,6 +53,26 @@ const QuestionBadge: React.FC = () => (
   </Box>
 );
 
+const UncertaintyBadge: React.FC = () => (
+  <Box
+    aria-hidden
+    sx={{
+      width: 20,
+      height: 20,
+      borderRadius: "50%",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 13,
+      fontWeight: 700,
+      backgroundColor: "var(--card-main)",
+      color: "var(--card-contrast)",
+    }}
+  >
+    !
+  </Box>
+);
+
 export interface UncertaintyItemProps {
   severity: Severity;
   category: AgentUncertaintySystemMessageData["category"];
@@ -98,19 +118,24 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
   }
 
   return (
-    <Paper data-testid={testId} sx={{ p: 1.5 }} variant="outlined">
-      <Stack spacing={1}>
-        <Stack alignItems="center" direction="row" spacing={1}>
+    <ConversationCard
+      data-testid={testId}
+      tone={{ severity }}
+      icon={<UncertaintyBadge />}
+      kindLabel="Uncertainty"
+      chips={
+        <>
           <SeverityChip severity={severity} />
           <Chip
             label={UNCERTAINTY_CATEGORY_LABELS[category]}
             size="small"
             variant="outlined"
           />
-        </Stack>
-        <Typography variant="body2">{statement}</Typography>
-        {children}
-      </Stack>
-    </Paper>
+        </>
+      }
+      lead={statement}
+    >
+      {children}
+    </ConversationCard>
   );
 };
