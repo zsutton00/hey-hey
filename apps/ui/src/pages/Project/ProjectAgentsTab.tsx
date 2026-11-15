@@ -1,6 +1,7 @@
 import { WebPathService } from "@hey-hey/ui-common";
 import { TaskMonitorActivityTab } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
+import { getWorkItemTypePluralDisplayName } from "../../types/workItemTypes";
 import { Alert, Box } from "@mui/material";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import React, { useCallback, useRef } from "react";
@@ -52,10 +53,11 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
     projectId,
   });
   const evalType = selectProjectEvalType(workItemTypes, projectId, isReady);
+  const evalsLabel = getWorkItemTypePluralDisplayName(evalType?.definition);
   const segments: readonly Segment<ProjectAgentsView>[] = evalType
     ? [
         ...projectAgentsSegments.slice(0, 3),
-        { value: "evals", label: evalType.definition.name },
+        { value: "evals", label: evalsLabel },
         ...projectAgentsSegments.slice(3),
       ]
     : projectAgentsSegments;
@@ -137,7 +139,7 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
             organizationId={organizationId}
             projectId={projectId}
             taskType={evalType.definition.key}
-            title={evalType.definition.name}
+            title={evalsLabel}
             emptyMessage="No evaluations found."
           />
         ) : (

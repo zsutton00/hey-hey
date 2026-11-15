@@ -155,6 +155,29 @@ export class OpenItemsController {
     );
   }
 
+  @Post('items/:entityType/:entityId/presentation-refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ operationId: 'refreshOpenItemPresentation' })
+  refreshOpenItemPresentation(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: string,
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+    @CurrentUser('userId') userId: UserId,
+    @Body() body: unknown,
+  ): Promise<OpenItemsMutationResult> {
+    return this.openItems.refreshOpenItemPresentation(
+      this.scope(
+        'refreshOpenItemPresentation',
+        organizationId,
+        projectId,
+        userId,
+      ),
+      parseOpenItemRef({ entityType, entityId }),
+      parseOpenItemsRequest('RefreshOpenItemPresentationRequest', body),
+    );
+  }
+
   @Post('items/:entityType/:entityId/note')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ operationId: 'setOpenItemNote' })

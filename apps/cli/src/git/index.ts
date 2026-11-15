@@ -2,6 +2,7 @@ export {
   attachWorktree,
   createWorktree,
   getBranchWorktreeState,
+  switchWorktreeToBranch,
   toBranchSafeName,
   type WorktreeInfo,
   type BranchWorktreeState,

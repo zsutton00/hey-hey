@@ -213,6 +213,19 @@ export const openItemsSchemas = {
           },
         ],
       },
+      conversationId: {
+        anyOf: [
+          {
+            type: "string",
+            format: "uuid",
+            description:
+              "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
       agentSessionType: {
         anyOf: [
           {
@@ -429,6 +442,19 @@ export const openItemsSchemas = {
                 maxLength: 64,
                 description:
                   "Registry work-item type key for registry-backed icons (work items only).",
+              },
+              {
+                type: "null",
+              },
+            ],
+          },
+          conversationId: {
+            anyOf: [
+              {
+                type: "string",
+                format: "uuid",
+                description:
+                  "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
               },
               {
                 type: "null",
@@ -753,6 +779,19 @@ export const openItemsSchemas = {
                       maxLength: 64,
                       description:
                         "Registry work-item type key for registry-backed icons (work items only).",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                },
+                conversationId: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      format: "uuid",
+                      description:
+                        "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
                     },
                     {
                       type: "null",
@@ -1095,6 +1134,19 @@ export const openItemsSchemas = {
                         },
                       ],
                     },
+                    conversationId: {
+                      anyOf: [
+                        {
+                          type: "string",
+                          format: "uuid",
+                          description:
+                            "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                    },
                     agentSessionType: {
                       anyOf: [
                         {
@@ -1418,6 +1470,19 @@ export const openItemsSchemas = {
                     },
                   ],
                 },
+                conversationId: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      format: "uuid",
+                      description:
+                        "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                },
                 agentSessionType: {
                   anyOf: [
                     {
@@ -1648,6 +1713,19 @@ export const openItemsSchemas = {
                 maxLength: 64,
                 description:
                   "Registry work-item type key for registry-backed icons (work items only).",
+              },
+              {
+                type: "null",
+              },
+            ],
+          },
+          conversationId: {
+            anyOf: [
+              {
+                type: "string",
+                format: "uuid",
+                description:
+                  "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
               },
               {
                 type: "null",
@@ -2358,6 +2436,19 @@ export const openItemsSchemas = {
               },
             ],
           },
+          conversationId: {
+            anyOf: [
+              {
+                type: "string",
+                format: "uuid",
+                description:
+                  "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
+              },
+              {
+                type: "null",
+              },
+            ],
+          },
           agentSessionType: {
             anyOf: [
               {
@@ -2542,6 +2633,19 @@ export const openItemsSchemas = {
                       maxLength: 64,
                       description:
                         "Registry work-item type key for registry-backed icons (work items only).",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                },
+                conversationId: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      format: "uuid",
+                      description:
+                        "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
                     },
                     {
                       type: "null",
@@ -3042,6 +3146,19 @@ export const openItemsSchemas = {
                         },
                       ],
                     },
+                    conversationId: {
+                      anyOf: [
+                        {
+                          type: "string",
+                          format: "uuid",
+                          description:
+                            "Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                    },
                     agentSessionType: {
                       anyOf: [
                         {
@@ -3223,6 +3340,21 @@ export const openItemsSchemas = {
       },
       replayed: {
         type: "boolean",
+      },
+    },
+  },
+  RefreshOpenItemPresentationRequest: {
+    type: "object",
+    additionalProperties: false,
+    required: ["idempotencyKey"],
+    properties: {
+      idempotencyKey: {
+        type: "string",
+        minLength: 8,
+        maxLength: 128,
+        pattern: "^[A-Za-z0-9._:-]+$",
+        description:
+          "Client-generated key. Retrying the same key with the same request returns the originally recorded result; reusing it with a different request is a conflict.",
       },
     },
   },

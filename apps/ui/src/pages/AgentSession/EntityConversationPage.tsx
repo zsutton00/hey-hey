@@ -1,3 +1,4 @@
+import { useConversation } from "@hey-hey/ui-common/data";
 import React from "react";
 import { useParams } from "react-router-dom";
 import { CircularProgress, Box, Alert } from "@mui/material";
@@ -120,6 +121,14 @@ export const EntityConversationPage: React.FC = () => {
     includeAvailableMcpTools: false,
   });
 
+  const titleConversationId =
+    routeConversationId ?? agentSession?.conversationId;
+  const { data: titleConversation } = useConversation(
+    organizationId,
+    projectId,
+    { conversationId: titleConversationId ?? "" },
+    { enabled: !!titleConversationId, enablePolling: false },
+  );
   const runtimeSelection = React.useMemo(
     () =>
       agentSession
@@ -222,7 +231,7 @@ export const EntityConversationPage: React.FC = () => {
         entityId: aboutId,
         entityType: aboutType,
       },
-      agentSession.title === "Agent Session" ? undefined : agentSession.title,
+      titleConversation?.title,
       isTaskSubject
         ? (cachedSubjectFeature?.name ??
             subjectHierarchy?.task.name ??

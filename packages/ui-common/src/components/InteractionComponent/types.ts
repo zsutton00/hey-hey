@@ -230,6 +230,7 @@ export interface OpenItemActions {
   removeAllBelow: OpenItemBulkAction;
   removeAll: OpenItemBulkAction;
   whyOpen: WhyOpenAction;
+  rename?: { label: string; onSelect: () => void };
 }
 
 /**

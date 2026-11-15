@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useRef } from "react";
-import type { AgentSessionType } from "../api/api";
+import type { AgentSessionType, OpenItemPresentation } from "../api/api";
 import type { NavigationLineage } from "../types/userTracking";
 import {
   OPEN_ITEM_ENTITY_TYPES,
@@ -16,7 +16,7 @@ export const ENTITY_ACTIVATION_TYPES = OPEN_ITEM_ENTITY_TYPES;
 export type EntityActivationType = OpenItemEntityType;
 
 export type EntityActivationId<
-  T extends EntityActivationType = EntityActivationType
+  T extends EntityActivationType = EntityActivationType,
 > = OpenItemEntityId<T>;
 
 export interface EntityPresentationSnapshotByType {
@@ -25,7 +25,7 @@ export interface EntityPresentationSnapshotByType {
   goal: { kind: "goal"; label: string };
   conversation: { kind: "conversation"; label: string };
   design_doc: { kind: "design_doc"; label: string };
-  agent_session: {
+  agent_session: Pick<OpenItemPresentation, "conversationId"> & {
     kind: "agent_session";
     label: string;
     sessionType: AgentSessionType;
@@ -43,13 +43,13 @@ export type AgentSessionPresentationSnapshot =
   EntityPresentationSnapshotByType["agent_session"];
 
 export type EntityPresentationSnapshot<
-  T extends EntityActivationType = EntityActivationType
+  T extends EntityActivationType = EntityActivationType,
 > = T extends EntityActivationType
   ? EntityPresentationSnapshotByType[T]
   : never;
 
 export interface EntityActivation<
-  T extends EntityActivationType = EntityActivationType
+  T extends EntityActivationType = EntityActivationType,
 > extends OpenItemEntity<T> {
   lineage: NavigationLineage | null;
   presentation?: EntityPresentationSnapshot<T>;
@@ -65,11 +65,11 @@ export interface EntityActivationProviderProps {
 }
 
 const EntityActivationContext = createContext<EntityActivationSink | null>(
-  null
+  null,
 );
 
 export function isEntityActivationType(
-  entityType: string
+  entityType: string,
 ): entityType is EntityActivationType {
   return isOpenItemEntityType(entityType);
 }
@@ -78,7 +78,7 @@ export function createEntityActivation<T extends EntityActivationType>(
   entityType: T,
   entityId: string,
   lineage: NavigationLineage | null,
-  presentation?: EntityPresentationSnapshot<T>
+  presentation?: EntityPresentationSnapshot<T>,
 ): EntityActivation<T> {
   return {
     ...createOpenItemEntity(entityType, entityId),
@@ -89,7 +89,7 @@ export function createEntityActivation<T extends EntityActivationType>(
 
 function presentationSnapshotsEqual(
   left: EntityPresentationSnapshot | undefined,
-  right: EntityPresentationSnapshot | undefined
+  right: EntityPresentationSnapshot | undefined,
 ): boolean {
   if (left === right) {
     return true;
@@ -115,6 +115,7 @@ function presentationSnapshotsEqual(
       return (
         left.label === right.label &&
         left.sessionType === right.sessionType &&
+        left.conversationId === right.conversationId &&
         (leftRoute === rightRoute ||
           (leftRoute !== undefined &&
             rightRoute !== undefined &&
@@ -135,7 +136,7 @@ function presentationSnapshotsEqual(
 
 export function entityActivationsEqual(
   left: EntityActivation | null,
-  right: EntityActivation | null
+  right: EntityActivation | null,
 ): boolean {
   if (left === right) {
     return true;
@@ -163,7 +164,7 @@ export const EntityActivationProvider: React.FC<
         sinkRef.current.onEntityActivated(activation);
       },
     }),
-    []
+    [],
   );
 
   return (
