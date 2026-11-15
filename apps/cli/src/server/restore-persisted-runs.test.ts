@@ -23,7 +23,6 @@ import { TurnChangeRecord } from '../turn/turn-change-record';
 import type { Turn } from '../turn/turn';
 import { ReportUsageSnapshotter } from '../provider-usage/report-usage-snapshotter';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
-import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
 import {
   createTestRepoMappingStore,
   createTestRun,

@@ -1154,13 +1154,12 @@ export class Run {
     // via ensureSeeded). Each seed logs and swallows its own failure — a seed
     // must not block the Run, so the combined promise resolves either way.
     const seedSubPromises: Promise<void>[] = [];
-    seedSubPromises.push(
-      this.reportProvenance.restore().then((entries) => {
-        for (const entry of entries) {
-          this.appendReportChainEntry(entry);
-        }
-      }),
-    );
+    const localReportSeed = this.reportProvenance.restore().then((entries) => {
+      for (const entry of entries) {
+        this.appendReportChainEntry(entry);
+      }
+    });
+    seedSubPromises.push(localReportSeed);
 
     // Report chain from the task scope — only when a task is in scope.
     const taskReportChainReader = collaborators.taskReportChainReader;
@@ -1169,7 +1168,10 @@ export class Run {
       seedSubPromises.push(
         taskReportChainReader
           .read(taskId)
-          .then((entries) => {
+          .then(async (entries) => {
+            // Durable Run-local entries retain ownership and commit claims that
+            // the task-history projection omits, regardless of read order.
+            await localReportSeed;
             for (const entry of entries) {
               this.appendReportChainEntry(entry);
             }

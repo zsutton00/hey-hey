@@ -4,12 +4,17 @@ import { ReportType, type CommitReportPayload } from '@hey-hey/contracts/api/mod
 import type { RunStore } from '../run-store/run-store';
 import type { ReportChainEntry } from './types';
 
-const hashSchema = z.object({
-  service: z.string(),
-  hash: z.string(),
-  branch: z.string(),
-  implementReportIds: z.array(z.string().uuid()).optional(),
-});
+const hashSchema = z
+  .object({
+    service: z.string(),
+    hash: z.string(),
+    branch: z.string(),
+    implementReportIds: z.array(z.string().uuid()).optional(),
+  })
+  .transform(({ implementReportIds, ...hash }) => ({
+    ...hash,
+    ...(implementReportIds !== undefined ? { implementReportIds } : {}),
+  }));
 const entrySchema = z.object({
   createdAt: z.string(),
   phase: z.nativeEnum(LocalPromptType),
@@ -54,14 +59,7 @@ export class ReportProvenance {
         entries.push({
           ...base,
           ...(serviceId !== undefined ? { serviceId } : {}),
-          ...(commitHashes !== undefined
-            ? {
-                commitHashes: commitHashes.map(({ implementReportIds, ...hash }) => ({
-                  ...hash,
-                  ...(implementReportIds !== undefined ? { implementReportIds } : {}),
-                })),
-              }
-            : {}),
+          ...(commitHashes !== undefined ? { commitHashes } : {}),
         });
       }
       if (record.kind === 'pending') {
