@@ -9,7 +9,17 @@ import { NOOP_LOGGER } from '../../server/logger';
 import { EvalWorkspaces } from './eval-workspace';
 
 const git = (cwd: string, ...args: string[]): string =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' });
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'Eval fixture',
+      GIT_AUTHOR_EMAIL: 'eval-fixture@example.invalid',
+      GIT_COMMITTER_NAME: 'Eval fixture',
+      GIT_COMMITTER_EMAIL: 'eval-fixture@example.invalid',
+    },
+  });
 
 const ghInstalled = spawnSync('gh', ['--version']).status === 0;
 

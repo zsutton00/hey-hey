@@ -1589,7 +1589,11 @@ describe('session-runner-codex', () => {
     });
 
     expect(resolveSkill).toHaveBeenCalledWith(
-      { policy: 'service_workspace', authorityId: 'agentic-1', cwd: '/private/tmp/repo' },
+      {
+        policy: 'service_workspace',
+        authorityId: 'agentic-1',
+        cwd: path.join(await fs.realpath('/tmp'), 'repo'),
+      },
       {
         provider: 'codex',
         name: 'my-skill',
@@ -1661,7 +1665,11 @@ describe('session-runner-codex', () => {
     });
 
     expect(resolveSkill).toHaveBeenCalledWith(
-      { policy: 'service_workspace', authorityId: 'agentic-1', cwd: '/private/tmp/repo' },
+      {
+        policy: 'service_workspace',
+        authorityId: 'agentic-1',
+        cwd: path.join(await fs.realpath('/tmp'), 'repo'),
+      },
       {
         provider: 'codex',
         name: 'my-skill',
