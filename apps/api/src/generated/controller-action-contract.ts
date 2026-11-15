@@ -320,6 +320,9 @@ export const controllerActionRuntimeSchema = {
                   $ref: '#/definitions/CliReadRunChangedFileDetailEnvelopeBody',
                 },
                 {
+                  $ref: '#/definitions/CliReadRunRecordedEditEnvelopeBody',
+                },
+                {
                   $ref: '#/definitions/CliReadRunContextUsageGetEnvelopeBody',
                 },
                 {
@@ -661,6 +664,704 @@ export const controllerActionRuntimeSchema = {
       },
       additionalProperties: false,
     },
+    CliReadRunRecordedEditEnvelopeBody: {
+      type: 'object',
+      required: [
+        'requestId',
+        'agentSessionId',
+        'operation',
+        'runId',
+        'serviceId',
+        'edit',
+      ],
+      properties: {
+        requestId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Correlation identity minted by the platform for this read.',
+        },
+        agentSessionId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Canonical Agent Session authorization target.',
+        },
+        operation: {
+          type: 'string',
+          enum: ['run.recorded_edit.read'],
+        },
+        runId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Persisted CLI Run identity whose selected changed file is requested.',
+        },
+        serviceId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        edit: {
+          $ref: '#/definitions/CliReadRunRecordedEditRequest/properties/edit',
+        },
+      },
+      additionalProperties: false,
+    },
+    CliReadRunRecordedEditRequest: {
+      type: 'object',
+      required: ['operation', 'runId', 'serviceId', 'edit', 'authorization'],
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['run.recorded_edit.read'],
+        },
+        runId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Persisted CLI Run identity whose selected changed file is requested.',
+        },
+        serviceId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        edit: {
+          type: 'object',
+          description:
+            "One recorded edit to a file. Line ranges are measured against the exact before and after versions, so later edits never invalidate them. Edits to one file form a chain: an edit whose `beforeObjectId` is another edit's `afterObjectId` came after it.\n",
+          required: [
+            'path',
+            'occurredAt',
+            'turnId',
+            'beforeObjectId',
+            'afterObjectId',
+            'beforeRanges',
+            'afterRanges',
+            'approximate',
+            'versionsRecorded',
+          ],
+          properties: {
+            path: {
+              type: 'string',
+              minLength: 1,
+              description: 'Repo-relative path of the edited file.',
+            },
+            occurredAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'When the edit was recorded.',
+            },
+            turnId: {
+              type: 'string',
+              minLength: 1,
+              description: 'The Turn that made the edit.',
+            },
+            beforeObjectId: {
+              type: ['string', 'null'],
+              description:
+                'Git object id of the file before the edit. When `versionsRecorded` is true, null means the file did not exist before the edit.\n',
+            },
+            afterObjectId: {
+              type: ['string', 'null'],
+              description:
+                'Git object id of the file after the edit. When `versionsRecorded` is true, null means the edit deleted the file.\n',
+            },
+            beforeRanges: {
+              type: 'array',
+              description: 'Changed line ranges in the before version.',
+              items: {
+                $ref: '#/definitions/CliReadRunRecordedEditRequest/properties/edit/properties/afterRanges/items',
+              },
+            },
+            afterRanges: {
+              type: 'array',
+              description: 'Changed line ranges in the after version.',
+              items: {
+                type: 'object',
+                description:
+                  'A 1-based, inclusive range of lines in one version of a file.',
+                required: ['startLine', 'endLine'],
+                properties: {
+                  startLine: {
+                    type: 'integer',
+                    minimum: 1,
+                  },
+                  endLine: {
+                    type: 'integer',
+                    minimum: 1,
+                  },
+                },
+              },
+            },
+            approximate: {
+              type: 'boolean',
+              description:
+                "True when Hey Hey could not establish that the ranges hold only this session's lines. Another session, a script or the person's editor may have changed the same file between the two versions, and the ranges then cover everything observed between them. Hey Hey currently reads each file only after the edit has run, so every edit is approximate.\n",
+            },
+            versionsRecorded: {
+              type: 'boolean',
+              description:
+                "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
+            },
+          },
+        },
+        authorization: {
+          $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization',
+        },
+      },
+      additionalProperties: false,
+    },
+    CliReadRunSkillsListRequest: {
+      type: 'object',
+      required: ['operation', 'runId', 'authorization'],
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['run.skills.list'],
+        },
+        runId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Persisted CLI Run identity whose provider Skill catalog is requested.',
+        },
+        authorization: {
+          oneOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'kind',
+                'intent',
+                'credentialId',
+                'clientDataJSON',
+                'authenticatorData',
+                'signature',
+                'userHandle',
+                'grantDescriptor',
+              ],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['controller_assertion'],
+                },
+                intent: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: [
+                    'version',
+                    'authorizationId',
+                    'controllerCredentialId',
+                    'controllerInstallationId',
+                    'machineId',
+                    'userId',
+                    'organizationId',
+                    'projectId',
+                    'cadence',
+                    'policyRevision',
+                    'effectiveGrantExpiresAtMs',
+                    'grantDescriptorHash',
+                    'actionCategory',
+                    'actionType',
+                    'actionPayloadHash',
+                    'allowedActionTypes',
+                    'allowedActionCategories',
+                    'target',
+                    'agentSessionId',
+                    'taskMonitorId',
+                    'nonce',
+                    'issuedAtMs',
+                    'expiresAtMs',
+                  ],
+                  properties: {
+                    version: {
+                      type: 'integer',
+                      enum: [2],
+                    },
+                    authorizationId: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                    controllerCredentialId: {
+                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/credentialId',
+                    },
+                    controllerInstallationId: {
+                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/grantDescriptor/properties/controllerInstallationId',
+                      description:
+                        'Stable identity for the prompting browser installation.',
+                    },
+                    machineId: {
+                      $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
+                    },
+                    userId: {
+                      $ref: '#/definitions/SignedEnvelopeFields/properties/userId',
+                    },
+                    organizationId: {
+                      type: 'string',
+                      pattern:
+                        '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                      description:
+                        'Unique identifier for an organization (branded type)',
+                      example: '550e8400-e29b-41d4-a716-446655440002',
+                      'x-typescript-type': 'OrganizationId',
+                      'x-brand': 'OrganizationId',
+                      'x-semantic-type': 'resource-identifier',
+                    },
+                    projectId: {
+                      $ref: '#/definitions/WorkTrackerImportRequest/properties/projectId',
+                    },
+                    cadence: {
+                      type: 'string',
+                      enum: [
+                        'FIVE_MINUTES',
+                        'EIGHT_HOURS',
+                        'ONE_DAY',
+                        'ONE_WEEK',
+                        'ONE_MONTH',
+                      ],
+                      description:
+                        'Closed browser-requested reusable controller-device cadence. Each value derives one server-owned controller-device window with an effective expiry fixed by the selected cadence; assertion challenges remain independently single-use and valid for two minutes.',
+                    },
+                    policyRevision: {
+                      type: 'integer',
+                      format: 'int32',
+                      minimum: 1,
+                      description:
+                        'Server-owned policy revision used to derive the grant scope.',
+                    },
+                    effectiveGrantExpiresAtMs: {
+                      type: 'integer',
+                      format: 'int64',
+                      description:
+                        'Server-computed controller-device grant expiry. This lifetime is independent from the two-minute, single-use WebAuthn challenge.',
+                    },
+                    grantDescriptorHash: {
+                      type: 'string',
+                      pattern: '^[a-f0-9]{64}$',
+                      description:
+                        'Lowercase SHA-256 of the complete immutable controller-device grant descriptor, including installation, machine, action set, policy, issue time, and effective expiry.',
+                    },
+                    actionCategory: {
+                      $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
+                    },
+                    actionType: {
+                      $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionType',
+                    },
+                    actionPayloadHash: {
+                      type: 'string',
+                      pattern: '^[a-f0-9]{64}$',
+                      description:
+                        'Lowercase SHA-256 of the RFC 8785 canonical action payload, computed by the server from the resolved action and never supplied by the browser.',
+                    },
+                    allowedActionTypes: {
+                      $ref: '#/definitions/CurrentAgentOperations',
+                    },
+                    allowedActionCategories: {
+                      type: 'array',
+                      minItems: 1,
+                      maxItems: 7,
+                      uniqueItems: true,
+                      items: {
+                        $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
+                      },
+                      description:
+                        'Server-computed closed host-action class set carried in the canonical intent and repeated in the immutable grant descriptor.',
+                    },
+                    target: {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['kind', 'id', 'revision'],
+                      properties: {
+                        kind: {
+                          type: 'string',
+                          enum: [
+                            'CLI_READ',
+                            'CONVERSATION',
+                            'AGENT_SESSION',
+                            'TASK_MONITOR',
+                            'PLATFORM_EVENT',
+                            'APPLICATION_EFFECT',
+                            'EXACT_ACTION',
+                          ],
+                        },
+                        id: {
+                          type: 'string',
+                          format: 'uuid',
+                        },
+                        revision: {
+                          type: ['integer', 'null'],
+                          format: 'int64',
+                          minimum: 0,
+                          description:
+                            'Server-resolved revision, or null for targets without one.',
+                        },
+                      },
+                    },
+                    agentSessionId: {
+                      type: ['string', 'null'],
+                      format: 'uuid',
+                    },
+                    taskMonitorId: {
+                      type: ['string', 'null'],
+                      format: 'uuid',
+                    },
+                    nonce: {
+                      type: 'string',
+                      minLength: 43,
+                      maxLength: 43,
+                      pattern: '^[A-Za-z0-9_-]{43}$',
+                      description:
+                        'Base64url encoding of a server-generated 256-bit nonce.',
+                    },
+                    issuedAtMs: {
+                      type: 'integer',
+                      format: 'int64',
+                    },
+                    expiresAtMs: {
+                      type: 'integer',
+                      format: 'int64',
+                      description:
+                        'Unix epoch milliseconds exactly two minutes after issuance.',
+                    },
+                  },
+                  description:
+                    'Complete RFC 8785-canonical intent. The WebAuthn challenge is base64url SHA-256 over UTF-8 `heyhey-controller-authorization-v1`, one zero byte, and the RFC 8785 serialization of this object. Every field is server-authored or server-resolved and participates in the controller proof.',
+                },
+                credentialId: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 1024,
+                  pattern: '^[A-Za-z0-9_-]+$',
+                  description:
+                    'Base64url WebAuthn controller credential identifier. This is never the internal MachineControllerCredential relational row ID.',
+                },
+                clientDataJSON: {
+                  type: 'string',
+                  minLength: 1,
+                  pattern: '^[A-Za-z0-9_-]+$',
+                },
+                authenticatorData: {
+                  type: 'string',
+                  minLength: 1,
+                  pattern: '^[A-Za-z0-9_-]+$',
+                },
+                signature: {
+                  type: 'string',
+                  minLength: 1,
+                  pattern: '^[A-Za-z0-9_-]+$',
+                },
+                userHandle: {
+                  type: ['string', 'null'],
+                  pattern: '^[A-Za-z0-9_-]+$',
+                },
+                grantDescriptor: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: [
+                    'scope',
+                    'controllerCredentialId',
+                    'controllerInstallationId',
+                    'machineId',
+                    'userId',
+                    'organizationId',
+                    'cadence',
+                    'policyRevision',
+                    'allowedActionTypes',
+                    'allowedActionCategories',
+                    'issuedAtMs',
+                    'effectiveExpiresAtMs',
+                  ],
+                  properties: {
+                    scope: {
+                      type: 'string',
+                      enum: ['controller_device_window'],
+                      description:
+                        'Closed scope name for a reusable controller-device grant.',
+                    },
+                    controllerCredentialId: {
+                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/credentialId',
+                    },
+                    controllerInstallationId: {
+                      type: 'string',
+                      format: 'uuid',
+                      description:
+                        'Server-owned stable identity for the passkey-prompting browser installation. It remains inside canonical and executable authorization evidence but is never supplied, returned, or persisted by browser JavaScript.',
+                    },
+                    machineId: {
+                      $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
+                    },
+                    userId: {
+                      $ref: '#/definitions/SignedEnvelopeFields/properties/userId',
+                    },
+                    organizationId: {
+                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/intent/properties/organizationId',
+                    },
+                    cadence: {
+                      type: 'string',
+                      enum: [
+                        'FIVE_MINUTES',
+                        'EIGHT_HOURS',
+                        'ONE_DAY',
+                        'ONE_WEEK',
+                        'ONE_MONTH',
+                        'UNTIL_REVOKED',
+                      ],
+                      description:
+                        'Cadence of an issued controller-device grant. The five bounded values are the ControllerAuthorizationCadence a browser may request. UNTIL_REVOKED is a grant with no expiry that stays valid until it is revoked; only first-time `heyhey local` pairing creates one, and no browser authorization request may ask for it.',
+                    },
+                    policyRevision: {
+                      type: 'integer',
+                      format: 'int32',
+                      minimum: 1,
+                    },
+                    allowedActionTypes: {
+                      $ref: '#/definitions/CurrentAgentOperations',
+                    },
+                    allowedActionCategories: {
+                      type: 'array',
+                      minItems: 1,
+                      maxItems: 7,
+                      uniqueItems: true,
+                      items: {
+                        $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
+                      },
+                    },
+                    issuedAtMs: {
+                      type: 'integer',
+                      format: 'int64',
+                    },
+                    effectiveExpiresAtMs: {
+                      type: ['integer', 'null'],
+                      format: 'int64',
+                      description:
+                        'Effective expiry, fixed by the cadence. Null exactly when the cadence is UNTIL_REVOKED.',
+                    },
+                  },
+                  description:
+                    'Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window; a bounded cadence has this effective expiry and UNTIL_REVOKED has none.',
+                },
+              },
+              description:
+                'Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.',
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'grantId'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['bounded_grant'],
+                },
+                grantId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+              },
+              description:
+                'Reference-only reuse of an active server-admitted controller-device grant. All scope is resolved from persisted grant state; callers cannot widen it by supplying a target, action, machine, user, or expiry alongside the ID.',
+            },
+          ],
+          description:
+            'Closed API-admission union. A browser submits fresh assertion evidence without a grant identifier, or references an already active bounded grant. The API constructs the distinct executable activation arm after admission.',
+        },
+      },
+      additionalProperties: false,
+    },
+    SignedEnvelopeFields: {
+      type: 'object',
+      required: ['machineId', 'userId', 'nonce', 'timestampMs', 'signature'],
+      properties: {
+        machineId: {
+          type: 'string',
+          pattern:
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          description: 'Unique identifier for a paired machine (branded type)',
+          example: '550e8400-e29b-41d4-a716-446655440030',
+          'x-typescript-type': 'MachineId',
+          'x-brand': 'MachineId',
+          'x-semantic-type': 'resource-identifier',
+        },
+        userId: {
+          type: 'string',
+          pattern:
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          description: 'Unique identifier for a user (branded type)',
+          example: '550e8400-e29b-41d4-a716-446655440001',
+          'x-typescript-type': 'UserId',
+          'x-brand': 'UserId',
+          'x-semantic-type': 'resource-identifier',
+        },
+        nonce: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Random UUID minted by the server per envelope. The CLI rejects an envelope whose nonce it has already seen within the freshness window, defeating replay of a captured envelope.',
+          example: '550e8400-e29b-41d4-a716-446655440099',
+        },
+        timestampMs: {
+          type: 'integer',
+          format: 'int64',
+          description:
+            'Unix epoch milliseconds at which the server signed the envelope. The CLI rejects an envelope whose timestamp is outside ±30s of local time, bounding the replay window.',
+          example: 1747920000000,
+        },
+        signature: {
+          type: 'string',
+          description:
+            "Base64-encoded Ed25519 signature produced with the server's private signing key, covering the canonical byte string defined below. The CLI verifies it against the server public signing key delivered at machine pairing.",
+          example: 'k7wQ2k1m...base64-ed25519-signature...==',
+        },
+      },
+      description:
+        'The shared security core composed (via `allOf`) into legacy and protocol-2 signed envelopes. Carries machine/owner binding (`machineId`, `userId`), replay protection (`nonce`, `timestampMs`), and the server `signature`. Each concrete envelope adds one `event` field carrying its body; protocol-2 executable envelopes additionally add `protocolVersion` and the shared closed authorization union. Its activation arm carries fresh assertion evidence plus the complete immutable descriptor; its reuse arm carries only the active grant reference. The CLI runs the ordered verification pipeline (schema validation → signature → machineId → userId → timestamp → nonce → frame-type/kind allowlist) and silently drops any envelope that fails; an unknown field rejects the whole frame.\n\n## Signature canonicalization contract\n\nThe server signer and the CLI verifier MUST canonicalize identical bytes. The signed message is the UTF-8 encoding of the RFC 8785 (JSON Canonicalization Scheme) serialization of the envelope with the `signature` property removed. For a legacy envelope that object is `{ event, machineId, userId, nonce, timestampMs }`; for a protocol-2 executable envelope it is `{ authorization, event, machineId, nonce, protocolVersion, timestampMs, userId }`. RFC 8785 fixes object key ordering (lexicographic by UTF-16 code unit), number formatting, and string escaping, so the trigger body and the four binding fields serialize to one deterministic byte string on both sides. The server signs those bytes with its Ed25519 private key; the CLI reconstructs the same object from the received envelope (dropping `signature`), canonicalizes it identically, and verifies. The signature therefore covers every concrete-envelope property except `signature`. For protocol 2 this explicitly includes the complete authorization union, protocol version, event body, and all binding fields; tampering with any of them invalidates it. Outer WebSocketEvent routing fields are not signed.',
+    },
+    WorkTrackerImportRequest: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'projectId',
+        'conversationId',
+        'workflowId',
+        'workflowNodeId',
+        'machineId',
+        'source',
+        'provider',
+        'resolvedFrontierModel',
+        'reasoningEffort',
+      ],
+      properties: {
+        promptType: {
+          type: 'string',
+          enum: ['work_tracker_connect', 'work_tracker_import'],
+        },
+        projectId: {
+          type: 'string',
+          pattern:
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          description: 'Unique identifier for a project (branded type)',
+          example: '550e8400-e29b-41d4-a716-446655440000',
+          'x-typescript-type': 'ProjectId',
+          'x-brand': 'ProjectId',
+          'x-semantic-type': 'resource-identifier',
+        },
+        conversationId: {
+          $ref: '#/definitions/ConversationControlStopRun/properties/conversationId',
+        },
+        workflowId: {
+          type: 'string',
+          description: 'Unique identifier for a workflow (branded type)',
+          example: '550e8400-e29b-41d4-a716-446655440004',
+          'x-typescript-type': 'WorkflowId',
+          'x-brand': 'WorkflowId',
+          'x-semantic-type': 'resource-identifier',
+        },
+        workflowNodeId: {
+          type: 'string',
+          minLength: 1,
+        },
+        machineId: {
+          $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
+        },
+        source: {
+          type: 'string',
+          enum: ['jira', 'linear'],
+        },
+        provider: {
+          type: 'string',
+          enum: ['claude', 'codex'],
+        },
+        resolvedFrontierModel: {
+          type: 'string',
+          minLength: 1,
+        },
+        reasoningEffort: {
+          type: 'string',
+          enum: [
+            'none',
+            'minimal',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+            'max',
+            'ultra',
+            'default',
+          ],
+        },
+        fastMode: {
+          type: 'boolean',
+        },
+        connectionConfirmed: {
+          type: 'boolean',
+          description:
+            'Server-recorded explicit user confirmation; never inferred from agent output.',
+        },
+      },
+      description:
+        'Accepted runtime and source choices, without credentials or a Service binding.',
+    },
+    ConversationControlStopRun: {
+      type: 'object',
+      required: ['kind', 'conversationId', 'runId'],
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['stop_run'],
+          description:
+            'Discriminator for the stop-run control. Selects the dispatcher branch that aborts the active Turn on the addressed Run.',
+        },
+        conversationId: {
+          type: 'string',
+          pattern:
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          description: 'Unique identifier for a conversation (branded type)',
+          example: '550e8400-e29b-41d4-a716-446655440003',
+          'x-typescript-type': 'ConversationId',
+          'x-brand': 'ConversationId',
+          'x-semantic-type': 'resource-identifier',
+        },
+        runId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            "Agentic-session id of the CLI Run to stop. The dispatcher uses the `conversationId` to locate the active Run binding and verifies the binding's runId matches before invoking the stop path.",
+          example: '550e8400-e29b-41d4-a716-446655440099',
+        },
+      },
+      additionalProperties: false,
+      description:
+        'Structural control body for stopping a CLI Run owned by the conversation. Carries entity IDs only: no free-form text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via `conversationId` and calls the run-service stop path — idempotent on the absent / already-stopped cases.',
+    },
+    CurrentAgentOperations: {
+      type: 'array',
+      minItems: 12,
+      maxItems: 12,
+      uniqueItems: true,
+      items: {
+        $ref: '#/definitions/CurrentAgentOperation',
+      },
+      description:
+        'Exact generated current-operation bundle carried by controller-device grants. All twelve values are required exactly once.',
+    },
+    CurrentAgentOperation: {
+      type: 'string',
+      enum: [
+        'CONVERSATION_TRIGGER',
+        'PLATFORM_EVENT_TRIGGER',
+        'CONVERSATION_CONTROL_COMPACT_RUN',
+        'CONVERSATION_CONTROL_PERMISSION_DECISION',
+        'TASK_MONITOR_START',
+        'TASK_MONITOR_RESUME',
+        'TASK_MONITOR_JUDGMENT_RESOLVED',
+        'TASK_MONITOR_CONTINUE',
+        'TASK_MONITOR_COMPLETE',
+        'CLI_READ',
+        'APPLICATION_EFFECT_LAUNCH',
+        'EXACT_ACTION_DELIVERY',
+      ],
+      description:
+        'Closed bundle of host-affecting operations supported by the current controller-authorization protocol. Adding a HostAffectingActionType does not add it to an existing grant; this bundle must be revised deliberately.',
+    },
     CliReadRunContextUsageGetEnvelopeBody: {
       type: 'object',
       required: ['requestId', 'agentSessionId', 'operation', 'runId'],
@@ -897,38 +1598,6 @@ export const controllerActionRuntimeSchema = {
       },
       additionalProperties: false,
     },
-    ConversationControlStopRun: {
-      type: 'object',
-      required: ['kind', 'conversationId', 'runId'],
-      properties: {
-        kind: {
-          type: 'string',
-          enum: ['stop_run'],
-          description:
-            'Discriminator for the stop-run control. Selects the dispatcher branch that aborts the active Turn on the addressed Run.',
-        },
-        conversationId: {
-          type: 'string',
-          pattern:
-            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          description: 'Unique identifier for a conversation (branded type)',
-          example: '550e8400-e29b-41d4-a716-446655440003',
-          'x-typescript-type': 'ConversationId',
-          'x-brand': 'ConversationId',
-          'x-semantic-type': 'resource-identifier',
-        },
-        runId: {
-          type: 'string',
-          format: 'uuid',
-          description:
-            "Agentic-session id of the CLI Run to stop. The dispatcher uses the `conversationId` to locate the active Run binding and verifies the binding's runId matches before invoking the stop path.",
-          example: '550e8400-e29b-41d4-a716-446655440099',
-        },
-      },
-      additionalProperties: false,
-      description:
-        'Structural control body for stopping a CLI Run owned by the conversation. Carries entity IDs only: no free-form text, prompt fragment, or `payload` escape hatch. The CLI dispatcher resolves the Run via `conversationId` and calls the run-service stop path — idempotent on the absent / already-stopped cases.',
-    },
     ConversationControlQuestionAnswer: {
       type: 'object',
       required: [
@@ -1109,54 +1778,6 @@ export const controllerActionRuntimeSchema = {
       ],
       description:
         'Server-signed envelope wrapping the complete explicit monitor command. Every routing and execution field is inside `event` and therefore covered by the signature canonicalization contract in `SignedEnvelopeFields`.',
-    },
-    SignedEnvelopeFields: {
-      type: 'object',
-      required: ['machineId', 'userId', 'nonce', 'timestampMs', 'signature'],
-      properties: {
-        machineId: {
-          type: 'string',
-          pattern:
-            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          description: 'Unique identifier for a paired machine (branded type)',
-          example: '550e8400-e29b-41d4-a716-446655440030',
-          'x-typescript-type': 'MachineId',
-          'x-brand': 'MachineId',
-          'x-semantic-type': 'resource-identifier',
-        },
-        userId: {
-          type: 'string',
-          pattern:
-            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          description: 'Unique identifier for a user (branded type)',
-          example: '550e8400-e29b-41d4-a716-446655440001',
-          'x-typescript-type': 'UserId',
-          'x-brand': 'UserId',
-          'x-semantic-type': 'resource-identifier',
-        },
-        nonce: {
-          type: 'string',
-          format: 'uuid',
-          description:
-            'Random UUID minted by the server per envelope. The CLI rejects an envelope whose nonce it has already seen within the freshness window, defeating replay of a captured envelope.',
-          example: '550e8400-e29b-41d4-a716-446655440099',
-        },
-        timestampMs: {
-          type: 'integer',
-          format: 'int64',
-          description:
-            'Unix epoch milliseconds at which the server signed the envelope. The CLI rejects an envelope whose timestamp is outside ±30s of local time, bounding the replay window.',
-          example: 1747920000000,
-        },
-        signature: {
-          type: 'string',
-          description:
-            "Base64-encoded Ed25519 signature produced with the server's private signing key, covering the canonical byte string defined below. The CLI verifies it against the server public signing key delivered at machine pairing.",
-          example: 'k7wQ2k1m...base64-ed25519-signature...==',
-        },
-      },
-      description:
-        'The shared security core composed (via `allOf`) into legacy and protocol-2 signed envelopes. Carries machine/owner binding (`machineId`, `userId`), replay protection (`nonce`, `timestampMs`), and the server `signature`. Each concrete envelope adds one `event` field carrying its body; protocol-2 executable envelopes additionally add `protocolVersion` and the shared closed authorization union. Its activation arm carries fresh assertion evidence plus the complete immutable descriptor; its reuse arm carries only the active grant reference. The CLI runs the ordered verification pipeline (schema validation → signature → machineId → userId → timestamp → nonce → frame-type/kind allowlist) and silently drops any envelope that fails; an unknown field rejects the whole frame.\n\n## Signature canonicalization contract\n\nThe server signer and the CLI verifier MUST canonicalize identical bytes. The signed message is the UTF-8 encoding of the RFC 8785 (JSON Canonicalization Scheme) serialization of the envelope with the `signature` property removed. For a legacy envelope that object is `{ event, machineId, userId, nonce, timestampMs }`; for a protocol-2 executable envelope it is `{ authorization, event, machineId, nonce, protocolVersion, timestampMs, userId }`. RFC 8785 fixes object key ordering (lexicographic by UTF-16 code unit), number formatting, and string escaping, so the trigger body and the four binding fields serialize to one deterministic byte string on both sides. The server signs those bytes with its Ed25519 private key; the CLI reconstructs the same object from the received envelope (dropping `signature`), canonicalizes it identically, and verifies. The signature therefore covers every concrete-envelope property except `signature`. For protocol 2 this explicitly includes the complete authorization union, protocol version, event body, and all binding fields; tampering with any of them invalidates it. Outer WebSocketEvent routing fields are not signed.',
     },
     SignedMonitorAuthorityNeutralEnvelope: {
       type: 'object',
@@ -1606,478 +2227,6 @@ export const controllerActionRuntimeSchema = {
         },
       },
     },
-    CliReadRunSkillsListRequest: {
-      type: 'object',
-      required: ['operation', 'runId', 'authorization'],
-      properties: {
-        operation: {
-          type: 'string',
-          enum: ['run.skills.list'],
-        },
-        runId: {
-          type: 'string',
-          format: 'uuid',
-          description:
-            'Persisted CLI Run identity whose provider Skill catalog is requested.',
-        },
-        authorization: {
-          oneOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: [
-                'kind',
-                'intent',
-                'credentialId',
-                'clientDataJSON',
-                'authenticatorData',
-                'signature',
-                'userHandle',
-                'grantDescriptor',
-              ],
-              properties: {
-                kind: {
-                  type: 'string',
-                  enum: ['controller_assertion'],
-                },
-                intent: {
-                  type: 'object',
-                  additionalProperties: false,
-                  required: [
-                    'version',
-                    'authorizationId',
-                    'controllerCredentialId',
-                    'controllerInstallationId',
-                    'machineId',
-                    'userId',
-                    'organizationId',
-                    'projectId',
-                    'cadence',
-                    'policyRevision',
-                    'effectiveGrantExpiresAtMs',
-                    'grantDescriptorHash',
-                    'actionCategory',
-                    'actionType',
-                    'actionPayloadHash',
-                    'allowedActionTypes',
-                    'allowedActionCategories',
-                    'target',
-                    'agentSessionId',
-                    'taskMonitorId',
-                    'nonce',
-                    'issuedAtMs',
-                    'expiresAtMs',
-                  ],
-                  properties: {
-                    version: {
-                      type: 'integer',
-                      enum: [2],
-                    },
-                    authorizationId: {
-                      type: 'string',
-                      format: 'uuid',
-                    },
-                    controllerCredentialId: {
-                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/credentialId',
-                    },
-                    controllerInstallationId: {
-                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/grantDescriptor/properties/controllerInstallationId',
-                      description:
-                        'Stable identity for the prompting browser installation.',
-                    },
-                    machineId: {
-                      $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
-                    },
-                    userId: {
-                      $ref: '#/definitions/SignedEnvelopeFields/properties/userId',
-                    },
-                    organizationId: {
-                      type: 'string',
-                      pattern:
-                        '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-                      description:
-                        'Unique identifier for an organization (branded type)',
-                      example: '550e8400-e29b-41d4-a716-446655440002',
-                      'x-typescript-type': 'OrganizationId',
-                      'x-brand': 'OrganizationId',
-                      'x-semantic-type': 'resource-identifier',
-                    },
-                    projectId: {
-                      $ref: '#/definitions/WorkTrackerImportRequest/properties/projectId',
-                    },
-                    cadence: {
-                      type: 'string',
-                      enum: [
-                        'FIVE_MINUTES',
-                        'EIGHT_HOURS',
-                        'ONE_DAY',
-                        'ONE_WEEK',
-                        'ONE_MONTH',
-                      ],
-                      description:
-                        'Closed browser-requested reusable controller-device cadence. Each value derives one server-owned controller-device window with an effective expiry fixed by the selected cadence; assertion challenges remain independently single-use and valid for two minutes.',
-                    },
-                    policyRevision: {
-                      type: 'integer',
-                      format: 'int32',
-                      minimum: 1,
-                      description:
-                        'Server-owned policy revision used to derive the grant scope.',
-                    },
-                    effectiveGrantExpiresAtMs: {
-                      type: 'integer',
-                      format: 'int64',
-                      description:
-                        'Server-computed controller-device grant expiry. This lifetime is independent from the two-minute, single-use WebAuthn challenge.',
-                    },
-                    grantDescriptorHash: {
-                      type: 'string',
-                      pattern: '^[a-f0-9]{64}$',
-                      description:
-                        'Lowercase SHA-256 of the complete immutable controller-device grant descriptor, including installation, machine, action set, policy, issue time, and effective expiry.',
-                    },
-                    actionCategory: {
-                      $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
-                    },
-                    actionType: {
-                      $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionType',
-                    },
-                    actionPayloadHash: {
-                      type: 'string',
-                      pattern: '^[a-f0-9]{64}$',
-                      description:
-                        'Lowercase SHA-256 of the RFC 8785 canonical action payload, computed by the server from the resolved action and never supplied by the browser.',
-                    },
-                    allowedActionTypes: {
-                      $ref: '#/definitions/CurrentAgentOperations',
-                    },
-                    allowedActionCategories: {
-                      type: 'array',
-                      minItems: 1,
-                      maxItems: 7,
-                      uniqueItems: true,
-                      items: {
-                        $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
-                      },
-                      description:
-                        'Server-computed closed host-action class set carried in the canonical intent and repeated in the immutable grant descriptor.',
-                    },
-                    target: {
-                      type: 'object',
-                      additionalProperties: false,
-                      required: ['kind', 'id', 'revision'],
-                      properties: {
-                        kind: {
-                          type: 'string',
-                          enum: [
-                            'CLI_READ',
-                            'CONVERSATION',
-                            'AGENT_SESSION',
-                            'TASK_MONITOR',
-                            'PLATFORM_EVENT',
-                            'APPLICATION_EFFECT',
-                            'EXACT_ACTION',
-                          ],
-                        },
-                        id: {
-                          type: 'string',
-                          format: 'uuid',
-                        },
-                        revision: {
-                          type: ['integer', 'null'],
-                          format: 'int64',
-                          minimum: 0,
-                          description:
-                            'Server-resolved revision, or null for targets without one.',
-                        },
-                      },
-                    },
-                    agentSessionId: {
-                      type: ['string', 'null'],
-                      format: 'uuid',
-                    },
-                    taskMonitorId: {
-                      type: ['string', 'null'],
-                      format: 'uuid',
-                    },
-                    nonce: {
-                      type: 'string',
-                      minLength: 43,
-                      maxLength: 43,
-                      pattern: '^[A-Za-z0-9_-]{43}$',
-                      description:
-                        'Base64url encoding of a server-generated 256-bit nonce.',
-                    },
-                    issuedAtMs: {
-                      type: 'integer',
-                      format: 'int64',
-                    },
-                    expiresAtMs: {
-                      type: 'integer',
-                      format: 'int64',
-                      description:
-                        'Unix epoch milliseconds exactly two minutes after issuance.',
-                    },
-                  },
-                  description:
-                    'Complete RFC 8785-canonical intent. The WebAuthn challenge is base64url SHA-256 over UTF-8 `heyhey-controller-authorization-v1`, one zero byte, and the RFC 8785 serialization of this object. Every field is server-authored or server-resolved and participates in the controller proof.',
-                },
-                credentialId: {
-                  type: 'string',
-                  minLength: 1,
-                  maxLength: 1024,
-                  pattern: '^[A-Za-z0-9_-]+$',
-                  description:
-                    'Base64url WebAuthn controller credential identifier. This is never the internal MachineControllerCredential relational row ID.',
-                },
-                clientDataJSON: {
-                  type: 'string',
-                  minLength: 1,
-                  pattern: '^[A-Za-z0-9_-]+$',
-                },
-                authenticatorData: {
-                  type: 'string',
-                  minLength: 1,
-                  pattern: '^[A-Za-z0-9_-]+$',
-                },
-                signature: {
-                  type: 'string',
-                  minLength: 1,
-                  pattern: '^[A-Za-z0-9_-]+$',
-                },
-                userHandle: {
-                  type: ['string', 'null'],
-                  pattern: '^[A-Za-z0-9_-]+$',
-                },
-                grantDescriptor: {
-                  type: 'object',
-                  additionalProperties: false,
-                  required: [
-                    'scope',
-                    'controllerCredentialId',
-                    'controllerInstallationId',
-                    'machineId',
-                    'userId',
-                    'organizationId',
-                    'cadence',
-                    'policyRevision',
-                    'allowedActionTypes',
-                    'allowedActionCategories',
-                    'issuedAtMs',
-                    'effectiveExpiresAtMs',
-                  ],
-                  properties: {
-                    scope: {
-                      type: 'string',
-                      enum: ['controller_device_window'],
-                      description:
-                        'Closed scope name for a reusable controller-device grant.',
-                    },
-                    controllerCredentialId: {
-                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/credentialId',
-                    },
-                    controllerInstallationId: {
-                      type: 'string',
-                      format: 'uuid',
-                      description:
-                        'Server-owned stable identity for the passkey-prompting browser installation. It remains inside canonical and executable authorization evidence but is never supplied, returned, or persisted by browser JavaScript.',
-                    },
-                    machineId: {
-                      $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
-                    },
-                    userId: {
-                      $ref: '#/definitions/SignedEnvelopeFields/properties/userId',
-                    },
-                    organizationId: {
-                      $ref: '#/definitions/CliReadRunSkillsListRequest/properties/authorization/oneOf/0/properties/intent/properties/organizationId',
-                    },
-                    cadence: {
-                      type: 'string',
-                      enum: [
-                        'FIVE_MINUTES',
-                        'EIGHT_HOURS',
-                        'ONE_DAY',
-                        'ONE_WEEK',
-                        'ONE_MONTH',
-                        'UNTIL_REVOKED',
-                      ],
-                      description:
-                        'Cadence of an issued controller-device grant. The five bounded values are the ControllerAuthorizationCadence a browser may request. UNTIL_REVOKED is a grant with no expiry that stays valid until it is revoked; only first-time `heyhey local` pairing creates one, and no browser authorization request may ask for it.',
-                    },
-                    policyRevision: {
-                      type: 'integer',
-                      format: 'int32',
-                      minimum: 1,
-                    },
-                    allowedActionTypes: {
-                      $ref: '#/definitions/CurrentAgentOperations',
-                    },
-                    allowedActionCategories: {
-                      type: 'array',
-                      minItems: 1,
-                      maxItems: 7,
-                      uniqueItems: true,
-                      items: {
-                        $ref: '#/definitions/HostActionPreparation/oneOf/0/properties/actionCategory',
-                      },
-                    },
-                    issuedAtMs: {
-                      type: 'integer',
-                      format: 'int64',
-                    },
-                    effectiveExpiresAtMs: {
-                      type: ['integer', 'null'],
-                      format: 'int64',
-                      description:
-                        'Effective expiry, fixed by the cadence. Null exactly when the cadence is UNTIL_REVOKED.',
-                    },
-                  },
-                  description:
-                    'Immutable descriptor hashed by CanonicalControllerAuthorizationIntent.grantDescriptorHash. Every cadence creates one reusable controller-device window; a bounded cadence has this effective expiry and UNTIL_REVOKED has none.',
-                },
-              },
-              description:
-                'Fresh browser-submitted controller proof. It carries no server grant identifier. The API verifies and consumes this evidence before deriving or resolving any reusable grant and constructing executable activation evidence.',
-            },
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['kind', 'grantId'],
-              properties: {
-                kind: {
-                  type: 'string',
-                  enum: ['bounded_grant'],
-                },
-                grantId: {
-                  type: 'string',
-                  format: 'uuid',
-                },
-              },
-              description:
-                'Reference-only reuse of an active server-admitted controller-device grant. All scope is resolved from persisted grant state; callers cannot widen it by supplying a target, action, machine, user, or expiry alongside the ID.',
-            },
-          ],
-          description:
-            'Closed API-admission union. A browser submits fresh assertion evidence without a grant identifier, or references an already active bounded grant. The API constructs the distinct executable activation arm after admission.',
-        },
-      },
-      additionalProperties: false,
-    },
-    WorkTrackerImportRequest: {
-      type: 'object',
-      additionalProperties: false,
-      required: [
-        'projectId',
-        'conversationId',
-        'workflowId',
-        'workflowNodeId',
-        'machineId',
-        'source',
-        'provider',
-        'resolvedFrontierModel',
-        'reasoningEffort',
-      ],
-      properties: {
-        promptType: {
-          type: 'string',
-          enum: ['work_tracker_connect', 'work_tracker_import'],
-        },
-        projectId: {
-          type: 'string',
-          pattern:
-            '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          description: 'Unique identifier for a project (branded type)',
-          example: '550e8400-e29b-41d4-a716-446655440000',
-          'x-typescript-type': 'ProjectId',
-          'x-brand': 'ProjectId',
-          'x-semantic-type': 'resource-identifier',
-        },
-        conversationId: {
-          $ref: '#/definitions/ConversationControlStopRun/properties/conversationId',
-        },
-        workflowId: {
-          type: 'string',
-          description: 'Unique identifier for a workflow (branded type)',
-          example: '550e8400-e29b-41d4-a716-446655440004',
-          'x-typescript-type': 'WorkflowId',
-          'x-brand': 'WorkflowId',
-          'x-semantic-type': 'resource-identifier',
-        },
-        workflowNodeId: {
-          type: 'string',
-          minLength: 1,
-        },
-        machineId: {
-          $ref: '#/definitions/SignedEnvelopeFields/properties/machineId',
-        },
-        source: {
-          type: 'string',
-          enum: ['jira', 'linear'],
-        },
-        provider: {
-          type: 'string',
-          enum: ['claude', 'codex'],
-        },
-        resolvedFrontierModel: {
-          type: 'string',
-          minLength: 1,
-        },
-        reasoningEffort: {
-          type: 'string',
-          enum: [
-            'none',
-            'minimal',
-            'low',
-            'medium',
-            'high',
-            'xhigh',
-            'max',
-            'ultra',
-            'default',
-          ],
-        },
-        fastMode: {
-          type: 'boolean',
-        },
-        connectionConfirmed: {
-          type: 'boolean',
-          description:
-            'Server-recorded explicit user confirmation; never inferred from agent output.',
-        },
-      },
-      description:
-        'Accepted runtime and source choices, without credentials or a Service binding.',
-    },
-    CurrentAgentOperations: {
-      type: 'array',
-      minItems: 12,
-      maxItems: 12,
-      uniqueItems: true,
-      items: {
-        $ref: '#/definitions/CurrentAgentOperation',
-      },
-      description:
-        'Exact generated current-operation bundle carried by controller-device grants. All twelve values are required exactly once.',
-    },
-    CurrentAgentOperation: {
-      type: 'string',
-      enum: [
-        'CONVERSATION_TRIGGER',
-        'PLATFORM_EVENT_TRIGGER',
-        'CONVERSATION_CONTROL_COMPACT_RUN',
-        'CONVERSATION_CONTROL_PERMISSION_DECISION',
-        'TASK_MONITOR_START',
-        'TASK_MONITOR_RESUME',
-        'TASK_MONITOR_JUDGMENT_RESOLVED',
-        'TASK_MONITOR_CONTINUE',
-        'TASK_MONITOR_COMPLETE',
-        'CLI_READ',
-        'APPLICATION_EFFECT_LAUNCH',
-        'EXACT_ACTION_DELIVERY',
-      ],
-      description:
-        'Closed bundle of host-affecting operations supported by the current controller-authorization protocol. Adding a HostAffectingActionType does not add it to an existing grant; this bundle must be revised deliberately.',
-    },
     CliReadEnvelopeBody: {
       oneOf: [
         {
@@ -2088,6 +2237,9 @@ export const controllerActionRuntimeSchema = {
         },
         {
           $ref: '#/definitions/CliReadRunChangedFileDetailEnvelopeBody',
+        },
+        {
+          $ref: '#/definitions/CliReadRunRecordedEditEnvelopeBody',
         },
         {
           $ref: '#/definitions/CliReadRunContextUsageGetEnvelopeBody',

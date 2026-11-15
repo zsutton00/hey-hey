@@ -14,6 +14,26 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "changes.title": "Changes",
+  "changes.session": "Session",
+  "changes.service": "Service",
+  "changes.task": "Task",
+  "changes.feature": "Feature",
+  "changes.commitStatus": "Commit status",
+  "changes.all": "All",
+  "changes.committed": "Committed",
+  "changes.uncommitted": "Uncommitted",
+  "changes.approximate": "Approximate",
+  "changes.unavailable": "Recorded file versions are unavailable.",
+  "changes.loading": "Loading\u2026",
+  "changes.loadFailed": "Unable to load changes.",
+  "changes.empty": "No changes match these filters.",
+  "changes.previous": "Previous",
+  "changes.next": "Next",
+  "changes.close": "Close",
+  "changes.contextUnavailable": "Context unavailable",
+  "changes.ranges": "Before: {{before}} \u00b7 After: {{after}}",
+
   "localLogin.title": "Welcome back",
   "localLogin.note": "Use your passkey to continue where you left off.",
   "localLogin.continuing": "Continuing where you left off…",

@@ -129,6 +129,13 @@ const runChangedFileDetailSuccessSchema = z
   })
   .strict();
 
+const runRecordedEditSuccessSchema = runChangedFileDetailSuccessSchema.extend({
+  operation: z.literal('run.recorded_edit.read'),
+});
+const runRecordedEditErrorSchema = errorSchema.extend({
+  operation: z.literal('run.recorded_edit.read'),
+});
+
 const projectSessionCostSchema = z.discriminatedUnion('state', [
   z
     .object({
@@ -608,6 +615,8 @@ const responseSchema = z.union([
   runChangedFilesInventorySuccessSchema,
   runChangedFilesInventoryErrorSchema,
   runChangedFileDetailSuccessSchema,
+  runRecordedEditSuccessSchema,
+  runRecordedEditErrorSchema,
   runChangedFileDetailErrorSchema,
   projectSessionCostsListSuccessSchema,
   projectSessionCostsListErrorSchema,
@@ -865,6 +874,12 @@ export class CliReadEmitter {
             CliReadRunToolCallsLatestTurnRequest.OperationEnum
               .RunToolCallsLatestTurn) &&
         parsed.data.result.runId !== body.runId) ||
+      (body.operation === 'run.recorded_edit.read' &&
+        parsed.data.operation === 'run.recorded_edit.read' &&
+        parsed.data.status === 'success' &&
+        (parsed.data.result.runId !== body.runId ||
+          parsed.data.result.file.serviceId !== body.serviceId ||
+          parsed.data.result.file.filePath !== body.edit.path)) ||
       (body.operation ===
         CliReadRunContextUsageGetRequest.OperationEnum.RunContextUsageGet &&
         body.providerSessionId !== undefined &&

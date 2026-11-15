@@ -194,3 +194,6 @@ export type {
 
 export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
 export * from "./hooks/useProviderSessionTranscript";
+
+export * from "./hooks/useProjectChanges";
+export * from "./hooks/useRecordedEdit";

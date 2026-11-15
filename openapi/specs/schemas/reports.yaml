@@ -3288,3 +3288,37 @@ ReportUsageTrends:
         $ref: "#/ReportUsageTrendBucket"
     options:
       $ref: "#/ReportUsageTrendOptions"
+
+ProjectChangeRecord:
+  type: object
+  required: [report, commits]
+  properties:
+    report:
+      $ref: "#/ReportDto"
+    commits:
+      type: array
+      items:
+        $ref: "#/ChangeRecordCommit"
+ChangeRecordCommit:
+  type: object
+  required: [reportId, service, hash, branch]
+  properties:
+    reportId:
+      type: string
+      format: uuid
+    service:
+      type: string
+    hash:
+      type: string
+    branch:
+      type: string
+ProjectChangesPage:
+  type: object
+  required: [records, hasMore]
+  properties:
+    records:
+      type: array
+      items:
+        $ref: "#/ProjectChangeRecord"
+    hasMore:
+      type: boolean

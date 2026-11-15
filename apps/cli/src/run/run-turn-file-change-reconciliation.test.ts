@@ -56,6 +56,7 @@ const quickHandler: PromptTypeHandler<unknown> = {
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
+  requiresChangedFileReporting: true,
   buildPrompt: () => 'task-only prompt',
 };
 
@@ -614,8 +615,8 @@ describe('Run file-change attribution without repository reconciliation', () => 
     expect(harness.appendFileChangeFacts).not.toHaveBeenCalled();
     expect(harness.run.getFileChangeProjection()).toEqual([]);
     expect(harness.createReport).not.toHaveBeenCalled();
-    expect(harness.logger.debug).toHaveBeenCalledWith(
-      'local.run.open_implement_report.skipped',
+    expect(harness.logger.info).toHaveBeenCalledWith(
+      'local.run.turn_implement_reports.skipped',
       expect.objectContaining({ reason: 'no-files-changed' }),
     );
   });

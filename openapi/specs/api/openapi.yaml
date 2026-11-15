@@ -3838,6 +3838,86 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /organizations/{organizationId}/projects/{projectId}/reports/changes:
+    get:
+      operationId: listProjectChanges
+      summary: List historical agent changes across project sessions
+      description: IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+      tags: [Reports]
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentSessionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: featureId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: committed
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A page of change records, without file content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/reports.yaml#/ProjectChangesPage"
+        "400":
+          description: Invalid filters or pagination.
+        "401":
+          description: Authentication required.
+        "403":
+          description: Project access denied.
+
   /organizations/{organizationId}/projects/{projectId}/reports/usage-trends:
     parameters:
       - name: organizationId
@@ -7706,7 +7786,10 @@ paths:
                         $ref: "#/components/schemas/WorkItemTypeCanonicalComparisonDto"
         "401": { description: Unauthorized }
         "404": { description: Work-item type not found. }
-        "409": { description: The type is not a project override of a canonical type. }
+        "409":
+          {
+            description: The type is not a project override of a canonical type.,
+          }
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact:
     parameters:

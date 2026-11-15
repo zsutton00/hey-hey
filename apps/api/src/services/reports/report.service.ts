@@ -1,3 +1,4 @@
+import type { ReportsApiListProjectChangesRequest } from '@hey-hey/contracts/dist/cjs/generated/api/apis/reports-api';
 import { readReportUsage } from './report-usage.validation';
 import {
   aggregateUsageTrends,
@@ -5,7 +6,10 @@ import {
   type UsageTrendQuery,
   type UsageTrendRow,
 } from './report-usage-trends';
-import { restrictReportWhere } from 'src/read-restriction/read-policy';
+import {
+  ReadPolicyContext,
+  restrictReportWhere,
+} from 'src/read-restriction/read-policy';
 import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
 import { validateCodingResearchPayload } from './coding-research-payload.validation';
 import { validateProjectReportPayload } from './project-report-payload.validation';
@@ -41,6 +45,7 @@ import {
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import {
+  ChangeRecordCommit,
   CodingResearchReportPayload,
   CreateReportDto,
   CreateReportDtoOther,
@@ -65,6 +70,7 @@ import {
   FileTouchTaskHistoryEvidenceDto,
   FileTouchWorkHistoryDto,
   ImplementReportPayload,
+  ProjectChangesPage,
   LinkedReportEntityRef,
   OtherReportPayload,
   ReportAudience,
@@ -273,9 +279,7 @@ export class ReportService {
     projectId: string,
     implementReportId: string,
   ) {
-    return this.prisma.db.$queryRaw<
-      Array<{ reportId: string; service: string; hash: string; branch: string }>
-    >(Prisma.sql`
+    return this.prisma.db.$queryRaw<ChangeRecordCommit[]>(Prisma.sql`
       SELECT c.id AS "reportId", h.value->>'service' AS service,
         h.value->>'hash' AS hash, h.value->>'branch' AS branch
       FROM reports c
@@ -643,6 +647,92 @@ export class ReportService {
     }
 
     return aggregateUsageTrends(rows, query);
+  }
+
+  async listProjectChanges(
+    organizationId: OrganizationId,
+    projectId: string,
+    filters: Omit<
+      ReportsApiListProjectChangesRequest,
+      'organizationId' | 'projectId' | 'limit' | 'offset'
+    > & { limit: number; offset: number },
+  ): Promise<ProjectChangesPage> {
+    if (
+      ReadPolicyContext.current().excludedReportTypes.includes(
+        PrismaReportType.IMPLEMENT,
+      )
+    ) {
+      return { records: [], hasMore: false };
+    }
+    const relation = (entityType: string, entityId: string) => Prisma.sql`
+      EXISTS (SELECT 1 FROM report_entities e WHERE e.report_id = reports.id
+        AND e.entity_type::text = ${entityType} AND e.entity_id = ${entityId})`;
+    const conditions = [
+      Prisma.sql`reports.organization_id = ${organizationId}`,
+      Prisma.sql`reports.project_id = ${projectId}`,
+      Prisma.sql`reports.report_type = 'IMPLEMENT'`,
+      Prisma.sql`(reports.expires_at IS NULL OR reports.expires_at > NOW())`,
+    ];
+    if (filters.agentSessionId) {
+      conditions.push(relation('AGENT_SESSION', filters.agentSessionId));
+    }
+    if (filters.serviceId) {
+      conditions.push(relation('SERVICE', filters.serviceId));
+    }
+    if (filters.taskId) {
+      conditions.push(relation('TASK', filters.taskId));
+    }
+    if (filters.featureId) {
+      conditions.push(Prisma.sql`EXISTS (
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM tasks WHERE id = ${filters.featureId}
+            AND organization_id = ${organizationId} AND project_id = ${projectId}
+            AND type = 'FEATURE' AND archived_at IS NULL
+          UNION
+          SELECT t.id FROM tasks t JOIN subtree p ON t.parent_task_id = p.id
+            WHERE t.organization_id = ${organizationId} AND t.project_id = ${projectId}
+              AND t.archived_at IS NULL
+        ) SELECT 1 FROM report_entities e JOIN subtree ON subtree.id = e.entity_id
+          WHERE e.report_id = reports.id AND e.entity_type::text = 'TASK'
+      )`);
+    }
+    if (filters.committed !== undefined) {
+      conditions.push(
+        this.implementCommitStatePredicate(
+          organizationId,
+          projectId,
+          filters.committed,
+        ),
+      );
+    }
+    const ids = await this.prisma.db.$queryRaw<
+      Array<{ id: string }>
+    >(Prisma.sql`
+      SELECT reports.id FROM reports WHERE ${Prisma.join(conditions, ' AND ')}
+      ORDER BY reports.created_at DESC, reports.id DESC
+      LIMIT ${filters.limit + 1} OFFSET ${filters.offset}
+    `);
+    const reports = await this.prisma.db.report.findMany({
+      where: restrictReportWhere({
+        organizationId,
+        projectId,
+        id: { in: ids.slice(0, filters.limit).map((row) => row.id) },
+      }),
+      include: { reportEntities: { orderBy: { createdAt: 'asc' } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    const names = await this.resolveEntityNames(organizationId, reports);
+    const records = await Promise.all(
+      reports.map(async (report) => ({
+        report: this.toDto(report, names),
+        commits: await this.findCommitsForImplementReport(
+          organizationId,
+          projectId,
+          report.id,
+        ),
+      })),
+    );
+    return { records, hasMore: ids.length > filters.limit };
   }
 
   async findAll(

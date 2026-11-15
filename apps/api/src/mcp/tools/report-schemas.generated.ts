@@ -580,6 +580,16 @@ export const REPORT_SCHEMAS = {
                 required: ['service', 'hash', 'branch'],
                 additionalProperties: false,
                 properties: {
+                  implementReportIds: {
+                    type: 'array',
+                    uniqueItems: true,
+                    description:
+                      'Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports.',
+                    items: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                  },
                   service: {
                     type: 'string',
                     description:
@@ -3094,10 +3104,122 @@ export const REPORT_SCHEMAS = {
             filesChanged: {
               type: 'array',
               description:
-                'Repo-relative paths of files modified during the run.',
+                'Repo-relative paths of files modified during the turn, derived from `edits`: the sorted unique paths. Kept for readers that only need which files changed.\n',
               items: {
                 type: 'string',
                 minLength: 1,
+              },
+            },
+            edits: {
+              type: 'array',
+              description:
+                "Every recorded edit to this report's Service during the turn, in the order they occurred. Built by the CLI from the Run's canonical file-change facts, never authored by the agent. Carries no file content: versions are git object ids kept in the repository that ran the session. Absent on reports written before edits were recorded.\n",
+              items: {
+                type: 'object',
+                description:
+                  "One recorded edit to a file. Line ranges are measured against the exact before and after versions, so later edits never invalidate them. Edits to one file form a chain: an edit whose `beforeObjectId` is another edit's `afterObjectId` came after it.\n",
+                required: [
+                  'path',
+                  'occurredAt',
+                  'turnId',
+                  'beforeObjectId',
+                  'afterObjectId',
+                  'beforeRanges',
+                  'afterRanges',
+                  'approximate',
+                  'versionsRecorded',
+                ],
+                properties: {
+                  path: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'Repo-relative path of the edited file.',
+                  },
+                  occurredAt: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'When the edit was recorded.',
+                  },
+                  turnId: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'The Turn that made the edit.',
+                  },
+                  beforeObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file before the edit. When `versionsRecorded` is true, null means the file did not exist before the edit.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  afterObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file after the edit. When `versionsRecorded` is true, null means the edit deleted the file.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  beforeRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the before version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  afterRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the after version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  approximate: {
+                    type: 'boolean',
+                    description:
+                      "True when Hey Hey could not establish that the ranges hold only this session's lines. Another session, a script or the person's editor may have changed the same file between the two versions, and the ranges then cover everything observed between them. Hey Hey currently reads each file only after the edit has run, so every edit is approximate.\n",
+                  },
+                  versionsRecorded: {
+                    type: 'boolean',
+                    description:
+                      "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
+                  },
+                },
               },
             },
             decisions: {
@@ -3128,7 +3250,7 @@ export const REPORT_SCHEMAS = {
                         type: 'string',
                         minLength: 1,
                         description:
-                          'Repo-relative path of the file the decision lives in.',
+                          "Repo-relative path of the file the decision lives in. It names a path in this report's `edits`.\n",
                       },
                       startLine: {
                         type: 'integer',

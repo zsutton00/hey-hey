@@ -119,6 +119,24 @@ const readBodiesByOperation = {
     runId,
     file: { serviceId, repoPath: '/tmp/repository', filePath: 'src/example.ts' },
   },
+  'run.recorded_edit.read': {
+    requestId,
+    agentSessionId,
+    operation: 'run.recorded_edit.read',
+    runId,
+    serviceId,
+    edit: {
+      path: 'src/example.ts',
+      turnId: 'turn-1',
+      occurredAt: '2026-11-13T12:00:00Z',
+      beforeObjectId: 'a'.repeat(40),
+      afterObjectId: 'b'.repeat(40),
+      beforeRanges: [{ startLine: 1, endLine: 2 }],
+      afterRanges: [{ startLine: 1, endLine: 3 }],
+      approximate: true,
+      versionsRecorded: true,
+    },
+  },
   'run.context_usage.get': {
     requestId,
     agentSessionId,
@@ -505,6 +523,40 @@ describe('CliReadHandler', () => {
             });
           }
         }
+        const { writeBlob, anchorBlobs } = await import('../git/object-store');
+        const beforeObjectId = await writeBlob(repoPath, 'recorded before\n');
+        const afterObjectId = await writeBlob(repoPath, 'recorded after\n');
+        await anchorBlobs(repoPath, runId, 'history fixture', [beforeObjectId, afterObjectId]);
+        verify.mockReturnValue(
+          verifiedRead({
+            requestId,
+            agentSessionId: runId,
+            runId,
+            serviceId,
+            operation: 'run.recorded_edit.read',
+            edit: {
+              ...readBodiesByOperation['run.recorded_edit.read'].edit,
+              path: 'owned.ts',
+              beforeObjectId,
+              afterObjectId,
+            },
+          }),
+        );
+        await expect(handler.handle({})).resolves.toMatchObject({
+          requestId,
+          operation: 'run.recorded_edit.read',
+          status: 'success',
+          result: {
+            runId,
+            file: {
+              serviceId,
+              repoPath,
+              filePath: 'owned.ts',
+              preContent: 'recorded before\n',
+              postContent: 'recorded after\n',
+            },
+          },
+        });
         verify.mockReturnValue(
           verifiedRead({
             requestId,
@@ -1844,6 +1896,10 @@ describe('read input field coverage stays aligned with OpenAPI', () => {
             continue;
           visit(child, sample[key], [...path, key]);
         }
+        return;
+      }
+      if (node.items && Array.isArray(sample)) {
+        sample.forEach((item, index) => visit(node.items, item, [...path, String(index)]));
         return;
       }
       if (node.enum?.length === 1) return;
