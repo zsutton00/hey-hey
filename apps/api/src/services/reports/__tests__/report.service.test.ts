@@ -280,6 +280,72 @@ describe('ReportService', () => {
     );
   });
 
+  it('pages project changes with all filters and resolves commit provenance on returned records', async () => {
+    const report = buildImplementReport({
+      id: 'change-1',
+      createdAt: new Date('2026-11-13T12:00:00Z'),
+      expiresAt: null,
+      reportEntities: [],
+    });
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([{ id: 'change-1' }, { id: 'next-page' }])
+      .mockResolvedValueOnce([
+        {
+          reportId: 'commit-1',
+          service: 'service-a',
+          hash: 'abc123',
+          branch: 'main',
+          implementReportId: 'change-1',
+        },
+      ]);
+    prisma.db.report.findMany.mockResolvedValue([report]);
+    const page = await service.listProjectChanges(
+      'org-1' as OrganizationId,
+      'project-1',
+      {
+        agentSessionId: 'session-1',
+        serviceId: 'service-a',
+        taskId: 'task-1',
+        featureId: 'feature-1',
+        committed: true,
+        limit: 1,
+        offset: 2,
+      },
+    );
+    expect(page.hasMore).toBe(true);
+    expect(page.records).toMatchObject([
+      {
+        report: { id: 'change-1', reportType: 'IMPLEMENT' },
+        commits: [{ hash: 'abc123' }],
+      },
+    ]);
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.values).toEqual(
+      expect.arrayContaining([
+        'org-1',
+        'project-1',
+        'session-1',
+        'service-a',
+        'task-1',
+        'feature-1',
+        2,
+      ]),
+    );
+    expect(query.sql).toContain('WITH RECURSIVE subtree');
+    expect(query.sql).toContain(
+      'ORDER BY reports.created_at DESC, reports.id DESC',
+    );
+    expect(prisma.db.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: 'org-1',
+          projectId: 'project-1',
+          id: { in: ['change-1'] },
+        }),
+      }),
+    );
+  });
+
   const buildImplementReport = (overrides: Partial<any> = {}) => ({
     id: 'report-implement-1',
     organizationId: 'org-1',

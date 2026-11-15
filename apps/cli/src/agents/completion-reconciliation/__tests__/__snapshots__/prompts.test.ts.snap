@@ -104,16 +104,14 @@ At the start of this session, call \`get_hints_for_items\` with the focused task
 
 ## Persist an IMPLEMENT report at completion
 
-Before your task-complete message, persist a summary of what you did this turn as a queryable \`IMPLEMENT\` report so the next phase has a faithful handoff.
+Before your task-complete message, persist your handoff for this turn as an \`IMPLEMENT\` report so the next phase can pick up your work. Hey Hey records the changed files and line edits itself and attaches your summary and decisions to each changed Service's report when the turn ends. Do not list files or edits.
 
-1. Call \`get_report_schema\` with \`reportType: "IMPLEMENT"\` to retrieve the canonical payload shape.
-2. Call \`create_report\` with:
-   - \`reportType: "IMPLEMENT"\`
-   - \`audience: "PROJECT_VISIBLE"\`
-   - \`payload\` — match the schema returned in step 1. Set \`reportType: "IMPLEMENT"\`. \`summary\` is REQUIRED and must be 50–100 words written as a handoff to the next phase — what they need to know to pick up your work, in product/engineering terms. It is NOT a turn transcript and NOT a paste of your task-complete message; the full payload (file lists, decisions, etc.) carries the detail. Also set \`filesChanged\` containing the repo-relative paths you modified (use \`git status\` / \`git diff\` to confirm — do not infer from the plan), and \`decisions\` (optional) for any notable trade-offs or branch-points where you picked one approach over another, each with \`topic\`, \`choice\`, and optional \`reasoning\`. A decision may also carry an optional \`location\` — a \`file\` (repo-relative path) plus optional \`startLine\`/\`endLine\` (post-edit line numbers on the new-file side of the diff) — so the diff viewer can inline the annotation at the relevant code. Only set \`location\` when the choice is non-obvious AND is embodied in a specific, nameable place in the code; omit it for cross-cutting decisions that don't pin to a single spot. Annotate at most 1–3 decisions per run — do not attach a \`location\` to every decision.
-   - \`entities\` — at minimum \`{ entityType: "TASK", entityId: <active task id>, relation: "PRIMARY" }\` when a task id is in the session context below. Add the parent coding session id as \`{ entityType: "AGENT_SESSION", entityId: <coding session id>, relation: "CONTEXT" }\` when present.
-3. If \`create_report\` returns a validation error, fix the payload and retry — do not skip the report.
-4. After the report is persisted, emit your task-complete message to the user. The report is persisted in addition to that message, not instead of it.
+1. Call \`create_report\` with \`reportType: "IMPLEMENT"\`, \`audience: "PROJECT_VISIBLE"\` and a \`payload\` containing only:
+   - \`reportType: "IMPLEMENT"\`.
+   - \`summary\` (required): 50–100 words written as a handoff to the next phase — what they need to know to pick up your work, in product/engineering terms. It is NOT a turn transcript and NOT a paste of your task-complete message.
+   - \`decisions\` (optional): notable trade-offs or branch-points where you picked one approach over another, each with \`topic\`, \`choice\`, and optional \`reasoning\`. A decision may also carry an optional \`location\` — a \`file\` (repo-relative path of a file you changed) plus optional \`startLine\`/\`endLine\` (post-edit line numbers on the new-file side of the diff) — so the diff viewer can inline the annotation at the relevant code. Only set \`location\` when the choice is non-obvious AND is embodied in a specific, nameable place in the code; omit it for cross-cutting decisions that don't pin to a single spot. Annotate at most 1–3 decisions per run — do not attach a \`location\` to every decision.
+2. If \`create_report\` returns a validation error, fix the payload and retry — do not skip the report. Calling it again in the same turn replaces your earlier summary and decisions.
+3. After the report is submitted, emit your task-complete message to the user. The report is submitted in addition to that message, not instead of it.
 
 ## Surfacing a decision the user must make
 

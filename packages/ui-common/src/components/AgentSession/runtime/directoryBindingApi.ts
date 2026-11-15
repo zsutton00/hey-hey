@@ -7,6 +7,8 @@ import type {
   CliReadErrorCode,
   CliReadRunChangedFileDetailSuccessResponseDto,
   CliReadRunChangedFilesInventorySuccessResponseDto,
+  CliReadRunRecordedEditSuccessResponseDto,
+  ImplementReportEdit,
   LocalListRepoBindingsResponse,
   LocalRunAttachmentOpenSuccessResponse,
   LocalRunAttachmentSuccessResponse,
@@ -221,6 +223,30 @@ const readChangedFileDetailResponse = (
     status: "success",
     result: { runId, file: value.result.file },
   } satisfies CliReadRunChangedFileDetailSuccessResponseDto;
+};
+
+const readRecordedEditResponse = (
+  value: unknown,
+  runId: string,
+): CliReadRunRecordedEditSuccessResponseDto => {
+  if (
+    !isRecord(value) ||
+    typeof value.requestId !== "string" ||
+    value.requestId.trim().length === 0 ||
+    value.operation !== "run.recorded_edit.read" ||
+    value.status !== "success" ||
+    !isRecord(value.result) ||
+    value.result.runId !== runId ||
+    !isChangedFileDetail(value.result.file)
+  ) {
+    throw new Error("The local CLI returned an invalid recorded edit.");
+  }
+  return {
+    requestId: value.requestId,
+    operation: "run.recorded_edit.read",
+    status: "success",
+    result: { runId, file: value.result.file },
+  } satisfies CliReadRunRecordedEditSuccessResponseDto;
 };
 
 const isChangedFileInventoryEntry = (
@@ -600,6 +626,12 @@ export interface DirectoryBindingApi {
     runId: string,
     machineId: string,
   ): Promise<CliReadRunChangedFilesInventorySuccessResponseDto>;
+  readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto>;
   openRunBrowserTab(
     runId: string,
     body: LocalRunBrowserOpenRequest,
@@ -755,6 +787,23 @@ export const createDirectoryBindingApi = (
       },
     );
     return readChangedFileDetailResponse(payload, runId);
+  },
+
+  async readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto> {
+    const payload = await request<unknown>(
+      baseUrl,
+      `/api/local/runs/${encodeURIComponent(runId)}/recorded-edits/read`,
+      {
+        method: "POST",
+        body: JSON.stringify({ machineId, serviceId, edit }),
+      },
+    );
+    return readRecordedEditResponse(payload, runId);
   },
 
   async readRunChangedFilesInventory(

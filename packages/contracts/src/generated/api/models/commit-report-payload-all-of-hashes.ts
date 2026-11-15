@@ -22,6 +22,12 @@
  */
 export interface CommitReportPayloadAllOfHashes {
     /**
+     * Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports.
+     * @type {Array<string>}
+     * @memberof CommitReportPayloadAllOfHashes
+     */
+    'implementReportIds'?: Array<string>;
+    /**
      * Session service id of the repository this commit landed in.
      * @type {string}
      * @memberof CommitReportPayloadAllOfHashes

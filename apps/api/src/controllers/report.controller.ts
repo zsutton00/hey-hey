@@ -28,6 +28,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import {
   ReportAudience,
+  ProjectChangesPage,
   CreateReportDto,
   CreateReportEntityDto,
   CreateReportResponseDto,
@@ -433,6 +434,46 @@ export class ProjectReportsController {
     };
 
     return this.reportService.findAll(organizationId, filters);
+  }
+
+  @Get('changes')
+  @ApiOperation({
+    operationId: 'listProjectChanges',
+    summary: 'List historical agent changes',
+  })
+  async listProjectChanges(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Query('agentSessionId', new ParseUUIDPipe({ optional: true }))
+    agentSessionId?: string,
+    @Query('serviceId', new ParseUUIDPipe({ optional: true }))
+    serviceId?: string,
+    @Query('taskId', new ParseUUIDPipe({ optional: true })) taskId?: string,
+    @Query('featureId', new ParseUUIDPipe({ optional: true }))
+    featureId?: string,
+    @Query('committed') committed?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<ProjectChangesPage> {
+    const pageSize =
+      limit === undefined ? 50 : this.parsePositiveInteger(limit, 'limit');
+    if (pageSize > 100) {
+      throw new BadRequestException('limit must not exceed 100');
+    }
+    return this.reportService.listProjectChanges(organizationId, projectId, {
+      ...(agentSessionId ? { agentSessionId } : {}),
+      ...(serviceId ? { serviceId } : {}),
+      ...(taskId ? { taskId } : {}),
+      ...(featureId ? { featureId } : {}),
+      ...(committed === undefined
+        ? {}
+        : { committed: this.parseBoolean(committed, 'committed') }),
+      limit: pageSize,
+      offset:
+        offset === undefined
+          ? 0
+          : this.parseNonNegativeInteger(offset, 'offset'),
+    });
   }
 
   @Get('usage-trends')

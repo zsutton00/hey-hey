@@ -3364,6 +3364,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountRequest"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditRequest"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetRequest"
         - $ref: "#/components/schemas/CliReadRunSkillsListRequest"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
@@ -3375,6 +3376,7 @@ components:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountRequest"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditRequest"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetRequest"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListRequest"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
@@ -3388,6 +3390,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -3401,6 +3404,7 @@ components:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditEnvelopeBody"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -3420,6 +3424,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -3433,6 +3438,7 @@ components:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -3445,6 +3451,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -3458,6 +3465,7 @@ components:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -3709,6 +3717,31 @@ components:
         authorization:
           $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
       additionalProperties: false
+    CliReadRunRecordedEditRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - serviceId
+        - edit
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
     CliReadRunContextUsageGetRequest:
       type: object
       required:
@@ -3911,6 +3944,38 @@ components:
           description: Persisted CLI Run identity whose selected changed file is requested.
         file:
           $ref: "#/components/schemas/CliReadChangedFileIdentity"
+      additionalProperties: false
+    CliReadRunRecordedEditEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+        - serviceId
+        - edit
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
       additionalProperties: false
     CliReadRunContextUsageGetEnvelopeBody:
       type: object
@@ -4142,6 +4207,28 @@ components:
           type: string
           enum:
             - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadChangedFileDetailResult"
+      additionalProperties: false
+    CliReadRunRecordedEditSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
         status:
           type: string
           enum:
@@ -4524,6 +4611,28 @@ components:
           type: string
           enum:
             - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunRecordedEditErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
         status:
           type: string
           enum:

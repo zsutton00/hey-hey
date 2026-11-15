@@ -1,3 +1,4 @@
+import { recordedEditSchema } from './recorded-edit-schema';
 import { taskMonitorLaunchConfigInputSchema as taskMonitorLaunchConfigV2Schema } from './task-monitor-launch-config';
 import { z } from 'zod';
 import {
@@ -568,6 +569,16 @@ export const CLI_READ_OPERATION_SCHEMAS = {
         .strict(),
     })
     .strict(),
+  'run.recorded_edit.read': z
+    .object({
+      requestId: z.string().uuid(),
+      agentSessionId: z.string().uuid(),
+      operation: z.literal('run.recorded_edit.read'),
+      runId: z.string().uuid(),
+      serviceId: z.string().uuid(),
+      edit: recordedEditSchema,
+    })
+    .strict(),
   'run.context_usage.get': z
     .object({
       requestId: z.string().uuid(),
@@ -630,6 +641,7 @@ const cliReadBodyV2Schema = z.union([
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.count'],
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.inventory'],
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.detail'],
+  CLI_READ_OPERATION_SCHEMAS['run.recorded_edit.read'],
   CLI_READ_OPERATION_SCHEMAS['run.context_usage.get'],
   CLI_READ_OPERATION_SCHEMAS['run.skills.list'],
   CLI_READ_OPERATION_SCHEMAS['run.tool_calls.latest_turn'],

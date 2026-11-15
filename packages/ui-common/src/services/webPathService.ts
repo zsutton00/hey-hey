@@ -905,6 +905,14 @@ export class WebPathService {
     return getPathService().createProjectReport(projectId);
   }
 
+  static projectChanges(
+    projectId: string,
+    filters: { agentSessionId?: string; serviceId?: string } = {},
+  ): string {
+    const query = new URLSearchParams(filters).toString();
+    return `/projects/${projectId}/changes${query ? `?${query}` : ""}`;
+  }
+
   static projectReportHistory(projectId: string): string {
     return getPathService().projectReportHistory(projectId);
   }

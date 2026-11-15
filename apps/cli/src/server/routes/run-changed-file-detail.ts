@@ -9,11 +9,16 @@ import {
   type CliReadRunChangedFileDetailSuccessResponseDto,
   type CliReadRunChangedFilesInventoryErrorResponseDto,
   type CliReadRunChangedFilesInventorySuccessResponseDto,
+  type CliReadRunRecordedEditErrorResponseDto,
+  type CliReadRunRecordedEditSuccessResponseDto,
   type LocalRunChangedFileDetailRequest,
+  type LocalRunRecordedEditRequest,
   type LocalRunChangedFilesInventoryRequest,
 } from '@hey-hey/contracts/local';
 import { NOOP_LOGGER, type ServerLogger } from '../logger';
 import { RunChangedFilesContextError, type RunChangedFilesReader } from '../run-changed-files';
+import { RecordedEditTooLargeError } from '../recorded-edit-reader';
+import { recordedEditSchema } from '../trigger-verification/recorded-edit-schema';
 import { RunReadPreparationError, type RunReadRestoreCoordinator } from '../restore-persisted-runs';
 
 const MAX_CHANGED_FILE_PATH_LENGTH = 4_096;
@@ -25,7 +30,7 @@ export interface RunChangedFileDetailRouteDependencies {
   restoreCoordinator: Pick<RunReadRestoreCoordinator, 'restore'>;
   runChangedFilesReader: Pick<
     RunChangedFilesReader,
-    'getLiveRunChangedFileDetail' | 'getLiveRunChangedFilesInventory'
+    'getLiveRunChangedFileDetail' | 'getLiveRunChangedFilesInventory' | 'getRecordedEdit'
   >;
   logger?: ServerLogger;
 }
@@ -70,18 +75,34 @@ const readRequest = (value: unknown): LocalRunChangedFileDetailRequest | null =>
     : null;
 };
 
+const readRecordedEditRequest = (value: unknown): LocalRunRecordedEditRequest | null => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['machineId', 'serviceId', 'edit'])) return null;
+  const machineId = readNonEmptyString(value['machineId']);
+  const serviceId = readNonEmptyString(value['serviceId']);
+  const parsedEdit = recordedEditSchema.safeParse(value['edit']);
+  const edit = parsedEdit.success ? parsedEdit.data : null;
+  return machineId && serviceId && UUID_PATTERN.test(serviceId) && edit
+    ? ({ machineId, serviceId, edit } satisfies LocalRunRecordedEditRequest)
+    : null;
+};
+
 const readInventoryRequest = (value: unknown): LocalRunChangedFilesInventoryRequest | null => {
   if (!isRecord(value) || !hasOnlyKeys(value, ['machineId'])) return null;
   const machineId = readNonEmptyString(value['machineId']);
   return machineId ? ({ machineId } satisfies LocalRunChangedFilesInventoryRequest) : null;
 };
 
-type LocalRunChangedFilesOperation = 'run.changed_files.detail' | 'run.changed_files.inventory';
+type LocalRunChangedFilesOperation =
+  | 'run.changed_files.detail'
+  | 'run.changed_files.inventory'
+  | 'run.recorded_edit.read';
 
 type LocalRunChangedFilesErrorResponse<TOperation extends LocalRunChangedFilesOperation> =
   TOperation extends 'run.changed_files.detail'
     ? CliReadRunChangedFileDetailErrorResponseDto
-    : CliReadRunChangedFilesInventoryErrorResponseDto;
+    : TOperation extends 'run.recorded_edit.read'
+      ? CliReadRunRecordedEditErrorResponseDto
+      : CliReadRunChangedFilesInventoryErrorResponseDto;
 
 const errorResponse = <TOperation extends LocalRunChangedFilesOperation>(
   operation: TOperation,
@@ -109,6 +130,9 @@ const resolveFailure = (
             ? 500
             : 422;
     return { status, code: error.code, message: error.message };
+  }
+  if (error instanceof RecordedEditTooLargeError) {
+    return { status: 413, code: CliReadErrorCode.FileTooLarge, message: error.message };
   }
   if (error instanceof RunChangedFilesContextError) {
     return {
@@ -144,6 +168,91 @@ export const createRunChangedFileDetailRouter = ({
     '/:runId/changed-files/detail',
     createCorsMiddleware(allowedOrigins, logger, 'run.changed_files.detail'),
   );
+
+  router.use(
+    '/:runId/recorded-edits/read',
+    createCorsMiddleware(allowedOrigins, logger, 'run.recorded_edit.read'),
+  );
+
+  router.post('/:runId/recorded-edits/read', async (request, response) => {
+    const operation = 'run.recorded_edit.read';
+    const requestId = randomUUID();
+    const runId = readNonEmptyString(request.params.runId);
+    const body = readRecordedEditRequest(request.body);
+    logger.debug('local.run_recorded_edit.started', { requestId, runId });
+    if (!runId || !UUID_PATTERN.test(runId) || !body) {
+      logger.warn('local.run_recorded_edit.rejected', {
+        requestId,
+        runId,
+        reason: 'invalid_request',
+      });
+      response
+        .status(400)
+        .json(
+          errorResponse(
+            operation,
+            requestId,
+            CliReadErrorCode.InvalidRequest,
+            'The request must include a persisted Run ID, machine ID, Service ID and recorded edit.',
+          ),
+        );
+      return;
+    }
+
+    const admission = await admitMachine(keyPairStore, body.machineId, () => {
+      logger.error('local.run_recorded_edit.machine_identity.failed', { requestId, runId });
+    });
+    if (!admission.admitted) {
+      logger.warn('local.run_recorded_edit.rejected', {
+        requestId,
+        runId,
+        reason: admission.reason,
+      });
+      response
+        .status(admission.status)
+        .json(errorResponse(operation, requestId, admission.code, admission.message));
+      return;
+    }
+
+    try {
+      const run = await restoreCoordinator.restore(runId);
+      const file = await runChangedFilesReader.getRecordedEdit(
+        run.session,
+        run.getFileChangeProjection(),
+        runId,
+        body.serviceId,
+        body.edit,
+      );
+      const payload = {
+        requestId,
+        operation,
+        status: 'success',
+        result: { runId, file },
+      } satisfies CliReadRunRecordedEditSuccessResponseDto;
+      logger.info('local.run_recorded_edit.completed', {
+        requestId,
+        runId,
+        serviceId: body.serviceId,
+        filePath: body.edit.path,
+      });
+      response.json(payload);
+    } catch (error) {
+      const resolved = error instanceof Error ? error : new Error(String(error));
+      const failure = resolveFailure(resolved);
+      logger.warn('local.run_recorded_edit.failed', {
+        requestId,
+        runId,
+        serviceId: body.serviceId,
+        filePath: body.edit.path,
+        code: failure.code,
+        errorName: resolved.name,
+        reason: resolved.message,
+      });
+      response
+        .status(failure.status)
+        .json(errorResponse(operation, requestId, failure.code, failure.message));
+    }
+  });
 
   router.post('/:runId/changed-files/inventory', async (request, response) => {
     const operation = 'run.changed_files.inventory';

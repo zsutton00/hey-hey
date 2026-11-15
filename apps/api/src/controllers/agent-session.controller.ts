@@ -148,6 +148,7 @@ export class AgentSessionController {
       (request.operation === 'run.changed_files.count' ||
         request.operation === 'run.changed_files.inventory' ||
         request.operation === 'run.changed_files.detail' ||
+        request.operation === 'run.recorded_edit.read' ||
         request.operation === 'run.context_usage.get') &&
       request.runId !== agentSessionId
     ) {

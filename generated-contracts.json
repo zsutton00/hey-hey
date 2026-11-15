@@ -1,27 +1,27 @@
 {
   "source": {
-    "closureDigest": "sha256:ff3d37dfae08e2c706f0d4821c417dfe0d4b743c23d50de9b55364e2940943d1",
+    "closureDigest": "sha256:dcad6b98957762d5bad1c78d4eb6f27f29154d358c09e902ea550c2b0ee05bbe",
     "closureFileCount": 121
   },
   "targets": {
     "ui-common": {
       "status": "generated",
-      "inputDigest": "sha256:11e36f23708de7e09b3686a80cd9d5ca4cf679e4ca42db17008dd409fafc807a",
+      "inputDigest": "sha256:8ad2b987aa3f0bae0ab5974240c0c54ce89b372c40dd311883bb7fd2994f5cca",
       "outputDigest": "sha256:5d81dba578b96101922ed81cd95e60f35e9556984a850b1460006b40f4338b77",
       "dependencyDigests": {
-        "contracts-api": "sha256:5562b0e7f0ac657539a39a304f55258a3f55a248fd8656c21f563904fa3ea801",
-        "contracts-agent-bridge": "sha256:f8208a81dd036a8c09f6a6d38f31be759979afb21ca3cf7d7143f0f1e0789b65",
-        "contracts-local": "sha256:571c3db54799029eff62355790ad901259a35d815d71c7a0ad490dce6f214aa6"
+        "contracts-api": "sha256:ab51f4fa17ef5cc82e42cb0f0e57e27d77074eee4a30ecf92fd7f805dc69e65d",
+        "contracts-agent-bridge": "sha256:8ac760c2882d67c1d97f514165fd19ac0984bf9a2337be01e5837e44d040f20a",
+        "contracts-local": "sha256:eac9b385da105e675ddd61ceced0c61b954f0a821c232a6cf80a9f4778825c0d"
       }
     },
     "cli": {
       "status": "generated",
-      "inputDigest": "sha256:d40bc7a3209e92d32910ffb699bdf9c101bf5f0ef09368b895325a80669ccd08",
-      "outputDigest": "sha256:e83c5894a8064b4256044aae815adbabaffb16d594fdcca1825e806fc5d3429a",
+      "inputDigest": "sha256:48f09f7644f576b2db4b81519243bb8054a1d3cb0d324131e4797d27d14d511f",
+      "outputDigest": "sha256:ed1cd58d607452b2b6528b8d3049cb10ae1f3415adbf856e7ad8f81e93d41c8c",
       "dependencyDigests": {
-        "contracts-api": "sha256:5562b0e7f0ac657539a39a304f55258a3f55a248fd8656c21f563904fa3ea801",
-        "contracts-agent-bridge": "sha256:f8208a81dd036a8c09f6a6d38f31be759979afb21ca3cf7d7143f0f1e0789b65",
-        "contracts-local": "sha256:571c3db54799029eff62355790ad901259a35d815d71c7a0ad490dce6f214aa6"
+        "contracts-api": "sha256:ab51f4fa17ef5cc82e42cb0f0e57e27d77074eee4a30ecf92fd7f805dc69e65d",
+        "contracts-agent-bridge": "sha256:8ac760c2882d67c1d97f514165fd19ac0984bf9a2337be01e5837e44d040f20a",
+        "contracts-local": "sha256:eac9b385da105e675ddd61ceced0c61b954f0a821c232a6cf80a9f4778825c0d"
       }
     },
     "api": {
@@ -30,60 +30,60 @@
     },
     "contracts-api": {
       "status": "generated",
-      "inputDigest": "sha256:38930cc6983c3b35ab8e64564bb65cc2555da91b8c3883b9c2fd24a3c9849bd7",
-      "outputDigest": "sha256:5562b0e7f0ac657539a39a304f55258a3f55a248fd8656c21f563904fa3ea801",
+      "inputDigest": "sha256:9b7ae621524aecaa37989b87d98d7184675b008b7964676f0262b0c473cb8520",
+      "outputDigest": "sha256:ab51f4fa17ef5cc82e42cb0f0e57e27d77074eee4a30ecf92fd7f805dc69e65d",
       "dependencyDigests": {}
     },
     "contracts-agent-bridge": {
       "status": "generated",
-      "inputDigest": "sha256:e18ceb07d558e9bb57b1c69c76e73ef6afc71da3e4bf58a38628bada2275250a",
-      "outputDigest": "sha256:f8208a81dd036a8c09f6a6d38f31be759979afb21ca3cf7d7143f0f1e0789b65",
+      "inputDigest": "sha256:76c927bdec5f052b7a58c4f4ce5bcb1353be07759ad0dd26bad274832595fae7",
+      "outputDigest": "sha256:8ac760c2882d67c1d97f514165fd19ac0984bf9a2337be01e5837e44d040f20a",
       "dependencyDigests": {}
     },
     "contracts-local": {
       "status": "generated",
-      "inputDigest": "sha256:4ce825fe8463809efe3752f5739545c9e33b5924f41c91feba4b9663ddf22fdf",
-      "outputDigest": "sha256:571c3db54799029eff62355790ad901259a35d815d71c7a0ad490dce6f214aa6",
+      "inputDigest": "sha256:a0eff3059d9e70a56a65b4933d0f1493f9884c438703287eea18e0bd89c8708a",
+      "outputDigest": "sha256:eac9b385da105e675ddd61ceced0c61b954f0a821c232a6cf80a9f4778825c0d",
       "dependencyDigests": {}
     },
     "api-custom": {
       "status": "generated",
-      "inputDigest": "sha256:5994cada70807b8b55b3cb5049e7f7fb59d13cea83dccd7a0ee5d2043736820e",
-      "outputDigest": "sha256:c06dd1376e86c887bb2174dea53af7b821a1d3fe44ac2a02738df98780a04844",
+      "inputDigest": "sha256:7575ee9db09b6fc9f7d9acea50d0a20b6dbf3d8e3f21c1bc0fa6395729e77ee8",
+      "outputDigest": "sha256:0aee09e4da4539ead365dbb90ec20ac6aa543f94b59a7e0391aa6d709010424f",
       "dependencyDigests": {
-        "contracts-api": "sha256:5562b0e7f0ac657539a39a304f55258a3f55a248fd8656c21f563904fa3ea801",
-        "contracts-agent-bridge": "sha256:f8208a81dd036a8c09f6a6d38f31be759979afb21ca3cf7d7143f0f1e0789b65"
+        "contracts-api": "sha256:ab51f4fa17ef5cc82e42cb0f0e57e27d77074eee4a30ecf92fd7f805dc69e65d",
+        "contracts-agent-bridge": "sha256:8ac760c2882d67c1d97f514165fd19ac0984bf9a2337be01e5837e44d040f20a"
       }
     },
     "api-agents": {
       "status": "generated",
-      "inputDigest": "sha256:91f7f884076885d6a58d571ee70e3851b4a16a3a53ef67ddfd1a765f32a195df",
+      "inputDigest": "sha256:4e1236a6f6582c6123a8223e0501cbcee73492acabd370b1352d5a3e13be5414",
       "outputDigest": "sha256:c9de661844565f71966eb66b1a69bc290b1271a68f865adccf366a976d300e44",
       "dependencyDigests": {}
     },
     "api-embeddings": {
       "status": "generated",
-      "inputDigest": "sha256:a988874900b3e80900da92b6d61292449c7f6f622fb214d04cb41202a80c8a54",
+      "inputDigest": "sha256:0b9dcc8b503067537dd6a3c077768916ffb0e091e256b520ee173e3a47372d54",
       "outputDigest": "sha256:64a118833809d1983f7db56c1468475d15830bb29b0b66addefd6d49295d8ae9",
       "dependencyDigests": {}
     },
     "api-graphs": {
       "status": "generated",
-      "inputDigest": "sha256:7b48edbcc859291b03fac804b178452000359d69146597ee688abf7ebfa574f9",
+      "inputDigest": "sha256:a97461fb88ffbb7891576482b00e8a549f698a8696781db95efcdf1435dfe8ce",
       "outputDigest": "sha256:42271af396515af590c8653d196546beee2d156440e76eb742147fccae471446",
       "dependencyDigests": {}
     },
     "api-event-schemas": {
       "status": "generated",
-      "inputDigest": "sha256:a2ab025675168750bb98815200280368f054473deea12c25c9d6bb238f8eda80",
-      "outputDigest": "sha256:1cf4c90c799cc2167fed749967b2f0a103a094e78c0c08b284cc885c3f9ee44b",
+      "inputDigest": "sha256:7539afe7b2bbdc3205c8948f441f6d13f62ac6a244b21ed25c67cdc5d0917cdd",
+      "outputDigest": "sha256:a33cf7e71f4013327e15452f1308adff54a3a69bf20f440563e11828d5ef0465",
       "dependencyDigests": {
-        "contracts-api": "sha256:5562b0e7f0ac657539a39a304f55258a3f55a248fd8656c21f563904fa3ea801"
+        "contracts-api": "sha256:ab51f4fa17ef5cc82e42cb0f0e57e27d77074eee4a30ecf92fd7f805dc69e65d"
       }
     },
     "graph-search": {
       "status": "generated",
-      "inputDigest": "sha256:aed6150397623eb1076acbddab02efffb41aca55bbb4a642e7552bb13f52d51b",
+      "inputDigest": "sha256:0b0002634fae31370939b330b82d8533a4cc6e9717add39ae5872c6efbaeeecf",
       "outputDigest": "sha256:ce5cbdcbce4f85f2bdf078ec623859c11fcfc9e40477a24cc7ec969f7aa46766",
       "dependencyDigests": {}
     }

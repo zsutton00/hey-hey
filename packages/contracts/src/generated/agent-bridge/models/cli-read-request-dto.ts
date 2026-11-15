@@ -40,16 +40,22 @@ import type { CliReadRunChangedFilesInventoryRequest } from './cli-read-run-chan
 import type { CliReadRunContextUsageGetRequest } from './cli-read-run-context-usage-get-request.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadRunRecordedEditRequest } from './cli-read-run-recorded-edit-request.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadRunSkillsListRequest } from './cli-read-run-skills-list-request.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CliReadRunToolCallsLatestTurnRequest } from './cli-read-run-tool-calls-latest-turn-request.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ImplementReportEdit } from './implement-report-edit.js';
 
 /**
  * @type CliReadRequestDto
  * Closed union of host-owned state reads accepted by the platform Agent Session endpoint. New operations extend this union without creating a new transport.
  * @export
  */
-export type CliReadRequestDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListRequest | { operation: 'provider.usage.get' } & CliReadProviderUsageGetRequest | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountRequest | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailRequest | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryRequest | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetRequest | { operation: 'run.skills.list' } & CliReadRunSkillsListRequest | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnRequest;
+export type CliReadRequestDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListRequest | { operation: 'provider.usage.get' } & CliReadProviderUsageGetRequest | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountRequest | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailRequest | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryRequest | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetRequest | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditRequest | { operation: 'run.skills.list' } & CliReadRunSkillsListRequest | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnRequest;
 
-export const CliReadRequestDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","project.session_costs.list","provider.usage.get"] as const;
+export const CliReadRequestDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.recorded_edit.read","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","project.session_costs.list","provider.usage.get"] as const;

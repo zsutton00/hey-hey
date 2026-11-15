@@ -1,3 +1,4 @@
+import type { ImplementReportEdit } from "../../../api";
 import { Box, Typography, useTheme } from "@mui/material";
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import React, {
@@ -21,7 +22,13 @@ import { HighlightedTokens } from "./HighlightedTokens";
 import { getDiffTokenColors, type DiffTokenColorMap } from "./diffTokenColors";
 import type { LocatedDecision } from "./locatedDecisions";
 
+type RecordedRanges = Pick<ImplementReportEdit, "beforeRanges" | "afterRanges">;
+const RecordedRangesContext = React.createContext<RecordedRanges | undefined>(
+  undefined,
+);
+
 export interface FullFileSplitViewProps {
+  recordedRanges?: RecordedRanges;
   /** File contents before the change. Null for added files. */
   preContent: string | null;
   /** File contents after the change. Null for deleted files. */
@@ -254,10 +261,18 @@ const DiffLine: React.FC<DiffLineProps> = ({
   renderAbsentLine = true,
 }) => {
   const theme = useTheme();
+  const recordedRanges = React.useContext(RecordedRangesContext);
   const line = pane === "old" ? row.oldLine : row.newLine;
   if (line === null && !renderAbsentLine) return null;
 
   const lineNumber = pane === "old" ? row.oldLineNumber : row.newLineNumber;
+  const sideRanges =
+    pane === "old" ? recordedRanges?.beforeRanges : recordedRanges?.afterRanges;
+  const recorded =
+    lineNumber !== null &&
+    sideRanges?.some(
+      (range) => lineNumber >= range.startLine && lineNumber <= range.endLine,
+    );
   const colors = resolveLineColors(pane, row.type, theme.palette.mode);
   const prefix = resolveGutterPrefix(pane, row.type);
   const isAbsent = line === null;
@@ -266,12 +281,16 @@ const DiffLine: React.FC<DiffLineProps> = ({
     <Box
       component="code"
       data-diff-side={pane}
+      data-recorded-change={recorded || undefined}
       data-testid={row.type === "gap" ? "diff-omitted-lines" : undefined}
       sx={{
         display: "grid",
         gridTemplateColumns: "3rem 1.5rem 1fr",
         alignItems: "stretch",
         minHeight: ROW_MIN_HEIGHT,
+        boxShadow: recorded
+          ? `inset 3px 0 ${theme.palette.primary.main}`
+          : undefined,
         backgroundColor: isAbsent
           ? theme.palette.mode === "dark"
             ? "rgba(255, 255, 255, 0.03)"
@@ -835,6 +854,7 @@ export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
   presentationMode,
   hideComments = false,
   annotations,
+  recordedRanges,
 }) => {
   const theme = useTheme();
 
@@ -1143,59 +1163,40 @@ export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
   }, [hasChanges, rows, scrollMargin, firstChangeIndex, rowVirtualizer]);
 
   return (
-    <Box
-      data-testid="full-file-split-view"
-      data-language-id={languageId ?? "plain-text"}
-      sx={{
-        display: "flex",
-        alignItems: "stretch",
-        height: "100%",
-        minHeight: 0,
-        overflow: "hidden",
-      }}
-    >
+    <RecordedRangesContext.Provider value={recordedRanges}>
       <Box
-        data-testid="full-file-split-view-scroll"
-        ref={scrollRef}
+        data-testid="full-file-split-view"
+        data-language-id={languageId ?? "plain-text"}
         sx={{
-          flex: 1,
-          minWidth: 0,
-          overflow: "auto",
-          position: "relative",
+          display: "flex",
+          alignItems: "stretch",
+          height: "100%",
+          minHeight: 0,
+          overflow: "hidden",
         }}
       >
         <Box
-          ref={gridRef}
+          data-testid="full-file-split-view-scroll"
+          ref={scrollRef}
           sx={{
-            display: "grid",
-            gridTemplateColumns:
-              presentationMode === DIFF_PRESENTATION_MODES.sideBySide
-                ? `${splitRatio}fr 4px ${1 - splitRatio}fr`
-                : "minmax(0, 1fr)",
+            flex: 1,
+            minWidth: 0,
+            overflow: "auto",
+            position: "relative",
           }}
         >
-          {presentationMode === DIFF_PRESENTATION_MODES.sideBySide ? (
-            <SideBySideDiffPresentation
-              rows={rows}
-              virtualItems={virtualItems}
-              totalSize={totalSize}
-              scrollMargin={scrollMargin}
-              annotationsByRowIndex={annotationsByRowIndex}
-              languageId={languageId}
-              tokenColors={tokenColors}
-              oldPaneRef={oldPaneRef}
-              newPaneRef={newPaneRef}
-              measureRow={measureRow}
-              onDividerPointerDown={handleDividerPointerDown}
-              onDividerPointerMove={handleDividerPointerMove}
-              onDividerPointerUp={handleDividerPointerUp}
-            />
-          ) : (
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="caption" sx={presentationCaptionSx}>
-                Inline
-              </Typography>
-              <VerticalDiffPresentation
+          <Box
+            ref={gridRef}
+            sx={{
+              display: "grid",
+              gridTemplateColumns:
+                presentationMode === DIFF_PRESENTATION_MODES.sideBySide
+                  ? `${splitRatio}fr 4px ${1 - splitRatio}fr`
+                  : "minmax(0, 1fr)",
+            }}
+          >
+            {presentationMode === DIFF_PRESENTATION_MODES.sideBySide ? (
+              <SideBySideDiffPresentation
                 rows={rows}
                 virtualItems={virtualItems}
                 totalSize={totalSize}
@@ -1203,22 +1204,43 @@ export const FullFileSplitView: React.FC<FullFileSplitViewProps> = ({
                 annotationsByRowIndex={annotationsByRowIndex}
                 languageId={languageId}
                 tokenColors={tokenColors}
-                rootRef={verticalPaneRef}
+                oldPaneRef={oldPaneRef}
+                newPaneRef={newPaneRef}
                 measureRow={measureRow}
+                onDividerPointerDown={handleDividerPointerDown}
+                onDividerPointerMove={handleDividerPointerMove}
+                onDividerPointerUp={handleDividerPointerUp}
               />
-            </Box>
-          )}
+            ) : (
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" sx={presentationCaptionSx}>
+                  Inline
+                </Typography>
+                <VerticalDiffPresentation
+                  rows={rows}
+                  virtualItems={virtualItems}
+                  totalSize={totalSize}
+                  scrollMargin={scrollMargin}
+                  annotationsByRowIndex={annotationsByRowIndex}
+                  languageId={languageId}
+                  tokenColors={tokenColors}
+                  rootRef={verticalPaneRef}
+                  measureRow={measureRow}
+                />
+              </Box>
+            )}
+          </Box>
         </Box>
+        {hasChanges ? (
+          <OverviewRuler
+            segments={segments}
+            totalRows={rows.length}
+            onJump={(rowIndex) => {
+              rowVirtualizer.scrollToIndex(rowIndex, { align: "start" });
+            }}
+          />
+        ) : null}
       </Box>
-      {hasChanges ? (
-        <OverviewRuler
-          segments={segments}
-          totalRows={rows.length}
-          onJump={(rowIndex) => {
-            rowVirtualizer.scrollToIndex(rowIndex, { align: "start" });
-          }}
-        />
-      ) : null}
-    </Box>
+    </RecordedRangesContext.Provider>
   );
 };

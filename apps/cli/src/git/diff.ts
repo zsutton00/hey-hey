@@ -244,8 +244,12 @@ export const getGitChangedFileDetail = async (options: {
  * and hooks are switched off, and every filter driver it defined is emptied.
  * Diff commands also pass `--no-ext-diff --no-textconv` themselves.
  */
-const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): Promise<string> => {
-  const env = stripCredentialEnvironment(process.env);
+export const untrustedCheckoutGit = async (
+  repoPath: string,
+  args: readonly string[],
+  options: { input?: string; env?: Readonly<Record<string, string>> } = {},
+): Promise<string> => {
+  const env = { ...stripCredentialEnvironment(process.env), ...options.env };
   delete env['GIT_EXTERNAL_DIFF'];
   const overrides = [
     '-c',
@@ -254,11 +258,15 @@ const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): 
     'core.hooksPath=/dev/null',
     ...(await disabledFilterOverrides(repoPath, env)),
   ];
-  const { stdout } = await execFileAsync('git', [...overrides, ...args], {
+  const execution = execFileAsync('git', [...overrides, ...args], {
     cwd: repoPath,
     env,
     maxBuffer: MAX_DIFF_BUFFER,
   });
+  if (options.input !== undefined) {
+    execution.child.stdin?.end(options.input);
+  }
+  const { stdout } = await execution;
 
   return stdout;
 };

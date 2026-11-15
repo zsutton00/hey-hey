@@ -34,6 +34,24 @@ const runChangedFileDetailRequest: CliReadRequestDto = {
   authorization: { kind: 'bounded_grant', grantId: 'grant-1' },
 };
 
+const recordedEditRequest = {
+  operation: 'run.recorded_edit.read',
+  runId,
+  serviceId: '66666666-6666-4666-8666-666666666666',
+  edit: {
+    path: 'src/example.ts',
+    turnId: 'turn-1',
+    occurredAt: '2026-11-13T12:00:00Z',
+    beforeObjectId: 'a'.repeat(40),
+    afterObjectId: 'b'.repeat(40),
+    beforeRanges: [{ startLine: 1, endLine: 1 }],
+    afterRanges: [{ startLine: 1, endLine: 1 }],
+    approximate: true,
+    versionsRecorded: true,
+  },
+  authorization: { kind: 'bounded_grant', grantId: 'grant-1' },
+} satisfies CliReadRequestDto;
+
 const runChangedFilesInventoryRequest: CliReadRequestDto = {
   operation: 'run.changed_files.inventory',
   runId,
@@ -79,6 +97,7 @@ const requestsByOperation = {
   'run.changed_files.count': runRequest,
   'run.changed_files.inventory': runChangedFilesInventoryRequest,
   'run.changed_files.detail': runChangedFileDetailRequest,
+  'run.recorded_edit.read': recordedEditRequest,
   'run.context_usage.get': runContextUsageRequest,
   'run.skills.list': runSkillsListRequest,
   'run.tool_calls.latest_turn': runToolCallsLatestTurnRequest,
@@ -319,6 +338,44 @@ describe('CliReadEmitter', () => {
       },
     });
   });
+
+  it.each([false, true])(
+    'correlates historical detail with its requested Service and path (mismatch=%s)',
+    async (mismatch) => {
+      const { gateway, read } = createSubject(recordedEditRequest);
+      gateway.emitCliReadWithAck.mockImplementation(async (event) => ({
+        kind: 'ack',
+        value: {
+          requestId: event.envelope.event.requestId,
+          operation: 'run.recorded_edit.read',
+          status: 'success',
+          result: {
+            runId,
+            file: {
+              serviceId: mismatch ? projectId : recordedEditRequest.serviceId,
+              repoPath: '/tmp/repository',
+              filePath: recordedEditRequest.edit.path,
+              status: 'modify',
+              diff: '',
+              preContent: 'before',
+              postContent: 'after',
+            },
+          },
+        },
+      }));
+      await expect(read()).resolves.toMatchObject(
+        mismatch
+          ? {
+              status: 'error',
+              error: { code: CliReadErrorCode.CorrelationMismatch },
+            }
+          : {
+              status: 'success',
+              result: { file: { preContent: 'before', postContent: 'after' } },
+            },
+      );
+    },
+  );
 
   it.each(
     SESSION_CLI_READ_OPERATIONS.flatMap((operation) =>
