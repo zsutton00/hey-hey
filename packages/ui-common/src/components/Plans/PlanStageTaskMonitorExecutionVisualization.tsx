@@ -9,7 +9,6 @@ import {
   Divider,
   FormControl,
   InputLabel,
-  MenuItem,
   Select,
   Stack,
   Typography,
@@ -25,6 +24,7 @@ import type {
   ConversationStartRunRequestDtoProviderEnum,
 } from "../../api";
 import { createOpenItemEntity } from "../../types/openItems";
+import { taskMonitorLaunchMethodOptions } from "../TaskMonitor/TaskMonitorLaunchMethodOptions";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
 import type { RuntimeModelCatalogSource } from "../AgentSession/useRuntimeModelCatalog";
 import { ServiceSelector } from "../Selectors/ServiceSelector";
@@ -43,6 +43,8 @@ interface PlanStageTaskMonitorExecutionVisualizationBaseProps {
   launchConfigurationEditing?: {
     /** The machine whose CLI offers the model choices; null until one is picked. */
     catalogSource: RuntimeModelCatalogSource | null;
+    /** The launch methods the monitor's kind allows a node to use. */
+    allowedLaunchMethods: readonly TaskMonitorLaunchMethod[];
     onChangeMethod: (taskId: string, method: TaskMonitorLaunchMethod) => void;
     onChangeProvider: (
       taskId: string,
@@ -280,9 +282,10 @@ export const PlanStageTaskMonitorExecutionVisualization = ({
                                 "data-testid": `plan-stage-task-monitor-method-${node.taskId}`,
                               }}
                             >
-                              <MenuItem value="plan">Plan</MenuItem>
-                              <MenuItem value="open">Open</MenuItem>
-                              <MenuItem value="quick">Quick</MenuItem>
+                              {taskMonitorLaunchMethodOptions(
+                                launchConfigurationEditing.allowedLaunchMethods,
+                                node.launchConfiguration.method,
+                              )}
                             </Select>
                           </FormControl>
                           <RuntimeModelSelector

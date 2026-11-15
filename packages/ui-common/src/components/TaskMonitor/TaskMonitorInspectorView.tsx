@@ -3,7 +3,6 @@ import {
   FormControl,
   InputLabel,
   LinearProgress,
-  MenuItem,
   Select,
   Stack,
   Typography,
@@ -15,6 +14,8 @@ import type {
 } from "../../api";
 import type { WorkStatus } from "../../api";
 import { usePathService } from "../../contexts";
+import { taskMonitorLaunchMethodOptions } from "./TaskMonitorLaunchMethodOptions";
+import { useMonitorKind } from "./useMonitorKind";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
 import { supportsFastMode } from "../AgentSession/capabilityCatalog";
 import { resolveAgentSessionMetadata } from "../AgentSession/resolveAgentSessionMetadata";
@@ -61,6 +62,7 @@ export const TaskMonitorInspectorView = ({
   onSaveLaunchConfiguration,
 }: TaskMonitorInspectorViewProps) => {
   const pathService = usePathService();
+  const monitorKind = useMonitorKind(organizationId, projectId);
   const session = node.session.kind === "loaded" ? node.session.session : null;
   const conversation = useTaskMonitorConversation({
     organizationId,
@@ -172,9 +174,10 @@ export const TaskMonitorInspectorView = ({
               })
             }
           >
-            <MenuItem value="plan">Plan</MenuItem>
-            <MenuItem value="open">Open</MenuItem>
-            <MenuItem value="quick">Quick</MenuItem>
+            {taskMonitorLaunchMethodOptions(
+              monitorKind.allowedLaunchMethods,
+              launchConfiguration.method,
+            )}
           </Select>
         </FormControl>
         <RuntimeModelSelector
