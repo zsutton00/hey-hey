@@ -8,35 +8,40 @@ import type {
   SecondaryActionHandler,
   UIElementPayload,
 } from "../../../api";
+import type { EntityMention } from "../../SmarterTextAreaCard/types";
 import type { FormValue } from "../types";
 import type { SecondaryActionConfigWithHandler } from "./types";
 
-type ReadinessFinding = NonNullable<
+export type ReadinessFinding = NonNullable<
   ImplementationReadinessDisposition["finding"]
 >;
 
-const isExplainedFinding = (
+export const isExplainedFinding = (
   finding: ReadinessFinding,
 ): finding is ImplementationReadinessFinding => "requestedOutcome" in finding;
 
-const FIX_STEP_STATE_LABELS: Record<
+const FIX_STEP_STATE_MARKERS: Record<
   ImplementationReadinessFixStepState,
-  string
+  { label: string; emphasis: "needsAnswer" | "default" }
 > = {
-  DONE: "already done",
-  REMAINING: "work remaining",
-  USER_DECISION: "your decision",
+  DONE: { label: "already done", emphasis: "default" },
+  REMAINING: { label: "work remaining", emphasis: "default" },
+  USER_DECISION: { label: "your decision", emphasis: "needsAnswer" },
 };
 
-const mention = (item: ImplementationReadinessItemReference): string => {
-  const title = item.title.replace(/[|\]]/g, " ");
-  return `@[${item.entityType.toLowerCase()}:${item.entityId}|${title}]`;
-};
+export const fixStepStateMarker = (
+  state: ImplementationReadinessFixStepState,
+) => FIX_STEP_STATE_MARKERS[state];
 
-const numbered = (lines: string[]): string =>
-  lines.map((line, index) => `${index + 1}. ${line}`).join("\n");
+export const itemReferenceToMention = (
+  item: ImplementationReadinessItemReference,
+): EntityMention => ({
+  entityType: item.entityType.toLowerCase(),
+  entityId: item.entityId,
+  entityName: item.title,
+});
 
-const buildLegacyFindingMarkdown = (
+export const buildLegacyFindingMarkdown = (
   finding: ImplementationReadinessLegacyFinding,
 ): string => {
   const evidence = finding.boundedEvidence
@@ -59,41 +64,6 @@ const buildLegacyFindingMarkdown = (
   ]
     .filter((section) => section.length > 0)
     .join("\n\n");
-};
-
-export const buildImplementationReadinessFindingMarkdown = (
-  finding: ReadinessFinding,
-): string => {
-  if (!isExplainedFinding(finding)) {
-    return buildLegacyFindingMarkdown(finding);
-  }
-
-  const trail = numbered(
-    finding.reasoningTrail.map(
-      (entry) => `${mention(entry.source)} — ${entry.explanation}`,
-    ),
-  );
-  const fixSteps = numbered(
-    finding.fixSteps.map(
-      (step) =>
-        `${step.action} — ${mention(step.owner)} (${FIX_STEP_STATE_LABELS[step.state]})`,
-    ),
-  );
-
-  return [
-    "## What you asked for",
-    finding.requestedOutcome,
-    "## How the agent got here",
-    trail,
-    "## The problem",
-    finding.problem,
-    "## What could go wrong",
-    numbered(finding.failureScenario),
-    "## Steps to fix",
-    fixSteps,
-    "## What I need from you",
-    finding.userRequest,
-  ].join("\n\n");
 };
 
 /**
