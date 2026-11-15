@@ -396,7 +396,7 @@ test("post-approval verification uses the successful staging run identity", () =
   }
 });
 
-test("CLI release install includes the owners of prepack contract checks", () => {
+test("CLI release install includes the workspace prepack toolchain", () => {
   const require = createRequire(import.meta.url);
   const yaml = require("../openapi/node_modules/js-yaml");
   const workflow = yaml.load(
@@ -412,16 +412,23 @@ test("CLI release install includes the owners of prepack contract checks", () =>
     argument === "--filter" ? [argument, install[index + 1]] : [],
   );
   const selected = JSON.parse(
-    execFileSync("pnpm", ["list", "--depth", "-1", "--json", ...filters], {
-      cwd: fileURLToPath(new URL("../", import.meta.url)),
-      encoding: "utf8",
-    }),
+    execFileSync(
+      "pnpm",
+      ["list", "--recursive", "--depth", "-1", "--json", ...filters],
+      {
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
+        encoding: "utf8",
+      },
+    ),
   );
   const names = selected.map(({ name }) => name);
   for (const name of [
     "@hey-hey/cli",
     "@hey-hey/contracts",
     "hey-hey-openapi",
+    "@hey-hey/graph-search",
+    "@hey-hey/ui-common",
+    "hey-hey-api",
   ]) {
     assert.ok(
       names.includes(name),

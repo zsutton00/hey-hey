@@ -121,10 +121,10 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Install npm with staged publishing support
         run: npm install --global npm@11.21.2
-      # CLI prepack validates checked-in OpenAPI outputs and compiles contracts.
-      # Install those tool owners explicitly: the CLI bundles contracts rather
-      # than declaring a workspace dependency. No generation is run here.
-      - run: pnpm install --frozen-lockfile --filter @hey-hey/cli... --filter @hey-hey/contracts --filter hey-hey-openapi
+      # CLI prepack validates repository-wide generated inputs and typechecks
+      # source imports across workspaces. Install the locked workspace toolchain;
+      # installation does not run OpenAPI generation or build service images.
+      - run: pnpm install --frozen-lockfile
       - name: Stage on npm with the candidate manifest
         working-directory: apps/cli
         run: |
