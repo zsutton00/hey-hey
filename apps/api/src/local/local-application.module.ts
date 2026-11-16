@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AccountPasskeyModule } from '../auth/passkeys/account-passkey.module';
 import { FIRST_PASSKEY_AUTHORITY } from '../auth/passkeys/first-passkey-authority';
 import { CoreDomainModule } from '../domain/core-domain.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -17,7 +18,7 @@ import { LocalFirstPasskeyAuthority } from './local-first-passkey-authority';
  */
 @Global()
 @Module({
-  imports: [AuthModule, PrismaModule, CoreDomainModule],
+  imports: [AuthModule, AccountPasskeyModule, PrismaModule, CoreDomainModule],
   controllers: [LocalAuthController],
   providers: [
     LocalAccessService,
