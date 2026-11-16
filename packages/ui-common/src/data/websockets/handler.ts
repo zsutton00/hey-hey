@@ -34,6 +34,7 @@ import {
   type WebSocketAgentSessionDeletedEvent,
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
+  type WebSocketWorkItemExecutionStateChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -60,6 +61,12 @@ import {
   writeAgentSessionCurrentState,
   writeAgentSessionOutputAttention,
 } from "../collections/agentSessionLiveState";
+import {
+  interruptWorkItemExecutionStateDelivery,
+  interruptWorkItemExecutionStateProjectDelivery,
+  refreshLoadedWorkItemExecutionStates,
+  writeWorkItemExecutionStateEvent,
+} from "../collections/workItemExecutionState";
 import {
   createInitiativeInvalidator,
   initiativeKeys,
@@ -214,6 +221,7 @@ type WebSocketEventUnion =
       changedBy?: { userId?: string; email?: string; name?: string };
     }
   | WebSocketAgentSessionCurrentStateChangedEvent
+  | WebSocketWorkItemExecutionStateChangedEvent
   | WebSocketAgentSessionContextSizeChangedEvent
   | WebSocketAgentSessionOutputAttentionChangedEvent
   | WebSocketConversationPhaseChangedEvent
@@ -263,6 +271,35 @@ export class WebSocketHandler {
       organizationId,
       projectId,
       "currentState",
+    );
+  }
+
+  /** As above, for loaded work-item execution states. */
+  refreshLoadedWorkItemExecutionStates(
+    organizationId: string,
+    projectId: string,
+  ): Promise<void> {
+    return refreshLoadedWorkItemExecutionStates(
+      this.queryClient,
+      organizationId,
+      projectId,
+    );
+  }
+
+  /** Loaded execution states may now miss updates until a project refresh. */
+  interruptWorkItemExecutionStateDelivery(): void {
+    interruptWorkItemExecutionStateDelivery(this.queryClient);
+  }
+
+  /** As above, for one project whose room this client left. */
+  interruptWorkItemExecutionStateProjectDelivery(
+    organizationId: string,
+    projectId: string,
+  ): void {
+    interruptWorkItemExecutionStateProjectDelivery(
+      this.queryClient,
+      organizationId,
+      projectId,
     );
   }
 
@@ -560,6 +597,14 @@ export class WebSocketHandler {
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged:
           this.handleAgentSessionCurrentStateChanged(event);
+          break;
+        case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged:
+          writeWorkItemExecutionStateEvent(
+            this.queryClient,
+            event.organizationId,
+            event.projectId,
+            event.executionState,
+          );
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged:
           this.handleAgentSessionContextSizeChanged(event);

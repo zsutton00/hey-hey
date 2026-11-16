@@ -41,6 +41,7 @@ import {
   type WebSocketAgentSessionDeletedEvent,
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
+  type WebSocketWorkItemExecutionStateChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -410,6 +411,7 @@ export class WebSocketService {
     this.deniedRooms.clear();
     this.observedConversations.clear();
     this.handler.clearConversationPhases();
+    this.handler.interruptWorkItemExecutionStateDelivery();
     this.throttledDispatchers.forEach((dispatcher) => dispatcher.cancel());
   }
 
@@ -442,6 +444,13 @@ export class WebSocketService {
           this.observedConversations.delete(room.roomId);
           this.handler.clearConversationPhases([room.roomId]);
           this.throttledDispatchers.get("onConversationPhaseChanged")?.cancel();
+        }
+        const organizationId = this.config.organizationId;
+        if (room.roomType === "project" && organizationId) {
+          this.handler.interruptWorkItemExecutionStateProjectDelivery(
+            organizationId,
+            room.roomId,
+          );
         }
       }
     }
@@ -626,10 +635,14 @@ export class WebSocketService {
         organizationId,
         room.roomId,
       ),
+      this.handler.refreshLoadedWorkItemExecutionStates(
+        organizationId,
+        room.roomId,
+      ),
     ]).catch((error: unknown) => {
       logger.warn(
         "services_websockets",
-        "Agent Session refresh failed after room join",
+        "Latest-value refresh failed after room join",
         { error },
       );
     });
@@ -1331,6 +1344,22 @@ export class WebSocketService {
     );
 
     socket.on(
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+      (event: WebSocketWorkItemExecutionStateChangedEvent) => {
+        logger.info(
+          "services_websockets",
+          WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+          {
+            workItemId: event.executionState.workItemId,
+            revision: event.executionState.revision,
+            freshness: event.executionState.freshness.status,
+          },
+        );
+        this.handleAuthorizedEvent(event);
+      },
+    );
+
+    socket.on(
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
       (event: WebSocketAgentSessionCurrentStateChangedEvent) => {
         logger.info(
@@ -1552,6 +1581,7 @@ export class WebSocketService {
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionDeleted,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionStatusChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionOutputAttentionChanged,
       WebSocketSubscriptionRequestEventTypesEnum.ConversationPhaseChanged,
