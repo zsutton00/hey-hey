@@ -16,7 +16,7 @@
 
 
 /**
- * API-authored, browser-safe reason for a failed enrollment claim. Unknown codes, cross-account enrollments, and otherwise privacy-sensitive failures use the generic unavailable value.
+ * API-authored, browser-safe reason for a failed enrollment claim. Unknown codes, cross-account enrollments, and otherwise privacy-sensitive failures use the generic unavailable value. The account-proof, passkey and session values concern only the signed-in account\'s own shared sign-in passkey: the account already has a passkey and none was proven (ACCOUNT_PROOF_REQUIRED), the supplied proof did not verify (ACCOUNT_PROOF_FAILED), the new passkey is already registered (PASSKEY_ALREADY_REGISTERED), or the acting browser session ended before the claim completed (SESSION_ENDED).
  * @export
  * @enum {string}
  */
@@ -26,14 +26,26 @@ export const MachineEnrollmentClaimFailureCode = {
     MachineEnrollmentClaimExpired: 'MACHINE_ENROLLMENT_CLAIM_EXPIRED',
     MachineEnrollmentClaimTerminal: 'MACHINE_ENROLLMENT_CLAIM_TERMINAL',
     MachineEnrollmentClientIncompatible: 'MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE',
+    MachineEnrollmentAccountProofRequired: 'MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED',
+    MachineEnrollmentAccountProofFailed: 'MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED',
+    MachineEnrollmentPasskeyAlreadyRegistered: 'MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED',
+    MachineEnrollmentSessionEnded: 'MACHINE_ENROLLMENT_SESSION_ENDED',
     "MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE": "MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE",
     "MACHINE_ENROLLMENT_CLAIM_EXPIRED": "MACHINE_ENROLLMENT_CLAIM_EXPIRED",
     "MACHINE_ENROLLMENT_CLAIM_TERMINAL": "MACHINE_ENROLLMENT_CLAIM_TERMINAL",
     "MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE": "MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE",
+    "MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED": "MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED",
+    "MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED": "MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED",
+    "MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED": "MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED",
+    "MACHINE_ENROLLMENT_SESSION_ENDED": "MACHINE_ENROLLMENT_SESSION_ENDED",
 } as const;
 Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentClaimUnavailable"] });
 Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_CLAIM_EXPIRED", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentClaimExpired"] });
 Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_CLAIM_TERMINAL", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentClaimTerminal"] });
 Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentClientIncompatible"] });
+Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentAccountProofRequired"] });
+Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentAccountProofFailed"] });
+Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentPasskeyAlreadyRegistered"] });
+Object.defineProperty(MachineEnrollmentClaimFailureCode, "MACHINE_ENROLLMENT_SESSION_ENDED", { enumerable: false, value: MachineEnrollmentClaimFailureCode["MachineEnrollmentSessionEnded"] });
 
 export type MachineEnrollmentClaimFailureCode = typeof MachineEnrollmentClaimFailureCode[keyof typeof MachineEnrollmentClaimFailureCode];

@@ -5,6 +5,7 @@ import { CoreDomainModule } from '../domain/core-domain.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { LocalAccessService } from './local-access.service';
 import { LocalAuthController } from './local-auth.controller';
+import { LocalPasskeyRepairService } from './local-passkey-repair.service';
 import { LocalFirstPasskeyAuthority } from './local-first-passkey-authority';
 
 /**
@@ -21,6 +22,7 @@ import { LocalFirstPasskeyAuthority } from './local-first-passkey-authority';
   providers: [
     LocalAccessService,
     LocalFirstPasskeyAuthority,
+    LocalPasskeyRepairService,
     {
       provide: FIRST_PASSKEY_AUTHORITY,
       useExisting: LocalFirstPasskeyAuthority,

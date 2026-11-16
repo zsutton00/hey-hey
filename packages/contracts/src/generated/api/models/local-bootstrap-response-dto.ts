@@ -22,6 +22,12 @@
  */
 export interface LocalBootstrapResponseDto {
     /**
+     * True when the local account already has a live passkey. The CLI offers its one-time local approval only for a genuine first passkey; otherwise pairing is confirmed at the terminal.
+     * @type {boolean}
+     * @memberof LocalBootstrapResponseDto
+     */
+    'accountHasPasskey': boolean;
+    /**
      * One-use local browser handoff capability. Keep only in process memory and an ephemeral URL fragment; never persist or log it.
      * @type {string}
      * @memberof LocalBootstrapResponseDto

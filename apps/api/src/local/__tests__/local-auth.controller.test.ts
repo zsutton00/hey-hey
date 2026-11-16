@@ -6,6 +6,7 @@ import { AppModule } from '../../app.module';
 import { LocalApplicationModule } from '../local-application.module';
 import { LocalAuthController } from '../local-auth.controller';
 import { LocalAccessService } from '../local-access.service';
+import type { LocalPasskeyRepairService } from '../local-passkey-repair.service';
 
 const CONFIGURED_ORIGIN = 'http://localhost:3850';
 const LOCAL_ROUTE = /^local\//;
@@ -44,6 +45,7 @@ describe('Local browser handoff boundary', () => {
     };
     controller = new LocalAuthController(
       localAccess as unknown as LocalAccessService,
+      {} as unknown as LocalPasskeyRepairService,
       new ConfigService({ ACCOUNT_PASSKEY_ORIGIN: CONFIGURED_ORIGIN }),
     );
     response = { cookie: jest.fn() };
@@ -93,7 +95,7 @@ describe('Hosted composition', () => {
     ).toEqual([]);
     expect(
       routePaths(LocalAuthController).filter((p) => LOCAL_ROUTE.test(p)),
-    ).toHaveLength(5);
+    ).toHaveLength(9);
   });
 
   it('does not import the local module outside a local application', () => {

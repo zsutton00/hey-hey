@@ -15,7 +15,11 @@ export const LOCAL_APPROVAL_SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface LocalPairingHandoff {
   code: string;
-  approvalSecret: string;
+  /**
+   * Present only for a genuine first passkey. On a computer that was set up
+   * before the CLI sends none and confirms the pairing in the terminal.
+   */
+  approvalSecret: string | null;
   /** Coding agents the CLI found on this computer; display information only. */
   agents: LocalCodingAgentDetectionDto | null;
 }
