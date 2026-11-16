@@ -122,7 +122,20 @@ describe("TaskMonitorInspectorView", () => {
     localStorage.clear();
     resetModelSelectionFavoritesForTests();
     useWorkItemTypeByKeyMock.mockReturnValue({
-      workItemTypeDefinition: undefined,
+      workItemTypeDefinition: {
+        capabilities: {
+          monitorKind: {
+            key: "task",
+            allowedNodeTypes: ["STANDARD"],
+            allowedLaunchMethods: ["plan", "open", "quick"],
+            allowedRuntimeProviders: ["claude", "codex", "opencode"],
+            allowedReasoningEfforts: ["high"],
+            start: { type: "STATUS_TRANSITION", status: "ACTIVE" },
+            done: { type: "ITEM_STATUS", status: "COMPLETED" },
+            supervision: { type: "COORDINATOR_REVIEW" },
+          },
+        },
+      },
     });
     useTaskMonitorConversationMock.mockReturnValue({
       conversation: null,
@@ -332,7 +345,30 @@ describe("TaskMonitorInspectorView", () => {
     });
   });
 
-  it("offers every launch method for a monitor type that declares no kind", () => {
+  it("offers only the node's current method until the effective kind has loaded", () => {
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: undefined,
+    });
+
+    render(
+      <TaskMonitorInspectorView
+        organizationId="org-1"
+        projectId="project-1"
+        monitorStatus={WorkStatus.Backlog}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick"]);
+  });
+
+  it("offers every launch method of the effective Task kind", () => {
     render(
       <TaskMonitorInspectorView
         organizationId="org-1"

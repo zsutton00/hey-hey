@@ -26,6 +26,9 @@ import {
   WorkItemTypeSectionDefinitionKindEnum,
   WorkStatus,
   WorkItemConfigKind,
+  TaskMonitorLaunchMethod,
+  TaskMonitorLaunchProvider,
+  TaskMonitorReasoningEffort,
 } from '../../shared/api/index';
 import { Configuration, WorkItemTypesApi } from '../../shared/api/index';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
@@ -51,6 +54,10 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
+  WorkItemTypeMonitorKind,
+  WorkItemTypeMonitorKindDonePolicy,
+  WorkItemTypeMonitorKindStartPolicy,
+  WorkItemTypeMonitorKindSupervisionPolicy,
 } from '../../shared/api/index';
 
 type ContractValue<T extends object, K extends keyof T> =
@@ -354,6 +361,45 @@ const graphCapabilitySchema = z
     }),
   );
 
+const monitorKindStartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('STATUS_TRANSITION'), status: z.nativeEnum(WorkStatus) }).strict(),
+  z.object({ type: z.literal('NO_STATUS_CHANGE') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindStartPolicy>;
+const monitorKindDoneSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('ITEM_STATUS'), status: z.nativeEnum(WorkStatus) }).strict(),
+  z.object({ type: z.literal('NORMALIZED_RESULT') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindDonePolicy>;
+const monitorKindSupervisionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('COORDINATOR_REVIEW') }).strict(),
+  z.object({ type: z.literal('DIRECT_ACCEPTANCE') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindSupervisionPolicy>;
+
+const monitorKindShape = {
+  key: z.string().min(1),
+  allowedNodeTypes: z.array(z.string()).min(1),
+  allowedLaunchMethods: z.array(z.nativeEnum(TaskMonitorLaunchMethod)).min(1),
+  allowedRuntimeProviders: z.array(z.nativeEnum(TaskMonitorLaunchProvider)).min(1),
+  allowedReasoningEfforts: z.array(z.nativeEnum(TaskMonitorReasoningEffort)).min(1),
+  start: monitorKindStartSchema.optional(),
+  done: monitorKindDoneSchema.optional(),
+  supervision: monitorKindSupervisionSchema.optional(),
+} satisfies ZodShapeFor<WorkItemTypeMonitorKind>;
+const monitorKindSchema = z
+  .object(monitorKindShape)
+  .strict()
+  .transform(
+    (value): WorkItemTypeMonitorKind => ({
+      key: value.key,
+      allowedNodeTypes: value.allowedNodeTypes,
+      allowedLaunchMethods: value.allowedLaunchMethods,
+      allowedRuntimeProviders: value.allowedRuntimeProviders,
+      allowedReasoningEfforts: value.allowedReasoningEfforts,
+      ...(value.start !== undefined ? { start: value.start } : {}),
+      ...(value.done !== undefined ? { done: value.done } : {}),
+      ...(value.supervision !== undefined ? { supervision: value.supervision } : {}),
+    }),
+  );
+
 const capabilitiesShape = {
   requiresParent: z.boolean().optional(),
   planEligible: z.boolean().optional(),
@@ -361,6 +407,7 @@ const capabilitiesShape = {
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
   graph: graphCapabilitySchema.optional(),
+  monitorKind: monitorKindSchema.optional(),
 } satisfies ZodShapeFor<WorkItemTypeCapabilities>;
 const capabilitiesSchema = z
   .object(capabilitiesShape)
@@ -377,6 +424,7 @@ const capabilitiesSchema = z
         ? { showsInExplorerSidebar: value.showsInExplorerSidebar }
         : {}),
       ...(value.graph !== undefined ? { graph: value.graph } : {}),
+      ...(value.monitorKind !== undefined ? { monitorKind: value.monitorKind } : {}),
     }),
   );
 
@@ -520,3 +568,14 @@ export const readActiveWorkItemTypeDefinitions = async (
 
   return summaries.map((summary) => summary.definition);
 };
+
+const summaryEnvelopeSchema = z.object({ data: summarySchema }).passthrough();
+
+/**
+ * Validates a single-type read (`GET .../work-item-types/{typeKey}`) at the
+ * boundary and returns its project-effective definition. The API has already
+ * resolved canonical inheritance, any complete project override and legacy
+ * omissions, so callers use the result as-is and never merge it locally.
+ */
+export const parseEffectiveWorkItemTypeDefinition = (payload: unknown): WorkItemTypeDefinitionDto =>
+  summaryEnvelopeSchema.parse(payload).data.definition;

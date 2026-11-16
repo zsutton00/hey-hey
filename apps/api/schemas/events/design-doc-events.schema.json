@@ -21799,6 +21799,10 @@
         },
         {
           "type": "string",
+          "const": "MONITOR_NODE_RESULT"
+        },
+        {
+          "type": "string",
           "const": "EVAL_RUN"
         },
         {
@@ -22341,6 +22345,15 @@
             "$ref": "#/definitions/TaskMonitorReasoningEffort"
           },
           "description": "Reasoning efforts, the other half of a node\\'s runtime profile, a node of this kind may use."
+        },
+        "start": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindStartPolicy"
+        },
+        "done": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindDonePolicy"
+        },
+        "supervision": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindSupervisionPolicy"
         }
       },
       "required": [
@@ -22351,6 +22364,170 @@
         "allowedReasoningEfforts"
       ],
       "description": "The kind of a monitor-role work-item type: what each execution node of a monitor of this type may be and how it may be launched. A monitor type that declares no kind resolves to the Task kind, so existing monitors need no stored value. The kind is configuration on the monitor type, not a separate registered thing monitors reference."
+    },
+    "WorkItemTypeMonitorKindStartPolicy": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindNoStatusChangeStart"
+        },
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindStatusTransitionStart"
+        }
+      ]
+    },
+    "WorkItemTypeMonitorKindNoStatusChangeStart": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindNoStatusChangeStartTypeEnum"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "Starting a node leaves its work item status unchanged."
+    },
+    "WorkItemTypeMonitorKindNoStatusChangeStartTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NO_STATUS_CHANGE"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindStatusTransitionStart": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindStatusTransitionStartTypeEnum"
+        },
+        "status": {
+          "$ref": "#/definitions/WorkStatus"
+        }
+      },
+      "required": [
+        "type",
+        "status"
+      ],
+      "description": "Starting a node moves its work item to the declared status through Work Items."
+    },
+    "WorkItemTypeMonitorKindStatusTransitionStartTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "STATUS_TRANSITION"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindDonePolicy": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindItemStatusDone"
+        },
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindNormalizedResultDone"
+        }
+      ]
+    },
+    "WorkItemTypeMonitorKindItemStatusDone": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindItemStatusDoneTypeEnum"
+        },
+        "status": {
+          "$ref": "#/definitions/WorkStatus"
+        }
+      },
+      "required": [
+        "type",
+        "status"
+      ],
+      "description": "A node is done when its work item has the declared status. Acceptance requests that status through Work Items and rereads it before advancing."
+    },
+    "WorkItemTypeMonitorKindItemStatusDoneTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "ITEM_STATUS"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindNormalizedResultDone": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindNormalizedResultDoneTypeEnum"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "A node is done when the durable normalized result of its recorded session accepts it. A missing, failed, malformed or mismatched result is never done, and the work item\\'s status is not consulted or changed."
+    },
+    "WorkItemTypeMonitorKindNormalizedResultDoneTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NORMALIZED_RESULT"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindSupervisionPolicy": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindCoordinatorReviewSupervision"
+        },
+        {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindDirectAcceptanceSupervision"
+        }
+      ]
+    },
+    "WorkItemTypeMonitorKindCoordinatorReviewSupervision": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindCoordinatorReviewSupervisionTypeEnum"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "Every settled node goes to the coordinator agent under the monitor\\'s Review mode. Requires item-status completion."
+    },
+    "WorkItemTypeMonitorKindCoordinatorReviewSupervisionTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "COORDINATOR_REVIEW"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindDirectAcceptanceSupervision": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindDirectAcceptanceSupervisionTypeEnum"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "A settled node is accepted or failed from its normalized structured result, with no coordinator run. Requires normalized-result completion."
+    },
+    "WorkItemTypeMonitorKindDirectAcceptanceSupervisionTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "DIRECT_ACCEPTANCE"
+        },
+        {}
+      ]
     },
     "FutureDependencyPresentation": {
       "anyOf": [
@@ -24407,6 +24584,37 @@
           "properties": {
             "reportType": {
               "type": "string",
+              "const": "MONITOR_NODE_RESULT"
+            },
+            "nodeId": {
+              "type": "string",
+              "description": "Work item of the monitor node this verdict settles."
+            },
+            "outcome": {
+              "$ref": "#/definitions/MonitorNodeResultOutcome"
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why the node was accepted or failed. A failure\\'s reason is shown when the monitor halts."
+            },
+            "summary": {
+              "type": "string",
+              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+            }
+          },
+          "required": [
+            "nodeId",
+            "outcome",
+            "reason",
+            "reportType",
+            "summary"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportType": {
+              "type": "string",
               "const": "PHASE_GROUNDING"
             },
             "touchPoints": {
@@ -26167,6 +26375,20 @@
         "file"
       ],
       "description": "Anchor pointing at the specific code location that embodies this decision. Populate only for decisions realized in a concrete, nameable place in the code; omit it for decisions with no single location."
+    },
+    "MonitorNodeResultOutcome": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "ACCEPTED"
+        },
+        {
+          "type": "string",
+          "const": "FAILED"
+        },
+        {}
+      ],
+      "description": "The normalized verdict on one monitor node: accept it, or fail it. Only ACCEPTED makes the node done under a normalized-result monitor kind."
     },
     "PhaseGroundingReportTouchPoint": {
       "type": "object",

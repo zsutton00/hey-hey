@@ -1,3 +1,4 @@
+import { fetchServingMonitorKinds } from '../../kinds/task-monitor-kind.test-support';
 import crypto from 'node:crypto';
 import type { ApiRuntime } from '../../../../shared/runtime/clients/shared';
 import { describe, expect, it, vi } from 'vitest';
@@ -355,10 +356,10 @@ describe('Task Monitor launch effect handlers', () => {
         NOOP_LOGGER,
         new TaskMonitorStartRuntime({
           apiBaseUrl: 'https://api.test',
-          fetchImpl: vi.fn(),
+          fetchImpl: fetchServingMonitorKinds(),
           authContext: createTestPlatformAuthContext(null, 'token'),
           logger: NOOP_LOGGER,
-        }).kind,
+        }),
       ).execute({
         type: 'CREATE_TASK_MONITOR_CONVERSATION',
         launch,

@@ -25,7 +25,7 @@ import type { KeyPairStore } from '../../../credentials';
 import type { RunStore } from '../../../run-store';
 import { SessionValidationError } from '../../../session/errors';
 import type { ServerLogger } from '../../../server/logger';
-import type { TaskMonitorTaskKind } from '../kinds/task-monitor-task-kind';
+import type { TaskMonitorStartRuntime } from '../../../server/task-monitor-start';
 import type { TaskMonitorLaunchDeclaration } from './context';
 import type {
   CreateTaskMonitorAgentSessionEffect,
@@ -286,7 +286,7 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
   public constructor(
     private readonly apiRuntime: ApiRuntime,
     private readonly logger: ServerLogger,
-    private readonly kind: TaskMonitorTaskKind,
+    private readonly startRuntime: TaskMonitorStartRuntime,
   ) {}
 
   public async execute(
@@ -301,7 +301,8 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
         taskId: input.task.id,
         agentSessionId: effect.agentSessionId,
       });
-      const target = this.kind.conversationTarget(input.method, input.task.id);
+      const kind = await this.startRuntime.kindFor(input);
+      const target = kind.conversationTarget(input.method, input.task.id);
       const response = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
         organizationId: input.organizationId,
         projectId: input.projectId,

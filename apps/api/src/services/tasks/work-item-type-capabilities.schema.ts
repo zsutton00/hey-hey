@@ -4,7 +4,13 @@ import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeCapabilities } from '@hey-hey/contracts/api/models';
-import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemTypeMonitorKind,
+  WorkItemTypeMonitorKindDonePolicy,
+  WorkItemTypeMonitorKindStartPolicy,
+  WorkItemTypeMonitorKindSupervisionPolicy,
+} from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { TaskMonitorLaunchMethod } from '@hey-hey/contracts/api/models';
 import { TaskMonitorLaunchProvider } from '@hey-hey/contracts/api/models';
 import { TaskMonitorReasoningEffort } from '@hey-hey/contracts/api/models';
@@ -143,6 +149,49 @@ type PersistedWorkItemTypeCapabilities = Omit<
   'graph'
 >;
 
+const monitorKindStartPolicySchema: z.ZodType<WorkItemTypeMonitorKindStartPolicy> =
+  z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('STATUS_TRANSITION'),
+        status: z.nativeEnum(WorkStatus),
+      })
+      .strict(),
+    z.object({ type: z.literal('NO_STATUS_CHANGE') }).strict(),
+  ]);
+
+const monitorKindDonePolicySchema: z.ZodType<WorkItemTypeMonitorKindDonePolicy> =
+  z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('ITEM_STATUS'),
+        status: z.nativeEnum(WorkStatus),
+      })
+      .strict(),
+    z.object({ type: z.literal('NORMALIZED_RESULT') }).strict(),
+  ]);
+
+const monitorKindSupervisionPolicySchema: z.ZodType<WorkItemTypeMonitorKindSupervisionPolicy> =
+  z.discriminatedUnion('type', [
+    z.object({ type: z.literal('COORDINATOR_REVIEW') }).strict(),
+    z.object({ type: z.literal('DIRECT_ACCEPTANCE') }).strict(),
+  ]);
+
+/** The done rule each supervision policy confirms acceptance with. */
+export const DONE_POLICY_FOR_SUPERVISION = {
+  COORDINATOR_REVIEW: 'ITEM_STATUS',
+  DIRECT_ACCEPTANCE: 'NORMALIZED_RESULT',
+} as const satisfies Record<
+  WorkItemTypeMonitorKindSupervisionPolicy['type'],
+  WorkItemTypeMonitorKindDonePolicy['type']
+>;
+
+/**
+ * A declared policy is optional: the registry resolves an omitted one from the
+ * canonical TASK_MONITOR definition. Explicit null, unknown policy types and
+ * unknown fields are rejected, and a kind that declares both done and
+ * supervision must declare a supported pairing.
+ */
 const workItemTypeMonitorKindSchema: z.ZodType<WorkItemTypeMonitorKind> = z
   .object({
     key: z.string().min(1),
@@ -154,8 +203,24 @@ const workItemTypeMonitorKindSchema: z.ZodType<WorkItemTypeMonitorKind> = z
     allowedReasoningEfforts: z
       .array(z.nativeEnum(TaskMonitorReasoningEffort))
       .min(1),
+    start: monitorKindStartPolicySchema.optional(),
+    done: monitorKindDonePolicySchema.optional(),
+    supervision: monitorKindSupervisionPolicySchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((kind, context) => {
+    if (kind.done === undefined || kind.supervision === undefined) {
+      return;
+    }
+    const requiredDone = DONE_POLICY_FOR_SUPERVISION[kind.supervision.type];
+    if (kind.done.type !== requiredDone) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['done', 'type'],
+        message: `"${kind.key}" monitor kind combines supervision "${kind.supervision.type}" with done "${kind.done.type}"; supervision "${kind.supervision.type}" requires done "${requiredDone}"`,
+      });
+    }
+  });
 
 const workItemTypeCapabilityShape = {
   ...booleanCapabilityShape,

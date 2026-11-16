@@ -282,7 +282,7 @@ export const PlanStageTaskMonitorSetupReview = ({
   return (
     <PlanStageTaskMonitorSetupReviewView
       catalogSource={catalogSource}
-      allowedLaunchMethods={monitorKind.allowedLaunchMethods}
+      allowedLaunchMethods={monitorKind?.allowedLaunchMethods ?? []}
       definition={reviewedDefinition}
       executableTasks={setup.executableTasks}
       taskSelection={

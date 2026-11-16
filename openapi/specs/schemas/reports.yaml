@@ -157,6 +157,7 @@ ReportType:
     - FEATURE_TREE_ANALYSIS
     - COMPETITIVE_ANALYSIS
     - SESSION_MONITOR_DEFERRAL
+    - MONITOR_NODE_RESULT
     - EVAL_RUN
     - EVAL_ATTEMPT
     - EVAL_HUMAN_REVIEW
@@ -2032,6 +2033,50 @@ SessionMonitorDeferralReportPayload:
             The monitor's substantive reasoning for why the user needs to
             review instead of the session continuing automatically.
 
+MonitorNodeResultOutcome:
+  type: string
+  enum:
+    - ACCEPTED
+    - FAILED
+  description: >
+    The normalized verdict on one monitor node: accept it, or fail it. Only
+    ACCEPTED makes the node done under a normalized-result monitor kind.
+
+MonitorNodeResultReportPayload:
+  description: >
+    Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a
+    monitor node's session records on itself, accept or fail with a reason.
+    The report is linked to the node's Agent Session, and the monitor reads it
+    to accept the node directly, to satisfy later nodes' dependencies, and to
+    restore progress after a restart. Kind-specific detail, such as a Test
+    report, lives in its own report; the monitor reads only this verdict.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - nodeId
+        - outcome
+        - reason
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - MONITOR_NODE_RESULT
+        nodeId:
+          type: string
+          format: uuid
+          description: Work item of the monitor node this verdict settles.
+        outcome:
+          $ref: "#/MonitorNodeResultOutcome"
+        reason:
+          type: string
+          minLength: 1
+          description: >
+            Why the node was accepted or failed. A failure's reason is shown
+            when the monitor halts.
+
 FeatureSyncHandoffReportNote:
   type: object
   description: >
@@ -2318,6 +2363,7 @@ ReportPayload:
     - $ref: "#/FeatureSyncDecisionReportPayload"
     - $ref: "#/DecisionNeededReportPayload"
     - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/MonitorNodeResultReportPayload"
     - $ref: "#/PhaseGroundingReportPayload"
     - $ref: "#/ValidationWalkthroughReportPayload"
     - $ref: "#/FeatureTreeAnalysisReportPayload"
@@ -2347,6 +2393,7 @@ ReportPayload:
       FEATURE_SYNC_DECISION: "#/FeatureSyncDecisionReportPayload"
       DECISION_NEEDED: "#/DecisionNeededReportPayload"
       SESSION_MONITOR_DEFERRAL: "#/SessionMonitorDeferralReportPayload"
+      MONITOR_NODE_RESULT: "#/MonitorNodeResultReportPayload"
       PHASE_GROUNDING: "#/PhaseGroundingReportPayload"
       VALIDATION_WALKTHROUGH: "#/ValidationWalkthroughReportPayload"
       FEATURE_TREE_ANALYSIS: "#/FeatureTreeAnalysisReportPayload"
@@ -2375,6 +2422,7 @@ OtherReportPayload:
     - $ref: "#/FeatureSyncHandoffReportPayload"
     - $ref: "#/DecisionNeededReportPayload"
     - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/MonitorNodeResultReportPayload"
     - $ref: "#/PhaseGroundingReportPayload"
     - $ref: "#/ValidationWalkthroughReportPayload"
     - $ref: "#/FeatureTreeAnalysisReportPayload"
@@ -2546,6 +2594,7 @@ CreateReportDtoOther:
               FEATURE_TREE_ANALYSIS,
               COMPETITIVE_ANALYSIS,
               SESSION_MONITOR_DEFERRAL,
+              MONITOR_NODE_RESULT,
               EVAL_RUN,
               EVAL_ATTEMPT,
               EVAL_HUMAN_REVIEW,
@@ -2888,6 +2937,7 @@ ReportDtoOther:
               FEATURE_TREE_ANALYSIS,
               COMPETITIVE_ANALYSIS,
               SESSION_MONITOR_DEFERRAL,
+              MONITOR_NODE_RESULT,
               EVAL_RUN,
               EVAL_ATTEMPT,
               EVAL_HUMAN_REVIEW,

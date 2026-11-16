@@ -9,10 +9,7 @@ import {
   withDiagramDefaults,
   validateDiagramSections,
 } from './diagram-metadata';
-import {
-  assertTaskMonitorMatchesKind,
-  resolveTaskMonitorKind,
-} from './task-monitor-kind';
+import { assertTaskMonitorMatchesKind } from './task-monitor-kind';
 import { TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY } from './task-monitor-execution-definition.validator';
 import {
   diagramGroupMemberKey,
@@ -5405,7 +5402,7 @@ export class TaskService {
       return;
     }
 
-    const declaredKind = this.workItemTypeRegistry.getDefinition(
+    const effectiveKind = this.workItemTypeRegistry.getDefinition(
       params.projectId,
       params.type,
     )?.definition.capabilities?.monitorKind;
@@ -5414,7 +5411,7 @@ export class TaskService {
       organizationId: params.organizationId,
       projectId: params.projectId,
       monitorId: params.monitorId,
-      kind: resolveTaskMonitorKind(declaredKind),
+      kind: effectiveKind,
       executionDefinitionContent: params.executionDefinitionContent,
       storedExecutionDefinitionContent: params.storedExecutionDefinitionContent,
     });

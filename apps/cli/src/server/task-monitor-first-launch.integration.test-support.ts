@@ -1,3 +1,4 @@
+import { fetchServingMonitorKinds } from '../agents/task-monitor/kinds/task-monitor-kind.test-support';
 import crypto from 'node:crypto';
 import { vi } from 'vitest';
 
@@ -133,7 +134,7 @@ export const createFirstLaunchFixture = async (
     Promise.resolve(task(taskId)),
   );
   vi.spyOn(TaskMonitorStartRuntime.prototype, 'resolvePlanContext').mockResolvedValue(null);
-  vi.spyOn(TaskMonitorStartRuntime.prototype, 'persistTaskActive').mockImplementation(
+  vi.spyOn(TaskMonitorStartRuntime.prototype, 'persistTaskStatus').mockImplementation(
     async ({ task: selected }) => {
       taskStatuses.set(selected.id, 'ACTIVE');
       return { ...selected, status: 'ACTIVE' };
@@ -180,7 +181,7 @@ export const createFirstLaunchFixture = async (
       ),
   );
   const owners = createTestLocalAgentServerRuntimeOwners({
-    fetchImpl: startRun as unknown as typeof fetch,
+    fetchImpl: fetchServingMonitorKinds({}, startRun as unknown as typeof fetch),
   });
   if (options.failFirstRunStart) {
     vi.spyOn(owners.infrastructure.runStore, 'lookupByAgentSessionId').mockReturnValue(null);

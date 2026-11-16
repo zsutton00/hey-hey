@@ -11,7 +11,13 @@ import {
 import type { ServerLogger } from './logger';
 import type { PlatformAuthContext } from './platform-auth-context';
 import { TaskMonitorPlanContext } from './task-monitor-plan-context';
-import { TaskMonitorTaskKind } from '../agents/task-monitor/kinds/task-monitor-task-kind';
+import {
+  TaskMonitorKind,
+  TaskMonitorKindConfigurationError,
+  taskMonitorKindConfiguration,
+} from '../agents/task-monitor/kinds/task-monitor-kind';
+import { TaskMonitorNodeResultReader } from '../agents/task-monitor/kinds/task-monitor-node-result-reader';
+import { parseEffectiveWorkItemTypeDefinition } from '../agents/prompts/work-item-type-registry';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 
 const sectionSchema = z
@@ -202,18 +208,61 @@ export interface TaskMonitorStartRuntimeDependencies {
 export class TaskMonitorStartRuntime {
   private readonly baseUrl: string;
   private readonly planContext: TaskMonitorPlanContext;
-  /** The monitor's kind, resolved once; every node-specific handler step goes through it. */
-  public readonly kind: TaskMonitorTaskKind;
+  private readonly nodeResults: TaskMonitorNodeResultReader;
 
   public constructor(private readonly dependencies: TaskMonitorStartRuntimeDependencies) {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
     this.planContext = new TaskMonitorPlanContext(dependencies);
-    this.kind = new TaskMonitorTaskKind({
-      runtime: this,
-      apiBaseUrl: dependencies.apiBaseUrl,
-      fetchImpl: dependencies.fetchImpl,
-      logger: dependencies.logger,
-    });
+    this.nodeResults = new TaskMonitorNodeResultReader(dependencies);
+  }
+
+  /**
+   * The kind of a monitor in this project, interpreted from the project's effective TASK_MONITOR
+   * definition as the API resolves it. Each call reads it afresh, so monitors in different
+   * projects never share a kind and one project's invalid kind fails only its own monitors.
+   */
+  public async kindFor(scope: {
+    organizationId: string;
+    projectId: string;
+  }): Promise<TaskMonitorKind> {
+    const token = await this.dependencies.authContext.getAccessToken();
+    const response = await this.dependencies.fetchImpl(
+      `${this.baseUrl}/organizations/${encodeURIComponent(scope.organizationId)}` +
+        `/projects/${encodeURIComponent(scope.projectId)}/work-item-types/TASK_MONITOR`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    await requireOk(response, 'Task Monitor type definition read');
+    const definition = parseEffectiveWorkItemTypeDefinition(await response.json());
+
+    try {
+      const configuration = taskMonitorKindConfiguration(definition.capabilities?.monitorKind);
+      this.dependencies.logger.debug('task_monitor.kind.resolved', {
+        projectId: scope.projectId,
+        kind: configuration.key,
+        start: configuration.start.type,
+        done: configuration.done.type,
+        supervision: configuration.supervision.type,
+      });
+      return new TaskMonitorKind(
+        {
+          runtime: this,
+          apiBaseUrl: this.dependencies.apiBaseUrl,
+          fetchImpl: this.dependencies.fetchImpl,
+          logger: this.dependencies.logger,
+          results: this.nodeResults,
+        },
+        configuration,
+      );
+    } catch (error) {
+      if (error instanceof TaskMonitorKindConfigurationError) {
+        this.dependencies.logger.error('task_monitor.kind.configuration_invalid', {
+          projectId: scope.projectId,
+          kind: definition.capabilities?.monitorKind?.key ?? null,
+          reason: error.message,
+        });
+      }
+      throw error;
+    }
   }
 
   public async resolvePlanContext(input: {
@@ -380,14 +429,16 @@ export class TaskMonitorStartRuntime {
     };
   }
 
-  public async persistTaskActive({
+  public async persistTaskStatus({
     organizationId,
     projectId,
     task,
+    status,
   }: {
     organizationId: string;
     projectId: string;
     task: TaskMonitorStartTask;
+    status: WorkStatus;
   }): Promise<TaskMonitorStartTask> {
     const token = await this.dependencies.authContext.getAccessToken();
     const response = await this.dependencies.fetchImpl(
@@ -399,15 +450,15 @@ export class TaskMonitorStartRuntime {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: WorkStatus.Active,
-          reason: 'Activate selected Task Monitor work for coding-session launch.',
+          status,
+          reason: 'Start selected Task Monitor work for coding-session launch.',
         }),
       },
     );
-    await requireOk(response, 'Task Monitor selected-task ACTIVE update');
+    await requireOk(response, `Task Monitor selected-task ${status} update`);
     const mutation = parseTaskMonitorMutationResponse(await response.text());
     this.requireAppliedTaskMonitorMutation(organizationId, projectId, task.id, mutation);
-    return { ...task, status: WorkStatus.Active };
+    return { ...task, status };
   }
 
   public async persistMonitorActive({

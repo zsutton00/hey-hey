@@ -26,6 +26,15 @@ import type { TaskMonitorLaunchProvider } from './task-monitor-launch-provider.j
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorReasoningEffort } from './task-monitor-reasoning-effort.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemTypeMonitorKindDonePolicy } from './work-item-type-monitor-kind-done-policy.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemTypeMonitorKindStartPolicy } from './work-item-type-monitor-kind-start-policy.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemTypeMonitorKindSupervisionPolicy } from './work-item-type-monitor-kind-supervision-policy.js';
 
 /**
  * The kind of a monitor-role work-item type: what each execution node of a monitor of this type may be and how it may be launched. A monitor type that declares no kind resolves to the Task kind, so existing monitors need no stored value. The kind is configuration on the monitor type, not a separate registered thing monitors reference.
@@ -63,6 +72,24 @@ export interface WorkItemTypeMonitorKind {
      * @memberof WorkItemTypeMonitorKind
      */
     'allowedReasoningEfforts': Array<TaskMonitorReasoningEffort>;
+    /**
+     *
+     * @type {WorkItemTypeMonitorKindStartPolicy}
+     * @memberof WorkItemTypeMonitorKind
+     */
+    'start'?: WorkItemTypeMonitorKindStartPolicy;
+    /**
+     *
+     * @type {WorkItemTypeMonitorKindDonePolicy}
+     * @memberof WorkItemTypeMonitorKind
+     */
+    'done'?: WorkItemTypeMonitorKindDonePolicy;
+    /**
+     *
+     * @type {WorkItemTypeMonitorKindSupervisionPolicy}
+     * @memberof WorkItemTypeMonitorKind
+     */
+    'supervision'?: WorkItemTypeMonitorKindSupervisionPolicy;
 }
 
 export namespace WorkItemTypeMonitorKind {

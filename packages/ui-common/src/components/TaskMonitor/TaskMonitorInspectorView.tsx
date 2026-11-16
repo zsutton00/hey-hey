@@ -175,7 +175,7 @@ export const TaskMonitorInspectorView = ({
             }
           >
             {taskMonitorLaunchMethodOptions(
-              monitorKind.allowedLaunchMethods,
+              monitorKind?.allowedLaunchMethods ?? [],
               launchConfiguration.method,
             )}
           </Select>

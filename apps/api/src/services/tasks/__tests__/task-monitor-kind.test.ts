@@ -1,21 +1,10 @@
 import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
+import { shippedTaskMonitorKind } from '../../../../test/setup/shipped-task-monitor-kind';
 import { workItemTypeCapabilitiesSchema } from '../work-item-type-capabilities.schema';
-import {
-  assertTaskMonitorMatchesKind,
-  resolveTaskMonitorKind,
-  TASK_MONITOR_TASK_KIND,
-} from '../task-monitor-kind';
-
-const migrationSql = readFileSync(
-  resolve(
-    __dirname,
-    '../../../../db/flyway/V2026.11.13.064226__publish_task_monitor_task_kind.sql',
-  ),
-  'utf8',
-);
+import { assertTaskMonitorMatchesKind } from '../task-monitor-kind';
 const openapiRoot = execFileSync(
   process.execPath,
   ['scripts/openapi-root.js'],
@@ -34,17 +23,18 @@ const [firstNode, secondNode] = populatedMonitor.executionPlan as [
   ExecutionNode,
 ];
 
-/** The kind the migration publishes on the canonical TASK_MONITOR template. */
+/** The kind the shipped migrations publish on the canonical TASK_MONITOR template. */
 function shippedCanonicalKind() {
-  const literal = /\$kind\$([\s\S]*?)\$kind\$/.exec(migrationSql)?.[1];
-  if (literal === undefined) {
-    throw new Error('migration does not publish a monitor kind');
-  }
   const { monitorKind } = workItemTypeCapabilitiesSchema.parse({
-    monitorKind: JSON.parse(literal),
+    monitorKind: shippedTaskMonitorKind(),
   });
+  if (monitorKind === undefined) {
+    throw new Error('migrations publish no monitor kind');
+  }
   return monitorKind;
 }
+
+const TASK_KIND = shippedCanonicalKind();
 
 function dbWithNodeTypes(typeOf: (taskId: string) => string | undefined) {
   return {
@@ -67,22 +57,111 @@ function check(
     db: dbWithNodeTypes(typeOf),
     organizationId: 'org',
     projectId: 'project',
-    kind: shippedCanonicalKind()!,
+    kind: TASK_KIND,
     executionDefinitionContent: JSON.stringify(definition),
   });
 }
 
 describe('task monitor kind', () => {
-  it('publishes exactly the Task kind on the canonical type, and monitors without a kind resolve to it', () => {
-    expect(shippedCanonicalKind()).toEqual(TASK_MONITOR_TASK_KIND);
-    expect(resolveTaskMonitorKind(undefined)).toBe(TASK_MONITOR_TASK_KIND);
-    expect(TASK_MONITOR_TASK_KIND.allowedNodeTypes).toEqual(['STANDARD']);
-    expect(TASK_MONITOR_TASK_KIND.allowedLaunchMethods).toEqual([
-      'plan',
-      'open',
-      'quick',
-    ]);
+  it('publishes the Task kind with ACTIVE start, COMPLETED done and coordinator Review', () => {
+    expect(TASK_KIND).toMatchObject({
+      key: 'task',
+      allowedNodeTypes: ['STANDARD'],
+      allowedLaunchMethods: ['plan', 'open', 'quick'],
+      start: { type: 'STATUS_TRANSITION', status: 'ACTIVE' },
+      done: { type: 'ITEM_STATUS', status: 'COMPLETED' },
+      supervision: { type: 'COORDINATOR_REVIEW' },
+    });
   });
+
+  it.each([
+    ['explicit null start', { start: null }, ['start']],
+    [
+      'an unknown start type',
+      { start: { type: 'RESTART' } },
+      ['start', 'type'],
+    ],
+    [
+      'a status transition without its status',
+      { start: { type: 'STATUS_TRANSITION' } },
+      ['start', 'status'],
+    ],
+    [
+      'an unknown done status',
+      { done: { type: 'ITEM_STATUS', status: 'DONE' } },
+      ['done', 'status'],
+    ],
+    [
+      'an unknown policy field',
+      { supervision: { type: 'DIRECT_ACCEPTANCE', script: 'x' } },
+      ['supervision'],
+    ],
+    [
+      'coordinator Review with normalized-result done',
+      { done: { type: 'NORMALIZED_RESULT' } },
+      ['done', 'type'],
+    ],
+    [
+      'direct acceptance with item-status done',
+      { supervision: { type: 'DIRECT_ACCEPTANCE' } },
+      ['done', 'type'],
+    ],
+  ])(
+    'rejects a kind declaring %s, naming the offending field',
+    (_case, change, path) => {
+      const parsed = workItemTypeCapabilitiesSchema.safeParse({
+        monitorKind: { ...shippedTaskMonitorKind(), ...change },
+      });
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues.map((issue) => issue.path)).toContainEqual([
+        'monitorKind',
+        ...path,
+      ]);
+    },
+  );
+
+  it('accepts a complete non-Task configuration', () => {
+    const parsed = workItemTypeCapabilitiesSchema.safeParse({
+      monitorKind: {
+        ...shippedTaskMonitorKind(),
+        key: 'requirement-check',
+        start: { type: 'NO_STATUS_CHANGE' },
+        done: { type: 'NORMALIZED_RESULT' },
+        supervision: { type: 'DIRECT_ACCEPTANCE' },
+      },
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it.each([
+    ['no kind at all', undefined, /declares no kind/],
+    [
+      'an unsupported pairing',
+      {
+        ...shippedTaskMonitorKind(),
+        supervision: { type: 'DIRECT_ACCEPTANCE' as const },
+      },
+      /"task" monitor kind combines supervision "DIRECT_ACCEPTANCE" with done "ITEM_STATUS"/,
+    ],
+  ])(
+    'rejects a monitor whose effective kind has %s before reading its nodes',
+    async (_case, kind, message) => {
+      const db = dbWithNodeTypes(() => 'STANDARD');
+
+      await expect(
+        assertTaskMonitorMatchesKind({
+          db,
+          organizationId: 'org',
+          projectId: 'project',
+          kind: kind as never,
+          executionDefinitionContent: JSON.stringify(populatedMonitor),
+        }),
+      ).rejects.toThrow(message);
+      expect(db.task.findMany).not.toHaveBeenCalled();
+    },
+  );
 
   it('accepts a populated monitor whose nodes are all Tasks', async () => {
     expect(populatedMonitor.executionPlan.length).toBeGreaterThan(1);
@@ -113,7 +192,7 @@ describe('task monitor kind', () => {
   it('rejects a launch mode, provider and effort the kind does not allow, naming node and kind', async () => {
     const node = firstNode;
     const narrowedKind = {
-      ...TASK_MONITOR_TASK_KIND,
+      ...TASK_KIND,
       allowedLaunchMethods: ['quick' as const],
       allowedRuntimeProviders: ['codex' as const],
       allowedReasoningEfforts: ['low' as const],
@@ -151,7 +230,7 @@ describe('task monitor kind', () => {
         db,
         organizationId: 'org',
         projectId: 'project',
-        kind: TASK_MONITOR_TASK_KIND,
+        kind: TASK_KIND,
         executionDefinitionContent: JSON.stringify(next),
         storedExecutionDefinitionContent: JSON.stringify(populatedMonitor),
       });

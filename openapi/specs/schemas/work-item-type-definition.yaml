@@ -1713,6 +1713,133 @@ WorkItemTypeMonitorKind:
       description: Reasoning efforts, the other half of a node's runtime profile, a node of this kind may use.
       items:
         $ref: "./work-items.yaml#/TaskMonitorReasoningEffort"
+    start:
+      $ref: "#/WorkItemTypeMonitorKindStartPolicy"
+    done:
+      $ref: "#/WorkItemTypeMonitorKindDonePolicy"
+    supervision:
+      $ref: "#/WorkItemTypeMonitorKindSupervisionPolicy"
+
+WorkItemTypeMonitorKindStartPolicy:
+  description: >
+    What starting a node does to its work item before its session launches.
+    The registry resolves an omitted start policy from the canonical
+    TASK_MONITOR definition, so only an explicit declaration changes it.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindStatusTransitionStart"
+    - $ref: "#/WorkItemTypeMonitorKindNoStatusChangeStart"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindStatusTransitionStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node moves its work item to the declared status through Work Items.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - STATUS_TRANSITION
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNoStatusChangeStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node leaves its work item status unchanged.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NO_STATUS_CHANGE
+
+WorkItemTypeMonitorKindDonePolicy:
+  description: >
+    How a node counts as done for selection, dependencies, acceptance
+    confirmation and monitor completion. Item-status completion pairs with
+    coordinator supervision; normalized-result completion pairs with direct
+    acceptance. The registry resolves an omitted done policy from the canonical
+    TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindItemStatusDone"
+    - $ref: "#/WorkItemTypeMonitorKindNormalizedResultDone"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindItemStatusDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when its work item has the declared status. Acceptance
+    requests that status through Work Items and rereads it before advancing.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - ITEM_STATUS
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNormalizedResultDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when the durable normalized result of its recorded session
+    accepts it. A missing, failed, malformed or mismatched result is never done,
+    and the work item's status is not consulted or changed.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NORMALIZED_RESULT
+
+WorkItemTypeMonitorKindSupervisionPolicy:
+  description: >
+    How a settled node is accepted. The registry resolves an omitted
+    supervision policy from the canonical TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindCoordinatorReviewSupervision"
+    - $ref: "#/WorkItemTypeMonitorKindDirectAcceptanceSupervision"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindCoordinatorReviewSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    Every settled node goes to the coordinator agent under the monitor's
+    Review mode. Requires item-status completion.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COORDINATOR_REVIEW
+
+WorkItemTypeMonitorKindDirectAcceptanceSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    A settled node is accepted or failed from its normalized structured result,
+    with no coordinator run. Requires normalized-result completion.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - DIRECT_ACCEPTANCE
 
 WorkItemTypeGraphCapability:
   type: object

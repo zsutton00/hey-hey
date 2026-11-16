@@ -19,6 +19,7 @@ import {
   type RiskAlertReportPayload,
   type RollupProposalReportPayload,
   type SessionMonitorDeferralReportPayload,
+  type MonitorNodeResultReportPayload,
   type SessionSummaryReportPayload,
   type SnapshotReportPayload,
   type ValidationWalkthroughReportPayload,
@@ -46,6 +47,7 @@ import {
   ReportViewerFrame,
   RollupProposalReport,
   SessionMonitorDeferralReport,
+  MonitorNodeResultReport,
   SessionSummaryReport,
   SnapshotReport,
   StandardReportContent,
@@ -406,6 +408,14 @@ const renderReportBody = (
       return (
         <SessionMonitorDeferralReport
           payload={payload as SessionMonitorDeferralReportPayload}
+          report={report}
+          reportTestId={reportTestId}
+        />
+      );
+    case ReportType.MonitorNodeResult:
+      return (
+        <MonitorNodeResultReport
+          payload={payload as MonitorNodeResultReportPayload}
           report={report}
           reportTestId={reportTestId}
         />

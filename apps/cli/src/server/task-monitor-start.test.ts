@@ -326,10 +326,11 @@ describe('Task Monitor persisted execution definition boundary', () => {
 
     expect(selectedTask).not.toHaveProperty('status');
     await expect(
-      runtime.persistTaskActive({
+      runtime.persistTaskStatus({
         organizationId: ORGANIZATION_ID,
         projectId: PROJECT_ID,
         task: selectedTask,
+        status: 'ACTIVE',
       }),
     ).resolves.toMatchObject({ status: 'ACTIVE' });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -346,7 +347,8 @@ describe('Task Monitor persisted execution definition boundary', () => {
     });
 
     await expect(
-      runtime.persistTaskActive({
+      runtime.persistTaskStatus({
+        status: 'ACTIVE',
         organizationId: ORGANIZATION_ID,
         projectId: PROJECT_ID,
         task: {

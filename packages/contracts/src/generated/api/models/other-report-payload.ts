@@ -142,6 +142,12 @@ import type { ImplementReportPayload } from './implement-report-payload.js';
 import type { ImplementReportPayloadAllOfDecisions } from './implement-report-payload-all-of-decisions.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { MonitorNodeResultOutcome } from './monitor-node-result-outcome.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MonitorNodeResultReportPayload } from './monitor-node-result-report-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { PhaseGroundingReportPayload } from './phase-grounding-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -211,4 +217,4 @@ import type { ValidationWalkthroughReportPayload } from './validation-walkthroug
  * @type OtherReportPayload
  * @export
  */
-export type OtherReportPayload = ChangeWalkthroughReportPayload | CodingResearchReportPayload | CommitReportPayload | CompetitiveAnalysisReportPayload | DailySessionReportPayload | DecisionNeededReportPayload | EvalAttemptReportPayload | EvalHumanReviewReportPayload | EvalRunReportPayload | EvidencePipelineReportPayload | FeatureSyncHandoffReportPayload | FeatureSyncReportPayload | FeatureTreeAnalysisReportPayload | GoalProgressReportPayload | ImplementReportPayload | PhaseGroundingReportPayload | PlanReportPayload | ProjectReportPayload | ReviewReportPayload | RiskAlertReportPayload | RollupProposalReportPayload | SessionMonitorDeferralReportPayload | SessionSummaryReportPayload | SnapshotReportPayload | ValidationWalkthroughReportPayload;
+export type OtherReportPayload = ChangeWalkthroughReportPayload | CodingResearchReportPayload | CommitReportPayload | CompetitiveAnalysisReportPayload | DailySessionReportPayload | DecisionNeededReportPayload | EvalAttemptReportPayload | EvalHumanReviewReportPayload | EvalRunReportPayload | EvidencePipelineReportPayload | FeatureSyncHandoffReportPayload | FeatureSyncReportPayload | FeatureTreeAnalysisReportPayload | GoalProgressReportPayload | ImplementReportPayload | MonitorNodeResultReportPayload | PhaseGroundingReportPayload | PlanReportPayload | ProjectReportPayload | ReviewReportPayload | RiskAlertReportPayload | RollupProposalReportPayload | SessionMonitorDeferralReportPayload | SessionSummaryReportPayload | SnapshotReportPayload | ValidationWalkthroughReportPayload;
