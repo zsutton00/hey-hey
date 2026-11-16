@@ -1,4 +1,4 @@
-import { Box, Divider, Link, Stack, Typography } from "@mui/material";
+import { Box, Link, Stack, Typography } from "@mui/material";
 import React, { useId } from "react";
 
 export interface CardProps {
@@ -129,7 +129,6 @@ export const Card: React.FC<CardProps> = ({
           </Stack>
           {action && <Box sx={{ flex: "0 0 auto" }}>{action}</Box>}
         </Stack>
-        <Divider />
         <Box sx={{ minWidth: 0 }}>{children}</Box>
       </Stack>
     </Box>
