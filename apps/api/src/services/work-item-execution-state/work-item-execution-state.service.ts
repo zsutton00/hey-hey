@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   Prisma,
   WorkItemExecutionState as StoredExecutionStateModel,
@@ -89,17 +84,17 @@ const UTC_NOW = Prisma.sql`timezone('utc', now())`;
  * Freshness. `ownerConnected` is stored beside the payload and never folded
  * into it. Connection changes touch freshness and `revision` only, so a
  * disconnect can neither clear a retained failure nor assert a healthy state.
+ * Freshness changes only on events this server observes: authentication,
+ * last local socket close, credential revocation and an owner's replay. Reads
+ * additionally qualify a stored CURRENT state as LAST_KNOWN when owner
+ * presence is missing or cannot be checked, without writing. No timer, lease
+ * or scan runs; an owner server that crashes unobserved while the owner never
+ * reconnects leaves the last report in place until the owner returns.
  */
 @Injectable()
-export class WorkItemExecutionStateService
-  implements OnModuleInit, OnModuleDestroy
-{
-  static readonly FRESHNESS_SWEEP_INTERVAL_MS = 60_000;
-  static readonly FRESHNESS_SWEEP_MACHINE_LIMIT = 200;
-
+export class WorkItemExecutionStateService {
   private readonly logger = new Logger(WorkItemExecutionStateService.name);
   private changeSink?: (change: WorkItemExecutionStateChange) => void;
-  private sweepTimer?: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -107,27 +102,6 @@ export class WorkItemExecutionStateService
     private readonly machinePresence: MachinePresenceService,
     private readonly registry: WorkItemExecutionStateRegistry,
   ) {}
-
-  onModuleInit(): void {
-    if (process.env.NODE_ENV === 'test') {
-      return;
-    }
-
-    this.sweepTimer = setInterval(() => {
-      void this.reconcileFreshnessWithPresence().catch((error: unknown) => {
-        this.logger.error('[execution-state] freshness sweep failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }, WorkItemExecutionStateService.FRESHNESS_SWEEP_INTERVAL_MS);
-  }
-
-  onModuleDestroy(): void {
-    if (this.sweepTimer) {
-      clearInterval(this.sweepTimer);
-    }
-    this.sweepTimer = undefined;
-  }
 
   /** Receives every accepted change so the gateway can fan it out. */
   setChangeSink(sink: (change: WorkItemExecutionStateChange) => void): void {
@@ -222,16 +196,14 @@ export class WorkItemExecutionStateService
         .filter((row) => row.ownerConnected)
         .map((row) => row.ownerMachineId),
     );
-    const readAt = new Date();
     const retained = new Map<string, WorkItemExecutionState>();
 
     for (const row of stored) {
+      // Read-only qualification: the recorded connection-change time stands.
       const ownerSilent =
         row.ownerConnected && !present.has(row.ownerMachineId);
       const executionState = this.toExecutionState(
-        ownerSilent
-          ? { ...row, ownerConnected: false, freshnessChangedAt: readAt }
-          : row,
+        ownerSilent ? { ...row, ownerConnected: false } : row,
       );
       if (executionState) {
         retained.set(row.workItemId, executionState);
@@ -245,41 +217,6 @@ export class WorkItemExecutionStateService
         ? { result: 'RETAINED' as const, workItemId, executionState }
         : { result: 'MISSING' as const, workItemId };
     });
-  }
-
-  /**
-   * Bring stored freshness in line with machine presence in both directions.
-   * Covers an API instance that died without handling a disconnect, and a
-   * connected machine whose rows were marked last-known after presence was
-   * lost (for example a Redis restart) and has since been seen again.
-   */
-  async reconcileFreshnessWithPresence(): Promise<void> {
-    const owners = await this.prisma.db.workItemExecutionState.findMany({
-      distinct: ['ownerMachineId', 'ownerConnected'],
-      select: { ownerMachineId: true, ownerConnected: true },
-      take: WorkItemExecutionStateService.FRESHNESS_SWEEP_MACHINE_LIMIT,
-      orderBy: { updatedAt: 'asc' },
-    });
-
-    for (const owner of owners) {
-      const machineId = owner.ownerMachineId as MachineId;
-      let present: boolean;
-      try {
-        present = await this.machinePresence.isPresent(machineId);
-      } catch (error) {
-        // Presence unknown: leave stored freshness alone. Reads already
-        // report last-known while presence cannot be confirmed.
-        this.logger.warn('[execution-state] presence check failed in sweep', {
-          machineId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        continue;
-      }
-
-      if (present !== owner.ownerConnected) {
-        await this.setMachineConnected(machineId, present);
-      }
-    }
   }
 
   private async authorizeReport(
@@ -483,26 +420,30 @@ export class WorkItemExecutionStateService
     });
   }
 
+  /** One batched lookup; an owner whose presence is unknown is not present. */
   private async presentMachines(
     machineIds: readonly string[],
   ): Promise<Set<string>> {
-    const present = new Set<string>();
-
-    for (const machineId of new Set(machineIds)) {
-      try {
-        if (await this.machinePresence.isPresent(machineId as MachineId)) {
-          present.add(machineId);
-        }
-      } catch (error) {
-        // Presence unknown is not evidence the owner is connected.
+    try {
+      const { present, failed } = await this.machinePresence.arePresent(
+        machineIds as readonly MachineId[],
+      );
+      failed.forEach((error, machineId) =>
         this.logger.warn('[execution-state] presence check failed on read', {
           machineId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
+          error,
+        }),
+      );
 
-    return present;
+      return present;
+    } catch (error) {
+      this.logger.warn('[execution-state] presence batch failed on read', {
+        owners: new Set(machineIds).size,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return new Set();
+    }
   }
 
   private publish(row: StoredExecutionState): void {

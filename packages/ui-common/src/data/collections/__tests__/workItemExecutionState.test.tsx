@@ -260,6 +260,88 @@ describe("shared work-item execution state", () => {
     ]);
   });
 
+  it("re-reads held states nobody is displaying, and stays interrupted if that read fails", async () => {
+    platform["project-1"]["monitor-1"] = record(
+      "monitor-1",
+      2,
+      projections.failed,
+    );
+    const mounted = view("monitor-1");
+    await waitFor(() => expect(mounted.result.current.status).toBe("retained"));
+    mounted.unmount();
+    reads.length = 0;
+
+    // While no component showed it, the owner went offline.
+    platform["project-1"]["monitor-1"] = record(
+      "monitor-1",
+      3,
+      projections.failed,
+      "LAST_KNOWN",
+    );
+    vi.spyOn(dataClient, "request").mockRejectedValueOnce(
+      Object.assign(new Error("unavailable"), { status: 503 }),
+    );
+    await act(() =>
+      expect(
+        handler.refreshLoadedWorkItemExecutionStates("org-1", "project-1"),
+      ).rejects.toThrow(),
+    );
+    expect(
+      readWorkItemExecutionStateDelivery(queryClient, "org-1", "project-1"),
+    ).toBe("INTERRUPTED");
+
+    await act(() =>
+      handler.refreshLoadedWorkItemExecutionStates("org-1", "project-1"),
+    );
+    expect(
+      readWorkItemExecutionStateDelivery(queryClient, "org-1", "project-1"),
+    ).toBe("LIVE");
+
+    const remounted = view("monitor-1");
+    expect(remounted.result.current).toMatchObject({
+      status: "retained",
+      revision: 3,
+      delivery: "LIVE",
+      freshness: { status: "LAST_KNOWN" },
+      acceptedAt: "2026-11-16T10:00:00.000Z",
+      state: { projection: projections.failed },
+    });
+    expect(remounted.result.current).toMatchObject({
+      freshness: { changedAt: "2026-11-16T10:00:00.000Z" },
+    });
+  });
+
+  it("does not mark live when the room is left during a refresh and keeps newer pushed state", async () => {
+    platform["project-1"]["monitor-1"] = record(
+      "monitor-1",
+      2,
+      projections.running,
+    );
+    const mounted = view("monitor-1");
+    await waitFor(() => expect(mounted.result.current.status).toBe("retained"));
+    mounted.unmount();
+
+    const refresh = handler.refreshLoadedWorkItemExecutionStates(
+      "org-1",
+      "project-1",
+    );
+    handler.interruptWorkItemExecutionStateProjectDelivery(
+      "org-1",
+      "project-1",
+    );
+    await deliver(record("monitor-1", 9, projections.failed));
+    await act(() => refresh);
+
+    expect(
+      readWorkItemExecutionStateDelivery(queryClient, "org-1", "project-1"),
+    ).toBe("INTERRUPTED");
+    const remounted = view("monitor-1");
+    expect(remounted.result.current).toMatchObject({
+      revision: 9,
+      state: { projection: projections.failed },
+    });
+  });
+
   it("takes a re-read's freshness at an unchanged revision", async () => {
     platform["project-1"]["monitor-1"] = record(
       "monitor-1",

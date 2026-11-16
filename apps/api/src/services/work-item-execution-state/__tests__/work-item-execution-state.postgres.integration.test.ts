@@ -44,6 +44,9 @@ const projections = JSON.parse(
 class FakeRedis {
   readonly keys = new Map<string, unknown>();
   failing = false;
+  /** Keys whose individual EXISTS command fails inside a pipeline. */
+  failingKeys = new Set<string>();
+  pipelineExecutions = 0;
 
   private guard(): void {
     if (this.failing) {
@@ -59,6 +62,29 @@ class FakeRedis {
   async exists(key: string): Promise<number> {
     this.guard();
     return this.keys.has(key) ? 1 : 0;
+  }
+
+  pipeline() {
+    const commands: string[] = [];
+    const pipeline = {
+      exists: (key: string) => {
+        commands.push(key);
+
+        return pipeline;
+      },
+      exec: async (): Promise<Array<[Error | null, number]>> => {
+        this.guard();
+        this.pipelineExecutions += 1;
+
+        return commands.map((key) =>
+          this.failingKeys.has(key)
+            ? [new Error(`command failed: ${key.length}`), 0]
+            : [null, this.keys.has(key) ? 1 : 0],
+        );
+      },
+    };
+
+    return pipeline;
   }
 
   async del(key: string): Promise<void> {
@@ -510,11 +536,15 @@ describe('Work item execution state with a real database', () => {
     expect(rejectionCodes()).toEqual(['MACHINE_REVOKED']);
   });
 
-  it('survives cache loss: the report is kept, read as last-known, and current once the owner is seen again', async () => {
+  it('qualifies reads as last-known when presence is missing or unavailable, without writing', async () => {
     const scope = await seedProject();
     const owner = await seedOwner(scope);
     const workItemId = await seedWorkItem(scope);
     await report(owner, workItemId, 7, projections.failed);
+    const stored = await prisma.db.workItemExecutionState.findUniqueOrThrow({
+      where: { workItemId },
+    });
+    roomEvents.length = 0;
 
     // Redis is unreachable: presence cannot be confirmed.
     redis.failing = true;
@@ -522,28 +552,154 @@ describe('Work item execution state with a real database', () => {
     expect(unreachable.freshness.status).toBe('LAST_KNOWN');
     expect(unreachable.state.projection).toEqual(projections.failed);
 
-    // Redis comes back empty. The row still says connected; a read does not
-    // trust it, and the sweep records the loss.
+    // Redis comes back empty: repeated reads agree and keep the recorded times.
     redis.failing = false;
     redis.keys.clear();
-    expect((await retained(scope, workItemId)).freshness.status).toBe(
-      'LAST_KNOWN',
-    );
-    await service.reconcileFreshnessWithPresence();
-    const swept = await retained(scope, workItemId);
-    expect(swept).toMatchObject({
-      revision: 2,
-      freshness: { status: 'LAST_KNOWN' },
+    const first = await retained(scope, workItemId);
+    const second = await retained(scope, workItemId);
+    expect(second).toEqual(first);
+    expect(first).toMatchObject({
+      revision: 1,
+      acceptedAt: stored.acceptedAt.toISOString(),
+      freshness: {
+        status: 'LAST_KNOWN',
+        changedAt: stored.freshnessChangedAt.toISOString(),
+      },
       state: { projection: projections.failed },
     });
 
-    // The still-connected owner heartbeats, and the next sweep restores it.
+    // Nothing was written or published, and presence alone changes nothing.
+    expect(
+      await prisma.db.workItemExecutionState.findUniqueOrThrow({
+        where: { workItemId },
+      }),
+    ).toEqual(stored);
+    expect(roomEvents).toEqual([]);
+
+    // A heartbeat reappearing makes the still-connected row current again.
     await presence.setPresence(owner.machineId, owner.userId);
-    await service.reconcileFreshnessWithPresence();
+    expect((await retained(scope, workItemId)).freshness.status).toBe(
+      'CURRENT',
+    );
+  });
+
+  it('does not turn a stored disconnected row current because presence exists', async () => {
+    const scope = await seedProject();
+    const owner = await seedOwner(scope);
+    const workItemId = await seedWorkItem(scope);
+    await report(owner, workItemId, 1, projections.failed);
+    await gateway.handleDisconnect(owner.socket);
+    const offline = await retained(scope, workItemId);
+
+    await presence.setPresence(owner.machineId, owner.userId);
+
+    expect(await retained(scope, workItemId)).toEqual(offline);
+    expect(offline.freshness.status).toBe('LAST_KNOWN');
+  });
+
+  it('checks every owner of a read in one pipeline and keeps individual results', async () => {
+    const scope = await seedProject();
+    const otherScope = await seedProject();
+    const alive = await seedOwner(scope);
+    const silent = await seedOwner(scope);
+    const broken = await seedOwner(scope);
+    const outsider = await seedOwner(otherScope);
+    const ids = [
+      await seedWorkItem(scope),
+      await seedWorkItem(scope),
+      await seedWorkItem(scope),
+      await seedWorkItem(scope),
+      await seedWorkItem(scope),
+    ];
+    await report(alive, ids[0]!, 1, projections.running);
+    await report(alive, ids[1]!, 1, projections.paused);
+    await report(silent, ids[2]!, 1, projections.failed);
+    await report(broken, ids[3]!, 1, projections.completed);
+    const foreign = await seedWorkItem(otherScope);
+    await report(outsider, foreign, 1, projections.running);
+    redis.keys.delete(`machine:presence:${silent.machineId}`);
+    redis.failingKeys.add(`machine:presence:${broken.machineId}`);
+    redis.pipelineExecutions = 0;
+
+    const response = await controller.batchReadExecutionState(
+      scope.projectId,
+      scope.organizationId,
+      { workItemIds: [...ids, foreign] },
+    );
+
+    const statuses = response.items.map((item) =>
+      item.result === 'RETAINED'
+        ? item.executionState.freshness.status
+        : item.result,
+    );
+    expect(statuses).toEqual([
+      'CURRENT',
+      'CURRENT',
+      'LAST_KNOWN',
+      'LAST_KNOWN',
+      'MISSING',
+      'MISSING',
+    ]);
+    // Three distinct owners, repeated ids collapsed, one Redis execution.
+    expect(redis.pipelineExecutions).toBe(1);
+    const causes = warn.mock.calls
+      .filter(([message]) => String(message).includes('presence check failed'))
+      .map(([, detail]) => (detail as { machineId: string }).machineId);
+    expect(causes).toEqual([broken.machineId]);
+  });
+
+  it('makes no Redis request when a read has nothing to check', async () => {
+    const scope = await seedProject();
+    const workItemId = await seedWorkItem(scope);
+    redis.pipelineExecutions = 0;
+    redis.failing = true;
+
+    expect(await read(scope, workItemId)).toEqual({
+      result: 'MISSING',
+      workItemId,
+    });
+    expect(redis.pipelineExecutions).toBe(0);
+  });
+
+  it('leaves state untouched as time passes when no connection event is observed, and recovers when the owner returns', async () => {
+    const scope = await seedProject();
+    const owner = await seedOwner(scope);
+    const workItemId = await seedWorkItem(scope);
+    await report(owner, workItemId, 4, projections.failed);
+    const before = await prisma.db.workItemExecutionState.findUniqueOrThrow({
+      where: { workItemId },
+    });
+    roomEvents.length = 0;
+
+    // The owner's server crashed: no disconnect callback ever runs and the
+    // presence key expires. Time passing alone writes and publishes nothing.
+    redis.keys.clear();
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    jest.advanceTimersByTime(60 * 60 * 1000);
+    jest.useRealTimers();
+    expect(
+      await prisma.db.workItemExecutionState.findUniqueOrThrow({
+        where: { workItemId },
+      }),
+    ).toEqual(before);
+    expect(roomEvents).toEqual([]);
+
+    // A presence-qualified read tells the person what is known.
+    expect((await retained(scope, workItemId)).freshness.status).toBe(
+      'LAST_KNOWN',
+    );
+
+    // The owner returns and replays its committed state.
+    const returned = {
+      ...owner,
+      socket: connect(owner.userId, owner.machineId),
+    };
+    await service.markMachineConnected(owner.machineId);
+    await report(returned, workItemId, 4, projections.failed);
     expect(await retained(scope, workItemId)).toMatchObject({
-      revision: 3,
       freshness: { status: 'CURRENT' },
       state: { projection: projections.failed },
+      acceptedAt: before.acceptedAt.toISOString(),
     });
   });
 

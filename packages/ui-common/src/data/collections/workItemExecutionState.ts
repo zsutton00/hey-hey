@@ -7,6 +7,7 @@ import type {
 import { dataClient } from "../../clients";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
 import {
+  BATCH_LIMIT,
   createPacedBatchReadCoordinator,
   type HydrationClock,
   type PacedBatchReadCoordinator,
@@ -262,10 +263,13 @@ export function interruptWorkItemExecutionStateProjectDelivery(
 }
 
 /**
- * After joining a project room, events may have been missed: every loaded
- * execution state in the project reads again through the paced batch. The
- * project's delivery becomes live only if every read succeeded and the
- * connection was not lost meanwhile.
+ * After joining a project room, events may have been missed: every held
+ * execution state in the project reads again through the paced batch, whether
+ * or not a component is currently mounted on it. Invalidation alone refetches
+ * only mounted queries, so unmounted cached entries are requested directly in
+ * batches of at most `BATCH_LIMIT`. The project's delivery becomes live only if
+ * every read succeeded and neither the connection nor this project's room
+ * membership changed meanwhile.
  */
 export async function refreshLoadedWorkItemExecutionStates(
   queryClient: QueryClient,
@@ -282,6 +286,11 @@ export async function refreshLoadedWorkItemExecutionStates(
   );
 
   await invalidateWithFollowUpRead(queryClient, { queryKey });
+  await readUnmountedWorkItemExecutionStates(
+    queryClient,
+    organizationId,
+    projectId,
+  );
 
   const failed = queryClient
     .getQueryCache()
@@ -301,4 +310,32 @@ export async function refreshLoadedWorkItemExecutionStates(
 
   store.live.add(key);
   notifyDelivery(store);
+}
+
+async function readUnmountedWorkItemExecutionStates(
+  queryClient: QueryClient,
+  organizationId: string,
+  projectId: string,
+): Promise<void> {
+  const unmountedIds = queryClient
+    .getQueryCache()
+    .findAll({
+      queryKey: workItemExecutionStateKeys.project(organizationId, projectId),
+    })
+    .filter((query) => query.getObserversCount() === 0)
+    .map((query) => String(query.queryKey[3]));
+  const coordinator = coordinatorFor(queryClient);
+  const reads: Array<Promise<void>> = [];
+
+  for (let start = 0; start < unmountedIds.length; start += BATCH_LIMIT) {
+    reads.push(
+      coordinator.request({
+        organizationId,
+        projectId,
+        ids: unmountedIds.slice(start, start + BATCH_LIMIT),
+      }),
+    );
+  }
+
+  await Promise.all(reads);
 }
