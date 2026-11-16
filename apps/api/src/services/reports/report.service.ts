@@ -1,4 +1,4 @@
-import type { ReportsApiListProjectChangesRequest } from '@hey-hey/contracts/api';
+import type { ReportsApiListProjectChangesRequest } from '@hey-hey/contracts/api/apis/reports-api';
 import { readReportUsage } from './report-usage.validation';
 import { readEvalCaseTarget } from '../eval-runs/eval-case-input.mapper';
 import {
