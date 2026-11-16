@@ -14,6 +14,7 @@ import { Box, Typography } from "@mui/material";
 import { AnimatePresence, motion } from "motion/react";
 import { parseAsString, useQueryStates } from "nuqs";
 import React, { useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   DetailPageContainer,
@@ -44,6 +45,7 @@ import {
 } from "./projectNavigation";
 
 export const ProjectPage: React.FC = () => {
+  const { t } = useTranslation();
   const { projectId } = useParams<{ projectId: string }>();
   const { userId } = useUserIdentity() || {};
   const { currentOrganization } = useOrganization();
@@ -142,7 +144,7 @@ export const ProjectPage: React.FC = () => {
     (destination) => destination.value !== "admin" || isPlatformAdmin,
   ).map((destination) => ({
     value: destination.value,
-    label: destination.label,
+    label: t(destination.label),
   }));
   const adminMetadataItems = buildAdminMetadataItems({
     createdBy: project?.createdBy,

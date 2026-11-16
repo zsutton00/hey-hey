@@ -1,3 +1,4 @@
+import "@hey-hey/ui-common/i18n";
 import {
   ProjectStatus,
   WorkItemTypeEffectiveSource,

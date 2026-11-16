@@ -18,14 +18,14 @@ export const PROJECT_DESTINATIONS: ReadonlyArray<{
   value: ProjectDestination;
   label: string;
 }> = [
-  { value: "overview", label: "Overview" },
-  { value: "work", label: "Work" },
-  { value: "reviews", label: "Reviews" },
-  { value: "agents", label: "Agents" },
-  { value: "knowledge", label: "Knowledge" },
-  { value: "settings", label: "Settings" },
-  { value: "admin", label: "Admin" },
-  { value: "help", label: "Help" },
+  { value: "overview", label: "projectNavigation.overview" },
+  { value: "agents", label: "projectNavigation.sessions" },
+  { value: "work", label: "projectNavigation.work" },
+  { value: "reviews", label: "projectNavigation.proposals" },
+  { value: "knowledge", label: "projectNavigation.knowledge" },
+  { value: "settings", label: "projectNavigation.settings" },
+  { value: "admin", label: "projectNavigation.admin" },
+  { value: "help", label: "projectNavigation.help" },
 ];
 
 export type ProjectNavigationItem = ProjectWorkspaceNavigationItem;

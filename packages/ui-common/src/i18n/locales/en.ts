@@ -14,6 +14,14 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "projectNavigation.overview": "Overview",
+  "projectNavigation.sessions": "Sessions",
+  "projectNavigation.work": "Work",
+  "projectNavigation.proposals": "Proposals",
+  "projectNavigation.knowledge": "Knowledge",
+  "projectNavigation.settings": "Settings",
+  "projectNavigation.admin": "Admin",
+  "projectNavigation.help": "Help",
   "openItems.rename.action": "Rename",
   "openItems.rename.heading": "Rename conversation",
   "openItems.rename.title": "Conversation title",
