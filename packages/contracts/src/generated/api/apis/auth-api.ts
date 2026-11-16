@@ -45,6 +45,8 @@ import type { GetAccountDefaultOrganization200Response } from '../models.js';
 // @ts-ignore
 import type { GetJwks200Response } from '../models.js';
 // @ts-ignore
+import type { GetLocalPasskeyRepair200Response } from '../models.js';
+// @ts-ignore
 import type { InitiatePasswordRecovery200Response } from '../models.js';
 // @ts-ignore
 import type { IssueLocalCliCredentials200Response } from '../models.js';
@@ -54,6 +56,8 @@ import type { ListAccountPasskeys200Response } from '../models.js';
 import type { LocalHandoffRequestDto } from '../models.js';
 // @ts-ignore
 import type { LocalNameRequestDto } from '../models.js';
+// @ts-ignore
+import type { LocalPasskeyRepairDecisionRequestDto } from '../models.js';
 // @ts-ignore
 import type { Login200Response } from '../models.js';
 // @ts-ignore
@@ -241,6 +245,48 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and reports what the person answered at the terminal. Approval revokes every live passkey of the local account with its controller credentials, execution grants and browser bindings, and ends every browser session except the setup session that asked, which may then enroll a new first passkey. No user data is deleted.
+         * @summary Record the terminal decision on a local passkey repair
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {LocalPasskeyRepairDecisionRequestDto} localPasskeyRepairDecisionRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        decideLocalPasskeyRepair: async (xHeyHeyLocalSecret: string, localPasskeyRepairDecisionRequestDto: LocalPasskeyRepairDecisionRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'xHeyHeyLocalSecret' is not null or undefined
+            assertParamExists('decideLocalPasskeyRepair', 'xHeyHeyLocalSecret', xHeyHeyLocalSecret)
+            // verify required parameter 'localPasskeyRepairDecisionRequestDto' is not null or undefined
+            assertParamExists('decideLocalPasskeyRepair', 'localPasskeyRepairDecisionRequestDto', localPasskeyRepairDecisionRequestDto)
+            const localVarPath = `/auth/local/repair/decision`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            if (xHeyHeyLocalSecret != null) {
+                localVarHeaderParameter['X-HeyHey-Local-Secret'] = String(xHeyHeyLocalSecret);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(localPasskeyRepairDecisionRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -305,12 +351,83 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
-         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
-         * @summary Read local account and machine status
+         * Local-deployment-only. Reports whether this account\'s passkey repair was requested, declined at the terminal or completed, so the setup page can continue without the person working out what happened.
+         * @summary Read the local passkey repair state
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getLocalSetupStatus: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getLocalPasskeyRepair: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/local/repair`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and learns whether the setup page it opened asked for a repair, so it can ask the person at the terminal.
+         * @summary Read a pending local passkey repair request
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalPasskeyRepairRequest: async (xHeyHeyLocalSecret: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'xHeyHeyLocalSecret' is not null or undefined
+            assertParamExists('getLocalPasskeyRepairRequest', 'xHeyHeyLocalSecret', xHeyHeyLocalSecret)
+            const localVarPath = `/auth/local/repair/request`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+
+            if (xHeyHeyLocalSecret != null) {
+                localVarHeaderParameter['X-HeyHey-Local-Secret'] = String(xHeyHeyLocalSecret);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {string} [enrollmentId] Follow this account\&#39;s exact pairing. Connection and execution facts are scoped to its machine; an unrelated connected machine cannot complete this setup.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalSetupStatus: async (enrollmentId?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/auth/local/status`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -326,6 +443,10 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (enrollmentId !== undefined) {
+                localVarQueryParameter['enrollmentId'] = enrollmentId;
+            }
 
 
 
@@ -713,6 +834,40 @@ export const AuthApiAxiosParamCreator = function (configuration?: Configuration)
             };
         },
         /**
+         * Local-deployment-only. Accepted only from the setup session the CLI opened on this computer, for a local account whose existing passkey cannot be used. It changes nothing by itself: the person must confirm at the terminal before any passkey is revoked.
+         * @summary Ask to repair the local account passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        requestLocalPasskeyRepair: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/auth/local/repair`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
          * @summary Save local account display name
          * @param {LocalNameRequestDto} localNameRequestDto
@@ -1065,6 +1220,20 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and reports what the person answered at the terminal. Approval revokes every live passkey of the local account with its controller credentials, execution grants and browser bindings, and ends every browser session except the setup session that asked, which may then enroll a new first passkey. No user data is deleted.
+         * @summary Record the terminal decision on a local passkey repair
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {LocalPasskeyRepairDecisionRequestDto} localPasskeyRepairDecisionRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async decideLocalPasskeyRepair(xHeyHeyLocalSecret: string, localPasskeyRepairDecisionRequestDto: LocalPasskeyRepairDecisionRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetLocalPasskeyRepair200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.decideLocalPasskeyRepair(xHeyHeyLocalSecret, localPasskeyRepairDecisionRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.decideLocalPasskeyRepair']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -1089,13 +1258,39 @@ export const AuthApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
-         * @summary Read local account and machine status
+         * Local-deployment-only. Reports whether this account\'s passkey repair was requested, declined at the terminal or completed, so the setup page can continue without the person working out what happened.
+         * @summary Read the local passkey repair state
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getLocalSetupStatus(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveLocalDisplayName200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getLocalSetupStatus(options);
+        async getLocalPasskeyRepair(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetLocalPasskeyRepair200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getLocalPasskeyRepair(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.getLocalPasskeyRepair']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and learns whether the setup page it opened asked for a repair, so it can ask the person at the terminal.
+         * @summary Read a pending local passkey repair request
+         * @param {string} xHeyHeyLocalSecret Installation secret held by the local CLI.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getLocalPasskeyRepairRequest(xHeyHeyLocalSecret: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetLocalPasskeyRepair200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getLocalPasskeyRepairRequest(xHeyHeyLocalSecret, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.getLocalPasskeyRepairRequest']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {string} [enrollmentId] Follow this account\&#39;s exact pairing. Connection and execution facts are scoped to its machine; an unrelated connected machine cannot complete this setup.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getLocalSetupStatus(enrollmentId?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SaveLocalDisplayName200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getLocalSetupStatus(enrollmentId, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuthApi.getLocalSetupStatus']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -1228,6 +1423,18 @@ export const AuthApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.renameAccountPasskey(passkeyId, accountPasskeyRenameDto, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuthApi.renameAccountPasskey']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Local-deployment-only. Accepted only from the setup session the CLI opened on this computer, for a local account whose existing passkey cannot be used. It changes nothing by itself: the person must confirm at the terminal before any passkey is revoked.
+         * @summary Ask to repair the local account passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async requestLocalPasskeyRepair(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetLocalPasskeyRepair200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.requestLocalPasskeyRepair(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AuthApi.requestLocalPasskeyRepair']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -1382,6 +1589,16 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.completeLocalHandoff(requestParameters.localHandoffRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and reports what the person answered at the terminal. Approval revokes every live passkey of the local account with its controller credentials, execution grants and browser bindings, and ends every browser session except the setup session that asked, which may then enroll a new first passkey. No user data is deleted.
+         * @summary Record the terminal decision on a local passkey repair
+         * @param {AuthApiDecideLocalPasskeyRepairRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        decideLocalPasskeyRepair(requestParameters: AuthApiDecideLocalPasskeyRepairRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response> {
+            return localVarFp.decideLocalPasskeyRepair(requestParameters.xHeyHeyLocalSecret, requestParameters.localPasskeyRepairDecisionRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
          * @summary Read the explicit account organization default
          * @param {*} [options] Override http request option.
@@ -1400,13 +1617,33 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
             return localVarFp.getJwks(options).then((request) => request(axios, basePath));
         },
         /**
-         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
-         * @summary Read local account and machine status
+         * Local-deployment-only. Reports whether this account\'s passkey repair was requested, declined at the terminal or completed, so the setup page can continue without the person working out what happened.
+         * @summary Read the local passkey repair state
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getLocalSetupStatus(options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response> {
-            return localVarFp.getLocalSetupStatus(options).then((request) => request(axios, basePath));
+        getLocalPasskeyRepair(options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response> {
+            return localVarFp.getLocalPasskeyRepair(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Local-deployment-only machine operation. The CLI proves authority with its installation secret and learns whether the setup page it opened asked for a repair, so it can ask the person at the terminal.
+         * @summary Read a pending local passkey repair request
+         * @param {AuthApiGetLocalPasskeyRepairRequestRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalPasskeyRepairRequest(requestParameters: AuthApiGetLocalPasskeyRepairRequestRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response> {
+            return localVarFp.getLocalPasskeyRepairRequest(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+         * @summary Read local account and machine status
+         * @param {AuthApiGetLocalSetupStatusRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getLocalSetupStatus(requestParameters: AuthApiGetLocalSetupStatusRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response> {
+            return localVarFp.getLocalSetupStatus(requestParameters.enrollmentId, options).then((request) => request(axios, basePath));
         },
         /**
          * Accepts a syntactically valid email and always returns the same acknowledgement without disclosing account eligibility, throttling state, or email-adapter outcome.
@@ -1505,6 +1742,15 @@ export const AuthApiFactory = function (configuration?: Configuration, basePath?
          */
         renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<RenameAccountPasskey200Response> {
             return localVarFp.renameAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRenameDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Local-deployment-only. Accepted only from the setup session the CLI opened on this computer, for a local account whose existing passkey cannot be used. It changes nothing by itself: the person must confirm at the terminal before any passkey is revoked.
+         * @summary Ask to repair the local account passkey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        requestLocalPasskeyRepair(options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response> {
+            return localVarFp.requestLocalPasskeyRepair(options).then((request) => request(axios, basePath));
         },
         /**
          * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
@@ -1633,6 +1879,16 @@ export interface AuthApiInterface {
     completeLocalHandoff(requestParameters: AuthApiCompleteLocalHandoffRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompleteLocalHandoff200Response>;
 
     /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and reports what the person answered at the terminal. Approval revokes every live passkey of the local account with its controller credentials, execution grants and browser bindings, and ends every browser session except the setup session that asked, which may then enroll a new first passkey. No user data is deleted.
+     * @summary Record the terminal decision on a local passkey repair
+     * @param {AuthApiDecideLocalPasskeyRepairRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    decideLocalPasskeyRepair(requestParameters: AuthApiDecideLocalPasskeyRepairRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response>;
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Read the explicit account organization default
      * @param {*} [options] Override http request option.
@@ -1651,13 +1907,33 @@ export interface AuthApiInterface {
     getJwks(options?: RawAxiosRequestConfig): AxiosPromise<GetJwks200Response>;
 
     /**
-     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
-     * @summary Read local account and machine status
+     * Local-deployment-only. Reports whether this account\'s passkey repair was requested, declined at the terminal or completed, so the setup page can continue without the person working out what happened.
+     * @summary Read the local passkey repair state
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof AuthApiInterface
      */
-    getLocalSetupStatus(options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response>;
+    getLocalPasskeyRepair(options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response>;
+
+    /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and learns whether the setup page it opened asked for a repair, so it can ask the person at the terminal.
+     * @summary Read a pending local passkey repair request
+     * @param {AuthApiGetLocalPasskeyRepairRequestRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    getLocalPasskeyRepairRequest(requestParameters: AuthApiGetLocalPasskeyRepairRequestRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response>;
+
+    /**
+     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+     * @summary Read local account and machine status
+     * @param {AuthApiGetLocalSetupStatusRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    getLocalSetupStatus(requestParameters?: AuthApiGetLocalSetupStatusRequest, options?: RawAxiosRequestConfig): AxiosPromise<SaveLocalDisplayName200Response>;
 
     /**
      * Accepts a syntactically valid email and always returns the same acknowledgement without disclosing account eligibility, throttling state, or email-adapter outcome.
@@ -1756,6 +2032,15 @@ export interface AuthApiInterface {
      * @memberof AuthApiInterface
      */
     renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig): AxiosPromise<RenameAccountPasskey200Response>;
+
+    /**
+     * Local-deployment-only. Accepted only from the setup session the CLI opened on this computer, for a local account whose existing passkey cannot be used. It changes nothing by itself: the person must confirm at the terminal before any passkey is revoked.
+     * @summary Ask to repair the local account passkey
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApiInterface
+     */
+    requestLocalPasskeyRepair(options?: RawAxiosRequestConfig): AxiosPromise<GetLocalPasskeyRepair200Response>;
 
     /**
      * Saves the display name on the automatically created local user. This is personalization only and does not authenticate or authorize the caller.
@@ -1890,6 +2175,55 @@ export interface AuthApiCompleteLocalHandoffRequest {
      * @memberof AuthApiCompleteLocalHandoff
      */
     readonly localHandoffRequestDto: LocalHandoffRequestDto
+}
+
+/**
+ * Request parameters for decideLocalPasskeyRepair operation in AuthApi.
+ * @export
+ * @interface AuthApiDecideLocalPasskeyRepairRequest
+ */
+export interface AuthApiDecideLocalPasskeyRepairRequest {
+    /**
+     * Installation secret held by the local CLI.
+     * @type {string}
+     * @memberof AuthApiDecideLocalPasskeyRepair
+     */
+    readonly xHeyHeyLocalSecret: string
+
+    /**
+     *
+     * @type {LocalPasskeyRepairDecisionRequestDto}
+     * @memberof AuthApiDecideLocalPasskeyRepair
+     */
+    readonly localPasskeyRepairDecisionRequestDto: LocalPasskeyRepairDecisionRequestDto
+}
+
+/**
+ * Request parameters for getLocalPasskeyRepairRequest operation in AuthApi.
+ * @export
+ * @interface AuthApiGetLocalPasskeyRepairRequestRequest
+ */
+export interface AuthApiGetLocalPasskeyRepairRequestRequest {
+    /**
+     * Installation secret held by the local CLI.
+     * @type {string}
+     * @memberof AuthApiGetLocalPasskeyRepairRequest
+     */
+    readonly xHeyHeyLocalSecret: string
+}
+
+/**
+ * Request parameters for getLocalSetupStatus operation in AuthApi.
+ * @export
+ * @interface AuthApiGetLocalSetupStatusRequest
+ */
+export interface AuthApiGetLocalSetupStatusRequest {
+    /**
+     * Follow this account\&#39;s exact pairing. Connection and execution facts are scoped to its machine; an unrelated connected machine cannot complete this setup.
+     * @type {string}
+     * @memberof AuthApiGetLocalSetupStatus
+     */
+    readonly enrollmentId?: string
 }
 
 /**
@@ -2144,6 +2478,18 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and reports what the person answered at the terminal. Approval revokes every live passkey of the local account with its controller credentials, execution grants and browser bindings, and ends every browser session except the setup session that asked, which may then enroll a new first passkey. No user data is deleted.
+     * @summary Record the terminal decision on a local passkey repair
+     * @param {AuthApiDecideLocalPasskeyRepairRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public decideLocalPasskeyRepair(requestParameters: AuthApiDecideLocalPasskeyRepairRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).decideLocalPasskeyRepair(requestParameters.xHeyHeyLocalSecret, requestParameters.localPasskeyRepairDecisionRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Requires a valid browser access session. Saving requires the exact confirmed organization, current membership and entitlement. Switching and renewal never modify this preference.
      * @summary Read the explicit account organization default
      * @param {*} [options] Override http request option.
@@ -2166,14 +2512,38 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
     }
 
     /**
-     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
-     * @summary Read local account and machine status
+     * Local-deployment-only. Reports whether this account\'s passkey repair was requested, declined at the terminal or completed, so the setup page can continue without the person working out what happened.
+     * @summary Read the local passkey repair state
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof AuthApi
      */
-    public getLocalSetupStatus(options?: RawAxiosRequestConfig) {
-        return AuthApiFp(this.configuration).getLocalSetupStatus(options).then((request) => request(this.axios, this.basePath));
+    public getLocalPasskeyRepair(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).getLocalPasskeyRepair(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Local-deployment-only machine operation. The CLI proves authority with its installation secret and learns whether the setup page it opened asked for a repair, so it can ask the person at the terminal.
+     * @summary Read a pending local passkey repair request
+     * @param {AuthApiGetLocalPasskeyRepairRequestRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public getLocalPasskeyRepairRequest(requestParameters: AuthApiGetLocalPasskeyRepairRequestRequest, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).getLocalPasskeyRepairRequest(requestParameters.xHeyHeyLocalSecret, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns separate observed facts for display-name completion, browser session, live machine connection and controller-ready execution. A connected machine alone does not authorize host actions.
+     * @summary Read local account and machine status
+     * @param {AuthApiGetLocalSetupStatusRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public getLocalSetupStatus(requestParameters: AuthApiGetLocalSetupStatusRequest = {}, options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).getLocalSetupStatus(requestParameters.enrollmentId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -2292,6 +2662,17 @@ export class AuthApi extends BaseAPI implements AuthApiInterface {
      */
     public renameAccountPasskey(requestParameters: AuthApiRenameAccountPasskeyRequest, options?: RawAxiosRequestConfig) {
         return AuthApiFp(this.configuration).renameAccountPasskey(requestParameters.passkeyId, requestParameters.accountPasskeyRenameDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Local-deployment-only. Accepted only from the setup session the CLI opened on this computer, for a local account whose existing passkey cannot be used. It changes nothing by itself: the person must confirm at the terminal before any passkey is revoked.
+     * @summary Ask to repair the local account passkey
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AuthApi
+     */
+    public requestLocalPasskeyRepair(options?: RawAxiosRequestConfig) {
+        return AuthApiFp(this.configuration).requestLocalPasskeyRepair(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

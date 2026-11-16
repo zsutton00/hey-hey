@@ -18,9 +18,35 @@ import { RedisService } from '../core/redis/redis.service';
 import { isLocalApplication } from '../deployment-environment';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationService } from '../services/organization.service';
+import type { PendingMachineEnrollment } from '@prisma/client';
 import { UserService } from '../services/user.service';
 import { LocalDefaultProjectService } from '../services/local-default-project.service';
 import { LocalFirstPasskeyAuthority } from './local-first-passkey-authority';
+
+/** A completed activation stays active after its original enrollment deadline. */
+function localPairingState(
+  enrollment: Pick<PendingMachineEnrollment, 'state' | 'expiresAt'> | null,
+): NonNullable<LocalSetupStatusDto['pairingState']> {
+  if (!enrollment) {
+    return 'UNAVAILABLE';
+  }
+  if (enrollment.state === 'ACTIVE') {
+    return 'ACTIVE';
+  }
+  if (enrollment.state === 'REJECTED') {
+    return 'REJECTED';
+  }
+  if (
+    enrollment.state === 'EXPIRED' ||
+    enrollment.expiresAt.getTime() <= Date.now()
+  ) {
+    return 'EXPIRED';
+  }
+  if (enrollment.state === 'CONSUMED') {
+    return 'UNAVAILABLE';
+  }
+  return 'WAITING';
+}
 
 /** Local installation account access: bootstrap, CLI handoff and setup status. */
 @Injectable()
@@ -49,8 +75,30 @@ export class LocalAccessService {
     await this.redisService
       .getClient()
       .set(handoffKey, user.id, 'EX', 120, 'NX');
-    this.logger.log('Local browser handoff issued', { userId: user.id });
-    return { handoffToken, expiresInSeconds: 120 };
+    const livePasskeys = await this.prisma.db.accountPasskey.count({
+      where: { userId: user.id, revokedAt: null },
+    });
+    this.logger.log('Local browser handoff issued', {
+      userId: user.id,
+      livePasskeys,
+    });
+
+    return {
+      handoffToken,
+      expiresInSeconds: 120,
+      accountHasPasskey: livePasskeys > 0,
+    };
+  }
+
+  /** The local account the installation secret speaks for. */
+  async localAccountUserId(
+    installationSecret: string | undefined,
+  ): Promise<UserId> {
+    this.assertLocalInstallationSecret(installationSecret);
+    const user =
+      await this.userService.createLocalBootstrapUser(installationSecret);
+
+    return user.id as UserId;
   }
 
   async issueLocalCliCredentials(
@@ -110,22 +158,46 @@ export class LocalAccessService {
     return this.getLocalStatus(userId);
   }
 
-  async getLocalStatus(userId: UserId): Promise<LocalSetupStatusDto> {
+  async getLocalStatus(
+    userId: UserId,
+    enrollmentId?: string,
+  ): Promise<LocalSetupStatusDto> {
     this.assertLocalApplication();
     const user = await this.userService.findForAuthentication(userId);
     if (!user || !isLocalAccountEmail(user.email)) {
       throw new UnauthorizedException('Local account is unavailable');
     }
-    const machines = await this.prisma.db.machine.findMany({
-      where: { userId, revokedAt: null },
-      select: {
-        id: true,
-        authorizationProtocolVersion: true,
-        authorizationState: true,
-        controllerCredentials: { select: { revokedAt: true } },
-      },
-    });
     const organizationId = await this.localOrganizationId(userId);
+    const enrollment = enrollmentId
+      ? await this.prisma.db.pendingMachineEnrollment.findFirst({
+          where: {
+            id: enrollmentId,
+            claimantUserId: userId,
+            claimantOrganizationId: organizationId,
+          },
+          select: { machineId: true, state: true, expiresAt: true },
+        })
+      : null;
+    const pairingState = enrollmentId
+      ? localPairingState(enrollment)
+      : undefined;
+    const machines =
+      enrollmentId && !enrollment
+        ? []
+        : await this.prisma.db.machine.findMany({
+            where: {
+              userId,
+              organizationId,
+              revokedAt: null,
+              ...(enrollment ? { id: enrollment.machineId } : {}),
+            },
+            select: {
+              id: true,
+              authorizationProtocolVersion: true,
+              authorizationState: true,
+              controllerCredentials: { select: { revokedAt: true } },
+            },
+          });
     const hasProjects =
       (await this.localDefaultProjectService.findDefault(organizationId)) !==
       null;
@@ -139,21 +211,25 @@ export class LocalAccessService {
           .then((count) => count === 1),
       ),
     );
-    const machineConnected = connected.some(Boolean);
-    const executionReady = machines.some(
-      (machine, index) =>
-        connected[index] === true &&
-        machine.authorizationProtocolVersion === 2 &&
-        machine.authorizationState === 'READY' &&
-        machine.controllerCredentials.some(
-          (credential) => !credential.revokedAt,
-        ),
-    );
+    const machineConnected =
+      connected.some(Boolean) && (!enrollmentId || pairingState === 'ACTIVE');
+    const executionReady =
+      machineConnected &&
+      machines.some(
+        (machine, index) =>
+          connected[index] === true &&
+          machine.authorizationProtocolVersion === 2 &&
+          machine.authorizationState === 'READY' &&
+          machine.controllerCredentials.some(
+            (credential) => !credential.revokedAt,
+          ),
+      );
     return {
       nameComplete: user.name.trim().length > 0,
       browserSession: true,
       machineConnected,
       executionReady,
+      ...(pairingState ? { pairingState } : {}),
       hasProjects,
       setupProjectId,
     } satisfies LocalSetupStatusDto;

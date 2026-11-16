@@ -22,7 +22,7 @@ import {
 import { formatUserIdentity, useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
   acceptBrowserAuthResponse,
-  listAccountPasskeys,
+  PasskeyUnsupportedError,
   requestRegistrationProof,
   type AccountProofInput,
 } from "@hey-hey/ui-common/services";
@@ -94,7 +94,18 @@ interface ClaimMachineProps {
   /** First-time `heyhey local` only: coding agents the CLI found on this computer. */
   localAgents?: LocalCodingAgentDetectionDto | null;
   /** First-time `heyhey local` only: the passkey is created and the CLI is finishing. */
-  onLocalPasskeyCreated?: () => void;
+  onLocalPasskeyCreated?: (enrollmentId: string) => void;
+  /**
+   * Local setup on a computer whose account already has a passkey: the claim
+   * is proven with that passkey instead of skipping account proof.
+   */
+  localReturning?: boolean;
+  /** Local setup only: the existing passkey could not be produced in this browser. */
+  onLocalPasskeyUnavailable?: () => void;
+  /** Local setup only: the API refused a proofless passkey because one already exists. */
+  onLocalAccountProofRequired?: () => void;
+  /** Local setup only: the Repair explanation and action, when offered. */
+  localRepair?: React.ReactNode;
 }
 
 const PAIRING_STEPS: ReadonlyArray<{ id: PairingStepId; label: string }> = [
@@ -194,6 +205,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   localApprovalSecret = null,
   localAgents = null,
   onLocalPasskeyCreated,
+  localReturning = false,
+  onLocalPasskeyUnavailable,
+  onLocalAccountProofRequired,
+  localRepair = null,
 }) => {
   const { t } = useTranslation();
   const identity = useUserIdentity();
@@ -205,7 +220,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const [initialJourney] = useState(() => initializeClaimJourney(initialCode));
   const [state, setState] = useState<ClaimViewState>(initialJourney.state);
   const [code, setCode] = useState(initialJourney.code);
-  const localHandoff = localApprovalSecret !== null;
+  const firstUseSharedNew = enrollment === "first-use-shared-new";
+  // The local setup page, whether the CLI approves by secret or at the terminal.
+  const localHandoff = localApprovalSecret !== null || firstUseSharedNew;
   const [machineName, setMachineName] = useState(
     localHandoff ? LOCAL_MACHINE_NAME : "",
   );
@@ -236,8 +253,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const firstLocalGrantRequest = (
     cadence: ControllerDeviceGrantCadence,
   ): { firstLocalGrant?: { cadence: ControllerDeviceGrantCadence } } =>
-    localHandoff ? { firstLocalGrant: { cadence } } : {};
-  const firstUseSharedNew = enrollment === "first-use-shared-new";
+    localApprovalSecret !== null ? { firstLocalGrant: { cadence } } : {};
   const abandonClaim = useAbandonMachineEnrollmentClaim();
   const beginClaim = useBeginMachineEnrollmentClaim();
   const completeClaim = useCompleteMachineEnrollmentClaim();
@@ -348,10 +364,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   }, [completion, pairedMachines, refetchPairedMachines, state]);
 
   useEffect(() => {
-    if (localHandoff && state === "awaiting-local-confirmation") {
-      onLocalPasskeyCreated?.();
+    if (localHandoff && state === "awaiting-local-confirmation" && completion) {
+      onLocalPasskeyCreated?.(completion.enrollmentId);
     }
-  }, [localHandoff, onLocalPasskeyCreated, state]);
+  }, [localHandoff, onLocalPasskeyCreated, state, completion]);
 
   const clearClaim = (): void => {
     setCode("");
@@ -557,8 +573,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       );
     }
 
-    const existingPasskeys = await listAccountPasskeys();
-    if (existingPasskeys.length === 0) {
+    if (!localReturning) {
       return undefined;
     }
 
@@ -607,6 +622,12 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         if (activeAttemptRevision !== attemptRevision.current) return;
       } catch (error) {
         if (activeAttemptRevision !== attemptRevision.current) return;
+        if (firstUseSharedNew && !(error instanceof PasskeyUnsupportedError)) {
+          // The existing passkey isn't available here; the parent offers Repair.
+          onLocalPasskeyUnavailable?.();
+          setState("review");
+          return;
+        }
         setPasskeyRetryMessage(
           error instanceof Error
             ? error.message
@@ -692,6 +713,12 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           ? error.message
           : "Unable to claim this enrollment.";
       if (error instanceof MachineEnrollmentClaimError && error.code !== null) {
+        if (
+          error.code ===
+          MachineEnrollmentClaimFailureCode.MachineEnrollmentAccountProofRequired
+        ) {
+          onLocalAccountProofRequired?.();
+        }
         setPasskeyRetryMessage(authoritativeMessage);
         setState("review");
         return;
@@ -995,6 +1022,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           ready={claim !== null && state !== "code-entry"}
           busy={state === "passkey-in-progress"}
           retryMessage={passkeyRetryMessage}
+          returning={localReturning}
+          grantsAccess={localApprovalSecret !== null}
+          repair={localRepair}
           cadence={localGrantCadence}
           onCadenceChange={handleLocalGrantCadenceChange}
           onCreatePasskey={() => void handleCreatePasskey()}
