@@ -233,6 +233,33 @@ const waitForFile = async (filePath) => {
 const makeSandbox = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), "contracts-coordinator-test-"));
 
+test("Node version changes preserve verification and reuse generated outputs", async (t) => {
+  const fixture = createFixture(t, makeSandbox());
+  const initial = await runCoordinator(fixture, ["--target=fixture"]);
+  assert.equal(initial.code, 0, initial.output);
+
+  const versionHook = path.join(fixture.root, "node-version.cjs");
+  fs.writeFileSync(
+    versionHook,
+    'Object.defineProperty(process, "version", { value: "v24.16.0" });\n',
+  );
+  const environment = { NODE_OPTIONS: `--require=${versionHook}` };
+  const verified = await runCoordinator(
+    fixture,
+    ["--verify", "--target=fixture"],
+    environment,
+  );
+  assert.equal(verified.code, 0, verified.output);
+
+  const reused = await runCoordinator(
+    fixture,
+    ["--target=fixture"],
+    environment,
+  );
+  assert.equal(reused.code, 0, reused.output);
+  assert.equal(readInvocationCount(fixture), 1);
+});
+
 test("termination before writing ownership does not strand the host lock", async (t) => {
   const fixture = createFixture(t, makeSandbox());
   const crashHook = path.join(fixture.root, "crash-before-owner.cjs");
