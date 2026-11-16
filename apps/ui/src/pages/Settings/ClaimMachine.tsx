@@ -22,6 +22,7 @@ import {
 import { formatUserIdentity, useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
   acceptBrowserAuthResponse,
+  listAccountPasskeys,
   requestRegistrationProof,
   type AccountProofInput,
 } from "@hey-hey/ui-common/services";
@@ -543,6 +544,27 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     }
   };
 
+  /**
+   * Only an account's very first passkey may skip account proof. Local setup
+   * re-pairing an account that already has one proves with that passkey.
+   */
+  const sharedSignInProof = async (): Promise<AccountProofDto | undefined> => {
+    if (!firstUseSharedNew) {
+      return requestRegistrationProof(
+        signInProofKind === "password"
+          ? { kind: "password", currentPassword: signInProofPassword }
+          : { kind: "passkey" },
+      );
+    }
+
+    const existingPasskeys = await listAccountPasskeys();
+    if (existingPasskeys.length === 0) {
+      return undefined;
+    }
+
+    return requestRegistrationProof({ kind: "passkey" });
+  };
+
   const handleCreatePasskey = async (): Promise<void> => {
     if (
       !claim ||
@@ -565,21 +587,23 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
     const sharedForSignIn =
       claim.enrollmentMode === MachineEnrollmentMode.SharedNew;
+    if (
+      sharedForSignIn &&
+      !firstUseSharedNew &&
+      signInProofKind === "password" &&
+      signInProofPassword === ""
+    ) {
+      setPasskeyRetryMessage(
+        "Enter your account password, or choose an existing passkey, to also use this passkey for sign-in.",
+      );
+      return;
+    }
+
     let accountProof: AccountProofDto | undefined;
-    if (sharedForSignIn && !firstUseSharedNew) {
-      if (signInProofKind === "password" && signInProofPassword === "") {
-        setPasskeyRetryMessage(
-          "Enter your account password, or choose an existing passkey, to also use this passkey for sign-in.",
-        );
-        return;
-      }
+    if (sharedForSignIn) {
       setState("passkey-in-progress");
       try {
-        accountProof = await requestRegistrationProof(
-          signInProofKind === "password"
-            ? { kind: "password", currentPassword: signInProofPassword }
-            : { kind: "passkey" },
-        );
+        accountProof = await sharedSignInProof();
         if (activeAttemptRevision !== attemptRevision.current) return;
       } catch (error) {
         if (activeAttemptRevision !== attemptRevision.current) return;

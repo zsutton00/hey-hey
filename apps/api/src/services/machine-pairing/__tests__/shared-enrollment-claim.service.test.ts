@@ -143,7 +143,7 @@ describe('SharedEnrollmentClaimService', () => {
       USER_ID,
       '192.0.2.1',
       enrollment.id,
-      'shared_registration_rejected',
+      'shared_registration_account_proof_rejected',
       true,
       'MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE',
     );

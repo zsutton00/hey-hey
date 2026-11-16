@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   createCredential: vi.fn(),
   refetchMachines: vi.fn(),
   requestProof: vi.fn(),
+  listPasskeys: vi.fn(),
   acceptSession: vi.fn(),
 }));
 
@@ -89,6 +90,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
 vi.mock("@hey-hey/ui-common/services", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/services")>()),
   requestRegistrationProof: mocks.requestProof,
+  listAccountPasskeys: mocks.listPasskeys,
   acceptBrowserAuthResponse: mocks.acceptSession,
 }));
 
@@ -226,6 +228,7 @@ describe("ClaimMachine", () => {
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
     mocks.beginMutate.mockResolvedValue(beginResult);
+    mocks.listPasskeys.mockResolvedValue([]);
     mocks.abandonMutate.mockResolvedValue({
       enrollmentId: "enrollment-1",
       state: "rejected",
@@ -820,6 +823,39 @@ describe("ClaimMachine", () => {
       "accountProof",
     );
     expect(mocks.acceptSession).toHaveBeenCalledWith(session);
+  });
+
+  it("local re-pairing proves with the existing passkey when the account already has one", async () => {
+    const secret = Buffer.alloc(32, 7).toString("base64url");
+    const accountProof = { passkeyAssertion: { id: "existing-passkey" } };
+    mocks.listPasskeys.mockResolvedValue([{ id: "passkey-1" }]);
+    mocks.requestProof.mockResolvedValue(accountProof);
+    mocks.beginMutate.mockResolvedValue({
+      ...beginResult,
+      enrollmentMode: "SHARED_NEW",
+    });
+    mocks.completeMutate.mockResolvedValue({
+      ...completeResult,
+      session: { accessToken: "fresh" },
+    });
+    render(
+      <ClaimMachine
+        initialCode="BCDFG-HJKLM"
+        localApprovalSecret={secret}
+        enrollment="first-use-shared-new"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("local-pairing-create-passkey")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId("local-pairing-create-passkey"));
+
+    await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalled());
+    expect(mocks.requestProof).toHaveBeenCalledWith({ kind: "passkey" });
+    expect(mocks.completeMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ accountProof }),
+    );
   });
 
   it("shows the awaiting-local-confirmation result without treating the machine as active", async () => {

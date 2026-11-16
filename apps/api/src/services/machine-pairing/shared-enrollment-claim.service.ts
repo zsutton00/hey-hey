@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   Injectable,
   UnauthorizedException,
@@ -20,6 +21,20 @@ import {
   MachineEnrollmentClaimService,
   OrganizationMembership,
 } from './machine-enrollment-claim.service';
+
+/**
+ * The log reason names which rule refused the shared passkey, so a rejected
+ * pairing is diagnosable from its log line alone.
+ */
+const sharedRegistrationRejectionReason = (error: HttpException): string => {
+  if (error instanceof UnauthorizedException) {
+    return 'shared_registration_account_proof_rejected';
+  }
+  if (error instanceof BadRequestException) {
+    return 'shared_registration_passkey_already_registered';
+  }
+  return `shared_registration_rejected_http_${String(error.getStatus())}`;
+};
 
 export interface SharedClaimCompletion {
   response: CompleteMachineEnrollmentClaimResponseDto;
@@ -100,7 +115,7 @@ export class SharedEnrollmentClaimService {
           userId,
           sourceAddress,
           enrollment.id,
-          'shared_registration_rejected',
+          sharedRegistrationRejectionReason(error),
           error instanceof UnauthorizedException,
           MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE,
         );
