@@ -1213,6 +1213,8 @@ export * from './feature-sync-analyze-action-schemas-readinessreviewrequired.js'
 export * from './feature-sync-analyze-action-schemas-readinessreviewrequiredall-of.js';
 export * from './feature-sync-analyze-prompt-payload.js';
 export * from './feature-sync-context-dto.js';
+export * from './feature-sync-decision-affected-entity.js';
+export * from './feature-sync-decision-affected-entity-all-of.js';
 export * from './feature-sync-decision-choice.js';
 export * from './feature-sync-decision-group.js';
 export * from './feature-sync-decision-report-payload.js';

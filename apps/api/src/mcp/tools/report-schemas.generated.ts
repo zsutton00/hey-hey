@@ -3066,7 +3066,7 @@ export const REPORT_SCHEMAS = {
                   items: {
                     type: 'object',
                     description:
-                      'One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence.\n',
+                      "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity's optional reason is display-only: it plays no part in group identity, target uniqueness or the user's response.\n",
                     required: [
                       'id',
                       'affectedEntities',
@@ -3083,28 +3083,45 @@ export const REPORT_SCHEMAS = {
                         type: 'array',
                         minItems: 1,
                         items: {
-                          type: 'object',
                           description:
-                            'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
-                          required: ['entityType', 'entityId', 'title'],
-                          properties: {
-                            entityType: {
-                              type: 'string',
+                            'An entity a V2 decision group affects: the source reference plus an optional one-line reason saying why the decision affects it. Display-only.\n',
+                          allOf: [
+                            {
+                              type: 'object',
                               description:
-                                'Kind of entity a FEATURE_SYNC discrepancy row points at.',
-                              enum: ['feature', 'task'],
+                                'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
+                              required: ['entityType', 'entityId', 'title'],
+                              properties: {
+                                entityType: {
+                                  type: 'string',
+                                  description:
+                                    'Kind of entity a FEATURE_SYNC discrepancy row points at.',
+                                  enum: ['feature', 'task'],
+                                },
+                                entityId: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                title: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'Human-readable title of the referenced entity (the `|title` half of the mention).',
+                                },
+                              },
                             },
-                            entityId: {
-                              type: 'string',
-                              minLength: 1,
+                            {
+                              type: 'object',
+                              properties: {
+                                reason: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'One-line, display-only explanation of why the decision affects this entity.\n',
+                                },
+                              },
                             },
-                            title: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Human-readable title of the referenced entity (the `|title` half of the mention).',
-                            },
-                          },
+                          ],
                         },
                       },
                       title: {
