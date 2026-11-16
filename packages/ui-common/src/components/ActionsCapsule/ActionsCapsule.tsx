@@ -1,3 +1,4 @@
+import { CapsuleScreenButtonControl } from "./CapsuleScreenButtonControl";
 import CloseIcon from "@mui/icons-material/Close";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -100,6 +101,7 @@ const dividerSx = {
 export const ActionsCapsule: React.FC = () => {
   const {
     actions,
+    screenButtons,
     activeActionId,
     activeMenuItemId,
     isFullSize,
@@ -301,7 +303,12 @@ export const ActionsCapsule: React.FC = () => {
             <Box
               data-testid="capsule-mobile-grid"
               sx={{
-                display: "grid",
+                display: screenButtons.length > 0 ? "flex" : "grid",
+                flexWrap: "wrap",
+                ...(screenButtons.length > 0 && {
+                  width: 272,
+                  boxSizing: "border-box",
+                }),
                 gridTemplateColumns: "repeat(3, minmax(72px, auto))",
                 justifyItems: "center",
                 alignItems: "start",
@@ -309,27 +316,66 @@ export const ActionsCapsule: React.FC = () => {
                 p: 1.5,
               }}
             >
-              {sortedActions.map((action, idx) => (
-                <CapsuleActionButton
-                  key={action.id}
-                  action={action}
-                  idx={idx}
-                  isActive={action.id === activeActionId}
-                  inProgress={action.inProgress}
-                  isAnyExpanded={false}
-                  gridCell
+              {screenButtons.map((button) => (
+                <CapsuleScreenButtonControl
+                  key={button.key}
+                  button={button}
                   onClick={() => {
                     closeMobileMenu();
-                    handleActionClick(action);
+                    button.onClick();
                   }}
                 />
               ))}
+              {sortedActions.map((action, idx) => (
+                <Box
+                  key={action.id}
+                  sx={{
+                    display: screenButtons.length > 0 ? "flex" : "contents",
+                    alignItems: "flex-start",
+                    gap: 1,
+                  }}
+                >
+                  {idx === 0 && screenButtons.length > 0 && (
+                    <Box
+                      role="separator"
+                      aria-orientation="vertical"
+                      data-testid="capsule-screen-divider"
+                      sx={{
+                        width: "1px",
+                        height: 32,
+                        bgcolor: "divider",
+                        mt: 1,
+                      }}
+                    />
+                  )}
+                  <CapsuleActionButton
+                    key={action.id}
+                    action={action}
+                    idx={idx}
+                    isActive={action.id === activeActionId}
+                    inProgress={action.inProgress}
+                    isAnyExpanded={false}
+                    gridCell
+                    onClick={() => {
+                      closeMobileMenu();
+                      handleActionClick(action);
+                    }}
+                  />
+                </Box>
+              ))}
+              {screenButtons.length > 0 && (
+                <Box sx={{ flexBasis: "100%", height: 0 }} />
+              )}
               <IconButton
                 onClick={closeMobileMenu}
                 data-testid="capsule-toggle"
                 aria-label="Close actions"
                 aria-expanded
                 sx={{
+                  ...(screenButtons.length > 0 && {
+                    marginLeft: isBottomRightAnchor ? "auto" : 0,
+                    marginRight: isBottomRightAnchor ? 0 : "auto",
+                  }),
                   gridColumn: isBottomRightAnchor ? 3 : 1,
                   alignSelf: "end",
                   width: 44,
@@ -486,6 +532,20 @@ export const ActionsCapsule: React.FC = () => {
             position: "relative",
           }}
         >
+          {screenButtons.map((button) => (
+            <CapsuleScreenButtonControl
+              key={button.key}
+              button={button}
+              onClick={button.onClick}
+            />
+          ))}
+          {screenButtons.length > 0 && (
+            <Box
+              role="separator"
+              data-testid="capsule-screen-divider"
+              sx={dividerSx}
+            />
+          )}
           {scrollableActions.map((action, localIdx) => {
             const globalIdx = sortedActions.findIndex(
               (a) => a.id === action.id,

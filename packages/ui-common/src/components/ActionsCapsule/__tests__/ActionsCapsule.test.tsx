@@ -1,7 +1,14 @@
+import { useCapsuleScreenButton } from "../useCapsuleScreenButton";
 import React, { useEffect } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
@@ -544,3 +551,125 @@ describe("ActionsCapsule", () => {
     ).toBeInTheDocument();
   });
 });
+
+const ScreenRegistrar = ({
+  count,
+  onClick,
+}: {
+  count: string;
+  onClick: () => void;
+}) => {
+  useCapsuleScreenButton({
+    key: "search",
+    label: "TM",
+    accessibleName: "Open monitor",
+    onClick,
+    status: { state: "running", text: count },
+  });
+  useCapsuleScreenButton({
+    key: "other",
+    label: "Q",
+    accessibleName: "Open queue",
+    onClick,
+  });
+  return null;
+};
+
+describe("screen controls", () => {
+  it.each([false, true])(
+    "owns live controls for the screen lifetime (mobile=%s)",
+    async (mobile) => {
+      setViewport(mobile);
+      localStorage.clear();
+      const first = vi.fn();
+      const next = vi.fn();
+      const content = (count: string, onClick: () => void, shown = true) => (
+        <React.StrictMode>
+          <MemoryRouter>
+            <ActionsCapsuleProvider>
+              {shown && <ScreenRegistrar count={count} onClick={onClick} />}
+              <OrdinaryActionRegistrar />
+              <ActionsCapsule />
+            </ActionsCapsuleProvider>
+          </MemoryRouter>
+        </React.StrictMode>
+      );
+      const view = render(content("1/4", first));
+      if (mobile) {
+        fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+      }
+      expect(
+        await screen.findAllByTestId("capsule-screen-button"),
+      ).toHaveLength(2);
+      const button = await screen.findByRole("button", {
+        name: "Open monitor",
+      });
+      act(() => button.focus());
+      expect(
+        button.compareDocumentPosition(
+          screen.getByTestId("capsule-action-discuss"),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      view.rerender(content("2/4", next));
+      expect(screen.getByRole("button", { name: "Open monitor" })).toBe(button);
+      expect(button).toHaveFocus();
+      expect(button).toHaveTextContent("2/4");
+      fireEvent.click(button);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(first).not.toHaveBeenCalled();
+      if (mobile) {
+        expect(
+          screen.queryByTestId("capsule-mobile-grid"),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+      }
+      view.rerender(content("2/4", next, false));
+      expect(
+        screen.queryByRole("button", { name: "Open monitor" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("capsule-screen-divider"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("capsule-action-search")).toBeInTheDocument();
+    },
+  );
+});
+
+const ScreenCountRegistrar = ({ count }: { count: number }) => {
+  const { registerScreenButton } = useActionsCapsule();
+  useEffect(() => {
+    for (let i = 0; i < count; i++) {
+      registerScreenButton({
+        key: String(i),
+        label: "TM",
+        accessibleName: "Monitor " + i,
+        onClick: () => {},
+      });
+    }
+  }, [count, registerScreenButton]);
+  return null;
+};
+
+it.each([1, 2, 3])(
+  "keeps the mobile group divider attached to Discuss with %s screen controls",
+  (count) => {
+    setViewport(true);
+    localStorage.clear();
+    render(
+      <MemoryRouter>
+        <ActionsCapsuleProvider>
+          <ScreenCountRegistrar count={count} />
+          <OrdinaryActionRegistrar />
+          <ActionsCapsule />
+        </ActionsCapsuleProvider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open actions" }));
+    expect(screen.getAllByTestId("capsule-screen-button")).toHaveLength(count);
+    const divider = screen.getByTestId("capsule-screen-divider");
+    expect(divider).toHaveAttribute("aria-orientation", "vertical");
+    expect(divider.nextElementSibling).toBe(
+      screen.getByTestId("capsule-action-discuss"),
+    );
+  },
+);

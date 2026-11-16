@@ -4,6 +4,7 @@ import { ActionsCapsuleContext } from "./ActionsCapsuleContext";
 import type {
   ActionsCapsuleContextValue,
   CapsuleActionRegistration,
+  CapsuleScreenButton,
 } from "./types";
 
 export interface ActionsCapsuleProviderProps {
@@ -16,6 +17,19 @@ export interface ActionsCapsuleProviderProps {
 export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
   children,
 }) => {
+  const [screenButtons, setScreenButtons] = useState<CapsuleScreenButton[]>([]);
+  const registerScreenButton = useCallback((button: CapsuleScreenButton) => {
+    setScreenButtons((current) => {
+      const index = current.findIndex((item) => item.key === button.key);
+      if (index === -1) {
+        return [...current, button];
+      }
+      return current.map((item, i) => (i === index ? button : item));
+    });
+  }, []);
+  const unregisterScreenButton = useCallback((key: string) => {
+    setScreenButtons((current) => current.filter((item) => item.key !== key));
+  }, []);
   const [capsuleTop, setCapsuleTop] = useState<number | null>(null);
   const [anchor, setAnchor] = useState<"bottom-left" | "bottom-right">(() =>
     localStorage.getItem("capsule-anchor") === "bottom-left"
@@ -107,6 +121,9 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
   // infinite loops. All dependencies must be stable (primitives or memoized).
   const value: ActionsCapsuleContextValue = React.useMemo(
     () => ({
+      screenButtons,
+      registerScreenButton,
+      unregisterScreenButton,
       capsuleTop,
       setCapsuleTop,
       anchor,
@@ -127,6 +144,9 @@ export const ActionsCapsuleProvider: React.FC<ActionsCapsuleProviderProps> = ({
       setSearchQuery,
     }),
     [
+      screenButtons,
+      registerScreenButton,
+      unregisterScreenButton,
       capsuleTop,
       setCapsuleTop,
       anchor,
