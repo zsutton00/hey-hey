@@ -2,7 +2,8 @@ import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
 import { Button, CircularProgress, Link, type Theme } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 
-const PROJECT_TOPOLOGY_BUTTON_LABEL = "Potential project sync issue";
+const PROJECT_TOPOLOGY_BUTTON_LABEL =
+  "Start a conversation to verify this feature";
 
 const projectTopologyButtonSx = (theme: Theme) => {
   const topologyPalette = theme.palette.heyhey ?? theme.palette.primary;
