@@ -675,6 +675,33 @@ WebSocketProposalGroupLifecycleEvent:
       description: Compact project-scoped invalidation signal for refetching the canonical group
 
 # =============================================
+# Work Item Execution State Events
+# =============================================
+WebSocketWorkItemExecutionStateChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - type
+        - projectId
+        - executionState
+      properties:
+        type:
+          type: string
+          enum: ["work_item.execution_state_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the work item.
+        executionState:
+          $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionState"
+  description: >-
+    Project-scoped outbound latest-value update carrying the complete retained
+    execution state of one participating work item. Clients apply it keyed by
+    work-item identity when its revision is newer than the record they hold.
+    Display and cache only; never a command path.
+
+# =============================================
 # Agent Session Current State Events
 # =============================================
 AgentSessionCurrentStateObservation:
@@ -3080,6 +3107,7 @@ WebSocketSubscriptionRequest:
           - "agent_session.output_attention_changed"
           - "conversation.phase_changed"
           - "task_monitor.state_changed"
+          - "work_item.execution_state_changed"
           - "daily_session.updated"
           - "proposal.approved"
           - "proposal_group.lifecycle"

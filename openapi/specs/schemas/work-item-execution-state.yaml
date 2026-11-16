@@ -1,0 +1,169 @@
+TaskMonitorWorkItemExecutionState:
+  type: object
+  additionalProperties: false
+  required: [type, projection]
+  properties:
+    type:
+      type: string
+      enum: [TASK_MONITOR]
+    projection:
+      $ref: "./task-monitor-state.yaml#/TaskMonitorStateProjection"
+  description: >-
+    Task Monitor execution state. Failure, corrective guidance and admitted
+    actions belong to this type's projection and are not shared fields.
+
+WorkItemExecutionStatePayload:
+  oneOf:
+    - $ref: "#/TaskMonitorWorkItemExecutionState"
+  discriminator:
+    propertyName: type
+    mapping:
+      TASK_MONITOR: "#/TaskMonitorWorkItemExecutionState"
+  description: >-
+    Type-specific execution state of a participating work item. Each
+    participating type owns its payload and lifecycle policy; this is neither
+    ordinary work-item status, configuration nor a historical Report.
+
+WorkItemExecutionStateObservation:
+  type: object
+  additionalProperties: false
+  required: [workItemId, machineId, sourceRevision, state]
+  properties:
+    workItemId:
+      type: string
+      format: uuid
+      description: Canonical identity of the participating work item.
+    machineId:
+      type: string
+      format: uuid
+      description: Reporting machine; must be the authenticated machine on the connection.
+    sourceRevision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: >-
+        The owner's own revision of its committed state. Unchanged when the
+        owner replays its latest state. Orders reports from one owner only.
+    state:
+      $ref: "#/WorkItemExecutionStatePayload"
+  description: >-
+    Sent by the CLI on work_item.execution_state_observed. A complete
+    replacement snapshot of committed state. The platform derives project and
+    organization scope from the work item and never from this frame.
+
+WorkItemExecutionFreshness:
+  type: object
+  additionalProperties: false
+  required: [status, changedAt]
+  properties:
+    status:
+      type: string
+      enum: [CURRENT, LAST_KNOWN]
+      description: >-
+        CURRENT while the owning machine is connected. LAST_KNOWN when it is
+        disconnected, revoked or silent; the retained state is then the last
+        accepted report and must not be presented as happening now.
+    changedAt:
+      type: string
+      format: date-time
+      description: Time at which the owner's connection state last changed.
+  description: >-
+    Delivery freshness of a retained execution state. Independent of the
+    execution condition inside the state; a freshness change never alters it.
+
+WorkItemExecutionState:
+  type: object
+  additionalProperties: false
+  required: [workItemId, state, revision, ownerMachineId, acceptedAt, freshness]
+  properties:
+    workItemId:
+      type: string
+      format: uuid
+    state:
+      $ref: "#/WorkItemExecutionStatePayload"
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+      description: >-
+        Platform-assigned revision. Increases on every accepted change to this
+        record, including owner and freshness changes. Consumers ignore a
+        record older than the one they hold. Skipped numbers do not imply
+        missing history.
+    ownerMachineId:
+      type: string
+      format: uuid
+      description: Machine whose report was last accepted.
+    acceptedAt:
+      type: string
+      format: date-time
+      description: Time the retained state was accepted from its owner.
+    freshness:
+      $ref: "#/WorkItemExecutionFreshness"
+  description: >-
+    Latest retained execution state of one participating work item. One
+    complete record per item; a newer record replaces the previous one whole.
+
+WorkItemExecutionStateBatchRequestDto:
+  type: object
+  additionalProperties: false
+  required: [workItemIds]
+  properties:
+    workItemIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+
+WorkItemExecutionStateRetainedResult:
+  type: object
+  additionalProperties: false
+  required: [result, workItemId, executionState]
+  properties:
+    result:
+      type: string
+      enum: [RETAINED]
+    workItemId:
+      type: string
+      format: uuid
+    executionState:
+      $ref: "#/WorkItemExecutionState"
+
+WorkItemExecutionStateMissingResult:
+  type: object
+  additionalProperties: false
+  required: [result, workItemId]
+  properties:
+    result:
+      type: string
+      enum: [MISSING]
+    workItemId:
+      type: string
+      format: uuid
+  description: >-
+    No execution state is available for this identity in the requested
+    project. Not a readiness, idle or healthy signal.
+
+WorkItemExecutionStateBatchItemDto:
+  oneOf:
+    - $ref: "#/WorkItemExecutionStateRetainedResult"
+    - $ref: "#/WorkItemExecutionStateMissingResult"
+  discriminator:
+    propertyName: result
+    mapping:
+      RETAINED: "#/WorkItemExecutionStateRetainedResult"
+      MISSING: "#/WorkItemExecutionStateMissingResult"
+
+WorkItemExecutionStateBatchResponseDto:
+  type: object
+  additionalProperties: false
+  required: [items]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: "#/WorkItemExecutionStateBatchItemDto"
+      description: One result per requested identity, in request order.

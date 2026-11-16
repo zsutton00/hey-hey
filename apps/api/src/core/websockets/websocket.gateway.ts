@@ -52,6 +52,7 @@ import {
   WebSocketAgentSessionDeletedEvent,
   WebSocketAgentSessionStatusChangedEvent,
   WebSocketAgentSessionCurrentStateChangedEvent,
+  WebSocketWorkItemExecutionStateChangedEvent,
   WebSocketConversationPhaseChangedEvent,
   WebSocketAgentSessionOutputAttentionChangedEvent,
   WebSocketProposalApprovedEvent,
@@ -190,6 +191,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { DemoSandboxActivityService } from '../../services/demo-sandbox/demo-sandbox-activity.service';
 import { MachinePresenceService } from './machine-presence.service';
+import {
+  WorkItemExecutionStateChange,
+  WorkItemExecutionStateService,
+} from '../../services/work-item-execution-state/work-item-execution-state.service';
 import { ClientConnection } from '../events/types/event.types';
 import {
   ChildRoomScopeType,
@@ -379,6 +384,8 @@ export class WebsocketGateway
     private prisma?: PrismaService,
     @Optional()
     private demoSandboxActivity?: DemoSandboxActivityService,
+    @Optional()
+    private workItemExecutionState?: WorkItemExecutionStateService,
   ) {
     gateways.add(this);
   }
@@ -446,6 +453,9 @@ export class WebsocketGateway
     );
     this.conversationPhaseProjection?.setTransitionSink((transition) =>
       this.emitConversationPhaseChanged(transition.entry),
+    );
+    this.workItemExecutionState?.setChangeSink((change) =>
+      this.emitWorkItemExecutionStateChanged(change),
     );
 
     // Flush any events that were queued before the server instance was ready
@@ -522,6 +532,7 @@ export class WebsocketGateway
           error: error instanceof Error ? error.message : String(error),
         });
       }
+      await this.markExecutionStateOwnerDisconnected(client.id, conn.machineId);
       try {
         await this.conversationPhaseProjection?.disconnect({
           connectionId: client.id,
@@ -1203,6 +1214,15 @@ export class WebsocketGateway
       // heartbeat path: presence persistence must not gate authentication.
       void this.machineChallengeService.recordLastSeen(machineId);
       void this.machinePresenceService.setPresence(machineId, userId as UserId);
+      void this.workItemExecutionState
+        ?.markMachineConnected(machineId)
+        .catch((error: unknown) => {
+          this.logger.error('[execution-state] connect transition failed', {
+            socketId: client.id,
+            machineId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
 
       // The machine is now in `machine:${machineId}`, so any open trigger we
       // re-publish will actually reach it. Fire-and-forget, matching the
@@ -1786,6 +1806,82 @@ export class WebsocketGateway
   }
 
   /**
+   * Receive a CLI report of a work item's committed execution state. The
+   * authenticated socket supplies the reporting user and machine; scope comes
+   * from the work item. Accepted changes fan out through the change sink.
+   */
+  @SubscribeMessage('work_item.execution_state_observed')
+  async handleWorkItemExecutionStateObserved(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: unknown,
+  ): Promise<void> {
+    const connection = this.connectionManager.getConnection(client.id);
+    if (
+      !connection?.userId ||
+      !connection.machineId ||
+      connection.clientType !== 'cli'
+    ) {
+      this.logger.warn('[execution-state] observation rejected', {
+        code: 'UNAUTHENTICATED',
+        socketId: client.id,
+        clientType: connection?.clientType,
+        hasUser: Boolean(connection?.userId),
+        hasMachine: Boolean(connection?.machineId),
+      });
+      return;
+    }
+
+    try {
+      await this.workItemExecutionState?.observe(
+        { userId: connection.userId, machineId: connection.machineId },
+        payload,
+      );
+    } catch (error) {
+      this.logger.error('[execution-state] observation failed', {
+        socketId: client.id,
+        machineId: connection.machineId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * A machine's retained execution states become last-known once its last
+   * authenticated connection on this instance is gone, or it is revoked.
+   */
+  private async markExecutionStateOwnerDisconnected(
+    socketId: string,
+    machineId: MachineId,
+    { revoked }: { revoked: boolean } = { revoked: false },
+  ): Promise<void> {
+    const executionState = this.workItemExecutionState;
+    if (!executionState) {
+      return;
+    }
+
+    const stillConnected = this.connectionManager
+      .getAllConnections()
+      .some(
+        (connection) =>
+          connection.machineId === machineId && connection.id !== socketId,
+      );
+    if (stillConnected && !revoked) {
+      return;
+    }
+
+    try {
+      await executionState.markMachineDisconnected(machineId);
+    } catch (error) {
+      this.logger.error('[execution-state] disconnect transition failed', {
+        socketId,
+        machineId,
+        revoked,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
    * Receive a CLI turn-end context-size reading for an Agent Session. Like
    * current-state observations, identity and scope come from the
    * authenticated socket and durable Agent Session row; an applied reading is
@@ -2095,6 +2191,11 @@ export class WebsocketGateway
         },
       );
     }
+
+    // A revoked credential ends ownership freshness whatever else is connected.
+    await this.markExecutionStateOwnerDisconnected(client.id, machineId, {
+      revoked: true,
+    });
 
     const cached = await this.machinePresenceService.getBindings(machineId);
     const organizationId = cached?.organizationId ?? conn.organizationIds[0];
@@ -2775,6 +2876,35 @@ export class WebsocketGateway
         agentSessionId: entry.agentSessionId,
         revision: entry.revision,
         currentState: entry.currentState,
+      });
+    });
+  }
+
+  public emitWorkItemExecutionStateChanged(
+    change: WorkItemExecutionStateChange,
+  ): void {
+    const event: WebSocketWorkItemExecutionStateChangedEvent = {
+      type: WebSocketWorkItemExecutionStateChangedEvent.TypeEnum
+        .WorkItemExecutionStateChanged,
+      timestamp: new Date().toISOString(),
+      organizationId: change.organizationId,
+      projectId: change.projectId,
+      executionState: change.executionState,
+    };
+    this.bufferOrEmit(() => {
+      const projectRoom = `project:${change.projectId}`;
+      this.server
+        .to(projectRoom)
+        .emit(
+          WebSocketSubscriptionRequest.EventTypesEnum
+            .WorkItemExecutionStateChanged,
+          event,
+        );
+      this.logger.debug('[execution-state] project fan-out', {
+        projectRoom,
+        workItemId: change.executionState.workItemId,
+        revision: change.executionState.revision,
+        freshness: change.executionState.freshness.status,
       });
     });
   }

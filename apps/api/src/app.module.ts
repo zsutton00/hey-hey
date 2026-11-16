@@ -92,6 +92,7 @@ import {
 } from './controllers/agent-interaction.controller';
 import { AgentInteractionAdmissionService } from './services/agent-interaction/agent-interaction-admission.service';
 import { AgentSessionCurrentStateController } from './controllers/agent-session-current-state.controller';
+import { WorkItemExecutionStateController } from './controllers/work-item-execution-state.controller';
 import { AgentSessionOutputAttentionController } from './controllers/agent-session-output-attention.controller';
 import { SecondaryActionsController } from './controllers/secondary-actions.controller';
 import { CodingPromptController } from './controllers/coding-prompt.controller';
@@ -315,6 +316,7 @@ import { isLocalApplication } from './deployment-environment';
     SessionMessageTargetController,
     AgentSessionTurnAdmissionController,
     AgentSessionCurrentStateController,
+    WorkItemExecutionStateController,
     AgentSessionOutputAttentionController,
     SecondaryActionsController,
     CodingPromptController,

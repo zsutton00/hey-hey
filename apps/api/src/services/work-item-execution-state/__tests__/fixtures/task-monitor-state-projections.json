@@ -1,0 +1,52 @@
+{
+  "running": {
+    "execution": {
+      "lifecycle": "RUNNING",
+      "control": "ACTIVE",
+      "work": "OBSERVING_RUN",
+      "intervention": "CLEAR"
+    },
+    "availableActions": [
+      { "kind": "STOP", "command": "STOP" },
+      { "kind": "PAUSE", "command": "PAUSE" }
+    ]
+  },
+  "paused": {
+    "execution": {
+      "lifecycle": "RUNNING",
+      "control": "PAUSED",
+      "work": "AWAITING_REVIEW",
+      "intervention": "CLEAR"
+    },
+    "availableActions": [
+      { "kind": "STOP", "command": "STOP" },
+      { "kind": "PAUSED_CONTINUATION", "command": "RESUME" }
+    ]
+  },
+  "failed": {
+    "execution": {
+      "lifecycle": "RUNNING",
+      "control": "ACTIVE",
+      "work": "RETRYABLE_LAUNCH",
+      "intervention": "CLEAR"
+    },
+    "availableActions": [
+      { "kind": "STOP", "command": "STOP" },
+      { "kind": "PAUSE", "command": "PAUSE" }
+    ],
+    "failure": {
+      "code": "OPERATION_FAILED",
+      "cause": "Branch feature/checkout is checked out in the host repository.",
+      "correctiveGuidance": "Inspect the reported failure and stop the monitor if recovery is required."
+    }
+  },
+  "completed": {
+    "execution": {
+      "lifecycle": "COMPLETED",
+      "control": null,
+      "work": null,
+      "intervention": null
+    },
+    "availableActions": []
+  }
+}

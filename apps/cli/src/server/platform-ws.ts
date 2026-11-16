@@ -1,5 +1,8 @@
 import { DeterministicE2EEvidence } from '../run/runners/deterministic-e2e-evidence';
-import type { TaskMonitorStateObservation } from '@hey-hey/contracts/api/models';
+import type {
+  TaskMonitorStateObservation,
+  WorkItemExecutionStateObservation,
+} from '@hey-hey/contracts/api/models';
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type { ServerLogger } from './logger';
 import type { OAuthClient } from '../auth/oauth-client';
@@ -1378,6 +1381,31 @@ export class PlatformWebSocketManager {
   public emitTaskMonitorStateObservation(observation: TaskMonitorStateObservation): void {
     if (!this.socket?.connected) return;
     this.socket.emit('task_monitor.state_observed', observation);
+  }
+
+  /**
+   * The one seam through which any participating work-item type reports its
+   * committed execution state. The platform orders and retains it; a report
+   * skipped while disconnected is recovered by the producer's reconnect replay.
+   */
+  public emitWorkItemExecutionStateObservation(
+    observation: WorkItemExecutionStateObservation,
+  ): void {
+    const logPayload = {
+      workItemId: observation.workItemId,
+      stateType: observation.state.type,
+      sourceRevision: observation.sourceRevision,
+    };
+    if (!this.socket?.connected) {
+      this.logger.debug('platform-ws.emit-work-item-execution-state-observation.skipped', {
+        hasSocket: !!this.socket,
+        ...logPayload,
+      });
+      return;
+    }
+
+    this.logger.trace('platform-ws.emit-work-item-execution-state-observation', logPayload);
+    this.socket.emit('work_item.execution_state_observed', observation);
   }
 
   public readonly emitAgentSessionCurrentStateObservation = (

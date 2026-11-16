@@ -319,6 +319,7 @@
         "generate-feature-requirements-schema.js",
         "generate-private-beta-access-schema.js",
         "generate-open-items-schemas.js",
+        "generate-work-item-execution-state-schema.js",
         "generate-workflow-review-schemas.js",
         "generate-diagram-schemas.js",
         "generate-entity-prompt-template-language.js"

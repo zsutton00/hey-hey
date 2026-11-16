@@ -8,6 +8,8 @@ export type { UseConversationPhaseReturn } from "./useConversationPhase";
 export { useConversationByWorkflow } from "./useConversationByWorkflow";
 export { useConversationCliStatus } from "./useConversationCliStatus";
 export type { UseConversationCliStatusReturn } from "./useConversationCliStatus";
+export { useWorkItemExecutionState } from "./useWorkItemExecutionState";
+export type { WorkItemExecutionStateResult } from "./useWorkItemExecutionState";
 export {
   useAgentSessionCurrentState,
   useAgentSessionCurrentStates,

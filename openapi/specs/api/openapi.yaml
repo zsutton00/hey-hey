@@ -6318,6 +6318,56 @@ paths:
         "401":
           description: Unauthorized
 
+  /organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch:
+    parameters:
+      - $ref: "#/components/parameters/OrganizationId"
+      - $ref: "#/components/parameters/ProjectId"
+    post:
+      operationId: batchReadWorkItemExecutionState
+      summary: Read current execution state for work items
+      description: >-
+        Resolve the latest retained execution state for a bounded set of
+        work-item identities in the requested project. Every requested
+        identity gets one result in request order: RETAINED with the complete
+        record and its freshness, or MISSING when no state is available. An
+        identity outside the requested project is reported MISSING without
+        disclosing whether it exists.
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemExecutionStateBatchRequestDto"
+      responses:
+        "200":
+          description: One result per requested work item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemExecutionStateBatchResponseDto"
+        "400":
+          description: >-
+            Invalid request. The request must contain 1–100 unique work-item
+            UUIDs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
   /organizations/{organizationId}/projects/{projectId}/work-items/references:
     parameters:
       - name: organizationId
@@ -29003,6 +29053,28 @@ components:
       $ref: "../schemas/task-monitor-state.yaml#/TaskMonitorStateProjection"
     TaskMonitorStateObservation:
       $ref: "../schemas/task-monitor-state.yaml#/TaskMonitorStateObservation"
+    TaskMonitorWorkItemExecutionState:
+      $ref: "../schemas/work-item-execution-state.yaml#/TaskMonitorWorkItemExecutionState"
+    WorkItemExecutionStatePayload:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStatePayload"
+    WorkItemExecutionStateObservation:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateObservation"
+    WorkItemExecutionFreshness:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionFreshness"
+    WorkItemExecutionState:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionState"
+    WorkItemExecutionStateBatchRequestDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchRequestDto"
+    WorkItemExecutionStateRetainedResult:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateRetainedResult"
+    WorkItemExecutionStateMissingResult:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateMissingResult"
+    WorkItemExecutionStateBatchItemDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchItemDto"
+    WorkItemExecutionStateBatchResponseDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchResponseDto"
+    WebSocketWorkItemExecutionStateChangedEvent:
+      $ref: "../schemas/websockets.yaml#/WebSocketWorkItemExecutionStateChangedEvent"
     ConversationPhaseObservation:
       $ref: "../schemas/websockets.yaml#/ConversationPhaseObservation"
 

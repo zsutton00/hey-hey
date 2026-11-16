@@ -4550,6 +4550,28 @@ model MonitorCommand {
   @@map("monitor_commands")
 }
 
+// Latest owner-reported execution state of a participating work item: one row
+// per work item, updated in place. Not history and not work-item status.
+// Foreign keys to tasks and machines (cascade) live in db/flyway.
+model WorkItemExecutionState {
+  workItemId         String   @id @map("work_item_id")
+  organizationId     String   @map("organization_id")
+  projectId          String   @map("project_id")
+  stateType          String   @map("state_type")
+  payload            Json
+  ownerMachineId     String   @map("owner_machine_id")
+  sourceRevision     BigInt   @map("source_revision")
+  revision           BigInt
+  ownerConnected     Boolean  @map("owner_connected")
+  freshnessChangedAt DateTime @map("freshness_changed_at")
+  acceptedAt         DateTime @map("accepted_at")
+  updatedAt          DateTime @map("updated_at")
+
+  @@index([ownerMachineId])
+  @@index([projectId])
+  @@map("work_item_execution_states")
+}
+
 // kept in sync with db/flyway — do not generate Prisma migrations for this model.
 // `id` carries no @default: it is the client-supplied id (or a server-generated
 // uuid for revocation) so re-reporting the same entry is idempotent on the PK.
