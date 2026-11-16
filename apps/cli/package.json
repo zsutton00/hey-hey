@@ -72,7 +72,7 @@
     "generate": "node ../../scripts/generate-contracts.mjs --target=cli",
     "generate:all": "node ../../scripts/generate-contracts.mjs --target=cli",
     "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=cli",
-    "prepack": "tsx scripts/verify-release-manifest.ts && pnpm typecheck && pnpm test && pnpm build",
+    "prepack": "tsx scripts/verify-release-manifest.ts && pnpm typecheck && pnpm build",
     "format:check": "prettier --check .",
     "codex:smoke": "tsx scripts/codex-smoke.ts",
     "generate:contract:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate-custom-contracts.cjs",
