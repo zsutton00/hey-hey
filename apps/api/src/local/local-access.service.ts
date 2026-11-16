@@ -30,7 +30,9 @@ function localPairingState(
   if (!enrollment) {
     return 'UNAVAILABLE';
   }
-  if (enrollment.state === 'ACTIVE') {
+  // Terminal confirmation consumes the one-time request when activation succeeds.
+  // Report pairing success independently of the request's original deadline.
+  if (enrollment.state === 'ACTIVE' || enrollment.state === 'CONSUMED') {
     return 'ACTIVE';
   }
   if (enrollment.state === 'REJECTED') {
@@ -41,9 +43,6 @@ function localPairingState(
     enrollment.expiresAt.getTime() <= Date.now()
   ) {
     return 'EXPIRED';
-  }
-  if (enrollment.state === 'CONSUMED') {
-    return 'UNAVAILABLE';
   }
   return 'WAITING';
 }

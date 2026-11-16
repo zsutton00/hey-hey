@@ -94,11 +94,13 @@ describe('LocalAccessService', () => {
     const enrollmentId = 'enrollment-1';
     const pendingMachineEnrollment = { findFirst: jest.fn() };
     const machine = { findMany: jest.fn() };
+    const connectionExists = jest.fn();
     let db: ReturnType<typeof createMockPrismaService>['db'];
 
     beforeEach(() => {
       configureDeployment('local');
       db = createMockPrismaService().db;
+      connectionExists.mockResolvedValue(1);
       machine.findMany.mockResolvedValue([
         {
           id: 'machine-1',
@@ -127,7 +129,7 @@ describe('LocalAccessService', () => {
             machine,
           },
         } as never,
-        { getClient: () => ({ exists: async () => 1 }) } as never,
+        { getClient: () => ({ exists: connectionExists }) } as never,
         {
           findDefault: async () => 'project-1',
           findUnfinished: async () => null,
@@ -141,6 +143,8 @@ describe('LocalAccessService', () => {
       ['REJECTED', 60_000, 'REJECTED', false],
       ['AWAITING_MACHINE_CONFIRMATION', -1, 'EXPIRED', false],
       ['ACTIVE', -1, 'ACTIVE', true],
+      ['CONSUMED', 60_000, 'ACTIVE', true],
+      ['CONSUMED', -1, 'ACTIVE', true],
     ])(
       'reports %s without confusing presence with completed pairing',
       async (state, remaining, pairingState, machineConnected) => {
@@ -173,6 +177,23 @@ describe('LocalAccessService', () => {
         );
       },
     );
+
+    it('waits for a live connection after successful activation', async () => {
+      pendingMachineEnrollment.findFirst.mockResolvedValue({
+        state: 'CONSUMED',
+        machineId: 'machine-1',
+        expiresAt: new Date(Date.now() - 1),
+      });
+      connectionExists.mockResolvedValue(0);
+
+      await expect(
+        service.getLocalStatus(userId, enrollmentId),
+      ).resolves.toMatchObject({
+        pairingState: 'ACTIVE',
+        machineConnected: false,
+        executionReady: false,
+      });
+    });
 
     it('rejects malformed enrollment input with a specific error code', async () => {
       const controller = new LocalAuthController(
