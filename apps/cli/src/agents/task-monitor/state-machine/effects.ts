@@ -45,6 +45,7 @@ export interface CoordinateTaskMonitorWorkEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly executionPlan: readonly TaskMonitorExecutionNode[];
   readonly cursor: number;
   /** Cause and correlation are persisted with Resume coordination. */
@@ -62,6 +63,7 @@ export interface ValidateTaskMonitorLaunchEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly authorityCommandId?: string | undefined;
   readonly requestedLaunchConfig: TaskMonitorRequestedLaunchConfig;
   readonly executionPlan: readonly TaskMonitorExecutionNode[];
@@ -77,6 +79,7 @@ export interface ReconcileTaskMonitorLaunchEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly taskId: string;
   readonly cursor: number;
   readonly operation: TaskMonitorLaunchOperation;
@@ -197,6 +200,7 @@ export interface EvaluateTaskMonitorSettledRunEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly authorityCommandId?: string | undefined;
   readonly runId: string;
   readonly agentSessionId: string;
@@ -294,6 +298,7 @@ export const coordinateTaskMonitorWorkEffect = (
   taskMonitorId: event.taskMonitorId,
   organizationId: event.organizationId,
   projectId: event.projectId,
+  kindKey: event.kindKey,
   executionPlan: event.executionPlan,
   cursor: event.cursor,
   ...(options.cause ? { cause: options.cause } : {}),
@@ -323,6 +328,7 @@ export const coordinateTaskMonitorWorkFromContext = (
     taskMonitorId: context.taskMonitorId,
     organizationId: context.organizationId,
     projectId: context.projectId,
+    kindKey: context.kindKey ?? null,
     executionPlan: context.executionPlan,
     cursor: options.cursor ?? context.cursor + 1,
     ...(options.cause ? { cause: options.cause } : {}),
@@ -418,6 +424,7 @@ export const validateTaskMonitorLaunchEffect = (
     taskMonitorId: context.taskMonitorId,
     organizationId: required.organizationId,
     projectId: required.projectId,
+    kindKey: context.kindKey ?? null,
     authorityCommandId: required.authorityCommandId,
     requestedLaunchConfig: required.requestedLaunchConfig,
     executionPlan: context.executionPlan,
@@ -456,6 +463,7 @@ export const reconcileTaskMonitorLaunchEffect = (
     taskMonitorId: context.taskMonitorId,
     organizationId: required.organizationId,
     projectId: required.projectId,
+    kindKey: context.kindKey ?? null,
     taskId: context.selectedTaskId,
     cursor: context.cursor,
     operation,
@@ -481,6 +489,7 @@ export const admitTaskMonitorLaunchRetryEffect = (
     taskMonitorId: context.taskMonitorId,
     organizationId: context.organizationId,
     projectId: context.projectId,
+    kindKey: context.kindKey ?? null,
     taskId: retry.taskId,
     cursor: retry.cursor,
     operation: 'RUN_START',
@@ -702,6 +711,7 @@ export const evaluateTaskMonitorSettledRunEffect = (
     taskMonitorId: context.taskMonitorId,
     organizationId: context.organizationId,
     projectId: context.projectId,
+    kindKey: context.kindKey ?? null,
     authorityCommandId: context.authorityCommandId,
     runId: event.runId,
     agentSessionId: event.agentSessionId,
@@ -733,6 +743,7 @@ export const evaluateTaskMonitorResolvedJudgmentEffect = (
     taskMonitorId: context.taskMonitorId,
     organizationId: context.organizationId,
     projectId: context.projectId,
+    kindKey: context.kindKey ?? null,
     authorityCommandId: context.authorityCommandId,
     ...context.settledRun,
     judgment: event.judgment,

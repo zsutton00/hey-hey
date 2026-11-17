@@ -18,6 +18,7 @@ const TASK_IDS = [
 ] as const;
 
 const definition = (cursor = 0): TaskMonitorExecutionDefinition => ({
+  kind: 'task',
   executionPlan: TASK_IDS.map((taskId, index) => ({
     taskId,
     dependsOnTaskIds: index === 0 ? [] : [TASK_IDS[index - 1] ?? TASK_IDS[0]],

@@ -283,6 +283,7 @@ export class TaskMonitorLoadEffectHandler implements EffectHandler<
           cursor: loaded.definition.cursor,
           worktree: loaded.definition.launchPolicy.worktree ?? null,
           terminalPolicy: loaded.definition.launchPolicy.terminalSupervision,
+          kindKey: loaded.definition.kind,
         },
       };
     } catch (error) {
@@ -652,6 +653,7 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
         taskMonitorId: effect.taskMonitorId,
         organizationId: effect.organizationId,
         projectId: effect.projectId,
+        kindKey: effect.kindKey,
         ...(effect.authorityCommandId ? { authorityCommandId: effect.authorityCommandId } : {}),
         runId,
         agentSessionId,
@@ -857,6 +859,7 @@ export class TaskMonitorLaunchValidationEffectHandler implements EffectHandler<
       executionOrder: effect.executionPlan.map((node) => node.taskId),
       dependsOnTaskIds: entry.dependsOnTaskIds,
       terminalPolicy: effect.terminalPolicy,
+      kindKey: effect.kindKey,
     };
     this.logger.info('task_monitor.machine.launch_validation.completed', {
       monitorId: effect.taskMonitorId,

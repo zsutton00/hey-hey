@@ -81,6 +81,7 @@ const makeProjectionHarness = (initialStatus = 'ACTIVE') => {
     projectId: effect.projectId,
     status,
     definition: {
+      kind: 'task',
       executionPlan: [],
       launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' as const } },
       cursor: 0,

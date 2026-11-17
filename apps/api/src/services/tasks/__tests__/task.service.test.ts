@@ -324,6 +324,7 @@ const GRAPH_NODE_TYPE_SPEC: CustomTypeRowSpec = {
 };
 
 const VALID_SCHEMA_BACKED_SECTION_CONTENT = {
+  kind: 'task',
   executionPlan: [
     {
       taskId: TASK_MONITOR_TASK_ID,

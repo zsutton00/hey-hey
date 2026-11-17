@@ -465,6 +465,7 @@ export const TaskMonitorWorkspaceView = ({
                 organizationId={organizationId}
                 projectId={projectId}
                 machineId={selectedMachineId}
+                monitorKindKey={definition.kind}
                 monitorStatus={monitorStatus}
                 node={selectedNode}
                 isSavingLaunchConfiguration={isSavingLaunchConfiguration}

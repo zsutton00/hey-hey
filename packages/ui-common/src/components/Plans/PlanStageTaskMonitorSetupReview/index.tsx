@@ -118,6 +118,7 @@ export const PlanStageTaskMonitorSetupReview = ({
   const monitorKind = useMonitorKind(
     setup.provenance.organizationId,
     setup.provenance.projectId,
+    setup.definition.kind,
   );
   const sourceIdentity = sourceIdentityFor(setup);
   const planWorktreeBranch = setup.provenance.planWorktreeBranch;

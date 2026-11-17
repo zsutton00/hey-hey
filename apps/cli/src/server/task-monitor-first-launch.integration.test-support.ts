@@ -100,6 +100,7 @@ export const createFirstLaunchFixture = async (
     projectId: PROJECT_ID,
     status: monitorStatus,
     definition: {
+      kind: 'task',
       executionPlan: executionPlan.map((entry, index) => ({
         taskId: entry.taskId,
         dependsOnTaskIds: entry.dependsOnTaskIds,

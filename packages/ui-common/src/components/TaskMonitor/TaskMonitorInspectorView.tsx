@@ -34,6 +34,8 @@ export interface TaskMonitorInspectorViewProps {
   projectId: string;
   /** The machine whose CLI offers the model choices; null until one is picked. */
   machineId: string | null;
+  /** Key of the kind the monitor runs, from its execution definition. */
+  monitorKindKey: string;
   monitorStatus: WorkStatus;
   node: TaskMonitorProjectedNode;
   isSavingLaunchConfiguration: boolean;
@@ -56,13 +58,14 @@ export const TaskMonitorInspectorView = ({
   organizationId,
   projectId,
   machineId,
+  monitorKindKey,
   monitorStatus,
   node,
   isSavingLaunchConfiguration,
   onSaveLaunchConfiguration,
 }: TaskMonitorInspectorViewProps) => {
   const pathService = usePathService();
-  const monitorKind = useMonitorKind(organizationId, projectId);
+  const monitorKind = useMonitorKind(organizationId, projectId, monitorKindKey);
   const session = node.session.kind === "loaded" ? node.session.session : null;
   const conversation = useTaskMonitorConversation({
     organizationId,

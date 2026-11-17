@@ -64,9 +64,9 @@ export interface WorkItemTypeCapabilities {
      */
     'graph'?: WorkItemTypeGraphCapability;
     /**
-     *
-     * @type {WorkItemTypeMonitorKind}
+     * The kinds a monitor of this monitor-role type may run, each identified by a key unique within the type. Each monitor records the key of the kind it runs in its execution definition.
+     * @type {Array<WorkItemTypeMonitorKind>}
      * @memberof WorkItemTypeCapabilities
      */
-    'monitorKind'?: WorkItemTypeMonitorKind;
+    'monitorKinds'?: Array<WorkItemTypeMonitorKind>;
 }

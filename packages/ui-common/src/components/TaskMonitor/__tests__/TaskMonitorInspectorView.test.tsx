@@ -124,16 +124,28 @@ describe("TaskMonitorInspectorView", () => {
     useWorkItemTypeByKeyMock.mockReturnValue({
       workItemTypeDefinition: {
         capabilities: {
-          monitorKind: {
-            key: "task",
-            allowedNodeTypes: ["STANDARD"],
-            allowedLaunchMethods: ["plan", "open", "quick"],
-            allowedRuntimeProviders: ["claude", "codex", "opencode"],
-            allowedReasoningEfforts: ["high"],
-            start: { type: "STATUS_TRANSITION", status: "ACTIVE" },
-            done: { type: "ITEM_STATUS", status: "COMPLETED" },
-            supervision: { type: "COORDINATOR_REVIEW" },
-          },
+          monitorKinds: [
+            {
+              key: "task",
+              allowedNodeTypes: ["STANDARD"],
+              allowedLaunchMethods: ["plan", "open", "quick"],
+              allowedRuntimeProviders: ["claude", "codex", "opencode"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "STATUS_TRANSITION", status: "ACTIVE" },
+              done: { type: "ITEM_STATUS", status: "COMPLETED" },
+              supervision: { type: "COORDINATOR_REVIEW" },
+            },
+            {
+              key: "requirement-test",
+              allowedNodeTypes: ["REQUIREMENT_TEST"],
+              allowedLaunchMethods: ["quick"],
+              allowedRuntimeProviders: ["codex"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "NO_STATUS_CHANGE" },
+              done: { type: "NORMALIZED_RESULT" },
+              supervision: { type: "DIRECT_ACCEPTANCE" },
+            },
+          ],
         },
       },
     });
@@ -151,6 +163,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node()}
         isSavingLaunchConfiguration={false}
@@ -187,6 +200,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node()}
         isSavingLaunchConfiguration={false}
@@ -209,6 +223,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node({
           session: {
@@ -245,6 +260,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node()}
         isSavingLaunchConfiguration={false}
@@ -268,6 +284,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node({
           session: {
@@ -293,6 +310,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -318,6 +336,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -354,6 +373,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -368,11 +388,12 @@ describe("TaskMonitorInspectorView", () => {
     ).toEqual(["Quick"]);
   });
 
-  it("offers every launch method of the effective Task kind", () => {
+  it("offers every launch method of a Task monitor's kind", () => {
     render(
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -387,25 +408,12 @@ describe("TaskMonitorInspectorView", () => {
     ).toEqual(["Plan", "Open", "Quick"]);
   });
 
-  it("offers only the launch methods the monitor kind allows", () => {
-    useWorkItemTypeByKeyMock.mockReturnValue({
-      workItemTypeDefinition: {
-        capabilities: {
-          monitorKind: {
-            key: "requirement-test",
-            allowedNodeTypes: ["REQUIREMENT_TEST"],
-            allowedLaunchMethods: ["quick"],
-            allowedRuntimeProviders: ["codex"],
-            allowedReasoningEfforts: ["high"],
-          },
-        },
-      },
-    });
-
+  it("offers only the launch methods the monitor's own kind allows when the type declares two", () => {
     render(
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="requirement-test"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -425,6 +433,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -454,6 +463,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Backlog}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
@@ -479,6 +489,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node({ task: { kind: "missing" } })}
         isSavingLaunchConfiguration={false}
@@ -493,6 +504,7 @@ describe("TaskMonitorInspectorView", () => {
       <TaskMonitorInspectorView
         organizationId="org-1"
         projectId="project-1"
+        monitorKindKey="task"
         monitorStatus={WorkStatus.Active}
         node={node({ session: { kind: "missing" } })}
         isSavingLaunchConfiguration={false}

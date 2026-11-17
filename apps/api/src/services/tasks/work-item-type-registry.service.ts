@@ -66,7 +66,7 @@ import {
 } from './work-item-type-capabilities.schema';
 import {
   monitorKindPolicyIssues,
-  resolveMonitorKindCompatibility,
+  resolveMonitorKindsCompatibility,
 } from './task-monitor-kind';
 import {
   WORK_ITEM_CAPABILITY_KEYS as CAP,
@@ -1314,12 +1314,13 @@ export class WorkItemTypeRegistryService
   }
 
   /**
-   * The effective TASK_MONITOR definition of a project override: a monitor kind
-   * the override omits, and any policy its kind omits, come from the canonical
-   * TASK_MONITOR definition. This interprets legacy omissions once, centrally,
-   * so consumers receive a complete kind and never merge definitions locally.
-   * Explicit declarations are kept, and a kind that cannot run is logged here
-   * and rejected by the consumers that would run it.
+   * The effective TASK_MONITOR definition of a project override: kinds the
+   * override omits come from the canonical TASK_MONITOR definition, and any
+   * policy a declared kind omits comes from the canonical `task` kind. This
+   * interprets omissions once, centrally, for every declared kind, so consumers
+   * receive complete kinds and never merge definitions locally. Explicit
+   * declarations are kept, and a kind that cannot run is logged here and
+   * rejected by the consumers that would run it.
    */
   private withMonitorKindCompatibility(
     definition: WorkItemTypeDefinitionDto,
@@ -1330,23 +1331,30 @@ export class WorkItemTypeRegistryService
       return definition;
     }
 
-    const monitorKind = resolveMonitorKindCompatibility(
-      definition.capabilities?.monitorKind,
-      canonical?.capabilities?.monitorKind,
+    const monitorKinds = resolveMonitorKindsCompatibility(
+      definition.capabilities?.monitorKinds,
+      canonical?.capabilities?.monitorKinds,
     );
-    const issues = monitorKindPolicyIssues(monitorKind);
-    if (issues.length > 0) {
+    if (monitorKinds === undefined) {
       this.logger.error(
-        `Project ${projectId} TASK_MONITOR override has an unsupported monitor kind: ${issues.join('; ')}`,
-        { projectId, kind: monitorKind?.key ?? null },
+        `Project ${projectId} TASK_MONITOR override declares no monitor kinds and the canonical TASK_MONITOR definition publishes none`,
+        { projectId },
       );
-    }
-    if (monitorKind === undefined) {
       return definition;
+    }
+
+    for (const kind of monitorKinds) {
+      const issues = monitorKindPolicyIssues(kind);
+      if (issues.length > 0) {
+        this.logger.error(
+          `Project ${projectId} TASK_MONITOR override has an unsupported "${kind.key}" monitor kind: ${issues.join('; ')}`,
+          { projectId, kind: kind.key },
+        );
+      }
     }
     return {
       ...definition,
-      capabilities: { ...definition.capabilities, monitorKind },
+      capabilities: { ...definition.capabilities, monitorKinds },
     };
   }
 

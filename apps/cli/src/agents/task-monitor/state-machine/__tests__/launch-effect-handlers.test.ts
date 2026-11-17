@@ -114,6 +114,7 @@ describe('Task Monitor launch effect handlers', () => {
       await expect(
         handler.execute({
           type: 'RECONCILE_TASK_MONITOR_LAUNCH',
+          kindKey: 'task',
           taskMonitorId: launch.taskMonitorId,
           organizationId: launch.organizationId,
           projectId: launch.projectId,
@@ -187,6 +188,7 @@ describe('Task Monitor launch effect handlers', () => {
 
     const result = await handler.execute({
       type: 'RECONCILE_TASK_MONITOR_LAUNCH',
+      kindKey: 'task',
       taskMonitorId: launch.taskMonitorId,
       organizationId: launch.organizationId,
       projectId: launch.projectId,
@@ -261,6 +263,7 @@ describe('Task Monitor launch effect handlers', () => {
     await expect(
       handler.execute({
         type: 'RECONCILE_TASK_MONITOR_LAUNCH',
+        kindKey: 'task',
         taskMonitorId: launch.taskMonitorId,
         organizationId: launch.organizationId,
         projectId: launch.projectId,

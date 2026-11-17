@@ -5383,7 +5383,10 @@ export class TaskService {
    * removed groups through the previously persisted value. Saved positions
    * are untouched.
    */
-  /** A monitor's nodes and launch settings must be ones its kind allows. */
+  /**
+   * A monitor must select a kind its project-effective type declares, keep
+   * that kind, and use only nodes and launch settings the kind allows.
+   */
   private async assertMonitorNodesMatchKind(
     tx: Prisma.TransactionClient,
     params: {
@@ -5402,16 +5405,16 @@ export class TaskService {
       return;
     }
 
-    const effectiveKind = this.workItemTypeRegistry.getDefinition(
+    const effectiveKinds = this.workItemTypeRegistry.getDefinition(
       params.projectId,
       params.type,
-    )?.definition.capabilities?.monitorKind;
+    )?.definition.capabilities?.monitorKinds;
     await assertTaskMonitorMatchesKind({
       db: tx,
       organizationId: params.organizationId,
       projectId: params.projectId,
       monitorId: params.monitorId,
-      kind: effectiveKind,
+      kinds: effectiveKinds,
       executionDefinitionContent: params.executionDefinitionContent,
       storedExecutionDefinitionContent: params.storedExecutionDefinitionContent,
     });
