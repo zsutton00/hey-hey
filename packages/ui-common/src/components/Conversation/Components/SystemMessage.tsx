@@ -17,6 +17,7 @@ import type { SystemMessageData } from "../../../api";
 import type { ReportDto } from "../../../api";
 import type { MessageRetryState } from "../../../types/conversation";
 import { ReportViewer } from "../../Reports";
+import { ReportOpenQuestions } from "../../Reports/ReportViewer";
 import { SystemMessageError } from "../../SystemMessageError";
 import { ThinkingIndicator } from "../../ThinkingIndicator";
 import { ThinkingText } from "./ThinkingText";
@@ -377,13 +378,24 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
             <Stack spacing={2} sx={{ mt: displayText ? 2 : 0 }}>
               {resolvedInlineReports.map((report) => (
                 <Box key={report.id}>
-                  <ReportViewer report={report} renderHeader={false} />
+                  <ReportViewer
+                    report={report}
+                    renderHeader={false}
+                    renderOpenQuestions={false}
+                  />
                 </Box>
               ))}
             </Stack>
           )}
         </Box>
       )}
+      {resolvedInlineReports.map((report) => (
+        <ReportOpenQuestions
+          key={report.id}
+          report={report}
+          testId={`report-viewer-${report.id}`}
+        />
+      ))}
     </FadeIn>
   );
 };

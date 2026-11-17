@@ -253,7 +253,7 @@ describe("ReportViewer", () => {
 
       expect(reportCard).not.toContainElement(openQuestions);
       expect(reportCard.nextElementSibling).toBe(openQuestions);
-      expect(openQuestions).toHaveTextContent("Open questions");
+      expect(openQuestions).not.toHaveTextContent("Open questions");
       expect(
         screen.getByTestId(
           `report-viewer-${report.id}-coding-research-summary`,

@@ -91,6 +91,7 @@ export interface ReportViewerProps {
    * from its saved payload with no response controls. Display only.
    */
   evaluationOutput?: boolean;
+  renderOpenQuestions?: boolean;
 }
 
 export const ReportViewer: React.FC<ReportViewerProps> = ({
@@ -104,25 +105,12 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
   featureSyncDecisionInteraction,
   featureSyncDecisionRecordedResponse,
   evaluationOutput = false,
+  renderOpenQuestions = true,
 }) => {
   const testId = `${testIdPrefix}-${report.id}`;
-  const afterFrameContent = (() => {
-    if (report.reportType !== ReportType.CodingResearch) {
-      return null;
-    }
-
-    const payload = narrowReportPayload(report);
-    if (payload.reportType !== ReportType.CodingResearch) {
-      return null;
-    }
-
-    return (
-      <CodingResearchUncertaintiesSection
-        reportTestId={testId}
-        uncertainties={getCodingResearchUncertainties(payload)}
-      />
-    );
-  })();
+  const afterFrameContent = renderOpenQuestions ? (
+    <ReportOpenQuestions report={report} testId={testId} />
+  ) : null;
   // Exactly one host title: the frame header or title link when present,
   // otherwise the renderer's own heading, unless the surface owns the title.
   const isInteractive =
@@ -164,6 +152,25 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
         featureSyncDecisionRecordedResponse,
       )}
     </ReportViewerFrame>
+  );
+};
+
+export const ReportOpenQuestions: React.FC<{
+  report: ReportDto;
+  testId: string;
+}> = ({ report, testId }) => {
+  if (report.reportType !== ReportType.CodingResearch) {
+    return null;
+  }
+  const payload = narrowReportPayload(report);
+  if (payload.reportType !== ReportType.CodingResearch) {
+    return null;
+  }
+  return (
+    <CodingResearchUncertaintiesSection
+      reportTestId={testId}
+      uncertainties={getCodingResearchUncertainties(payload)}
+    />
   );
 };
 

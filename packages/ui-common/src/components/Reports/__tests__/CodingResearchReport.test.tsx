@@ -280,7 +280,7 @@ describe("CodingResearchReport", () => {
     expect(
       screen.getByTestId("research-coding-research-analysis-toggle"),
     ).toHaveAttribute("aria-expanded", "false");
-    expect(section).toHaveTextContent("Open questions");
+    expect(section).not.toHaveTextContent("Open questions");
     expect(
       screen.getByTestId("research-coding-research-analysis")
         .nextElementSibling,
@@ -318,7 +318,7 @@ describe("CodingResearchReport", () => {
       screen.getByTestId("written-coding-research-analysis-toggle"),
     ).toHaveAttribute("aria-expanded", "false");
     expect(analysis.nextElementSibling).toBe(openQuestions);
-    expect(openQuestions).toHaveTextContent("Open questions");
+    expect(openQuestions).not.toHaveTextContent("Open questions");
     expect(screen.getByTestId("written-coding-research-summary")).toBeVisible();
   });
 
