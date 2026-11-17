@@ -327,7 +327,7 @@ const ToolCallRow: React.FC<{ call: CliReadToolCall; isNewest: boolean }> = ({
                 display: "flex",
                 justifyContent: "flex-start",
                 minHeight: TOOL_CALL_DETAIL_REVEAL_ROW_HEIGHT,
-                color: "text.secondary",
+                color: "primary.main",
                 borderRadius: 1,
               }}
             >
@@ -396,7 +396,8 @@ export const LatestTurnToolCalls: React.FC<{
             display: "flex",
             justifyContent: "flex-start",
             py: 0.25,
-            color: "text.secondary",
+            ml: "46px",
+            color: "primary.main",
             borderRadius: 1,
           }}
         >
