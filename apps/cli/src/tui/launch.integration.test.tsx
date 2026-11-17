@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const renderFailure = vi.hoisted(() => ({ armed: false }));
 
@@ -151,10 +151,18 @@ const launch = () => {
 describe('runInteractiveServer on a terminal', () => {
   const cleanups: Array<() => void> = [];
 
+  beforeEach(() => {
+    // This fixture simulates an interactive terminal, including on CI runners.
+    // Ink reads these flags when its native module is first imported.
+    vi.stubEnv('CI', 'false');
+    vi.stubEnv('CONTINUOUS_INTEGRATION', 'false');
+  });
+
   afterEach(() => {
     renderFailure.armed = false;
     for (const cleanup of cleanups.splice(0).reverse()) cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('owns the terminal while running, keeps work going after cancel, and restores everything on confirmed quit', async () => {
@@ -172,10 +180,9 @@ describe('runInteractiveServer on a terminal', () => {
 
     const sigint = addedListener('SIGINT');
     sigint();
-    await vi.waitFor(
-      () => expect(t.stdout.text()).toContain('1 session is working'),
-      { timeout: 5_000 },
-    );
+    await vi.waitFor(() => expect(t.stdout.text()).toContain('1 session is working'), {
+      timeout: 5_000,
+    });
     // Inputs reach the state machine synchronously; wait for the resulting frame.
     const beforeCancel = t.stdout.frames.length;
     t.stdin.type('n');

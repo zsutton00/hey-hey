@@ -21,6 +21,7 @@ import {
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
 } from '@hey-hey/contracts/api/models';
 import {
+  type BrowserSafeClaimFailureCode,
   MACHINE_ENROLLMENT_CLAIM_EXPIRED,
   MACHINE_ENROLLMENT_CLAIM_TERMINAL,
   MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE,
@@ -57,12 +58,6 @@ export interface PreparedCompletion {
   enrollment: PendingMachineEnrollment;
   verified: VerifiedMachineEnrollmentCredential;
 }
-
-type BrowserSafeClaimFailureCode =
-  | typeof MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE
-  | typeof MACHINE_ENROLLMENT_CLAIM_EXPIRED
-  | typeof MACHINE_ENROLLMENT_CLAIM_TERMINAL
-  | typeof MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE;
 
 export const MACHINE_ENROLLMENT_WEBAUTHN_VERIFIER = Symbol(
   'MACHINE_ENROLLMENT_WEBAUTHN_VERIFIER',

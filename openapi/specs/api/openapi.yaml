@@ -782,6 +782,14 @@ paths:
         connected machine alone does not authorize host actions.
       operationId: getLocalSetupStatus
       tags: [Auth]
+      parameters:
+        - name: enrollmentId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Follow this account's exact pairing. Connection and execution facts are scoped to its machine; an unrelated connected machine cannot complete this setup.
       responses:
         "200":
           description: Current local setup and machine state.
@@ -797,6 +805,136 @@ paths:
                         $ref: "#/components/schemas/LocalSetupStatusDto"
         "401":
           description: Local browser session is unavailable.
+
+  /auth/local/repair:
+    get:
+      summary: Read the local passkey repair state
+      description: >-
+        Local-deployment-only. Reports whether this account's passkey repair
+        was requested, declined at the terminal or completed, so the setup
+        page can continue without the person working out what happened.
+      operationId: getLocalPasskeyRepair
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current repair state for the local account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local browser session is unavailable.
+    post:
+      summary: Ask to repair the local account passkey
+      description: >-
+        Local-deployment-only. Accepted only from the setup session the CLI
+        opened on this computer, for a local account whose existing passkey
+        cannot be used. It changes nothing by itself: the person must confirm
+        at the terminal before any passkey is revoked.
+      operationId: requestLocalPasskeyRepair
+      tags: [Auth]
+      responses:
+        "200":
+          description: Repair is waiting for confirmation at the terminal.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local browser session or same-origin authority is unavailable.
+        "403":
+          description: >-
+            Repair is not available to this session. The error code is
+            LOCAL_REPAIR_SESSION_NOT_CLI_OPENED or LOCAL_REPAIR_NO_PASSKEY.
+
+  /auth/local/repair/request:
+    get:
+      summary: Read a pending local passkey repair request
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and learns whether the setup page it opened
+        asked for a repair, so it can ask the person at the terminal.
+      operationId: getLocalPasskeyRepairRequest
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current repair state for the local account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
+  /auth/local/repair/decision:
+    post:
+      summary: Record the terminal decision on a local passkey repair
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and reports what the person answered at the
+        terminal. Approval revokes every live passkey of the local account with
+        its controller credentials, execution grants and browser bindings, and
+        ends every browser session except the setup session that asked, which
+        may then enroll a new first passkey. No user data is deleted.
+      operationId: decideLocalPasskeyRepair
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalPasskeyRepairDecisionRequestDto"
+      responses:
+        "200":
+          description: Repair state after the decision.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+        "409":
+          description: No repair is waiting for a decision (LOCAL_REPAIR_NOT_REQUESTED).
 
   /auth/password-recovery:
     post:
@@ -26531,6 +26669,12 @@ components:
       $ref: ../schemas/auth.yaml#/LocalNameRequestDto
     LocalSetupStatusDto:
       $ref: ../schemas/auth.yaml#/LocalSetupStatusDto
+    LocalPasskeyRepairState:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairState
+    LocalPasskeyRepairStatusDto:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairStatusDto
+    LocalPasskeyRepairDecisionRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairDecisionRequestDto
     LocalCodingAgentAvailability:
       $ref: ../schemas/auth.yaml#/LocalCodingAgentAvailability
     LocalCodingAgentDetectionDto:
@@ -28689,12 +28833,22 @@ components:
       description: >
         API-authored, browser-safe reason for a failed enrollment claim.
         Unknown codes, cross-account enrollments, and otherwise privacy-sensitive
-        failures use the generic unavailable value.
+        failures use the generic unavailable value. The account-proof, passkey
+        and session values concern only the signed-in account's own shared
+        sign-in passkey: the account already has a passkey and none was proven
+        (ACCOUNT_PROOF_REQUIRED), the supplied proof did not verify
+        (ACCOUNT_PROOF_FAILED), the new passkey is already registered
+        (PASSKEY_ALREADY_REGISTERED), or the acting browser session ended
+        before the claim completed (SESSION_ENDED).
       enum:
         - MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE
         - MACHINE_ENROLLMENT_CLAIM_EXPIRED
         - MACHINE_ENROLLMENT_CLAIM_TERMINAL
         - MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE
+        - MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED
+        - MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED
+        - MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED
+        - MACHINE_ENROLLMENT_SESSION_ENDED
 
     MachineEnrollmentClaimFailureErrorDto:
       type: object

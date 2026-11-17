@@ -739,7 +739,11 @@ export class PresentationOwner {
       if (choice.status === 'cancelled') {
         this.diagnosticExportResult = { kind: 'cancelled' };
       } else {
-        const result = await writeDiagnosticExport(snapshot, choice.path);
+        const result = await writeDiagnosticExport(
+          snapshot,
+          choice.path,
+          Boolean(this.dependencies.localApplication),
+        );
         if (!current()) return;
         this.diagnosticExportResult = { kind: 'success', ...result };
       }

@@ -6,8 +6,10 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Logger,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
@@ -21,6 +23,7 @@ import {
   BrowserSessionResponseDto,
   LocalBootstrapResponseDto,
   LocalCliCredentialsResponseDto,
+  LocalPasskeyRepairStatusDto,
   LocalSetupStatusDto,
 } from '@hey-hey/contracts/api/models';
 import { Public } from '../auth/decorators/public.decorator';
@@ -32,6 +35,7 @@ import {
   setBrowserSessionCookies,
 } from '../auth/browser-session-cookies';
 import { LocalAccessService } from './local-access.service';
+import { LocalPasskeyRepairService } from './local-passkey-repair.service';
 
 const localHandoffBodySchema = z
   .object({ handoffToken: z.string().regex(/^[A-Za-z0-9_-]{40,64}$/) })
@@ -39,15 +43,20 @@ const localHandoffBodySchema = z
 const localNameBodySchema = z
   .object({ name: z.string().trim().min(1).max(100) })
   .strict();
+const localRepairDecisionBodySchema = z
+  .object({ approved: z.boolean() })
+  .strict();
 
 /** Local-only account routes; hosted composition never registers them. */
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
 export class LocalAuthController {
+  private readonly logger = new Logger(LocalAuthController.name);
   private readonly trustedOrigin: string;
 
   constructor(
     private readonly localAccess: LocalAccessService,
+    private readonly localPasskeyRepair: LocalPasskeyRepairService,
     configService: ConfigService,
   ) {
     this.trustedOrigin = configService.getOrThrow<string>(
@@ -128,8 +137,77 @@ export class LocalAuthController {
   @ApiResponse({ status: 200, type: Object })
   async getLocalStatus(
     @CurrentUser() user: AuthenticatedUser,
+    @Query('enrollmentId') enrollmentId?: string,
   ): Promise<LocalSetupStatusDto> {
-    return this.localAccess.getLocalStatus(user.userId);
+    const parsed = z.string().uuid().optional().safeParse(enrollmentId);
+    if (!parsed.success) {
+      const code = 'LOCAL_ENROLLMENT_ID_INVALID';
+      this.logger.warn('Local pairing status refused', {
+        reasonCode: code,
+        userId: user.userId,
+      });
+      throw new BadRequestException({
+        code,
+        message: 'Invalid local enrollment identifier',
+      });
+    }
+    return this.localAccess.getLocalStatus(user.userId, parsed.data);
+  }
+
+  @Get('local/repair')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Read the local passkey repair state' })
+  @ApiResponse({ status: 200, type: Object })
+  async getLocalPasskeyRepair(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LocalPasskeyRepairStatusDto> {
+    return this.localPasskeyRepair.status(user.userId);
+  }
+
+  @Post('local/repair')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ask to repair the local account passkey' })
+  @ApiResponse({ status: 200, type: Object })
+  async requestLocalPasskeyRepair(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: Request,
+  ): Promise<LocalPasskeyRepairStatusDto> {
+    this.assertLocalBrowserOrigin(request);
+
+    return this.localPasskeyRepair.request(user.userId, user.browserSessionId);
+  }
+
+  @Public()
+  @Get('local/repair/request')
+  @ApiOperation({ summary: 'Read a pending local passkey repair request' })
+  @ApiResponse({ status: 200, type: Object })
+  async getLocalPasskeyRepairRequest(
+    @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
+  ): Promise<LocalPasskeyRepairStatusDto> {
+    const userId =
+      await this.localAccess.localAccountUserId(installationSecret);
+
+    return this.localPasskeyRepair.status(userId);
+  }
+
+  @Public()
+  @Post('local/repair/decision')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record the terminal decision on a repair' })
+  @ApiResponse({ status: 200, type: Object })
+  async decideLocalPasskeyRepair(
+    @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
+    @Body() body: unknown,
+  ): Promise<LocalPasskeyRepairStatusDto> {
+    const userId =
+      await this.localAccess.localAccountUserId(installationSecret);
+    const parsedBody = localRepairDecisionBodySchema.safeParse(body);
+    if (!parsedBody.success) {
+      throw new BadRequestException('Invalid local repair decision');
+    }
+
+    return this.localPasskeyRepair.decide(userId, parsedBody.data.approved);
   }
 
   private assertLocalBrowserOrigin(request: Request): void {

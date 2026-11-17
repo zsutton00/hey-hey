@@ -148,14 +148,39 @@ export const en = {
   "localSetup.pairing.createPasskey": "Create passkey",
   "localSetup.pairing.tryAgain": "Try creating passkey again",
   "localSetup.pairing.cancel": "Cancel",
+  "localSetup.pairing.returning.title": "Reconnect this computer",
+  "localSetup.pairing.returning.purpose":
+    "You've set up Hey Hey on this computer before. Use the passkey you created then to reconnect it. Your projects and work are still here.",
+  "localSetup.pairing.returning.note":
+    "This computer was set up before. Your browser will ask for the passkey you created then.",
+  "localSetup.pairing.returning.usePasskey": "Use your passkey",
+  "localSetup.pairing.terminalConfirmation":
+    "After the passkey step, confirm once in the terminal where heyhey local is running.",
+  "localSetup.repair.explanation":
+    "You've set up Hey Hey on this computer before, but we can't use that passkey here. Repair sets up a new passkey for this computer and keeps all your projects and work.",
+  "localSetup.repair.action": "Repair",
+  "localSetup.repair.confirmInTerminal":
+    "Confirm the repair in the terminal where heyhey local is running. This page continues on its own.",
+  "localSetup.repair.declined":
+    "The repair was cancelled in the terminal. Nothing was changed.",
+  "localSetup.repair.completed":
+    "The repair is done. Create a new passkey for this computer; your projects and work are still here.",
+  "localSetup.progress.confirmInTerminal":
+    "Your passkey worked. Now confirm in the terminal where heyhey local is running, and keep it open.",
   "localSetup.progress.title": "Connecting your computer",
   "localSetup.progress.explanation":
     "Hey Hey is getting set up on this computer. This page continues on its own.",
   "localSetup.progress.terminalHint":
     "If your terminal asks you to confirm, confirm it there. Keep it open.",
   "localSetup.progress.failed":
-    "We couldn't finish connecting your computer. Try again, and if it keeps happening run heyhey local again.",
-  "localSetup.progress.retry": "Try again",
+    "The computer has not connected yet. Keep heyhey local running in your terminal. If it stopped or reported an error, run heyhey local again; your projects and work are kept.",
+  "localSetup.progress.retry": "Check connection",
+  "localSetup.progress.rejected":
+    "Pairing was declined or could not be completed. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.expired":
+    "This pairing expired before it finished. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.unavailable":
+    "This pairing is no longer available. Run heyhey local again to start a new pairing. Your projects and work are kept.",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
   "onboarding.runtime.ownPlanGuidance":

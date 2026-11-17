@@ -57,13 +57,14 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
   });
   const evalType = selectProjectEvalType(workItemTypes, projectId, isReady);
   const evalsLabel = getWorkItemTypePluralDisplayName(evalType?.definition);
-  const segments: readonly Segment<ProjectAgentsView>[] = evalType
-    ? [
-        ...projectAgentsSegments.slice(0, 4),
-        { value: "evals", label: evalsLabel },
-        ...projectAgentsSegments.slice(4),
-      ]
-    : projectAgentsSegments;
+  const segments: readonly Segment<ProjectAgentsView>[] =
+    evalType && evalsLabel
+      ? [
+          ...projectAgentsSegments.slice(0, 4),
+          { value: "evals", label: evalsLabel },
+          ...projectAgentsSegments.slice(4),
+        ]
+      : projectAgentsSegments;
   const [agentsView, setAgentsView] = useQueryState(
     "agentsSubTab",
     parseAsStringLiteral(projectAgentsViews).withDefault("agent-sessions"),
@@ -89,7 +90,11 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
       <Box sx={{ mb: 3, maxWidth: "100%", minWidth: 0 }}>
         <SegmentedToggle
           segments={segments}
-          value={displayedView === "evals" && !evalType ? "" : displayedView}
+          value={
+            displayedView === "evals" && (!evalType || !evalsLabel)
+              ? ""
+              : displayedView
+          }
           onChange={(value) => {
             if (value) void setAgentsView(value, { history: "push" });
           }}
@@ -139,7 +144,7 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
         />
       )}
       {displayedView === "evals" &&
-        (evalType ? (
+        (evalType && evalsLabel ? (
           <ProjectWorkItemsTab
             key={`${organizationId}:${projectId}:${evalType.definition.key}`}
             organizationId={organizationId}

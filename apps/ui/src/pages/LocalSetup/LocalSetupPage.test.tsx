@@ -12,12 +12,15 @@ import {
   forgetLocalPairing,
 } from "../Settings/localApproval";
 
-const { authClient } = vi.hoisted(() => ({
+const { authClient, listPasskeys } = vi.hoisted(() => ({
   authClient: {
     completeLocalHandoff: vi.fn(),
     getLocalSetupStatus: vi.fn(),
     saveLocalDisplayName: vi.fn(),
+    getLocalPasskeyRepair: vi.fn(),
+    requestLocalPasskeyRepair: vi.fn(),
   },
+  listPasskeys: vi.fn(),
 }));
 
 vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
@@ -28,6 +31,7 @@ vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
 vi.mock("@hey-hey/ui-common/services", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/services")>()),
   acceptBrowserAuthSession: vi.fn(),
+  listAccountPasskeys: listPasskeys,
   refreshAuthToken: vi.fn().mockResolvedValue({}),
 }));
 
@@ -37,16 +41,31 @@ vi.mock("../Settings/ClaimMachine", () => ({
     localApprovalSecret,
     localAgents,
     onLocalPasskeyCreated,
+    localReturning,
+    onLocalPasskeyUnavailable,
+    localRepair,
   }: {
     initialCode: string | null;
     localApprovalSecret?: string | null;
     localAgents?: unknown;
-    onLocalPasskeyCreated?: () => void;
+    onLocalPasskeyCreated?: (enrollmentId: string) => void;
+    localReturning?: boolean;
+    onLocalPasskeyUnavailable?: () => void;
+    localRepair?: React.ReactNode;
   }) => (
     <div data-testid="claim-machine">
       {initialCode}|{localApprovalSecret}
       <span data-testid="claim-agents">{JSON.stringify(localAgents)}</span>
-      <button onClick={onLocalPasskeyCreated}>passkey created</button>
+      <span data-testid="claim-returning">{String(localReturning)}</span>
+      <button
+        onClick={() =>
+          onLocalPasskeyCreated?.("11111111-1111-4111-8111-111111111111")
+        }
+      >
+        passkey created
+      </button>
+      <button onClick={onLocalPasskeyUnavailable}>passkey unavailable</button>
+      {localRepair}
     </div>
   ),
 }));
@@ -66,6 +85,7 @@ const statusResponse = (
     executionReady: boolean;
     hasProjects: boolean;
     setupProjectId: string | null;
+    pairingState: "WAITING" | "ACTIVE" | "REJECTED" | "EXPIRED" | "UNAVAILABLE";
   }> = {},
 ) => ({
   data: {
@@ -109,6 +129,7 @@ describe("LocalSetupPage", () => {
     sessionStorage.clear();
     localStorage.clear();
     authClient.getLocalSetupStatus.mockResolvedValue(statusResponse());
+    listPasskeys.mockResolvedValue([]);
     authClient.saveLocalDisplayName.mockResolvedValue(
       statusResponse({ nameComplete: true }),
     );
@@ -391,6 +412,79 @@ describe("LocalSetupPage", () => {
     }
   });
 
+  it.each(["REJECTED", "EXPIRED", "UNAVAILABLE"] as const)(
+    "ends the wait for a %s enrollment without offering to retry the dead claim",
+    async (pairingState) => {
+      const user = userEvent.setup();
+      authClient.getLocalSetupStatus.mockResolvedValue(
+        statusResponse({ nameComplete: true }),
+      );
+      window.history.replaceState(
+        {},
+        "",
+        "/local?pairing=started#code=ABCDEFGHJK",
+      );
+      renderLocalPage("/local?pairing=started");
+      await user.click(await screen.findByText("passkey created"));
+      authClient.getLocalSetupStatus.mockResolvedValue(
+        statusResponse({ nameComplete: true, pairingState }),
+      );
+      expect(
+        await screen.findByTestId(
+          "local-pairing-progress-error",
+          {},
+          { timeout: 5000 },
+        ),
+      ).toBeInTheDocument();
+      expect(authClient.getLocalSetupStatus).toHaveBeenCalledWith({
+        enrollmentId: "11111111-1111-4111-8111-111111111111",
+      });
+      expect(screen.queryByTestId("local-pairing-progress-retry")).toBeNull();
+      expect(
+        screen.queryByTestId("local-pairing-confirm-in-terminal"),
+      ).toBeNull();
+      expect(screen.queryByTestId("location")).toBeNull();
+    },
+  );
+
+  it("bounds the wait when terminal pairing activates but the CLI never connects", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      authClient.getLocalSetupStatus.mockResolvedValue(
+        statusResponse({ nameComplete: true, pairingState: "ACTIVE" }),
+      );
+      window.history.replaceState(
+        {},
+        "",
+        "/local?pairing=started#code=ABCDEFGHJK",
+      );
+      renderLocalPage("/local?pairing=started");
+      await user.click(await screen.findByText("passkey created"));
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(
+        await screen.findByTestId("local-pairing-progress-error"),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("location")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not skip a new pairing because an older computer is connected", async () => {
+    authClient.getLocalSetupStatus.mockResolvedValue(
+      statusResponse({ nameComplete: true, machineConnected: true }),
+    );
+    window.history.replaceState(
+      {},
+      "",
+      "/local?pairing=started#code=ABCDEFGHJK",
+    );
+    renderLocalPage("/local?pairing=started");
+    expect(await screen.findByTestId("claim-machine")).toBeInTheDocument();
+    expect(screen.queryByTestId("location")).toBeNull();
+  });
+
   it("goes straight on for an already-connected computer without a button", async () => {
     authClient.getLocalSetupStatus.mockResolvedValue(
       statusResponse({ nameComplete: true, machineConnected: true }),
@@ -470,6 +564,160 @@ describe("LocalSetupPage", () => {
     renderLocalPage();
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/home");
+    });
+  });
+
+  describe("on a computer that was set up before", () => {
+    const openReturningPairing = () => {
+      authClient.getLocalSetupStatus.mockResolvedValue(
+        statusResponse({ nameComplete: true }),
+      );
+      listPasskeys.mockResolvedValue([{ id: "passkey-1" }]);
+      // The CLI sends no approval secret once the account has a passkey.
+      window.history.replaceState(
+        {},
+        "",
+        "/local?pairing=started#code=ABCDEFGHJK",
+      );
+      renderLocalPage("/local?pairing=started");
+    };
+
+    it("says so, asks for the existing passkey, and sends the person to the terminal to confirm", async () => {
+      const user = userEvent.setup();
+      openReturningPairing();
+
+      expect(
+        await screen.findByRole("heading", { name: "Reconnect this computer" }),
+      ).toBeVisible();
+      expect(screen.getByTestId("claim-machine")).toHaveTextContent(
+        "ABCDEFGHJK|",
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("claim-returning")).toHaveTextContent("true"),
+      );
+      expect(screen.queryByTestId("local-repair")).not.toBeInTheDocument();
+
+      await user.click(screen.getByText("passkey created"));
+
+      expect(
+        await screen.findByTestId("local-pairing-confirm-in-terminal"),
+      ).toBeVisible();
+    });
+
+    it("offers one Repair when the passkey can't be used, waits for the terminal, then continues to a new first passkey", async () => {
+      const user = userEvent.setup();
+      authClient.requestLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "REQUESTED" } },
+      });
+      authClient.getLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "REQUESTED" } },
+      });
+      openReturningPairing();
+      await waitFor(() =>
+        expect(screen.getByTestId("claim-returning")).toHaveTextContent("true"),
+      );
+
+      await user.click(screen.getByText("passkey unavailable"));
+
+      expect(
+        await screen.findByTestId("local-repair-explanation"),
+      ).toBeVisible();
+      expect(authClient.requestLocalPasskeyRepair).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId("local-repair-action"));
+
+      expect(
+        await screen.findByTestId("local-repair-confirm-in-terminal"),
+      ).toBeVisible();
+      expect(screen.queryByTestId("local-repair-action")).toBeNull();
+
+      authClient.getLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "COMPLETED" } },
+      });
+      await waitFor(
+        () =>
+          expect(screen.getByTestId("claim-returning")).toHaveTextContent(
+            "false",
+          ),
+        { timeout: 5000 },
+      );
+      expect(screen.queryByTestId("local-repair")).not.toBeInTheDocument();
+    });
+
+    it("shows a repair status failure and resumes when the API returns", async () => {
+      const user = userEvent.setup();
+      authClient.requestLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "REQUESTED" } },
+      });
+      authClient.getLocalPasskeyRepair.mockRejectedValue(
+        new Error("repair status unavailable"),
+      );
+      openReturningPairing();
+      await user.click(await screen.findByText("passkey unavailable"));
+      await user.click(screen.getByTestId("local-repair-action"));
+      expect(
+        await screen.findByTestId("local-repair-error", {}, { timeout: 5000 }),
+      ).toBeInTheDocument();
+      authClient.getLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "COMPLETED" } },
+      });
+      await waitFor(
+        () =>
+          expect(screen.getByTestId("claim-returning")).toHaveTextContent(
+            "false",
+          ),
+        { timeout: 5000 },
+      );
+      expect(screen.queryByTestId("local-repair-error")).toBeNull();
+    });
+
+    it("says nothing changed when the repair is declined at the terminal and still offers it", async () => {
+      const user = userEvent.setup();
+      authClient.requestLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "REQUESTED" } },
+      });
+      authClient.getLocalPasskeyRepair.mockResolvedValue({
+        data: { data: { state: "DECLINED" } },
+      });
+      openReturningPairing();
+      await waitFor(() =>
+        expect(screen.getByTestId("claim-returning")).toHaveTextContent("true"),
+      );
+      await user.click(screen.getByText("passkey unavailable"));
+      await user.click(await screen.findByTestId("local-repair-action"));
+
+      expect(
+        await screen.findByTestId(
+          "local-repair-declined",
+          {},
+          { timeout: 5000 },
+        ),
+      ).toBeVisible();
+      expect(screen.getByTestId("local-repair-action")).toBeVisible();
+      expect(screen.getByTestId("claim-returning")).toHaveTextContent("true");
+    });
+
+    it("shows the API's own reason when a repair can't be started", async () => {
+      const user = userEvent.setup();
+      authClient.requestLocalPasskeyRepair.mockRejectedValue({
+        response: {
+          data: {
+            message:
+              "Repair can only start from the page heyhey local opens. Run heyhey local in your terminal to open it.",
+            code: "LOCAL_REPAIR_SESSION_NOT_CLI_OPENED",
+          },
+        },
+      });
+      openReturningPairing();
+      await waitFor(() =>
+        expect(screen.getByTestId("claim-returning")).toHaveTextContent("true"),
+      );
+      await user.click(screen.getByText("passkey unavailable"));
+      await user.click(await screen.findByTestId("local-repair-action"));
+
+      expect(await screen.findByTestId("local-repair-error")).toHaveTextContent(
+        "Repair can only start from the page heyhey local opens.",
+      );
     });
   });
 });

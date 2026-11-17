@@ -15,6 +15,7 @@ import type {
   CreateMachineEnrollmentRequestDto,
   PollMachineEnrollmentResponseDto,
 } from '../shared/api/index';
+import { DefaultCollectionMissingError } from '../credentials/errors';
 import { ControllerRegistryStore } from '../credentials/controller-registry';
 import {
   runPairCommand,
@@ -601,6 +602,22 @@ describe('runPairCommand', () => {
       'Enrollment opened, but protected local retention failed: keychain unavailable',
     );
     expect(deps.keyPairStore.setCurrentMachineId).not.toHaveBeenCalled();
+  });
+
+  it('stops before allocating an enrollment when protected storage has no default keyring', async () => {
+    const keyPairStore = createTestKeyPairStore();
+    await keyPairStore.storePendingEnrollmentId(ENROLLMENT_ID);
+    vi.spyOn(keyPairStore, 'ensureProtectedStorageReady').mockRejectedValue(
+      new DefaultCollectionMissingError('No keyring is selected as the default.'),
+    );
+    const deps = makeDeps({ keyPairStore });
+
+    await expect(runPairCommand(deps)).resolves.toBe(false);
+
+    expect(deps.machinesApi.createMachineEnrollment).not.toHaveBeenCalled();
+    expect(deps.logError).toHaveBeenCalledWith(expect.stringContaining('Set as default'));
+    // The saved attempt was not detached, so the next attempt can still resume or replace it.
+    await expect(keyPairStore.loadPendingEnrollmentId()).resolves.toBe(ENROLLMENT_ID);
   });
 
   it('cleans partial pending state when secret retention fails', async () => {

@@ -92,7 +92,11 @@ it.each(['absent', 'stale', 'unavailable'] as const)(
               JSON.stringify({
                 data: url.endsWith('/cli-credentials')
                   ? { accessToken: token, refreshToken: 'refresh', expiresInSeconds: 86400 }
-                  : { handoffToken: 'a'.repeat(43), expiresInSeconds: 120 },
+                  : {
+                      handoffToken: 'a'.repeat(43),
+                      expiresInSeconds: 120,
+                      accountHasPasskey: false,
+                    },
               }),
             ),
           ),

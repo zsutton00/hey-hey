@@ -2,6 +2,9 @@ import { MachineControllerAuthority } from '../auth/machine-controller-authority
 import { OAuthClient } from '../auth/oauth-client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { runLocalCommand } from './local';
+import { runPairCommand } from './pair';
+import { openBrowser } from '../local-app/open-browser';
+import { LocalApprovalSecret } from '../auth/local-approval';
 import { localWebOrigin } from '../local-app/compose';
 import { DEFAULT_LOCAL_WEB_PORT } from '../local-app/local-port';
 
@@ -71,6 +74,7 @@ it.each([
   async ({ machineId, origin, rpId }) => {
     vi.stubEnv('HEYHEY_CONTROLLER_ORIGIN', origin);
     vi.stubEnv('HEYHEY_CONTROLLER_RP_ID', rpId);
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
     vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(machineId);
     vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
       success: true,
@@ -112,7 +116,11 @@ it.each([
               refreshToken: 'local-refresh-token',
               expiresInSeconds: 86_400,
             })
-          : envelope(url, { handoffToken: 'a'.repeat(43), expiresInSeconds: 120 }),
+          : envelope(url, {
+              handoffToken: 'a'.repeat(43),
+              expiresInSeconds: 120,
+              accountHasPasskey: false,
+            }),
       ),
     );
     const storeCredential = vi.spyOn(CredentialStore.prototype, 'store').mockResolvedValue();
@@ -137,5 +145,67 @@ it.each([
     expect(process.env['HEYHEY_WEB_ORIGIN']).toBe('https://previous.example');
     expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin);
     expect(process.env['HEYHEY_CONTROLLER_RP_ID']).toBe(rpId);
+  },
+);
+
+it.each([
+  { accountHasPasskey: false, approves: 'with its one-time approval' },
+  { accountHasPasskey: true, approves: 'at the terminal, with no approval secret' },
+])(
+  'pairs an account whose passkey state is $accountHasPasskey $approves',
+  async ({ accountHasPasskey }) => {
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
+    vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(null);
+    vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
+      success: true,
+      data: fakeJwt,
+    });
+    vi.spyOn(MachineControllerAuthority.prototype, 'readReadiness').mockResolvedValue({
+      state: 'unpaired',
+      machineId: null,
+      machine: null,
+      localControllers: [],
+      serverControllers: [],
+      serverExecutionReadiness: null,
+    });
+    vi.spyOn(process, 'stdin', 'get').mockReturnValue(
+      Object.assign(Object.create(process.stdin), { isTTY: true }),
+    );
+    vi.spyOn(process, 'stdout', 'get').mockReturnValue(
+      Object.assign(Object.create(process.stdout), { isTTY: true }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify({
+              data: url.endsWith('/auth/local/cli-credentials')
+                ? { accessToken: fakeJwt, refreshToken: 'refresh', expiresInSeconds: 86_400 }
+                : { handoffToken: 'a'.repeat(43), expiresInSeconds: 120, accountHasPasskey },
+            }),
+          ),
+      ),
+    );
+    vi.spyOn(CredentialStore.prototype, 'store').mockResolvedValue();
+    mocks.server.mockResolvedValue(true);
+    vi.mocked(runPairCommand).mockClear();
+    vi.mocked(openBrowser).mockClear();
+
+    expect(await runLocalCommand([])).toBe(true);
+
+    const pairing = vi.mocked(runPairCommand).mock.calls[0]![0]!;
+    pairing.onBrowserHandoff!('BCDFG-HJKLM');
+    const opened = new URL(vi.mocked(openBrowser).mock.calls[0]![0]);
+    const fragment = new URLSearchParams(opened.hash.slice(1));
+
+    expect(fragment.get('code')).toBe('BCDFG-HJKLM');
+    if (accountHasPasskey) {
+      expect(pairing.localApproval).toBeUndefined();
+      expect(fragment.has('approval')).toBe(false);
+    } else {
+      expect(pairing.localApproval).toBeInstanceOf(LocalApprovalSecret);
+      expect(fragment.get('approval')).toBe(pairing.localApproval!.fragmentValue);
+    }
   },
 );

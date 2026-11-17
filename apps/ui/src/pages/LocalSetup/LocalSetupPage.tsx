@@ -28,6 +28,8 @@ import {
   parseLocalCodingAgents,
 } from "../Settings/localApproval";
 import { LocalSetupDiagnostics } from "./LocalSetupDiagnostics";
+import { LocalRepairPanel } from "./LocalRepairPanel";
+import { useLocalReturningPasskey } from "./useLocalReturningPasskey";
 import {
   describeFragment,
   describeNavigationType,
@@ -86,10 +88,10 @@ const readCliFragment = (): CliFragment => {
   const fragment = new URLSearchParams(window.location.hash.slice(1));
   const code = fragment.get("code");
   const approval = fragment.get("approval");
+  // No approval value means the CLI will confirm this pairing in the terminal.
   if (
     code &&
-    approval !== null &&
-    LOCAL_APPROVAL_SECRET_PATTERN.test(approval)
+    (approval === null || LOCAL_APPROVAL_SECRET_PATTERN.test(approval))
   ) {
     holdLocalPairing({
       code,
@@ -156,40 +158,63 @@ export function LocalSetupPage(): React.JSX.Element {
   const [step, setStep] = useState<"loading" | "name" | "error">("loading");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cliFragment] = useState(readCliFragment);
+  const [handoffPending, setHandoffPending] = useState(() =>
+    Boolean(cliFragment.handoffToken),
+  );
   const lastStatus = useRef<string | null>(null);
   const refreshStatusNow = useRef<() => Promise<void>>(() => Promise.resolve());
   const [passkeyCreated, setPasskeyCreated] = useState(false);
   const passkeyCreatedRef = useRef(false);
-  const handlePasskeyCreated = useCallback(() => {
+  const [enrollmentId, setEnrollmentId] = useState<string>();
+  const handlePasskeyCreated = useCallback((id: string) => {
+    setEnrollmentId(id);
     passkeyCreatedRef.current = true;
     setPasskeyCreated(true);
   }, []);
   const [connectionFailed, setConnectionFailed] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
 
+  const pairingStarted = searchParams.get("pairing") === "started";
+  const pairing = heldLocalPairing();
+  const hasPairingHandoff = pairingStarted && pairing !== null;
+  const confirmAtTerminal = pairing !== null && pairing.approvalSecret === null;
+  const returningPasskey = useLocalReturningPasskey(
+    pairingStarted &&
+      pairing !== null &&
+      isAuthenticated &&
+      !authLoading &&
+      !handoffPending,
+  );
+
   useEffect(() => {
-    if (!passkeyCreated) {
+    if (
+      !passkeyCreated ||
+      status?.pairingState === "REJECTED" ||
+      status?.pairingState === "EXPIRED" ||
+      status?.pairingState === "UNAVAILABLE"
+    ) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      recordLocalSetupEvent("connect: timed out waiting for the CLI");
-      setConnectionFailed(true);
-    }, CONNECT_TIMEOUT_MS);
+    const timer = window.setTimeout(
+      () => {
+        recordLocalSetupEvent("connect: timed out waiting for the CLI");
+        setConnectionFailed(true);
+      },
+      confirmAtTerminal && status?.pairingState !== "ACTIVE"
+        ? 5 * 60_000
+        : CONNECT_TIMEOUT_MS,
+    );
 
     return () => window.clearTimeout(timer);
-  }, [passkeyCreated, connectAttempt]);
+  }, [passkeyCreated, confirmAtTerminal, connectAttempt, status?.pairingState]);
 
   const handleRetry = () => {
     setConnectionFailed(false);
     setConnectAttempt((attempt) => attempt + 1);
     void refreshStatusNow.current();
   };
-
-  const [cliFragment] = useState(readCliFragment);
-  const [handoffPending, setHandoffPending] = useState(() =>
-    Boolean(cliFragment.handoffToken),
-  );
 
   useEffect(() => {
     mountCount += 1;
@@ -245,11 +270,12 @@ export function LocalSetupPage(): React.JSX.Element {
     let active = true;
     const refreshStatus = async () => {
       try {
-        const response =
-          await getApiRuntime().clients.auth.getLocalSetupStatus();
+        const response = await getApiRuntime().clients.auth.getLocalSetupStatus(
+          { enrollmentId },
+        );
         if (!active) return;
         const nextStatus = response.data.data;
-        const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} has-projects=${String(nextStatus.hasProjects)} setup-unfinished=${String(nextStatus.setupProjectId !== null)}`;
+        const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} pairing=${nextStatus.pairingState ?? "none"} has-projects=${String(nextStatus.hasProjects)} setup-unfinished=${String(nextStatus.setupProjectId !== null)}`;
         if (statusSummary !== lastStatus.current) {
           lastStatus.current = statusSummary;
           recordLocalSetupEvent(`status: ${statusSummary}`);
@@ -260,7 +286,11 @@ export function LocalSetupPage(): React.JSX.Element {
         );
         // Move on only once the connection is real. The protected routes keep
         // the terms gate, then first-project setup resumes the saved project.
-        if (nextStatus.nameComplete && nextStatus.machineConnected) {
+        if (
+          nextStatus.nameComplete &&
+          nextStatus.machineConnected &&
+          (!hasPairingHandoff || enrollmentId !== undefined)
+        ) {
           await navigate(destinationAfterConnecting(nextStatus), {
             replace: true,
           });
@@ -286,7 +316,14 @@ export function LocalSetupPage(): React.JSX.Element {
       active = false;
       window.clearInterval(interval);
     };
-  }, [isAuthenticated, authLoading, handoffPending, navigate]);
+  }, [
+    isAuthenticated,
+    authLoading,
+    handoffPending,
+    navigate,
+    enrollmentId,
+    hasPairingHandoff,
+  ]);
 
   const saveName = async () => {
     const displayName = name.trim();
@@ -311,8 +348,6 @@ export function LocalSetupPage(): React.JSX.Element {
     }
   };
 
-  const pairingStarted = searchParams.get("pairing") === "started";
-  const pairing = heldLocalPairing();
   const view = describeView({ step, status, pairingStarted, pairing });
   useEffect(() => {
     recordLocalSetupEvent(`view: ${view}`);
@@ -350,7 +385,10 @@ export function LocalSetupPage(): React.JSX.Element {
     );
   }
 
-  if (status.nameComplete && (status.machineConnected || passkeyCreated)) {
+  if (
+    status.nameComplete &&
+    ((!hasPairingHandoff && status.machineConnected) || passkeyCreated)
+  ) {
     return (
       <BrandedPage className="local-setup">
         <BrandedWordmark>HEY HEY</BrandedWordmark>
@@ -358,7 +396,13 @@ export function LocalSetupPage(): React.JSX.Element {
         <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
           <LocalPairingProgress
             failed={connectionFailed}
+            pairingState={status.pairingState}
             onRetry={handleRetry}
+            confirmAtTerminal={
+              confirmAtTerminal &&
+              !status.machineConnected &&
+              status.pairingState !== "ACTIVE"
+            }
           />
         </BrandedCard>
       </BrandedPage>
@@ -399,8 +443,18 @@ export function LocalSetupPage(): React.JSX.Element {
           <p className="local-setup__eyebrow">
             {t("localSetup.pairing.eyebrow")}
           </p>
-          <BrandedHeadline line={t("localSetup.pairing.purpose")}>
-            {t("localSetup.pairing.title")}
+          <BrandedHeadline
+            line={
+              returningPasskey.returning
+                ? t("localSetup.pairing.returning.purpose")
+                : returningPasskey.repaired
+                  ? t("localSetup.repair.completed")
+                  : t("localSetup.pairing.purpose")
+            }
+          >
+            {returningPasskey.returning
+              ? t("localSetup.pairing.returning.title")
+              : t("localSetup.pairing.title")}
           </BrandedHeadline>
         </header>
       ) : null}
@@ -412,6 +466,21 @@ export function LocalSetupPage(): React.JSX.Element {
             localApprovalSecret={pairing.approvalSecret}
             localAgents={pairing.agents}
             onLocalPasskeyCreated={handlePasskeyCreated}
+            localReturning={returningPasskey.returning}
+            onLocalPasskeyUnavailable={returningPasskey.offerRepair}
+            onLocalAccountProofRequired={
+              returningPasskey.requireExistingPasskey
+            }
+            localRepair={
+              returningPasskey.returning &&
+              returningPasskey.repair !== "none" ? (
+                <LocalRepairPanel
+                  view={returningPasskey.repair}
+                  error={returningPasskey.repairError}
+                  onRepair={() => void returningPasskey.requestRepair()}
+                />
+              ) : null
+            }
           />
         ) : pairingStarted ? (
           <>

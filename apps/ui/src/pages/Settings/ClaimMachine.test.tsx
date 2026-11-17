@@ -822,6 +822,78 @@ describe("ClaimMachine", () => {
     expect(mocks.acceptSession).toHaveBeenCalledWith(session);
   });
 
+  describe("local setup on a computer that was set up before", () => {
+    const renderReturning = (callbacks: {
+      onLocalPasskeyUnavailable?: () => void;
+    }) => {
+      mocks.beginMutate.mockResolvedValue({
+        ...beginResult,
+        enrollmentMode: "SHARED_NEW",
+      });
+      render(
+        <ClaimMachine
+          initialCode="BCDFG-HJKLM"
+          enrollment="first-use-shared-new"
+          localReturning
+          localRepair={<p data-testid="repair-slot">repair</p>}
+          {...callbacks}
+        />,
+      );
+    };
+
+    it("pairs with proof from the existing passkey and asks for no access duration", async () => {
+      const accountProof = { passkeyAssertion: { id: "existing-passkey" } };
+      mocks.requestProof.mockResolvedValue(accountProof);
+      mocks.completeMutate.mockResolvedValue({
+        ...completeResult,
+        session: { accessToken: "fresh" },
+      });
+      renderReturning({});
+
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("local-pairing-create-passkey"),
+        ).toBeEnabled(),
+      );
+      expect(screen.getByTestId("local-pairing-returning")).toBeVisible();
+      expect(
+        screen.queryByTestId("local-pairing-duration"),
+      ).not.toBeInTheDocument();
+      // The terminal confirms this pairing, so it asks for no pairing-time grant.
+      expect(mocks.beginMutate.mock.calls[0]![0]).not.toHaveProperty(
+        "firstLocalGrant",
+      );
+
+      fireEvent.click(screen.getByTestId("local-pairing-create-passkey"));
+
+      await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalled());
+      expect(mocks.requestProof).toHaveBeenCalledWith({ kind: "passkey" });
+      expect(mocks.completeMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ accountProof }),
+      );
+      expect(mocks.completeMutate.mock.calls[0]![0]).not.toHaveProperty(
+        "localApprovalProof",
+      );
+    });
+
+    it("reports an existing passkey that can't be produced instead of creating a new one", async () => {
+      const onLocalPasskeyUnavailable = vi.fn();
+      mocks.requestProof.mockRejectedValue(new Error("NotAllowedError"));
+      renderReturning({ onLocalPasskeyUnavailable });
+
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("local-pairing-create-passkey"),
+        ).toBeEnabled(),
+      );
+      fireEvent.click(screen.getByTestId("local-pairing-create-passkey"));
+
+      await waitFor(() => expect(onLocalPasskeyUnavailable).toHaveBeenCalled());
+      expect(mocks.completeMutate).not.toHaveBeenCalled();
+      expect(screen.getByTestId("repair-slot")).toBeVisible();
+    });
+  });
+
   it("shows the awaiting-local-confirmation result without treating the machine as active", async () => {
     render(<ClaimMachine initialCode={null} />);
     advancePastCliStep();

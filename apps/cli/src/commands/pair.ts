@@ -34,6 +34,8 @@ import {
   type MachineEnrollmentCeremonyPorts,
   type MachineEnrollmentCeremonyStep,
 } from '../auth/machine-enrollment-ceremony';
+import { isCredentialError } from '../credentials/errors';
+import { describeProtectedStorageProblem } from '../credentials/storage-guidance';
 import { ExecutionGrantStore } from '../server/controller-authorization/execution-grant-store';
 import { StructuredServerLogger, type ServerLogger } from '../server/logger';
 import { resolvePairingUrl } from './pairing-web-url';
@@ -280,6 +282,18 @@ export const pairMachine = async (
   deps: PairCommandDependencies,
   ports: MachineEnrollmentCeremonyPorts,
 ): Promise<MachineEnrollmentConfirmationResult> => {
+  // Storage problems surface before an enrollment is allocated or a saved attempt is detached.
+  try {
+    await deps.keyPairStore.ensureProtectedStorageReady();
+  } catch (error) {
+    deps.logger.debug('pair.protected_storage.not_ready', {
+      code: isCredentialError(error) ? error.code : 'UNKNOWN',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    problem(ports, describeProtectedStorageProblem(error));
+    return FAILED;
+  }
+
   const detachedEnrollmentId = await detachSavedAttemptForExplicitPair(
     deps.keyPairStore,
     deps.logger,

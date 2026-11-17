@@ -643,7 +643,6 @@ const digestTargetInputs = (
   const rootPackage = JSON.parse(
     fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"),
   );
-  add("node-version", process.version);
   add("package-manager", rootPackage.packageManager ?? "unknown");
   for (const file of ["scripts/openapi-source.cjs"]) {
     add(`file:${file}`, fs.readFileSync(path.join(projectRoot, file)));

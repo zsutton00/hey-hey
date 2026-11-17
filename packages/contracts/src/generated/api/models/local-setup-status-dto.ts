@@ -22,6 +22,12 @@
  */
 export interface LocalSetupStatusDto {
     /**
+     * Present when enrollmentId is supplied. Reports only an enrollment claimed by this local account in its current organization. ACTIVE means enrollment activated, not that the CLI is connected; terminal states require a new CLI pairing. Unknown and other-account enrollments are indistinguishable.
+     * @type {string}
+     * @memberof LocalSetupStatusDto
+     */
+    'pairingState'?: LocalSetupStatusDtoPairingStateEnum;
+    /**
      *
      * @type {boolean}
      * @memberof LocalSetupStatusDto
@@ -57,4 +63,31 @@ export interface LocalSetupStatusDto {
      * @memberof LocalSetupStatusDto
      */
     'setupProjectId': string | null;
+}
+
+
+
+export const LocalSetupStatusDtoPairingStateEnum = {
+    Waiting: 'WAITING',
+    Active: 'ACTIVE',
+    Rejected: 'REJECTED',
+    Expired: 'EXPIRED',
+    Unavailable: 'UNAVAILABLE',
+    "WAITING": "WAITING",
+    "ACTIVE": "ACTIVE",
+    "REJECTED": "REJECTED",
+    "EXPIRED": "EXPIRED",
+    "UNAVAILABLE": "UNAVAILABLE",
+} as const;
+Object.defineProperty(LocalSetupStatusDtoPairingStateEnum, "WAITING", { enumerable: false, value: LocalSetupStatusDtoPairingStateEnum["Waiting"] });
+Object.defineProperty(LocalSetupStatusDtoPairingStateEnum, "ACTIVE", { enumerable: false, value: LocalSetupStatusDtoPairingStateEnum["Active"] });
+Object.defineProperty(LocalSetupStatusDtoPairingStateEnum, "REJECTED", { enumerable: false, value: LocalSetupStatusDtoPairingStateEnum["Rejected"] });
+Object.defineProperty(LocalSetupStatusDtoPairingStateEnum, "EXPIRED", { enumerable: false, value: LocalSetupStatusDtoPairingStateEnum["Expired"] });
+Object.defineProperty(LocalSetupStatusDtoPairingStateEnum, "UNAVAILABLE", { enumerable: false, value: LocalSetupStatusDtoPairingStateEnum["Unavailable"] });
+
+export type LocalSetupStatusDtoPairingStateEnum = typeof LocalSetupStatusDtoPairingStateEnum[keyof typeof LocalSetupStatusDtoPairingStateEnum];
+
+export namespace LocalSetupStatusDto {
+    export const PairingStateEnum = LocalSetupStatusDtoPairingStateEnum;
+    export type PairingStateEnum = LocalSetupStatusDtoPairingStateEnum;
 }
