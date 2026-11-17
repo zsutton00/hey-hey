@@ -1,3 +1,4 @@
+import type { MachineControllerManagementClient } from '../auth/machine-controller-management';
 import { logOutAccount, type AccountLogoutResult } from '../auth/account-logout';
 import type {
   LocalMachineReadinessState,
@@ -292,6 +293,7 @@ export class MachineActions {
 }
 
 export interface MachineActionsInfrastructure {
+  machineControllerManagementClient?: MachineControllerManagementClient;
   oauthClient: MachineActionsDependencies['oauthClient'];
   platformWebSocketManager: MachineActionsDependencies['platformWebSocketManager'];
   machineControllerAuthority: MachineActionsDependencies['machineControllerAuthority'];
@@ -313,6 +315,9 @@ export const createMachineActions = (
   const logger = infrastructure.logger.child({ component: 'machine-actions' });
   const pairDependencies = resolvePairDependencies({
     keyPairStore: infrastructure.keyPairStore,
+    ...(infrastructure.machineControllerManagementClient
+      ? { existingMachineClient: infrastructure.machineControllerManagementClient }
+      : {}),
     controllerRegistryStore: infrastructure.controllerRegistryStore,
     executionGrantStore: infrastructure.executionGrantStore,
     machinesApi: createDefaultMachineEnrollmentClient(),

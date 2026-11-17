@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ConversationStartRunRequestDtoProviderEnum,
   ConversationStartRunRequestDtoReasoningEffortEnum,
+  AgentSessionType,
   EvalRunStatus,
   type EvalModelSetting,
 } from "../../api";
@@ -18,6 +19,11 @@ import {
   evalRunQueryOptions,
   type EvalRunReport,
 } from "../collections/evalRuns";
+
+import { createEntityActivation } from "../../contexts/EntityActivationContext";
+import type { NavigationLineage } from "../../types/userTracking";
+import { getOpenItemsAdapter } from "../collections/openItems";
+import { useTranslation } from "react-i18next";
 
 const START_MESSAGE = "Run eval";
 
@@ -60,6 +66,8 @@ export interface StartEvalRunInput {
   projectId: string;
   runId: string;
   machineId: string | null;
+  userId: string;
+  lineage: NavigationLineage;
 }
 
 export type EvalRunStartResult = { ok: true } | { ok: false; error: string };
@@ -84,6 +92,7 @@ export interface UseEvalRunSessionReturn {
  */
 export function useEvalRunSession(): UseEvalRunSessionReturn {
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const accessResolver = useAgentSessionInteractionAccessResolver();
   const operationIds = useRef(new Map<string, string>());
   const inFlight = useRef(false);
@@ -97,6 +106,8 @@ export function useEvalRunSession(): UseEvalRunSessionReturn {
       projectId,
       runId,
       machineId,
+      userId,
+      lineage,
     }: StartEvalRunInput): Promise<EvalRunStartResult> => {
       if (inFlight.current) {
         return { ok: false, error: "This run is already starting." };
@@ -175,6 +186,29 @@ export function useEvalRunSession(): UseEvalRunSessionReturn {
           agentSessionId: coordinatorAgentSessionId,
           conversationId: coordinatorConversationId,
         });
+        // The start has already succeeded. Open Items errors belong to the
+        // working set and must never turn this into another start attempt.
+        const adapter = getOpenItemsAdapter(queryClient, {
+          organizationId,
+          projectId,
+          userId,
+        });
+        try {
+          await adapter.activate(
+            createEntityActivation(
+              "agent_session",
+              coordinatorAgentSessionId,
+              lineage,
+              {
+                kind: "agent_session",
+                label: t("eval.run.sessionTitle"),
+                sessionType: AgentSessionType.ProjectConversation,
+              },
+            ),
+          );
+        } catch (activationError) {
+          adapter.reportError(activationError);
+        }
         return { ok: true };
       } catch (caught) {
         const message = getErrorMessage(
@@ -188,7 +222,7 @@ export function useEvalRunSession(): UseEvalRunSessionReturn {
         setIsStarting(false);
       }
     },
-    [accessResolver, queryClient],
+    [accessResolver, queryClient, t],
   );
 
   const stop = useCallback(async (run: EvalRunReport): Promise<boolean> => {

@@ -902,3 +902,7 @@ export {
 } from "./useApplyProposalFuture";
 
 export { useProjectApprovalPolicy } from "./useProjectApprovalPolicy";
+
+export { useEvalSessionStatuses } from "./useEvalSessionStatuses";
+
+export { useOpenItemSessionRename } from "./useOpenItemSessionRename";

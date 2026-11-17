@@ -57,6 +57,7 @@ const isSessionExpired = (issuedAt?: string): boolean => {
 export interface OAuthClientOptions {
   config?: Partial<OAuthConfig>;
   credentialStore?: CredentialStore;
+  credentialKey?: string;
 }
 
 const isRecord = (value: object | null): value is Record<string, string | number> =>
@@ -156,7 +157,7 @@ export class OAuthClient {
       callbackPort: mergedConfig.callbackPort ?? 0,
       timeoutMs: mergedConfig.timeoutMs ?? 300_000,
     };
-    this.credentialKey = credentialKeyForBaseUrl(this.config.baseUrl);
+    this.credentialKey = options.credentialKey ?? credentialKeyForBaseUrl(this.config.baseUrl);
     this.credentialStore = options.credentialStore ?? new CredentialStore();
   }
 

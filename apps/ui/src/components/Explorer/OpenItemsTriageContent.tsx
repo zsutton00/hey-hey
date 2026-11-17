@@ -1,3 +1,4 @@
+import { useConversation } from "@hey-hey/ui-common/data";
 import { useModalShell } from "@hey-hey/ui-common/components/Modals";
 import {
   type ReactNode,
@@ -103,6 +104,13 @@ export function OpenItemsTriagePage({
   onClose?: () => void;
   review: OpenItemsTriageReviewBinding;
 }) {
+  const titleConversationId = agentSession.conversationId;
+  const { data: titleConversation } = useConversation(
+    organizationId,
+    projectId,
+    { conversationId: titleConversationId ?? "" },
+    { enabled: !!titleConversationId && !preview, enablePolling: false },
+  );
   const inModalShell = useModalShell();
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -257,7 +265,7 @@ export function OpenItemsTriagePage({
                   agentSession,
                   undefined,
                   undefined,
-                  agentSession.title,
+                  titleConversation?.title,
                 ),
               ),
             }

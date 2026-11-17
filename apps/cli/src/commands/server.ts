@@ -1,3 +1,4 @@
+import type { CliState } from '../credentials/cli-state';
 import { DockerBoundary } from '../local-app/docker-boundary';
 import {
   type LocalApplicationNavigation,
@@ -19,6 +20,8 @@ import { PairingRequiredStartupRecovery } from './pairing-required-startup-recov
 import { PlatformUnavailableStartupPresenter } from './platform-unavailable-startup-presenter';
 
 export interface ServerCommandOptions {
+  state?: CliState;
+  recoverPairing?: () => Promise<boolean>;
   localApplicationDirectory?: string;
   localApplicationRelease?: ReleaseManifest;
   localApplicationNavigation?: LocalApplicationNavigation;
@@ -40,6 +43,7 @@ export class LocalAgentServerStarter {
   public start(options: ServerCommandOptions = {}): Promise<LocalAgentServerRuntime> {
     return new LocalAgentServerBootstrap({
       host: 'localhost',
+      ...(options.state ? { state: options.state } : {}),
       ...(options.preferredPort !== undefined ? { preferredPort: options.preferredPort } : {}),
       ...(options.enableDailySession !== undefined
         ? { enableDailySession: options.enableDailySession }
@@ -202,7 +206,9 @@ export class ServerCommand {
         ) {
           throw error;
         }
-        const recovered = await this.presentation.recoverPairing(error.outcome);
+        const recovered = await (options.recoverPairing
+          ? options.recoverPairing()
+          : this.presentation.recoverPairing(error.outcome));
         if (!recovered) return false;
         localServer = await start();
       }

@@ -958,3 +958,28 @@ EvalHumanReviewReportPayload:
           nullable: true
         challengeCase:
           type: boolean
+
+EvalSessionStatusesRequest:
+  type: object
+  additionalProperties: false
+  required: [agentSessionIds]
+  properties:
+    agentSessionIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items: { type: string, format: uuid }
+
+EvalSessionStatus:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId, runId, evalId, status, total, ended, errors]
+  properties:
+    agentSessionId: { type: string, format: uuid }
+    runId: { type: string, format: uuid }
+    evalId: { type: string, format: uuid }
+    status:
+      $ref: "#/EvalRunStatus"
+    total: { type: integer, minimum: 0 }
+    ended: { type: integer, minimum: 0 }
+    errors: { type: integer, minimum: 0 }

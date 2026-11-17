@@ -32,6 +32,7 @@ const schemaNames = [
   'OpenItemRef',
   'OpenItemGroupId',
   'ActivateOpenItemRequest',
+  'RefreshOpenItemPresentationRequest',
   'SetOpenItemNoteRequest',
   'SetOpenItemPinRequest',
   'MoveOpenItemRequest',

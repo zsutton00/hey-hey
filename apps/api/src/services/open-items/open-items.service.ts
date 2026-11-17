@@ -1,7 +1,9 @@
+import type { AnyTransactionClient } from '../../prisma/prisma.service';
 import { WebsocketGateway } from '../../core/websockets/websocket.gateway';
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type {
+  RefreshOpenItemPresentationRequest,
   ActivateOpenItemRequest,
   AssignOpenItemsToGroupRequest,
   CreateOpenItemGroupRequest,
@@ -40,6 +42,8 @@ import {
 } from './open-items.repository';
 
 type OpenItemsOperation =
+  | 'refreshOpenItemPresentation'
+  | 'backfillOpenItemConversations'
   | 'activateOpenItem'
   | 'setOpenItemNote'
   | 'setOpenItemPin'
@@ -70,7 +74,8 @@ interface MutationSpec {
     state: OpenItemsState,
     env: OpenItemsMutationEnvironment,
     collection: LockedOpenItemsCollection,
-  ) => OpenItemsOutcome;
+    tx: AnyTransactionClient,
+  ) => OpenItemsOutcome | Promise<OpenItemsOutcome>;
 }
 
 /**
@@ -109,7 +114,45 @@ export class OpenItemsService {
   ) {}
 
   async getOpenItems(scope: OpenItemsScope): Promise<OpenItemsCollection> {
-    const state = await this.repository.readState(scope);
+    let state = await this.repository.readState(scope);
+    if (
+      state?.items.some(
+        (item) =>
+          item.entityType === 'AGENT_SESSION' &&
+          item.presentation.conversationId === undefined,
+      )
+    ) {
+      await this.mutate(scope, {
+        operation: 'backfillOpenItemConversations',
+        idempotencyKey: uuidv4(),
+        request: {},
+        createIfAbsent: false,
+        apply: async (current, env, _collection, tx) => {
+          const candidates = current.items
+            .filter(
+              (item) =>
+                item.removedAt === null &&
+                item.entityType === 'AGENT_SESSION' &&
+                item.presentation.conversationId === undefined,
+            )
+            .slice(0, domain.MAX_OPEN_ITEMS);
+          const sessions = await this.repository.sessionConversations(
+            tx,
+            scope,
+            candidates.map((item) => item.entityId),
+          );
+          return domain.backfillSessionConversations(
+            current,
+            env,
+            candidates.map((item) => ({
+              entityId: item.entityId,
+              conversationId: sessions.get(item.entityId)?.id ?? null,
+            })),
+          );
+        },
+      });
+      state = await this.repository.readState(scope);
+    }
     if (!state) {
       this.logger.debug(`getOpenItems: ABSENT for ${this.describe(scope)}`);
       return { state: 'ABSENT' };
@@ -127,6 +170,40 @@ export class OpenItemsService {
       request,
       createIfAbsent: true,
       apply: (state, env) => domain.activateOpenItem(state, env, request),
+    });
+  }
+
+  refreshOpenItemPresentation(
+    scope: OpenItemsScope,
+    ref: OpenItemRef,
+    request: RefreshOpenItemPresentationRequest,
+  ) {
+    return this.mutate(scope, {
+      operation: 'refreshOpenItemPresentation',
+      idempotencyKey: request.idempotencyKey,
+      request: { ref, request },
+      createIfAbsent: false,
+      apply: async (state, env, _collection, tx) => {
+        const item = state.items.find(
+          (row) =>
+            row.entityType === 'AGENT_SESSION' &&
+            row.entityType === ref.entityType &&
+            row.entityId === ref.entityId &&
+            row.removedAt === null,
+        );
+        if (!item) {
+          return domain.refreshSessionPresentation(state, env, ref, null);
+        }
+        const sessions = await this.repository.sessionConversations(tx, scope, [
+          item.entityId,
+        ]);
+        return domain.refreshSessionPresentation(
+          state,
+          env,
+          ref,
+          sessions.get(ref.entityId) ?? null,
+        );
+      },
     });
   }
 
@@ -457,7 +534,7 @@ export class OpenItemsService {
           newId: uuidv4,
           log,
         };
-        const outcome = spec.apply(state, env, collection);
+        const outcome = await spec.apply(state, env, collection, tx);
 
         if (outcome.kind === 'unchanged') {
           // Record no-op results without advancing the freshness token.

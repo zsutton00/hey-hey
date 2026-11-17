@@ -158,7 +158,10 @@ const isAgentSessionPresentationSnapshot = (
     snapshot.kind !== "agent_session" ||
     !isNonEmptyString(snapshot.label) ||
     !isNonEmptyString(snapshot.sessionType) ||
-    !agentSessionTypes.has(snapshot.sessionType)
+    !agentSessionTypes.has(snapshot.sessionType) ||
+    (snapshot.conversationId !== undefined &&
+      snapshot.conversationId !== null &&
+      !isNonEmptyString(snapshot.conversationId))
   ) {
     return false;
   }

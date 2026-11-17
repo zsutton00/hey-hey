@@ -7,6 +7,7 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  type EvalSessionStatus,
   type EvalAttemptReportPayload,
   type EvalAttemptUpdatedEvent,
   type EvalHumanReviewReportPayload,
@@ -29,6 +30,72 @@ import { dataLayerQueryPolicy } from "../query/queryPolicy";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
 import { messageKeys } from "./messages";
 import { reportKeys } from "./reports";
+
+export const evalSessionStatusesKey = (org: string, project: string) =>
+  [...reportKeys.all(org), "evalSessionStatuses", project] as const;
+
+const EVAL_SESSION_STATUS_REFRESH_INTERVAL_MS = 5_000;
+
+const statusRefreshes = new WeakMap<
+  QueryClient,
+  Map<string, ReturnType<typeof setTimeout>>
+>();
+function refreshEvalSessionStatuses(
+  queryClient: QueryClient,
+  org: string,
+  project: string,
+) {
+  let pending = statusRefreshes.get(queryClient);
+  if (!pending) {
+    pending = new Map();
+    statusRefreshes.set(queryClient, pending);
+  }
+  const scope = `${org}:${project}`;
+  if (pending.has(scope)) {
+    return;
+  }
+  pending.set(
+    scope,
+    setTimeout(() => {
+      pending.delete(scope);
+      void invalidateWithFollowUpRead(queryClient, {
+        queryKey: evalSessionStatusesKey(org, project),
+      });
+    }, EVAL_SESSION_STATUS_REFRESH_INTERVAL_MS),
+  );
+}
+
+export function evalSessionStatusesQueryOptions(
+  organizationId: string,
+  projectId: string,
+  agentSessionIds: readonly string[],
+) {
+  const ids = [...new Set(agentSessionIds)].sort();
+  const requestOptions = captureRequestOptions();
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: [...evalSessionStatusesKey(organizationId, projectId), ids],
+    queryFn: async ({ signal }): Promise<EvalSessionStatus[]> => {
+      const statuses: EvalSessionStatus[] = [];
+      // Older collections and collections containing only protected items
+      // can remain over the cap. Every network request stays bounded.
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const response = await evalRunsClient.getEvalSessionStatuses(
+          {
+            organizationId,
+            projectId,
+            evalSessionStatusesRequest: {
+              agentSessionIds: ids.slice(offset, offset + 100),
+            },
+          },
+          { ...requestOptions, signal },
+        );
+        statuses.push(...response.data.data);
+      }
+      return statuses;
+    },
+  });
+}
 
 /** The largest page the report list read serves; it has no offset. */
 export const EVAL_REPORT_READ_LIMIT = 200;
@@ -476,6 +543,7 @@ export function applyEvalRunUpdated(
   event: EvalRunUpdatedEvent,
 ): Promise<void> {
   const { organizationId, projectId, evalId, run } = event.payload;
+  refreshEvalSessionStatuses(queryClient, organizationId, projectId);
   if (isEvalRunReport(run)) storeEvalRun(queryClient, organizationId, run);
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: evalRunKeys.runs(organizationId, projectId, evalId),
@@ -488,7 +556,8 @@ export function applyEvalAttemptUpdated(
   queryClient: QueryClient,
   event: EvalAttemptUpdatedEvent,
 ): Promise<void> {
-  const { organizationId, evalRunId, attempt } = event.payload;
+  const { organizationId, projectId, evalRunId, attempt } = event.payload;
+  refreshEvalSessionStatuses(queryClient, organizationId, projectId);
   const key = evalRunKeys.attempts(organizationId, evalRunId);
   const current = queryClient.getQueryData<EvalAttemptReport[]>(key);
   if (current && isEvalAttemptReport(attempt)) {

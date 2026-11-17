@@ -9,8 +9,7 @@ export interface DetailPageContextualRailToggleProps {
   onToggle: () => void;
 }
 
-export interface DetailPageContextualRailProps
-  extends DetailPageContextualRailToggleProps {
+export interface DetailPageContextualRailProps extends DetailPageContextualRailToggleProps {
   children: React.ReactNode;
   side?: "left" | "right";
   fillHeight?: boolean;
@@ -93,11 +92,12 @@ export const DetailPageContextualRail: React.FC<
       component="aside"
       id={toggleProps.controlsId}
       sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
         minWidth: 0,
         width: "100%",
-        ...(fillHeight
-          ? { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }
-          : {}),
+        ...(fillHeight ? { flex: 1, minHeight: 0 } : {}),
       }}
     >
       {children}

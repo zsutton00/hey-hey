@@ -112,7 +112,7 @@ export interface TaskMonitorPendingIntervention {
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
   readonly decision: TaskMonitorInterventionDecision | null;
   readonly applicationFailure: string | null;
 }

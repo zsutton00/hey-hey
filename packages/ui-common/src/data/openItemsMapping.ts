@@ -79,6 +79,12 @@ export function openItemsPresentation(
   }
   return {
     label: snapshot.label,
+    // Omitted means legacy/unknown; null means authoritatively absent. Keep
+    // that distinction so the server can backfill migrated snapshots.
+    ...(snapshot.kind === "agent_session" &&
+    snapshot.conversationId !== undefined
+      ? { conversationId: snapshot.conversationId }
+      : {}),
     workItemTypeKey:
       snapshot.kind === "task"
         ? snapshot.taskType
@@ -152,6 +158,9 @@ function uiPresentation(
       kind,
       label: presentation.label,
       sessionType,
+      ...(presentation.conversationId !== undefined
+        ? { conversationId: presentation.conversationId }
+        : {}),
       ...(route?.conversationId && route.entityId && route.entityType
         ? {
             entityConversationRoute: {

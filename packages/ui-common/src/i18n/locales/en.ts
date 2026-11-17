@@ -14,6 +14,24 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "openItems.rename.action": "Rename",
+  "openItems.rename.heading": "Rename conversation",
+  "openItems.rename.title": "Conversation title",
+  "openItems.rename.help": "Use 3–80 characters.",
+  "openItems.rename.cancel": "Cancel",
+  "openItems.rename.save": "Save",
+  "openItems.rename.retry": "Try again",
+  "openItems.rename.review": "Review latest title",
+  "openItems.rename.latest": "Latest title: {{title}}",
+  "openItems.rename.read":
+    "Could not load this conversation. Please try again.",
+  "openItems.rename.failed":
+    "Could not rename this conversation. Your entered name is retained. Please try again.",
+  "openItems.rename.conflict":
+    "This conversation was renamed while you were editing. Review the latest title before saving your draft again.",
+  "openItems.rename.refresh":
+    "The conversation was renamed, but its Open Items label could not be updated. Try again to update the label.",
+
   "proposals.existingPlan.existingTask": "Existing task",
   "proposals.existingPlan.loading": "Loading task…",
   "proposals.existingPlan.readFailed": "Could not read this task.",
@@ -75,14 +93,39 @@ export const en = {
   "localSetup.pairing.createPasskey": "Create passkey",
   "localSetup.pairing.tryAgain": "Try creating passkey again",
   "localSetup.pairing.cancel": "Cancel",
+  "localSetup.pairing.returning.title": "Reconnect this computer",
+  "localSetup.pairing.returning.purpose":
+    "You've set up Hey Hey on this computer before. Use the passkey you created then to reconnect it. Your projects and work are still here.",
+  "localSetup.pairing.returning.note":
+    "This computer was set up before. Your browser will ask for the passkey you created then.",
+  "localSetup.pairing.returning.usePasskey": "Use your passkey",
+  "localSetup.pairing.terminalConfirmation":
+    "After the passkey step, confirm once in the terminal where heyhey local is running.",
+  "localSetup.repair.explanation":
+    "You've set up Hey Hey on this computer before, but we can't use that passkey here. Repair sets up a new passkey for this computer and keeps all your projects and work.",
+  "localSetup.repair.action": "Repair",
+  "localSetup.repair.confirmInTerminal":
+    "Confirm the repair in the terminal where heyhey local is running. This page continues on its own.",
+  "localSetup.repair.declined":
+    "The repair was cancelled in the terminal. Nothing was changed.",
+  "localSetup.repair.completed":
+    "The repair is done. Create a new passkey for this computer; your projects and work are still here.",
+  "localSetup.progress.confirmInTerminal":
+    "Your passkey worked. Now confirm in the terminal where heyhey local is running, and keep it open.",
   "localSetup.progress.title": "Connecting your computer",
   "localSetup.progress.explanation":
     "Hey Hey is getting set up on this computer. This page continues on its own.",
   "localSetup.progress.terminalHint":
     "If your terminal asks you to confirm, confirm it there. Keep it open.",
   "localSetup.progress.failed":
-    "We couldn't finish connecting your computer. Try again, and if it keeps happening run heyhey local again.",
-  "localSetup.progress.retry": "Try again",
+    "The computer has not connected yet. Keep heyhey local running in your terminal. If it stopped or reported an error, run heyhey local again; your projects and work are kept.",
+  "localSetup.progress.retry": "Check connection",
+  "localSetup.progress.rejected":
+    "Pairing was declined or could not be completed. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.expired":
+    "This pairing expired before it finished. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.unavailable":
+    "This pairing is no longer available. Run heyhey local again to start a new pairing. Your projects and work are kept.",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
   "onboarding.runtime.ownPlanGuidance":
@@ -1601,6 +1644,7 @@ export const en = {
   "eval.run.page.loadError": "Couldn't load this run: {{message}}",
   "eval.run.page.notFound": "This run doesn't exist.",
   "eval.run.page.case": "Case",
+  "eval.run.sessionTitle": "Eval run",
   "eval.run.cell.queued": "Waiting",
   "eval.run.cell.running": "Running · {{elapsed}}",
   "eval.run.cell.phase.preparing": "starting agent",

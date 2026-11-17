@@ -1,4 +1,10 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+import {
+  AccountProofFailedException,
+  AccountProofRequiredException,
+  BrowserSessionEndedException,
+  PasskeyAlreadyRegisteredException,
+} from '../../../auth/passkeys/account-passkey.exceptions';
 import { MachineEnrollmentMode } from '@hey-hey/contracts/api/models';
 import type { AccountPasskeyService } from '../../../auth/passkeys/account-passkey.service';
 import type { MachineEnrollmentClaimService } from '../machine-enrollment-claim.service';
@@ -123,32 +129,69 @@ describe('SharedEnrollmentClaimService', () => {
     });
   });
 
-  it('leaves the claim retryable and issues no session when account proof fails', async () => {
-    passkeys.addVerifiedSharedPasskey.mockRejectedValue(
-      new UnauthorizedException('Account proof failed'),
-    );
-
-    await expect(
-      service.completeSharedClaim(
-        input,
-        USER_ID as never,
-        [{ orgId: ORGANIZATION_ID }],
-        '192.0.2.1',
-        actor as never,
-        {},
-      ),
-    ).rejects.toThrow('claim-rejected');
-
-    expect(claims.rejectCompletion).toHaveBeenCalledWith(
-      USER_ID,
-      '192.0.2.1',
-      enrollment.id,
-      'shared_registration_rejected',
+  it.each([
+    [
+      'the account already has a passkey and none was proven',
+      new AccountProofRequiredException(),
+      'shared_registration_account_proof_required',
       true,
+      'MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED',
+    ],
+    [
+      'the account proof does not verify',
+      new AccountProofFailedException(),
+      'shared_registration_account_proof_failed',
+      true,
+      'MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED',
+    ],
+    [
+      'the passkey is already registered',
+      new PasskeyAlreadyRegisteredException(),
+      'shared_registration_passkey_already_registered',
+      false,
+      'MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED',
+    ],
+    [
+      'the acting browser session ended',
+      new BrowserSessionEndedException(),
+      'shared_registration_session_ended',
+      true,
+      'MACHINE_ENROLLMENT_SESSION_ENDED',
+    ],
+    [
+      'the request carries a malformed proof',
+      new BadRequestException('Provide exactly one account proof'),
+      'shared_registration_rejected_http_400',
+      false,
       'MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE',
-    );
-    expect(claims.stageVerifiedCredential).not.toHaveBeenCalled();
-  });
+    ],
+  ])(
+    'leaves the claim retryable and reports the real cause when %s',
+    async (_case, refusal, reasonCode, counted, publicCode) => {
+      passkeys.addVerifiedSharedPasskey.mockRejectedValue(refusal);
+
+      await expect(
+        service.completeSharedClaim(
+          input,
+          USER_ID as never,
+          [{ orgId: ORGANIZATION_ID }],
+          '192.0.2.1',
+          actor as never,
+          {},
+        ),
+      ).rejects.toThrow('claim-rejected');
+
+      expect(claims.rejectCompletion).toHaveBeenCalledWith(
+        USER_ID,
+        '192.0.2.1',
+        enrollment.id,
+        reasonCode,
+        counted,
+        publicCode,
+      );
+      expect(claims.stageVerifiedCredential).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not swallow a failure to stage the controller enrollment', async () => {
     passkeys.addVerifiedSharedPasskey.mockRejectedValue(

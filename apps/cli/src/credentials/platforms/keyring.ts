@@ -61,7 +61,10 @@ const classify = (error: unknown, op: 'store' | 'retrieve' | 'delete'): Error =>
 export class KeyringPlatformStore implements PlatformStore {
   readonly name = 'os-keyring';
 
-  constructor(private readonly entryFactory: KeyringEntryFactory = defaultEntryFactory) {}
+  constructor(
+    private readonly entryFactory: KeyringEntryFactory = defaultEntryFactory,
+    private readonly service: string = SERVICE,
+  ) {}
 
   async isAvailable(): Promise<boolean> {
     return true;
@@ -69,7 +72,7 @@ export class KeyringPlatformStore implements PlatformStore {
 
   async store(key: string, value: string): Promise<void> {
     try {
-      this.entryFactory(SERVICE, key).setPassword(value);
+      this.entryFactory(this.service, key).setPassword(value);
     } catch (error) {
       throw classify(error, 'store');
     }
@@ -77,7 +80,7 @@ export class KeyringPlatformStore implements PlatformStore {
 
   async retrieve(key: string): Promise<string | null> {
     try {
-      const value = this.entryFactory(SERVICE, key).getPassword();
+      const value = this.entryFactory(this.service, key).getPassword();
       return value ?? null;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -88,7 +91,7 @@ export class KeyringPlatformStore implements PlatformStore {
 
   async delete(key: string): Promise<void> {
     try {
-      this.entryFactory(SERVICE, key).deletePassword();
+      this.entryFactory(this.service, key).deletePassword();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (isNoEntry(message)) return;

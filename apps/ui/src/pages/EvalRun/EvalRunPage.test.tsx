@@ -55,7 +55,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
-  useUserIdentity: () => ({ currentOrgId: "org" }),
+  useUserIdentity: () => ({ currentOrgId: "org", userId: "user" }),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
@@ -109,6 +109,9 @@ vi.mock("@hey-hey/ui-common/components", async (importActual) => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
+  evalRunStatusLabel: (
+    await importOriginal<typeof import("@hey-hey/ui-common/data")>()
+  ).evalRunStatusLabel,
   runRepeats: (await importOriginal<typeof import("@hey-hey/ui-common/data")>())
     .runRepeats,
   attemptRepeat: (
@@ -793,6 +796,8 @@ describe("EvalRunPage", () => {
       fireEvent.click(screen.getByTestId("eval-run-start-recorded"));
     });
     expect(mockStart).toHaveBeenCalledWith({
+      userId: "user",
+      lineage: [{ entityType: "task", entityId: "eval-1" }],
       organizationId: "org",
       projectId: "p1",
       runId: "run-1",

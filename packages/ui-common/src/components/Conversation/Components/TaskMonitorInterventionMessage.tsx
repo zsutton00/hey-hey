@@ -45,7 +45,7 @@ const getChoicePresentation = (choice: TaskMonitorInterventionChoice) => {
 
 const buildDecisionCommand = (
   data: TaskMonitorInterventionSystemMessageData,
-  resolution: TaskMonitorInterventionChoice
+  resolution: TaskMonitorInterventionChoice,
 ): TaskMonitorHumanDecisionRequestCommand => ({
   cause: TaskMonitorHumanDecisionCommandCauseEnum.HumanDecision,
   interventionId: data.interventionId,
@@ -58,7 +58,7 @@ const buildDecisionCommand = (
 
 const createDecisionRequest = (
   data: TaskMonitorInterventionSystemMessageData,
-  resolution: TaskMonitorInterventionChoice
+  resolution: TaskMonitorInterventionChoice,
 ): DecisionRequest => ({
   requestId: crypto.randomUUID(),
   command: buildDecisionCommand(data, resolution),
@@ -74,7 +74,7 @@ export const TaskMonitorInterventionMessage = ({
     project.organizationId,
     project.id,
     activeConversation.id,
-    { refetchOnMount: false }
+    { refetchOnMount: false },
   );
   const conversationQuery = useConversation(
     project.organizationId,
@@ -83,10 +83,10 @@ export const TaskMonitorInterventionMessage = ({
     {
       enablePolling: false,
       refetchOnMount: false,
-    }
+    },
   );
   const [pendingRequest, setPendingRequest] = useState<DecisionRequest | null>(
-    null
+    null,
   );
   const decisionRequestCacheRef = useRef<DecisionRequestCache | null>(null);
   const activeInterventionIdRef = useRef(data.interventionId);
@@ -137,7 +137,7 @@ export const TaskMonitorInterventionMessage = ({
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "The decision could not be delivered."
+            : "The decision could not be delivered.",
         );
       }
       return;
@@ -149,7 +149,7 @@ export const TaskMonitorInterventionMessage = ({
     } catch {
       if (activeInterventionIdRef.current === data.interventionId) {
         setErrorMessage(
-          "The decision was acknowledged, but the canonical conversation could not be refreshed."
+          "The decision was acknowledged, but the canonical conversation could not be refreshed.",
         );
       }
       return;
@@ -162,7 +162,7 @@ export const TaskMonitorInterventionMessage = ({
       outcome.status === SubmitTaskMonitorCommandResponseDtoStatusEnum.Rejected
     ) {
       setErrorMessage(
-        outcome.message ?? "The Task Monitor rejected the decision."
+        outcome.message ?? "The Task Monitor rejected the decision.",
       );
     }
   };
@@ -211,9 +211,11 @@ export const TaskMonitorInterventionMessage = ({
             </MarkdownRenderer>
           </Typography>
         </Stack>
-        <Typography color="text.secondary" variant="caption">
-          Expires {new Date(data.expiresAt).toLocaleString()}
-        </Typography>
+        {data.expiresAt !== null && (
+          <Typography color="text.secondary" variant="caption">
+            Expires {new Date(data.expiresAt).toLocaleString()}
+          </Typography>
+        )}
         {errorMessage ? (
           <Alert severity="error" data-testid="task-monitor-intervention-error">
             {errorMessage}

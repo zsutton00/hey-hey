@@ -1,5 +1,6 @@
 import type { TokenUsage } from '../../../session/types';
 import type { RunAttachmentContent } from '../../../agent-runtime/index';
+import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import type { BrowserMcpMount } from '../../browser-tools/browser-mcp-access';
@@ -282,7 +283,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   // `system` field on the mint turn only — OpenCode persists it for the
   // duration of the provider session, so resume turns must not re-supply it.
   private platformSystemPrompt: string | null = null;
-  private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly attachmentContentReader: RunAttachmentContentReader;
   private readonly runStore: RunStore;
   private readonly repoStore: RepoMappingStore;
   private readonly localAgentEndpoint: LocalAgentEndpoint;
@@ -294,6 +295,9 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   private readonly inactivityTimeoutMs: number;
 
   public constructor(dependencies: OpenCodeAgentSessionRunnerDependencies) {
+    this.attachmentContentReader = new RunAttachmentContentReader(
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;

@@ -1,8 +1,11 @@
+import { createNavigationLineageEntry } from "../../../types/userTracking";
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  EntityType,
+  type OpenItem,
   EvalAttemptStatus,
   EvalRunStatus,
   ReportAudience,
@@ -14,6 +17,8 @@ import type {
 } from "../../collections/evalRuns";
 
 const api = vi.hoisted(() => ({
+  getOpenItems: vi.fn(),
+  activateOpenItem: vi.fn(),
   getReport: vi.fn(),
   listReports: vi.fn(),
   updateAgentSession: vi.fn(),
@@ -21,6 +26,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("../../../clients/serviceClients", async (original) => ({
   ...(await original<object>()),
+  openItemsClient: api,
   unifiedApiClient: api,
   agentSessionsClient: api,
 }));
@@ -69,7 +75,7 @@ const runReport = (status: EvalRunReport["payload"]["status"]) =>
     payload: {
       summary: "Run",
       reportType: ReportType.EvalRun,
-      evalId: "eval-1",
+      evalId: "550e8400-e29b-41d4-a716-446655440002",
       status,
       judgeSetup: {
         provider: "claude",
@@ -79,7 +85,7 @@ const runReport = (status: EvalRunReport["payload"]["status"]) =>
       cases: [caseInput],
       configurations: [configuration],
       settings: { maxConcurrentAttempts: 2, attemptTimeLimitSeconds: 900 },
-      coordinatorAgentSessionId: "coordinator-session",
+      coordinatorAgentSessionId: "550e8400-e29b-41d4-a716-446655440001",
       coordinatorConversationId: "coordinator-conversation",
     },
   }) as unknown as EvalRunReport;
@@ -120,10 +126,74 @@ const startInput = {
   projectId: "project",
   runId: "run-1",
   machineId: "machine-1",
+  userId: "user",
+  lineage: [
+    createNavigationLineageEntry(
+      "task",
+      "550e8400-e29b-41d4-a716-446655440002",
+    ),
+  ],
 };
+
+let serverItems: OpenItem[];
+const now = "2026-11-13T00:00:00.000Z";
+const populatedItem = (entityId: string, index: number): OpenItem => ({
+  entityType: EntityType.Task,
+  entityId,
+  note: `Keep context ${index}`,
+  pinned: index === 1,
+  position: String(index),
+  groupId: null,
+  memberPosition: null,
+  goalTrackedWorkFilter: "ACTIVE_AND_BACKLOG",
+  goalCollapsed: true,
+  revision: 1,
+  lineage: [],
+  presentation: {
+    label: `Existing task ${index}`,
+    workItemTypeKey: "STANDARD",
+  },
+  removedAt: null,
+  updatedAt: now,
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.clear();
+  serverItems = [
+    populatedItem("550e8400-e29b-41d4-a716-446655440002", 0),
+    populatedItem("550e8400-e29b-41d4-a716-446655440003", 1),
+    populatedItem("550e8400-e29b-41d4-a716-446655440004", 2),
+  ];
+  api.getOpenItems.mockImplementation(async () =>
+    wrap({ state: "PRESENT", revision: 1, items: serverItems, groups: [] }),
+  );
+  api.activateOpenItem.mockImplementation(
+    async ({ activateOpenItemRequest: request }) => {
+      const existing = serverItems.find(
+        (item) => item.entityId === request.item.entityId,
+      );
+      const item = {
+        ...populatedItem(request.item.entityId, 3),
+        ...existing,
+        ...request.item,
+        presentation: request.presentation,
+        lineage: request.lineage,
+        revision: 2,
+      };
+      serverItems = [
+        ...serverItems.filter((row) => row.entityId !== item.entityId),
+        item,
+      ];
+      return wrap({
+        collectionRevision: 2,
+        items: [item],
+        groups: [],
+        deletedGroupIds: [],
+        replayed: false,
+      });
+    },
+  );
   getAccess.mockReturnValue({
     isDeviceEnabled: true,
     interactions: { startSession },
@@ -131,11 +201,50 @@ beforeEach(() => {
   });
   api.getReport.mockResolvedValue(wrap(runReport(EvalRunStatus.Queued)));
   api.listReports.mockResolvedValue(wrap([attemptReport]));
-  api.updateAgentSession.mockResolvedValue(wrap({ id: "coordinator-session" }));
+  api.updateAgentSession.mockResolvedValue(
+    wrap({ id: "550e8400-e29b-41d4-a716-446655440001" }),
+  );
   startSession.mockResolvedValue({ state: "accepted" });
 });
 
 describe("useEvalRunSession", () => {
+  it("adds one coordinator after accepted start while preserving a populated working set", async () => {
+    const original = structuredClone(serverItems);
+    const { result } = setup();
+    expect(api.activateOpenItem).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(await result.current.start(startInput)).toEqual({ ok: true });
+      expect(await result.current.start(startInput)).toEqual({ ok: true });
+    });
+    expect(serverItems).toHaveLength(4);
+    expect(serverItems.slice(0, 3)).toEqual(original);
+    expect(serverItems[3]).toMatchObject({
+      entityType: EntityType.AgentSession,
+      lineage: [
+        {
+          entityType: EntityType.Task,
+          entityId: startInput.lineage[0].entityId,
+        },
+      ],
+      presentation: { agentSessionType: "PROJECT_CONVERSATION" },
+    });
+    expect(serverItems[3].presentation).not.toHaveProperty("status");
+    expect(runReport(EvalRunStatus.Queued).payload.status).toBe(
+      EvalRunStatus.Queued,
+    );
+  });
+
+  it("keeps accepted start successful when Open Items refuses activation", async () => {
+    api.activateOpenItem.mockRejectedValue(new Error("All items protected"));
+    const { result } = setup();
+    await act(async () => {
+      expect(await result.current.start(startInput)).toEqual({ ok: true });
+    });
+    expect(startSession).toHaveBeenCalledTimes(1);
+    expect(result.current.error).toBeNull();
+    expect(serverItems).toHaveLength(3);
+  });
+
   it("starts the prepared session with a payload built only from the saved run", async () => {
     const { result } = setup();
     let started: unknown;
@@ -146,13 +255,13 @@ describe("useEvalRunSession", () => {
     expect(started).toEqual({ ok: true });
     expect(api.updateAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentSessionId: "coordinator-session",
+        agentSessionId: "550e8400-e29b-41d4-a716-446655440001",
         updateAgentSessionDto: { machineId: "machine-1" },
       }),
     );
     expect(getAccess).toHaveBeenCalledWith("machine-1");
     const input = startSession.mock.calls[0][0];
-    expect(input.agentSessionId).toBe("coordinator-session");
+    expect(input.agentSessionId).toBe("550e8400-e29b-41d4-a716-446655440001");
     expect(input.conversationId).toBe("coordinator-conversation");
     expect(input.intent).toMatchObject({
       handlerPromptType: "run_eval",
@@ -162,7 +271,10 @@ describe("useEvalRunSession", () => {
     });
     expect(input.intent.payload).toEqual({
       promptType: "run_eval",
-      entity: { entityType: "TASK", entityId: "eval-1" },
+      entity: {
+        entityType: "TASK",
+        entityId: "550e8400-e29b-41d4-a716-446655440002",
+      },
       userMessage: "Run eval",
       evalRunId: "run-1",
       judgeSetup: runReport(EvalRunStatus.Queued).payload.judgeSetup,
@@ -245,7 +357,7 @@ describe("useEvalRunSession", () => {
     expect(api.stopAgentSessionRun).toHaveBeenCalledWith({
       organizationId: "org",
       projectId: "project",
-      agentSessionId: "coordinator-session",
+      agentSessionId: "550e8400-e29b-41d4-a716-446655440001",
     });
   });
 

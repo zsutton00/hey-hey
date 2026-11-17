@@ -9,6 +9,8 @@ import type { Run } from '../../../run/run';
 import { createTestRun } from '../../../run/run.test-support';
 import { CommitReportTool } from '../../submission-tools/create-commit-report-tool';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
+import { failureMessage } from '../../../run/failure-message';
+import { CommitGitError } from '../commit-git-error';
 import { executeCanonicalCommit } from '../commit-executor';
 
 const execFileAsync = promisify(execFile);
@@ -73,6 +75,7 @@ const makeCommitReportTool = (
 };
 
 const makeLogger = () => ({
+  trace: vi.fn(),
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
@@ -122,6 +125,82 @@ describe('executeCanonicalCommit', () => {
     });
     const args = execute.mock.calls[0]![0].args;
     expect(JSON.stringify(args)).not.toContain(repo);
+  });
+
+  it.each([
+    { staged: false, withEdit: false },
+    { staged: true, withEdit: false },
+    { staged: false, withEdit: true },
+    { staged: true, withEdit: true },
+  ])(
+    'commits deletion (staged=$staged, withEdit=$withEdit) without unrelated staged changes',
+    async ({ staged, withEdit }) => {
+      const repo = await createRepo();
+      await rm(path.join(repo, 'b.ts'));
+      if (staged) {
+        await git(repo, ['add', '--', 'b.ts']);
+      }
+      await rm(path.join(repo, 'unrelated.ts'));
+      await git(repo, ['add', '--', 'unrelated.ts']);
+      const files = withEdit ? ['a.ts', 'b.ts'] : ['b.ts'];
+      const execute = vi.fn().mockResolvedValue({ content: [] });
+      await executeCanonicalCommit({
+        run: makeRun(repo, {
+          projections: files.map((repoRelativePath) => ({
+            serviceId: 'service-1',
+            repoRelativePath,
+          })),
+        }),
+        payload: { userMessage: '' },
+        liveFiles: files.map((file) => path.join(repo, file)),
+        message: 'Remove obsolete file',
+        commitReportTool: makeCommitReportTool(execute),
+        logger: makeLogger(),
+      });
+      expect(await git(repo, ['show', '--format=', '--name-status', 'HEAD'])).toBe(
+        withEdit ? 'M\ta.ts\nD\tb.ts' : 'D\tb.ts',
+      );
+      expect(await git(repo, ['diff', '--cached', '--name-status'])).toBe('D\tunrelated.ts');
+      expect(execute).toHaveBeenCalledWith(
+        expect.objectContaining({ args: expect.objectContaining({ files }) }),
+      );
+    },
+  );
+
+  it('stages a recreated file even when its deletion was previously staged', async () => {
+    const repo = await createRepo();
+    await rm(path.join(repo, 'a.ts'));
+    await git(repo, ['add', '--', 'a.ts']);
+    await writeFile(path.join(repo, 'a.ts'), 'recreated\n');
+    await executeCanonicalCommit({
+      run: makeRun(repo),
+      payload: { userMessage: '' },
+      liveFiles: [path.join(repo, 'a.ts')],
+      message: 'Recreate file',
+      commitReportTool: makeCommitReportTool(),
+      logger: makeLogger(),
+    });
+    expect(await git(repo, ['show', 'HEAD:a.ts'])).toBe('recreated');
+  });
+
+  it('exposes the missing path and Git reason without publishing a successful report', async () => {
+    const repo = await createRepo();
+    const execute = vi.fn();
+    const error = await executeCanonicalCommit({
+      run: makeRun(repo, {
+        projections: [{ serviceId: 'service-1', repoRelativePath: 'missing.ts' }],
+      }),
+      payload: { userMessage: '' },
+      liveFiles: [path.join(repo, 'missing.ts')],
+      message: 'Private generated commit message',
+      commitReportTool: makeCommitReportTool(execute),
+      logger: makeLogger(),
+    }).catch((error) => error);
+    expect(error).toBeInstanceOf(CommitGitError);
+    const response = failureMessage('EXECUTION_FAILED', [], { cause: error.message });
+    expect(response).toContain("pathspec 'missing.ts' did not match any files");
+    expect(response).not.toContain('Private generated commit message');
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('reports the files recorded in the resulting commit rather than every validated path', async () => {

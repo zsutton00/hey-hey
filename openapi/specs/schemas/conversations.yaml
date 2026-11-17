@@ -3820,6 +3820,8 @@ TaskMonitorInterventionSystemMessageData:
         expiresAt:
           type: string
           format: date-time
+          nullable: true
+          description: Provider deadline, or null when the request has no deadline.
         choices:
           type: array
           minItems: 2

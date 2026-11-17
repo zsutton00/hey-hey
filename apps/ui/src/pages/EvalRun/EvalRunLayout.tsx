@@ -1,3 +1,7 @@
+import {
+  createNavigationLineageEntry,
+  type NavigationLineage,
+} from "@hey-hey/ui-common";
 import { Alert, Box, CircularProgress } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -16,7 +20,10 @@ export interface EvalRunLayoutProps {
   /** Current page label after the Eval in the breadcrumbs. */
   crumbLabel: string;
   testId: string;
-  children: (evalTask: TaskResponseDto) => React.ReactNode;
+  children: (
+    evalTask: TaskResponseDto,
+    lineage: NavigationLineage,
+  ) => React.ReactNode;
 }
 
 /** Loads the Eval and frames a run page under it in the breadcrumbs. */
@@ -71,7 +78,12 @@ export const EvalRunLayout: React.FC<EvalRunLayoutProps> = ({
       />
       <DetailPageContainer>
         <Box data-testid={testId} sx={{ p: 3 }}>
-          {children(evalTask)}
+          {children(evalTask, [
+            ...ancestors.map((ancestor) =>
+              createNavigationLineageEntry("task", ancestor.id),
+            ),
+            createNavigationLineageEntry("task", evalTask.id),
+          ])}
         </Box>
       </DetailPageContainer>
     </>

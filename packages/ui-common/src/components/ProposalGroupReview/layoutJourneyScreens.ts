@@ -292,6 +292,10 @@ function placeRemainingByAdjacency(
   });
   const placeNear = (id: string, origin: GridCell) => {
     for (const cell of cellsAround(origin)) {
+      // A marked origin must stay at the top-left after normalization.
+      if (startId !== null && (cell.column < 0 || cell.row < 0)) {
+        continue;
+      }
       if (!occupied.has(cellKey(cell))) {
         place(id, cell);
         return;

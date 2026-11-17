@@ -23,6 +23,10 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base.js';
 // @ts-ignore
+import type { EvalSessionStatusesRequest } from '../models.js';
+// @ts-ignore
+import type { GetEvalSessionStatuses200Response } from '../models.js';
+// @ts-ignore
 import type { LaunchEvalRun201Response } from '../models.js';
 // @ts-ignore
 import type { LaunchEvalRunRequest } from '../models.js';
@@ -32,6 +36,54 @@ import type { LaunchEvalRunRequest } from '../models.js';
  */
 export const EvalRunsApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+         * @summary Read recorded evaluation status for coordinator sessions
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {EvalSessionStatusesRequest} evalSessionStatusesRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getEvalSessionStatuses: async (organizationId: string, projectId: string, evalSessionStatusesRequest: EvalSessionStatusesRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getEvalSessionStatuses', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getEvalSessionStatuses', 'projectId', projectId)
+            // verify required parameter 'evalSessionStatusesRequest' is not null or undefined
+            assertParamExists('getEvalSessionStatuses', 'evalSessionStatusesRequest', evalSessionStatusesRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/eval-session-statuses`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(evalSessionStatusesRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Records the approved cases, selected items, initiating requests, handler, configurations and rubric used as an EVAL_RUN report on the Eval, creates one EVAL_ATTEMPT report per case and configuration beneath it, and prepares the coordinator Agent Session and Conversation, whose ids are recorded on the run. Starts no agent: the app starts the prepared session with handlerPromptType run_eval. Neither report expires or is attached to a target session. Does not snapshot the project; later edits to the cases do not change a recorded run. Runs, attempts and human reviews are then listed, read and updated through the report operations.
          * @summary Launch an eval run
@@ -95,6 +147,21 @@ export const EvalRunsApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = EvalRunsApiAxiosParamCreator(configuration)
     return {
         /**
+         * Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+         * @summary Read recorded evaluation status for coordinator sessions
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {EvalSessionStatusesRequest} evalSessionStatusesRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getEvalSessionStatuses(organizationId: string, projectId: string, evalSessionStatusesRequest: EvalSessionStatusesRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetEvalSessionStatuses200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getEvalSessionStatuses(organizationId, projectId, evalSessionStatusesRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EvalRunsApi.getEvalSessionStatuses']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Records the approved cases, selected items, initiating requests, handler, configurations and rubric used as an EVAL_RUN report on the Eval, creates one EVAL_ATTEMPT report per case and configuration beneath it, and prepares the coordinator Agent Session and Conversation, whose ids are recorded on the run. Starts no agent: the app starts the prepared session with handlerPromptType run_eval. Neither report expires or is attached to a target session. Does not snapshot the project; later edits to the cases do not change a recorded run. Runs, attempts and human reviews are then listed, read and updated through the report operations.
          * @summary Launch an eval run
          * @param {string} organizationId Organization ID
@@ -121,6 +188,16 @@ export const EvalRunsApiFactory = function (configuration?: Configuration, baseP
     const localVarFp = EvalRunsApiFp(configuration)
     return {
         /**
+         * Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+         * @summary Read recorded evaluation status for coordinator sessions
+         * @param {EvalRunsApiGetEvalSessionStatusesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getEvalSessionStatuses(requestParameters: EvalRunsApiGetEvalSessionStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetEvalSessionStatuses200Response> {
+            return localVarFp.getEvalSessionStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.evalSessionStatusesRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Records the approved cases, selected items, initiating requests, handler, configurations and rubric used as an EVAL_RUN report on the Eval, creates one EVAL_ATTEMPT report per case and configuration beneath it, and prepares the coordinator Agent Session and Conversation, whose ids are recorded on the run. Starts no agent: the app starts the prepared session with handlerPromptType run_eval. Neither report expires or is attached to a target session. Does not snapshot the project; later edits to the cases do not change a recorded run. Runs, attempts and human reviews are then listed, read and updated through the report operations.
          * @summary Launch an eval run
          * @param {EvalRunsApiLaunchEvalRunRequest} requestParameters Request parameters.
@@ -140,6 +217,16 @@ export const EvalRunsApiFactory = function (configuration?: Configuration, baseP
  */
 export interface EvalRunsApiInterface {
     /**
+     * Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+     * @summary Read recorded evaluation status for coordinator sessions
+     * @param {EvalRunsApiGetEvalSessionStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvalRunsApiInterface
+     */
+    getEvalSessionStatuses(requestParameters: EvalRunsApiGetEvalSessionStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetEvalSessionStatuses200Response>;
+
+    /**
      * Records the approved cases, selected items, initiating requests, handler, configurations and rubric used as an EVAL_RUN report on the Eval, creates one EVAL_ATTEMPT report per case and configuration beneath it, and prepares the coordinator Agent Session and Conversation, whose ids are recorded on the run. Starts no agent: the app starts the prepared session with handlerPromptType run_eval. Neither report expires or is attached to a target session. Does not snapshot the project; later edits to the cases do not change a recorded run. Runs, attempts and human reviews are then listed, read and updated through the report operations.
      * @summary Launch an eval run
      * @param {EvalRunsApiLaunchEvalRunRequest} requestParameters Request parameters.
@@ -149,6 +236,34 @@ export interface EvalRunsApiInterface {
      */
     launchEvalRun(requestParameters: EvalRunsApiLaunchEvalRunRequest, options?: RawAxiosRequestConfig): AxiosPromise<LaunchEvalRun201Response>;
 
+}
+
+/**
+ * Request parameters for getEvalSessionStatuses operation in EvalRunsApi.
+ * @export
+ * @interface EvalRunsApiGetEvalSessionStatusesRequest
+ */
+export interface EvalRunsApiGetEvalSessionStatusesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof EvalRunsApiGetEvalSessionStatuses
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof EvalRunsApiGetEvalSessionStatuses
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {EvalSessionStatusesRequest}
+     * @memberof EvalRunsApiGetEvalSessionStatuses
+     */
+    readonly evalSessionStatusesRequest: EvalSessionStatusesRequest
 }
 
 /**
@@ -193,6 +308,18 @@ export interface EvalRunsApiLaunchEvalRunRequest {
  * @extends {BaseAPI}
  */
 export class EvalRunsApi extends BaseAPI implements EvalRunsApiInterface {
+    /**
+     * Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+     * @summary Read recorded evaluation status for coordinator sessions
+     * @param {EvalRunsApiGetEvalSessionStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvalRunsApi
+     */
+    public getEvalSessionStatuses(requestParameters: EvalRunsApiGetEvalSessionStatusesRequest, options?: RawAxiosRequestConfig) {
+        return EvalRunsApiFp(this.configuration).getEvalSessionStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.evalSessionStatusesRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
     /**
      * Records the approved cases, selected items, initiating requests, handler, configurations and rubric used as an EVAL_RUN report on the Eval, creates one EVAL_ATTEMPT report per case and configuration beneath it, and prepares the coordinator Agent Session and Conversation, whose ids are recorded on the run. Starts no agent: the app starts the prepared session with handlerPromptType run_eval. Neither report expires or is attached to a target session. Does not snapshot the project; later edits to the cases do not change a recorded run. Runs, attempts and human reviews are then listed, read and updated through the report operations.
      * @summary Launch an eval run

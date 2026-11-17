@@ -60,6 +60,7 @@ export interface PairCommandDependencies {
   controllerRegistryStore?: ControllerRegistryStore;
   executionGrantStore?: ExecutionGrantStore;
   existingMachineClient?: MachineControllerManagementClient;
+  replaceUnrecognizedMachineId?: string;
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
   onBrowserHandoff?: (userCode: string) => void;
@@ -210,6 +211,9 @@ const clearRevokedMachineAuthority = async (
 export const resolvePairDependencies = (
   dependencies: Partial<PairCommandDependencies>,
 ): PairCommandDependencies => ({
+  ...(dependencies.replaceUnrecognizedMachineId
+    ? { replaceUnrecognizedMachineId: dependencies.replaceUnrecognizedMachineId }
+    : {}),
   keyPairStore: dependencies.keyPairStore ?? new KeyPairStore(),
   machinesApi: dependencies.machinesApi ?? createDefaultMachinesApi(),
   generateKeyPair: dependencies.generateKeyPair ?? generateMachineKeyPair,
@@ -288,7 +292,7 @@ export const pairMachine = async (
   }
 
   const existingMachineId = await deps.keyPairStore.loadCurrentMachineId();
-  if (existingMachineId) {
+  if (existingMachineId && existingMachineId !== deps.replaceUnrecognizedMachineId) {
     const [machineCredential, privateKey] = await Promise.all([
       deps.keyPairStore.loadMachineCredential(existingMachineId),
       deps.keyPairStore.loadPrivateKey(existingMachineId),

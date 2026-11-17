@@ -238,7 +238,7 @@ export interface ProjectTaskMonitorInterventionEffect {
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 export interface ProjectTaskMonitorOutcomeJudgmentEffect {

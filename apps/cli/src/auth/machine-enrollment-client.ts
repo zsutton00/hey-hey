@@ -24,8 +24,12 @@ const resolveApiBaseUrl = (): string => {
 };
 
 /** Generated create, poll, and confirm operations for the version-2 enrollment boundary. */
-export const createDefaultMachineEnrollmentClient = (): MachineEnrollmentClient => {
-  const api = new MachinesApi(new Configuration({ basePath: resolveApiBaseUrl() }));
+export const createDefaultMachineEnrollmentClient = (
+  accessToken?: string,
+): MachineEnrollmentClient => {
+  const api = new MachinesApi(
+    new Configuration({ basePath: resolveApiBaseUrl(), ...(accessToken ? { accessToken } : {}) }),
+  );
 
   return {
     createMachineEnrollment: (dto) =>

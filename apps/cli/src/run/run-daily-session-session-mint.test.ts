@@ -219,12 +219,7 @@ const makeInput = (): InternalRunPromptRequest =>
 /** Drive one full Turn and wait for the Run to settle back to idle. */
 const runTurn = async (run: Run): Promise<void> => {
   await run.handleMessage(makeInput());
-  for (let i = 0; i < 100 && run.isProcessing; i += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-  if (run.isProcessing) {
-    throw new Error('Turn for "daily_session" did not settle');
-  }
+  await vi.waitFor(() => expect(run.isProcessing).toBe(false));
 };
 
 /**

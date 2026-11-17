@@ -1,3 +1,4 @@
+import type { NavigationLineage } from "@hey-hey/ui-common";
 import {
   useModalState,
   ModalWorkOwner,
@@ -207,12 +208,16 @@ const AddConfigurationDialog: React.FC<AddConfigurationDialogProps> = ({
 };
 
 interface EvalRunSetupProps {
+  userId: string;
+  lineage: NavigationLineage;
   organizationId: string;
   projectId: string;
   evalId: string;
 }
 
 const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
+  userId,
+  lineage,
   organizationId,
   projectId,
   evalId,
@@ -330,6 +335,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     // The run is recorded; it starts from what the server saved, and a start
     // that does not go through stays retryable on the run's own page.
     const started = await session.start({
+      userId,
+      lineage,
       organizationId,
       projectId,
       runId,
@@ -340,6 +347,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
       : { startError: started.error };
     navigate(WebPathService.evalRun({ projectId, evalId, runId }), { state });
   }, [
+    userId,
+    lineage,
     approvedCases,
     canRun,
     evalId,
@@ -613,8 +622,10 @@ export const EvalRunSetupPage: React.FC = () => {
       crumbLabel={t("eval.run.setup.crumb")}
       testId="eval-run-setup-page"
     >
-      {() => (
+      {(_evalTask, lineage) => (
         <EvalRunSetup
+          userId={identity?.userId ?? ""}
+          lineage={lineage}
           organizationId={organizationId}
           projectId={projectId}
           evalId={evalId}

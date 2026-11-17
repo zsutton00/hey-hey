@@ -45,6 +45,13 @@ export const CLEANUP_BATCH_SIZE = 500;
 
 type ItemRecord = Prisma.OpenItemGetPayload<object>;
 type GroupRecord = Prisma.OpenItemGroupGetPayload<object>;
+const sessionConversationSelect = {
+  id: true,
+  conversation: { select: { id: true, title: true } },
+} satisfies Prisma.AgentSessionSelect;
+type SessionConversationRecord = Prisma.AgentSessionGetPayload<{
+  select: typeof sessionConversationSelect;
+}>;
 
 const toItemRow = (record: ItemRecord): OpenItemRow => ({
   id: record.id,
@@ -62,6 +69,7 @@ const toItemRow = (record: ItemRecord): OpenItemRow => ({
   revision: Number(record.revision),
   lineage: record.lineage as unknown as OpenItemLineageEntry[],
   presentation: record.presentation as unknown as OpenItemPresentation,
+  lastActivatedAt: record.lastActivatedAt,
   removedAt: record.removedAt,
   updatedAt: record.updatedAt,
 });
@@ -86,6 +94,7 @@ const itemData = (row: OpenItemRow) => ({
   revision: BigInt(row.revision),
   lineage: row.lineage as unknown as Prisma.InputJsonValue,
   presentation: row.presentation as unknown as Prisma.InputJsonValue,
+  lastActivatedAt: row.lastActivatedAt,
   removedAt: row.removedAt,
   updatedAt: row.updatedAt,
 });
@@ -199,6 +208,31 @@ export class OpenItemsRepository {
       items: items.map(toItemRow),
       groups: groups.map(toGroupRow),
     };
+  }
+
+  /** One bounded project-authorized batch; never trusts the stored conversation identity. */
+  async sessionConversations(
+    tx: AnyTransactionClient,
+    scope: OpenItemsScope,
+    sessionIds: string[],
+  ) {
+    const sessions: SessionConversationRecord[] =
+      await tx.agentSession.findMany({
+        where: {
+          id: { in: sessionIds },
+          organizationId: scope.organizationId,
+          projectId: scope.projectId,
+          conversation: {
+            organizationId: scope.organizationId,
+            projectId: scope.projectId,
+          },
+        },
+        select: sessionConversationSelect,
+        take: 100,
+      });
+    return new Map(
+      sessions.map((session) => [session.id, session.conversation]),
+    );
   }
 
   async findIdempotencyRecord(

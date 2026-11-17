@@ -34,6 +34,12 @@ export interface OpenItemPresentation {
      */
     'workItemTypeKey'?: string | null;
     /**
+     * Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.
+     * @type {string}
+     * @memberof OpenItemPresentation
+     */
+    'conversationId'?: string | null;
+    /**
      * Agent Session type discriminator (agent sessions only).
      * @type {string}
      * @memberof OpenItemPresentation

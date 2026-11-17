@@ -184,6 +184,26 @@ describe("layoutJourneyScreens", () => {
   describe("with a marked start screen", () => {
     const startId = (name: string) => `id-${name}`;
 
+    it("keeps side branches from spilling above or left of the start", () => {
+      const cells = layoutJourneyScreens(
+        screens("Start", "Next", "Side1", "Side2", "Side3"),
+        [
+          link("p", "Start", "Next"),
+          link("u", "Start", "Side1"),
+          link("u", "Start", "Side2"),
+          link("u", "Start", "Side3"),
+        ],
+        none,
+        startId("Start"),
+      );
+
+      expect(at(cells, "Start")).toEqual({ column: 0, row: 0 });
+      expect(
+        new Set([...cells.values()].map((cell) => `${cell.column},${cell.row}`))
+          .size,
+      ).toBe(5);
+    });
+
     it("places the start top-left when a transition loops back to it", () => {
       const cells = layoutJourneyScreens(
         screens("A", "B", "C"),

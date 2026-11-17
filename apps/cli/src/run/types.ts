@@ -1,3 +1,4 @@
+import type { TaskMonitorPermissionAdmission } from '../agents/task-monitor/state-machine/provider-event-adapter';
 /**
  * Core types for the runtime event system.
  *
@@ -166,6 +167,7 @@ export interface DiffEvent extends NormalizedEventBase {
 
 export interface PermissionEvent extends NormalizedEventBase {
   kind: 'permission';
+  taskMonitorAdmission: TaskMonitorPermissionAdmission;
   files: string[];
   itemId?: string;
 }

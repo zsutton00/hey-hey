@@ -7,7 +7,10 @@ interface InterventionArguments {
   readonly event: TaskMonitorMachineEvent;
 }
 
-const timestamp = (value: string): number | null => {
+const timestamp = (value: string | null): number | null => {
+  if (value === null) {
+    return null;
+  }
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -23,8 +26,7 @@ export const canOpenExactActionIntervention = ({
     event.taskMonitorId === context.taskMonitorId &&
     event.agentSessionId === context.activeRunAgentSessionId &&
     createdAt !== null &&
-    expiresAt !== null &&
-    expiresAt > createdAt
+    (event.expiresAt === null || (expiresAt !== null && expiresAt > createdAt))
   );
 };
 
@@ -51,11 +53,10 @@ export const matchesPendingHumanDecision = ({ context, event }: InterventionArgu
     event.agentSessionId === pending.agentSessionId &&
     event.fingerprint === pending.fingerprint &&
     createdAt !== null &&
-    expiresAt !== null &&
     decidedAt !== null &&
     authenticatedAt !== null &&
     decidedAt >= createdAt &&
-    decidedAt <= expiresAt &&
+    (pending.expiresAt === null || (expiresAt !== null && decidedAt <= expiresAt)) &&
     authenticatedAt >= createdAt &&
     authenticatedAt <= decidedAt
   );

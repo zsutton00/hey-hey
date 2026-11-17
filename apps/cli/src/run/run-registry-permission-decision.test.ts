@@ -160,6 +160,32 @@ describe('RunRegistry.classifyPermissionDecisionOwner', () => {
     ).resolves.toEqual({ kind: 'settled_specialized_request' });
   });
 
+  it('routes a recorded fallback card to its provider in a monitored Run', async () => {
+    const collaborators = makeCollaborators();
+    vi.spyOn(collaborators.runStore, 'hasIdempotencyToken').mockResolvedValue(false);
+    const registry = makeRegistry(collaborators);
+    const run = registry.create(makeRunArgs());
+    run.recordPermissionRequestMessage('fallback-request', 'message-1', {
+      type: 'QUESTIONS',
+    } as SystemMessageData);
+    await expect(
+      registry.classifyPermissionDecisionOwner(
+        'run-1',
+        'fallback-request',
+        'decision-1',
+        'monitor-1',
+      ),
+    ).resolves.toEqual({ kind: 'provider_permission' });
+    await expect(
+      registry.classifyPermissionDecisionOwner(
+        'run-1',
+        'monitor-request',
+        'decision-2',
+        'monitor-1',
+      ),
+    ).resolves.toEqual({ kind: 'task_monitor_intervention', taskMonitorId: 'monitor-1' });
+  });
+
   it('classifies an otherwise generic Task Monitor permission as an intervention', async () => {
     const collaborators = makeCollaborators();
     vi.spyOn(collaborators.runStore, 'hasIdempotencyToken').mockResolvedValue(false);

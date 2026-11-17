@@ -21,6 +21,7 @@ import {
 import {
   type FeatureRequirementDraftRecord,
   type FeatureRequirementsDraftSection,
+  ungroupedRequirementsMessage,
   validateFeatureRequirementsDraft,
   validateFeatureRequirementsSection,
 } from './feature-requirements-section.validator';
@@ -507,6 +508,20 @@ export class FeatureRequirementAuthoringService {
             code: 'invalid_structure',
             message: draftStructural.message,
           },
+        ],
+      };
+    }
+    const ungrouped = ungroupedRequirementsMessage(draftStructural.value);
+    if (ungrouped !== undefined) {
+      this.logger.warn('Feature requirement collection rejected', {
+        field,
+        code: 'ungrouped_requirements',
+        message: ungrouped,
+      });
+      return {
+        success: false,
+        diagnostics: [
+          { field, code: 'ungrouped_requirements', message: ungrouped },
         ],
       };
     }

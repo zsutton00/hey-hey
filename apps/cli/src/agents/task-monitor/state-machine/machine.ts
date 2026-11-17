@@ -279,7 +279,7 @@ const pendingInterventionSchema = z
     target: z.string(),
     fingerprint: z.string(),
     createdAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().datetime().nullable(),
     decision: interventionDecisionSchema.nullable(),
     applicationFailure: z.string().nullable(),
   })
@@ -798,7 +798,7 @@ const interventionProjectionEffectSchema = z
     target: z.string(),
     fingerprint: z.string(),
     createdAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    expiresAt: z.string().datetime().nullable(),
   })
   .strict();
 const settledRunEvaluationEffectSchema = z

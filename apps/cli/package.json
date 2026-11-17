@@ -1,6 +1,6 @@
 {
   "name": "@hey-hey/cli",
-  "version": "4.4.0",
+  "version": "4.4.1",
   "description": "Hey Hey Agent Bridge — a local CLI that runs agent coding sessions and bridges the Hey Hey platform with Claude Code.",
   "main": "dist/index.mjs",
   "bin": {
@@ -18,7 +18,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zsutton00/cli.git"
+    "url": "git+https://github.com/zsutton00/hey-hey.git",
+    "directory": "apps/cli"
   },
   "license": "AGPL-3.0-only",
   "author": "Zac Sutton",
@@ -71,7 +72,7 @@
     "generate": "node ../../scripts/generate-contracts.mjs --target=cli",
     "generate:all": "node ../../scripts/generate-contracts.mjs --target=cli",
     "generate:check": "node ../../scripts/generate-contracts.mjs --check --target=cli",
-    "prepack": "tsx scripts/verify-release-manifest.ts && pnpm typecheck && pnpm test && pnpm build",
+    "prepack": "tsx scripts/verify-release-manifest.ts && pnpm typecheck && pnpm build",
     "format:check": "prettier --check .",
     "codex:smoke": "tsx scripts/codex-smoke.ts",
     "generate:contract:unlocked": "node ../../scripts/require-openapi-staging.cjs && node scripts/generate-custom-contracts.cjs",

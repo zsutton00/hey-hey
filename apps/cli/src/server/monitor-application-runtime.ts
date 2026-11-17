@@ -43,6 +43,7 @@ import type { TaskMonitorLaunchFailureRuntime } from './task-monitor-launch-fail
 import { DAILY_SESSION_MONITOR_LOG_EVENT } from '../shared/logging/daily-session';
 
 export interface MonitorApplicationRuntimeDependencies {
+  dataDirectory?: string;
   apiBaseUrl: string;
   apiRuntime: ApiRuntime;
   authContext: PlatformAuthContext;
@@ -85,6 +86,9 @@ export class MonitorApplicationRuntime {
       dependencies.dailySessionSettingsStore ??
       new DailySessionSettingsStore({
         logger: dependencies.logger.child({ component: 'daily-session.settings' }),
+        ...(dependencies.dataDirectory
+          ? { filePath: path.join(dependencies.dataDirectory, 'daily-session-settings.json') }
+          : {}),
       });
     this.taskMonitorMachineOwner = new TaskMonitorMachineOwner({
       apiBaseUrl: dependencies.apiBaseUrl,
@@ -203,7 +207,11 @@ export class MonitorApplicationRuntime {
       this.composePipeline(fetchImpl, DEFAULT_TRIGGER_CONFIG);
       return;
     }
-    const triggerConfig = await loadTriggerConfig();
+    const triggerConfig = await loadTriggerConfig(
+      this.dependencies.dataDirectory
+        ? path.join(this.dependencies.dataDirectory, 'trigger-rules.json')
+        : undefined,
+    );
     const auth = await this.dependencies.authContext.resolve();
     const persistedProject = auth
       ? null
@@ -266,7 +274,7 @@ export class MonitorApplicationRuntime {
       taskMonitorDecisionStore: this.dependencies.taskMonitorDecisionStore,
       sessionMonitorEvaluationStore: this.dependencies.sessionMonitorEvaluationStore,
       turnSupervisionReceiptStorePath: path.join(
-        resolveBaseDir(),
+        this.dependencies.dataDirectory ?? resolveBaseDir(),
         'runs',
         'turn-supervision-receipts.jsonl',
       ),

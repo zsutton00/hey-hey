@@ -1,3 +1,9 @@
+import { initialTransition, transition } from 'xstate';
+import { createTaskMonitorDefinition } from '../../task-monitor/state-machine/machine';
+import { taskMonitorEventFromVerifiedInput } from '../../task-monitor/state-machine/events';
+import { normalizeEvent } from '../../../run/normalize';
+import { taskMonitorExactActionInputFromProviderEvent } from '../../task-monitor/state-machine/provider-event-adapter';
+import type { AgentOutputMessage } from '../../agent-event-stream';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -1462,6 +1468,124 @@ describe('session-runner-claude', () => {
     rmSync(base, { recursive: true, force: true });
   });
 
+  it('admits a real Claude request without a deadline and delivers its monitor decision', async () => {
+    const onAgentOutput = vi.fn<(message: AgentOutputMessage) => void>();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Check monitored permissions.' });
+    await waitForPermissionHandler();
+    const input = { command: 'echo monitor-permission' };
+    const pending = permissionRequestHandler!('Bash', input);
+    // Cleanup can cancel an unresolved request when an assertion fails.
+    void pending.catch(() => {});
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          onAgentOutput.mock.calls.some(
+            ([message]) => message.event.eventType === 'permission_request_detected',
+          ),
+        ).toBe(true);
+      });
+      const message = onAgentOutput.mock.calls.find(
+        ([message]) => message.event.eventType === 'permission_request_detected',
+      )![0];
+      const event = { runId: session.agentic_session_id, ...message.event };
+      const admitted = taskMonitorExactActionInputFromProviderEvent({
+        owner: {
+          taskMonitorId: '10000000-0000-4000-8000-000000000001',
+          runId: session.agentic_session_id,
+          agentSessionId: session.agentic_session_id,
+        },
+        event,
+      });
+      expect(admitted).toMatchObject({ action: 'Bash', expiresAt: null });
+      if (!admitted) {
+        throw new Error('Claude permission request was not admitted');
+      }
+      const normalized = normalizeEvent(event, 'claude');
+      expect(normalized.kind).toBe('permission');
+      if (normalized.kind !== 'permission') {
+        throw new Error('Expected a permission event');
+      }
+      expect(normalized.taskMonitorAdmission.accepted).toBe(true);
+      const definition = createTaskMonitorDefinition();
+      const [initial] = initialTransition(definition.machine, {
+        machineType: 'TASK_MONITOR',
+        instanceId: admitted.taskMonitorId,
+      });
+      const observing = definition.machine.resolveState({
+        value: {
+          RUNNING: {
+            control: 'ACTIVE',
+            work: 'OBSERVING_RUN',
+            intervention: 'CLEAR',
+            input: 'WAITING_FOR_INPUT',
+          },
+        },
+        context: {
+          ...initial.context,
+          organizationId: 'org-1',
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+          agentSessionId: admitted.agentSessionId,
+          activeRunAgentSessionId: admitted.agentSessionId,
+        },
+      });
+      const [awaitingDecision] = transition(
+        definition.machine,
+        observing,
+        taskMonitorEventFromVerifiedInput(admitted),
+      );
+      expect(awaitingDecision.context.pendingIntervention).toMatchObject({ expiresAt: null });
+      const decidedAt = new Date().toISOString();
+      const [, actions] = transition(definition.machine, awaitingDecision, {
+        type: 'HUMAN_DECISION',
+        taskMonitorId: admitted.taskMonitorId,
+        interventionId: admitted.interventionId,
+        providerActionId: admitted.providerActionId,
+        runId: admitted.runId,
+        agentSessionId: admitted.agentSessionId,
+        fingerprint: admitted.fingerprint,
+        resolution: 'APPROVE',
+        providerDecision: 'approve',
+        decidedAt,
+        human: { userId: 'user-1', authenticatedAt: decidedAt },
+      });
+      const effect = actions
+        .flatMap((action) => definition.effectFromAction(action) ?? [])
+        .find((effect) => effect.type === 'APPLY_TASK_MONITOR_DECISION');
+      if (!effect || effect.type !== 'APPLY_TASK_MONITOR_DECISION') {
+        throw new Error('Monitor did not produce a provider decision');
+      }
+      const dispatch = translatePermissionDecisionToDispatch({
+        runId: effect.runId,
+        sessionId: effect.providerSessionId,
+        requestId: effect.providerActionId,
+        agentType: 'claude',
+        decision: effect.providerDecision,
+        reason: null,
+        idempotencyToken: admitted.ingressId,
+        deciderUserId: 'user-1',
+      });
+      await expect(runner.submitPermissionDecision({ session, dispatch })).resolves.toMatchObject({
+        delivered: true,
+      });
+      await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: input });
+    } finally {
+      await waitForEventHandler();
+      emitClaudeEvent({ type: 'result' });
+      await runPromise;
+    }
+  });
+
   it('shares permission decisions only across structurally identical calls', async () => {
     const onAgentOutput = vi.fn();
     const runner = new ClaudeAgentSessionRunner({
@@ -1606,6 +1730,94 @@ describe('session-runner-claude', () => {
     await waitForEventHandler();
     emitClaudeEvent({ type: 'result' });
     await runPromise;
+  });
+
+  it('keeps distinct monitored network requests independently actionable', async () => {
+    const onAgentOutput = vi.fn<(message: AgentOutputMessage) => void>();
+    const owner = createProviderTestAgentOutputOwner(onAgentOutput);
+    vi.spyOn(owner, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: owner,
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Access two hosts.' });
+    await waitForPermissionHandler();
+    const first = permissionRequestHandler!('SandboxNetworkAccess', { host: 'one.example' });
+    const second = permissionRequestHandler!('SandboxNetworkAccess', { host: 'two.example' });
+    void first.catch(() => {});
+    void second.catch(() => {});
+    let secondSettled = false;
+    void second.then(
+      () => {
+        secondSettled = true;
+      },
+      () => {
+        secondSettled = true;
+      },
+    );
+    try {
+      const requests = () =>
+        onAgentOutput.mock.calls
+          .map(([message]) => message.event)
+          .filter((event) => event.eventType === 'permission_request_detected');
+      await vi.waitFor(() => expect(requests()).toHaveLength(2));
+      expect(
+        onAgentOutput.mock.calls.some(
+          ([message]) => message.event.eventType === 'permission_group_item_added',
+        ),
+      ).toBe(false);
+      const admitted = requests().map((event) =>
+        taskMonitorExactActionInputFromProviderEvent({
+          owner: {
+            taskMonitorId: 'monitor-1',
+            runId: session.agentic_session_id,
+            agentSessionId: session.agentic_session_id,
+          },
+          event: { ...event, runId: session.agentic_session_id },
+        }),
+      );
+      expect(admitted.every(Boolean)).toBe(true);
+      expect(admitted.map((request) => request?.target)).toEqual([
+        'host=one.example',
+        'host=two.example',
+      ]);
+      expect(admitted[0]?.providerActionId).not.toBe(admitted[1]?.providerActionId);
+      for (const [index, request] of admitted.entries()) {
+        if (!request) {
+          throw new Error('Expected individually admissible request');
+        }
+        await runner.submitPermissionDecision({
+          session,
+          dispatch: translatePermissionDecisionToDispatch({
+            runId: request.runId,
+            sessionId: request.providerSessionId,
+            requestId: request.providerActionId,
+            agentType: 'claude',
+            decision: index === 0 ? 'approve' : 'deny',
+            reason: null,
+            idempotencyToken: request.providerActionId,
+            deciderUserId: 'user-1',
+          }),
+        });
+        if (index === 0) {
+          await expect(first).resolves.toMatchObject({
+            behavior: 'allow',
+            updatedInput: { host: 'one.example' },
+          });
+          expect(secondSettled).toBe(false);
+        }
+      }
+      await expect(second).resolves.toMatchObject({ behavior: 'deny' });
+    } finally {
+      await waitForEventHandler();
+      emitClaudeEvent({ type: 'result' });
+      await runPromise;
+    }
   });
 
   it('lists same-tool requests with different inputs on one card with a decision per request', async () => {

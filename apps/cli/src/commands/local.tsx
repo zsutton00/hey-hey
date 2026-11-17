@@ -14,11 +14,16 @@ import { InstallationStore } from '../local-app/installation-store';
 import { ModelDownloader } from '../local-app/model-downloader';
 import { DockerBoundary } from '../local-app/docker-boundary';
 import { openBrowser } from '../local-app/open-browser';
-import { buildInjectedCredential, getActiveCredentialKey } from '../auth/index';
-import { CredentialStore } from '../credentials/store';
-import { KeyPairStore } from '../credentials/index';
+import { buildInjectedCredential } from '../auth/index';
+import { LocalCliState } from '../local-app/local-cli-state';
+import { MachineControllerAuthority } from '../auth/machine-controller-authority';
+import { Configuration, MachinesApi } from '../shared/api';
+import { createDefaultMachineEnrollmentClient } from '../auth/machine-enrollment-client';
+import { createDefaultMachineControllerManagementClient } from '../auth/machine-controller-management';
 import { runPairCommand } from './pair';
 import { LocalApprovalSecret } from '../auth/local-approval';
+import { createInteractivePrompter } from '../agent-runtime/credentials/cli/interactivePrompt';
+import { LocalPasskeyRepair, type TerminalReader } from '../local-app/local-passkey-repair';
 import { PairServerCommand } from './pair-server';
 import { resolvePairingUrl } from './pairing-web-url';
 import { CodingAgentDetector } from '../local-app/coding-agent-detection';
@@ -32,6 +37,7 @@ const localBootstrapResponseSchema = z.object({
   data: z.strictObject({
     handoffToken: z.string().regex(/^[A-Za-z0-9_-]{40,64}$/),
     expiresInSeconds: z.literal(120),
+    accountHasPasskey: z.boolean(),
   }),
 });
 
@@ -45,7 +51,8 @@ const localCliCredentialsResponseSchema = z.object({
 
 interface LocalPairingHandoff {
   userCode: string;
-  localApproval: LocalApprovalSecret;
+  /** Present only for a genuine first passkey; any later pairing is confirmed at the terminal. */
+  localApproval?: LocalApprovalSecret;
   agents: LocalCodingAgentDetectionDto;
 }
 
@@ -60,7 +67,9 @@ const localWebUrl = (
   if (pairing) {
     url.searchParams.set('pairing', 'started');
     fragment.set('code', pairing.userCode);
-    fragment.set('approval', pairing.localApproval.fragmentValue);
+    if (pairing.localApproval) {
+      fragment.set('approval', pairing.localApproval.fragmentValue);
+    }
     fragment.set('agents', JSON.stringify(pairing.agents));
   }
   if (handoffToken) {
@@ -84,7 +93,13 @@ async function openLocalPage(target: string, failure: string): Promise<void> {
   });
 }
 
-async function createLocalHandoff(installationSecret: string): Promise<string> {
+interface LocalHandoff {
+  handoffToken: string;
+  /** The local account already has a live passkey, so this is not a first-time setup. */
+  accountHasPasskey: boolean;
+}
+
+async function createLocalHandoff(installationSecret: string): Promise<LocalHandoff> {
   const response = await fetch('http://localhost:3000/api/v1/auth/local/bootstrap', {
     method: 'POST',
     headers: { 'X-HeyHey-Local-Secret': installationSecret },
@@ -93,11 +108,14 @@ async function createLocalHandoff(installationSecret: string): Promise<string> {
     throw new Error(`Local account access could not be prepared (HTTP ${response.status}).`);
   }
   const payload = localBootstrapResponseSchema.parse(JSON.parse(await response.text()));
-  return payload.data.handoffToken;
+  return payload.data;
 }
 
 /** The local application has no login: the installation secret is the CLI's proof of authority. */
-async function storeLocalCliCredentials(installationSecret: string): Promise<void> {
+async function storeLocalCliCredentials(
+  installationSecret: string,
+  state: LocalCliState,
+): Promise<void> {
   const response = await fetch('http://localhost:3000/api/v1/auth/local/cli-credentials', {
     method: 'POST',
     headers: { 'X-HeyHey-Local-Secret': installationSecret },
@@ -110,7 +128,7 @@ async function storeLocalCliCredentials(installationSecret: string): Promise<voi
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
   });
-  await new CredentialStore().store(getActiveCredentialKey(), credential);
+  await state.credentials.store('heyhey:oauth:local-application', credential);
 }
 
 /**
@@ -119,13 +137,14 @@ async function storeLocalCliCredentials(installationSecret: string): Promise<voi
  * first one expires after two minutes. It stops listening as soon as the ceremony
  * moves on, so it never competes with the terminal confirmation prompt.
  */
-class LocalPairingPageReopener {
+class LocalPairingPageReopener implements TerminalReader {
   private userCode: string | null = null;
   private lines: Interface | null = null;
+  private waitingForBrowser = false;
 
   constructor(
     private readonly installationSecret: string,
-    private readonly localApproval: LocalApprovalSecret,
+    private readonly localApproval: LocalApprovalSecret | undefined,
     private readonly agents: LocalCodingAgentDetectionDto,
     private readonly webOrigin: string,
   ) {}
@@ -135,11 +154,23 @@ class LocalPairingPageReopener {
       this.userCode = step.userCode;
       return;
     }
-    if (step.kind === 'waiting-for-browser' && this.userCode) {
+    this.waitingForBrowser = step.kind === 'waiting-for-browser' && this.userCode !== null;
+    if (this.waitingForBrowser) {
       this.listen();
       return;
     }
     this.stop();
+  }
+
+  /** Another prompt needs the terminal; Enter must not reopen the page meanwhile. */
+  pause(): void {
+    this.stop();
+  }
+
+  resume(): void {
+    if (this.waitingForBrowser) {
+      this.listen();
+    }
   }
 
   stop(): void {
@@ -165,10 +196,10 @@ class LocalPairingPageReopener {
     }
 
     try {
-      const handoffToken = await createLocalHandoff(this.installationSecret);
+      const { handoffToken } = await createLocalHandoff(this.installationSecret);
       const pairing = {
         userCode: this.userCode,
-        localApproval: this.localApproval,
+        ...(this.localApproval ? { localApproval: this.localApproval } : {}),
         agents: this.agents,
       };
       await openLocalPage(
@@ -198,6 +229,7 @@ export async function continueLocalApplication(
   onStopping: () => void,
   /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
   expectedServices?: readonly string[],
+  state = new LocalCliState(storage.directory),
 ): Promise<boolean> {
   const serverServices = expectedServices ? { localApplicationServices: expectedServices } : {};
   const originalApiUrl = process.env['HEYHEY_API_URL'];
@@ -214,23 +246,101 @@ export async function continueLocalApplication(
 
   try {
     const secrets = await storage.secrets();
-    const handoffToken = await createLocalHandoff(secrets.admin);
-    await storeLocalCliCredentials(secrets.admin);
-    const keyPairStore = new KeyPairStore();
+    const { handoffToken } = await createLocalHandoff(secrets.admin);
+    await storeLocalCliCredentials(secrets.admin, state);
+    const keyPairStore = state.keyPairStore;
+    const readAccessToken = async (): Promise<string> => {
+      const token = await state.oauthClient.getAccessToken();
+      if (!token.success) {
+        throw new Error(`Local CLI credentials unavailable: ${token.error}`);
+      }
+      return token.data;
+    };
+    const machines = new MachinesApi(
+      new Configuration({
+        basePath: 'http://localhost:3000/api/v1',
+        accessToken: readAccessToken,
+      }),
+    );
+    const managementClient = createDefaultMachineControllerManagementClient(
+      keyPairStore,
+      state.oauthClient,
+    );
+    const authority = new MachineControllerAuthority({
+      keyPairStore,
+      controllerRegistryStore: state.controllerRegistryStore,
+      executionGrantStore: state.executionGrantStore,
+      machineDirectory: machines,
+      managementClient,
+    });
+    const readiness = await authority.readReadiness();
     const currentMachineId = await keyPairStore.loadCurrentMachineId();
     console.log(
-      `Pairing state: keychain namespace "${keyPairStore.getAccountNamespace()}", current machine ID ${currentMachineId ?? 'none'}. ${
-        currentMachineId
-          ? 'Treating this computer as already paired; no new pairing will be started.'
-          : 'Starting a first-time pairing.'
-      }`,
+      `Pairing state: store=heyhey-local-cli state=${readiness.state} machineId=${currentMachineId ?? 'none'}.`,
     );
-    if (currentMachineId) {
+    const pairLocal = async (): Promise<boolean> => {
+      const agents = await new CodingAgentDetector().detect();
+      const current = await authority.readReadiness();
+      const pairingHandoff = await createLocalHandoff(secrets.admin);
+      // Only a genuine first passkey may approve itself. Once the account has a
+      // passkey, the browser proves with it (or asks for Repair) and the person
+      // confirms here, so no pairing-time grant is created.
+      const localApproval = pairingHandoff.accountHasPasskey
+        ? undefined
+        : new LocalApprovalSecret();
+      console.log(
+        `Local pairing: state=${current.state} accountHasPasskey=${String(pairingHandoff.accountHasPasskey)} approval=${localApproval ? 'first-passkey' : 'terminal-confirmation'}.`,
+      );
+      if (pairingHandoff.accountHasPasskey) {
+        console.log(
+          'This computer was set up before. Use your existing passkey in the page that opens, then confirm here.',
+        );
+      }
+      const pairing = { ...(localApproval ? { localApproval } : {}), agents };
+      const reopener = new LocalPairingPageReopener(
+        secrets.admin,
+        localApproval,
+        agents,
+        webOrigin,
+      );
+      const prompter = createInteractivePrompter();
+      const repair = new LocalPasskeyRepair(secrets.admin, prompter, reopener);
+      if (pairingHandoff.accountHasPasskey) {
+        await repair.watch();
+      }
+
+      return runPairCommand({
+        keyPairStore,
+        controllerRegistryStore: state.controllerRegistryStore,
+        executionGrantStore: state.executionGrantStore,
+        machinesApi: createDefaultMachineEnrollmentClient(await readAccessToken()),
+        existingMachineClient: managementClient,
+        ...(current.state === 'machine-unrecognized' && current.machineId
+          ? { replaceUnrecognizedMachineId: current.machineId }
+          : {}),
+        ...(localApproval ? { localApproval } : {}),
+        prompter,
+        getPairingUrl: (userCode) => resolvePairingUrl(userCode),
+        onBrowserHandoff: (userCode) => {
+          void openLocalPage(
+            localWebUrl(webOrigin, pairingHandoff.handoffToken, { userCode, ...pairing }),
+            'Could not open the local pairing page automatically.',
+          );
+        },
+        onCeremonyStep: (step) => reopener.follow(step),
+      }).finally(() => {
+        repair.stop();
+        reopener.stop();
+      });
+    };
+    if (readiness.state === 'ready') {
       await openLocalPage(
         localWebUrl(webOrigin, handoffToken),
         'Could not open the local setup page automatically.',
       );
       return await new PairServerCommand().runServerAfterPairing({
+        state,
+        recoverPairing: pairLocal,
         localApplicationDirectory: storage.directory,
         localApplicationRelease: release,
         ...serverServices,
@@ -240,30 +350,13 @@ export async function continueLocalApplication(
       });
     }
 
-    const localApproval = new LocalApprovalSecret();
-    const agents = await new CodingAgentDetector().detect();
-    const reopener = new LocalPairingPageReopener(secrets.admin, localApproval, agents, webOrigin);
-    const paired = await runPairCommand({
-      keyPairStore,
-      localApproval,
-      // The printed fallback carries the code but never the approval secret.
-      getPairingUrl: (userCode) => resolvePairingUrl(userCode),
-      onBrowserHandoff: (userCode) => {
-        void openLocalPage(
-          localWebUrl(webOrigin, handoffToken, { userCode, localApproval, agents }),
-          'Could not open the local pairing page automatically.',
-        );
-      },
-      onCeremonyStep: (step) => {
-        reopener.follow(step);
-      },
-    }).finally(() => {
-      reopener.stop();
-    });
+    const paired = await pairLocal();
     if (!paired) {
       return false;
     }
     return await new PairServerCommand().runServerAfterPairing({
+      state,
+      recoverPairing: pairLocal,
       localApplicationDirectory: storage.directory,
       localApplicationRelease: release,
       ...serverServices,

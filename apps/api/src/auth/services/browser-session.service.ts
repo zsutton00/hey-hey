@@ -545,8 +545,10 @@ export class BrowserSessionService {
     userId: UserId,
     revokedAt: Date,
     reason: string,
+    /** A session that stays live, for a change that must leave the acting browser signed in. */
+    keepSessionId?: string,
   ): Promise<BrowserSessionRevocationResult> {
-    const matches = await tx.$queryRaw<RevocableBrowserSessionRow[]>`
+    const live = await tx.$queryRaw<RevocableBrowserSessionRow[]>`
       SELECT
         family."id" AS "familyRowId",
         family."family_id" AS "familyId",
@@ -557,6 +559,9 @@ export class BrowserSessionService {
       ORDER BY family."id"
       FOR UPDATE OF family
     `;
+    const matches = live.filter(
+      (match: RevocableBrowserSessionRow) => match.sessionId !== keepSessionId,
+    );
 
     if (matches.length > 0) {
       await tx.browserSessionFamily.updateMany({

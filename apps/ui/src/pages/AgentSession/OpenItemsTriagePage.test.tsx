@@ -3,11 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 import {
+  ConversationStatus,
+  InitiationType,
   OpenItemsTriageMode,
+  WorkflowName,
   type AgentSessionDto,
+  type ConversationResponseDto,
   type OpenItemsTriagePromoteGroupSuggestion,
 } from "@hey-hey/contracts/api";
+import {
+  toOpenApiConversationId,
+  toOpenApiOrganizationId,
+  toOpenApiProjectId,
+} from "@hey-hey/ui-common/clients";
 import type {
   TriageApplicationCoordinator,
   TriageApplicationPorts,
@@ -143,6 +153,30 @@ const session = {
   type: "PROJECT_CONVERSATION",
   title: "Triage",
 } as AgentSessionDto;
+const conversation = {
+  id: toOpenApiConversationId("conversation"),
+  organizationId: toOpenApiOrganizationId("org"),
+  projectId: toOpenApiProjectId("project"),
+  restricted: true,
+  createdBy: "user",
+  initiatedBy: InitiationType.User,
+  status: ConversationStatus.InProgress,
+  title: "Triage",
+  version: 1,
+  workflowName: WorkflowName.OpenItemsTriage,
+  createdAt: "2026-11-14T00:00:00Z",
+  updatedAt: "2026-11-14T00:00:00Z",
+} satisfies ConversationResponseDto;
+
+beforeEach(() => {
+  globalThis.mswServer.use(
+    http.get(
+      "*/api/v1/organizations/org/projects/project/conversations/conversation",
+      () => HttpResponse.json({ data: conversation }),
+    ),
+  );
+});
+
 const binding = (
   overrides: Partial<OpenItemsTriageReviewBinding> = {},
 ): OpenItemsTriageReviewBinding => ({

@@ -385,6 +385,47 @@ describe('RunWorkspaceWriteBoundary', () => {
     await secondBoundary.dispose();
   });
 
+  it('separates persistent provider sessions for identical Run IDs in different CLI stores', async () => {
+    const base = await makeDirectory();
+    const workspaceDirectory = path.join(base, 'workspace');
+    await fs.mkdir(workspaceDirectory);
+    const workspace = makeWorkspace(workspaceDirectory, [workspaceDirectory]);
+    const localRoot = path.join(base, 'local-installation', 'cli', 'provider-state');
+    const hostedRoot = path.join(base, 'hosted', 'provider-state');
+    const open = (providerStateRoot: string) =>
+      RunWorkspaceWriteBoundary.create(workspace, {
+        runScopeId: 'identical-restored-run-id',
+        providerStateRoot,
+      });
+    const local = await open(localRoot);
+    const hosted = await open(hostedRoot);
+    const localData = local.processContainment().env['XDG_DATA_HOME'];
+    const hostedData = hosted.processContainment().env['XDG_DATA_HOME'];
+    if (!localData || !hostedData) {
+      throw new Error('Expected persistent provider directories');
+    }
+    try {
+      expect(localData).not.toBe(hostedData);
+      await fs.writeFile(path.join(localData, 'opencode', 'session.db'), 'local session');
+      await fs.writeFile(path.join(hostedData, 'opencode', 'session.db'), 'hosted session');
+    } finally {
+      await local.dispose();
+      await hosted.dispose();
+    }
+    const restarted = await open(localRoot);
+    try {
+      expect(restarted.processContainment().env['XDG_DATA_HOME']).toBe(localData);
+      expect(await fs.readFile(path.join(localData, 'opencode', 'session.db'), 'utf8')).toBe(
+        'local session',
+      );
+      expect(await fs.readFile(path.join(hostedData, 'opencode', 'session.db'), 'utf8')).toBe(
+        'hosted session',
+      );
+    } finally {
+      await restarted.dispose();
+    }
+  });
+
   it('OS-enforces shell and nested-process writes against the same roots', async () => {
     const base = await makeDirectory();
     const allowed = path.join(base, 'allowed');

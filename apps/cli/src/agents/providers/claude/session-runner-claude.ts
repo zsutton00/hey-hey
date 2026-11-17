@@ -2,6 +2,7 @@ import { filterInertBuiltinTools } from '../../../run/inert-execution-policy';
 import { toolResultLogLevel } from './tool-result-log-level';
 import { describeGroupedPermissionRequest, isGroupedPermissionTool } from './permission-grouping';
 import { formatPermissionInputSummary, summarizePermissionInput } from './permission-input-summary';
+import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
@@ -280,7 +281,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   ]);
   private readonly redactionConfig = loadAgentEventLogRedactionConfig();
   private readonly normalizationConfig = loadProviderEventNormalizationConfig();
-  private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly attachmentContentReader: RunAttachmentContentReader;
   private readonly runStore: RunStore;
   private readonly repoStore: RepoMappingStore;
   private readonly localAgentEndpoint: LocalAgentEndpoint;
@@ -291,6 +292,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly logger: ServerLogger;
 
   public constructor(dependencies: ClaudeAgentSessionRunnerDependencies) {
+    this.attachmentContentReader = new RunAttachmentContentReader(
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
@@ -634,7 +638,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const existingPending = sameToolPending.find((p) =>
         isDeepStrictEqual(p.toolInputRecord, toolInputRecord),
       );
-      const groupedTool = isGroupedPermissionTool(toolName);
+      const groupedTool =
+        !this.agentOutputOwner?.taskMonitorId && isGroupedPermissionTool(toolName);
       const openCardRequestId = groupedTool
         ? sameToolPending.find(
             (p) => p.cardRequestId && !this.sealedPermissionCards.has(p.cardRequestId),
@@ -774,7 +779,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             : `Permission requested for tool: ${toolName}`;
       const referencedFiles = toolFilePath ? [toolFilePath] : [];
       const agenticSessionId = this.activeAgenticSessionId;
-      const permissionTarget = toolCommand || toolFilePath || toolName;
+      const permissionTarget = toolCommand || toolFilePath || permissionInputText || toolName;
       const permissionFingerprint = `sha256:${crypto
         .createHash('sha256')
         .update(
@@ -847,29 +852,39 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         });
       }
 
-      this.emitRawEvent({
-        source: 'provider',
-        eventType: 'agent_output',
+      const permissionPayload = {
+        responseType: 'agent_request_permission_v1',
+        permission_request: {
+          ...canonicalPermissionRequest,
+          raw_event: { toolName, toolInput: toolInputRecord },
+        },
+        enrichment_metadata: {
+          reason: permissionReason,
+          agent_intent: null,
+          referenced_files: referencedFiles,
+          referenced_diffs: [],
+        },
+        raw_event: { toolName, toolInput: toolInputRecord },
+      };
+      const normalizedPermission = normalizeProviderEventPayload({
+        provider: 'claude',
+        runId: agenticSessionId ?? sessionId,
+        eventType: 'permission_request',
         timestamp,
         sessionId,
-        agentId: null,
-        payload: {
-          summary: JSON.stringify({
-            responseType: 'agent_request_permission_v1',
-            permission_request: {
-              ...canonicalPermissionRequest,
-              raw_event: { toolName, toolInput: toolInputRecord },
-            },
-            enrichment_metadata: {
-              reason: permissionReason,
-              agent_intent: null,
-              referenced_files: referencedFiles,
-              referenced_diffs: [],
-            },
-            raw_event: { toolName, toolInput: toolInputRecord },
-          }),
-          messageType: 'system',
-        },
+        agentId: 'claude',
+        rawEvent: permissionPayload,
+        config: this.normalizationConfig,
+      });
+
+      this.emitRawEvent({
+        source: 'provider',
+        eventType: 'permission_request_detected',
+        timestamp,
+        sessionId,
+        agentId: 'claude',
+        payload: { ...permissionPayload, ...normalizedPermission.payload },
+        ...(normalizedPermission.facts ? { providerFacts: normalizedPermission.facts } : {}),
       });
 
       const result = await permissionPromise;

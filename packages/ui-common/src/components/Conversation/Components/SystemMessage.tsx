@@ -355,14 +355,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
               <Typography
                 component="div"
                 className="system-message-markdown"
-                sx={(theme) => ({
-                  color: "inherit",
-                  // Preview card titles are links; on the system message
-                  // surface they read as white.
-                  '& [data-testid="mention-artifact-card"] h2 button': {
-                    color: theme.palette.common.white,
-                  },
-                })}
+                sx={{ color: "inherit" }}
               >
                 <MarkdownRenderer
                   components={markdownComponents}

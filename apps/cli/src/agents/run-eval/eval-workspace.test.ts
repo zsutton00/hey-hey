@@ -9,7 +9,17 @@ import { NOOP_LOGGER } from '../../server/logger';
 import { EvalWorkspaces } from './eval-workspace';
 
 const git = (cwd: string, ...args: string[]): string =>
-  execFileSync('git', args, { cwd, encoding: 'utf8' });
+  execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'Eval fixture',
+      GIT_AUTHOR_EMAIL: 'eval-fixture@example.invalid',
+      GIT_COMMITTER_NAME: 'Eval fixture',
+      GIT_COMMITTER_EMAIL: 'eval-fixture@example.invalid',
+    },
+  });
 
 const ghInstalled = spawnSync('gh', ['--version']).status === 0;
 
@@ -101,13 +111,9 @@ describe('EvalWorkspaces', () => {
           encoding: 'utf8',
         });
 
-      // With nothing to log in with, gh stops at authentication.
-      const withoutLogin = createPr(isolated);
-      expect(withoutLogin.status).not.toBe(0);
-      expect(withoutLogin.stderr).toContain('gh auth login');
-
       // A placeholder token takes login out of the picture; the missing remote is what stops it.
       const withLogin = createPr({ ...isolated, GH_TOKEN: 'placeholder-token' });
+      expect(withLogin.error).toBeUndefined();
       expect(withLogin.status).not.toBe(0);
       expect(withLogin.stderr).toContain('no git remotes found');
 

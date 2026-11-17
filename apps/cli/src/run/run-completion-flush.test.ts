@@ -1,3 +1,4 @@
+import { CommitGitError } from '../agents/commit/commit-git-error';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
@@ -723,6 +724,27 @@ describe('Run terminal output attention', () => {
     expect(poster.createOutOfBand).toHaveBeenCalledTimes(2);
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(order).toEqual(['message', 'message', 'ready']);
+  });
+
+  it('publishes a commit Git diagnostic when the Turn fails', async () => {
+    const poster = makePoster();
+    const error = new CommitGitError('add', "fatal: pathspec 'deleted.ts' did not match any files");
+    const run = new Run(
+      makeRunArgs(),
+      makeCollaborators(poster, () => ({
+        run: async () => {
+          throw error;
+        },
+      })),
+    );
+    await run.handleMessage(makeInput());
+    await run.awaitIdle();
+    expect(poster.postFailureMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'EXECUTION_FAILED',
+        cause: error.message,
+      }),
+    );
   });
 
   it('does not set MESSAGE_READY when terminal assistant persistence fails', async () => {

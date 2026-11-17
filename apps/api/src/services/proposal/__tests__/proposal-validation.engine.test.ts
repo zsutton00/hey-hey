@@ -1671,7 +1671,7 @@ describe('ProposalValidationEngine', () => {
       ).toThrow('Proposal violates the OpenAPI structural contract');
     });
 
-    it('accepts a FEATURE create with grouped and ungrouped requirements', async () => {
+    it('rejects a FEATURE create of three requirements where one lacks a group', async () => {
       const tx = makeTransactionDb();
 
       await expect(
@@ -1693,7 +1693,15 @@ describe('ProposalValidationEngine', () => {
           testIds.project,
           tx,
         ),
-      ).resolves.toBeUndefined();
+      ).rejects.toMatchObject({
+        response: {
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'feature_requirement_ungrouped_requirements',
+            }),
+          ]),
+        },
+      });
     });
 
     it('accepts a FEATURE create when all large-collection requirements share one group', async () => {
@@ -1757,7 +1765,15 @@ describe('ProposalValidationEngine', () => {
           testIds.project,
           tx,
         ),
-      ).resolves.toBeUndefined();
+      ).rejects.toMatchObject({
+        response: {
+          errors: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'feature_requirement_ungrouped_requirements',
+            }),
+          ]),
+        },
+      });
 
       (tx as any).taskSection.findFirst.mockResolvedValue({
         materializedMarkdown: JSON.stringify({

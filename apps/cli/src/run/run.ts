@@ -1,3 +1,4 @@
+import { CommitGitError } from '../agents/commit/commit-git-error';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
@@ -2466,6 +2467,24 @@ export class Run {
     this._narrationByTurn.get(turnId)?.reject(error);
   }
 
+  private readonly taskMonitorPermissionAdmissions = new Map<string, Promise<boolean>>();
+
+  recordTaskMonitorPermissionAdmission(requestId: string, admission: Promise<boolean>): void {
+    this.taskMonitorPermissionAdmissions.set(requestId, admission);
+  }
+
+  async takeTaskMonitorPermissionAdmission(requestId: string): Promise<boolean> {
+    const admission = this.taskMonitorPermissionAdmissions.get(requestId);
+    if (!admission) {
+      return false;
+    }
+    try {
+      return await admission;
+    } finally {
+      this.taskMonitorPermissionAdmissions.delete(requestId);
+    }
+  }
+
   recordPermissionRequestMessage(
     requestId: string,
     messageId: string,
@@ -4731,6 +4750,8 @@ export class Run {
     return fallback;
   }
 
+  private readonly terminalCommitFailures = new Map<string, CommitGitError>();
+
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
   private async postFailureMessage(reason: FailureReason, error?: unknown): Promise<void> {
@@ -4747,7 +4768,9 @@ export class Run {
       reason,
       ...(reason === 'STARTUP_FAILED'
         ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
-        : {}),
+        : error instanceof CommitGitError
+          ? { cause: error.message }
+          : {}),
       inert: this.session.inert === true,
     });
   }
@@ -4800,6 +4823,9 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
+    if (error instanceof CommitGitError) {
+      this.terminalCommitFailures.set(turn.turnId, error);
+    }
     this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));
     const runnerFailureAction = turn.handler.getRunnerFailureAction?.(error, turn.payload) ?? null;
     if (runnerFailureAction) {
@@ -4901,7 +4927,7 @@ export class Run {
           turn.terminalOutcome === 'ABORTED'
             ? 'STOPPED'
             : (this.terminalFailureReasons.get(turn.turnId) ?? 'EXECUTION_FAILED');
-        await this.postFailureMessage(reason);
+        await this.postFailureMessage(reason, this.terminalCommitFailures.get(turn.turnId));
         const bootstrapAdmission =
           !settledAdmission && this.activeTurnInput
             ? readBootstrapInputAdmission(this.activeTurnInput)
@@ -4913,6 +4939,7 @@ export class Run {
         }
       }
       this.terminalFailureReasons.delete(turn.turnId);
+      this.terminalCommitFailures.delete(turn.turnId);
       const inputSettlement = this.serviceScope.settleTurnInput(
         turn.turnId,
         settledAdmission,
@@ -6296,6 +6323,7 @@ export class Run {
     if (this.workspaceWriteBoundary === null) {
       this.workspaceWriteBoundary = await RunWorkspaceWriteBoundary.create(workspace, {
         runScopeId: this.runId,
+        providerStateRoot: path.join(this.runStore.getDataDirectory(), 'provider-state'),
         readOnlyDirectories,
       });
       this.logger.info('local.run.workspace_write_boundary.created', {

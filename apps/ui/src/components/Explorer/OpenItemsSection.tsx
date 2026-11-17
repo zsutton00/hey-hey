@@ -1,3 +1,14 @@
+import { OpenItemSessionRenameDialog } from "./OpenItemSessionRenameDialog";
+import {
+  OpenItemPresenceContext,
+  OpenItemPresenceRow,
+} from "./OpenItemPresenceRow";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import { useTranslation } from "react-i18next";
+import {
+  useEvalSessionStatuses,
+  evalRunStatusLabel,
+} from "@hey-hey/ui-common/data";
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import { useOpenItemsSelection } from "../../openItemsSelection";
@@ -500,6 +511,7 @@ type OpenItemRowProps = {
   activeOnlyAction: OpenItemActiveOnlyAction;
   organizationId: string;
   projectId: string;
+  evalStatusLabel?: string;
   currentState?: AgentSessionCurrentState;
   outputAttentionState?: AgentSessionOutputAttentionState;
   conversationPhase?: Parameters<typeof ConversationPhaseIndicator>[0]["phase"];
@@ -589,6 +601,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   organizationId,
   projectId,
   currentState,
+  evalStatusLabel,
   outputAttentionState,
   conversationPhase,
   workItemTypeDefinitions,
@@ -614,6 +627,12 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   } = actions;
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const renameConversationId =
+    item.presentation?.kind === "agent_session"
+      ? item.presentation.conversationId
+      : null;
   const [isNoteDialogOpen, setIsNoteDialogOpen, isNoteDialogOpenOwnerKey] =
     useModalState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -827,6 +846,14 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
         hasTargets: itemCount > 0,
         onSelect: removeAll,
       },
+      ...(renameConversationId
+        ? {
+            rename: {
+              label: t("openItems.rename.action"),
+              onSelect: () => setRenaming(true),
+            },
+          }
+        : {}),
       whyOpen: {
         kind: item.whyOpen ? "edit" : "add",
         onSelect: handleNote,
@@ -846,6 +873,8 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
       },
     }),
     [
+      renameConversationId,
+      t,
       handleNote,
       handlePin,
       handleRemoveFromOpen,
@@ -874,6 +903,15 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
 
   return (
     <>
+      {renaming && renameConversationId && organizationId && projectId && (
+        <OpenItemSessionRenameDialog
+          organizationId={organizationId}
+          projectId={projectId}
+          sessionId={item.entityId}
+          conversationId={renameConversationId}
+          onClose={() => setRenaming(false)}
+        />
+      )}
       <OpenItemInteractionComponent
         entityId={item.entityId}
         entityType={interactionEntityType}
@@ -1053,6 +1091,16 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             >
               {label}
             </Typography>
+            {evalStatusLabel ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                data-testid="open-item-eval-status"
+              >
+                {evalStatusLabel}
+              </Typography>
+            ) : null}
             {starred ? (
               <StarIcon
                 role="img"
@@ -1161,6 +1209,8 @@ export const OpenItemsSection: React.FC<{
   searchTerm?: string;
   onVisibleCountChange?: (count: number) => void;
 }> = ({ organizationId, projectId, searchTerm = "", onVisibleCountChange }) => {
+  const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const {
     items,
     groups,
@@ -1363,6 +1413,13 @@ export const OpenItemsSection: React.FC<{
     [visibleProjectedItems],
   );
   const conversationPhaseById = useConversationPhases(visibleConversationIds);
+  const evalStatuses = useEvalSessionStatuses(
+    organizationId,
+    projectId,
+    items
+      .filter((item) => item.entityType === "agent_session")
+      .map((item) => item.entityId),
+  );
   const { currentStateById } = useAgentSessionCurrentStates(
     organizationId,
     projectId,
@@ -1587,6 +1644,11 @@ export const OpenItemsSection: React.FC<{
         activeOnlyAction={activeOnlyAction}
         organizationId={organizationId}
         projectId={projectId}
+        evalStatusLabel={
+          evalStatuses[item.entityId]
+            ? evalRunStatusLabel(t, evalStatuses[item.entityId])
+            : undefined
+        }
         currentState={
           item.entityType === "agent_session"
             ? currentStateById[item.entityId]?.currentState
@@ -1629,149 +1691,171 @@ export const OpenItemsSection: React.FC<{
       )}
     </React.Fragment>
   );
-  const renderRows = (rows: typeof renderedProjectedItems) =>
-    rows.map(({ depth, item, sourceIndex }) =>
-      renderRow(item, depth, sourceIndex),
-    );
+  const canonicalItemKeys = useMemo(
+    () => new Set(items.map(openItemKey)),
+    [items],
+  );
+  const renderRows = (rows: typeof renderedProjectedItems) => (
+    <AnimatePresence initial={false}>
+      {rows.map(({ depth, item, sourceIndex }) => (
+        <OpenItemPresenceRow
+          key={openItemKey(item)}
+          itemKey={openItemKey(item)}
+          label={item.presentation?.label}
+          reducedMotion={reducedMotion}
+        >
+          {renderRow(item, depth, sourceIndex)}
+        </OpenItemPresenceRow>
+      ))}
+    </AnimatePresence>
+  );
 
   return (
     <>
-      <Box data-testid="open-items-section">
-        <Box
-          sx={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            mb: 0.5,
-          }}
-        >
-          <OpenItemsSyncStatus />
-          <IconButton
-            size="small"
-            onClick={handleToggleExpanded}
-            sx={{ color: headerColor, flexShrink: 0 }}
-            aria-label={`${isExpanded ? "Collapse" : "Expand"} open`}
-            aria-controls={OPEN_ITEMS_ROW_TREE_ID}
-            aria-expanded={isExpanded}
-          >
-            {isExpanded ? (
-              <ExpandMoreIcon fontSize="small" />
-            ) : (
-              <ChevronRightIcon fontSize="small" />
-            )}
-          </IconButton>
+      <OpenItemPresenceContext.Provider value={canonicalItemKeys}>
+        <Box data-testid="open-items-section">
           <Box
             sx={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
-              px: 1,
-              py: 0.75,
-              flex: 1,
+              gap: 0.5,
+              mb: 0.5,
             }}
           >
-            <Typography
-              variant="body2"
+            <OpenItemsSyncStatus />
+            <IconButton
+              size="small"
+              onClick={handleToggleExpanded}
+              sx={{ color: headerColor, flexShrink: 0 }}
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} open`}
+              aria-controls={OPEN_ITEMS_ROW_TREE_ID}
+              aria-expanded={isExpanded}
+            >
+              {isExpanded ? (
+                <ExpandMoreIcon fontSize="small" />
+              ) : (
+                <ChevronRightIcon fontSize="small" />
+              )}
+            </IconButton>
+            <Box
               sx={{
-                fontWeight: 600,
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-                fontSize: "0.8125rem",
-                color: headerColor,
-                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                px: 1,
+                py: 0.75,
+                flex: 1,
               }}
             >
-              OPEN ({activeOnlyProjectedItems.length})
-            </Typography>
-            {selectionMode && (
               <Typography
-                variant="caption"
-                sx={{ ml: "auto", color: "primary.main" }}
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  fontSize: "0.8125rem",
+                  color: headerColor,
+                  textAlign: "left",
+                }}
               >
-                Selecting {selected.length} · Esc to clear
+                OPEN ({activeOnlyProjectedItems.length})
               </Typography>
-            )}
-          </Box>
-          <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0, pr: 0.5 }}>
-            <OpenItemsTriageAction
-              organizationId={organizationId}
-              projectId={projectId}
-            />
-          </Stack>
-        </Box>
-        <Collapse in={isExpanded} timeout={200} unmountOnExit>
-          <Stack
-            id={OPEN_ITEMS_ROW_TREE_ID}
-            data-testid={OPEN_ITEMS_ROW_TREE_ID}
-            spacing={0.5}
-            useFlexGap
-          >
-            {groups.map((group) => {
-              const groupRows = renderedProjectedItems.filter(
-                ({ groupId }) => groupId === group.id,
-              );
-              const summary = groupSummaries.get(group.id);
-              return (
-                <OpenItemsGroupDropTarget
-                  key={group.id}
-                  groupId={group.id}
-                  items={items}
-                  onAssign={assignToGroup}
+              {selectionMode && (
+                <Typography
+                  variant="caption"
+                  sx={{ ml: "auto", color: "primary.main" }}
                 >
-                  <OpenItemsGroupHeader
-                    group={group}
-                    totalCount={summary?.total ?? 0}
-                    activeCount={showActiveOnly ? (summary?.active ?? 0) : null}
-                    activeSessionSignals={summary?.activeSessionSignals ?? []}
-                    onToggle={(groupId, expanded) =>
-                      setGroupExpanded(groupId, expanded)
-                    }
-                    onRename={handleRename}
-                    onPromote={setPromotionGroupId}
-                    onDelete={deleteGroup}
-                  />
-                  <Collapse
-                    in={!group.collapsed}
-                    timeout={150}
-                    unmountOnExit
-                    id={`open-items-group-tree-${group.id}`}
+                  Selecting {selected.length} · Esc to clear
+                </Typography>
+              )}
+            </Box>
+            <Stack
+              direction="row"
+              spacing={0.25}
+              sx={{ flexShrink: 0, pr: 0.5 }}
+            >
+              <OpenItemsTriageAction
+                organizationId={organizationId}
+                projectId={projectId}
+              />
+            </Stack>
+          </Box>
+          <Collapse in={isExpanded} timeout={200} unmountOnExit>
+            <Stack
+              id={OPEN_ITEMS_ROW_TREE_ID}
+              data-testid={OPEN_ITEMS_ROW_TREE_ID}
+              spacing={0.5}
+              useFlexGap
+            >
+              {groups.map((group) => {
+                const groupRows = renderedProjectedItems.filter(
+                  ({ groupId }) => groupId === group.id,
+                );
+                const summary = groupSummaries.get(group.id);
+                return (
+                  <OpenItemsGroupDropTarget
+                    key={group.id}
+                    groupId={group.id}
+                    items={items}
+                    onAssign={assignToGroup}
                   >
-                    <Stack spacing={0.5}>{renderRows(groupRows)}</Stack>
-                  </Collapse>
-                  <Box
-                    role="separator"
-                    aria-orientation="horizontal"
-                    data-testid="open-items-group-separator"
-                    data-group-id={group.id}
-                    sx={{
-                      mx: 1,
-                      mt: 0.5,
-                      borderBottom: 1,
-                      borderColor: (theme) =>
-                        theme.palette.mode === "light"
-                          ? alpha(theme.palette.text.primary, 0.18)
-                          : alpha(theme.palette.divider, 0.65),
-                    }}
-                  />
-                </OpenItemsGroupDropTarget>
-              );
-            })}
-            {renderRows(
-              renderedProjectedItems.filter(({ groupId }) => !groupId),
-            )}
-            {inactiveHiddenCount > 0 && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                data-testid="open-items-inactive-hidden-count"
-                sx={{ px: 2, py: 0.5 }}
-              >
-                {`${inactiveHiddenCount} inactive ${inactiveHiddenCount === 1 ? "item" : "items"} hidden`}
-              </Typography>
-            )}
-          </Stack>
-        </Collapse>
-      </Box>
+                    <OpenItemsGroupHeader
+                      group={group}
+                      totalCount={summary?.total ?? 0}
+                      activeCount={
+                        showActiveOnly ? (summary?.active ?? 0) : null
+                      }
+                      activeSessionSignals={summary?.activeSessionSignals ?? []}
+                      onToggle={(groupId, expanded) =>
+                        setGroupExpanded(groupId, expanded)
+                      }
+                      onRename={handleRename}
+                      onPromote={setPromotionGroupId}
+                      onDelete={deleteGroup}
+                    />
+                    <Collapse
+                      in={!group.collapsed}
+                      timeout={150}
+                      unmountOnExit
+                      id={`open-items-group-tree-${group.id}`}
+                    >
+                      <Stack spacing={0.5}>{renderRows(groupRows)}</Stack>
+                    </Collapse>
+                    <Box
+                      role="separator"
+                      aria-orientation="horizontal"
+                      data-testid="open-items-group-separator"
+                      data-group-id={group.id}
+                      sx={{
+                        mx: 1,
+                        mt: 0.5,
+                        borderBottom: 1,
+                        borderColor: (theme) =>
+                          theme.palette.mode === "light"
+                            ? alpha(theme.palette.text.primary, 0.18)
+                            : alpha(theme.palette.divider, 0.65),
+                      }}
+                    />
+                  </OpenItemsGroupDropTarget>
+                );
+              })}
+              {renderRows(
+                renderedProjectedItems.filter(({ groupId }) => !groupId),
+              )}
+              {inactiveHiddenCount > 0 && (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  data-testid="open-items-inactive-hidden-count"
+                  sx={{ px: 2, py: 0.5 }}
+                >
+                  {`${inactiveHiddenCount} inactive ${inactiveHiddenCount === 1 ? "item" : "items"} hidden`}
+                </Typography>
+              )}
+            </Stack>
+          </Collapse>
+        </Box>
+      </OpenItemPresenceContext.Provider>
       {promotionGroupId && (
         <OpenItemsPromotionDialog
           key={promotionGroupId}

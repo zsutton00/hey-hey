@@ -49,6 +49,7 @@ describe("Agents Eval URL restoration", () => {
   beforeEach(() => {
     registry.isReady = true;
     registry.error = null;
+    registry.workItemTypes[0].definition.name = "Evaluations";
     window.history.replaceState(
       {},
       "",
@@ -62,6 +63,21 @@ describe("Agents Eval URL restoration", () => {
         removeEventListener: vi.fn(),
       })),
     );
+  });
+  it("withholds unnamed Eval discovery and restores its registry label without losing the URL", () => {
+    registry.workItemTypes[0].definition.name = " ";
+    const view = render(tab());
+    expect(screen.queryByText("Eval discovery")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(query().get("agentsSubTab")).toBe("evals");
+
+    registry.workItemTypes[0].definition.name = "Quality checks";
+    view.rerender(tab());
+    expect(
+      screen.getByRole("button", { name: "Quality checks" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Eval discovery")).toBeInTheDocument();
+    expect(query().get("agentsSubTab")).toBe("evals");
   });
   it("retains a direct URL through delayed readiness, failure, recovery and remount", () => {
     registry.isReady = false;

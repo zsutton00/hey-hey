@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   Injectable,
   UnauthorizedException,
@@ -14,12 +15,74 @@ import {
   AccountPasskeyService,
 } from '../../auth/passkeys/account-passkey.service';
 import type { EstablishedBrowserSession } from '../../auth/services/browser-session.service';
-import { MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE } from '../../common/exceptions/pairing.exceptions';
+import {
+  AccountProofFailedException,
+  AccountProofRequiredException,
+  BrowserSessionEndedException,
+  PasskeyAlreadyRegisteredException,
+} from '../../auth/passkeys/account-passkey.exceptions';
+import {
+  type BrowserSafeClaimFailureCode,
+  MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED,
+  MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED,
+  MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE,
+  MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE,
+  MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED,
+  MACHINE_ENROLLMENT_SESSION_ENDED,
+} from '../../common/exceptions/pairing.exceptions';
 import { UserId } from '../../types';
 import {
   MachineEnrollmentClaimService,
   OrganizationMembership,
 } from './machine-enrollment-claim.service';
+
+interface SharedRegistrationRejection {
+  /** Names the rule that refused, so the log line alone diagnoses it. */
+  reasonCode: string;
+  /** What the browser is told; it must be the same cause. */
+  publicCode: BrowserSafeClaimFailureCode;
+}
+
+const sharedRegistrationRejection = (
+  error: HttpException,
+): SharedRegistrationRejection => {
+  if (error instanceof AccountProofRequiredException) {
+    return {
+      reasonCode: 'shared_registration_account_proof_required',
+      publicCode: MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED,
+    };
+  }
+
+  if (error instanceof AccountProofFailedException) {
+    return {
+      reasonCode: 'shared_registration_account_proof_failed',
+      publicCode: MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED,
+    };
+  }
+
+  if (error instanceof PasskeyAlreadyRegisteredException) {
+    return {
+      reasonCode: 'shared_registration_passkey_already_registered',
+      publicCode: MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED,
+    };
+  }
+
+  if (error instanceof BrowserSessionEndedException) {
+    return {
+      reasonCode: 'shared_registration_session_ended',
+      publicCode: MACHINE_ENROLLMENT_SESSION_ENDED,
+    };
+  }
+
+  // A malformed request is the only refusal a newer browser build could fix.
+  return {
+    reasonCode: `shared_registration_rejected_http_${String(error.getStatus())}`,
+    publicCode:
+      error instanceof BadRequestException
+        ? MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE
+        : MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE,
+  };
+};
 
 export interface SharedClaimCompletion {
   response: CompleteMachineEnrollmentClaimResponseDto;
@@ -96,13 +159,15 @@ export class SharedEnrollmentClaimService {
       if (error instanceof HttpException) {
         // Proof failure, an already registered credential or a stale acting
         // session: nothing was committed and the claim stays retryable.
+        const rejection = sharedRegistrationRejection(error);
+
         return this.claims.rejectCompletion(
           userId,
           sourceAddress,
           enrollment.id,
-          'shared_registration_rejected',
+          rejection.reasonCode,
           error instanceof UnauthorizedException,
-          MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE,
+          rejection.publicCode,
         );
       }
       return this.claims.failStaging(error, prepared, userId, sourceAddress);

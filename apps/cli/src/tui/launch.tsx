@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 /**
  * Interactive launch: the default `heyhey` in a terminal. Terminal ownership
  * is taken before the server starts so startup output reaches Debug, then the
@@ -41,6 +42,7 @@ export class InteractiveServerPresentation implements ServerCommandPresentation 
     private readonly owner: PresentationOwner,
     private readonly startupLogger: ServerLogger,
     private readonly terminationSignal: Promise<void>,
+    private readonly machineOptions = new MachineOptionsStore(),
   ) {}
 
   public recoverPairing(): Promise<boolean> {
@@ -71,7 +73,7 @@ export class InteractiveServerPresentation implements ServerCommandPresentation 
         (event, details) => this.startupLogger.warn(event, details),
       ),
       options: new OptionsSource(
-        new MachineOptionsStore(),
+        this.machineOptions,
         readJevApiKey(process.env) !== undefined,
         (event, details) => this.startupLogger.warn(event, details),
       ),
@@ -185,7 +187,14 @@ export const runInteractiveServer = async (options: ServerCommandOptions): Promi
     });
     return await new ServerCommand(
       console,
-      new InteractiveServerPresentation(owner, startupLogger, terminationSignal),
+      new InteractiveServerPresentation(
+        owner,
+        startupLogger,
+        terminationSignal,
+        options.state?.directory
+          ? new MachineOptionsStore({ filePath: join(options.state.directory, 'options.json') })
+          : undefined,
+      ),
     ).run({
       ...options,
       terminal: { diagnosticFeed, writeLogLine: () => undefined },

@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { isLocalApplication } from '../deployment-environment';
 import { isLocalAccountEmail } from '../auth/local-account';
+import { AccountProofRequiredException } from '../auth/passkeys/account-passkey.exceptions';
 import type { AccountPasskeyActor } from '../auth/passkeys/account-passkey.service';
 import type { FirstPasskeyAuthority } from '../auth/passkeys/first-passkey-authority';
 import { REQUIRED_ABSOLUTE_TTL_SECONDS } from '../auth/services/browser-session.service';
@@ -18,6 +19,8 @@ const cliOpenedSessionKey = (sessionId: string): string =>
  */
 @Injectable()
 export class LocalFirstPasskeyAuthority implements FirstPasskeyAuthority {
+  private readonly logger = new Logger(LocalFirstPasskeyAuthority.name);
+
   constructor(private readonly redis: RedisService) {}
 
   async recordCliOpenedSession(sessionId: string): Promise<void> {
@@ -35,10 +38,7 @@ export class LocalFirstPasskeyAuthority implements FirstPasskeyAuthority {
     tx: AnyTransactionClient,
     actor: AccountPasskeyActor,
   ): Promise<void> {
-    const cliOpened =
-      (await this.redis
-        .getClient()
-        .exists(cliOpenedSessionKey(actor.browserSessionId))) === 1;
+    const cliOpened = await this.isCliOpenedSession(actor.browserSessionId);
     const localAccount =
       isLocalApplication() && isLocalAccountEmail(actor.email);
     // The account row is locked by the caller, so this count cannot race
@@ -48,8 +48,23 @@ export class LocalFirstPasskeyAuthority implements FirstPasskeyAuthority {
     });
 
     if (!localAccount || !cliOpened || livePasskeys > 0) {
-      throw new UnauthorizedException('Account proof is required');
+      this.logger.warn('Local first passkey refused', {
+        userId: actor.userId,
+        localAccount,
+        cliOpenedSession: cliOpened,
+        livePasskeys,
+      });
+      throw new AccountProofRequiredException();
     }
+  }
+
+  /** True while `sessionId` is a setup session the CLI opened on this computer. */
+  async isCliOpenedSession(sessionId: string): Promise<boolean> {
+    const recorded = await this.redis
+      .getClient()
+      .exists(cliOpenedSessionKey(sessionId));
+
+    return recorded === 1;
   }
 
   async firstPasskeyEnrolled(actor: AccountPasskeyActor): Promise<void> {
