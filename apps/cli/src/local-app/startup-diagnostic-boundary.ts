@@ -143,6 +143,7 @@ const applicationState = z.enum([
   'exited',
   'cancelled',
   'docker-repair',
+  'troubleshooting',
 ]);
 const service = z.enum(['api', 'ui', 'postgres', 'redis', 'graph-search', 'api,ui']);
 const schemas: Record<string, z.ZodType<Record<string, unknown>>> = {

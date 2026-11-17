@@ -240,3 +240,95 @@ it('requires an explicit repair choice after disclosing that the selected VM sto
   await nextFrame();
   expect(confirm).toHaveBeenCalledOnce();
 });
+
+describe('troubleshooting prompt on screen', () => {
+  const prompt = {
+    text: [
+      '# Help me fix `heyhey local` setup',
+      ...Array.from({ length: 40 }, (_, i) => `evidence line ${i}`),
+    ].join('\n'),
+    savedPath: '/home/dev/.heyhey/local-application/diagnostics/troubleshooting-prompt.md',
+    saveFailure: null,
+  };
+
+  it('offers the prompt as a third choice after Retry and Exit', async () => {
+    const troubleshoot = vi.fn();
+    const confirm = vi.fn();
+    function Screen() {
+      const [selected, select] = useState(0);
+      return (
+        <LocalScreen
+          state={{ kind: 'recovery', message: 'Could not start.' }}
+          selected={selected}
+          onSelect={select}
+          onConfirm={confirm}
+          onCancel={vi.fn()}
+          onTroubleshoot={troubleshoot}
+        />
+      );
+    }
+    const view = render(<Screen />);
+    await nextFrame();
+    expect(view.lastFrame()).toContain('Get troubleshooting prompt');
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    view.stdin.write('\r');
+    await nextFrame();
+    expect(troubleshoot).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('shows the whole prompt, scrolls it, copies it and goes back', async () => {
+    const scroll = vi.fn();
+    const copy = vi.fn();
+    const cancel = vi.fn();
+    const state = {
+      kind: 'troubleshooting',
+      prompt,
+      notice: 'Clipboard unavailable (xclip: not installed). Saved to /home/dev/saved.md.',
+      offset: 0,
+      previous: { kind: 'recovery', message: 'Could not start.' },
+    } satisfies LocalState;
+    const view = render(
+      <LocalScreen
+        state={state}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={cancel}
+        onScroll={scroll}
+        onCopy={copy}
+      />,
+    );
+    await nextFrame();
+    expect(view.lastFrame()).toContain('# Help me fix `heyhey local` setup');
+    expect(view.lastFrame()).toContain('evidence line 0');
+    expect(view.lastFrame()).not.toContain('evidence line 39');
+    expect(view.lastFrame()).toContain('more line(s) below');
+    expect(view.lastFrame()).toContain('Clipboard unavailable (xclip: not installed)');
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    expect(scroll).toHaveBeenCalledWith(1);
+    view.stdin.write('c');
+    await nextFrame();
+    expect(copy).toHaveBeenCalledOnce();
+    view.stdin.write('\u001B');
+    await nextFrame();
+    await nextFrame();
+    expect(cancel).toHaveBeenCalledOnce();
+    view.rerender(
+      <LocalScreen
+        state={{ ...state, offset: 100, notice: null }}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={cancel}
+      />,
+    );
+    await nextFrame();
+    expect(view.lastFrame()).toContain('evidence line 39');
+    expect(view.lastFrame()).toContain(prompt.savedPath);
+  });
+});

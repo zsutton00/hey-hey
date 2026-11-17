@@ -1,5 +1,9 @@
 import { StartupBrowserDiagnostics } from '../local-app/startup-browser-diagnostics';
 import { StartupDiagnostics } from '../local-app/startup-diagnostics';
+import {
+  TroubleshootingPrompt,
+  defaultDiagnosticsDirectory,
+} from '../local-app/troubleshooting-prompt-owner';
 import { StructuredServerLogger } from '../server/logger';
 import type { ReleaseManifest } from '../release/release-manifest';
 import { LOCAL_WEB_RP_ID, localWebOrigin } from '../local-app/compose';
@@ -477,8 +481,23 @@ function LocalRoot({
                   ? application.requestStop()
                   : application.retry());
       }}
+      onTroubleshoot={
+        state.kind === 'recovery' || state.kind === 'prerequisite'
+          ? () => {
+              void application.showTroubleshooting();
+            }
+          : undefined
+      }
+      onScroll={(delta) => {
+        application.scrollTroubleshooting(delta);
+      }}
+      onCopy={() => {
+        void application.copyTroubleshooting();
+      }}
       onCancel={() => {
-        if (state.kind === 'docker-repair') {
+        if (state.kind === 'troubleshooting') {
+          application.closeTroubleshooting();
+        } else if (state.kind === 'docker-repair') {
           application.declineDockerRepair();
         } else if (state.kind === 'update') {
           void application.declineUpdate();
@@ -490,14 +509,18 @@ function LocalRoot({
   );
 }
 
-async function runLocalAttempt(args: string[], diagnostics: StartupDiagnostics): Promise<boolean> {
+async function runLocalAttempt(
+  args: string[],
+  diagnostics: StartupDiagnostics,
+  troubleshooting: TroubleshootingPrompt,
+): Promise<boolean> {
   if (args.length === 1 && args[0] === 'dev') {
     const { runLocalDevCommand } = await import('./local-dev');
     return runLocalDevCommand(diagnostics);
   }
   const stopping = args.length === 1 && args[0] === 'stop';
   if (args.length > 0 && !stopping) {
-    console.error('Usage: heyhey local [stop]');
+    console.error('Usage: heyhey local [stop|troubleshoot]');
     return false;
   }
   const packages = new ReleasePackage();
@@ -515,6 +538,7 @@ async function runLocalAttempt(args: string[], diagnostics: StartupDiagnostics):
     undefined,
     undefined,
     diagnostics,
+    troubleshooting,
   );
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     await (stopping ? application.requestStop() : application.run());
@@ -538,6 +562,9 @@ async function runLocalAttempt(args: string[], diagnostics: StartupDiagnostics):
   await instance.waitUntilExit();
   await packages.dispose();
   if (application.state.kind !== 'ready') {
+    if (diagnostics.hasFailed) {
+      await troubleshooting.announce(diagnostics);
+    }
     if (application.state.kind === 'stopped') {
       console.log(
         `Local Hey Hey stopped. Your local data was kept. Start again: ${application.state.restartCommand}`,
@@ -592,16 +619,33 @@ async function runLocalAttempt(args: string[], diagnostics: StartupDiagnostics):
   }
 }
 
+/** Prints the newest failed attempt's prompt; works after the terminal closed, without the application. */
+async function runTroubleshootCommand(): Promise<boolean> {
+  const troubleshooting = new TroubleshootingPrompt();
+  const prepared = await troubleshooting.forNewestFailure(defaultDiagnosticsDirectory());
+  if ('missing' in prepared) {
+    console.error(prepared.missing);
+    return false;
+  }
+  troubleshooting.print(prepared);
+  return true;
+}
+
 /** Persistence starts before release discovery, Docker, credentials or the terminal UI. */
 export async function runLocalCommand(args: string[]): Promise<boolean> {
-  const diagnostics = new StartupDiagnostics(
-    join(homedir(), '.heyhey', 'local-application', 'diagnostics'),
-  );
+  if (args.length === 1 && args[0] === 'troubleshoot') {
+    return runTroubleshootCommand();
+  }
+  const diagnostics = new StartupDiagnostics(defaultDiagnosticsDirectory());
+  const troubleshooting = new TroubleshootingPrompt();
   let success = false;
   try {
-    success = await runLocalAttempt(args, diagnostics);
+    success = await runLocalAttempt(args, diagnostics, troubleshooting);
     if (!success) {
       diagnostics.failure();
+    }
+    if (diagnostics.hasFailed) {
+      await troubleshooting.printUnlessAnnounced(diagnostics);
     }
     return success;
   } catch (error) {
@@ -610,6 +654,9 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
       error,
     });
     diagnostics.failure();
+    await troubleshooting.printUnlessAnnounced(diagnostics).catch((cause: unknown) => {
+      new StructuredServerLogger().error('local.troubleshooting.print_failed', { error: cause });
+    });
     throw error;
   } finally {
     await diagnostics.finish(success ? 'success' : 'failed');

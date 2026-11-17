@@ -261,6 +261,20 @@ export class StartupDiagnostics implements ServerLogSink {
     });
   }
 
+  get hasFailed(): boolean {
+    return this.failed;
+  }
+
+  /** Resolves once failure-time container evidence has been collected and recorded. */
+  settled(): Promise<void> {
+    return this.collecting;
+  }
+
+  /** What the journal could not keep, for disclosure in troubleshooting output. */
+  status(): { storageFailure: unknown; truncated: boolean } {
+    return { storageFailure: this.storageFailure, truncated: this.truncated };
+  }
+
   describe(): void {
     this.notify(
       this.storageFailure !== undefined

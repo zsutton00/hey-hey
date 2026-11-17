@@ -10,10 +10,11 @@
 // Run `node scripts/build.mjs` for a one-off build, or with `--watch` to
 // rebuild on change (used by the dev:build script).
 import * as esbuild from 'esbuild';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { writeOfflineDocs } from './offline-docs.mjs';
 import { resolveSharedContract, SHARED_CONTRACTS_PATTERN } from './shared-contracts.mjs';
 
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -95,10 +96,19 @@ await rm(`${outfile}.map`, { force: true });
 await rm(path.join(cliRoot, 'dist/index.js'), { force: true });
 await rm(path.join(cliRoot, 'dist/index.js.map'), { force: true });
 
+const writeDocs = async () =>
+  writeOfflineDocs({
+    helpDirectory: path.resolve(cliRoot, '../api/content/help'),
+    outDirectory: path.join(cliRoot, 'dist/docs'),
+    version: JSON.parse(await readFile(path.join(cliRoot, 'package.json'), 'utf8')).version,
+  });
+
 if (watch) {
+  await writeDocs();
   const ctx = await esbuild.context(buildOptions);
   await ctx.watch();
   console.log('esbuild: watching src/index.tsx for changes...');
 } else {
   await esbuild.build(buildOptions);
+  await writeDocs();
 }
