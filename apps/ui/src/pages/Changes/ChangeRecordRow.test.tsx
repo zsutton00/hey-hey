@@ -183,30 +183,56 @@ describe("change records", () => {
     }
   });
 
-  it("labels session, task and Service, shows the short commit hash, and selects a recorded edit", () => {
+  it("leads with the focal task, shows an unlabelled Service chip and links to the real session, with files collapsed", () => {
     const select = vi.fn();
     render(
       <MemoryRouter>
         <ChangeRecordRow record={record} onSelect={select} />
       </MemoryRouter>,
     );
-    const labelled = (label: string, value: string) => {
-      const term = screen.getByText(label, { selector: "dt" });
-      const link = term.nextElementSibling?.querySelector("a");
-      expect(link).toHaveTextContent(value);
-      return link;
-    };
-    expect(labelled("changes.sessionLabel", "History session")).toHaveAttribute(
-      "href",
-      expect.stringContaining("session"),
+    expect(screen.getByTestId("change-focal")).toHaveTextContent(
+      "Browse changes",
     );
-    labelled("changes.taskLabel", "Browse changes");
-    labelled("changes.serviceLabel", "Application");
-    expect(screen.getByText("changes.committed")).toBeInTheDocument();
+    expect(screen.getByTestId("change-service")).toHaveTextContent(
+      "Application",
+    );
+    expect(
+      screen.getByText("changes.viewSession").closest("a"),
+    ).toHaveAttribute("href", expect.stringContaining("/session"));
     expect(screen.getByText("9f1cf021")).toBeInTheDocument();
+    expect(screen.queryByTestId("change-edit")).not.toBeInTheDocument();
+
+    const toggle = screen.getByTestId("change-files-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("changes.approximate")).toBeInTheDocument();
+    expect(screen.queryByText(/2–4/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("change-edit"));
     expect(select).toHaveBeenCalledWith(edit);
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("change-edit")).not.toBeInTheDocument();
+  });
+
+  it("stays usable without a focal entity", () => {
+    const noTask = {
+      ...record,
+      report: {
+        ...record.report,
+        entities: record.report.entities.filter(
+          (entity) => entity.entityType !== "TASK",
+        ),
+      },
+    } satisfies ProjectChangeRecord;
+    render(
+      <MemoryRouter>
+        <ChangeRecordRow record={noTask} onSelect={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId("change-focal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("change-service")).toBeInTheDocument();
+    expect(screen.getByText("changes.viewSession")).toBeInTheDocument();
   });
 
   it("marks uncommitted records and exact edits, and lists unrecorded edits without opening them", () => {
@@ -236,6 +262,7 @@ describe("change records", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("changes.uncommitted")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("change-files-toggle"));
     expect(screen.getByText("changes.exact")).toBeInTheDocument();
     expect(screen.getAllByTestId("change-edit")).toHaveLength(1);
     const unrecorded = screen.getByTestId("change-edit-unrecorded");
