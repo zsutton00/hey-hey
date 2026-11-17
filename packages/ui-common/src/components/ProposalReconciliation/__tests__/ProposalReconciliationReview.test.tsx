@@ -891,6 +891,19 @@ describe("same-page staged recovery", () => {
       ),
     ).toHaveLength(2);
   });
+  it("scrolls the conversation panel into view once when Agent fix starts", async () => {
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Launch recorded session"));
+    await screen.findByTestId("proposal-reconciliation-agent-panel");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
   it("keeps the agent conversation open during manual editing", async () => {
     mount(conflict);
     fireEvent.click(

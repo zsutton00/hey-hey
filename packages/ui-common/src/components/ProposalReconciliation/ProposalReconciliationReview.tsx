@@ -102,11 +102,24 @@ function PendingProposalReconciliationReview({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const requestSequence = useRef(0);
+  const agentPanelRef = useRef<HTMLDivElement | null>(null);
+  const startedAgentSessionId = agentRequest?.agentSessionId;
   const scope = {
     organizationId: proposal.organizationId,
     projectId: proposal.projectId,
     proposalId: proposal.id,
   };
+  // Once per launch, bring the proposal's own conversation panel into view:
+  // the launch button sits low on the page while the panel is at the top. The
+  // page, not the conversation viewer, owns this movement.
+  useEffect(() => {
+    if (!startedAgentSessionId) {
+      return;
+    }
+
+    agentPanelRef.current?.scrollIntoView({ block: "start" });
+  }, [startedAgentSessionId]);
+
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setState(null);
@@ -411,6 +424,7 @@ function PendingProposalReconciliationReview({
         {agentRequest ? (
           <Stack
             spacing={1}
+            ref={agentPanelRef}
             sx={{ flex: 1, minWidth: 0 }}
             data-testid="proposal-reconciliation-agent-panel"
           >
