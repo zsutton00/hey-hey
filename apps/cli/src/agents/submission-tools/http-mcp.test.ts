@@ -448,8 +448,6 @@ describe('createSubmissionToolsHttpHandler', () => {
   it.each(
     new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES)
       .list()
-      // proposal_refiner is deprecated; its oneOf tool input is not being repaired.
-      .filter((handler) => handler.id !== 'proposal_refiner')
       .filter((handler) => (handler.submissionTools?.length ?? 0) > 0)
       .map((handler) => [handler.id, handler] as const),
   )('serves a tools/list the MCP client accepts for %s', async (_id, promptHandler) => {
