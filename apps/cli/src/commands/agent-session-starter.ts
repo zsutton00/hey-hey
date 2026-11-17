@@ -19,7 +19,6 @@ import type {
   ResolvedServiceBinding,
 } from '../shared/agent-bridge-contract/contract';
 import {
-  LocalPromptTaskType,
   LocalPromptType,
   RunCreatePayloadFreeFormAllOfPromptTypeEnum,
   RunCreatePayloadQuickAllOfPromptTypeEnum,
@@ -193,12 +192,6 @@ export interface TaskMonitorCodingSessionLaunchInput {
   userMessage: string;
 }
 
-export const toTaskPromptType = (taskType: string): LocalPromptTaskType => {
-  if (taskType === LocalPromptTaskType.Standard) return LocalPromptTaskType.Standard;
-  if (taskType === LocalPromptTaskType.Bug) return LocalPromptTaskType.Bug;
-  throw new SessionValidationError(`Task Monitor cannot launch task type "${taskType}".`);
-};
-
 export const toCreateProvider = (
   provider: TaskMonitorLaunchConfig['provider'],
 ): CreateAgentSessionDtoProviderEnum => {
@@ -298,7 +291,6 @@ export const buildTaskMonitorRunEffectPayload = (
   conversationId: string,
   operationId: string,
 ): TaskMonitorRunEffectPayload => {
-  toTaskPromptType(input.task.type);
   const launchServiceId = input.task.serviceIds[0];
   if (!launchServiceId) {
     throw new SessionValidationError('Task Monitor task is missing its launch service.');

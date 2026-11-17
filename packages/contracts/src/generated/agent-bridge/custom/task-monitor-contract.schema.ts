@@ -5,11 +5,17 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "kind",
     "executionPlan",
     "launchPolicy",
     "cursor"
   ],
   "properties": {
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Key of the kind this monitor runs, declared in the project-effective monitor type's `monitorKinds`. Fixed when the monitor is created.\n"
+    },
     "executionPlan": {
       "type": "array",
       "description": "Ordered executable task nodes. Array position is the persisted execution order.",
@@ -88,6 +94,34 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "operationEvidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Durable normalized operation result selected from a released Turn, scoped to this entry and its recorded session. coordinatorRunId is present only after coordinator acceptance passes Review admission. Pending results never satisfy coordinator-supervised work. New launches discard this evidence.\n",
+            "required": [
+              "agentSessionId",
+              "turnId",
+              "reportId"
+            ],
+            "properties": {
+              "agentSessionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "turnId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reportId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "coordinatorRunId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           }
         }
       }

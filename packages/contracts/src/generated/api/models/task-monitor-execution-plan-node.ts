@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorExecutionNodeLaunchConfiguration } from './task-monitor-execution-node-launch-configuration.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorOperationEvidence } from './task-monitor-operation-evidence.js';
 
 /**
  *
@@ -48,4 +51,10 @@ export interface TaskMonitorExecutionPlanNode {
      * @memberof TaskMonitorExecutionPlanNode
      */
     'agentSessionId'?: string | null;
+    /**
+     *
+     * @type {TaskMonitorOperationEvidence}
+     * @memberof TaskMonitorExecutionPlanNode
+     */
+    'operationEvidence'?: TaskMonitorOperationEvidence;
 }

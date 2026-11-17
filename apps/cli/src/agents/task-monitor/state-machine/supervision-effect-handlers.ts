@@ -65,6 +65,7 @@ interface TaskMonitorCoordinationDecisionEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly authorityCommandId?: string | undefined;
   readonly runId: string;
   readonly agentSessionId: string;
@@ -87,9 +88,14 @@ class TaskMonitorSupervisionOwners {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
   }
 
-  /** The monitor's kind, resolved from its project's effective definition by the start runtime. */
+  /** The kind the monitor recorded, resolved from its project's effective definition. */
   public kindFor(effect: TaskMonitorSupervisionEffect): Promise<TaskMonitorKind> {
-    return this.dependencies.taskMonitorStartRuntime.kindFor(effect);
+    return this.dependencies.taskMonitorStartRuntime.kindFor({
+      organizationId: effect.organizationId,
+      projectId: effect.projectId,
+      taskMonitorId: effect.taskMonitorId,
+      kindKey: effect.kindKey,
+    });
   }
 
   public async completeAgentSession(auth: PlatformAuth, agentSessionId: string): Promise<void> {
@@ -539,6 +545,18 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
         return await this.superviseDirectly(effect, auth, entry.taskId, kind);
       }
 
+      await kind.retainOperationResult(
+        {
+          organizationId: effect.organizationId,
+          projectId: effect.projectId,
+          nodeId: entry.taskId,
+          agentSessionId: effect.agentSessionId,
+          turnReportIds: effect.reports.map((report) => report.reportId),
+        },
+        effect.turnId,
+        effect.promptType === 'code_review',
+      );
+
       const completedAssistantMessage = effect.completedAssistantMessageId
         ? await this.dependencies.agentService.readAssistantMessage({
             organizationId: auth.organizationId,
@@ -742,13 +760,14 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
             'Task acceptance requires a successful Review bound to the current selected work.',
           );
         }
-        return this.settleAcceptedNode(
-          effect,
+        const kind = await this.owners.kindFor(effect);
+        await kind.admitOperation(
           auth,
-          await this.owners.kindFor(effect),
-          taskId,
-          completeAgentSession,
-          () => this.owners.publishDecision(auth, coordinatorRunId, decision),
+          { nodeId: taskId, agentSessionId: effect.agentSessionId },
+          coordinatorRunId,
+        );
+        return this.settleAcceptedNode(effect, auth, kind, taskId, completeAgentSession, () =>
+          this.owners.publishDecision(auth, coordinatorRunId, decision),
         );
       }
     }

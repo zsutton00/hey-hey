@@ -9,9 +9,11 @@ import { NOOP_LOGGER } from '../../../../server/logger';
 import { createTestPlatformAuthContext } from '../../../../server/monitors/test-owners.test-support';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import { TaskMonitorStartRuntime } from '../../../../server/task-monitor-start';
+import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
 import {
   directResultKind,
   fetchServingMonitorKinds,
+  mixedMonitorKinds,
   nodeResultPayload,
   type ServedNodeResult,
 } from '../../kinds/task-monitor-kind.test-support';
@@ -38,6 +40,7 @@ import { useTestCapabilityCatalog } from '../../../../test-support/capability-ca
 const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
 const PROJECT_ID = '20000000-0000-4000-8000-000000000002';
 const MONITOR_ID = '30000000-0000-4000-8000-000000000003';
+const OTHER_MONITOR_ID = '31000000-0000-4000-8000-000000000031';
 const TASK_A_ID = '40000000-0000-4000-8000-000000000004';
 const TASK_B_ID = '50000000-0000-4000-8000-000000000005';
 const PLAN_ID = '60000000-0000-4000-8000-000000000006';
@@ -93,10 +96,14 @@ const executionPlan = [
   },
 ];
 
+const TASK_KIND_KEY = 'task';
+const DIRECT_KIND_KEY = directResultKind().key;
+
 const monitor = (
   cursor = 0,
   status = 'BACKLOG',
   agentSessionId: string | null = null,
+  kind = TASK_KIND_KEY,
 ): TaskMonitorStartMonitor => ({
   id: MONITOR_ID,
   name: 'Monitor',
@@ -104,6 +111,7 @@ const monitor = (
   projectId: PROJECT_ID,
   status,
   definition: {
+    kind,
     executionPlan: executionPlan.map((entry, index) => ({
       taskId: entry.taskId,
       dependsOnTaskIds: entry.dependsOnTaskIds,
@@ -141,13 +149,14 @@ const task = (taskId: string, status: string) => ({
   serviceIds: ['service-1'],
 });
 
+/** A runtime whose project declares the Task kind beside the test-only direct-acceptance kind. */
 const makeRuntime = (
-  kind?: ReturnType<typeof directResultKind>,
+  kinds: readonly WorkItemTypeMonitorKind[] = mixedMonitorKinds(),
   nodeResults: readonly ServedNodeResult[] = [],
 ): TaskMonitorStartRuntime =>
   new TaskMonitorStartRuntime({
     apiBaseUrl: 'https://api.test/v1',
-    fetchImpl: fetchServingMonitorKinds(kind ? { [PROJECT_ID]: kind } : {}, undefined, nodeResults),
+    fetchImpl: fetchServingMonitorKinds({ [PROJECT_ID]: kinds }, undefined, nodeResults),
     authContext: createTestPlatformAuthContext(null, 'token'),
     logger: NOOP_LOGGER,
   });
@@ -156,7 +165,7 @@ const SESSION_A_ID = 'a1000000-0000-4000-8000-00000000000a';
 const SESSION_B_ID = 'b1000000-0000-4000-8000-00000000000b';
 
 /**
- * A runtime whose project configures the test-only normalized-result kind. Every node reads
+ * A runtime for monitors of the test-only normalized-result kind. Every node reads
  * COMPLETED, so only its sessions' MONITOR_NODE_RESULT reports can make it done: sessions in
  * `accepted` recorded an accepted result for their node, the others a failed one.
  */
@@ -169,7 +178,10 @@ const makeDirectResultRuntime = (accepted: readonly string[]): TaskMonitorStartR
     agentSessionId: session,
     payload: nodeResultPayload(node, accepted.includes(session) ? 'ACCEPTED' : 'FAILED'),
   }));
-  const runtime = makeRuntime(directResultKind(), results);
+  const runtime = makeRuntime(mixedMonitorKinds(), results);
+  vi.spyOn(runtime, 'readNodeItem').mockImplementation(({ taskId }) =>
+    Promise.resolve({ ...task(taskId, 'COMPLETED'), type: 'BUG' }),
+  );
   vi.spyOn(runtime, 'readTask').mockImplementation(({ taskId }) =>
     Promise.resolve(task(taskId, 'COMPLETED')),
   );
@@ -183,6 +195,7 @@ const withSessions = (sessionA: string | null, sessionB: string | null) => [
 
 const validationEffect = (cursor = 1): ValidateTaskMonitorLaunchEffect => ({
   type: 'VALIDATE_TASK_MONITOR_LAUNCH',
+  kindKey: TASK_KIND_KEY,
   taskMonitorId: MONITOR_ID,
   organizationId: ORGANIZATION_ID,
   projectId: PROJECT_ID,
@@ -216,6 +229,7 @@ describe('Task Monitor launch reconciliation effects', () => {
   it('does not attach an Agent Session identity to an absent operation outcome', async () => {
     const effect: ReconcileTaskMonitorLaunchEffect = {
       type: 'RECONCILE_TASK_MONITOR_LAUNCH',
+      kindKey: TASK_KIND_KEY,
       taskMonitorId: MONITOR_ID,
       organizationId: ORGANIZATION_ID,
       projectId: PROJECT_ID,
@@ -310,6 +324,7 @@ describe('Task Monitor load and coordination effects', () => {
       );
     const effect: CoordinateTaskMonitorWorkEffect = {
       type: 'COORDINATE_TASK_MONITOR_WORK',
+      kindKey: TASK_KIND_KEY,
       taskMonitorId: MONITOR_ID,
       organizationId: ORGANIZATION_ID,
       projectId: PROJECT_ID,
@@ -335,6 +350,7 @@ describe('Task Monitor coordination with a configured normalized-result kind', (
   ) =>
     new TaskMonitorCoordinationEffectHandler(runtime, NOOP_LOGGER).execute({
       type: 'COORDINATE_TASK_MONITOR_WORK',
+      kindKey: DIRECT_KIND_KEY,
       taskMonitorId: MONITOR_ID,
       organizationId: ORGANIZATION_ID,
       projectId: PROJECT_ID,
@@ -382,39 +398,104 @@ describe('Task Monitor coordination with a configured normalized-result kind', (
     });
   });
 
-  it('fails only the monitor whose project kind cannot run', async () => {
-    const runtime = new TaskMonitorStartRuntime({
-      apiBaseUrl: 'https://api.test/v1',
-      fetchImpl: fetchServingMonitorKinds({
-        [PROJECT_ID]: { ...directResultKind(), done: { type: 'ITEM_STATUS', status: 'COMPLETED' } },
-      }),
-      authContext: createTestPlatformAuthContext(null, 'token'),
-      logger: NOOP_LOGGER,
-    });
+  it('fails only the monitor whose own kind cannot run, while a Task monitor in the project proceeds', async () => {
+    const brokenDirectKind = {
+      ...directResultKind(),
+      done: { type: 'ITEM_STATUS' as const, status: 'COMPLETED' as const },
+    };
+    const runtime = makeRuntime([mixedMonitorKinds()[0]!, brokenDirectKind]);
     vi.spyOn(runtime, 'readTask').mockImplementation(({ taskId }) =>
       Promise.resolve(task(taskId, 'BACKLOG')),
     );
-    const otherProject = '21000000-0000-4000-8000-000000000021';
     const handler = new TaskMonitorCoordinationEffectHandler(runtime, NOOP_LOGGER);
     const effect = {
       type: 'COORDINATE_TASK_MONITOR_WORK' as const,
-      taskMonitorId: MONITOR_ID,
       organizationId: ORGANIZATION_ID,
+      projectId: PROJECT_ID,
       executionPlan,
       cursor: 0,
     };
 
-    await expect(handler.execute({ ...effect, projectId: PROJECT_ID })).resolves.toMatchObject({
+    await expect(
+      handler.execute({ ...effect, taskMonitorId: MONITOR_ID, kindKey: DIRECT_KIND_KEY }),
+    ).resolves.toMatchObject({
       status: 'failed',
       outcome: {
         type: 'COORDINATION_FAILED',
-        reason: expect.stringContaining(
-          '"requirement-check" monitor kind combines supervision "DIRECT_ACCEPTANCE" with done "ITEM_STATUS"',
-        ),
+        reason: expect.stringContaining('DIRECT_ACCEPTANCE requires NORMALIZED_RESULT'),
       },
     });
-    await expect(handler.execute({ ...effect, projectId: otherProject })).resolves.toMatchObject({
+    await expect(
+      handler.execute({ ...effect, taskMonitorId: OTHER_MONITOR_ID, kindKey: TASK_KIND_KEY }),
+    ).resolves.toMatchObject({
       outcome: { type: 'WORK_SELECTED', taskId: TASK_A_ID },
+    });
+  });
+});
+
+describe('Task Monitor kinds selected per monitor in one project', () => {
+  const coordinate = (
+    runtime: TaskMonitorStartRuntime,
+    taskMonitorId: string,
+    kindKey: string | null,
+    plan: ReturnType<typeof withSessions>,
+  ) =>
+    new TaskMonitorCoordinationEffectHandler(runtime, NOOP_LOGGER).execute({
+      type: 'COORDINATE_TASK_MONITOR_WORK',
+      kindKey,
+      taskMonitorId,
+      organizationId: ORGANIZATION_ID,
+      projectId: PROJECT_ID,
+      executionPlan: plan,
+      cursor: 0,
+    });
+
+  it('finishes a Task monitor by item status and a direct monitor by its node results', async () => {
+    const runtime = makeDirectResultRuntime([SESSION_A_ID]);
+    const plan = withSessions(SESSION_A_ID, null);
+
+    await expect(coordinate(runtime, OTHER_MONITOR_ID, TASK_KIND_KEY, plan)).resolves.toMatchObject(
+      { status: 'succeeded', outcome: { type: 'WORK_EXHAUSTED', cursor: executionPlan.length } },
+    );
+    await expect(coordinate(runtime, MONITOR_ID, DIRECT_KIND_KEY, plan)).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: { type: 'WORK_SELECTED', taskId: TASK_B_ID, cursor: 1 },
+    });
+  });
+
+  it('fails only the monitor whose recorded kind the type does not declare', async () => {
+    const runtime = makeRuntime();
+    vi.spyOn(runtime, 'readTask').mockImplementation(({ taskId }) =>
+      Promise.resolve(task(taskId, 'BACKLOG')),
+    );
+    const plan = withSessions(null, null);
+
+    await expect(coordinate(runtime, MONITOR_ID, 'retired-kind', plan)).resolves.toMatchObject({
+      status: 'failed',
+      outcome: {
+        type: 'COORDINATION_FAILED',
+        reason: expect.stringContaining('selects the "retired-kind" kind'),
+      },
+    });
+    await expect(coordinate(runtime, OTHER_MONITOR_ID, TASK_KIND_KEY, plan)).resolves.toMatchObject(
+      { outcome: { type: 'WORK_SELECTED', taskId: TASK_A_ID } },
+    );
+  });
+
+  it('resolves state persisted without a key from the kind the monitor recorded', async () => {
+    const runtime = makeDirectResultRuntime([]);
+    const readMonitor = vi
+      .spyOn(runtime, 'readMonitor')
+      .mockResolvedValue(monitor(0, 'ACTIVE', null, TASK_KIND_KEY));
+
+    // Every node reads COMPLETED; only the Task kind treats that as done.
+    await expect(
+      coordinate(runtime, MONITOR_ID, null, withSessions(SESSION_A_ID, SESSION_B_ID)),
+    ).resolves.toMatchObject({ outcome: { type: 'WORK_EXHAUSTED' } });
+    expect(readMonitor).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      projectId: PROJECT_ID,
+      monitorId: MONITOR_ID,
     });
   });
 });
@@ -580,24 +661,61 @@ describe('Task Monitor launch validation effect', () => {
 
   it('launches a configured no-status-change node without mutating its status once its dependency result is accepted', async () => {
     const runtime = makeDirectResultRuntime([SESSION_A_ID]);
-    vi.spyOn(runtime, 'readTask').mockImplementation(({ taskId }) =>
-      Promise.resolve(task(taskId, 'BACKLOG')),
+    vi.spyOn(runtime, 'readNodeItem').mockImplementation(({ taskId }) =>
+      Promise.resolve({ ...task(taskId, 'BACKLOG'), type: 'BUG' }),
     );
     vi.spyOn(runtime, 'resolvePlanContext').mockResolvedValue(null);
     const persistTaskStatus = vi.spyOn(runtime, 'persistTaskStatus');
-    vi.spyOn(runtime, 'readMonitor').mockResolvedValue(monitor(0));
-    vi.spyOn(runtime, 'persistCursor').mockResolvedValue(monitor(1));
-    vi.spyOn(runtime, 'persistMonitorActive').mockResolvedValue(monitor(1, 'ACTIVE'));
+    vi.spyOn(runtime, 'readMonitor').mockResolvedValue(
+      monitor(0, 'BACKLOG', null, DIRECT_KIND_KEY),
+    );
+    vi.spyOn(runtime, 'persistCursor').mockResolvedValue(
+      monitor(1, 'BACKLOG', null, DIRECT_KIND_KEY),
+    );
+    vi.spyOn(runtime, 'persistMonitorActive').mockResolvedValue(
+      monitor(1, 'ACTIVE', null, DIRECT_KIND_KEY),
+    );
 
     const result = await new TaskMonitorLaunchValidationEffectHandler(runtime, NOOP_LOGGER).execute(
-      { ...validationEffect(), executionPlan: withSessions(SESSION_A_ID, null) },
+      {
+        ...validationEffect(),
+        kindKey: DIRECT_KIND_KEY,
+        executionPlan: withSessions(SESSION_A_ID, null),
+      },
     );
 
     expect(result).toMatchObject({
       status: 'succeeded',
-      outcome: { type: 'LAUNCH_VALIDATED', launch: { taskId: TASK_B_ID } },
+      outcome: {
+        type: 'LAUNCH_VALIDATED',
+        launch: { taskId: TASK_B_ID, kindKey: DIRECT_KIND_KEY },
+      },
     });
     expect(persistTaskStatus).not.toHaveBeenCalled();
+  });
+
+  it("still makes a Task monitor's selected Task ACTIVE before delegation in a project that also declares a direct kind", async () => {
+    const runtime = makeRuntime();
+    vi.spyOn(runtime, 'readTask').mockImplementation(({ taskId }) =>
+      Promise.resolve(task(taskId, taskId === TASK_A_ID ? 'COMPLETED' : 'BACKLOG')),
+    );
+    vi.spyOn(runtime, 'resolvePlanContext').mockResolvedValue(null);
+    const persistTaskStatus = vi
+      .spyOn(runtime, 'persistTaskStatus')
+      .mockImplementation(({ task: current, status }) => Promise.resolve({ ...current, status }));
+    vi.spyOn(runtime, 'readMonitor').mockResolvedValue(monitor(1));
+    vi.spyOn(runtime, 'persistCursor').mockResolvedValue(monitor(1));
+    vi.spyOn(runtime, 'persistMonitorActive').mockResolvedValue(monitor(1, 'ACTIVE'));
+
+    const result = await new TaskMonitorLaunchValidationEffectHandler(runtime, NOOP_LOGGER).execute(
+      validationEffect(),
+    );
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      outcome: { type: 'LAUNCH_VALIDATED', launch: { taskId: TASK_B_ID, kindKey: TASK_KIND_KEY } },
+    });
+    expect(persistTaskStatus).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACTIVE' }));
   });
 
   it('settles a pending governance mutation as failure', async () => {

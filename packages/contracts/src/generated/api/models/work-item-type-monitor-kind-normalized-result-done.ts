@@ -16,7 +16,7 @@
 
 
 /**
- * A node is done when the durable normalized result of its recorded session accepts it. A missing, failed, malformed or mismatched result is never done, and the work item\'s status is not consulted or changed.
+ * A node is done when the durable normalized result of its recorded session accepts it. A missing, failed, malformed or mismatched result is never done, and the work item\'s status is not consulted or changed. Coordinator supervision additionally requires durable admitted acceptance bound to this result and session.
  * @export
  * @interface WorkItemTypeMonitorKindNormalizedResultDone
  */

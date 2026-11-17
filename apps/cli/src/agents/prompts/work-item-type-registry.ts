@@ -383,6 +383,10 @@ const monitorKindShape = {
   start: monitorKindStartSchema.optional(),
   done: monitorKindDoneSchema.optional(),
   supervision: monitorKindSupervisionSchema.optional(),
+  acceptance: z
+    .object({ type: z.enum(['COMPLETE_ITEM', 'NO_STATUS_CHANGE']) })
+    .strict()
+    .optional(),
 } satisfies ZodShapeFor<WorkItemTypeMonitorKind>;
 const monitorKindSchema = z
   .object(monitorKindShape)
@@ -394,6 +398,7 @@ const monitorKindSchema = z
       allowedLaunchMethods: value.allowedLaunchMethods,
       allowedRuntimeProviders: value.allowedRuntimeProviders,
       allowedReasoningEfforts: value.allowedReasoningEfforts,
+      ...(value.acceptance !== undefined ? { acceptance: value.acceptance } : {}),
       ...(value.start !== undefined ? { start: value.start } : {}),
       ...(value.done !== undefined ? { done: value.done } : {}),
       ...(value.supervision !== undefined ? { supervision: value.supervision } : {}),
@@ -407,7 +412,7 @@ const capabilitiesShape = {
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
   graph: graphCapabilitySchema.optional(),
-  monitorKind: monitorKindSchema.optional(),
+  monitorKinds: z.array(monitorKindSchema).min(1).optional(),
 } satisfies ZodShapeFor<WorkItemTypeCapabilities>;
 const capabilitiesSchema = z
   .object(capabilitiesShape)
@@ -424,7 +429,7 @@ const capabilitiesSchema = z
         ? { showsInExplorerSidebar: value.showsInExplorerSidebar }
         : {}),
       ...(value.graph !== undefined ? { graph: value.graph } : {}),
-      ...(value.monitorKind !== undefined ? { monitorKind: value.monitorKind } : {}),
+      ...(value.monitorKinds !== undefined ? { monitorKinds: value.monitorKinds } : {}),
     }),
   );
 

@@ -41,6 +41,7 @@ import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/age
 
 const effect: EvaluateTaskMonitorSettledRunEffect = {
   type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+  kindKey: 'task',
   taskMonitorId: '10000000-0000-4000-8000-000000000001',
   organizationId: '20000000-0000-4000-8000-000000000002',
   projectId: '30000000-0000-4000-8000-000000000003',
@@ -182,6 +183,7 @@ describe('Task Monitor settled-Run evaluation', () => {
     const monitor = {
       status: WorkStatus.Active,
       definition: {
+        kind: 'task',
         cursor: 0,
         executionPlan: [
           executionEntry,
@@ -259,7 +261,10 @@ describe('Task Monitor settled-Run evaluation', () => {
                   logger: NOOP_LOGGER,
                 }),
               },
-              taskMonitorKindConfiguration(kindConfiguration ?? shippedTaskMonitorKind()),
+              taskMonitorKindConfiguration(
+                (kindConfiguration ?? shippedTaskMonitorKind()).key,
+                kindConfiguration ?? shippedTaskMonitorKind(),
+              ),
             ),
           ),
         ),
@@ -382,6 +387,40 @@ describe('Task Monitor settled-Run evaluation', () => {
     expect(fetchImpl).toHaveBeenCalled();
     expect(completeMonitor).toHaveBeenCalledTimes(1);
   });
+
+  it.each(['REJECTED', 'UNCHANGED'] as const)(
+    'does not advance an incomplete Task when Work Items completion is %s',
+    async (completion) => {
+      const { handler, fetchImpl, completeMonitor } = await decisionHarness(
+        TaskMonitorReviewMode.AgentDecides,
+        {
+          action: 'ACCEPT_TASK',
+          rationale: 'The evidence supports requesting canonical completion.',
+        },
+      );
+      fetchImpl.mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === 'PATCH') {
+          return new Response(null, {
+            status: url.includes('/work-items/') && completion === 'REJECTED' ? 400 : 204,
+          });
+        }
+        return Response.json({ status: WorkStatus.Verifying });
+      });
+      await expect(handler.execute(effect, execution)).resolves.toMatchObject({
+        status: 'failed',
+        outcome: { type: 'OUTCOME_JUDGMENT_REQUIRED' },
+      });
+      expect(completeMonitor).not.toHaveBeenCalled();
+      const itemWrites = fetchImpl.mock.calls.filter(
+        ([url, init]) => String(url).includes('/work-items/') && init?.method === 'PATCH',
+      );
+      expect(itemWrites).toHaveLength(1);
+      expect(JSON.parse(String(itemWrites[0]![1]!.body))).toMatchObject({
+        status: WorkStatus.Completed,
+      });
+    },
+  );
 
   describe('direct acceptance from a configured normalized-result kind', () => {
     afterEach(() => {

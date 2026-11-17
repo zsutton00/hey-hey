@@ -1,3 +1,8 @@
+import {
+  TaskMonitorKind,
+  resolveTaskMonitorKindConfiguration,
+  type TaskMonitorKindConfiguration,
+} from './kinds/task-monitor-kind';
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
@@ -9,13 +14,13 @@ import {
   TaskMonitorReviewMode,
   type ReportPayload,
   type TaskMonitorExecutionDefinition,
+  type TaskMonitorOperationEvidence,
 } from '@hey-hey/contracts/api/models';
 import type {
   SessionMonitorSettledTurnEvidence,
   TaskMonitorPlanGuidance,
 } from '@hey-hey/contracts/agent-bridge';
 import {
-  TaskMonitorTaskCoordinatorInputs,
   assertOwnedWorkItem,
   encode,
   itemEnvelopeSchema,
@@ -114,6 +119,8 @@ export interface TaskMonitorCanonicalEvidence {
       fastMode?: boolean;
     };
   };
+  operationPolicy?: TaskMonitorKindConfiguration;
+  operationEvidence?: TaskMonitorOperationEvidence | null;
   planGuidance: TaskMonitorPlanGuidance | null;
   selectedTask: TaskMonitorSelectedTaskEvidence;
   remainingWork: ReadonlyArray<TaskMonitorRemainingWorkEvidence>;
@@ -196,7 +203,11 @@ export const loadTaskMonitorCanonicalEvidence = async (
     throw new Error('Task Monitor cursor does not identify an execution node.');
   }
 
-  const coordinatorInputs = new TaskMonitorTaskCoordinatorInputs(deps);
+  const policy = await resolveTaskMonitorKindConfiguration(deps, {
+    ...input,
+    kindKey: executionDefinition.kind,
+  });
+  const coordinatorInputs = TaskMonitorKind.inputsFor(deps, policy);
   const nodeReads = await coordinatorInputs.readNodes({
     organizationId: input.organizationId,
     projectId: input.projectId,
@@ -278,6 +289,8 @@ export const loadTaskMonitorCanonicalEvidence = async (
   );
 
   const result: TaskMonitorCanonicalEvidence = {
+    operationPolicy: policy,
+    operationEvidence: currentNode.operationEvidence ?? null,
     monitor: {
       id: monitor.id,
       status: monitor.status,

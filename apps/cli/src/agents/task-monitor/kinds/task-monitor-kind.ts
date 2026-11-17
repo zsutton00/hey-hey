@@ -1,10 +1,11 @@
+import { parseEffectiveWorkItemTypeDefinition } from '../../prompts/work-item-type-registry';
+import { monitorOperationPolicyIssues } from '@hey-hey/contracts/monitor-kind-policy';
 import { z } from 'zod';
 import {
   WorkStatus,
   type TaskMonitorLaunchConfig,
+  type TaskMonitorOperationEvidence,
   type WorkItemTypeMonitorKind,
-  type WorkItemTypeMonitorKindDonePolicy,
-  type WorkItemTypeMonitorKindStartPolicy,
   type WorkItemTypeMonitorKindSupervisionPolicy,
 } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
@@ -37,6 +38,7 @@ export interface TaskMonitorRecordedNode {
 }
 
 export interface TaskMonitorKindDependencies {
+  readonly monitorId?: string;
   readonly runtime: TaskMonitorStartRuntime;
   readonly apiBaseUrl: string;
   readonly fetchImpl: typeof fetch;
@@ -54,20 +56,11 @@ export type TaskMonitorDirectVerdict =
   | { readonly accept: false; readonly reason: string };
 
 /** A kind whose every policy is declared and whose policies form a supported combination. */
-export interface TaskMonitorKindConfiguration {
-  readonly key: string;
-  readonly start: WorkItemTypeMonitorKindStartPolicy;
-  readonly done: WorkItemTypeMonitorKindDonePolicy;
-  readonly supervision: WorkItemTypeMonitorKindSupervisionPolicy;
-}
-
-/** The done rule each supervision policy confirms acceptance with. */
-const DONE_FOR_SUPERVISION = {
-  COORDINATOR_REVIEW: 'ITEM_STATUS',
-  DIRECT_ACCEPTANCE: 'NORMALIZED_RESULT',
-} as const satisfies Record<
-  WorkItemTypeMonitorKindSupervisionPolicy['type'],
-  WorkItemTypeMonitorKindDonePolicy['type']
+export type TaskMonitorKindConfiguration = Required<
+  Pick<
+    WorkItemTypeMonitorKind,
+    'key' | 'allowedNodeTypes' | 'start' | 'done' | 'supervision' | 'acceptance'
+  >
 >;
 
 /** A monitor's effective kind cannot run; the message names the kind, field, value and cause. */
@@ -76,22 +69,28 @@ export class TaskMonitorKindConfigurationError extends Error {
 }
 
 /**
- * Checks the project-effective kind once, where it enters the runtime. The API
+ * Checks the monitor's selected kind once, where it enters the runtime. The API
  * resolves legacy omissions centrally, so a policy still missing here is a
  * configuration fault, not a reason to assume Task behavior.
  */
 export function taskMonitorKindConfiguration(
+  kindKey: string,
   kind: WorkItemTypeMonitorKind | undefined,
 ): TaskMonitorKindConfiguration {
   if (kind === undefined) {
     throw new TaskMonitorKindConfigurationError(
-      'Task Monitor type declares no monitor kind in its project-effective definition.',
+      `Task Monitor selects the "${kindKey}" kind, which its project-effective TASK_MONITOR definition does not declare.`,
     );
   }
 
-  const { key, start, done, supervision } = kind;
-  if (start === undefined || done === undefined || supervision === undefined) {
-    const missing = (['start', 'done', 'supervision'] as const).filter(
+  const { key, start, done, supervision, acceptance } = kind;
+  if (
+    start === undefined ||
+    done === undefined ||
+    supervision === undefined ||
+    acceptance === undefined
+  ) {
+    const missing = (['start', 'done', 'supervision', 'acceptance'] as const).filter(
       (field) => kind[field] === undefined,
     );
     throw new TaskMonitorKindConfigurationError(
@@ -99,15 +98,30 @@ export function taskMonitorKindConfiguration(
     );
   }
 
-  const requiredDone = DONE_FOR_SUPERVISION[supervision.type];
-  if (done.type !== requiredDone) {
-    throw new TaskMonitorKindConfigurationError(
-      `"${key}" monitor kind combines supervision "${supervision.type}" with done "${done.type}"; ` +
-        `supervision "${supervision.type}" requires done "${requiredDone}".`,
-    );
+  const issues = monitorOperationPolicyIssues(kind);
+  if (issues.length > 0) {
+    throw new TaskMonitorKindConfigurationError(issues.join('; '));
   }
+  return { key, allowedNodeTypes: kind.allowedNodeTypes, start, done, supervision, acceptance };
+}
 
-  return { key, start, done, supervision };
+/** Reads current project policy without consumer defaults or policy pinning. */
+export async function resolveTaskMonitorKindConfiguration(
+  deps: { apiBaseUrl: string; fetchImpl: typeof fetch },
+  scope: { organizationId: string; projectId: string; kindKey: string; accessToken: string },
+): Promise<TaskMonitorKindConfiguration> {
+  const response = await deps.fetchImpl(
+    `${deps.apiBaseUrl.replace(/\/$/u, '')}/organizations/${encodeURIComponent(scope.organizationId)}/projects/${encodeURIComponent(scope.projectId)}/work-item-types/TASK_MONITOR`,
+    { headers: { Authorization: `Bearer ${scope.accessToken}` } },
+  );
+  if (!response.ok) {
+    throw new Error(`Task Monitor type definition read failed (${response.status}).`);
+  }
+  const definition = parseEffectiveWorkItemTypeDefinition(await response.json());
+  return taskMonitorKindConfiguration(
+    scope.kindKey,
+    definition.capabilities?.monitorKinds?.find((kind) => kind.key === scope.kindKey),
+  );
 }
 
 /**
@@ -129,7 +143,14 @@ export class TaskMonitorKind {
     private readonly configuration: TaskMonitorKindConfiguration,
   ) {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
-    this.coordinatorInputs = new TaskMonitorTaskCoordinatorInputs(dependencies);
+    this.coordinatorInputs = TaskMonitorKind.inputsFor(dependencies, configuration);
+  }
+
+  public static inputsFor(
+    deps: { apiBaseUrl: string; fetchImpl: typeof fetch; logger: ServerLogger },
+    configuration: TaskMonitorKindConfiguration,
+  ): TaskMonitorTaskCoordinatorInputs {
+    return new TaskMonitorTaskCoordinatorInputs(deps, configuration);
   }
 
   public get key(): string {
@@ -141,12 +162,22 @@ export class TaskMonitorKind {
     return this.configuration.supervision.type;
   }
 
-  public readNode(scope: TaskMonitorNodeScope): Promise<TaskMonitorStartTask> {
-    return this.dependencies.runtime.readTask({
+  public async readNode(scope: TaskMonitorNodeScope): Promise<TaskMonitorStartTask> {
+    const input = {
       organizationId: scope.organizationId,
       projectId: scope.projectId,
       taskId: scope.nodeId,
-    });
+    };
+    const node =
+      this.configuration.acceptance.type === 'COMPLETE_ITEM'
+        ? await this.dependencies.runtime.readTask(input)
+        : await this.dependencies.runtime.readNodeItem(input);
+    if (!this.configuration.allowedNodeTypes.includes(node.type)) {
+      throw new Error(
+        `Selected work type "${node.type}" is not allowed by monitor kind "${this.key}".`,
+      );
+    }
+    return node;
   }
 
   /**
@@ -159,6 +190,9 @@ export class TaskMonitorKind {
   }
 
   public resolveGuidance(scope: TaskMonitorNodeScope): Promise<TaskMonitorPlanGuidance | null> {
+    if (this.configuration.acceptance.type !== 'COMPLETE_ITEM') {
+      return Promise.resolve(null);
+    }
     return this.dependencies.runtime.resolvePlanContext({
       organizationId: scope.organizationId,
       projectId: scope.projectId,
@@ -235,8 +269,8 @@ export class TaskMonitorKind {
 
   /**
    * Accepts a settled node: first completes the node's Agent Session when requested, then
-   * satisfies the done rule (item-status kinds request the declared status through Work Items)
-   * and confirms it from canonical evidence before reporting the node accepted.
+   * applies its explicit lifecycle effect through Work Items when required,
+   * and confirms operation satisfaction from canonical evidence before reporting acceptance.
    */
   public async acceptSettled(
     auth: PlatformAuth,
@@ -247,30 +281,117 @@ export class TaskMonitorKind {
       await completeSession();
     }
 
-    const { done } = this.configuration;
-    if (done.type === 'NORMALIZED_RESULT') {
+    const { acceptance } = this.configuration;
+    if (acceptance.type === 'NO_STATUS_CHANGE') {
       return (await this.readDone(auth, recorded))
         ? { accepted: true }
         : { accepted: false, reason: 'Selected node has no accepted normalized result.' };
     }
 
-    if ((await this.readStatus(auth, recorded.nodeId)) !== done.status) {
-      await this.patchStatus(auth, recorded.nodeId, done.status);
+    if ((await this.readStatus(auth, recorded.nodeId)) !== WorkStatus.Completed) {
+      await this.patchStatus(auth, recorded.nodeId, WorkStatus.Completed);
     }
     const settled = await this.readStatus(auth, recorded.nodeId);
-    if (settled !== done.status) {
+    if (settled !== WorkStatus.Completed) {
       this.dependencies.logger.warn('task_monitor.kind.accept.not_settled', {
         kind: this.key,
         nodeId: recorded.nodeId,
         status: settled,
-        expected: done.status,
+        expected: WorkStatus.Completed,
       });
       return {
         accepted: false,
-        reason: `Selected Task did not settle ${done.status.toLowerCase()} (${settled}).`,
+        reason: `Selected Task did not settle ${WorkStatus.Completed.toLowerCase()} (${settled}).`,
       };
     }
     return { accepted: true };
+  }
+
+  private async operationEvidence(
+    scope: TaskMonitorNodeScope,
+    agentSessionId: string,
+  ): Promise<TaskMonitorOperationEvidence | undefined> {
+    const monitorId = this.dependencies.monitorId;
+    if (!monitorId) {
+      throw new Error('Coordinator result read has no monitor owner.');
+    }
+    const monitor = await this.dependencies.runtime.readMonitor({ ...scope, monitorId });
+    const entry = monitor.definition.executionPlan.find((node) => node.taskId === scope.nodeId);
+    if (
+      entry?.agentSessionId !== agentSessionId ||
+      entry.operationEvidence?.agentSessionId !== agentSessionId
+    ) {
+      return undefined;
+    }
+    return entry.operationEvidence;
+  }
+
+  /** Save released operation provenance before Review; Review never substitutes its own report. */
+  public async retainOperationResult(
+    scope: TaskMonitorNodeResultScope,
+    turnId: string,
+    isReview: boolean,
+  ): Promise<void> {
+    if (
+      this.configuration.done.type !== 'NORMALIZED_RESULT' ||
+      this.supervision !== 'COORDINATOR_REVIEW'
+    ) {
+      return;
+    }
+    if (isReview) {
+      return;
+    }
+    const result = await this.dependencies.results.read(scope);
+    await this.dependencies.runtime.persistOperationEvidence({
+      ...scope,
+      monitorId: this.dependencies.monitorId!,
+      evidence:
+        result.outcome === 'MISSING'
+          ? null
+          : { agentSessionId: scope.agentSessionId, turnId, reportId: result.reportId },
+    });
+  }
+
+  /** Called only after coordinator/Review admission; pending child evidence alone never counts. */
+  public async admitOperation(
+    auth: PlatformAuth,
+    recorded: TaskMonitorRecordedNode,
+    coordinatorRunId: string,
+  ): Promise<void> {
+    if (
+      this.configuration.done.type !== 'NORMALIZED_RESULT' ||
+      this.supervision !== 'COORDINATOR_REVIEW'
+    ) {
+      return;
+    }
+    if (!recorded.agentSessionId) {
+      throw new Error('Operation acceptance has no selected session.');
+    }
+    const scope = {
+      organizationId: auth.organizationId,
+      projectId: auth.projectId,
+      nodeId: recorded.nodeId,
+    };
+    const evidence = await this.operationEvidence(scope, recorded.agentSessionId);
+    if (!evidence) {
+      throw new Error(
+        'Operation acceptance has no valid MONITOR_NODE_RESULT in the released Turn for the selected node and session.',
+      );
+    }
+    const result = await this.dependencies.results.read({
+      ...scope,
+      agentSessionId: recorded.agentSessionId,
+      turnReportIds: [evidence.reportId],
+    });
+    if (result.outcome !== 'ACCEPTED') {
+      throw new Error(result.reason);
+    }
+    await this.dependencies.runtime.persistOperationEvidence({
+      ...scope,
+      monitorId: this.dependencies.monitorId!,
+      agentSessionId: recorded.agentSessionId,
+      evidence: { ...evidence, coordinatorRunId },
+    });
   }
 
   private async hasAcceptedResult(
@@ -279,6 +400,18 @@ export class TaskMonitorKind {
   ): Promise<boolean> {
     if (agentSessionId === null) {
       return false;
+    }
+    if (this.supervision === 'COORDINATOR_REVIEW') {
+      const evidence = await this.operationEvidence(scope, agentSessionId);
+      if (!evidence?.coordinatorRunId) {
+        return false;
+      }
+      const verdict = await this.judgeSettled({
+        ...scope,
+        agentSessionId,
+        turnReportIds: [evidence.reportId],
+      });
+      return verdict.accept;
     }
     const verdict = await this.judgeSettled({ ...scope, agentSessionId });
     return verdict.accept;

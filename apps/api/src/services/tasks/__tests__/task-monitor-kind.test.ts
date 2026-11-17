@@ -1,8 +1,14 @@
 import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { TaskMonitorExecutionDefinition } from '@hey-hey/contracts/api/models';
-import { shippedTaskMonitorKind } from '../../../../test/setup/shipped-task-monitor-kind';
+import type {
+  TaskMonitorExecutionDefinition,
+  WorkItemTypeMonitorKind,
+} from '@hey-hey/contracts/api/models';
+import {
+  shippedTaskMonitorKind,
+  shippedTaskMonitorKinds,
+} from '../../../../test/setup/shipped-task-monitor-kind';
 import { workItemTypeCapabilitiesSchema } from '../work-item-type-capabilities.schema';
 import { assertTaskMonitorMatchesKind } from '../task-monitor-kind';
 const openapiRoot = execFileSync(
@@ -23,18 +29,30 @@ const [firstNode, secondNode] = populatedMonitor.executionPlan as [
   ExecutionNode,
 ];
 
-/** The kind the shipped migrations publish on the canonical TASK_MONITOR template. */
+/** The `task` kind the shipped migrations publish on the canonical TASK_MONITOR template. */
 function shippedCanonicalKind() {
-  const { monitorKind } = workItemTypeCapabilitiesSchema.parse({
-    monitorKind: shippedTaskMonitorKind(),
-  });
-  if (monitorKind === undefined) {
+  const [taskKind] =
+    workItemTypeCapabilitiesSchema.parse({
+      monitorKinds: shippedTaskMonitorKinds(),
+    }).monitorKinds ?? [];
+  if (taskKind === undefined) {
     throw new Error('migrations publish no monitor kind');
   }
-  return monitorKind;
+  return taskKind;
 }
 
 const TASK_KIND = shippedCanonicalKind();
+
+/** A test-only direct-acceptance kind declared beside `task` on the same type. */
+const DIRECT_KIND: WorkItemTypeMonitorKind = {
+  ...TASK_KIND,
+  key: 'requirement-check',
+  acceptance: { type: 'NO_STATUS_CHANGE' },
+  allowedNodeTypes: ['BUG'],
+  start: { type: 'NO_STATUS_CHANGE' },
+  done: { type: 'NORMALIZED_RESULT' },
+  supervision: { type: 'DIRECT_ACCEPTANCE' },
+};
 
 function dbWithNodeTypes(typeOf: (taskId: string) => string | undefined) {
   return {
@@ -57,7 +75,7 @@ function check(
     db: dbWithNodeTypes(typeOf),
     organizationId: 'org',
     projectId: 'project',
-    kind: TASK_KIND,
+    kinds: [TASK_KIND],
     executionDefinitionContent: JSON.stringify(definition),
   });
 }
@@ -110,44 +128,117 @@ describe('task monitor kind', () => {
     'rejects a kind declaring %s, naming the offending field',
     (_case, change, path) => {
       const parsed = workItemTypeCapabilitiesSchema.safeParse({
-        monitorKind: { ...shippedTaskMonitorKind(), ...change },
+        monitorKinds: [{ ...shippedTaskMonitorKind(), ...change }],
       });
 
       expect(parsed.success).toBe(false);
       expect(parsed.error?.issues.map((issue) => issue.path)).toContainEqual([
-        'monitorKind',
+        'monitorKinds',
+        0,
         ...path,
       ]);
     },
   );
 
-  it('accepts a complete non-Task configuration', () => {
+  it('rejects weakened Task completion across kind keys and types, and leaves allowed node types to each kind', () => {
+    const reusable = {
+      ...DIRECT_KIND,
+      supervision: { type: 'COORDINATOR_REVIEW' },
+    };
+    expect(
+      workItemTypeCapabilitiesSchema.safeParse({ monitorKinds: [reusable] })
+        .success,
+    ).toBe(true);
+    for (const key of ['task', 'renamed-execution']) {
+      for (const allowedNodeTypes of [
+        ['STANDARD'],
+        ['BUG'],
+        ['STANDARD', 'BUG'],
+      ]) {
+        const kind = {
+          ...TASK_KIND,
+          key,
+          allowedNodeTypes,
+          done: { type: 'ITEM_STATUS', status: 'VERIFYING' },
+        };
+        expect(
+          workItemTypeCapabilitiesSchema.safeParse({ monitorKinds: [kind] })
+            .success,
+        ).toBe(false);
+      }
+    }
+    expect(
+      workItemTypeCapabilitiesSchema.safeParse({
+        monitorKinds: [{ ...reusable, allowedNodeTypes: ['STANDARD'] }],
+      }).success,
+    ).toBe(true);
+    expect(
+      workItemTypeCapabilitiesSchema.safeParse({
+        monitorKinds: [{ ...TASK_KIND, allowedNodeTypes: ['STANDARD', 'BUG'] }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    { ...DIRECT_KIND, acceptance: { type: 'COMPLETE_ITEM' } },
+    { ...DIRECT_KIND, done: { type: 'ITEM_STATUS', status: 'COMPLETED' } },
+    { ...DIRECT_KIND, start: { type: 'STATUS_TRANSITION', status: 'ACTIVE' } },
+  ])(
+    'rejects incompatible reusable operation effects before execution ($acceptance.type, $done.type, $start.type)',
+    (kind) => {
+      expect(
+        workItemTypeCapabilitiesSchema.safeParse({ monitorKinds: [kind] })
+          .success,
+      ).toBe(false);
+    },
+  );
+
+  it('accepts a type declaring the Task kind beside a complete non-Task kind', () => {
     const parsed = workItemTypeCapabilitiesSchema.safeParse({
-      monitorKind: {
-        ...shippedTaskMonitorKind(),
-        key: 'requirement-check',
-        start: { type: 'NO_STATUS_CHANGE' },
-        done: { type: 'NORMALIZED_RESULT' },
-        supervision: { type: 'DIRECT_ACCEPTANCE' },
-      },
+      monitorKinds: [shippedTaskMonitorKind(), DIRECT_KIND],
     });
 
     expect(parsed.success).toBe(true);
   });
 
+  it('rejects a type declaring the same kind key twice, naming the key', () => {
+    const parsed = workItemTypeCapabilitiesSchema.safeParse({
+      monitorKinds: [
+        shippedTaskMonitorKind(),
+        DIRECT_KIND,
+        { ...DIRECT_KIND, allowedNodeTypes: ['STANDARD'] },
+      ],
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues).toContainEqual(
+      expect.objectContaining({
+        path: ['monitorKinds', 2, 'key'],
+        message:
+          'monitor kind key "requirement-check" is declared more than once',
+      }),
+    );
+  });
+
   it.each([
-    ['no kind at all', undefined, /declares no kind/],
     [
-      'an unsupported pairing',
-      {
-        ...shippedTaskMonitorKind(),
-        supervision: { type: 'DIRECT_ACCEPTANCE' as const },
-      },
-      /"task" monitor kind combines supervision "DIRECT_ACCEPTANCE" with done "ITEM_STATUS"/,
+      'selects a kind the type does not declare',
+      [DIRECT_KIND],
+      /selects the "task" kind, which the project's TASK_MONITOR type does not declare \(declared: requirement-check\)/,
+    ],
+    [
+      'runs a kind with an unsupported pairing',
+      [
+        {
+          ...TASK_KIND,
+          supervision: { type: 'DIRECT_ACCEPTANCE' as const },
+        },
+      ],
+      /DIRECT_ACCEPTANCE requires NORMALIZED_RESULT/,
     ],
   ])(
-    'rejects a monitor whose effective kind has %s before reading its nodes',
-    async (_case, kind, message) => {
+    'rejects a monitor that %s before reading its nodes',
+    async (_case, kinds, message) => {
       const db = dbWithNodeTypes(() => 'STANDARD');
 
       await expect(
@@ -155,13 +246,93 @@ describe('task monitor kind', () => {
           db,
           organizationId: 'org',
           projectId: 'project',
-          kind: kind as never,
+          monitorId: 'monitor-1',
+          kinds,
           executionDefinitionContent: JSON.stringify(populatedMonitor),
         }),
       ).rejects.toThrow(message);
       expect(db.task.findMany).not.toHaveBeenCalled();
     },
   );
+
+  describe('a project declaring the Task kind and a direct-acceptance kind', () => {
+    const kinds = [TASK_KIND, DIRECT_KIND];
+
+    function checkAs(kindKey: string, nodeType: string) {
+      return assertTaskMonitorMatchesKind({
+        db: dbWithNodeTypes(() => nodeType),
+        organizationId: 'org',
+        projectId: 'project',
+        kinds,
+        executionDefinitionContent: JSON.stringify({
+          ...populatedMonitor,
+          kind: kindKey,
+        }),
+      });
+    }
+
+    it('checks each monitor against the kind it selects', async () => {
+      await expect(checkAs('task', 'STANDARD')).resolves.toBeUndefined();
+      await expect(
+        checkAs('requirement-check', 'BUG'),
+      ).resolves.toBeUndefined();
+    });
+
+    it("rejects a node only its monitor's own kind disallows", async () => {
+      await expect(checkAs('task', 'BUG')).rejects.toThrow(
+        /"BUG", which the "task" monitor kind does not allow/,
+      );
+      await expect(checkAs('requirement-check', 'STANDARD')).rejects.toThrow(
+        /"STANDARD", which the "requirement-check" monitor kind does not allow/,
+      );
+    });
+  });
+
+  it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW'] as const)(
+    'validates populated reusable monitors through the execution boundary under %s',
+    async (type) => {
+      const kind: WorkItemTypeMonitorKind = {
+        ...DIRECT_KIND,
+        supervision: { type },
+      };
+      const db = dbWithNodeTypes(() => 'BUG');
+      await expect(
+        assertTaskMonitorMatchesKind({
+          db,
+          organizationId: 'org',
+          projectId: 'project',
+          kinds: [kind],
+          executionDefinitionContent: JSON.stringify({
+            ...populatedMonitor,
+            kind: kind.key,
+          }),
+        }),
+      ).resolves.toBeUndefined();
+      expect(db.task.findMany).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('rejects an intermediate-status Task execution at the execution boundary before reading selected items', async () => {
+    const kind: WorkItemTypeMonitorKind = {
+      ...TASK_KIND,
+      key: 'renamed-execution',
+      done: { type: 'ITEM_STATUS', status: 'VERIFYING' },
+    };
+    const db = dbWithNodeTypes(() => 'STANDARD');
+    await expect(
+      assertTaskMonitorMatchesKind({
+        db,
+        organizationId: 'org',
+        projectId: 'project',
+        kinds: [kind],
+        executionDefinitionContent: JSON.stringify({
+          ...populatedMonitor,
+          kind: kind.key,
+        }),
+      }),
+    ).rejects.toThrow(/canonical COMPLETED/);
+    expect(db.task.findMany).not.toHaveBeenCalled();
+  });
 
   it('accepts a populated monitor whose nodes are all Tasks', async () => {
     expect(populatedMonitor.executionPlan.length).toBeGreaterThan(1);
@@ -209,7 +380,7 @@ describe('task monitor kind', () => {
       db: dbWithNodeTypes(() => 'STANDARD'),
       organizationId: 'org',
       projectId: 'project',
-      kind: narrowedKind,
+      kinds: [narrowedKind],
       executionDefinitionContent: JSON.stringify(definition),
     });
 
@@ -224,13 +395,15 @@ describe('task monitor kind', () => {
     function edit(
       next: TaskMonitorExecutionDefinition,
       typeOf: (taskId: string) => string | undefined,
+      kinds: WorkItemTypeMonitorKind[] = [TASK_KIND, DIRECT_KIND],
     ) {
       const db = dbWithNodeTypes(typeOf);
       const result = assertTaskMonitorMatchesKind({
         db,
         organizationId: 'org',
         projectId: 'project',
-        kind: TASK_KIND,
+        monitorId: 'monitor-1',
+        kinds,
         executionDefinitionContent: JSON.stringify(next),
         storedExecutionDefinitionContent: JSON.stringify(populatedMonitor),
       });
@@ -248,6 +421,47 @@ describe('task monitor kind', () => {
 
       await expect(result).resolves.toBeUndefined();
       expect(db.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it("does not re-check unchanged nodes after the kind's restrictions are narrowed", async () => {
+      const advanced = structuredClone(populatedMonitor);
+      advanced.cursor = 1;
+      const narrowedTaskKind = {
+        ...TASK_KIND,
+        allowedLaunchMethods: ['quick' as const],
+      };
+
+      const { db, result } = edit(advanced, () => 'STANDARD', [
+        narrowedTaskKind,
+      ]);
+
+      await expect(result).resolves.toBeUndefined();
+      expect(db.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects changing the kind of an existing monitor, naming both keys', async () => {
+      const switched = {
+        ...structuredClone(populatedMonitor),
+        kind: 'requirement-check',
+      };
+
+      const { db, result } = edit(switched, () => 'BUG');
+
+      await expect(result).rejects.toThrow(
+        /monitor-1 runs the "task" kind, and a monitor's kind cannot change \(requested "requirement-check"\)/,
+      );
+      expect(db.task.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unchanged monitor whose kind is no longer declared', async () => {
+      const advanced = structuredClone(populatedMonitor);
+      advanced.cursor = 1;
+
+      const { result } = edit(advanced, () => 'STANDARD', [DIRECT_KIND]);
+
+      await expect(result).rejects.toThrow(
+        /monitor-1 selects the "task" kind, which the project's TASK_MONITOR type does not declare/,
+      );
     });
 
     it('re-checks the nodes when a launch setting changes', async () => {

@@ -26,7 +26,7 @@ import type { WorkStatus } from './work-status.js';
 
 /**
  * @type WorkItemTypeMonitorKindDonePolicy
- * How a node counts as done for selection, dependencies, acceptance confirmation and monitor completion. Item-status completion pairs with coordinator supervision; normalized-result completion pairs with direct acceptance. The registry resolves an omitted done policy from the canonical TASK_MONITOR definition.
+ * How a node counts as done for selection, dependencies, acceptance confirmation and monitor completion, independently of item lifecycle effects. Item-status completion requires canonical COMPLETED and Work Items completion. Normalized-result completion requires no lifecycle effects and supports either supervision policy. The registry resolves an omitted done policy from the canonical TASK_MONITOR definition.
  * @export
  */
 export type WorkItemTypeMonitorKindDonePolicy = WorkItemTypeMonitorKindItemStatusDone | WorkItemTypeMonitorKindNormalizedResultDone;

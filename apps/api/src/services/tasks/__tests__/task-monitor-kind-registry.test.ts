@@ -11,7 +11,9 @@ const CANONICAL_PROJECT = 'proj-canonical';
 const NO_KIND_OVERRIDE_PROJECT = 'proj-no-kind-override';
 const PRE_POLICY_OVERRIDE_PROJECT = 'proj-pre-policy-override';
 const DIRECT_OVERRIDE_PROJECT = 'proj-direct-override';
+const LEGACY_DIRECT_PROJECT = 'proj-legacy-direct';
 const HALF_DECLARED_OVERRIDE_PROJECT = 'proj-half-declared-override';
+const TWO_KIND_OVERRIDE_PROJECT = 'proj-two-kind-override';
 
 const shipped = shippedTaskMonitorKind();
 
@@ -28,11 +30,17 @@ const prePolicyKind = {
 const directKind = {
   ...prePolicyKind,
   key: 'requirement-check',
+  acceptance: { type: 'NO_STATUS_CHANGE' },
   allowedNodeTypes: ['BUG'],
   start: { type: 'NO_STATUS_CHANGE' },
   done: { type: 'NORMALIZED_RESULT' },
   supervision: { type: 'DIRECT_ACCEPTANCE' },
 };
+
+/** The direct kind with its start policy omitted, for the registry to fill. */
+const { acceptance: _legacyAcceptance, ...legacyDirectKind } = directKind;
+
+const { start: _directStart, ...directKindWithoutStart } = directKind;
 
 /** Declares direct acceptance but omits done, so canonical item-status done would pair with it. */
 const halfDeclaredKind = {
@@ -46,24 +54,29 @@ async function registryWithMonitorOverrides() {
   const globalMonitor = globalRows.find(
     (row) => row.typeKey === 'TASK_MONITOR',
   )!;
-  const { monitorKind: _canonicalKind, ...capabilitiesWithoutKind } =
+  const { monitorKinds: _canonicalKinds, ...capabilitiesWithoutKinds } =
     globalMonitor.capabilities as Record<string, unknown>;
-  const override = (projectId: string, monitorKind?: unknown) =>
+  const override = (projectId: string, monitorKinds?: unknown[]) =>
     ({
       ...globalMonitor,
       id: `override-${projectId}`,
       isSystem: false,
       projectId,
       capabilities:
-        monitorKind === undefined
-          ? capabilitiesWithoutKind
-          : { ...capabilitiesWithoutKind, monitorKind },
+        monitorKinds === undefined
+          ? capabilitiesWithoutKinds
+          : { ...capabilitiesWithoutKinds, monitorKinds },
     }) as unknown as WorkItemType;
   const projectRows = [
     override(NO_KIND_OVERRIDE_PROJECT),
-    override(PRE_POLICY_OVERRIDE_PROJECT, prePolicyKind),
-    override(DIRECT_OVERRIDE_PROJECT, directKind),
-    override(HALF_DECLARED_OVERRIDE_PROJECT, halfDeclaredKind),
+    override(PRE_POLICY_OVERRIDE_PROJECT, [prePolicyKind]),
+    override(DIRECT_OVERRIDE_PROJECT, [directKind]),
+    override(LEGACY_DIRECT_PROJECT, [legacyDirectKind]),
+    override(HALF_DECLARED_OVERRIDE_PROJECT, [halfDeclaredKind]),
+    override(TWO_KIND_OVERRIDE_PROJECT, [
+      prePolicyKind,
+      directKindWithoutStart,
+    ]),
   ];
   const prisma = {
     project: {
@@ -75,7 +88,9 @@ async function registryWithMonitorOverrides() {
             NO_KIND_OVERRIDE_PROJECT,
             PRE_POLICY_OVERRIDE_PROJECT,
             DIRECT_OVERRIDE_PROJECT,
+            LEGACY_DIRECT_PROJECT,
             HALF_DECLARED_OVERRIDE_PROJECT,
+            TWO_KIND_OVERRIDE_PROJECT,
           ].map((id) => ({ id })),
         ),
     },
@@ -88,6 +103,21 @@ async function registryWithMonitorOverrides() {
   );
   await registry.refresh();
   return registry;
+}
+
+/** The effective kinds the project's TASK_MONITOR type declares. */
+function effectiveKinds(
+  registry: WorkItemTypeRegistryService,
+  projectId: string,
+) {
+  return effective(registry, projectId)?.definition.capabilities?.monitorKinds;
+}
+
+/** The project's single effective kind, for projects that declare one. */
+function onlyKind(registry: WorkItemTypeRegistryService, projectId: string) {
+  const kinds = effectiveKinds(registry, projectId);
+  expect(kinds).toHaveLength(1);
+  return kinds![0]!;
 }
 
 function effective(registry: WorkItemTypeRegistryService, projectId: string) {
@@ -107,18 +137,21 @@ describe('effective monitor kind for the TASK_MONITOR type', () => {
     expect(canonical?.effectiveSource).toBe(
       WorkItemTypeEffectiveSource.Canonical,
     );
-    expect(canonical?.definition.capabilities?.monitorKind).toEqual({
-      key: 'task',
-      allowedNodeTypes: ['STANDARD'],
-      allowedLaunchMethods: ['plan', 'open', 'quick'],
-      allowedRuntimeProviders: shipped['allowedRuntimeProviders'],
-      allowedReasoningEfforts: shipped['allowedReasoningEfforts'],
-      start: { type: 'STATUS_TRANSITION', status: 'ACTIVE' },
-      done: { type: 'ITEM_STATUS', status: 'COMPLETED' },
-      supervision: { type: 'COORDINATOR_REVIEW' },
-    });
+    expect(canonical?.definition.capabilities?.monitorKinds).toEqual([
+      {
+        key: 'task',
+        acceptance: { type: 'COMPLETE_ITEM' },
+        allowedNodeTypes: ['STANDARD'],
+        allowedLaunchMethods: ['plan', 'open', 'quick'],
+        allowedRuntimeProviders: shipped['allowedRuntimeProviders'],
+        allowedReasoningEfforts: shipped['allowedReasoningEfforts'],
+        start: { type: 'STATUS_TRANSITION', status: 'ACTIVE' },
+        done: { type: 'ITEM_STATUS', status: 'COMPLETED' },
+        supervision: { type: 'COORDINATOR_REVIEW' },
+      },
+    ]);
     expect(
-      monitorKindPolicyIssues(canonical?.definition.capabilities?.monitorKind),
+      monitorKindPolicyIssues(onlyKind(registry, CANONICAL_PROJECT)),
     ).toEqual([]);
   });
 
@@ -129,9 +162,8 @@ describe('effective monitor kind for the TASK_MONITOR type', () => {
     expect(override?.effectiveSource).toBe(
       WorkItemTypeEffectiveSource.CanonicalOverride,
     );
-    expect(override?.definition.capabilities?.monitorKind).toEqual(
-      effective(registry, CANONICAL_PROJECT)?.definition.capabilities
-        ?.monitorKind,
+    expect(override?.definition.capabilities?.monitorKinds).toEqual(
+      effectiveKinds(registry, CANONICAL_PROJECT),
     );
     expect(override?.definition.capabilities?.requiresParent).toBe(true);
   });
@@ -139,21 +171,25 @@ describe('effective monitor kind for the TASK_MONITOR type', () => {
   it('keeps an override kind that predates policies and fills only its omitted policies', async () => {
     const registry = await registryWithMonitorOverrides();
 
-    expect(
-      effective(registry, PRE_POLICY_OVERRIDE_PROJECT)?.definition.capabilities
-        ?.monitorKind,
-    ).toEqual({
+    expect(onlyKind(registry, PRE_POLICY_OVERRIDE_PROJECT)).toEqual({
       ...prePolicyKind,
       start: shipped['start'],
       done: shipped['done'],
       supervision: shipped['supervision'],
+      acceptance: shipped['acceptance'],
     });
+  });
+
+  it('completes legacy normalized-result overrides centrally without changing explicit policies', async () => {
+    const registry = await registryWithMonitorOverrides();
+    const kind = onlyKind(registry, LEGACY_DIRECT_PROJECT);
+    expect(kind).toEqual(directKind);
+    expect(monitorKindPolicyIssues(kind)).toEqual([]);
   });
 
   it('honors a complete non-Task configuration exactly as declared', async () => {
     const registry = await registryWithMonitorOverrides();
-    const kind = effective(registry, DIRECT_OVERRIDE_PROJECT)?.definition
-      .capabilities?.monitorKind;
+    const kind = onlyKind(registry, DIRECT_OVERRIDE_PROJECT);
 
     expect(kind).toEqual(directKind);
     expect(monitorKindPolicyIssues(kind)).toEqual([]);
@@ -161,18 +197,36 @@ describe('effective monitor kind for the TASK_MONITOR type', () => {
 
   it('reports a declared policy that cannot pair with an inherited one, without blocking other projects', async () => {
     const registry = await registryWithMonitorOverrides();
-    const kind = effective(registry, HALF_DECLARED_OVERRIDE_PROJECT)?.definition
-      .capabilities?.monitorKind;
+    const kind = onlyKind(registry, HALF_DECLARED_OVERRIDE_PROJECT);
 
-    expect(kind?.done).toEqual(shipped['done']);
-    expect(monitorKindPolicyIssues(kind)).toEqual([
-      '"half-declared" monitor kind combines supervision "DIRECT_ACCEPTANCE" with done "ITEM_STATUS"; supervision "DIRECT_ACCEPTANCE" requires done "NORMALIZED_RESULT"',
-    ]);
+    expect(kind.done).toEqual(shipped['done']);
+    expect(monitorKindPolicyIssues(kind)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('DIRECT_ACCEPTANCE requires NORMALIZED_RESULT'),
+      ]),
+    );
     expect(
-      monitorKindPolicyIssues(
-        effective(registry, CANONICAL_PROJECT)?.definition.capabilities
-          ?.monitorKind,
-      ),
+      monitorKindPolicyIssues(onlyKind(registry, CANONICAL_PROJECT)),
     ).toEqual([]);
+  });
+
+  it('fills omitted policies separately for each declared kind from the canonical Task kind', async () => {
+    const registry = await registryWithMonitorOverrides();
+    const kinds = effectiveKinds(registry, TWO_KIND_OVERRIDE_PROJECT);
+
+    expect(kinds).toEqual([
+      {
+        ...prePolicyKind,
+        start: shipped['start'],
+        done: shipped['done'],
+        supervision: shipped['supervision'],
+        acceptance: shipped['acceptance'],
+      },
+      { ...directKind, start: shipped['start'] },
+    ]);
+    expect(monitorKindPolicyIssues(kinds![0]!)).toEqual([]);
+    expect(monitorKindPolicyIssues(kinds![1]!)).toEqual([
+      expect.stringContaining('NO_STATUS_CHANGE start'),
+    ]);
   });
 });

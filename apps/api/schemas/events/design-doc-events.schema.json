@@ -21860,8 +21860,12 @@
         "graph": {
           "$ref": "#/definitions/WorkItemTypeGraphCapability"
         },
-        "monitorKind": {
-          "$ref": "#/definitions/WorkItemTypeMonitorKind"
+        "monitorKinds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WorkItemTypeMonitorKind"
+          },
+          "description": "The kinds a monitor of this monitor-role type may run, each identified by a key unique within the type. Each monitor records the key of the kind it runs in its execution definition."
         }
       },
       "description": "Capability flags an item of this type carries — the boolean switches the canonical definitions declare. Product Feature hierarchy participation is platform-owned by the FEATURE type key; structural work-item parentage is declared by WorkItemTypeDefinitionDto.allowedParentTypes, while requiresParent remains the independent mandatory-parent capability. Known keys are named so generated clients can consume them directly; unknown keys are rejected so consumers share one contract vocabulary."
@@ -22352,6 +22356,9 @@
         "done": {
           "$ref": "#/definitions/WorkItemTypeMonitorKindDonePolicy"
         },
+        "acceptance": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindAcceptancePolicy"
+        },
         "supervision": {
           "$ref": "#/definitions/WorkItemTypeMonitorKindSupervisionPolicy"
         }
@@ -22363,7 +22370,7 @@
         "allowedRuntimeProviders",
         "allowedReasoningEfforts"
       ],
-      "description": "The kind of a monitor-role work-item type: what each execution node of a monitor of this type may be and how it may be launched. A monitor type that declares no kind resolves to the Task kind, so existing monitors need no stored value. The kind is configuration on the monitor type, not a separate registered thing monitors reference."
+      "description": "One kind declared on a monitor-role work-item type: what each execution node of a monitor of this kind may be, how it may be launched, and how it starts, finishes and is supervised. Kinds are configuration on the monitor type, not separate types. A monitor selects one declared kind by `key`, and keys are unique within the type."
     },
     "WorkItemTypeMonitorKindStartPolicy": {
       "anyOf": [
@@ -22445,7 +22452,7 @@
         "type",
         "status"
       ],
-      "description": "A node is done when its work item has the declared status. Acceptance requests that status through Work Items and rereads it before advancing."
+      "description": "A node is done when its work item is canonically COMPLETED. Only COMPLETED is supported; acceptance effects are declared separately. Task execution cannot substitute an intermediate status, regardless of kind key or allowed types."
     },
     "WorkItemTypeMonitorKindItemStatusDoneTypeEnum": {
       "anyOf": [
@@ -22466,13 +22473,38 @@
       "required": [
         "type"
       ],
-      "description": "A node is done when the durable normalized result of its recorded session accepts it. A missing, failed, malformed or mismatched result is never done, and the work item\\'s status is not consulted or changed."
+      "description": "A node is done when the durable normalized result of its recorded session accepts it. A missing, failed, malformed or mismatched result is never done, and the work item\\'s status is not consulted or changed. Coordinator supervision additionally requires durable admitted acceptance bound to this result and session."
     },
     "WorkItemTypeMonitorKindNormalizedResultDoneTypeEnum": {
       "anyOf": [
         {
           "type": "string",
           "const": "NORMALIZED_RESULT"
+        },
+        {}
+      ]
+    },
+    "WorkItemTypeMonitorKindAcceptancePolicy": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/WorkItemTypeMonitorKindAcceptancePolicyTypeEnum"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "description": "The explicit item lifecycle effect of accepting the operation. COMPLETE_ITEM delegates canonical completion to Work Items, requires ITEM_STATUS COMPLETED and COORDINATOR_REVIEW, and supports STANDARD Tasks only. NO_STATUS_CHANGE requires NORMALIZED_RESULT and NO_STATUS_CHANGE start, and supports either supervision policy. STANDARD Task execution always requires COMPLETE_ITEM. The registry supplies omitted acceptance centrally: existing explicit NORMALIZED_RESULT policies take canonical no-lifecycle acceptance; other omissions take the canonical Task acceptance. Explicit done rules are preserved."
+    },
+    "WorkItemTypeMonitorKindAcceptancePolicyTypeEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "COMPLETE_ITEM"
+        },
+        {
+          "type": "string",
+          "const": "NO_STATUS_CHANGE"
         },
         {}
       ]
@@ -22497,7 +22529,7 @@
       "required": [
         "type"
       ],
-      "description": "Every settled node goes to the coordinator agent under the monitor\\'s Review mode. Requires item-status completion."
+      "description": "Every settled node goes to the coordinator agent under the monitor\\'s Review mode. Supports canonical item completion or normalized operation results. Normalized results alone cannot bypass coordinator acceptance or required Review."
     },
     "WorkItemTypeMonitorKindCoordinatorReviewSupervisionTypeEnum": {
       "anyOf": [

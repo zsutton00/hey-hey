@@ -17,7 +17,6 @@ import {
   buildTaskMonitorRunEffectPayload,
   toCreateProvider,
   toTaskMonitorSessionConfig,
-  toTaskPromptType,
   type TaskMonitorCodingSessionLaunchInput,
 } from '../../../commands/agent-session-starter';
 import { MachineEffectProofSigner } from '../../../auth/machine-effect-proof';
@@ -159,7 +158,6 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
     const input = taskMonitorLaunchInputFromDeclaration(effect.launch);
     const operationId = execution.effectId;
     try {
-      toTaskPromptType(input.task.type);
       const launchServiceId = input.task.serviceIds[0];
       if (!launchServiceId) {
         throw new SessionValidationError('Task Monitor task is missing its launch service.');
@@ -301,7 +299,12 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
         taskId: input.task.id,
         agentSessionId: effect.agentSessionId,
       });
-      const kind = await this.startRuntime.kindFor(input);
+      const kind = await this.startRuntime.kindFor({
+        organizationId: effect.launch.organizationId,
+        projectId: effect.launch.projectId,
+        taskMonitorId: effect.launch.taskMonitorId,
+        kindKey: effect.launch.kindKey ?? null,
+      });
       const target = kind.conversationTarget(input.method, input.task.id);
       const response = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
         organizationId: input.organizationId,

@@ -18,11 +18,12 @@ const dollarQuotedJson = (file: string, tag: string): Record<string, unknown> =>
  */
 export const shippedTaskMonitorKind = (): WorkItemTypeMonitorKind => {
   const published = {
+    ...dollarQuotedJson('V2026.11.16.102036__publish_monitor_acceptance_effects.sql', 'acceptance'),
     ...dollarQuotedJson('V2026.11.15.224545__publish_task_monitor_kind_policies.sql', 'policies'),
     ...dollarQuotedJson('V2026.11.13.064226__publish_task_monitor_task_kind.sql', 'kind'),
   };
-  const kind = parseEffectiveWorkItemTypeDefinition(taskMonitorTypeBody('project', published))
-    .capabilities?.monitorKind;
+  const kind = parseEffectiveWorkItemTypeDefinition(taskMonitorTypeBody('project', [published]))
+    .capabilities?.monitorKinds?.[0];
   if (kind === undefined) throw new Error('shipped migrations publish no monitor kind');
   return kind;
 };
@@ -31,13 +32,24 @@ export const shippedTaskMonitorKind = (): WorkItemTypeMonitorKind => {
 export const directResultKind = (): WorkItemTypeMonitorKind => ({
   ...shippedTaskMonitorKind(),
   key: 'requirement-check',
+  allowedNodeTypes: ['BUG'],
+  acceptance: { type: 'NO_STATUS_CHANGE' },
   start: { type: 'NO_STATUS_CHANGE' },
   done: { type: 'NORMALIZED_RESULT' },
   supervision: { type: 'DIRECT_ACCEPTANCE' },
 });
 
-/** The API's `GET .../work-item-types/TASK_MONITOR` body for a project whose effective kind is `kind`. */
-export const taskMonitorTypeBody = (projectId: string, kind: object | undefined) => ({
+/**
+ * The kinds of a project that runs Task monitors beside a test-only direct-acceptance kind on the
+ * one TASK_MONITOR type.
+ */
+export const mixedMonitorKinds = (): WorkItemTypeMonitorKind[] => [
+  shippedTaskMonitorKind(),
+  directResultKind(),
+];
+
+/** The API's `GET .../work-item-types/TASK_MONITOR` body for a project declaring `kinds`. */
+export const taskMonitorTypeBody = (projectId: string, kinds: readonly object[] | undefined) => ({
   data: {
     id: 'c1a70000-0000-0000-0000-000000000007',
     definition: {
@@ -49,7 +61,7 @@ export const taskMonitorTypeBody = (projectId: string, kind: object | undefined)
       capabilities: {
         requiresParent: true,
         planEligible: false,
-        ...(kind === undefined ? {} : { monitorKind: kind }),
+        ...(kinds === undefined ? {} : { monitorKinds: kinds }),
       },
     },
     status: 'ACTIVE',
@@ -99,12 +111,12 @@ const reportListBody = (results: readonly ServedNodeResult[]) => ({
 });
 
 /**
- * A fetch that answers each project's TASK_MONITOR type read with its effective kind and each
+ * A fetch that answers each project's TASK_MONITOR type read with its effective kinds and each
  * session's node-result report list with `nodeResults` (listed in order, newest first), and
- * delegates every other request. Projects absent from `kinds` get the shipped canonical kind.
+ * delegates every other request. Projects absent from `kinds` get the shipped canonical kinds.
  */
 export const fetchServingMonitorKinds = (
-  kinds: Readonly<Record<string, WorkItemTypeMonitorKind | undefined>> = {},
+  kinds: Readonly<Record<string, readonly WorkItemTypeMonitorKind[] | undefined>> = {},
   fallback: typeof fetch = () => Promise.reject(new Error('unexpected request')),
   nodeResults: readonly ServedNodeResult[] = [],
 ): typeof fetch =>
@@ -122,6 +134,6 @@ export const fetchServingMonitorKinds = (
     }
     const projectId = TYPE_PATH.exec(url)?.[1];
     if (projectId === undefined) return fallback(input, init);
-    const kind = projectId in kinds ? kinds[projectId] : shippedTaskMonitorKind();
-    return Promise.resolve(Response.json(taskMonitorTypeBody(projectId, kind)));
+    const declared = projectId in kinds ? kinds[projectId] : [shippedTaskMonitorKind()];
+    return Promise.resolve(Response.json(taskMonitorTypeBody(projectId, declared)));
   }) as typeof fetch;

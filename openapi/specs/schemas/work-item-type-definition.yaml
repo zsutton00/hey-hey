@@ -448,7 +448,16 @@ WorkItemHtmlCssAnnotation:
   type: object
   additionalProperties: false
   required:
-    [id, note, author, category, lifecycle, authoredProposalId, authoredSizeKey, target]
+    [
+      id,
+      note,
+      author,
+      category,
+      lifecycle,
+      authoredProposalId,
+      authoredSizeKey,
+      target,
+    ]
   properties:
     id:
       $ref: "#/WorkItemStructuredMockupAnnotationId"
@@ -986,7 +995,19 @@ WorkItemStructuredMockupSemanticRole:
 
 WorkItemStructuredMockupColor:
   type: string
-  enum: [primary, secondary, success, warning, error, info, neutral, muted, surface, transparent]
+  enum:
+    [
+      primary,
+      secondary,
+      success,
+      warning,
+      error,
+      info,
+      neutral,
+      muted,
+      surface,
+      transparent,
+    ]
   description: Host palette token used for constrained component color.
 
 WorkItemStructuredMockupOverflow:
@@ -1665,19 +1686,26 @@ WorkItemTypeCapabilities:
       description: Whether this type opts into an Explorer Sidebar section; false or omission means no Explorer section is configured.
     graph:
       $ref: "#/WorkItemTypeGraphCapability"
-    monitorKind:
-      $ref: "#/WorkItemTypeMonitorKind"
+    monitorKinds:
+      type: array
+      minItems: 1
+      description: >
+        The kinds a monitor of this monitor-role type may run, each identified
+        by a key unique within the type. Each monitor records the key of the
+        kind it runs in its execution definition.
+      items:
+        $ref: "#/WorkItemTypeMonitorKind"
   additionalProperties: false
 
 WorkItemTypeMonitorKind:
   type: object
   additionalProperties: false
   description: >
-    The kind of a monitor-role work-item type: what each execution node of a
-    monitor of this type may be and how it may be launched. A monitor type
-    that declares no kind resolves to the Task kind, so existing monitors
-    need no stored value. The kind is configuration on the monitor type, not
-    a separate registered thing monitors reference.
+    One kind declared on a monitor-role work-item type: what each execution
+    node of a monitor of this kind may be, how it may be launched, and how it
+    starts, finishes and is supervised. Kinds are configuration on the monitor
+    type, not separate types. A monitor selects one declared kind by `key`,
+    and keys are unique within the type.
   required:
     - key
     - allowedNodeTypes
@@ -1717,6 +1745,8 @@ WorkItemTypeMonitorKind:
       $ref: "#/WorkItemTypeMonitorKindStartPolicy"
     done:
       $ref: "#/WorkItemTypeMonitorKindDonePolicy"
+    acceptance:
+      $ref: "#/WorkItemTypeMonitorKindAcceptancePolicy"
     supervision:
       $ref: "#/WorkItemTypeMonitorKindSupervisionPolicy"
 
@@ -1761,9 +1791,10 @@ WorkItemTypeMonitorKindNoStatusChangeStart:
 WorkItemTypeMonitorKindDonePolicy:
   description: >
     How a node counts as done for selection, dependencies, acceptance
-    confirmation and monitor completion. Item-status completion pairs with
-    coordinator supervision; normalized-result completion pairs with direct
-    acceptance. The registry resolves an omitted done policy from the canonical
+    confirmation and monitor completion, independently of item lifecycle effects.
+    Item-status completion requires canonical COMPLETED and Work Items completion.
+    Normalized-result completion requires no lifecycle effects and supports either
+    supervision policy. The registry resolves an omitted done policy from the canonical
     TASK_MONITOR definition.
   oneOf:
     - $ref: "#/WorkItemTypeMonitorKindItemStatusDone"
@@ -1775,8 +1806,9 @@ WorkItemTypeMonitorKindItemStatusDone:
   type: object
   additionalProperties: false
   description: >
-    A node is done when its work item has the declared status. Acceptance
-    requests that status through Work Items and rereads it before advancing.
+    A node is done when its work item is canonically COMPLETED. Only COMPLETED
+    is supported; acceptance effects are declared separately. Task execution
+    cannot substitute an intermediate status, regardless of kind key or allowed types.
   required:
     - type
     - status
@@ -1794,7 +1826,8 @@ WorkItemTypeMonitorKindNormalizedResultDone:
   description: >
     A node is done when the durable normalized result of its recorded session
     accepts it. A missing, failed, malformed or mismatched result is never done,
-    and the work item's status is not consulted or changed.
+    and the work item's status is not consulted or changed. Coordinator supervision
+    additionally requires durable admitted acceptance bound to this result and session.
   required:
     - type
   properties:
@@ -1818,7 +1851,8 @@ WorkItemTypeMonitorKindCoordinatorReviewSupervision:
   additionalProperties: false
   description: >
     Every settled node goes to the coordinator agent under the monitor's
-    Review mode. Requires item-status completion.
+    Review mode. Supports canonical item completion or normalized operation results.
+    Normalized results alone cannot bypass coordinator acceptance or required Review.
   required:
     - type
   properties:
@@ -2509,3 +2543,24 @@ DiagramReferenceTargetRule:
       description: Allowed TASK discriminators; omitted permits any work-item type. Targets must still be accessible and non-archived. Invalid for SERVICE.
       items:
         $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeMonitorKindAcceptancePolicy:
+  type: object
+  additionalProperties: false
+  description: >
+    The explicit item lifecycle effect of accepting the operation. COMPLETE_ITEM
+    delegates canonical completion to Work Items, requires ITEM_STATUS COMPLETED
+    and COORDINATOR_REVIEW, and supports STANDARD Tasks only. NO_STATUS_CHANGE
+    requires NORMALIZED_RESULT and NO_STATUS_CHANGE start, and supports either
+    supervision policy. STANDARD Task execution always requires COMPLETE_ITEM.
+    The registry supplies omitted acceptance centrally: existing explicit
+    NORMALIZED_RESULT policies take canonical no-lifecycle acceptance; other
+    omissions take the canonical Task acceptance. Explicit done rules are preserved.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COMPLETE_ITEM
+        - NO_STATUS_CHANGE

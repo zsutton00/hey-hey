@@ -1,3 +1,4 @@
+import type { TaskMonitorKindConfiguration } from './task-monitor-kind';
 import { z } from 'zod';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import { TaskMonitorPlanContext } from '../../../server/task-monitor-plan-context';
@@ -193,7 +194,10 @@ export const assertOwnedWorkItem = (
  * Tasks, and projects them into the evidence the coordinator prompt consumes.
  */
 export class TaskMonitorTaskCoordinatorInputs {
-  public constructor(private readonly deps: TaskMonitorCoordinatorInputsDependencies) {}
+  public constructor(
+    private readonly deps: TaskMonitorCoordinatorInputsDependencies,
+    private readonly policy: TaskMonitorKindConfiguration,
+  ) {}
 
   public async readNodes(
     input: TaskMonitorCoordinatorInputsRequest,
@@ -259,6 +263,9 @@ export class TaskMonitorTaskCoordinatorInputs {
     >,
     taskId: string,
   ): Promise<TaskMonitorPlanGuidance | null> {
+    if (this.policy.acceptance.type !== 'COMPLETE_ITEM') {
+      return Promise.resolve(null);
+    }
     return new TaskMonitorPlanContext(this.deps).resolve({
       organizationId: input.organizationId,
       projectId: input.projectId,

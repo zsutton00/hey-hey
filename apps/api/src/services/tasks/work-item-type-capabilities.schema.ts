@@ -1,3 +1,4 @@
+import { monitorOperationPolicyIssues } from '@hey-hey/contracts/monitor-kind-policy';
 import { z } from 'zod';
 import { AgentEdgeCategory } from '@hey-hey/contracts/api/models';
 import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
@@ -130,7 +131,7 @@ export const workItemTypeGraphCapabilitySchema: z.ZodType<WorkItemTypeGraphCapab
 
 type BooleanCapabilityKey = Exclude<
   keyof WorkItemTypeCapabilities,
-  'graph' | 'monitorKind'
+  'graph' | 'monitorKinds'
 >;
 type BooleanCapabilityShape = {
   [K in BooleanCapabilityKey]-?: z.ZodOptional<z.ZodBoolean>;
@@ -177,15 +178,6 @@ const monitorKindSupervisionPolicySchema: z.ZodType<WorkItemTypeMonitorKindSuper
     z.object({ type: z.literal('DIRECT_ACCEPTANCE') }).strict(),
   ]);
 
-/** The done rule each supervision policy confirms acceptance with. */
-export const DONE_POLICY_FOR_SUPERVISION = {
-  COORDINATOR_REVIEW: 'ITEM_STATUS',
-  DIRECT_ACCEPTANCE: 'NORMALIZED_RESULT',
-} as const satisfies Record<
-  WorkItemTypeMonitorKindSupervisionPolicy['type'],
-  WorkItemTypeMonitorKindDonePolicy['type']
->;
-
 /**
  * A declared policy is optional: the registry resolves an omitted one from the
  * canonical TASK_MONITOR definition. Explicit null, unknown policy types and
@@ -206,26 +198,47 @@ const workItemTypeMonitorKindSchema: z.ZodType<WorkItemTypeMonitorKind> = z
     start: monitorKindStartPolicySchema.optional(),
     done: monitorKindDonePolicySchema.optional(),
     supervision: monitorKindSupervisionPolicySchema.optional(),
+    acceptance: z
+      .object({ type: z.enum(['COMPLETE_ITEM', 'NO_STATUS_CHANGE']) })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((kind, context) => {
-    if (kind.done === undefined || kind.supervision === undefined) {
-      return;
-    }
-    const requiredDone = DONE_POLICY_FOR_SUPERVISION[kind.supervision.type];
-    if (kind.done.type !== requiredDone) {
+    for (const message of monitorOperationPolicyIssues(kind)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['done', 'type'],
-        message: `"${kind.key}" monitor kind combines supervision "${kind.supervision.type}" with done "${kind.done.type}"; supervision "${kind.supervision.type}" requires done "${requiredDone}"`,
+        message,
       });
     }
+  });
+
+/**
+ * The kinds a monitor type declares. Each monitor selects one by key, so a key
+ * may be declared only once.
+ */
+const workItemTypeMonitorKindsSchema: z.ZodType<WorkItemTypeMonitorKind[]> = z
+  .array(workItemTypeMonitorKindSchema)
+  .min(1)
+  .superRefine((kinds, context) => {
+    const seen = new Set<string>();
+    kinds.forEach((kind, index) => {
+      if (seen.has(kind.key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'key'],
+          message: `monitor kind key "${kind.key}" is declared more than once`,
+        });
+      }
+      seen.add(kind.key);
+    });
   });
 
 const workItemTypeCapabilityShape = {
   ...booleanCapabilityShape,
   graph: workItemTypeGraphCapabilitySchema.optional(),
-  monitorKind: workItemTypeMonitorKindSchema.optional(),
+  monitorKinds: workItemTypeMonitorKindsSchema.optional(),
 } satisfies {
   [K in keyof WorkItemTypeCapabilities]-?: z.ZodType<
     WorkItemTypeCapabilities[K]
@@ -236,7 +249,7 @@ const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCa
   z
     .object({
       ...booleanCapabilityShape,
-      monitorKind: workItemTypeMonitorKindSchema.optional(),
+      monitorKinds: workItemTypeMonitorKindsSchema.optional(),
     })
     .strict();
 

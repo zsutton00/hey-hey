@@ -16,7 +16,7 @@
 
 
 /**
- * Every settled node goes to the coordinator agent under the monitor\'s Review mode. Requires item-status completion.
+ * Every settled node goes to the coordinator agent under the monitor\'s Review mode. Supports canonical item completion or normalized operation results. Normalized results alone cannot bypass coordinator acceptance or required Review.
  * @export
  * @interface WorkItemTypeMonitorKindCoordinatorReviewSupervision
  */

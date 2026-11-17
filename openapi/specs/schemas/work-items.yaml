@@ -816,6 +816,34 @@ TaskMonitorExecutionPlanNode:
       type: string
       format: uuid
       nullable: true
+    operationEvidence:
+      $ref: "#/TaskMonitorOperationEvidence"
+
+TaskMonitorOperationEvidence:
+  type: object
+  additionalProperties: false
+  description: >
+    Durable normalized operation result selected from a released Turn, scoped to
+    this entry and its recorded session. coordinatorRunId is present only after
+    coordinator acceptance passes Review admission. Pending results never satisfy
+    coordinator-supervised work. New launches discard this evidence.
+  required:
+    - agentSessionId
+    - turnId
+    - reportId
+  properties:
+    agentSessionId:
+      type: string
+      format: uuid
+    turnId:
+      type: string
+      minLength: 1
+    reportId:
+      type: string
+      format: uuid
+    coordinatorRunId:
+      type: string
+      minLength: 1
 
 TaskMonitorLaunchPolicy:
   type: object
@@ -833,10 +861,17 @@ TaskMonitorExecutionDefinition:
   type: object
   additionalProperties: false
   required:
+    - kind
     - executionPlan
     - launchPolicy
     - cursor
   properties:
+    kind:
+      type: string
+      minLength: 1
+      description: >
+        Key of the kind this monitor runs, declared in the project-effective
+        monitor type's `monitorKinds`. Fixed when the monitor is created.
     executionPlan:
       type: array
       description: Ordered executable task nodes. Array position is the persisted execution order.

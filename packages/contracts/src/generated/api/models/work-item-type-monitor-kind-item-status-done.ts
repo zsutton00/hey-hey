@@ -20,7 +20,7 @@ import { WorkStatus } from './work-status.js';
 import type { WorkStatus } from './work-status.js';
 
 /**
- * A node is done when its work item has the declared status. Acceptance requests that status through Work Items and rereads it before advancing.
+ * A node is done when its work item is canonically COMPLETED. Only COMPLETED is supported; acceptance effects are declared separately. Task execution cannot substitute an intermediate status, regardless of kind key or allowed types.
  * @export
  * @interface WorkItemTypeMonitorKindItemStatusDone
  */

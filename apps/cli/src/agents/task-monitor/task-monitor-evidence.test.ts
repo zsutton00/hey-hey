@@ -1,3 +1,4 @@
+import { mixedMonitorKinds, taskMonitorTypeBody } from './kinds/task-monitor-kind.test-support';
 import { describe, expect, it, vi } from 'vitest';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import { createPromptTypeHandlerTestDeps } from '../prompt-type-handler.test-support';
@@ -63,6 +64,130 @@ const logger = {
 } as unknown as ServerLogger;
 
 describe('loadTaskMonitorCanonicalEvidence', () => {
+  it('projects reusable-item content and operation policies without Task-only sections or Plan reads', async () => {
+    const kind = {
+      ...mixedMonitorKinds()[1]!,
+      allowedNodeTypes: ['reusable_check'],
+      supervision: { type: 'COORDINATOR_REVIEW' as const },
+    };
+    const sections = [
+      {
+        key: 'scenario',
+        materializedMarkdown:
+          'Check a populated customer release with custom fields and older saved settings.',
+      },
+      {
+        key: 'expectations',
+        materializedMarkdown: 'Supply compatibility evidence to the dependent release check.',
+      },
+    ];
+    const fetchImpl: typeof fetch = vi.fn(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/work-item-types/TASK_MONITOR')) {
+        return Response.json(taskMonitorTypeBody(PROJECT_ID, [kind]));
+      }
+      if (url.pathname.endsWith(`/work-items/${MONITOR_ID}`)) {
+        return envelope({
+          ...workItem(MONITOR_ID, 'Reusable checks'),
+          type: 'TASK_MONITOR',
+          sections: [
+            {
+              key: 'executionDefinition',
+              materializedMarkdown: JSON.stringify({
+                kind: kind.key,
+                cursor: 0,
+                launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' } },
+                executionPlan: [
+                  {
+                    taskId: TASK_ID,
+                    dependsOnTaskIds: [],
+                    launchConfiguration,
+                    agentSessionId: SESSION_ID,
+                    operationEvidence: {
+                      agentSessionId: SESSION_ID,
+                      turnId: 'operation-turn',
+                      reportId: IMPLEMENT_REPORT_ID,
+                    },
+                  },
+                  {
+                    taskId: NEXT_TASK_ID,
+                    dependsOnTaskIds: [TASK_ID],
+                    launchConfiguration,
+                    agentSessionId: null,
+                  },
+                ],
+              }),
+            },
+          ],
+        });
+      }
+      if (url.pathname.endsWith('/context')) {
+        return envelope({
+          entityId: TASK_ID,
+          entityType: 'TASK',
+          displayName: 'Compatibility check',
+          relatedEntities: [
+            {
+              entityId: DESIGN_DOC_ID,
+              entityType: 'TASK',
+              taskType: 'CONTRACT',
+              displayName: 'Release compatibility',
+              relationship: 'DEPENDS_ON',
+            },
+          ],
+        });
+      }
+      if (url.pathname.includes('/work-items/')) {
+        return envelope({
+          ...workItem(url.pathname.split('/').at(-1)!, 'Compatibility check'),
+          type: 'reusable_check',
+          sections,
+        });
+      }
+      if (url.pathname.endsWith(`/agent-sessions/${SESSION_ID}`)) {
+        return envelope({
+          id: SESSION_ID,
+          organizationId: ORGANIZATION_ID,
+          projectId: PROJECT_ID,
+          status: 'IN_PROGRESS',
+          conversationId: CONVERSATION_ID,
+          serviceIds: ['service-1'],
+          launchServiceId: 'service-1',
+          config: { type: 'CODING_SESSION', version: 'v2', taskMonitorId: MONITOR_ID },
+        });
+      }
+      if (url.pathname.endsWith('/reports')) {
+        return envelope([report(IMPLEMENT_REPORT_ID, 'SESSION_SUMMARY')]);
+      }
+      throw new Error(`Unexpected reusable operation read: ${url.pathname}`);
+    });
+    const evidence = await loadTaskMonitorCanonicalEvidence(
+      createPromptTypeHandlerTestDeps({ apiBaseUrl: 'https://api.test/v1', fetchImpl, logger }),
+      {
+        organizationId: ORGANIZATION_ID,
+        projectId: PROJECT_ID,
+        monitorId: MONITOR_ID,
+        accessToken: 'token',
+      },
+    );
+    expect(evidence).toMatchObject({
+      operationPolicy: {
+        done: { type: 'NORMALIZED_RESULT' },
+        acceptance: { type: 'NO_STATUS_CHANGE' },
+      },
+      operationEvidence: {
+        agentSessionId: SESSION_ID,
+        turnId: 'operation-turn',
+        reportId: IMPLEMENT_REPORT_ID,
+      },
+      planGuidance: null,
+      selectedTask: { type: 'reusable_check', sections, contracts: [{ id: DESIGN_DOC_ID }] },
+      selectedSession: { id: SESSION_ID },
+      remainingWork: [{ taskId: NEXT_TASK_ID, dependsOnTaskIds: [TASK_ID] }],
+    });
+    expect(evidence.reports.map(({ id }) => id)).toEqual([IMPLEMENT_REPORT_ID]);
+  });
+
   it('loads and correlates monitor, Tasks, graph context, session, and full Reports', async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request): Promise<Response> => {
       const rawUrl =
@@ -78,6 +203,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
             {
               key: 'executionDefinition',
               materializedMarkdown: JSON.stringify({
+                kind: 'task',
                 executionPlan: [
                   {
                     taskId: TASK_ID,
@@ -241,7 +367,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       return new Response('not found', { status: 404 });
     });
     const deps = createPromptTypeHandlerTestDeps({
-      fetchImpl: fetchImpl as typeof fetch,
+      fetchImpl: (input, init) =>
+        String(input).endsWith('/work-item-types/TASK_MONITOR')
+          ? Promise.resolve(Response.json(taskMonitorTypeBody(PROJECT_ID, mixedMonitorKinds())))
+          : fetchImpl(input),
       apiBaseUrl: 'https://api.test/v1',
       logger,
     });
@@ -313,6 +442,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
             {
               key: 'executionDefinition',
               materializedMarkdown: JSON.stringify({
+                kind: 'task',
                 executionPlan: [
                   {
                     taskId: TASK_ID,
@@ -361,7 +491,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       return new Response('not found', { status: 404 });
     });
     const deps = createPromptTypeHandlerTestDeps({
-      fetchImpl: fetchImpl as typeof fetch,
+      fetchImpl: (input, init) =>
+        String(input).endsWith('/work-item-types/TASK_MONITOR')
+          ? Promise.resolve(Response.json(taskMonitorTypeBody(PROJECT_ID, mixedMonitorKinds())))
+          : fetchImpl(input),
       apiBaseUrl: 'https://api.test/v1',
       logger,
     });
@@ -397,6 +530,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
             {
               key: 'executionDefinition',
               materializedMarkdown: JSON.stringify({
+                kind: 'task',
                 executionPlan: [{ taskId: TASK_ID, dependsOnTaskIds: [], launchConfiguration }],
                 launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' } },
                 cursor: 0,
@@ -423,7 +557,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
     await expect(
       loadTaskMonitorCanonicalEvidence(
         createPromptTypeHandlerTestDeps({
-          fetchImpl: fetchImpl as typeof fetch,
+          fetchImpl: (input, init) =>
+            String(input).endsWith('/work-item-types/TASK_MONITOR')
+              ? Promise.resolve(Response.json(taskMonitorTypeBody(PROJECT_ID, mixedMonitorKinds())))
+              : fetchImpl(input),
           apiBaseUrl: 'https://api.test/v1',
           logger,
         }),
@@ -454,6 +591,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
             {
               key: 'executionDefinition',
               materializedMarkdown: JSON.stringify({
+                kind: 'task',
                 executionPlan: [
                   {
                     taskId: TASK_ID,
@@ -495,7 +633,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       return new Response('not found', { status: 404 });
     });
     const deps = createPromptTypeHandlerTestDeps({
-      fetchImpl: fetchImpl as typeof fetch,
+      fetchImpl: (input, init) =>
+        String(input).endsWith('/work-item-types/TASK_MONITOR')
+          ? Promise.resolve(Response.json(taskMonitorTypeBody(PROJECT_ID, mixedMonitorKinds())))
+          : fetchImpl(input),
       apiBaseUrl: 'https://api.test/v1',
       logger,
     });
@@ -527,7 +668,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
     await expect(
       loadTaskMonitorCanonicalEvidence(
         createPromptTypeHandlerTestDeps({
-          fetchImpl: fetchImpl as typeof fetch,
+          fetchImpl: (input, init) =>
+            String(input).endsWith('/work-item-types/TASK_MONITOR')
+              ? Promise.resolve(Response.json(taskMonitorTypeBody(PROJECT_ID, mixedMonitorKinds())))
+              : fetchImpl(input),
           apiBaseUrl: 'https://api.test/v1',
           logger,
         }),

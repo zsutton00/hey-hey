@@ -5,84 +5,124 @@ import type {
   WorkItemTypeMonitorKind,
 } from '@hey-hey/contracts/api/models';
 import { validateTaskMonitorExecutionDefinitionContent } from './task-monitor-execution-definition.validator';
-import { DONE_POLICY_FOR_SUPERVISION } from './work-item-type-capabilities.schema';
+import { monitorOperationPolicyIssues } from '@hey-hey/contracts/monitor-kind-policy';
 
 const logger = new Logger('TaskMonitorKind');
 
-const MONITOR_KIND_POLICY_FIELDS = ['start', 'done', 'supervision'] as const;
+const MONITOR_KIND_POLICY_FIELDS = [
+  'start',
+  'done',
+  'supervision',
+  'acceptance',
+] as const;
 
 /**
- * The effective kind of a TASK_MONITOR definition. A definition that declares
- * no kind, or a kind that omits a policy, takes it from the canonical
- * TASK_MONITOR definition, the one source of Task behavior. Explicitly declared
- * restrictions and policies are kept exactly as declared.
+ * The canonical kind whose policies fill a policy any declared kind omits:
+ * the shipped Task kind, the one source of Task defaults.
  */
-export function resolveMonitorKindCompatibility(
-  declared: WorkItemTypeMonitorKind | undefined,
-  canonical: WorkItemTypeMonitorKind | undefined,
+const CANONICAL_POLICY_SOURCE_KIND_KEY = 'task';
+
+/** The declared kind a monitor selects by its recorded key. */
+export function monitorKindByKey(
+  kinds: readonly WorkItemTypeMonitorKind[] | undefined,
+  key: string,
 ): WorkItemTypeMonitorKind | undefined {
-  if (declared === undefined || canonical === undefined) {
-    return declared ?? canonical;
+  return kinds?.find((kind) => kind.key === key);
+}
+
+/**
+ * The effective kinds of a TASK_MONITOR definition. A definition that declares
+ * no kinds takes the canonical TASK_MONITOR kinds. Each declared kind that
+ * omits a policy takes it from the canonical `task` kind. Explicitly declared
+ * kinds, restrictions and policies are kept exactly as declared.
+ */
+export function resolveMonitorKindsCompatibility(
+  declared: readonly WorkItemTypeMonitorKind[] | undefined,
+  canonical: readonly WorkItemTypeMonitorKind[] | undefined,
+): WorkItemTypeMonitorKind[] | undefined {
+  if (declared === undefined) {
+    return canonical === undefined ? undefined : [...canonical];
   }
 
-  const resolved: WorkItemTypeMonitorKind = { ...declared };
-  for (const field of MONITOR_KIND_POLICY_FIELDS) {
-    if (resolved[field] === undefined && canonical[field] !== undefined) {
-      Object.assign(resolved, { [field]: canonical[field] });
-    }
+  const policySource = monitorKindByKey(
+    canonical,
+    CANONICAL_POLICY_SOURCE_KIND_KEY,
+  );
+  if (policySource === undefined) {
+    return [...declared];
   }
-  return resolved;
+
+  return declared.map((kind) => {
+    const resolved: WorkItemTypeMonitorKind = { ...kind };
+    // Legacy normalized operations retain their no-lifecycle semantics centrally.
+    if (
+      resolved.acceptance === undefined &&
+      resolved.done?.type === 'NORMALIZED_RESULT'
+    ) {
+      resolved.acceptance = { type: 'NO_STATUS_CHANGE' };
+    }
+    for (const field of MONITOR_KIND_POLICY_FIELDS) {
+      if (resolved[field] === undefined && policySource[field] !== undefined) {
+        Object.assign(resolved, { [field]: policySource[field] });
+      }
+    }
+    return resolved;
+  });
 }
 
 /**
  * Why an effective kind cannot run, each naming the kind, the field and its
- * value. Coordinator supervision confirms acceptance from item status, and
- * direct acceptance from the normalized result, so each needs its done rule.
+ * value. Satisfaction and lifecycle effects are validated independently of
+ * whether supervision uses a coordinator or the direct result.
  */
 export function monitorKindPolicyIssues(
-  kind: WorkItemTypeMonitorKind | undefined,
+  kind: WorkItemTypeMonitorKind,
 ): string[] {
-  if (kind === undefined) {
-    return [
-      'the monitor type declares no kind and the canonical TASK_MONITOR definition publishes none',
-    ];
-  }
-
-  const { start, done, supervision } = kind;
-  if (start === undefined || done === undefined || supervision === undefined) {
+  const { start, done, supervision, acceptance } = kind;
+  if (
+    start === undefined ||
+    done === undefined ||
+    supervision === undefined ||
+    acceptance === undefined
+  ) {
     return MONITOR_KIND_POLICY_FIELDS.filter(
       (field) => kind[field] === undefined,
     ).map(
       (field) =>
-        `"${kind.key}" monitor kind has no ${field} policy, and none is published on the canonical TASK_MONITOR definition`,
+        `"${kind.key}" monitor kind has no ${field} policy, and none is published on the canonical "${CANONICAL_POLICY_SOURCE_KIND_KEY}" kind`,
     );
   }
 
-  const requiredDone = DONE_POLICY_FOR_SUPERVISION[supervision.type];
-  if (done.type !== requiredDone) {
-    return [
-      `"${kind.key}" monitor kind combines supervision "${supervision.type}" with done "${done.type}"; supervision "${supervision.type}" requires done "${requiredDone}"`,
-    ];
-  }
-  return [];
+  return monitorOperationPolicyIssues(kind);
 }
 
 /** Rejects a kind that cannot run, with every cause in the message. */
-export function assertMonitorKindRunnable(
-  kind: WorkItemTypeMonitorKind | undefined,
-  context: { projectId: string; monitorId?: string },
-): asserts kind is WorkItemTypeMonitorKind {
+function assertMonitorKindRunnable(
+  kind: WorkItemTypeMonitorKind,
+  context: MonitorRejectionContext,
+): void {
   const issues = monitorKindPolicyIssues(kind);
   if (issues.length === 0) {
     return;
   }
 
-  const message = `Task monitor kind configuration is not supported: ${issues.join('; ')}`;
-  logger.warn(message, {
-    ...context,
-    kind: kind?.key ?? null,
-    issueCount: issues.length,
-  });
+  rejectMonitor(
+    `Task monitor kind configuration is not supported: ${issues.join('; ')}`,
+    { ...context, kind: kind.key, issueCount: issues.length },
+  );
+}
+
+interface MonitorRejectionContext {
+  projectId: string;
+  monitorId?: string;
+}
+
+/** Logs the specific cause of a rejected monitor, then rejects the write. */
+function rejectMonitor(
+  message: string,
+  context: MonitorRejectionContext & Record<string, unknown>,
+): never {
+  logger.warn(message, context);
   throw new BadRequestException(message);
 }
 
@@ -134,15 +174,19 @@ export function taskMonitorKindIssues(
 }
 
 /**
- * What a kind constrains: which work item each node is and how it launches.
- * Runtime state (cursor, linked sessions, dependencies) is not constrained, so
- * recording it never re-gates a monitor that is already running.
+ * What a kind constrains: which kind the monitor runs, which work item each
+ * node is and how it launches. Runtime state (cursor, linked sessions,
+ * dependencies) is not constrained, so recording it never re-gates a monitor
+ * that is already running.
  */
 function kindConstrainedNodes(definition: TaskMonitorExecutionDefinition) {
-  return definition.executionPlan.map((node) => ({
-    taskId: node.taskId,
-    launchConfiguration: node.launchConfiguration,
-  }));
+  return {
+    kind: definition.kind,
+    nodes: definition.executionPlan.map((node) => ({
+      taskId: node.taskId,
+      launchConfiguration: node.launchConfiguration,
+    })),
+  };
 }
 
 interface TaskNodeTypeReader {
@@ -159,17 +203,19 @@ interface TaskNodeTypeReader {
 }
 
 /**
- * Rejects a monitor execution definition whose nodes its kind does not allow.
+ * Rejects a monitor execution definition that names no declared kind, changes
+ * the kind it was created with, or has nodes its kind does not allow.
  * Structural problems are the section validator's to report, so a definition
  * that does not parse is left to it. When the stored definition is given, an
- * edit that leaves every node and launch setting unchanged is not re-checked.
+ * edit that leaves the kind and every node and launch setting unchanged is not
+ * re-checked against the kind's restrictions.
  */
 export async function assertTaskMonitorMatchesKind(params: {
   db: TaskNodeTypeReader;
   organizationId: string;
   projectId: string;
   monitorId?: string;
-  kind: WorkItemTypeMonitorKind | undefined;
+  kinds: readonly WorkItemTypeMonitorKind[] | undefined;
   executionDefinitionContent: unknown;
   storedExecutionDefinitionContent?: unknown;
 }): Promise<void> {
@@ -194,6 +240,28 @@ export async function assertTaskMonitorMatchesKind(params: {
       : validateTaskMonitorExecutionDefinitionContent(
           params.storedExecutionDefinitionContent,
         );
+  const context: MonitorRejectionContext = {
+    projectId: params.projectId,
+    ...(params.monitorId === undefined ? {} : { monitorId: params.monitorId }),
+  };
+  const requestedKey = parsed.value.kind;
+
+  if (stored?.success && stored.value.kind !== requestedKey) {
+    rejectMonitor(
+      `Task monitor ${params.monitorId ?? '(new)'} runs the "${stored.value.kind}" kind, and a monitor's kind cannot change (requested "${requestedKey}")`,
+      { ...context, kind: stored.value.kind, requestedKind: requestedKey },
+    );
+  }
+
+  const kind = monitorKindByKey(params.kinds, requestedKey);
+  if (kind === undefined) {
+    const declaredKeys = (params.kinds ?? []).map((declared) => declared.key);
+    rejectMonitor(
+      `Task monitor ${params.monitorId ?? '(new)'} selects the "${requestedKey}" kind, which the project's TASK_MONITOR type does not declare (declared: ${declaredKeys.length === 0 ? 'none' : declaredKeys.join(', ')})`,
+      { ...context, kind: requestedKey, declaredKinds: declaredKeys },
+    );
+  }
+
   if (
     stored?.success &&
     isDeepStrictEqual(
@@ -204,11 +272,7 @@ export async function assertTaskMonitorMatchesKind(params: {
     return;
   }
 
-  const { kind } = params;
-  assertMonitorKindRunnable(kind, {
-    projectId: params.projectId,
-    ...(params.monitorId === undefined ? {} : { monitorId: params.monitorId }),
-  });
+  assertMonitorKindRunnable(kind, context);
 
   const taskIds = parsed.value.executionPlan.map((node) => node.taskId);
   const nodes = await params.db.task.findMany({
@@ -226,12 +290,8 @@ export async function assertTaskMonitorMatchesKind(params: {
     return;
   }
 
-  const message = `Task monitor does not match its "${kind.key}" kind: ${issues.join('; ')}`;
-  logger.warn(message, {
-    monitorId: params.monitorId,
-    projectId: params.projectId,
-    kind: kind.key,
-    issueCount: issues.length,
-  });
-  throw new BadRequestException(message);
+  rejectMonitor(
+    `Task monitor does not match its "${kind.key}" kind: ${issues.join('; ')}`,
+    { ...context, kind: kind.key, issueCount: issues.length },
+  );
 }

@@ -15,7 +15,7 @@ function dollarQuotedJson(file: string, tag: string): Record<string, unknown> {
 }
 
 /**
- * The monitor kind the shipped migrations publish on the canonical
+ * The `task` monitor kind the shipped migrations publish on the canonical
  * TASK_MONITOR template, composed in migration order: the Task kind, then its
  * policies for any key the kind does not already declare.
  */
@@ -28,5 +28,17 @@ export function shippedTaskMonitorKind(): Record<string, unknown> {
     'V2026.11.15.224545__publish_task_monitor_kind_policies.sql',
     'policies',
   );
-  return { ...policies, ...kind };
+  return {
+    ...dollarQuotedJson(
+      'V2026.11.16.102036__publish_monitor_acceptance_effects.sql',
+      'acceptance',
+    ),
+    ...policies,
+    ...kind,
+  };
+}
+
+/** The monitor kinds the shipped migrations publish: the `task` kind alone. */
+export function shippedTaskMonitorKinds(): Array<Record<string, unknown>> {
+  return [shippedTaskMonitorKind()];
 }
