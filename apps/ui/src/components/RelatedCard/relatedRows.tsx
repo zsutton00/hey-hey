@@ -281,6 +281,9 @@ export const renderEntityRow = (
         <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0 }}>
           {row.displayName}
         </Typography>
+        <Box sx={{ flexShrink: 0 }}>
+          <EntityNodeStatusChip status={row.status} />
+        </Box>
       </Box>
       <Box
         sx={{
@@ -318,7 +321,6 @@ export const renderEntityRow = (
             />
           </Tooltip>
         )}
-        <EntityNodeStatusChip status={row.status} />
       </Box>
     </Box>
   );
