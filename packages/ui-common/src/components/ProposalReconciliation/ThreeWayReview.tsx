@@ -1,5 +1,7 @@
 import { ReconciliationReference } from "./ReconciliationReference";
 import { Fragment } from "react";
+import { InfoOutlined } from "@mui/icons-material";
+import { ConversationCard } from "../Conversation/Card";
 import { Alert, Box, Link, Stack, Typography } from "@mui/material";
 import { format, formatDistanceToNow } from "date-fns";
 import type {
@@ -95,10 +97,18 @@ export function ThreeWayReview({
       <Typography variant="h6">
         Decide how these changes should fit together
       </Typography>
-      <Typography>
-        The live content and this proposal changed from the same starting point.
-        Resolve the changes that overlap below.
-      </Typography>
+      <ConversationCard
+        tone={{ role: "needsAnswer" }}
+        icon={<InfoOutlined fontSize="small" />}
+        kindLabel="What's going on"
+        data-testid="proposal-three-way-explanation"
+      >
+        <Typography variant="body2">
+          This proposal was drafted before the live content changed. Both edit
+          the same content, so it can&apos;t be applied as is and needs some
+          editing.
+        </Typography>
+      </ConversationCard>
       <Box sx={{ overflowX: "auto" }}>
         <Box
           sx={{

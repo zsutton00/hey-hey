@@ -78,7 +78,9 @@ describe("AgentFixConfirmDialog", () => {
       />,
     );
     expect(
-      screen.getByText(/Agent fix starts an agent session on your machine/),
+      screen.getByText(
+        /Working with an agent starts an agent session on your machine/,
+      ),
     ).toBeVisible();
     expect(launch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("proposal-agent-fix-start"));

@@ -24,7 +24,7 @@ import { ProjectReportMachineSection } from "../ProjectReports/ProjectReportLaun
 import { useProposalAgentFixLaunch } from "./useProposalAgentFixLaunch";
 
 /**
- * Warns that Agent fix starts an agent session, collects where and with which
+ * Warns that working with an agent starts an agent session, collects where and with which
  * model it runs, launches it and returns the recorded session to the conflict surface. A failed
  * launch stays here with its error and a Retry. Confirming never applies
  * anything. Mounted only while open, so proposal cards look up no machines.
@@ -92,10 +92,10 @@ export function AgentFixConfirmDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2">
-            Agent fix starts an agent session on your machine. The agent
-            prepares a reconciled result, asks you about real conflicts, and
-            never applies it on its own. You review the result before anything
-            changes.
+            Working with an agent starts an agent session on your machine. The
+            agent prepares a reconciled result, asks you about real conflicts,
+            and never applies it on its own. You review the result before
+            anything changes.
           </Typography>
           <RuntimeModelSelector
             testIdPrefix="proposal-agent-fix"
