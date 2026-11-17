@@ -11,7 +11,11 @@ import {
  * `no-service`: no session bus or no Secret Service owner. `no-object`: the service answered
  * that the addressed object does not exist. Anything else stays `other`, never guessed.
  */
-export type SecretServiceBusFailureKind = 'no-service' | 'no-object' | 'other';
+export type SecretServiceBusFailureKind =
+  | 'no-service'
+  | 'no-object'
+  | 'client-unavailable'
+  | 'other';
 
 export class SecretServiceBusError extends Error {
   constructor(
@@ -39,6 +43,8 @@ export type DefaultCollectionState =
   | { kind: 'locked'; path: string; label: string }
   | { kind: 'no-service'; reason: string }
   | { kind: 'no-default'; why: 'alias-unset' | 'collection-missing'; path: string }
+  /** The D-Bus client itself is missing; nothing was learned about the desktop. */
+  | { kind: 'uninspectable'; reason: string }
   | { kind: 'unknown'; reason: string };
 
 const NO_COLLECTION = '/';
@@ -69,10 +75,15 @@ export class SecretServiceDefaultCollection {
   }
 
   /** Inspects, runs the native unlock flow when needed, and throws the specific cause otherwise. */
-  async ensureUsable(): Promise<{ path: string; label: string }> {
+  async ensureUsable(): Promise<{ path: string; label: string } | null> {
     const first = await this.inspect();
     if (first.kind === 'ready') {
       return first;
+    }
+    if (first.kind === 'uninspectable') {
+      // No evidence either way: let the real write/read probe decide instead of blocking.
+      console.error(`[credentials] secret_service_uninspectable reason=${first.reason}`);
+      return null;
     }
     if (first.kind !== 'locked') {
       throw this.toError(first);
@@ -143,6 +154,9 @@ export class SecretServiceDefaultCollection {
     if (error instanceof SecretServiceBusError && error.kind === 'no-service') {
       return { kind: 'no-service', reason: describe(error) };
     }
+    if (error instanceof SecretServiceBusError && error.kind === 'client-unavailable') {
+      return { kind: 'uninspectable', reason: describe(error) };
+    }
     return { kind: 'unknown', reason: describe(error) };
   }
 
@@ -162,6 +176,7 @@ export class SecretServiceDefaultCollection {
         );
       case 'locked':
         return new StorageLockedError(`The default keyring "${state.label}" is locked.`);
+      case 'uninspectable':
       case 'unknown':
         return new StorageFailureError(
           `The Secret Service could not be inspected: ${state.reason}`,

@@ -37,7 +37,7 @@ interface DBusNativeBus {
   };
 }
 
-interface DBusNativeModule {
+export interface DBusNativeModule {
   sessionBus(): DBusNativeBus;
 }
 
@@ -84,7 +84,7 @@ const variantValue = (result: unknown): unknown => {
   throw new SecretServiceBusError('other', 'Unexpected D-Bus property reply shape.');
 };
 
-class DBusNativeSecretServiceBus implements SecretServiceBus {
+export class DBusNativeSecretServiceBus implements SecretServiceBus {
   constructor(private readonly bus: DBusNativeBus) {
     bus.connection.on('error', () => undefined);
   }
@@ -188,22 +188,27 @@ class DBusNativeSecretServiceBus implements SecretServiceBus {
   }
 }
 
-/**
- * Connects to the session bus with the maintained `@homebridge/dbus-native` client, loaded on
- * demand so non-Linux installs never touch it.
- */
-export const openSessionSecretServiceBus = async (): Promise<SecretServiceBus> => {
+const loadDBusNative = async (): Promise<DBusNativeModule> => {
   const specifier = '@homebridge/dbus-native';
-  let module: DBusNativeModule;
   try {
-    module = ((await import(specifier)) as { default: DBusNativeModule }).default;
+    return ((await import(specifier)) as { default: DBusNativeModule }).default;
   } catch (error) {
     throw new SecretServiceBusError(
-      'other',
+      'client-unavailable',
       `The D-Bus client could not be loaded: ${errorText(error)}`,
       error,
     );
   }
+};
+
+/**
+ * Connects to the session bus with the maintained `@homebridge/dbus-native` client, loaded on
+ * demand so non-Linux installs never touch it.
+ */
+export const openSessionSecretServiceBus = async (
+  load: () => Promise<DBusNativeModule> = loadDBusNative,
+): Promise<SecretServiceBus> => {
+  const module = await load();
   try {
     return new DBusNativeSecretServiceBus(module.sessionBus());
   } catch (error) {

@@ -153,7 +153,12 @@ export class KeyringPlatformStore implements PlatformStore {
       return original;
     }
     const state = await this.defaultCollection.inspect().catch(() => null);
-    if (state === null || state.kind === 'ready' || state.kind === 'unknown') {
+    if (
+      state === null ||
+      state.kind === 'ready' ||
+      state.kind === 'unknown' ||
+      state.kind === 'uninspectable'
+    ) {
       return original;
     }
     return this.defaultCollection
