@@ -1,3 +1,4 @@
+import { StructuredServerLogger } from '../../server/logger';
 import { randomUUID } from 'node:crypto';
 
 import { Entry } from '@napi-rs/keyring';
@@ -69,6 +70,7 @@ const classify = (error: unknown, op: 'store' | 'retrieve' | 'delete'): Error =>
 
 export class KeyringPlatformStore implements PlatformStore {
   readonly name = 'os-keyring';
+  private readonly logger = new StructuredServerLogger();
 
   private readonly defaultCollection: SecretServiceDefaultCollection;
 
@@ -119,7 +121,12 @@ export class KeyringPlatformStore implements PlatformStore {
     try {
       this.entryFactory(this.service, key).setPassword(value);
     } catch (error) {
-      throw await this.refine(classify(error, 'store'));
+      const failure = await this.refine(classify(error, 'store'));
+      this.logger.debug('local.credential.operation_failed', {
+        operation: 'store',
+        error: failure,
+      });
+      throw failure;
     }
   }
 
@@ -130,7 +137,12 @@ export class KeyringPlatformStore implements PlatformStore {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (isNoEntry(message)) return null;
-      throw await this.refine(classify(error, 'retrieve'));
+      const failure = await this.refine(classify(error, 'retrieve'));
+      this.logger.debug('local.credential.operation_failed', {
+        operation: 'retrieve',
+        error: failure,
+      });
+      throw failure;
     }
   }
 
@@ -140,7 +152,12 @@ export class KeyringPlatformStore implements PlatformStore {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (isNoEntry(message)) return;
-      throw await this.refine(classify(error, 'delete'));
+      const failure = await this.refine(classify(error, 'delete'));
+      this.logger.debug('local.credential.operation_failed', {
+        operation: 'delete',
+        error: failure,
+      });
+      throw failure;
     }
   }
 

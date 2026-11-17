@@ -1,3 +1,6 @@
+import { StartupBrowserDiagnostics } from '../local-app/startup-browser-diagnostics';
+import { StartupDiagnostics } from '../local-app/startup-diagnostics';
+import { StructuredServerLogger } from '../server/logger';
 import type { ReleaseManifest } from '../release/release-manifest';
 import { LOCAL_WEB_RP_ID, localWebOrigin } from '../local-app/compose';
 import { ReleasePackage } from '../local-app/release-package';
@@ -90,9 +93,15 @@ async function openLocalPage(target: string, failure: string): Promise<void> {
   );
   console.log(`Opening ${url.origin}${url.pathname}${url.search} fragment[${carried.join(' ')}]`);
 
-  await openBrowser(target).catch(() => {
+  const logger = new StructuredServerLogger();
+  logger.debug('local.browser.open', { outcome: 'requested' });
+  try {
+    await openBrowser(target);
+    logger.debug('local.browser.open', { outcome: 'opened' });
+  } catch (error) {
+    logger.error('local.browser.open', { outcome: 'failed', error });
     console.error(failure);
-  });
+  }
 }
 
 interface LocalHandoff {
@@ -107,7 +116,10 @@ async function createLocalHandoff(installationSecret: string): Promise<LocalHand
     headers: { 'X-HeyHey-Local-Secret': installationSecret },
   });
   if (!response.ok) {
-    throw new Error(`Local account access could not be prepared (HTTP ${response.status}).`);
+    throw Object.assign(
+      new Error(`Local account access could not be prepared (HTTP ${response.status}).`),
+      { status: response.status },
+    );
   }
   const payload = localBootstrapResponseSchema.parse(JSON.parse(await response.text()));
   return payload.data;
@@ -123,7 +135,10 @@ async function storeLocalCliCredentials(
     headers: { 'X-HeyHey-Local-Secret': installationSecret },
   });
   if (!response.ok) {
-    throw new Error(`Local CLI access could not be prepared (HTTP ${response.status}).`);
+    throw Object.assign(
+      new Error(`Local CLI access could not be prepared (HTTP ${response.status}).`),
+      { status: response.status },
+    );
   }
   const { data } = localCliCredentialsResponseSchema.parse(JSON.parse(await response.text()));
   const credential = buildInjectedCredential({
@@ -149,6 +164,7 @@ class LocalPairingPageReopener implements TerminalReader {
     private readonly localApproval: LocalApprovalSecret | undefined,
     private readonly agents: LocalCodingAgentDetectionDto,
     private readonly webOrigin: string,
+    private readonly browserDiagnostics?: StartupBrowserDiagnostics,
   ) {}
 
   follow(step: MachineEnrollmentCeremonyStep): void {
@@ -205,7 +221,8 @@ class LocalPairingPageReopener implements TerminalReader {
         agents: this.agents,
       };
       await openLocalPage(
-        localWebUrl(this.webOrigin, handoffToken, pairing),
+        this.browserDiagnostics?.decorate(localWebUrl(this.webOrigin, handoffToken, pairing)) ??
+          localWebUrl(this.webOrigin, handoffToken, pairing),
         'Could not open the local pairing page automatically.',
       );
     } catch (error: unknown) {
@@ -232,6 +249,7 @@ export async function continueLocalApplication(
   /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
   expectedServices?: readonly string[],
   state = new LocalCliState(storage.directory),
+  diagnostics?: StartupDiagnostics,
 ): Promise<boolean> {
   const serverServices = expectedServices ? { localApplicationServices: expectedServices } : {};
   const originalApiUrl = process.env['HEYHEY_API_URL'];
@@ -246,10 +264,20 @@ export async function continueLocalApplication(
   process.env['HEYHEY_CONTROLLER_ORIGIN'] ??= webOrigin;
   process.env['HEYHEY_CONTROLLER_RP_ID'] ??= LOCAL_WEB_RP_ID;
 
+  const logger = new StructuredServerLogger();
+  const browserDiagnostics = diagnostics
+    ? new StartupBrowserDiagnostics(diagnostics, webOrigin)
+    : undefined;
+  await browserDiagnostics?.start();
+  const browserUrl = (target: string) => browserDiagnostics?.decorate(target) ?? target;
   try {
     try {
+      logger.debug('local.protected_storage', { outcome: 'checking' });
       await state.keyPairStore.ensureProtectedStorageReady();
+      logger.debug('local.protected_storage', { outcome: 'ready' });
     } catch (error) {
+      logger.error('local.protected_storage', { outcome: 'failed', error });
+      diagnostics?.failure();
       console.error(
         `[local] protected_storage_not_ready code=${
           isCredentialError(error) ? error.code : 'UNKNOWN'
@@ -287,6 +315,7 @@ export async function continueLocalApplication(
       managementClient,
     });
     const readiness = await authority.readReadiness();
+    logger.debug('local.pairing.readiness', { state: readiness.state });
     const currentMachineId = await keyPairStore.loadCurrentMachineId();
     console.log(
       `Pairing state: store=heyhey-local-cli state=${readiness.state} machineId=${currentMachineId ?? 'none'}.`,
@@ -315,6 +344,7 @@ export async function continueLocalApplication(
         localApproval,
         agents,
         webOrigin,
+        browserDiagnostics,
       );
       const prompter = createInteractivePrompter();
       const repair = new LocalPasskeyRepair(secrets.admin, prompter, reopener);
@@ -336,11 +366,19 @@ export async function continueLocalApplication(
         getPairingUrl: (userCode) => resolvePairingUrl(userCode),
         onBrowserHandoff: (userCode) => {
           void openLocalPage(
-            localWebUrl(webOrigin, pairingHandoff.handoffToken, { userCode, ...pairing }),
+            browserUrl(
+              localWebUrl(webOrigin, pairingHandoff.handoffToken, { userCode, ...pairing }),
+            ),
             'Could not open the local pairing page automatically.',
           );
         },
-        onCeremonyStep: (step) => reopener.follow(step),
+        onCeremonyStep: (step) => {
+          logger.debug('local.pairing.step', {
+            state: step.kind,
+            ...(step.kind === 'finished' ? { outcome: step.outcome } : {}),
+          });
+          reopener.follow(step);
+        },
       }).finally(() => {
         repair.stop();
         reopener.stop();
@@ -348,7 +386,7 @@ export async function continueLocalApplication(
     };
     if (readiness.state === 'ready') {
       await openLocalPage(
-        localWebUrl(webOrigin, handoffToken),
+        browserUrl(localWebUrl(webOrigin, handoffToken)),
         'Could not open the local setup page automatically.',
       );
       return await new PairServerCommand().runServerAfterPairing({
@@ -378,6 +416,7 @@ export async function continueLocalApplication(
       onLocalApplicationStopping: onStopping,
     });
   } finally {
+    browserDiagnostics?.close();
     if (originalApiUrl === undefined) {
       delete process.env['HEYHEY_API_URL'];
     } else {
@@ -426,18 +465,22 @@ function LocalRoot({
       selected={selected}
       onSelect={setSelected}
       onConfirm={() => {
-        void (state.kind === 'stop'
-          ? application.confirmStop()
-          : state.kind === 'update'
-            ? application.acceptUpdate()
-            : state.kind === 'installation'
-              ? application.install()
-              : stopping
-                ? application.requestStop()
-                : application.retry());
+        void (state.kind === 'docker-repair'
+          ? application.confirmDockerRepair()
+          : state.kind === 'stop'
+            ? application.confirmStop()
+            : state.kind === 'update'
+              ? application.acceptUpdate()
+              : state.kind === 'installation'
+                ? application.install()
+                : stopping
+                  ? application.requestStop()
+                  : application.retry());
       }}
       onCancel={() => {
-        if (state.kind === 'update') {
+        if (state.kind === 'docker-repair') {
+          application.declineDockerRepair();
+        } else if (state.kind === 'update') {
           void application.declineUpdate();
         } else {
           application.cancel();
@@ -447,10 +490,10 @@ function LocalRoot({
   );
 }
 
-export async function runLocalCommand(args: string[]): Promise<boolean> {
+async function runLocalAttempt(args: string[], diagnostics: StartupDiagnostics): Promise<boolean> {
   if (args.length === 1 && args[0] === 'dev') {
     const { runLocalDevCommand } = await import('./local-dev');
-    return runLocalDevCommand();
+    return runLocalDevCommand(diagnostics);
   }
   const stopping = args.length === 1 && args[0] === 'stop';
   if (args.length > 0 && !stopping) {
@@ -469,6 +512,9 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
     new ModelDownloader(),
     process.platform,
     packages,
+    undefined,
+    undefined,
+    diagnostics,
   );
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     await (stopping ? application.requestStop() : application.run());
@@ -476,7 +522,9 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
     console.log(
       state.kind === 'ready'
         ? `${state.url}\nReconnect: heyhey local\nStop application: heyhey local stop`
-        : state.kind === 'recovery' || state.kind === 'prerequisite'
+        : state.kind === 'recovery' ||
+            state.kind === 'prerequisite' ||
+            state.kind === 'docker-repair'
           ? state.message
           : 'Run heyhey local in an interactive terminal to review installation, update or shutdown choices.',
     );
@@ -519,6 +567,9 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
       () => {
         applicationStopping = true;
       },
+      undefined,
+      undefined,
+      diagnostics,
     );
     return bridgeStopped;
   } finally {
@@ -538,5 +589,29 @@ export async function runLocalCommand(args: string[]): Promise<boolean> {
       exit.unmount();
       await exit.waitUntilExit();
     }
+  }
+}
+
+/** Persistence starts before release discovery, Docker, credentials or the terminal UI. */
+export async function runLocalCommand(args: string[]): Promise<boolean> {
+  const diagnostics = new StartupDiagnostics(
+    join(homedir(), '.heyhey', 'local-application', 'diagnostics'),
+  );
+  let success = false;
+  try {
+    success = await runLocalAttempt(args, diagnostics);
+    if (!success) {
+      diagnostics.failure();
+    }
+    return success;
+  } catch (error) {
+    new StructuredServerLogger().error('local.application.failure', {
+      operation: 'startup',
+      error,
+    });
+    diagnostics.failure();
+    throw error;
+  } finally {
+    await diagnostics.finish(success ? 'success' : 'failed');
   }
 }

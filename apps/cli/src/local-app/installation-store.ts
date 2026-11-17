@@ -55,6 +55,7 @@ export class InstallationStore {
       }
       throw new Error(
         'Local installation identity is unreadable. Restore installation.json from backup before retrying; do not remove data.',
+        { cause: error },
       );
     }
   }

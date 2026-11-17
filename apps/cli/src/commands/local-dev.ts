@@ -1,3 +1,4 @@
+import type { StartupDiagnostics } from '../local-app/startup-diagnostics';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
@@ -72,7 +73,7 @@ function stopProcessGroup(child: ChildProcess): void {
  * in containers, the API and UI from this checkout with hot reload, and this CLI attached as it
  * attaches to the installed application. Installation data and the paired machine are kept.
  */
-export async function runLocalDevCommand(): Promise<boolean> {
+export async function runLocalDevCommand(diagnostics?: StartupDiagnostics): Promise<boolean> {
   const root = checkoutRoot();
   const storage = new InstallationStore(join(homedir(), '.heyhey', 'local-application'));
   const docker = new DockerBoundary();
@@ -165,6 +166,8 @@ export async function runLocalDevCommand(): Promise<boolean> {
       webPort,
       () => {},
       INFRASTRUCTURE,
+      undefined,
+      diagnostics,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'heyhey local dev failed.');

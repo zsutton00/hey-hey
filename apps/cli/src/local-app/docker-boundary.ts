@@ -1,4 +1,6 @@
-import { spawn } from 'node:child_process';
+import { DockerProcess, DockerProcessError } from './docker-process';
+import { DockerRuntimeRecovery } from './docker-runtime-recovery';
+import { z as boundaryZ } from 'zod/v4';
 import { StructuredServerLogger } from '../server/logger';
 import { z } from 'zod/v4';
 import { LOCAL_PROJECT, SERVICE_IMAGES } from './compose';
@@ -30,60 +32,126 @@ export type ObservedContainer = z.infer<typeof containerSchema>[number];
 
 /** All Docker and Compose process access lives here, including discovery. */
 export class DockerBoundary {
-  constructor(private readonly readiness = { attempts: 120, intervalMs: 1000 }) {}
+  readonly process: DockerProcess;
+  private endpointSelection?: Promise<void>;
+  private endpointArgs: string[] = [];
+  endpoint?: { context?: string; host: string };
+  endpointFailure?: string;
+  lastPrerequisiteError: DockerProcessError | undefined;
+
+  constructor(
+    private readonly readiness = { attempts: 120, intervalMs: 1000 },
+    processBoundary = new DockerProcess(),
+  ) {
+    this.process = processBoundary;
+  }
 
   private readonly logger = new StructuredServerLogger({}, { component: 'local-docker' });
-  async command(args: string[], input?: string): Promise<string> {
-    this.logger.debug('local.docker.command', { operation: args[0] });
-    return new Promise((resolve, reject) => {
-      const child = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });
-      let output = '';
-      child.stdout.on('data', (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      // Docker diagnostics may contain environment values. Never surface raw output.
-      child.stderr.resume();
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error('Docker timed out. Check Docker and available resources, then retry.'));
-      }, 600_000);
-      child.on('error', () => {
-        clearTimeout(timer);
-        reject(new Error('Docker is unavailable. Install Docker with Compose, then retry.'));
-      });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        if (code === 0) {
-          resolve(output);
-          return;
+
+  private async selectEndpoint(): Promise<void> {
+    const contextOverride = this.process.env['DOCKER_CONTEXT'];
+    const hostOverride = this.process.env['DOCKER_HOST'];
+    try {
+      if (!contextOverride && hostOverride) {
+        this.endpointArgs = ['--host', hostOverride];
+        this.endpoint = { host: hostOverride };
+        return;
+      }
+      const context =
+        contextOverride ||
+        (
+          await this.process.run(
+            'docker',
+            ['context', 'show'],
+            'context',
+            undefined,
+            undefined,
+            10_000,
+          )
+        ).trim();
+      const raw = await this.process.run(
+        'docker',
+        ['context', 'inspect', context],
+        'context',
+        undefined,
+        undefined,
+        10_000,
+      );
+      const contexts = boundaryZ
+        .array(
+          boundaryZ.object({
+            Endpoints: boundaryZ.object({ docker: boundaryZ.object({ Host: boundaryZ.string() }) }),
+          }),
+        )
+        .min(1)
+        .parse(JSON.parse(raw));
+      const selected = contexts[0];
+      if (selected) {
+        this.endpoint = { context, host: selected.Endpoints.docker.Host };
+        this.endpointArgs = ['--context', context];
+        // Freeze local endpoints; retain remote contexts' TLS material.
+        if (selected.Endpoints.docker.Host.startsWith('unix://')) {
+          this.endpointArgs = ['--host', selected.Endpoints.docker.Host];
         }
-        reject(
-          new Error(
-            'Docker operation failed. Check Docker, disk space and service diagnostics, then retry.',
-          ),
-        );
+      }
+    } catch (error) {
+      this.endpointFailure =
+        error instanceof DockerProcessError
+          ? error.message
+          : 'Docker context inspection returned an invalid response';
+      this.logger.warn('local.docker.inspection_failed', {
+        error:
+          error instanceof DockerProcessError
+            ? error
+            : new Error('Docker context inspection returned an invalid response'),
       });
-      child.stdin.on('error', () => {
-        // The process close/error handlers report this command failure.
+    }
+  }
+
+  recovery(): DockerRuntimeRecovery {
+    return new DockerRuntimeRecovery(this);
+  }
+
+  async command(args: string[], input?: string, service?: string): Promise<string> {
+    this.endpointSelection ??= this.selectEndpoint();
+    await this.endpointSelection;
+    const operation = args[0] ?? 'docker';
+    this.logger.debug('local.docker.command', { operation });
+    try {
+      return await this.process.run(
+        'docker',
+        [...this.endpointArgs, ...args],
+        operation,
+        input,
+        service,
+      );
+    } catch (error) {
+      this.logger.error('local.docker.command_failed', {
+        operation,
+        error,
+        ...(error instanceof DockerProcessError ? { diagnostic: error.diagnostic } : {}),
       });
-      child.stdin.end(input);
-    });
+      throw error;
+    }
   }
 
   async prerequisite(): Promise<'ready' | 'missing' | 'stopped' | 'compose'> {
     try {
       await this.command(['--version']);
-    } catch {
+    } catch (error) {
+      this.lastPrerequisiteError = error instanceof DockerProcessError ? error : undefined;
       return 'missing';
     }
     try {
       await this.command(['info', '--format', '{{.ServerVersion}}']);
-    } catch {
+    } catch (error) {
+      this.lastPrerequisiteError = error instanceof DockerProcessError ? error : undefined;
       return 'stopped';
     }
     try {
       await this.command(['compose', 'version']);
-    } catch {
+    } catch (error) {
+      this.lastPrerequisiteError = error instanceof DockerProcessError ? error : undefined;
       return 'compose';
     }
     return 'ready';
@@ -118,10 +186,11 @@ export class DockerBoundary {
     return volumes.trim().length > 0;
   }
 
-  async compose(path: string, args: string[], input?: string): Promise<void> {
+  async compose(path: string, args: string[], input?: string, service?: string): Promise<void> {
     await this.command(
       ['compose', '--project-name', LOCAL_PROJECT, '--file', path, ...args],
       input,
+      service,
     );
   }
 
@@ -134,20 +203,22 @@ export class DockerBoundary {
   }
   private async startService(path: string, service: string, wait: boolean): Promise<void> {
     try {
-      await this.compose(path, [
-        'up',
-        '-d',
-        ...(wait ? ['--wait', '--wait-timeout', '120'] : []),
-        '--pull',
-        'never',
+      await this.compose(
+        path,
+        [
+          'up',
+          '-d',
+          ...(wait ? ['--wait', '--wait-timeout', '120'] : []),
+          '--pull',
+          'never',
+          service,
+        ],
+        undefined,
         service,
-      ]);
+      );
     } catch (error) {
       this.logger.error('local.docker.service_start_failed', { service, error });
-      throw new Error(
-        `${service} could not start. Check its Docker service diagnostics, available resources, port conflicts and configuration, then retry. Data is preserved.`,
-        { cause: error },
-      );
+      throw error;
     }
   }
 
@@ -157,10 +228,7 @@ export class DockerBoundary {
       await this.compose(path, ['up', '-d', '--no-deps', '--pull', 'never', 'api', 'ui']);
     } catch (error) {
       this.logger.error('local.docker.service_restart_failed', { service: 'api,ui', error });
-      throw new Error(
-        'api and ui could not restart. Check its Docker service diagnostics and configuration, then retry. Data is preserved.',
-        { cause: error },
-      );
+      throw error;
     }
   }
 
@@ -233,6 +301,18 @@ export class DockerBoundary {
     let failure = 'api signing keys are unavailable';
     for (let attempt = 0; attempt < this.readiness.attempts; attempt++) {
       const containers = await this.inspect();
+      const observations = services.map((service) => {
+        const container = containers.find(
+          (item) => item.Config.Labels?.['com.docker.compose.service'] === service,
+        );
+        return {
+          service,
+          present: Boolean(container),
+          running: container?.State.Running ?? false,
+          status: container?.State.Status ?? 'absent',
+          health: container?.State.Health?.Status ?? 'unknown',
+        };
+      });
       const unready = services.flatMap((service) => {
         const container = containers.find(
           (item) => item.Config.Labels?.['com.docker.compose.service'] === service,
@@ -263,17 +343,22 @@ export class DockerBoundary {
           if (response.ok) {
             return;
           }
-        } catch {
+          this.logger.debug('local.docker.signing_keys_unavailable', { status: response.status });
+        } catch (error) {
+          this.logger.debug('local.docker.signing_keys_unavailable', { error });
           // API startup or a restart can temporarily make its signing keys unreachable.
         }
       }
-      this.logger.debug('local.docker.readiness.waiting', { failure, attempt });
+      this.logger.debug('local.docker.readiness.waiting', { failure, attempt, observations });
       if (attempt + 1 < this.readiness.attempts) {
         await new Promise((resolve) => setTimeout(resolve, this.readiness.intervalMs));
       }
     }
-    throw new Error(
-      `Application readiness timed out: ${failure}. Check the listed services' Docker diagnostics, Redis/database configuration and model files, then retry. Data is preserved.`,
+    throw Object.assign(
+      new Error(
+        `Application readiness timed out: ${failure}. Check the listed services' Docker diagnostics, Redis/database configuration and model files, then retry. Data is preserved.`,
+      ),
+      { code: 'READINESS_TIMEOUT' },
     );
   }
 }

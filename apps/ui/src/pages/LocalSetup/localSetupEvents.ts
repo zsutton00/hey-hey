@@ -1,3 +1,4 @@
+import { sendStartupBrowserEvent } from "./localStartupDiagnosticTransport";
 /**
  * A short, non-secret timeline of what the local setup page did in this tab.
  * Local setup involves a redirect-prone handoff, and the page can remount while
@@ -43,6 +44,7 @@ export const parseLocalSetupEvents = (stored: string | null): string[] => {
 };
 
 export const recordLocalSetupEvent = (message: string): void => {
+  sendStartupBrowserEvent(message);
   const time = new Date().toISOString().slice(11, 23);
   const events = [
     ...parseLocalSetupEvents(readStoredLocalSetupEvents()),

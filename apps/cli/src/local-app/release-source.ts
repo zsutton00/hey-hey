@@ -21,7 +21,9 @@ export class ReleaseSource {
         { cause: error },
       );
     }
-    return parseManifestForVersion(json, this.cliVersion);
+    const release = parseManifestForVersion(json, this.cliVersion);
+    this.logger.debug('local.release.selected', { cliVersion: release.cliVersion });
+    return release;
   }
 }
 

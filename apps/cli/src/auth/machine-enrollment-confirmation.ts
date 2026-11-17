@@ -1,3 +1,4 @@
+import { StructuredServerLogger } from '../server/logger';
 import { createPrivateKey, sign } from 'node:crypto';
 
 import type { CredentialPrompter } from '../agent-runtime/index';
@@ -425,6 +426,7 @@ const activationJson = (activation: ConfirmMachineEnrollmentResponseDto): string
 
 /** Owns the browser-claim wait, local consent, signature, and activation cutover. */
 export class MachineEnrollmentConfirmation {
+  private readonly logger = new StructuredServerLogger();
   private readonly keyPairStore: KeyPairStore;
   private readonly controllerRegistryStore: ControllerRegistryStore;
   private readonly client: MachineEnrollmentConfirmationClient;
@@ -560,6 +562,7 @@ export class MachineEnrollmentConfirmation {
       try {
         await cleanup();
       } catch (error) {
+        this.logger.debug('local.pairing.failure', { error });
         firstError ??= error instanceof Error ? error : new Error(String(error));
       }
     }
@@ -574,6 +577,7 @@ export class MachineEnrollmentConfirmation {
       await this.cleanupPendingEnrollment(enrollmentId);
       return true;
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment cleanup is incomplete: ${
@@ -631,6 +635,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.cleanupPendingEnrollment(enrollmentId);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected machine activation cleanup is incomplete: ${
@@ -697,6 +702,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.finalize(metadata.claim, activation, metadata.firstLocalGrant);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected activation recovery is incomplete: ${
@@ -776,6 +782,7 @@ export class MachineEnrollmentConfirmation {
         { waitBeforeFirstPoll: true, onResume: () => onResume?.(metadata) },
       );
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected machine enrollment recovery failed: ${
@@ -855,6 +862,7 @@ export class MachineEnrollmentConfirmation {
           enrollment.deviceSecret,
         );
       } catch (error) {
+        this.logger.debug('local.pairing.failure', { error });
         const failure = error instanceof Error ? error : new Error(String(error));
         if (isTerminalPollFailure(failure)) {
           problem(ports, 'Saved machine enrollment is no longer recoverable.');
@@ -902,6 +910,7 @@ export class MachineEnrollmentConfirmation {
         }),
       );
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment could not retain verified claimant metadata locally: ${
@@ -924,6 +933,7 @@ export class MachineEnrollmentConfirmation {
       approved =
         locallyApproved || (await ports.requestConfirmation(toMachineEnrollmentReview(ready)));
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       if (error instanceof MachineEnrollmentCancelledError) {
         return this.cancelled(enrollment.enrollmentId, ports);
       }
@@ -957,6 +967,7 @@ export class MachineEnrollmentConfirmation {
         signature: signed.signature,
       });
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment confirmation failed: ${
@@ -969,6 +980,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.finalize(ready, activation, firstLocalGrant);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine activation succeeded on the server, but local finalization failed: ${

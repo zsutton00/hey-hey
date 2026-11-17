@@ -1,3 +1,4 @@
+import { StructuredServerLogger } from '../server/logger';
 import { z } from 'zod';
 import type { CredentialPrompter } from '../agent-runtime/credentials/cli/interactivePrompt';
 import { LocalPasskeyRepairState } from '../shared/api/index';
@@ -23,6 +24,7 @@ export interface TerminalReader {
  * `heyhey local`; the answer is reported with the installation secret.
  */
 export class LocalPasskeyRepair {
+  private readonly logger = new StructuredServerLogger();
   private timer: NodeJS.Timeout | null = null;
   private checking = false;
   private lastFailure: string | null = null;
@@ -49,6 +51,7 @@ export class LocalPasskeyRepair {
       const earlier = await this.send('GET', '/request');
       if (earlier === LocalPasskeyRepairState.Requested) {
         await this.send('POST', '/decision', { approved: false });
+        this.logger.debug('local.repair', { state: 'dismissed' });
         this.log('Dismissed an unanswered repair request from an earlier run.');
       }
     } catch (error: unknown) {
@@ -97,8 +100,13 @@ export class LocalPasskeyRepair {
           'Your projects and work are kept.',
         ].join('\n'),
       );
+      this.logger.debug('local.repair', { state: 'requested' });
       const approved = await this.prompter.confirm('Repair this computer now?');
+      this.logger.debug('local.repair', { state: approved ? 'approved' : 'declined' });
       const state = await this.send('POST', '/decision', { approved });
+      if (state === LocalPasskeyRepairState.Completed) {
+        this.logger.debug('local.repair', { state: 'completed' });
+      }
       this.log(
         state === LocalPasskeyRepairState.Completed
           ? 'Repaired. Go back to the browser to create your new passkey.'
@@ -124,7 +132,9 @@ export class LocalPasskeyRepair {
     });
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(`${method} ${path} returned HTTP ${String(response.status)}: ${text}`);
+      throw Object.assign(new Error(`${method} ${path} returned HTTP ${String(response.status)}`), {
+        status: response.status,
+      });
     }
 
     return repairStatusResponseSchema.parse(JSON.parse(text)).data.state;
@@ -138,6 +148,7 @@ export class LocalPasskeyRepair {
     }
 
     this.lastFailure = failure;
+    this.logger.error('local.repair', { state: 'failed', error });
     this.logError(`Local passkey repair could not be checked: ${failure}`);
   }
 }

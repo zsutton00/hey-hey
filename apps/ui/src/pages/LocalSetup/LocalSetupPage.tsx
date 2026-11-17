@@ -1,3 +1,4 @@
+import { holdStartupDiagnosticTransport } from "./localStartupDiagnosticTransport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -85,6 +86,7 @@ interface CliFragment {
 
 /** Reads the CLI's one-time fragment values; the pairing details are kept for remounts. */
 const readCliFragment = (): CliFragment => {
+  holdStartupDiagnosticTransport(window.location.hash);
   const fragment = new URLSearchParams(window.location.hash.slice(1));
   const code = fragment.get("code");
   const approval = fragment.get("approval");

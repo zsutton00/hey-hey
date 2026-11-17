@@ -6,6 +6,37 @@ info:
     Transport-neutral schemas consumed by the paired Agent Bridge runtime. This source contains signed platform
     triggers, CLI run execution and response models, authorized remote reads, and Task Monitor validation contracts.
 paths:
+  /local-startup/events:
+    post:
+      tags: [LocalStartup]
+      operationId: recordLocalStartupEvent
+      description: >-
+        An ephemeral loopback-only diagnostic listener, available only while heyhey local runs.
+        The CLI-opened fragment carries a fresh capability for this invocation. The listener
+        requires that capability and the exact local web Origin, accepts at most 120 events
+        per attempt and 128 bytes per request. It grants no controller or account authority.
+      parameters:
+        - in: header
+          name: X-HeyHey-Diagnostic
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              $ref: "#/components/schemas/LocalStartupBrowserEvent"
+      responses:
+        "204":
+          description: Diagnostic event accepted
+        "400":
+          description: Unknown event
+        "403":
+          description: Origin or diagnostic capability refused
+        "413":
+          description: Event too large
+        "429":
+          description: Attempt event limit reached
   /local-lifecycle/work:
     get:
       tags: [LocalLifecycle]
@@ -50,6 +81,25 @@ paths:
           description: Invalid machine-local authority
 components:
   schemas:
+    LocalStartupBrowserEvent:
+      type: string
+      description: Closed vocabulary; no arbitrary messages, user content or secret values.
+      enum:
+        - mounted
+        - unmounted
+        - handoff_started
+        - handoff_accepted
+        - handoff_failed
+        - handoff_missing
+        - status_failed
+        - name_saving
+        - name_saved
+        - name_failed
+        - connection_timeout
+        - repair_requested
+        - repair_offered
+        - repair_failed
+        - passkey_failed
     LocalLifecycleWork:
       type: object
       additionalProperties: false

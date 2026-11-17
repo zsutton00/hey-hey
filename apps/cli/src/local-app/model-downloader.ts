@@ -80,7 +80,7 @@ export class ModelDownloader {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
       }
 
       const content = Buffer.from(await response.arrayBuffer());
@@ -95,8 +95,8 @@ export class ModelDownloader {
     } catch (error) {
       await rm(temporary, { force: true });
       const cause = error instanceof Error ? error.message : String(error);
-      this.logger.error('local.model.download_failed', { file: file.name, url, cause });
-      throw new Error(`Could not download ${file.name} from ${url}: ${cause}`);
+      this.logger.error('local.model.download_failed', { file: file.name, error });
+      throw new Error(`Could not download ${file.name} from ${url}: ${cause}`, { cause: error });
     }
   }
 }
