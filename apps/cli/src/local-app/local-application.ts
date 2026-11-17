@@ -8,6 +8,8 @@ import { InstallationStore } from './installation-store';
 import { ModelDownloader } from './model-downloader';
 import { DockerProcessError } from './docker-process';
 import type { ColimaMountRepair } from './docker-runtime-recovery';
+import { TroubleshootingPrompt, type PreparedPrompt } from './troubleshooting-prompt-owner';
+import { PROMPT_WINDOW_LINES, promptRows } from './troubleshooting-prompt';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import {
   composeConfiguration,
@@ -56,6 +58,10 @@ export interface LocalApplicationNavigation {
   stopCommand: string;
 }
 
+export type ReturnableState =
+  | { kind: 'prerequisite'; message: string }
+  | { kind: 'recovery'; message: string };
+
 export type LocalState =
   | { kind: 'update'; release: ReleaseManifest; required: boolean; activeCount: number | null }
   | { kind: 'update-restart'; version: string }
@@ -64,6 +70,14 @@ export type LocalState =
   | { kind: 'progress'; steps: string[]; current: string }
   | { kind: 'recovery'; message: string }
   | { kind: 'docker-repair'; message: string; profile: string }
+  | {
+      kind: 'troubleshooting';
+      prompt: PreparedPrompt;
+      /** Result of the last Copy or Save, shown under the prompt. */
+      notice: string | null;
+      offset: number;
+      previous: ReturnableState;
+    }
   | ({
       kind: 'ready';
       bridgeConnected: false;
@@ -130,6 +144,7 @@ export class LocalApplication extends EventEmitter {
     readonly bridgePort: number = resolveLocalBridgePort(),
     readonly webPort: number = resolveLocalWebPort(),
     private readonly diagnostics?: StartupDiagnostics,
+    private readonly troubleshooting = new TroubleshootingPrompt(),
   ) {
     super();
   }
@@ -166,6 +181,7 @@ export class LocalApplication extends EventEmitter {
 
   declineDockerRepair(): void {
     if (this.state.kind === 'docker-repair' && this.mountRepair) {
+      this.logger.info('local.docker.repair_decision', { decision: 'declined' });
       this.show({ kind: 'recovery', message: this.mountRepair.message });
       this.mountRepair = undefined;
     }
@@ -178,8 +194,10 @@ export class LocalApplication extends EventEmitter {
     const offered = this.mountRepair;
     this.mountRepair = undefined;
     this.busy = true;
+    this.logger.info('local.docker.repair_decision', { decision: 'accepted' });
     try {
       await new LocalLifecycleOwners(this.storage).exclusive(() => offered.repair.apply());
+      this.logger.info('local.docker.repair_decision', { decision: 'applied' });
     } catch (error) {
       const cause = this.docker.process.inspectionError(error);
       this.logger.error('local.docker.repair_failed', { error: cause });
@@ -192,6 +210,44 @@ export class LocalApplication extends EventEmitter {
       this.busy = false;
     }
     await this.retry();
+  }
+
+  /** Offered after automatic recovery and any actionable fix; nothing leaves the computer. */
+  async showTroubleshooting(): Promise<void> {
+    const previous = this.state;
+    if (
+      !this.diagnostics ||
+      (previous.kind !== 'recovery' && previous.kind !== 'prerequisite') ||
+      this.busy
+    ) {
+      return;
+    }
+    const prompt = await this.troubleshooting.forCurrentAttempt(this.diagnostics);
+    this.show({ kind: 'troubleshooting', prompt, notice: null, offset: 0, previous });
+  }
+
+  scrollTroubleshooting(delta: number): void {
+    if (this.state.kind !== 'troubleshooting') {
+      return;
+    }
+    const furthest = Math.max(0, promptRows(this.state.prompt.text).length - PROMPT_WINDOW_LINES);
+    const offset = Math.min(furthest, Math.max(0, this.state.offset + delta));
+    this.show({ ...this.state, offset });
+  }
+
+  async copyTroubleshooting(): Promise<void> {
+    if (this.state.kind !== 'troubleshooting') {
+      return;
+    }
+    const shown = this.state;
+    const notice = await this.troubleshooting.copy(shown.prompt);
+    this.show({ ...shown, notice });
+  }
+
+  closeTroubleshooting(): void {
+    if (this.state.kind === 'troubleshooting') {
+      this.show(this.state.previous);
+    }
   }
 
   async requestStop(): Promise<void> {

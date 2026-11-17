@@ -2,30 +2,26 @@ import type {
   ImplementReportEdit,
   ProjectChangeRecord,
 } from "@hey-hey/ui-common/api";
+import { EntityIcon } from "@hey-hey/ui-common/components";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import {
   Box,
   Button,
   Chip,
+  ButtonBase,
   Link,
   Paper,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
 const SHORT_HASH_LENGTH = 8;
-
-const formatRanges = (values: ImplementReportEdit["beforeRanges"]): string =>
-  values
-    .map((value) =>
-      value.startLine === value.endLine
-        ? `${value.startLine}`
-        : `${value.startLine}–${value.endLine}`,
-    )
-    .join(", ");
+const FILE_LIST_MAX_HEIGHT = 360;
+const NON_FOCAL_ENTITY_TYPES = new Set(["AGENT_SESSION", "SERVICE"]);
 
 export function ChangeRecordRow({
   projectId,
@@ -37,35 +33,37 @@ export function ChangeRecordRow({
   onSelect: (edit: ImplementReportEdit) => void;
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const filesId = useId();
   const { report, commits } = record;
   const payload = report.payload;
   if (payload.reportType !== "IMPLEMENT") {
     return null;
   }
 
-  const entityOf = (entityType: string) =>
-    report.entities.find((entity) => entity.entityType === entityType);
-  const hrefFor = (entityType: string, entityId: string): string => {
-    switch (entityType) {
-      case "AGENT_SESSION":
-        return WebPathService.agentSession({
-          projectId,
-          agentSessionId: entityId,
-        });
-      case "TASK":
-        return WebPathService.task({ projectId, taskId: entityId });
-      default:
-        return WebPathService.service({ projectId, serviceId: entityId });
+  const session = report.entities.find(
+    (entity) => entity.entityType === "AGENT_SESSION",
+  );
+  const service = report.entities.find(
+    (entity) => entity.entityType === "SERVICE",
+  );
+  const focal =
+    report.entities.find((entity) => entity.entityType === "TASK") ??
+    report.entities.find(
+      (entity) => !NON_FOCAL_ENTITY_TYPES.has(entity.entityType),
+    );
+  const focalHref = (): string => {
+    if (focal?.entityType === "TASK") {
+      return WebPathService.task({ projectId, taskId: focal.entityId });
     }
+    return WebPathService.feature({
+      projectId,
+      featureId: focal?.entityId ?? "",
+    });
   };
-  const context = [
-    { type: "AGENT_SESSION", label: t("changes.sessionLabel") },
-    { type: "TASK", label: t("changes.taskLabel") },
-    { type: "SERVICE", label: t("changes.serviceLabel") },
-  ].flatMap(({ type, label }) => {
-    const entity = entityOf(type);
-    return entity ? [{ type, label, entity }] : [];
-  });
+
+  const edits = payload.edits ?? [];
+  const fileCount = edits.length || payload.filesChanged.length;
 
   return (
     <Paper
@@ -74,82 +72,140 @@ export function ChangeRecordRow({
       data-testid="change-record"
       data-report-id={report.id}
     >
-      <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
-        <Typography
-          component="time"
-          dateTime={report.createdAt}
-          variant="caption"
+      <Stack direction="row" gap={1} justifyContent="space-between">
+        <Box sx={{ minWidth: 0 }}>
+          {focal && (
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              data-testid="change-focal"
+            >
+              <EntityIcon entityType={focal.entityType} size={20} />
+              <Link
+                component={RouterLink}
+                to={focalHref()}
+                variant="subtitle1"
+                fontWeight={600}
+                sx={{ overflowWrap: "anywhere" }}
+              >
+                {focal.displayName ?? t("changes.contextUnavailable")}
+              </Link>
+            </Box>
+          )}
+          <Stack
+            direction="row"
+            gap={1}
+            alignItems="center"
+            flexWrap="wrap"
+            sx={{ mt: focal ? 0.5 : 0 }}
+          >
+            {service && (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={service.displayName ?? t("changes.contextUnavailable")}
+                data-testid="change-service"
+              />
+            )}
+            {commits.map((commit) => (
+              <Tooltip
+                key={`${commit.reportId}:${commit.service}:${commit.hash}`}
+                title={t("changes.commitHashTooltip", { hash: commit.hash })}
+              >
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={commit.hash.slice(0, SHORT_HASH_LENGTH)}
+                  data-testid="change-commit-hash"
+                  sx={{ fontFamily: "monospace" }}
+                />
+              </Tooltip>
+            ))}
+            {session && (
+              <Button
+                size="small"
+                component={RouterLink}
+                to={WebPathService.agentSession({
+                  projectId,
+                  agentSessionId: session.entityId,
+                })}
+                sx={{ textTransform: "none" }}
+              >
+                {t("changes.viewSession")}
+              </Button>
+            )}
+          </Stack>
+        </Box>
+        <Stack
+          direction="row"
+          gap={1}
+          flexWrap="wrap"
+          alignItems="center"
+          justifyContent="flex-end"
+          sx={{ flexShrink: 0 }}
         >
-          {new Date(report.createdAt).toLocaleString()}
-        </Typography>
-        <Chip
-          size="small"
-          label={
-            commits.length ? t("changes.committed") : t("changes.uncommitted")
-          }
-        />
-        {commits.map((commit) => (
           <Typography
-            key={`${commit.reportId}:${commit.service}:${commit.hash}`}
-            component="code"
+            component="time"
+            dateTime={report.createdAt}
             variant="caption"
-            title={commit.hash}
           >
-            {commit.hash.slice(0, SHORT_HASH_LENGTH)}
+            {new Date(report.createdAt).toLocaleString()}
           </Typography>
-        ))}
+          <Chip
+            size="small"
+            color={commits.length ? "success" : "warning"}
+            label={
+              commits.length ? t("changes.committed") : t("changes.uncommitted")
+            }
+          />
+        </Stack>
       </Stack>
-      <Box
-        component="dl"
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "max-content 1fr",
-          columnGap: 2,
-          rowGap: 0.5,
-          my: 1,
-        }}
+      <ButtonBase
+        data-testid="change-files-toggle"
+        aria-expanded={expanded}
+        aria-controls={filesId}
+        onClick={() => setExpanded((open) => !open)}
+        sx={{ mt: 1, typography: "body2", gap: 0.5 }}
       >
-        {context.map(({ type, label, entity }) => (
-          <Box key={type} sx={{ display: "contents" }}>
-            <Typography component="dt" variant="body2" color="text.secondary">
-              {label}
+        <span aria-hidden>{expanded ? "▾" : "▸"}</span>
+        {t("changes.fileCount", { count: fileCount })}
+      </ButtonBase>
+      <Box
+        id={filesId}
+        hidden={!expanded}
+        sx={{ maxHeight: FILE_LIST_MAX_HEIGHT, overflowY: "auto" }}
+      >
+        {expanded &&
+          !edits.length &&
+          payload.filesChanged.map((path) => (
+            <Typography
+              key={path}
+              variant="body2"
+              sx={{ overflowWrap: "anywhere" }}
+            >
+              {path} · {t("changes.versionsNotRecorded")}
             </Typography>
-            <Typography component="dd" variant="body2" sx={{ m: 0 }}>
-              {entity.displayName ? (
-                <Link
-                  component={RouterLink}
-                  to={hrefFor(type, entity.entityId)}
-                >
-                  {entity.displayName}
-                </Link>
-              ) : (
-                t("changes.contextUnavailable")
-              )}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-      {!payload.edits?.length &&
-        payload.filesChanged.map((path) => (
-          <Typography key={path} variant="body2">
-            {path} · {t("changes.versionsNotRecorded")}
-          </Typography>
-        ))}
-      {(payload.edits ?? []).map((edit, index) => {
-        const isNewFile = edit.versionsRecorded && edit.beforeObjectId === null;
-        return (
-          <Box
-            key={`${edit.turnId}:${edit.path}:${index}`}
-            sx={{ mt: 1 }}
-            data-testid="change-edit-row"
-          >
-            <Stack direction="row" gap={1} flexWrap="wrap" alignItems="center">
+          ))}
+        {expanded &&
+          edits.map((edit, index) => (
+            <Stack
+              key={`${edit.turnId}:${edit.path}:${index}`}
+              direction="row"
+              gap={1}
+              flexWrap="wrap"
+              alignItems="center"
+              sx={{ mt: 0.5 }}
+              data-testid="change-edit-row"
+            >
               {edit.versionsRecorded ? (
                 <Button
                   data-testid="change-edit"
                   data-edit-index={index}
                   onClick={() => onSelect(edit)}
-                  sx={{ textTransform: "none", overflowWrap: "anywhere" }}
+                  sx={{
+                    textTransform: "none",
+                    overflowWrap: "anywhere",
+                    textAlign: "left",
+                  }}
                 >
                   {edit.path}
                 </Button>
@@ -174,19 +230,12 @@ export function ChangeRecordRow({
                   {t("changes.versionsNotRecorded")}
                 </Typography>
               )}
+              <Typography variant="caption" color="text.secondary">
+                {new Date(edit.occurredAt).toLocaleString()}
+              </Typography>
             </Stack>
-            <Typography variant="caption" display="block">
-              {t("changes.ranges", {
-                before: formatRanges(edit.beforeRanges) || "—",
-                after: formatRanges(edit.afterRanges) || "—",
-              })}
-              {isNewFile ? ` ${t("changes.newFile")}` : ""}
-              {" · "}
-              {new Date(edit.occurredAt).toLocaleString()}
-            </Typography>
-          </Box>
-        );
-      })}
+          ))}
+      </Box>
     </Paper>
   );
 }

@@ -143,6 +143,7 @@ const applicationState = z.enum([
   'exited',
   'cancelled',
   'docker-repair',
+  'troubleshooting',
 ]);
 const service = z.enum(['api', 'ui', 'postgres', 'redis', 'graph-search', 'api,ui']);
 const schemas: Record<string, z.ZodType<Record<string, unknown>>> = {
@@ -157,6 +158,9 @@ const schemas: Record<string, z.ZodType<Record<string, unknown>>> = {
   }),
   'local.docker.inspection_failed': z.object({ error: z.unknown() }),
   'local.docker.repair_failed': z.object({ error: z.unknown() }),
+  'local.docker.repair_decision': z.object({
+    decision: z.enum(['accepted', 'declined', 'applied']),
+  }),
   'local.docker.prerequisite': z.object({ reasonCode: z.enum(['missing', 'stopped', 'compose']) }),
   'local.docker.command': z.object({
     operation: z.enum(['--version', 'info', 'compose', 'ps', 'inspect', 'volume']),

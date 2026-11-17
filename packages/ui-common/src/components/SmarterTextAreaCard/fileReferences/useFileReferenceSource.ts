@@ -38,6 +38,7 @@ const loadBindingsByServiceId = (): Promise<BindingsByServiceId> => {
 
 export const useFileReferenceSource = (
   value: FileReferenceValueV1,
+  workspaceRoot?: string,
 ): SourceReference | null => {
   const [source, setSource] = useState<SourceReference | null>(null);
 
@@ -49,7 +50,7 @@ export const useFileReferenceSource = (
     void loadBindingsByServiceId()
       .then((bindings) => {
         if (!cancelled) {
-          setSource(resolveFileReferenceSource(value, bindings));
+          setSource(resolveFileReferenceSource(value, bindings, workspaceRoot));
         }
       })
       .catch(() => {});
@@ -57,7 +58,7 @@ export const useFileReferenceSource = (
     return () => {
       cancelled = true;
     };
-  }, [value.serviceId, value.normalizedPath]);
+  }, [value.serviceId, value.normalizedPath, workspaceRoot]);
 
   return source;
 };

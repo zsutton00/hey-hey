@@ -215,7 +215,7 @@ const ChangedFileReference = (props: ChangedFileReferenceProps) => {
   };
 
   if (presentation === "selected-file-heading") {
-    return <FileReferenceLink value={value} />;
+    return <FileReferenceLink value={value} workspaceRoot={patch.repoPath} />;
   }
 
   const { editType } = props;
@@ -244,6 +244,7 @@ const ChangedFileReference = (props: ChangedFileReferenceProps) => {
           value={value}
           renderMode="file-name"
           editorActivation="context-menu"
+          workspaceRoot={patch.repoPath}
         />
         <Typography
           variant="caption"
