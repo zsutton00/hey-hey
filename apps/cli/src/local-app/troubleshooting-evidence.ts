@@ -116,6 +116,11 @@ export interface RecordedCause {
   count: number;
 }
 
+export interface RepairStep {
+  attempt: number;
+  outcome: 'offered' | 'accepted' | 'declined' | 'applied' | 'failed';
+}
+
 export interface TroubleshootingEvidence {
   attemptId: string;
   sessionId: string;
@@ -127,8 +132,12 @@ export interface TroubleshootingEvidence {
   causes: RecordedCause[];
   prerequisite: string | null;
   readiness: z.infer<typeof readinessFields>['observations'] | null;
-  repairOffered: boolean;
-  repairFailed: boolean;
+  /** Docker share repair steps across this attempt and the retries before it, in order. */
+  repairs: RepairStep[];
+  /** Earlier attempts in the same journal that failed, with the causes recorded for each. */
+  earlierFailures: Array<{ attempt: number; causes: RecordedCause[] }>;
+  /** This attempt's position in its journal, counting from 1. */
+  attemptNumber: number;
   /** Attempts earlier in the same journal, which are retries of this one. */
   earlierAttempts: number;
   lastFailedAttempt: { attemptId: string; sessionId: string } | null;
@@ -265,6 +274,31 @@ function lastWith<T>(records: JournalRecord[], event: string, schema: z.ZodType<
   return undefined;
 }
 
+function repairSteps(records: JournalRecord[], attempts: string[]): RepairStep[] {
+  const steps: RepairStep[] = [];
+  for (const record of records) {
+    const attempt = attempts.indexOf(record.attemptId ?? '') + 1;
+    if (attempt === 0) {
+      continue;
+    }
+    const decision = (record as { decision?: unknown }).decision;
+    if (
+      record.event === 'local.application.state' &&
+      (record as { state?: unknown }).state === 'docker-repair'
+    ) {
+      steps.push({ attempt, outcome: 'offered' });
+    } else if (record.event === 'local.docker.repair_failed') {
+      steps.push({ attempt, outcome: 'failed' });
+    } else if (
+      record.event === 'local.docker.repair_decision' &&
+      (decision === 'accepted' || decision === 'declined' || decision === 'applied')
+    ) {
+      steps.push({ attempt, outcome: decision });
+    }
+  }
+  return steps;
+}
+
 function evidenceFor(
   parsed: ParsedJournal,
   target: { attemptId: string; sessionId: string },
@@ -313,6 +347,17 @@ function evidenceFor(
       .map((record) => stateFields.safeParse(record))
       .find((result) => result.success && result.data.action)?.data?.action ??
     null;
+  const inScope = attemptOrder.slice(0, index + 1).map((item) => item.attemptId);
+  for (const item of containerRecords) {
+    if (item.potentiallyTruncated) {
+      gaps.push(
+        `Container logs for ${item.service ?? 'a service'} were read only as a bounded tail; earlier lines were not read.`,
+      );
+    }
+    if (item.evidenceIncomplete) {
+      gaps.push(`Container evidence for ${item.service ?? 'a service'} is incomplete.`);
+    }
+  }
   const laterSuccess = attemptOrder.slice(index + 1).find((item) => item.succeeded);
 
   return {
@@ -327,12 +372,18 @@ function evidenceFor(
       lastWith(attempt, 'local.docker.prerequisite', prerequisiteFields)?.reasonCode ?? null,
     readiness:
       lastWith(attempt, 'local.docker.readiness.waiting', readinessFields)?.observations ?? null,
-    repairOffered: attempt.some(
-      (record) =>
-        record.event === 'local.application.state' &&
-        (record as { state?: unknown }).state === 'docker-repair',
+    repairs: repairSteps(records, inScope),
+    earlierFailures: attemptOrder.slice(0, Math.max(0, index)).flatMap((earlier, position) =>
+      earlier.failed
+        ? [
+            {
+              attempt: position + 1,
+              causes: causesOf(records.filter((record) => record.attemptId === earlier.attemptId)),
+            },
+          ]
+        : [],
     ),
-    repairFailed: attempt.some((record) => record.event === 'local.docker.repair_failed'),
+    attemptNumber: index + 1,
     earlierAttempts: Math.max(0, index),
     lastFailedAttempt:
       own.data?.lastFailedAttemptId && own.data.lastFailedSessionId

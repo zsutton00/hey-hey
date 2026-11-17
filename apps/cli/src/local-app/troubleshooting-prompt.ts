@@ -65,17 +65,17 @@ function describeContainer(item: ContainerEvidence): string {
     }
     const groups = item.eventGroups ?? [];
     const codes = Object.entries(item.unstructuredCauseCodes ?? {});
+    const bounded = item.potentiallyTruncated
+      ? ' (tail of the logs only; earlier lines not read)'
+      : '';
     if (groups.length === 0 && codes.length === 0) {
-      return `${label}: counts only (${String(item.scannedLines ?? 0)} lines scanned, ${String(item.unstructuredLines ?? 0)} unstructured). The real cause was not captured.`;
+      return `${label}: counts only (${String(item.scannedLines ?? 0)} lines scanned, ${String(item.unstructuredLines ?? 0)} unstructured)${bounded}. The real cause was not captured.`;
     }
     const events = groups.map(
       (group) =>
         `${group.level} ${plain(group.event ?? 'unnamed event', 80)}${group.cause ? ` [${describeCause(group.cause)}]` : ''} ×${String(group.count)}`,
     );
     const raw = codes.map(([code, count]) => `${code} ×${String(count)} in unstructured output`);
-    const bounded = item.potentiallyTruncated
-      ? ' (tail of the logs only; earlier lines not read)'
-      : '';
     return `${label}: ${[...events, ...raw].join('; ')}${bounded}${item.omittedEventGroups ? `; ${String(item.omittedEventGroups)} more event group(s) omitted` : ''}`;
   }
   return `${label}: ${plain(item.kind, 60)}${item.reasonCode ? ` ${item.reasonCode}` : ''}`;
@@ -131,6 +131,39 @@ function causeLines(evidence: TroubleshootingEvidence): string[] {
   return lines;
 }
 
+/** Repair history across this attempt and its retries; an unrecorded outcome is said to be unknown. */
+function repairLines(evidence: TroubleshootingEvidence): string[] {
+  const lines: string[] = [];
+  const attempts = [...new Set(evidence.repairs.map((step) => step.attempt))];
+  for (const attempt of attempts) {
+    const outcomes = evidence.repairs
+      .filter((step) => step.attempt === attempt)
+      .map((step) => step.outcome);
+    const last = outcomes.at(-1);
+    const where = `Attempt ${String(attempt)}${attempt === evidence.attemptNumber ? ' (this one)' : ''}`;
+    const subsequent =
+      attempt < evidence.attemptNumber
+        ? ' A later attempt then failed, so it did not resolve this.'
+        : '';
+    if (last === 'applied') {
+      lines.push(`${where}: a Docker share repair was accepted and applied.${subsequent}`);
+    } else if (last === 'failed') {
+      lines.push(`${where}: a Docker share repair was attempted and failed.`);
+    } else if (last === 'declined') {
+      lines.push(`${where}: a Docker share repair was offered and declined.`);
+    } else if (last === 'accepted') {
+      lines.push(
+        `${where}: a Docker share repair was accepted; the journal does not record whether it completed (outcome unknown).`,
+      );
+    } else {
+      lines.push(
+        `${where}: a Docker share repair was offered; the journal does not record whether it was accepted or declined (outcome unknown).`,
+      );
+    }
+  }
+  return lines;
+}
+
 function recoveryLines(evidence: TroubleshootingEvidence): string[] {
   const lines: string[] = [];
   lines.push(
@@ -138,13 +171,11 @@ function recoveryLines(evidence: TroubleshootingEvidence): string[] {
       ? `This is retry ${String(evidence.earlierAttempts)} in the same journal; earlier attempts in it ended without success.`
       : 'No retry is recorded before this attempt in its journal.',
   );
-  if (evidence.repairFailed) {
+  lines.push(...repairLines(evidence));
+  for (const earlier of evidence.earlierFailures) {
+    const causes = earlier.causes.map((item) => describeCause(item.cause));
     lines.push(
-      'A Docker share repair was offered and attempted, and it failed (local.docker.repair_failed).',
-    );
-  } else if (evidence.repairOffered) {
-    lines.push(
-      'A Docker share repair was offered. The journal does not record whether it was accepted or declined.',
+      `Attempt ${String(earlier.attempt)} failed earlier: ${causes.length > 0 ? causes.join('; ') : 'no safe cause was recorded'}.`,
     );
   }
   if (evidence.lastFailedAttempt) {

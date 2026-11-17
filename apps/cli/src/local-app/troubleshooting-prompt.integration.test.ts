@@ -136,7 +136,7 @@ else if (args[0] === 'logs') process.stdout.write(JSON.stringify({ level: 'error
   expect(text).toContain('mounts denied');
   expect(text).toContain('api #0');
   expect(text).toContain('EACCES');
-  expect(text).toContain('repair was offered and attempted, and it failed');
+  expect(text).toContain('Docker share repair was attempted and failed');
   expect(text).not.toContain(secret);
 });
 
@@ -257,4 +257,65 @@ it('copies exactly the saved text, and falls back to the saved file when the cli
   expect(line).toContain('Clipboard unavailable');
   expect(line).toContain('not installed');
   expect(line).toContain(`Saved to ${prepared.savedPath ?? ''}`);
+});
+
+it('keeps truncation visible when the container logs showed no recognizable cause', async () => {
+  const path = await directory();
+  await dockerExecutable(
+    path,
+    `const args = process.argv.slice(2);
+if (args[0] === 'ps') process.stdout.write('aaaaaa111111 api');
+else if (args[0] === 'logs') process.stdout.write('plain line without a cause\\n'.repeat(600));`,
+  );
+  const diagnostics = journal(join(path, 'diagnostics'));
+  logger.error('local.application.failure', { operation: 'startup', error: new Error(secret) });
+  diagnostics.failure();
+  const { prompts } = await owner();
+
+  const { text } = await prompts.forCurrentAttempt(diagnostics);
+
+  expect(text).toContain('counts only');
+  expect(text).toContain('tail of the logs only');
+  expect(text).toContain('Container logs for api were read only as a bounded tail');
+  expect(text).not.toContain('reports no gaps');
+});
+
+it('carries a repair across retries and says when its outcome was not recorded', async () => {
+  const path = await directory();
+  vi.stubEnv('PATH', path);
+  const diagnostics = journal(join(path, 'diagnostics'));
+  logger.error('local.docker.service_start_failed', {
+    service: 'api',
+    error: new DockerProcessError({
+      operation: 'compose.up',
+      outcome: 'exit',
+      code: 'DOCKER_EXIT',
+      exitCode: 1,
+      signal: null,
+      detail: 'invalid mount config for type "bind": mounts denied',
+      truncated: false,
+    }),
+  });
+  logger.info('local.docker.repair_decision', { decision: 'accepted' });
+  logger.info('local.docker.repair_decision', { decision: 'applied' });
+  diagnostics.failure();
+  diagnostics.retry();
+  logger.error('local.protected_storage', {
+    outcome: 'failed',
+    error: new DefaultCollectionMissingError(secret),
+  });
+  diagnostics.failure();
+  const { prompts } = await owner();
+
+  const applied = (await prompts.forCurrentAttempt(diagnostics)).text;
+
+  expect(applied).toContain('Attempt 1: a Docker share repair was accepted and applied.');
+  expect(applied).toContain('A later attempt then failed');
+  expect(applied).toContain('Attempt 1 failed earlier: ');
+  expect(applied).toContain('DOCKER_EXIT');
+  expect(applied).toContain('DEFAULT_COLLECTION_MISSING');
+
+  logger.info('local.docker.repair_decision', { decision: 'accepted' });
+  const unknown = (await prompts.forCurrentAttempt(diagnostics)).text;
+  expect(unknown).toContain('accepted; the journal does not record whether it completed');
 });

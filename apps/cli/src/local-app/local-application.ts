@@ -181,6 +181,7 @@ export class LocalApplication extends EventEmitter {
 
   declineDockerRepair(): void {
     if (this.state.kind === 'docker-repair' && this.mountRepair) {
+      this.logger.info('local.docker.repair_decision', { decision: 'declined' });
       this.show({ kind: 'recovery', message: this.mountRepair.message });
       this.mountRepair = undefined;
     }
@@ -193,8 +194,10 @@ export class LocalApplication extends EventEmitter {
     const offered = this.mountRepair;
     this.mountRepair = undefined;
     this.busy = true;
+    this.logger.info('local.docker.repair_decision', { decision: 'accepted' });
     try {
       await new LocalLifecycleOwners(this.storage).exclusive(() => offered.repair.apply());
+      this.logger.info('local.docker.repair_decision', { decision: 'applied' });
     } catch (error) {
       const cause = this.docker.process.inspectionError(error);
       this.logger.error('local.docker.repair_failed', { error: cause });
