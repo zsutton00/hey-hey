@@ -1,3 +1,5 @@
+import { asMessageId } from '../test-utils/contract-ids';
+import { taskMonitorCoordinationLocalStateFromContext } from '../agents/task-monitor/task-monitor-coordination';
 import { TaskMonitorStartRuntime } from './task-monitor-start';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -59,6 +61,7 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
     const requireReview = policy === 'REQUIRE_REVIEW';
     const reviewed = new Set<string>();
     const waitNext = new Set<string>();
+    const recoverNext = new Map<string, 'WAIT' | 'REQUEST_JUDGMENT'>();
     const taskMonitorId = crypto.randomUUID();
     const directMonitorId = crypto.randomUUID();
     const taskIds: string[] = [crypto.randomUUID(), crypto.randomUUID()];
@@ -197,6 +200,12 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
         const session = sessions.get(id)!;
         return Response.json({
           data: {
+            id,
+            organizationId: ORGANIZATION_ID,
+            projectId: PROJECT_ID,
+            status: session.status,
+            serviceIds: ['service-a'],
+            launchServiceId: 'service-a',
             conversationId: session.conversationId,
             autoDecide: false,
             config: {
@@ -313,11 +322,28 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
       } as never;
     });
     const coordinatorCalls: string[] = [];
+    let rejectedRecoveryCalls = 0;
     vi.spyOn(owners.agentService, 'sendSystemMessage').mockImplementation(async (runId) => {
       if (sessions.has(runId)) {
         return {} as never;
       }
       coordinatorCalls.push(runId);
+      const recovery = recoverNext.get(runId);
+      if (recovery) {
+        recoverNext.delete(runId);
+        owners.taskMonitorDecisionStore.publish(runId, {
+          status: 'DECISION',
+          decision:
+            recovery === 'WAIT'
+              ? { action: 'WAIT', rationale: 'Pause before accepting the operation.' }
+              : {
+                  action: 'REQUEST_JUDGMENT',
+                  rationale: 'Confirm the operation.',
+                  guidance: 'Confirm acceptance.',
+                },
+        });
+        return {} as never;
+      }
       if (waitNext.delete(runId)) {
         owners.taskMonitorDecisionStore.publish(runId, {
           status: 'DECISION',
@@ -412,9 +438,9 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
         NOOP_LOGGER,
       );
 
-      return { store, runner, settlement };
+      return { store, runner, settlement, adapter };
     };
-    let { store, runner, settlement } = await restore();
+    let { store, runner, settlement, adapter } = await restore();
     const readKind = () =>
       new TaskMonitorStartRuntime({
         apiBaseUrl: 'https://api.test/v1',
@@ -450,7 +476,7 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
             fileReferences: { resolved: [], unresolved: [] },
           },
         });
-        const reports = [];
+        const reports: { reportId: string; reportType: 'MONITOR_NODE_RESULT' }[] = [];
         if (monitorId === directMonitorId) {
           const reportId = crypto.randomUUID();
           nodeResults.push({
@@ -553,6 +579,9 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
           // A new runtime sees persisted pending evidence, never inferred acceptance.
           expect(await (await readKind()).readDone(auth, recorded)).toBe(false);
         }
+        if (supervision === 'COORDINATOR_REVIEW' && !requireReview) {
+          recoverNext.set(monitorId, index === 0 ? 'WAIT' : 'REQUEST_JUDGMENT');
+        }
         expect(await settlement.invoke(released, auth)).toMatchObject({ status: 'HANDLED' });
         await drainDurableTaskMonitorWork(runner);
         if (monitorId === directMonitorId && requireReview) {
@@ -567,6 +596,7 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
             await (await readKind()).readDone(auth, { nodeId: session.nodeId, agentSessionId }),
           ).toBe(false);
           reviewed.add(agentSessionId);
+          recoverNext.set(monitorId, 'REQUEST_JUDGMENT');
           expect(
             await settlement.invoke(
               { ...released, turnId: crypto.randomUUID(), promptType: 'code_review', reports: [] },
@@ -577,6 +607,103 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
           expect(
             definitions.get(directMonitorId)!.executionPlan[index]!.operationEvidence!.reportId,
           ).toBe(pending.reportId);
+        }
+        if (
+          supervision === 'COORDINATOR_REVIEW' &&
+          (!requireReview || monitorId === directMonitorId)
+        ) {
+          // Task recovery requires completion already persisted by Work Items.
+          if (monitorId === taskMonitorId) {
+            statuses.set(session.nodeId, 'COMPLETED');
+          }
+          // Restore retained operation evidence before recovery admission and acceptance effects.
+          ({ store, runner, settlement, adapter } = await restore());
+          if (monitorId === directMonitorId && !requireReview) {
+            const context = (await store.findByInstanceId(monitorId))!.snapshot.context;
+            const definition = definitions.get(monitorId)!;
+            const entry = definition.executionPlan[index]!;
+            const retained = entry.operationEvidence!;
+            const report = nodeResults.find((result) => result.reportId === retained.reportId)!;
+            const probe = async () => {
+              rejectedRecoveryCalls += 1;
+              const result =
+                await owners.monitorRuntime.taskMonitorEffectHandlers.COORDINATE_TASK_MONITOR_WORK.execute(
+                  {
+                    type: 'COORDINATE_TASK_MONITOR_WORK',
+                    taskMonitorId: monitorId,
+                    organizationId: ORGANIZATION_ID,
+                    projectId: PROJECT_ID,
+                    kindKey: definition.kind,
+                    executionPlan: context.executionPlan,
+                    cursor: index,
+                    cause: index === 0 ? 'RESUME' : 'JUDGMENT_RESOLVED',
+                    correlationId: crypto.randomUUID(),
+                    coordination: taskMonitorCoordinationLocalStateFromContext(
+                      context,
+                      'ACTIVE',
+                      'COORDINATING',
+                    ),
+                    settledTurn: {
+                      turnId: released.turnId,
+                      promptType: released.promptType,
+                      terminalOutcome: released.terminalOutcome,
+                      completedAssistantMessage: null,
+                      reports,
+                    },
+                  },
+                  {
+                    machineType: 'TASK_MONITOR',
+                    instanceId: monitorId,
+                    effectId: crypto.randomUUID(),
+                  },
+                );
+              expect(result.status).toBe('failed');
+              expect(definitions.get(monitorId)!.cursor).toBe(index);
+              expect(statuses.get(session.nodeId)).toBe('BACKLOG');
+            };
+            // Recovery must reject absent, failed and other-session retained evidence.
+            delete entry.operationEvidence;
+            await probe();
+            entry.operationEvidence = { ...retained, agentSessionId: crypto.randomUUID() };
+            await probe();
+            entry.operationEvidence = retained;
+            const reportIndex = nodeResults.indexOf(report);
+            nodeResults[reportIndex] = {
+              ...report,
+              payload: nodeResultPayload(session.nodeId, 'FAILED'),
+            };
+            await probe();
+            nodeResults[reportIndex] = {
+              ...report,
+              payload: nodeResultPayload(crypto.randomUUID(), 'ACCEPTED'),
+            };
+            await probe();
+            nodeResults[reportIndex] = report;
+            definition.launchPolicy.terminalSupervision.mode = 'REQUIRE_REVIEW';
+            await probe();
+            definition.launchPolicy.terminalSupervision.mode = 'AGENT_DECIDES';
+          }
+          const command = firstStartCommand();
+          command.commandId = crypto.randomUUID();
+          command.target.workItemId = monitorId;
+          if (index === 0 && !requireReview) {
+            command.command = { cause: 'PAUSE' };
+            expect(await adapter.admit(command)).toMatchObject({ status: 'ADMITTED' });
+            await drainDurableTaskMonitorWork(runner);
+            command.commandId = crypto.randomUUID();
+            command.command = { cause: 'RESUME' };
+          } else {
+            command.command = {
+              cause: 'JUDGMENT_RESOLVED',
+              judgment: {
+                requestMessageId: asMessageId(crypto.randomUUID()),
+                label: 'Confirmed',
+                conclusion: 'Accept the observed operation.',
+              },
+            };
+          }
+          expect(await adapter.admit(command)).toMatchObject({ status: 'ADMITTED' });
+          await drainDurableTaskMonitorWork(runner);
         }
         const callsAfterAcceptance = coordinatorCalls.length;
         await settlement.invoke(released, auth);
@@ -595,9 +722,11 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
     expect(taskIds.map((id) => statuses.get(id))).toEqual(['COMPLETED', 'COMPLETED']);
     expect(directIds.map((id) => statuses.get(id))).toEqual(['BACKLOG', 'BACKLOG']);
     expect(mutations.filter(({ id }) => directIds.includes(id))).toEqual([]);
-    expect(coordinatorCalls.filter((id) => id === taskMonitorId)).toHaveLength(2);
+    expect(coordinatorCalls.filter((id) => id === taskMonitorId)).toHaveLength(
+      supervision === 'COORDINATOR_REVIEW' && !requireReview ? 4 : 2,
+    );
     expect(coordinatorCalls.filter((id) => id === directMonitorId)).toHaveLength(
-      supervision === 'DIRECT_ACCEPTANCE' ? 0 : requireReview ? 8 : 6,
+      supervision === 'DIRECT_ACCEPTANCE' ? 0 : requireReview ? 10 : 8 + rejectedRecoveryCalls,
     );
     if (supervision === 'COORDINATOR_REVIEW') {
       for (const entry of definitions.get(directMonitorId)!.executionPlan) {
