@@ -1,3 +1,4 @@
+import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
 import {
   WorkItemTypeRole,
   WorkStatus,
@@ -250,6 +251,7 @@ const renderFeaturePage = (
   );
 
 const LocationProbe = () => {
+  useArchiveHistory();
   const location = useLocation();
   return (
     <div data-testid="location">
@@ -275,6 +277,42 @@ describe("FeaturePage registry-derived children", () => {
     mockWorkItemTypesFetched = true;
     mockWorkItemTypes = workItemTypes;
   });
+
+  it.each(["applied", "pending", "failed"])(
+    "handles Feature archive: %s",
+    async (outcome) => {
+      if (outcome === "failed") {
+        mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));
+      } else {
+        mockUpdateTask.mockResolvedValueOnce({
+          ...featureTask,
+          status:
+            outcome === "applied" ? WorkStatus.Archived : WorkStatus.Backlog,
+        });
+      }
+      renderFeaturePage();
+      await act(async () => {
+        const props = mockFeaturePageView.mock.calls.at(-1)?.[0] as {
+          onArchiveClick: () => void;
+        };
+        props.onArchiveClick();
+      });
+      await act(async () => {
+        const props = mockFeaturePageView.mock.calls.at(-1)?.[0] as {
+          onConfirmAdminAction: () => Promise<void>;
+        };
+        await props.onConfirmAdminAction();
+      });
+      expect(mockUpdateTask).toHaveBeenCalledWith("feature-1", {
+        status: WorkStatus.Archived,
+      });
+      expect(screen.getByTestId("location").textContent).toBe(
+        outcome === "applied"
+          ? "/projects/project-1"
+          : "/projects/project-1/features/feature-1",
+      );
+    },
+  );
 
   it("returns clean feature editing to the same route and removes only editing", async () => {
     mockActiveTab = "feature";

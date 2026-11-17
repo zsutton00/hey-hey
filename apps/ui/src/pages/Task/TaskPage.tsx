@@ -1,3 +1,4 @@
+import { useArchiveNavigation } from "../../navigation/useArchiveNavigation";
 import {
   Alert,
   Box,
@@ -82,6 +83,7 @@ export const TaskPage: React.FC<TaskPageProps> = ({
   preview = false,
 }) => {
   const navigate = useNavigate();
+  const navigateAfterArchive = useArchiveNavigation(projectId);
   const location = useLocation();
   const { isPlatformAdmin } = usePlatformAdminAccess();
   const [isEditing, setIsEditing] = useState<boolean | null>(null);
@@ -637,13 +639,19 @@ export const TaskPage: React.FC<TaskPageProps> = ({
       if (!task?.id) return;
 
       try {
-        await updateTask(task.id, { status: newStatus });
+        const updated = await updateTask(task.id, { status: newStatus });
+        if (
+          newStatus === WorkStatus.Archived &&
+          updated.status === WorkStatus.Archived
+        ) {
+          navigateAfterArchive(task.id);
+        }
       } catch (error) {
         console.error("Failed to update task status:", error);
         throw error;
       }
     },
-    [task?.id, updateTask],
+    [task?.id, updateTask, navigateAfterArchive],
   );
 
   const handlePriorityChange = useCallback(

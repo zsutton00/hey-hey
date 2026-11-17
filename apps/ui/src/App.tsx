@@ -1,3 +1,4 @@
+import { useArchiveHistory } from "./navigation/useArchiveNavigation";
 import { OrganizationAccessBoundary } from "./components/OrganizationAccessBoundary";
 import type { ComponentType, FC, ReactElement, ReactNode } from "react";
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
@@ -399,6 +400,7 @@ const OpenItemsActivationBridge: FC<{
 };
 
 export const AppRouteShell = () => {
+  useArchiveHistory();
   usePageMetadata();
   useTabLocationRegistry();
   const { currentOrganization } = useOrganization();
