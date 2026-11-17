@@ -35,6 +35,7 @@ import {
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
   type WebSocketWorkItemExecutionStateChangedEvent,
+  type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -222,6 +223,7 @@ type WebSocketEventUnion =
     }
   | WebSocketAgentSessionCurrentStateChangedEvent
   | WebSocketWorkItemExecutionStateChangedEvent
+  | WebSocketWorkItemExecutionStateDeliveryChangedEvent
   | WebSocketAgentSessionContextSizeChangedEvent
   | WebSocketAgentSessionOutputAttentionChangedEvent
   | WebSocketConversationPhaseChangedEvent
@@ -284,6 +286,36 @@ export class WebSocketHandler {
       organizationId,
       projectId,
     );
+  }
+
+  /**
+   * The server delivering this project lost, then regained, changes accepted
+   * on other servers. Held records stay as they are but are no longer live;
+   * after restoration they are re-read before delivery is live again.
+   */
+  private handleWorkItemExecutionStateDeliveryChanged(
+    event: WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+  ): void {
+    if (event.delivery === "INTERRUPTED") {
+      interruptWorkItemExecutionStateProjectDelivery(
+        this.queryClient,
+        event.organizationId,
+        event.projectId,
+      );
+      return;
+    }
+
+    void refreshLoadedWorkItemExecutionStates(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    ).catch((error: unknown) => {
+      logger.warn(
+        "data_websockets",
+        "Execution-state refresh after delivery restoration failed",
+        { projectId: event.projectId, error },
+      );
+    });
   }
 
   /** Loaded execution states may now miss updates until a project refresh. */
@@ -605,6 +637,9 @@ export class WebSocketHandler {
             event.projectId,
             event.executionState,
           );
+          break;
+        case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged:
+          this.handleWorkItemExecutionStateDeliveryChanged(event);
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged:
           this.handleAgentSessionContextSizeChanged(event);

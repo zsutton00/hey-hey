@@ -168,6 +168,11 @@ export const EVENT_TYPES = {
     // instance's in-memory registry snapshot must be refreshed from Postgres.
     CONFIG_CHANGED: 'work_item_type.config_changed',
   },
+  WORK_ITEM_EXECUTION_STATE: {
+    // A work item's retained execution state changed. Every API instance
+    // handles it and delivers the retained record to its local subscribers.
+    RETAINED: 'work_item.execution_state_retained',
+  },
   MACHINE: {
     // A paired machine's credential was revoked. Producer-side signal for the
     // machine security event feed; the feed's persistence/read side is owned
@@ -267,6 +272,8 @@ export type HelpEventType =
   (typeof EVENT_TYPES.HELP)[keyof typeof EVENT_TYPES.HELP];
 export type WorkItemTypeEventType =
   (typeof EVENT_TYPES.WORK_ITEM_TYPE)[keyof typeof EVENT_TYPES.WORK_ITEM_TYPE];
+export type WorkItemExecutionStateEventType =
+  (typeof EVENT_TYPES.WORK_ITEM_EXECUTION_STATE)[keyof typeof EVENT_TYPES.WORK_ITEM_EXECUTION_STATE];
 export type MachineEventType =
   (typeof EVENT_TYPES.MACHINE)[keyof typeof EVENT_TYPES.MACHINE];
 
@@ -300,6 +307,7 @@ export type ServiceEventType =
   | GitHubWebhookEventType
   | HelpEventType
   | WorkItemTypeEventType
+  | WorkItemExecutionStateEventType
   | MachineEventType;
 
 export type ArtifactJobType =

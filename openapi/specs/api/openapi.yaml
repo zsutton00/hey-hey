@@ -21037,6 +21037,239 @@ paths:
         "404":
           description: Project not found in the requested organization.
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuation:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+    get:
+      summary: Read whether this session can continue on another computer
+      operationId: getAgentSessionContinuationStatus
+      description: >-
+        Server-confirmed state of the session's machine binding and its latest
+        continuation. Only a revoked or removed binding offers continuation; an
+        offline or unverifiable machine keeps its session.
+      tags: [AgentSessions]
+      responses:
+        "200":
+          description: Continuation status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationStatusDto"
+        "404":
+          description: Agent Session not found for this account and project.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/inspection:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Client-minted continuation identity; repeating it is idempotent.
+    post:
+      summary: Inspect a destination computer's provider state for continuation
+      operationId: inspectAgentSessionContinuation
+      description: >-
+        Under the destination's own controller authorization, asks its CLI
+        whether usable provider state for this session exists. Records the
+        inspection; moves nothing. Repeating the same continuation with the same
+        input returns the recorded inspection; different input is rejected.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectAgentSessionContinuationRequestDto"
+      responses:
+        "200":
+          description: Recorded inspection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "403":
+          description: Destination or controller authority unavailable.
+        "404":
+          description: Agent Session not found for this account and project.
+        "409":
+          description: The session is not eligible, its binding changed, or the continuation input differs.
+        "502":
+          description: The destination could not be inspected; the cause is in the error code.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/commit:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Client-minted continuation identity; repeating it is idempotent.
+    post:
+      summary: Continue the session on the inspected destination
+      operationId: commitAgentSessionContinuation
+      description: >-
+        Atomically rebinds the session to the inspected destination, records the
+        previous machine, and delivers a materialize-only start_run for that
+        destination under its own controller authorization. Repeating while a
+        delivery is pending or succeeded returns the recorded attempt. On a
+        FAILED attempt it retries delivery to the same destination as a new
+        delivery generation, without a second rebind.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitAgentSessionContinuationRequestDto"
+      responses:
+        "200":
+          description: Committed continuation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "403":
+          description: Destination or controller authority unavailable.
+        "404":
+          description: Agent Session or continuation not found.
+        "409":
+          description: Binding changed, saved history not confirmed, or eligibility lost.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/cancel:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Continuation attempt identity.
+    post:
+      summary: Decline a continuation attempt before anything starts
+      operationId: cancelAgentSessionContinuation
+      description: >-
+        Records that the person declined an INSPECTED or
+        AWAITING_HISTORY_CONFIRMATION attempt. Nothing is delivered or started.
+        Repeating returns the cancelled attempt.
+      tags: [AgentSessions]
+      responses:
+        "200":
+          description: Cancelled continuation attempt
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "404":
+          description: Agent Session or continuation not found.
+        "409":
+          description: The attempt already delivered or started and cannot be cancelled.
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/cli-reads:
     parameters:
       - name: organizationId
@@ -29059,6 +29292,8 @@ components:
       $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStatePayload"
     WorkItemExecutionStateObservation:
       $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateObservation"
+    WorkItemExecutionStateObservationReceipt:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateObservationReceipt"
     WorkItemExecutionFreshness:
       $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionFreshness"
     WorkItemExecutionState:
@@ -29075,6 +29310,8 @@ components:
       $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchResponseDto"
     WebSocketWorkItemExecutionStateChangedEvent:
       $ref: "../schemas/websockets.yaml#/WebSocketWorkItemExecutionStateChangedEvent"
+    WebSocketWorkItemExecutionStateDeliveryChangedEvent:
+      $ref: "../schemas/websockets.yaml#/WebSocketWorkItemExecutionStateDeliveryChangedEvent"
     ConversationPhaseObservation:
       $ref: "../schemas/websockets.yaml#/ConversationPhaseObservation"
 
@@ -29164,6 +29401,36 @@ components:
       oneOf:
         - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceSkillsListSuccessResponseDto"
         - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceSkillsListErrorResponseDto"
+    AgentSessionContinuationSourceState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationSourceState"
+    AgentSessionContinuationState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationState"
+    AgentSessionContinuationMode:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationMode"
+    AgentSessionContinuationNativeState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationNativeState"
+    AgentSessionContinuationInspectionReason:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationInspectionReason"
+    AgentSessionContinuationMarker:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationMarker"
+    AgentSessionContinuationDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationDto"
+    AgentSessionContinuationStatusDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStatusDto"
+    InspectAgentSessionContinuationRequestDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/InspectAgentSessionContinuationRequestDto"
+    CommitAgentSessionContinuationRequestDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/CommitAgentSessionContinuationRequestDto"
+    AgentSessionContinuationInspectHostActionPreparation:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationInspectHostActionPreparation"
+    CliReadAgentSessionContinuationInspectEnvelopeBody:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectEnvelopeBody"
+    CliReadAgentSessionContinuationInspectResult:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectResult"
+    CliReadAgentSessionContinuationInspectSuccessResponseDto:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
+    CliReadAgentSessionContinuationInspectErrorResponseDto:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectErrorResponseDto"
     CliReadRuntimeModelCatalogGetRequest:
       $ref: "../schemas/websockets.yaml#/CliReadRuntimeModelCatalogGetRequest"
     RuntimeModelCatalogReadResponseDto:

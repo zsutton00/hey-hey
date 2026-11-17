@@ -9,12 +9,16 @@ import {
   WebSocketSubscriptionRequestEventTypesEnum,
   type TaskMonitorStateProjection,
   type WebSocketWorkItemExecutionStateChangedEvent,
+  type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
   type WorkItemExecutionState,
 } from "../../../api";
 import { dataClient } from "../../../clients";
 import { ProjectContext } from "../../../contexts/ProjectContext";
 import { useWorkItemExecutionState } from "../../hooks/useWorkItemExecutionState";
-import { readWorkItemExecutionStateDelivery } from "../workItemExecutionState";
+import {
+  readWorkItemExecutionStateDelivery,
+  refreshLoadedWorkItemExecutionStates,
+} from "../workItemExecutionState";
 import { WebSocketDebugger } from "../../websockets/debug";
 import { WebSocketHandler } from "../../websockets/handler";
 import { WebSocketService } from "../../../services/webSocketService";
@@ -210,6 +214,61 @@ describe("shared work-item execution state", () => {
 
     expect(result.current).toMatchObject({ status: "retained", revision: 1 });
     expect(reads).toHaveLength(1);
+  });
+
+  it("keeps a known failure but stops calling it live while the server misses other servers' changes, then re-reads", async () => {
+    platform["project-1"]["monitor-1"] = record(
+      "monitor-1",
+      3,
+      projections.failed,
+    );
+    const { result } = view("monitor-1");
+    await waitFor(() => expect(result.current.status).toBe("retained"));
+    await act(() =>
+      refreshLoadedWorkItemExecutionStates(queryClient, "org-1", "project-1"),
+    );
+    expect(result.current).toMatchObject({ delivery: "LIVE" });
+    const deliveryChanged = (delivery: "INTERRUPTED" | "RESTORED") =>
+      act(async () => {
+        handler.handleEvent({
+          type: WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+          timestamp: "2026-11-16T10:00:02.000Z",
+          organizationId: "org-1",
+          projectId: "project-1",
+          delivery,
+        } satisfies WebSocketWorkItemExecutionStateDeliveryChangedEvent);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+    await deliveryChanged("INTERRUPTED");
+    expect(result.current).toMatchObject({
+      status: "retained",
+      delivery: "INTERRUPTED",
+      state: { projection: projections.failed },
+    });
+
+    // Meanwhile another server accepted the resolution; restoration re-reads it.
+    platform["project-1"]["monitor-1"] = record(
+      "monitor-1",
+      5,
+      projections.running,
+    );
+    const readsBefore = reads.length;
+    await deliveryChanged("RESTORED");
+    // Reads are paced, so the re-read lands after the pacing window.
+    await waitFor(
+      () =>
+        expect(result.current).toMatchObject({
+          delivery: "LIVE",
+          revision: 5,
+          state: { projection: projections.running },
+        }),
+      { timeout: 3000 },
+    );
+    expect(reads.length).toBeGreaterThan(readsBefore);
+    expect(
+      readWorkItemExecutionStateDelivery(queryClient, "org-1", "project-2"),
+    ).toBe("INTERRUPTED");
   });
 
   it("re-reads every loaded item in one batch after the project room is rejoined", async () => {

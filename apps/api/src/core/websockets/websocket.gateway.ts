@@ -11,7 +11,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
 import { PendingTriggerService } from '../../services/workflows/pending-trigger.service';
 import { TriggerEmitter } from './trigger-emitter.service';
 import { AgentOperationDispatchService } from './agent-operation-dispatch.service';
@@ -53,6 +53,8 @@ import {
   WebSocketAgentSessionStatusChangedEvent,
   WebSocketAgentSessionCurrentStateChangedEvent,
   WebSocketWorkItemExecutionStateChangedEvent,
+  WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+  WorkItemExecutionStateObservationReceipt,
   WebSocketConversationPhaseChangedEvent,
   WebSocketAgentSessionOutputAttentionChangedEvent,
   WebSocketProposalApprovedEvent,
@@ -306,7 +308,7 @@ export class WebsocketGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server!: Server;
+  server!: Namespace;
 
   /**
    * Events emitted by other providers during application bootstrap may arrive
@@ -454,9 +456,22 @@ export class WebsocketGateway
     this.conversationPhaseProjection?.setTransitionSink((transition) =>
       this.emitConversationPhaseChanged(transition.entry),
     );
-    this.workItemExecutionState?.setChangeSink((change) =>
-      this.emitWorkItemExecutionStateChanged(change),
-    );
+    void this.workItemExecutionState
+      ?.startDelivery({
+        changed: (change) => this.emitWorkItemExecutionStateChanged(change),
+        subscriptionChanged: (state) =>
+          void this.emitWorkItemExecutionStateDeliveryChanged(state),
+        projectDeliveryChanged: (projectId, state) =>
+          void this.emitWorkItemExecutionStateDeliveryChanged(state, [
+            projectId,
+          ]),
+      })
+      .catch((error: unknown) =>
+        this.logger.error('[execution-state] delivery start failed', {
+          code: 'DELIVERY_SUBSCRIBE_FAILED',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
 
     // Flush any events that were queued before the server instance was ready
     if (this.pendingEmits.length > 0) {
@@ -1814,7 +1829,7 @@ export class WebsocketGateway
   async handleWorkItemExecutionStateObserved(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: unknown,
-  ): Promise<void> {
+  ): Promise<WorkItemExecutionStateObservationReceipt> {
     const connection = this.connectionManager.getConnection(client.id);
     if (
       !connection?.userId ||
@@ -1828,20 +1843,32 @@ export class WebsocketGateway
         hasUser: Boolean(connection?.userId),
         hasMachine: Boolean(connection?.machineId),
       });
-      return;
+      return { outcome: 'REJECTED', code: 'UNAUTHENTICATED' };
+    }
+
+    const service = this.workItemExecutionState;
+    if (!service) {
+      this.logger.error('[execution-state] observation failed', {
+        code: 'RECEIVER_UNAVAILABLE',
+        socketId: client.id,
+        machineId: connection.machineId,
+      });
+      return { outcome: 'RECEIVE_FAILED' };
     }
 
     try {
-      await this.workItemExecutionState?.observe(
+      return await service.observe(
         { userId: connection.userId, machineId: connection.machineId },
         payload,
       );
     } catch (error) {
       this.logger.error('[execution-state] observation failed', {
+        code: 'RECEIVE_FAILED',
         socketId: client.id,
         machineId: connection.machineId,
         error: error instanceof Error ? error.message : String(error),
       });
+      return { outcome: 'RECEIVE_FAILED' };
     }
   }
 
@@ -2907,6 +2934,71 @@ export class WebsocketGateway
         freshness: change.executionState.freshness.status,
       });
     });
+  }
+
+  /**
+   * This instance lost or regained other instances' execution-state changes.
+   * Each locally joined project room is told, so its subscribers treat what
+   * they hold as possibly out of date and re-read after restoration. With
+   * `onlyProjectIds`, only those projects' locally joined rooms are told.
+   */
+  private async emitWorkItemExecutionStateDeliveryChanged(
+    state: 'INTERRUPTED' | 'RESTORED',
+    onlyProjectIds?: string[],
+  ): Promise<void> {
+    // `this.server` is the `/events` Namespace, whose own adapter holds its
+    // rooms; `server.sockets` is its socket Map and has no adapter.
+    const joinedProjectIds = [...(this.server?.adapter?.rooms?.keys() ?? [])]
+      .filter((room) => room.startsWith('project:'))
+      .map((room) => room.slice('project:'.length));
+    const projectIds = onlyProjectIds
+      ? joinedProjectIds.filter((id) => onlyProjectIds.includes(id))
+      : joinedProjectIds;
+    const prisma = this.prisma;
+    if (projectIds.length === 0 || !prisma) {
+      return;
+    }
+
+    try {
+      const projects = await prisma.db.project.findMany({
+        where: { id: { in: projectIds } },
+        select: { id: true, organizationId: true },
+      });
+      const delivery =
+        state === 'INTERRUPTED'
+          ? WebSocketWorkItemExecutionStateDeliveryChangedEvent.DeliveryEnum
+              .Interrupted
+          : WebSocketWorkItemExecutionStateDeliveryChangedEvent.DeliveryEnum
+              .Restored;
+      for (const project of projects) {
+        const event: WebSocketWorkItemExecutionStateDeliveryChangedEvent = {
+          type: WebSocketWorkItemExecutionStateDeliveryChangedEvent.TypeEnum
+            .WorkItemExecutionStateDeliveryChanged,
+          timestamp: new Date().toISOString(),
+          organizationId: project.organizationId,
+          projectId: project.id,
+          delivery,
+        };
+        this.server
+          .to(`project:${project.id}`)
+          .emit(
+            WebSocketSubscriptionRequest.EventTypesEnum
+              .WorkItemExecutionStateDeliveryChanged,
+            event,
+          );
+      }
+      this.logger.warn('[execution-state] delivery change announced', {
+        state,
+        projects: projects.length,
+      });
+    } catch (error) {
+      this.logger.error('[execution-state] delivery change not announced', {
+        code: 'DELIVERY_ANNOUNCE_FAILED',
+        state,
+        projects: projectIds.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   public emitAgentSessionContextSizeChanged(entry: {

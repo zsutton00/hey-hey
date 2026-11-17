@@ -51,6 +51,54 @@ WorkItemExecutionStateObservation:
     replacement snapshot of committed state. The platform derives project and
     organization scope from the work item and never from this frame.
 
+WorkItemExecutionStateObservationReceipt:
+  type: object
+  additionalProperties: false
+  required: [outcome]
+  properties:
+    workItemId:
+      type: string
+      format: uuid
+      description: Echoed from the report; absent only when the report was unreadable.
+    sourceRevision:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Echoed from the report; absent only when the report was unreadable.
+    outcome:
+      type: string
+      enum: [ACCEPTED, DUPLICATE, REJECTED, RECEIVE_FAILED]
+      description: >-
+        ACCEPTED: retained as the latest state. DUPLICATE: the platform
+        already retains this revision or a newer one from this owner.
+        REJECTED: permanently refused for the stated code; resending the same
+        report cannot succeed. RECEIVE_FAILED: the platform could not decide
+        (for example storage was unavailable); the owner may resend.
+    code:
+      type: string
+      enum:
+        - MALFORMED
+        - UNAUTHENTICATED
+        - MACHINE_MISMATCH
+        - MACHINE_REVOKED
+        - ITEM_NOT_FOUND
+        - TYPE_NOT_PARTICIPATING
+        - PROJECT_FORBIDDEN
+        - OWNER_UNAVAILABLE
+        - OWNER_CONFLICT
+        - OWNER_MISMATCH
+        - STALE
+      description: Specific rejection cause; present only when REJECTED.
+    revision:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Platform revision of the retained record; present only when ACCEPTED.
+  description: >-
+    Acknowledgement of one work_item.execution_state_observed frame. It
+    certifies only what the platform retained; it never reports execution
+    success or command admission.
+
 WorkItemExecutionFreshness:
   type: object
   additionalProperties: false

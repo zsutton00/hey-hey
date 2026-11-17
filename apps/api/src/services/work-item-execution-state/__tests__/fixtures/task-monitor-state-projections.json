@@ -7,8 +7,14 @@
       "intervention": "CLEAR"
     },
     "availableActions": [
-      { "kind": "STOP", "command": "STOP" },
-      { "kind": "PAUSE", "command": "PAUSE" }
+      {
+        "kind": "STOP",
+        "command": "STOP"
+      },
+      {
+        "kind": "PAUSE",
+        "command": "PAUSE"
+      }
     ]
   },
   "paused": {
@@ -19,25 +25,37 @@
       "intervention": "CLEAR"
     },
     "availableActions": [
-      { "kind": "STOP", "command": "STOP" },
-      { "kind": "PAUSED_CONTINUATION", "command": "RESUME" }
+      {
+        "kind": "STOP",
+        "command": "STOP"
+      },
+      {
+        "kind": "PAUSED_CONTINUATION",
+        "command": "RESUME"
+      }
     ]
   },
   "failed": {
     "execution": {
       "lifecycle": "RUNNING",
-      "control": "ACTIVE",
+      "control": "PAUSED",
       "work": "RETRYABLE_LAUNCH",
       "intervention": "CLEAR"
     },
     "availableActions": [
-      { "kind": "STOP", "command": "STOP" },
-      { "kind": "PAUSE", "command": "PAUSE" }
+      {
+        "kind": "STOP",
+        "command": "STOP"
+      },
+      {
+        "kind": "RETRYABLE_RECOVERY",
+        "command": "START"
+      }
     ],
     "failure": {
-      "code": "OPERATION_FAILED",
-      "cause": "Branch feature/checkout is checked out in the host repository.",
-      "correctiveGuidance": "Inspect the reported failure and stop the monitor if recovery is required."
+      "code": "BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY",
+      "cause": "Branch feature/checkout is already checked out in repository /repos/service-a; cannot materialize an isolated worktree for this service.",
+      "correctiveGuidance": "Choose a different editable worktree or branch in Task Monitor settings, then press Start to retry."
     }
   },
   "completed": {

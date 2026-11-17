@@ -85,6 +85,7 @@ export const WebSocketSubscriptionRequestEventTypesEnum = {
     ConversationPhaseChanged: 'conversation.phase_changed',
     TaskMonitorStateChanged: 'task_monitor.state_changed',
     WorkItemExecutionStateChanged: 'work_item.execution_state_changed',
+    WorkItemExecutionStateDeliveryChanged: 'work_item.execution_state_delivery_changed',
     DailySessionUpdated: 'daily_session.updated',
     ProposalApproved: 'proposal.approved',
     ProposalGroupLifecycle: 'proposal_group.lifecycle',

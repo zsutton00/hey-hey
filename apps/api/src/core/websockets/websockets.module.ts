@@ -24,6 +24,8 @@ import { DemoSandboxActivityModule } from '../../services/demo-sandbox/demo-sand
 import { WorkflowModule } from '../../services/workflows/workflow.module';
 import { WorkItemExecutionStateRegistry } from '../../services/work-item-execution-state/work-item-execution-state.registry';
 import { WorkItemExecutionStateService } from '../../services/work-item-execution-state/work-item-execution-state.service';
+import { WorkItemExecutionStateDelivery } from '../../services/work-item-execution-state/work-item-execution-state.delivery';
+import { TaskMonitorPublicationPolicyRegistration } from '../../services/work-item-execution-state/task-monitor-publication-policy';
 
 @Module({
   imports: [
@@ -53,7 +55,9 @@ import { WorkItemExecutionStateService } from '../../services/work-item-executio
     ExecutableFrameAuthorizationService,
     AgentOperationDispatchService,
     WorkItemExecutionStateRegistry,
+    WorkItemExecutionStateDelivery,
     WorkItemExecutionStateService,
+    TaskMonitorPublicationPolicyRegistration,
   ],
   exports: [
     WebsocketConnectionManager,

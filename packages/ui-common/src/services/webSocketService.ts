@@ -42,6 +42,7 @@ import {
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
   type WebSocketWorkItemExecutionStateChangedEvent,
+  type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -1360,6 +1361,18 @@ export class WebSocketService {
     );
 
     socket.on(
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+      (event: WebSocketWorkItemExecutionStateDeliveryChangedEvent) => {
+        logger.info(
+          "services_websockets",
+          WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+          { projectId: event.projectId, delivery: event.delivery },
+        );
+        this.handleAuthorizedEvent(event);
+      },
+    );
+
+    socket.on(
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
       (event: WebSocketAgentSessionCurrentStateChangedEvent) => {
         logger.info(
@@ -1582,6 +1595,7 @@ export class WebSocketService {
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionStatusChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
       WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionOutputAttentionChanged,
       WebSocketSubscriptionRequestEventTypesEnum.ConversationPhaseChanged,

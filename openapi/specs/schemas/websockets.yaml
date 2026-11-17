@@ -701,6 +701,34 @@ WebSocketWorkItemExecutionStateChangedEvent:
     work-item identity when its revision is newer than the record they hold.
     Display and cache only; never a command path.
 
+WebSocketWorkItemExecutionStateDeliveryChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - type
+        - projectId
+        - delivery
+      properties:
+        type:
+          type: string
+          enum: ["work_item.execution_state_delivery_changed"]
+        projectId:
+          type: string
+          format: uuid
+        delivery:
+          type: string
+          enum: [INTERRUPTED, RESTORED]
+          description: >-
+            INTERRUPTED: this server stopped receiving execution-state changes
+            from other servers, so updates may be missed. RESTORED: receipt
+            resumed; clients re-read retained state before treating delivery as
+            live again.
+  description: >-
+    Project-scoped signal about this server's ability to deliver execution
+    state changes accepted on other servers. Carries no execution state and
+    never changes a retained record.
+
 # =============================================
 # Agent Session Current State Events
 # =============================================
@@ -1943,6 +1971,18 @@ CliReadProviderUsageGetEnvelopeBody:
 CliReadRuntimeModelCatalogGetEnvelopeBody:
   $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
 
+CliReadAgentSessionContinuationInspectEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
+
+CliReadAgentSessionContinuationInspectResult:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectResult"
+
+CliReadAgentSessionContinuationInspectSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
+
+CliReadAgentSessionContinuationInspectErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
+
 CliReadEnvelopeBody:
   oneOf:
     - $ref: "#/CliReadRunChangedFilesCountEnvelopeBody"
@@ -1956,6 +1996,7 @@ CliReadEnvelopeBody:
     - $ref: "#/CliReadProjectSessionCostsListEnvelopeBody"
     - $ref: "#/CliReadProviderUsageGetEnvelopeBody"
     - $ref: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+    - $ref: "#/CliReadAgentSessionContinuationInspectEnvelopeBody"
   discriminator:
     propertyName: operation
     mapping:
@@ -1970,6 +2011,7 @@ CliReadEnvelopeBody:
       project.session_costs.list: "#/CliReadProjectSessionCostsListEnvelopeBody"
       provider.usage.get: "#/CliReadProviderUsageGetEnvelopeBody"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectEnvelopeBody"
 
 CliReadChangedFilesCountResult:
   type: object
@@ -2311,6 +2353,7 @@ CliReadSuccessResponseDto:
     - $ref: "#/CliReadProjectSessionCostsListSuccessResponseDto"
     - $ref: "#/CliReadProviderUsageGetSuccessResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+    - $ref: "#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
   discriminator:
     propertyName: operation
     mapping:
@@ -2325,6 +2368,7 @@ CliReadSuccessResponseDto:
       project.session_costs.list: "#/CliReadProjectSessionCostsListSuccessResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetSuccessResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
 
 CliReadErrorResponseDto:
   oneOf:
@@ -2339,6 +2383,7 @@ CliReadErrorResponseDto:
     - $ref: "#/CliReadProjectSessionCostsListErrorResponseDto"
     - $ref: "#/CliReadProviderUsageGetErrorResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+    - $ref: "#/CliReadAgentSessionContinuationInspectErrorResponseDto"
   discriminator:
     propertyName: operation
     mapping:
@@ -2353,6 +2398,7 @@ CliReadErrorResponseDto:
       project.session_costs.list: "#/CliReadProjectSessionCostsListErrorResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetErrorResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectErrorResponseDto"
 
 CliReadResponseDto:
   oneOf:
@@ -3108,6 +3154,7 @@ WebSocketSubscriptionRequest:
           - "conversation.phase_changed"
           - "task_monitor.state_changed"
           - "work_item.execution_state_changed"
+          - "work_item.execution_state_delivery_changed"
           - "daily_session.updated"
           - "proposal.approved"
           - "proposal_group.lifecycle"

@@ -19,6 +19,8 @@ describe('RedisMessageBus delivery', () => {
   });
   it.each([
     [EVENT_TYPES.WORK_ITEM_TYPE.CONFIG_CHANGED, 4],
+    // Every instance delivers retained execution state to its own sockets.
+    [EVENT_TYPES.WORK_ITEM_EXECUTION_STATE.RETAINED, 4],
     ['test.event', 1],
     [`${EVENT_TYPES.WORK_ITEM_TYPE.CONFIG_CHANGED}.other`, 1],
   ])('delivers %s with its own semantics', async (type, count) => {
@@ -44,5 +46,26 @@ describe('RedisMessageBus delivery', () => {
     expect(handlers.reduce((n, h) => n + h.mock.calls.length, 0)).toBe(count);
     if (count === 4)
       handlers.forEach((handler) => expect(handler).toHaveBeenCalledTimes(2));
+  });
+
+  it('reports losing and regaining its subscription connection', async () => {
+    const states: string[] = [];
+    const stop = buses[1]!.onSubscriptionStateChange((state) =>
+      states.push(state),
+    );
+    const subscriber = (
+      buses[1] as unknown as {
+        subscriber: { disconnect(reconnect: boolean): void };
+      }
+    ).subscriber;
+
+    subscriber.disconnect(true);
+    const deadline = Date.now() + 5000;
+    while (states.length < 2 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    stop();
+
+    expect(states).toEqual(['INTERRUPTED', 'RESTORED']);
   });
 });

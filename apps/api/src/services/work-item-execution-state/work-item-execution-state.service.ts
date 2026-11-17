@@ -1,58 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  Prisma,
-  WorkItemExecutionState as StoredExecutionStateModel,
-} from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type {
   WorkItemExecutionState,
   WorkItemExecutionStateBatchItemDto,
   WorkItemExecutionStateObservation,
+  WorkItemExecutionStateObservationReceipt,
 } from '@hey-hey/contracts/api/models';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
 import { MachinePresenceService } from 'src/core/websockets/machine-presence.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MachineId, OrganizationId, ProjectId, UserId } from 'src/types';
+import { parseWorkItemExecutionStateObservation } from './work-item-execution-state.boundary';
 import {
-  parseStoredWorkItemExecutionStatePayload,
-  parseWorkItemExecutionStateObservation,
-} from './work-item-execution-state.boundary';
+  WorkItemExecutionStateDelivery,
+  WorkItemExecutionStateDeliverySink,
+} from './work-item-execution-state.delivery';
+import {
+  StoredExecutionState,
+  toWorkItemExecutionState,
+} from './work-item-execution-state.record';
 import { WorkItemExecutionStateRegistry } from './work-item-execution-state.registry';
 
-export type WorkItemExecutionStateRejection =
-  | 'MALFORMED'
-  | 'MACHINE_MISMATCH'
-  | 'MACHINE_REVOKED'
-  | 'ITEM_NOT_FOUND'
-  | 'TYPE_NOT_PARTICIPATING'
-  | 'PROJECT_FORBIDDEN'
-  | 'OWNER_MISMATCH'
-  | 'STALE';
+export type { WorkItemExecutionStateChange } from './work-item-execution-state.delivery';
 
-export type WorkItemExecutionStateObservationResult =
-  | { outcome: 'ACCEPTED'; revision: number }
-  | { outcome: 'DUPLICATE'; freshnessRestored: boolean }
-  | { outcome: 'REJECTED'; code: WorkItemExecutionStateRejection };
+export type WorkItemExecutionStateRejection = NonNullable<
+  WorkItemExecutionStateObservationReceipt['code']
+>;
 
-/** One accepted change to a retained record, scoped for project fan-out. */
-export interface WorkItemExecutionStateChange {
+type ReportedWorkItem = {
+  id: string;
   organizationId: string;
   projectId: string;
-  executionState: WorkItemExecutionState;
-}
-
-type StoredExecutionState = Pick<
-  StoredExecutionStateModel,
-  | 'workItemId'
-  | 'organizationId'
-  | 'projectId'
-  | 'payload'
-  | 'ownerMachineId'
-  | 'sourceRevision'
-  | 'revision'
-  | 'ownerConnected'
-  | 'freshnessChangedAt'
-  | 'acceptedAt'
->;
+};
 
 const STORED_COLUMNS = Prisma.sql`
   work_item_id AS "workItemId",
@@ -81,6 +60,13 @@ const UTC_NOW = Prisma.sql`timezone('utc', now())`;
  * sequence. `revision` is assigned here, increases on every accepted change
  * (state, owner or freshness), and is what consumers order deliveries by.
  *
+ * Ownership. Every report, the first included, must be authorized by the
+ * type's publication policy from the type's own authoritative evidence. The
+ * policy runs inside one transaction per item, under an item-scoped advisory
+ * lock, together with the retention write and its outbox notification, so an
+ * owner decision and the write it permits cannot interleave with another
+ * instance's.
+ *
  * Freshness. `ownerConnected` is stored beside the payload and never folded
  * into it. Connection changes touch freshness and `revision` only, so a
  * disconnect can neither clear a retained failure nor assert a healthy state.
@@ -94,28 +80,30 @@ const UTC_NOW = Prisma.sql`timezone('utc', now())`;
 @Injectable()
 export class WorkItemExecutionStateService {
   private readonly logger = new Logger(WorkItemExecutionStateService.name);
-  private changeSink?: (change: WorkItemExecutionStateChange) => void;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectAccess: ProjectAccessService,
     private readonly machinePresence: MachinePresenceService,
     private readonly registry: WorkItemExecutionStateRegistry,
+    private readonly delivery: WorkItemExecutionStateDelivery,
   ) {}
 
-  /** Receives every accepted change so the gateway can fan it out. */
-  setChangeSink(sink: (change: WorkItemExecutionStateChange) => void): void {
-    this.changeSink = sink;
+  /** Every accepted change, from any instance, reaches this instance's sink. */
+  startDelivery(sink: WorkItemExecutionStateDeliverySink): Promise<void> {
+    return this.delivery.start(sink);
   }
 
   /**
-   * Accept or reject one report from an authenticated CLI connection.
-   * Project and organization scope come from the work item, never the frame.
+   * Accept or reject one report from an authenticated CLI connection, and
+   * answer with a receipt that certifies only what was retained. Project and
+   * organization scope come from the work item, never the frame. Throws when
+   * storage fails, which the caller reports as RECEIVE_FAILED.
    */
   async observe(
     reporter: { userId: UserId; machineId: MachineId },
     frame: unknown,
-  ): Promise<WorkItemExecutionStateObservationResult> {
+  ): Promise<WorkItemExecutionStateObservationReceipt> {
     const parsed = parseWorkItemExecutionStateObservation(frame);
     if (!parsed.valid) {
       this.logger.warn('[execution-state] observation rejected', {
@@ -123,33 +111,94 @@ export class WorkItemExecutionStateService {
         machineId: reporter.machineId,
         failures: parsed.failures,
       });
-      return { outcome: 'REJECTED', code: 'MALFORMED' };
+      return {
+        ...reportedIdentity(frame),
+        outcome: 'REJECTED',
+        code: 'MALFORMED',
+      };
     }
 
     const observation = parsed.value;
-    const rejection = await this.authorizeReport(reporter, observation);
-    if (rejection.code) {
-      return this.reject(rejection.code, observation, rejection.stored);
+    const reporterCheck = await this.authorizeReporter(reporter, observation);
+    if (reporterCheck.code) {
+      return this.reject(reporterCheck.code, observation);
     }
 
-    const written = await this.writeAccepted(
-      observation,
-      rejection.workItem,
-      rejection.confirmedTakeoverFrom,
+    return this.prisma.$transaction((tx) =>
+      this.retain(tx, observation, reporterCheck.workItem),
     );
-    if (written) {
-      this.logger.log('[execution-state] observation accepted', {
-        workItemId: observation.workItemId,
-        machineId: observation.machineId,
-        sourceRevision: observation.sourceRevision,
-        revision: Number(written.revision),
-        ownerChanged: rejection.confirmedTakeoverFrom !== null,
-      });
-      this.publish(written);
-      return { outcome: 'ACCEPTED', revision: Number(written.revision) };
+  }
+
+  /** The serialized part: owner decision, write and notification together. */
+  private async retain(
+    tx: Prisma.TransactionClient,
+    observation: WorkItemExecutionStateObservation,
+    workItem: ReportedWorkItem,
+  ): Promise<WorkItemExecutionStateObservationReceipt> {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`work-item-execution-state:${workItem.id}`}, 0))`,
+    );
+    const stored = await this.findStored(tx, observation.workItemId);
+    const decision = await this.decidePublication(
+      tx,
+      observation,
+      workItem,
+      stored,
+    );
+    if (!decision.authorized) {
+      return this.reject(decision.code, observation, stored);
     }
 
-    return this.classifyUnwritten(observation);
+    const takeoverFrom =
+      stored && stored.ownerMachineId !== observation.machineId
+        ? stored.ownerMachineId
+        : null;
+    const written = await this.writeAccepted(
+      tx,
+      observation,
+      workItem,
+      takeoverFrom,
+    );
+    if (!written) {
+      return this.classifyUnwritten(tx, observation);
+    }
+
+    await this.delivery.notifyInTransaction(tx, written);
+    this.logger.log('[execution-state] observation accepted', {
+      workItemId: observation.workItemId,
+      machineId: observation.machineId,
+      sourceRevision: observation.sourceRevision,
+      revision: Number(written.revision),
+      ownerChanged: takeoverFrom !== null,
+    });
+
+    return {
+      workItemId: observation.workItemId,
+      sourceRevision: observation.sourceRevision,
+      outcome: 'ACCEPTED',
+      revision: Number(written.revision),
+    };
+  }
+
+  private async decidePublication(
+    tx: Prisma.TransactionClient,
+    observation: WorkItemExecutionStateObservation,
+    workItem: ReportedWorkItem,
+    stored: StoredExecutionState | null,
+  ) {
+    const policy = this.registry.publicationPolicyFor(observation.state.type);
+    if (!policy) {
+      return { authorized: false as const, code: 'OWNER_UNAVAILABLE' as const };
+    }
+
+    return policy(
+      {
+        workItem,
+        reportingMachineId: observation.machineId,
+        storedOwnerMachineId: stored?.ownerMachineId ?? null,
+      },
+      tx,
+    );
   }
 
   /**
@@ -202,8 +251,9 @@ export class WorkItemExecutionStateService {
       // Read-only qualification: the recorded connection-change time stands.
       const ownerSilent =
         row.ownerConnected && !present.has(row.ownerMachineId);
-      const executionState = this.toExecutionState(
+      const executionState = toWorkItemExecutionState(
         ownerSilent ? { ...row, ownerConnected: false } : row,
+        this.logger,
       );
       if (executionState) {
         retained.set(row.workItemId, executionState);
@@ -219,19 +269,13 @@ export class WorkItemExecutionStateService {
     });
   }
 
-  private async authorizeReport(
+  /** Checks that need no serialization: who reports, about what, where. */
+  private async authorizeReporter(
     reporter: { userId: UserId; machineId: MachineId },
     observation: WorkItemExecutionStateObservation,
   ): Promise<
-    | {
-        code: WorkItemExecutionStateRejection;
-        stored?: StoredExecutionState | null;
-      }
-    | {
-        code?: undefined;
-        workItem: { id: string; organizationId: string; projectId: string };
-        confirmedTakeoverFrom: string | null;
-      }
+    | { code: WorkItemExecutionStateRejection }
+    | { code?: undefined; workItem: ReportedWorkItem }
   > {
     if (observation.machineId !== reporter.machineId) {
       return { code: 'MACHINE_MISMATCH' };
@@ -253,8 +297,9 @@ export class WorkItemExecutionStateService {
       return { code: 'ITEM_NOT_FOUND' };
     }
 
-    const stateType = observation.state.type;
-    if (workItem.type !== this.registry.workItemTypeFor(stateType)) {
+    if (
+      workItem.type !== this.registry.workItemTypeFor(observation.state.type)
+    ) {
       return { code: 'TYPE_NOT_PARTICIPATING' };
     }
 
@@ -269,24 +314,13 @@ export class WorkItemExecutionStateService {
       return { code: 'PROJECT_FORBIDDEN' };
     }
 
-    const stored = await this.findStored(observation.workItemId);
-    if (!stored || stored.ownerMachineId === reporter.machineId) {
-      return { workItem, confirmedTakeoverFrom: null };
-    }
-
-    const ownerRule = this.registry.ownerRuleFor(stateType);
-    const confirmed = ownerRule
-      ? await ownerRule({
-          workItem,
-          storedOwnerMachineId: stored.ownerMachineId,
-          reportingMachineId: reporter.machineId,
-        })
-      : false;
-    if (!confirmed) {
-      return { code: 'OWNER_MISMATCH', stored };
-    }
-
-    return { workItem, confirmedTakeoverFrom: stored.ownerMachineId };
+    return {
+      workItem: {
+        id: workItem.id,
+        organizationId: workItem.organizationId,
+        projectId: workItem.projectId,
+      },
+    };
   }
 
   /**
@@ -294,11 +328,12 @@ export class WorkItemExecutionStateService {
    * win or regress the row. Returns nothing when the report is not newer.
    */
   private async writeAccepted(
+    tx: Prisma.TransactionClient,
     observation: WorkItemExecutionStateObservation,
-    workItem: { organizationId: string; projectId: string },
+    workItem: ReportedWorkItem,
     confirmedTakeoverFrom: string | null,
   ): Promise<StoredExecutionState | undefined> {
-    const rows = await this.prisma.$queryRaw<StoredExecutionState[]>(
+    const rows = await tx.$queryRaw<StoredExecutionState[]>(
       Prisma.sql`
         INSERT INTO work_item_execution_states AS retained (
           work_item_id, organization_id, project_id, state_type, payload,
@@ -343,9 +378,10 @@ export class WorkItemExecutionStateService {
 
   /** Nothing was written: say why from the row that won. */
   private async classifyUnwritten(
+    tx: Prisma.TransactionClient,
     observation: WorkItemExecutionStateObservation,
-  ): Promise<WorkItemExecutionStateObservationResult> {
-    const stored = await this.findStored(observation.workItemId);
+  ): Promise<WorkItemExecutionStateObservationReceipt> {
+    const stored = await this.findStored(tx, observation.workItemId);
     if (!stored) {
       // The work item, and its row with it, was deleted while we wrote.
       return this.reject('ITEM_NOT_FOUND', observation);
@@ -359,7 +395,7 @@ export class WorkItemExecutionStateService {
 
     // The owner replayed its latest committed state, as it does on reconnect.
     // The payload stands; the replay only proves the owner is connected.
-    const restored = await this.prisma.$queryRaw<StoredExecutionState[]>(
+    const restored = await tx.$queryRaw<StoredExecutionState[]>(
       Prisma.sql`
         UPDATE work_item_execution_states
         SET owner_connected = TRUE,
@@ -373,7 +409,9 @@ export class WorkItemExecutionStateService {
         RETURNING ${STORED_COLUMNS}
       `,
     );
-    restored.forEach((row) => this.publish(row));
+    for (const row of restored) {
+      await this.delivery.notifyInTransaction(tx, row);
+    }
     this.logger.verbose('[execution-state] duplicate observation', {
       workItemId: observation.workItemId,
       machineId: observation.machineId,
@@ -381,26 +419,36 @@ export class WorkItemExecutionStateService {
       freshnessRestored: restored.length > 0,
     });
 
-    return { outcome: 'DUPLICATE', freshnessRestored: restored.length > 0 };
+    return {
+      workItemId: observation.workItemId,
+      sourceRevision: observation.sourceRevision,
+      outcome: 'DUPLICATE',
+    };
   }
 
   private async setMachineConnected(
     machineId: MachineId,
     connected: boolean,
   ): Promise<number> {
-    const changed = await this.prisma.$queryRaw<StoredExecutionState[]>(
-      Prisma.sql`
-        UPDATE work_item_execution_states
-        SET owner_connected = ${connected},
-            freshness_changed_at = ${UTC_NOW},
-            revision = revision + 1,
-            updated_at = ${UTC_NOW}
-        WHERE owner_machine_id = ${machineId}
-          AND owner_connected <> ${connected}
-        RETURNING ${STORED_COLUMNS}
-      `,
-    );
-    changed.forEach((row) => this.publish(row));
+    const changed = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<StoredExecutionState[]>(
+        Prisma.sql`
+          UPDATE work_item_execution_states
+          SET owner_connected = ${connected},
+              freshness_changed_at = ${UTC_NOW},
+              revision = revision + 1,
+              updated_at = ${UTC_NOW}
+          WHERE owner_machine_id = ${machineId}
+            AND owner_connected <> ${connected}
+          RETURNING ${STORED_COLUMNS}
+        `,
+      );
+      for (const row of rows) {
+        await this.delivery.notifyInTransaction(tx, row);
+      }
+
+      return rows;
+    });
     if (changed.length > 0) {
       this.logger.log('[execution-state] owner freshness changed', {
         machineId,
@@ -413,11 +461,10 @@ export class WorkItemExecutionStateService {
   }
 
   private async findStored(
+    tx: Prisma.TransactionClient,
     workItemId: string,
   ): Promise<StoredExecutionState | null> {
-    return this.prisma.db.workItemExecutionState.findUnique({
-      where: { workItemId },
-    });
+    return tx.workItemExecutionState.findUnique({ where: { workItemId } });
   }
 
   /** One batched lookup; an owner whose presence is unknown is not present. */
@@ -446,56 +493,11 @@ export class WorkItemExecutionStateService {
     }
   }
 
-  private publish(row: StoredExecutionState): void {
-    const executionState = this.toExecutionState(row);
-    if (!executionState) {
-      return;
-    }
-
-    this.changeSink?.({
-      organizationId: row.organizationId,
-      projectId: row.projectId,
-      executionState,
-    });
-  }
-
-  /**
-   * A retained payload written under an older contract may no longer match
-   * it. That state is unavailable to consumers, not silently reshaped.
-   */
-  private toExecutionState(
-    row: StoredExecutionState,
-  ): WorkItemExecutionState | undefined {
-    const state = parseStoredWorkItemExecutionStatePayload(row.payload);
-    if (!state.valid) {
-      this.logger.error('[execution-state] retained state unreadable', {
-        code: 'STORED_STATE_INVALID',
-        workItemId: row.workItemId,
-        ownerMachineId: row.ownerMachineId,
-        revision: Number(row.revision),
-        failures: state.failures,
-      });
-      return undefined;
-    }
-
-    return {
-      workItemId: row.workItemId,
-      state: state.value,
-      revision: Number(row.revision),
-      ownerMachineId: row.ownerMachineId,
-      acceptedAt: row.acceptedAt.toISOString(),
-      freshness: {
-        status: row.ownerConnected ? 'CURRENT' : 'LAST_KNOWN',
-        changedAt: row.freshnessChangedAt.toISOString(),
-      },
-    } satisfies WorkItemExecutionState;
-  }
-
   private reject(
     code: WorkItemExecutionStateRejection,
     observation: WorkItemExecutionStateObservation,
     stored?: StoredExecutionState | null,
-  ): WorkItemExecutionStateObservationResult {
+  ): WorkItemExecutionStateObservationReceipt {
     this.logger.warn('[execution-state] observation rejected', {
       code,
       workItemId: observation.workItemId,
@@ -511,6 +513,36 @@ export class WorkItemExecutionStateService {
         : {}),
     });
 
-    return { outcome: 'REJECTED', code };
+    return {
+      workItemId: observation.workItemId,
+      sourceRevision: observation.sourceRevision,
+      outcome: 'REJECTED',
+      code,
+    };
   }
+}
+
+/** Identity echoed on a receipt for a frame that failed validation. */
+function reportedIdentity(
+  frame: unknown,
+): Pick<
+  WorkItemExecutionStateObservationReceipt,
+  'workItemId' | 'sourceRevision'
+> {
+  if (typeof frame !== 'object' || frame === null) {
+    return {};
+  }
+
+  const { workItemId, sourceRevision } = frame as Record<string, unknown>;
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  return {
+    ...(typeof workItemId === 'string' && uuid.test(workItemId)
+      ? { workItemId }
+      : {}),
+    ...(Number.isSafeInteger(sourceRevision) && (sourceRevision as number) >= 0
+      ? { sourceRevision: sourceRevision as number }
+      : {}),
+  };
 }

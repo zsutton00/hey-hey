@@ -15,17 +15,24 @@ import {
 } from '../../../__tests__/helpers/in-memory-postgres';
 import { ProjectAccessService } from '../../../auth/services/project-access.service';
 import { WorkItemExecutionStateController } from '../../../controllers/work-item-execution-state.controller';
+import { DomainEventPublisher } from '../../../core/events/domain-event-publisher';
+import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
+import { OutboxPublisher } from '../../../core/events/outbox-publisher.service';
+import { OutboxStore } from '../../outbox-store.service';
 import type { ClientConnection } from '../../../core/events/types/event.types';
 import { MachinePresenceService } from '../../../core/websockets/machine-presence.service';
 import { WebsocketGateway } from '../../../core/websockets/websocket.gateway';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { MachineId, OrganizationId, ProjectId, UserId } from '../../../types';
+import { decideTaskMonitorPublication } from '../task-monitor-publication-policy';
+import { WorkItemExecutionStateDelivery } from '../work-item-execution-state.delivery';
 import { WorkItemExecutionStateRegistry } from '../work-item-execution-state.registry';
 import { WorkItemExecutionStateService } from '../work-item-execution-state.service';
 
-// The real receiver, retention, ordering, freshness, fan-out and read paths
-// against a real PostgreSQL engine with the shipped migrations. Only the
-// socket transport and Redis are replaced, at the system boundary. Payloads
+// The real receiver, Task Monitor publication policy, retention, ordering,
+// freshness, outbox notification, fan-out and read paths against a real
+// PostgreSQL engine with the shipped migrations. Only the socket transport,
+// the bus transport and Redis are replaced, at the system boundary. Payloads
 // are the projections the real CLI Task Monitor owner publishes; the CLI
 // suite fails if they drift from `taskMonitorStateProjection`.
 jest.setTimeout(180_000);
@@ -129,6 +136,9 @@ describe('Work item execution state with a real database', () => {
     event: WebSocketWorkItemExecutionStateChangedEvent;
   }>;
   let warn: jest.SpyInstance;
+  let outbox: OutboxPublisher;
+  /** Items whose admitted Start evidence the report helper must not seed. */
+  let withoutAdmission: Set<string>;
 
   beforeAll(async () => {
     database = await startInMemoryPostgres();
@@ -143,16 +153,39 @@ describe('Work item execution state with a real database', () => {
     process.env.PROJECT_DATABASE_URL = previousDatabaseUrl;
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Earlier tests' notifications must not reach this test's sockets.
+    await prisma.outboxEvent.updateMany({ data: { status: 'PUBLISHED' } });
     redis = new FakeRedis();
     presence = new MachinePresenceService({ getClient: () => redis } as never);
     registry = new WorkItemExecutionStateRegistry();
+    registry.registerPublicationPolicy(
+      'TASK_MONITOR',
+      decideTaskMonitorPublication,
+    );
+    const bus = new InMemoryMessageBus();
+    outbox = new OutboxPublisher(
+      prisma,
+      bus,
+      { get: () => undefined } as never,
+      {
+        setOutboxLagSeconds: jest.fn(),
+        recordOutboxProcessed: jest.fn(),
+        recordOutboxFailed: jest.fn(),
+      } as never,
+    );
     service = new WorkItemExecutionStateService(
       prisma,
       new ProjectAccessService(prisma),
       presence,
       registry,
+      new WorkItemExecutionStateDelivery(
+        prisma,
+        new DomainEventPublisher(new OutboxStore(prisma)),
+        bus,
+      ),
     );
+    withoutAdmission = new Set();
     controller = new WorkItemExecutionStateController(service);
     connections = new Map();
     roomEvents = [];
@@ -281,13 +314,68 @@ describe('Work item execution state with a real database', () => {
     return task.id;
   };
 
+  /**
+   * The durable evidence a Start admitted for a machine leaves behind: a
+   * controller-authorized monitor command addressed to that machine.
+   */
+  const admitStart = async (
+    owner: Owner,
+    workItemId: string,
+    expiresAt = new Date(Date.now() + 60_000),
+  ): Promise<void> => {
+    const monitor = await prisma.db.task.findUniqueOrThrow({
+      where: { id: workItemId },
+      select: { organizationId: true, projectId: true },
+    });
+    await prisma.db.monitorCommand.create({
+      data: {
+        requestId: randomUUID(),
+        authorizationId: randomUUID(),
+        organizationId: monitor.organizationId,
+        projectId: monitor.projectId,
+        monitorId: workItemId,
+        userId: owner.userId,
+        machineId: owner.machineId,
+        body: { kind: 'TASK_MONITOR_COMMAND', command: { cause: 'START' } },
+        expiresAt,
+      },
+    });
+  };
+
+  /** Publish pending notifications and let every instance deliver them. */
+  const flushDelivery = async (): Promise<void> => {
+    for (let pass = 0; pass < 10; pass += 1) {
+      await outbox['processOutboxEvents']();
+      const pending = await prisma.outboxEvent.count({
+        where: { status: { not: 'PUBLISHED' } },
+      });
+      if (pending === 0) {
+        break;
+      }
+    }
+    // Each delivery reads the retained record before emitting it.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  };
+
   const report = async (
     owner: Owner,
     workItemId: string,
     sourceRevision: number,
     projection: TaskMonitorStateProjection,
     overrides: Partial<WorkItemExecutionStateObservation> = {},
-  ): Promise<void> => {
+  ) => {
+    // Unless a test is about ownership, the reporting machine is the one the
+    // monitor's Start was admitted for.
+    const reported = await prisma.db.task.findUnique({
+      where: { id: workItemId },
+    });
+    const hasEvidence = await prisma.db.monitorCommand.count({
+      where: { monitorId: workItemId },
+    });
+    if (reported && !hasEvidence && !withoutAdmission.has(workItemId)) {
+      await admitStart(owner, workItemId);
+    }
+
     const observation: WorkItemExecutionStateObservation = {
       workItemId,
       machineId: owner.machineId,
@@ -295,10 +383,13 @@ describe('Work item execution state with a real database', () => {
       state: { type: 'TASK_MONITOR', projection },
       ...overrides,
     };
-    await gateway.handleWorkItemExecutionStateObserved(
+    const receipt = await gateway.handleWorkItemExecutionStateObserved(
       owner.socket,
       observation,
     );
+    await flushDelivery();
+
+    return receipt;
   };
 
   const read = async (
@@ -426,24 +517,29 @@ describe('Work item execution state with a real database', () => {
     expect(Number(row.sourceRevision)).toBe(9);
   });
 
-  it('rejects another machine until the type confirms it, then orders the new owner separately', async () => {
+  it('rejects another machine, and gives a confirmed new owner its own sequence that the former owner cannot reclaim', async () => {
     const scope = await seedProject();
     const first = await seedOwner(scope);
     const second = await seedOwner(scope);
     const workItemId = await seedWorkItem(scope);
     await report(first, workItemId, 40, projections.failed);
 
-    await report(second, workItemId, 41, projections.running);
+    expect(await report(second, workItemId, 41, projections.running)).toEqual({
+      workItemId,
+      sourceRevision: 41,
+      outcome: 'REJECTED',
+      code: 'OWNER_MISMATCH',
+    });
     expect((await retained(scope, workItemId)).ownerMachineId).toBe(
       first.machineId,
     );
-    expect(rejectionCodes()).toEqual(['OWNER_MISMATCH']);
 
-    // The type's own authority now names the second machine as owner.
-    registry.registerOwnerRule(
-      'TASK_MONITOR',
-      async ({ reportingMachineId }) => reportingMachineId === second.machineId,
-    );
+    // The monitor's only admitted evidence now names the second machine (the
+    // first machine's row predates it), so the second machine is the owner.
+    await prisma.db.monitorCommand.updateMany({
+      where: { monitorId: workItemId },
+      data: { machineId: second.machineId },
+    });
     // Its sequence is its own: a revision far below the former owner's wins.
     await report(second, workItemId, 1, projections.running);
     const takenOver = await retained(scope, workItemId);
@@ -453,10 +549,119 @@ describe('Work item execution state with a real database', () => {
       state: { projection: projections.running },
     });
 
+    // A delayed report from the former owner cannot reclaim the record.
     warn.mockClear();
     await report(first, workItemId, 99, projections.completed);
     expect(await retained(scope, workItemId)).toEqual(takenOver);
     expect(rejectionCodes()).toEqual(['OWNER_MISMATCH']);
+  });
+
+  it('accepts only the machine its admitted commands name, from the first report on', async () => {
+    const scope = await seedProject();
+    const owner = await seedOwner(scope);
+    const other = await seedOwner(scope);
+    const workItemId = await seedWorkItem(scope);
+    withoutAdmission.add(workItemId);
+
+    // No admitted command: nobody can claim the monitor by reporting first.
+    expect(
+      await report(other, workItemId, 1, projections.running),
+    ).toMatchObject({ outcome: 'REJECTED', code: 'OWNER_UNAVAILABLE' });
+    // An unadmitted (authority-reducing) command is not ownership evidence.
+    await prisma.db.monitorCommand.create({
+      data: {
+        requestId: randomUUID(),
+        organizationId: scope.organizationId,
+        projectId: scope.projectId,
+        monitorId: workItemId,
+        userId: other.userId,
+        machineId: other.machineId,
+        body: { kind: 'TASK_MONITOR_COMMAND', command: { cause: 'PAUSE' } },
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    expect(
+      await report(other, workItemId, 1, projections.running),
+    ).toMatchObject({ outcome: 'REJECTED', code: 'OWNER_UNAVAILABLE' });
+    expect(await read(scope, workItemId)).toEqual({
+      result: 'MISSING',
+      workItemId,
+    });
+
+    // Admission evidence whose execution grant has long expired still
+    // establishes who reports, so a stopped or failed monitor stays reportable.
+    await admitStart(owner, workItemId, new Date(Date.now() - 86_400_000));
+    expect(
+      await report(other, workItemId, 1, projections.running),
+    ).toMatchObject({ outcome: 'REJECTED', code: 'OWNER_MISMATCH' });
+    expect(
+      await report(owner, workItemId, 1, projections.failed),
+    ).toMatchObject({ outcome: 'ACCEPTED', revision: 1 });
+    expect(await report(owner, workItemId, 1, projections.failed)).toEqual({
+      workItemId,
+      sourceRevision: 1,
+      outcome: 'DUPLICATE',
+    });
+    expect(
+      await report(owner, workItemId, 0, projections.running),
+    ).toMatchObject({ outcome: 'REJECTED', code: 'STALE' });
+  });
+
+  it('refuses every machine while admitted commands name more than one', async () => {
+    const scope = await seedProject();
+    const owner = await seedOwner(scope);
+    const other = await seedOwner(scope);
+    const workItemId = await seedWorkItem(scope);
+    await report(owner, workItemId, 3, projections.failed);
+    const known = await retained(scope, workItemId);
+
+    await admitStart(other, workItemId);
+
+    for (const reporter of [owner, other]) {
+      expect(
+        await report(reporter, workItemId, 50, projections.completed),
+      ).toMatchObject({ outcome: 'REJECTED', code: 'OWNER_CONFLICT' });
+    }
+    // The last accepted report stands, failure included; nobody took over.
+    expect(await retained(scope, workItemId)).toEqual(known);
+  });
+
+  it('serializes concurrent reports from separate connections against an owner change', async () => {
+    const scope = await seedProject();
+    const owner = await seedOwner(scope);
+    const other = await seedOwner(scope);
+    const workItemId = await seedWorkItem(scope);
+    await report(owner, workItemId, 1, projections.running);
+
+    const contenders = Array.from({ length: 6 }, (_, index) =>
+      service.observe(
+        index % 2 === 0
+          ? { userId: owner.userId, machineId: owner.machineId }
+          : { userId: other.userId, machineId: other.machineId },
+        {
+          workItemId,
+          machineId: index % 2 === 0 ? owner.machineId : other.machineId,
+          sourceRevision: 10 + index,
+          state: {
+            type: 'TASK_MONITOR',
+            projection:
+              index === 4 ? projections.completed : projections.paused,
+          },
+        },
+      ),
+    );
+    const receipts = await Promise.all(contenders);
+
+    expect(
+      receipts.filter(({ code }) => code === 'OWNER_MISMATCH'),
+    ).toHaveLength(3);
+    const latest = await retained(scope, workItemId);
+    expect(latest.ownerMachineId).toBe(owner.machineId);
+    const row = await prisma.db.workItemExecutionState.findUniqueOrThrow({
+      where: { workItemId },
+    });
+    expect(Number(row.sourceRevision)).toBe(14);
+    expect(latest.state.projection).toEqual(projections.completed);
   });
 
   it('shows the last report as last-known when the owner disconnects and current again after it replays', async () => {
@@ -467,6 +672,7 @@ describe('Work item execution state with a real database', () => {
     roomEvents.length = 0;
 
     await gateway.handleDisconnect(owner.socket);
+    await flushDelivery();
 
     const offline = await retained(scope, workItemId);
     expect(offline.freshness.status).toBe('LAST_KNOWN');
@@ -677,6 +883,7 @@ describe('Work item execution state with a real database', () => {
     jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
     jest.advanceTimersByTime(60 * 60 * 1000);
     jest.useRealTimers();
+    await flushDelivery();
     expect(
       await prisma.db.workItemExecutionState.findUniqueOrThrow({
         where: { workItemId },
@@ -713,6 +920,7 @@ describe('Work item execution state with a real database', () => {
 
     connect(owner.userId, owner.machineId);
     await service.markMachineConnected(owner.machineId);
+    await flushDelivery();
 
     expect((await retained(scope, workItemId)).freshness.status).toBe(
       'CURRENT',
@@ -743,12 +951,14 @@ describe('Work item execution state with a real database', () => {
     const accepted = await retained(scope, workItemId);
     expect(rejectionCodes()).toEqual([]);
 
-    await gateway.handleWorkItemExecutionStateObserved(browser, {
-      workItemId,
-      machineId: owner.machineId,
-      sourceRevision: 2,
-      state: { type: 'TASK_MONITOR', projection: projections.completed },
-    });
+    expect(
+      await gateway.handleWorkItemExecutionStateObserved(browser, {
+        workItemId,
+        machineId: owner.machineId,
+        sourceRevision: 2,
+        state: { type: 'TASK_MONITOR', projection: projections.completed },
+      }),
+    ).toEqual({ outcome: 'REJECTED', code: 'UNAUTHENTICATED' });
     await gateway.handleWorkItemExecutionStateObserved(owner.socket, {
       workItemId,
       machineId: owner.machineId,
