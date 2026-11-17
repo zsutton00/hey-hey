@@ -1573,6 +1573,30 @@ describe('resolvePrompt — coding_freeform follow-up after startup_session', ()
   });
 });
 
+describe('resolvePrompt — planner reply on a resumed provider session', () => {
+  it('sends only the new reply, without rebuilding the planning prompt', async () => {
+    const { codingPlanHandler } = await import('../agents/coding-plan/coding-plan.handler');
+    const prepare = vi.spyOn(codingPlanHandler, 'prepare');
+    registerHandler('startup_session', codingPlanHandler as unknown as PromptTypeHandler<unknown>);
+
+    const result = await callResolve({
+      run: makeSession({ serviceId: 'svc-1', promptType: 'startup_session' }),
+      runState: makeRunState({ isFirstTurn: false, currentPromptType: 'startup_session' }),
+      providerSessionDecision: 'resume',
+      input: makeInput({
+        promptType: 'startup_session',
+        payload: { userMessage: 'hold on, let us look at this' },
+      }),
+    });
+
+    expect(result.isSubagentOwned).toBe(false);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(result.resolvedPrompt?.startsWith('hold on, let us look at this')).toBe(true);
+    expect(result.resolvedPrompt).not.toContain('dedicated planning assistant');
+    prepare.mockRestore();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // previousProviderSession prepend — provider_session vs subagent vs absent
 // ---------------------------------------------------------------------------

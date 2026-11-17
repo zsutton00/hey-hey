@@ -11,14 +11,12 @@ import {
 
 /**
  * Options for `buildCodingPlanPrompt` beyond the active-task payload and recent
- * replies. Extends the services-context input with the optional Project
- * Assistant memo: coding-plan is a subagent, so `resolvePrompt` does not
- * prepend the run's memos for it — when a `project_assistant` memo exists the
- * handler passes its content here and the prompt renders it as additional
- * orientation.
+ * replies. Extends the services-context input with whether a Project Assistant
+ * memo exists: `resolvePrompt` prepends the memo itself when it mints a
+ * provider session, so the prompt only needs the flag to orient the planner.
  */
 export interface CodingPlanPromptOptions extends ServicesContextInput {
-  researchMemo?: string | undefined;
+  hasResearch?: boolean | undefined;
   planningConversation?: string | undefined;
   planDesignDocReference?: LocalPromptDesignDocInput;
   provider?: AgentProviderId | undefined;
@@ -108,15 +106,10 @@ export const buildCodingPlanPrompt = (
     ? `\n\n${planDesignDocReferenceBlock}`
     : '';
 
-  // Project Assistant memo (subagent flows don't get the resolver's memo-block
-  // prepend). When present, render it and defer the from-scratch graph sweep to
-  // it; when absent, both fragments collapse so the prompt is byte-identical to
-  // the pre-feature output.
-  const researchMemo = servicesContext.researchMemo?.trim();
-  const researchSection = researchMemo
-    ? `## Context from prior phases\n\nA Project Assistant pass ran earlier in this run and surfaced the relevant features, tasks, and contradictions around the active task. Read it before planning — it is durable project orientation, not a transcript.\n\n${researchMemo}\n\n`
-    : '';
-  const orientationSweep = researchMemo
+  // The Project Assistant memo is already prepended by the resolver as the
+  // `## Context from prior phases` block. When present, defer the from-scratch
+  // graph sweep to it.
+  const orientationSweep = servicesContext.hasResearch
     ? 'Use the Project Assistant findings above to know which work items and design docs govern this plan, then read the current content of each before planning against it; do not rediscover the graph from scratch.'
     : 'Discover the work items and design docs that govern this task from the codebase, design documents, and related entities, and read their content; the absence of research does not reduce this.';
 
@@ -155,7 +148,6 @@ ${planningResponsibility}
 ${focalContextOrientation}
 ${orientationSweep}
 ${servicesSection}
-${researchSection}
 ${planDesignDocReferenceSection}
 ${hasLaunchPlan ? buildPlannedTaskBlock(launchPlanId, launchStepId, launchStageId) : ''}
 ${servicesContext.planningConversation ?? ''}

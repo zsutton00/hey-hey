@@ -2457,6 +2457,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     skipPermissions,
     mcpToolUseCase,
     additionalAllowedTools,
+    readOnlyFilesystem,
     browserMcpMount,
     platformMcpProxyMount,
     workspace,
@@ -2505,6 +2506,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       ...(additionalAllowedTools && additionalAllowedTools.length > 0
         ? { additionalAllowedTools }
         : {}),
+      // The resumed thread is configured with the sandbox resolved for this
+      // call, so the read-only posture must be forwarded on every resume.
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
       ...(browserMcpMount ? { browserMcpMount } : {}),
       ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
       ...(skillSelection ? { skillSelection } : {}),

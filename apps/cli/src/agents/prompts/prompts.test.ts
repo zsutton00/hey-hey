@@ -914,7 +914,7 @@ describe('buildCodingPlanPrompt', () => {
         [{ messageId: 'reply', text: 'Looks good; retain keyboard access.', createdAt: '' }],
         {
           focalEntityId: 'task-1',
-          researchMemo: 'Read the governing accessibility requirements.',
+          hasResearch: true,
           planningConversation: 'Agreed intent and earlier issue replies.',
           services: [{ id: 'service-1', path: '/authorized/worktree' }],
           launchServiceId: 'service-1',

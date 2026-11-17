@@ -2434,16 +2434,16 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     signal,
     model,
     reasoningEffort,
+    mcpToolUseCase,
     additionalAllowedTools,
     additionalBuiltinTools,
+    readOnlyFilesystem,
+    builtinTools,
     browserMcpMount,
     platformMcpProxyMount,
     skipPermissions,
     workspace,
     workspaceWriteBoundary,
-    // readOnlyFilesystem is intentionally ignored on resume — the Claude SDK
-    // freezes the built-in tool surface at session mint, so a resumed session
-    // inherits whatever was pinned at the initial this.runPrompt call.
   }: ResumeArgs): Promise<AgentRunResult> {
     if (skipPermissions !== undefined) {
       this.skipAllPermissions = skipPermissions;
@@ -2514,6 +2514,19 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       researchHandler.replaceProviderSystemPrompt
         ? { replaceProviderSystemPrompt: true }
         : {}),
+      // A warm resume keeps the process it was minted with and ignores the
+      // tool surface below. A cold resume starts a new process and builds the
+      // surface again, so the handler's restrictions must be forwarded or the
+      // session comes back with the default coding tools.
+      ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
+      ...(additionalAllowedTools && additionalAllowedTools.length > 0
+        ? { additionalAllowedTools }
+        : {}),
+      ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
+        ? { additionalBuiltinTools }
+        : {}),
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(builtinTools !== undefined ? { builtinTools } : {}),
       ...(signal ? { signal } : {}),
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),

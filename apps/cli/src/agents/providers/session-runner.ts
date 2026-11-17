@@ -184,12 +184,17 @@ export interface ResumeArgs {
    */
   additionalBuiltinTools?: readonly string[];
   /**
-   * Resuming handler's declared `readOnlyFilesystem`. Both Claude and Codex
-   * freeze the filesystem posture at session start, so resume cannot change
-   * it; forwarded for parity with the other fields and reserved for future
-   * drift-detection at resume entry.
+   * Resuming handler's declared `readOnlyFilesystem`. A warm resume keeps the
+   * posture its process or thread started with. A cold resume starts a new
+   * Claude process or Codex sandbox, so it must be forwarded or the resumed
+   * session would lose the restriction.
    */
   readOnlyFilesystem?: boolean;
+  /**
+   * Resuming handler's explicit built-in tool surface. Applied when a cold
+   * resume starts a new Claude process; a warm resume keeps its configured one.
+   */
+  builtinTools?: readonly string[];
   /** See `RunPromptArgs.skipPermissions`. */
   skipPermissions?: boolean;
   /** See `RunPromptArgs.workspace`. */

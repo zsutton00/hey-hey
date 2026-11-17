@@ -123,6 +123,7 @@ export class ResumeRunner implements Runner {
         ? { additionalBuiltinTools }
         : {}),
       ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(handler.builtinTools !== undefined ? { builtinTools: handler.builtinTools } : {}),
       ...(workspace ? { workspace } : {}),
       ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
       signal,
