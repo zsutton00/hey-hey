@@ -758,6 +758,7 @@ describe('verified trigger envelope → Run → submission-tool registry', () =>
           capability: TEST_CONVERSATION_CAPABILITY,
         }),
       } as unknown as HostActionAdmission,
+      continuationStartup: { confirm: async () => undefined },
       dropSurfacing: {
         poster: createTestMessagePoster({
           createOutOfBand: vi.fn().mockResolvedValue('drop-message'),

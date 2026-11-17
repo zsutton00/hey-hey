@@ -3149,6 +3149,7 @@ model AgentSession {
   targetedAttempts        AgentInteractionAttempt[]        @relation("AttemptTargetSession")
   turnAdmissions          AgentSessionTurnAdmission[]
   turnSlot                AgentSessionTurnSlot?
+  continuations           AgentSessionContinuation[]
 
   @@index([organizationId, sessionDate])
   @@index([userId, sessionDate])
@@ -3319,6 +3320,44 @@ model AgentSessionTurnAdmission {
   @@unique([agentSessionId, idempotencyKey])
   @@index([agentSessionId, state, ordinal])
   @@map("agent_session_turn_admissions")
+}
+
+// One continuation of an Agent Session onto another paired computer after its
+// bound computer was revoked or removed. Machine identities are retained audit
+// values without relations so machine records are never altered or cascaded.
+model AgentSessionContinuation {
+  id                     String    @id @db.Uuid
+  agentSessionId         String    @map("agent_session_id")
+  organizationId         String    @map("organization_id")
+  projectId              String    @map("project_id")
+  userId                 String    @map("user_id")
+  previousMachineId      String    @map("previous_machine_id")
+  destinationMachineId   String    @map("destination_machine_id")
+  state                  String
+  nativeState            String    @map("native_state")
+  inspectionReason       String    @map("inspection_reason")
+  mode                   String
+  nativeResumeRejectedAt DateTime? @map("native_resume_rejected_at")
+  historyConfirmedAt     DateTime? @map("history_confirmed_at")
+  inputFingerprint       String    @map("input_fingerprint") @db.Char(64)
+  startRunInputs         Json      @map("start_run_inputs")
+  bindingMovedAt         DateTime? @map("binding_moved_at")
+  bindingRevertedAt      DateTime? @map("binding_reverted_at")
+  deliveryGeneration     Int       @default(0) @map("delivery_generation")
+  deliveryOperationId    String?   @unique @map("delivery_operation_id") @db.Uuid
+  deliveredAt            DateTime? @map("delivered_at")
+  providerStartedAt      DateTime? @map("provider_started_at")
+  outcomeCode            String?   @map("outcome_code")
+  outcomeDetail          String?   @map("outcome_detail")
+  inspectedAt            DateTime  @map("inspected_at")
+  terminalAt             DateTime? @map("terminal_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  agentSession AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
+
+  @@index([agentSessionId, createdAt], map: "agent_session_continuations_session_created_idx")
+  @@map("agent_session_continuations")
 }
 
 model AgentOperation {

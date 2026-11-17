@@ -188,6 +188,7 @@ const createVerifiedBoundary = (
         capability: TEST_TASK_MONITOR_CAPABILITY,
       }),
     } as unknown as HostActionAdmission,
+    continuationStartup: { confirm: async () => undefined },
     dropSurfacing: {
       poster: owners.messagePoster,
       projectContext: owners.infrastructure.monitorProjectContext,

@@ -1969,4 +1969,80 @@ export const en = {
   "admin.demo.template.repositoryHelp":
     "For example https://github.com/owner/repository",
   "admin.demo.template.save": "Set template",
+  "agentSession.continuation.title": "Your conversation can continue",
+  "agentSession.continuation.offer.body":
+    "The previous computer is no longer paired. Choose where to continue this conversation.",
+  "agentSession.continuation.offer.destinationLabel": "Computer",
+  "agentSession.continuation.offer.action": "Continue on {{name}}",
+  "agentSession.continuation.offer.checking": "Checking {{name}}…",
+  "agentSession.continuation.offer.continuing": "Continuing on {{name}}…",
+  "agentSession.continuation.offer.authorizationNote":
+    "This computer uses its own authorization. Nothing from the previous computer carries over.",
+  "agentSession.continuation.unready.body":
+    "The previous computer is no longer paired. Your other paired computers need attention before they can continue this conversation.",
+  "agentSession.continuation.pair.body":
+    "The previous computer is no longer paired, and no other computer is paired yet. Your conversation is still available.",
+  "agentSession.continuation.pair.action": "Pair a computer to continue",
+  "agentSession.continuation.pair.note":
+    "After pairing you return to this conversation.",
+  "agentSession.continuation.savedHistory.title":
+    "Continue using saved history",
+  "agentSession.continuation.savedHistory.body":
+    "The original agent session isn’t available on this computer. Start a new agent session using this conversation’s saved history.",
+  "agentSession.continuation.savedHistory.confirm":
+    "Continue with saved history",
+  "agentSession.continuation.savedHistory.resumeRejected":
+    "The original agent session could not be resumed on this computer.",
+  "agentSession.continuation.attempt.failedBody":
+    "Continuing on {{name}} did not finish ({{code}}). Your conversation is still here, and you can try {{name}} again.",
+  "agentSession.continuation.attempt.retry": "Try again on {{name}}",
+  "agentSession.continuation.attempt.chooseAnother":
+    "Continue on another computer",
+  "agentSession.continuation.attempt.uncertainBody":
+    "{{name}} received this conversation but has not confirmed that its agent started. Checking again asks {{name}} for the result without starting a second agent.",
+  "agentSession.continuation.attempt.checkAgain": "Check again on {{name}}",
+  "agentSession.continuation.attempt.destinationUnready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.attempt.unnamed": "the selected computer",
+  "agentSession.continuation.failure.attempt_unresolved":
+    "An earlier continuation of this conversation is still unresolved. Resolve it first.",
+  "agentSession.continuation.cancel": "Cancel",
+  "agentSession.continuation.retry": "Retry",
+  "agentSession.continuation.pending.title": "Preparing this conversation",
+  "agentSession.continuation.pending.body":
+    "Waiting for {{name}} to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.pending.bodyUnnamed":
+    "Waiting for the selected computer to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.outcome.resumed":
+    "Continued on {{name}} with the original agent session.",
+  "agentSession.continuation.outcome.savedHistory":
+    "Continued on {{name}} from saved history. A new agent session starts with your next message.",
+  "agentSession.continuation.failure.binding_changed":
+    "This session’s computer changed while you were continuing. Review the current state and try again.",
+  "agentSession.continuation.failure.not_eligible":
+    "This session can no longer be continued on another computer.",
+  "agentSession.continuation.failure.destination_not_ready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.failure.authorization_denied":
+    "{{name}} did not authorize this continuation. Nothing was changed.",
+  "agentSession.continuation.failure.inspection_failed":
+    "{{name}} could not be checked. Nothing was changed.",
+  "agentSession.continuation.failure.ambiguous":
+    "Hey Hey could not confirm whether this step finished. Retry continues the same request without repeating it.",
+  "agentSession.continuation.reason.NO_LOCAL_RUN":
+    "This computer has no saved agent session for this conversation.",
+  "agentSession.continuation.reason.NO_PROVIDER_SESSION":
+    "This computer never started an agent session for this conversation.",
+  "agentSession.continuation.reason.PROVIDER_TRANSCRIPT_MISSING":
+    "The agent session’s saved data is no longer on this computer.",
+  "agentSession.continuation.reason.PROVIDER_MISMATCH":
+    "The agent session on this computer belongs to a different provider.",
+  "agentSession.continuation.reason.CONVERSATION_MISMATCH":
+    "The agent session on this computer belongs to a different conversation.",
+  "agentSession.continuation.reason.PROVIDER_RESUME_UNSUPPORTED":
+    "This provider’s saved sessions can’t be resumed here.",
+  "agentSession.continuation.reason.LOCAL_STATE_UNREADABLE":
+    "The agent session saved on this computer couldn’t be read.",
+  "agentSession.continuation.reason.PROVIDER_STATE_PRESENT":
+    "The original agent session is available on this computer.",
 } as const;

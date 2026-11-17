@@ -106,6 +106,7 @@ export class PlatformApplicationRuntime {
       });
     this.triggerVerificationRuntime = new TriggerVerificationRuntime({
       ...(dependencies.dataDirectory ? { dataDirectory: dependencies.dataDirectory } : {}),
+      apiBaseUrl: dependencies.apiBaseUrl,
       servicesApi: dependencies.apiRuntime.clients.services,
       ...(dependencies.diagnosticFeed ? { diagnosticFeed: dependencies.diagnosticFeed } : {}),
       keyPairStore: dependencies.keyPairStore,

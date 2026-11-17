@@ -21215,6 +21215,69 @@ paths:
         "409":
           description: Binding changed, saved history not confirmed, or eligibility lost.
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/startup:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Continuation attempt identity.
+    post:
+      summary: Report provider startup for a continuation delivery
+      operationId: reportAgentSessionContinuationStartup
+      description: >-
+        Machine-authenticated. Only the attempt's destination computer may
+        report. Applies the outcome to a PENDING or UNCERTAIN attempt whose
+        latest delivery is the reported operation; any other report is answered with
+        accepted false and changes nothing. Repeating an applied report
+        returns the same result.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentSessionContinuationStartupReport"
+      responses:
+        "200":
+          description: Report recorded or answered as no longer applicable
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationStartupReportResponseDto"
+        "400":
+          description: Malformed report.
+        "404":
+          description: Continuation not found for this computer.
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/cancel:
     parameters:
       - name: organizationId
@@ -21250,7 +21313,10 @@ paths:
       operationId: cancelAgentSessionContinuation
       description: >-
         Records that the person declined an INSPECTED or
-        AWAITING_HISTORY_CONFIRMATION attempt. Nothing is delivered or started.
+        AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or
+        started. A FAILED attempt, where no provider session started, may also
+        be cancelled while it still owns the session's binding: the binding
+        returns to the previous computer so the person can continue elsewhere.
         Repeating returns the cancelled attempt.
       tags: [AgentSessions]
       responses:
@@ -29423,6 +29489,12 @@ components:
       $ref: "../schemas/agent-session-continuations.yaml#/CommitAgentSessionContinuationRequestDto"
     AgentSessionContinuationInspectHostActionPreparation:
       $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationInspectHostActionPreparation"
+    AgentSessionContinuationStartupOutcome:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupOutcome"
+    AgentSessionContinuationStartupReport:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupReport"
+    AgentSessionContinuationStartupReportResponseDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupReportResponseDto"
     CliReadAgentSessionContinuationInspectEnvelopeBody:
       $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectEnvelopeBody"
     CliReadAgentSessionContinuationInspectResult:

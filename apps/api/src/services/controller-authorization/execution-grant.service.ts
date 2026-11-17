@@ -1,3 +1,4 @@
+import { isContinuationStart } from '../agent-session-continuation/continuation-start';
 import { ControllerAuthorizationService } from './controller-authorization.service';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
@@ -13,6 +14,7 @@ import * as crypto from 'node:crypto';
 import {
   AdmissionEnvelopeAuthorization,
   RuntimeModelCatalogHostActionPreparation,
+  AgentSessionContinuationInspectHostActionPreparation,
   WorkspaceSkillsHostActionPreparation,
   CliReadWorkspaceSkillsListRequest,
   AgentSessionHostActionPreparation,
@@ -189,6 +191,11 @@ export class ExecutionGrantService {
       userId: params.userId,
       conversationId: params.conversationId ?? params.targetId,
       requestedAgentSessionId: params.agentSessionId,
+      ...(isContinuationStart(action)
+        ? {
+            continuationId: action.inputs.payload.continuation.continuationId,
+          }
+        : {}),
     });
     this.assertExistingInteractiveGrant(
       authorization.grant,
@@ -334,6 +341,28 @@ export class ExecutionGrantService {
     envelopeAuthorization: ExecutableEnvelopeAuthorization;
   }> {
     return this.assertMachineCliReadAuthorized(params, {});
+  }
+
+  assertContinuationInspectionAuthorized(params: {
+    authorization: AdmissionEnvelopeAuthorization;
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    userId: UserId;
+    machineId: MachineId;
+    controllerBindingSecret: string | undefined;
+    agentSessionId: string;
+    continuationId: string;
+    expectedSourceMachineId: string;
+  }): Promise<{
+    action: AgentSessionContinuationInspectHostActionPreparation;
+    authorizationId: string;
+    envelopeAuthorization: ExecutableEnvelopeAuthorization;
+  }> {
+    return this.assertMachineCliReadAuthorized(params, {
+      agentSessionId: params.agentSessionId,
+      continuationId: params.continuationId,
+      expectedSourceMachineId: params.expectedSourceMachineId,
+    });
   }
 
   private async assertMachineCliReadAuthorized<
@@ -836,6 +865,8 @@ export class ExecutionGrantService {
     userId: UserId;
     conversationId: string;
     requestedAgentSessionId?: AgentSessionId;
+    /** An inspected continuation may authorize its destination before rebind. */
+    continuationId?: string;
   }): Promise<AgentSessionId> {
     const session = await this.prisma.db.agentSession.findFirst({
       where: {
@@ -849,6 +880,22 @@ export class ExecutionGrantService {
         OR: [
           { machineId: params.authorization.machineId },
           { machineId: null },
+          ...(params.continuationId
+            ? [
+                {
+                  continuations: {
+                    some: {
+                      id: params.continuationId,
+                      destinationMachineId: params.authorization.machineId,
+                      bindingMovedAt: null,
+                      state: {
+                        in: ['INSPECTED', 'AWAITING_HISTORY_CONFIRMATION'],
+                      },
+                    },
+                  },
+                },
+              ]
+            : []),
         ],
       },
       orderBy: { createdAt: 'desc' },
