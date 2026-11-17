@@ -2001,8 +2001,6 @@ export const en = {
   "agentSession.continuation.offer.action": "Continue on {{name}}",
   "agentSession.continuation.offer.checking": "Checking {{name}}…",
   "agentSession.continuation.offer.continuing": "Continuing on {{name}}…",
-  "agentSession.continuation.offer.authorizationNote":
-    "This computer uses its own authorization. Nothing from the previous computer carries over.",
   "agentSession.continuation.unready.body":
     "The previous computer is no longer paired. Your other paired computers need attention before they can continue this conversation.",
   "agentSession.continuation.pair.body":

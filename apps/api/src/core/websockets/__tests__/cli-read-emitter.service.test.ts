@@ -954,6 +954,68 @@ describe('CliReadEmitter', () => {
   });
 });
 
+describe('continuation inspection acknowledgements', () => {
+  it.each(['success', 'error', 'invalid'] as const)(
+    'validates a %s response at the emitter boundary',
+    async (outcome) => {
+      const { subject, gateway } = createSubject();
+      gateway.emitCliReadWithAck.mockImplementation(async (event) => ({
+        kind: 'ack',
+        value: [
+          {
+            requestId: event.envelope.event.requestId,
+            operation: 'agent_session.continuation.inspect',
+            ...(outcome === 'error'
+              ? {
+                  status: 'error',
+                  error: { code: 'READ_FAILED', message: 'Read failed' },
+                }
+              : {
+                  status: 'success',
+                  result: {
+                    agentSessionId: runId,
+                    continuationId: conversationId,
+                    nativeState: outcome === 'invalid' ? 'INVALID' : 'ABSENT',
+                    reason: 'NO_LOCAL_RUN',
+                  },
+                }),
+          },
+        ],
+      }));
+      const response = await subject.readAgentSessionContinuation({
+        organizationId: '66666666-6666-4666-8666-666666666666' as any,
+        projectId: projectId as any,
+        machineId: machineId as any,
+        userId: userId as any,
+        agentSessionId: runId,
+        conversationId,
+        continuationId: conversationId,
+        expectedSourceMachineId: machineId,
+        provider: 'codex',
+        authorizationRequestId: runId,
+        admission: {
+          authorizationId: runId,
+          envelopeAuthorization: { kind: 'bounded_grant', grantId: 'grant-1' },
+          actionPayloadHash: 'a'.repeat(64),
+        },
+      });
+      if (outcome === 'success') {
+        expect(response).toMatchObject({
+          status: 'success',
+          result: { nativeState: 'ABSENT', reason: 'NO_LOCAL_RUN' },
+        });
+      } else {
+        expect(response).toMatchObject({
+          status: 'error',
+          error: {
+            code: outcome === 'error' ? 'READ_FAILED' : 'MALFORMED_ACK',
+          },
+        });
+      }
+    },
+  );
+});
+
 describe('machine-addressed Skill catalog acknowledgements', () => {
   const params: Parameters<CliReadEmitter['readWorkspace']>[0] = {
     request: {

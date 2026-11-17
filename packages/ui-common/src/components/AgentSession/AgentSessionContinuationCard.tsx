@@ -284,7 +284,6 @@ export const AgentSessionContinuationCard = ({
           </Button>
         </Stack>
         {failure}
-        <Note>{t("agentSession.continuation.offer.authorizationNote")}</Note>
       </Frame>
     );
   }
@@ -391,7 +390,6 @@ export const AgentSessionContinuationCard = ({
         </Button>
       </Stack>
       {failure}
-      <Note>{t("agentSession.continuation.offer.authorizationNote")}</Note>
     </Frame>
   );
 };

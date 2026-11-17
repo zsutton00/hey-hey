@@ -24,6 +24,9 @@ import {
   WebSocketCliReadRequestEvent,
   HostActionTargetKind,
   HostAffectingActionType,
+  AgentSessionContinuationNativeState,
+  AgentSessionContinuationInspectionReason,
+  CliReadAgentSessionContinuationInspectSuccessResponseDto,
 } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionId,
@@ -607,7 +610,27 @@ const workspaceSkillsListSuccessSchema = runSkillsListSuccessSchema.extend({
 const workspaceSkillsListErrorSchema = errorSchema.extend({
   operation: z.literal('workspace.skills.list'),
 });
+const continuationInspectSuccessSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    operation: z.literal('agent_session.continuation.inspect'),
+    status: z.literal('success'),
+    result: z
+      .object({
+        agentSessionId: z.string().uuid(),
+        continuationId: z.string().uuid(),
+        nativeState: z.nativeEnum(AgentSessionContinuationNativeState),
+        reason: z.nativeEnum(AgentSessionContinuationInspectionReason),
+      })
+      .strict(),
+  })
+  .strict() satisfies z.ZodType<CliReadAgentSessionContinuationInspectSuccessResponseDto>;
+const continuationInspectErrorSchema = errorSchema.extend({
+  operation: z.literal('agent_session.continuation.inspect'),
+});
 const responseSchema = z.union([
+  continuationInspectSuccessSchema,
+  continuationInspectErrorSchema,
   workspaceSkillsListSuccessSchema,
   workspaceSkillsListErrorSchema,
   runChangedFilesCountSuccessSchema,
