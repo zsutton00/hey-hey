@@ -206,7 +206,7 @@ class ServiceEditBuilder {
       .find(
         (candidate) => candidate.startedAt <= startedBefore && !this.usedCaptures.has(candidate),
       );
-    if (change === undefined) {
+    if (change === undefined || change.beforeHash === undefined) {
       return null;
     }
     this.usedCaptures.add(change);
@@ -381,6 +381,7 @@ export const emitTurnImplementReports = async (
       reason: 'no-files-changed',
       discardedHeldReport: held !== null,
     });
+    await input.capturedVersions?.releaseTurn(run.runId, turn.turnId);
     return { status: 'skipped', reason: 'no-files-changed' };
   }
 
@@ -409,6 +410,7 @@ export const emitTurnImplementReports = async (
       reason: 'already-emitted',
       serviceIds: [...factsByService.keys()].sort(),
     });
+    await input.capturedVersions?.releaseTurn(run.runId, turn.turnId);
     return { status: 'skipped', reason: 'already-emitted' };
   }
 
@@ -551,5 +553,8 @@ export const emitTurnImplementReports = async (
     reports.push({ serviceId, edits });
   }
 
+  if (failedServiceIds.length === 0) {
+    await input.capturedVersions?.releaseTurn(run.runId, turn.turnId);
+  }
   return { status: 'emitted', reports, failedServiceIds };
 };

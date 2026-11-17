@@ -47,7 +47,7 @@ describe('snapshot progress diagnostics', () => {
     });
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     const capture = new ContentSnapshot(store, logger).capture(
-      [{ serviceId: 'service', root }],
+      [{ serviceId: 'service', root, paths: ['file.txt'] }],
       identity,
       'baseline',
     );
@@ -65,7 +65,7 @@ describe('snapshot progress diagnostics', () => {
         operation: 'blob_write',
         operationElapsedMs: 10_000,
         fileCount: 0,
-        directoryCount: 1,
+        directoryCount: 0,
         byteCount: Buffer.byteLength(contents),
       });
       release();

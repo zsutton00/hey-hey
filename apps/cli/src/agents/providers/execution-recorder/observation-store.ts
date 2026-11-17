@@ -31,7 +31,7 @@ export class ObservationStore {
 
   public constructor(
     public readonly directory: string,
-    logger: ServerLogger,
+    private readonly logger: ServerLogger,
   ) {
     this.reader = new DurableDataCompatibilityReader(version, (diagnostic) => {
       logger.warn('execution_capture.incompatible', {
@@ -45,17 +45,26 @@ export class ObservationStore {
     return within(candidate, this.directory);
   }
 
-  private async publish(filePath: string, bytes: Uint8Array, immutable = false): Promise<void> {
+  private async publish(
+    filePath: string,
+    bytes: Uint8Array,
+    immutable = false,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
     await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+    signal?.throwIfAborted();
     const temporary = `${filePath}.${randomUUID()}.tmp`;
-    const file = await fs.open(temporary, 'wx', 0o600);
     try {
-      await file.writeFile(bytes);
-      await file.sync();
-    } finally {
-      await file.close();
-    }
-    try {
+      const file = await fs.open(temporary, 'wx', 0o600);
+      try {
+        signal?.throwIfAborted();
+        await file.writeFile(bytes);
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      signal?.throwIfAborted();
       if (immutable) {
         try {
           await fs.link(temporary, filePath);
@@ -92,14 +101,68 @@ export class ObservationStore {
     return bytes;
   }
 
-  public async save(observation: ExecutionObservation): Promise<void> {
+  public async save(observation: ExecutionObservation, signal?: AbortSignal): Promise<void> {
     const validated = observationSchema.parse(observation);
+    const bytes = Buffer.from(
+      JSON.stringify({ schemaVersion: 1, applicationVersion: version, payload: validated }),
+    );
     await this.publish(
       path.join(this.directory, 'observations', `${validated.id}.json`),
-      Buffer.from(
-        JSON.stringify({ schemaVersion: 1, applicationVersion: version, payload: validated }),
-      ),
+      bytes,
+      false,
+      signal,
     );
+    signal?.throwIfAborted();
+    const pendingPath = path.join(
+      this.directory,
+      'pending',
+      `${validated.ownerPid}_${validated.id}.json`,
+    );
+    if (validated.state === 'pending') {
+      await this.publish(pendingPath, bytes, false, signal);
+    } else {
+      await fs.rm(pendingPath, { force: true });
+    }
+  }
+
+  public async remove(id: string, ownerPid: number): Promise<void> {
+    await fs.rm(path.join(this.directory, 'observations', `${id}.json`), { force: true });
+    await fs.rm(path.join(this.directory, 'pending', `${ownerPid}_${id}.json`), { force: true });
+    for (const name of await this.names('overlaps')) {
+      const ids = name.replace(/\.json$/, '').split('_');
+      if (!ids.includes(id)) {
+        continue;
+      }
+      const remaining = await Promise.all(
+        ids
+          .filter((other) => other !== id)
+          .map(async (other) => {
+            try {
+              await fs.access(path.join(this.directory, 'observations', `${other}.json`));
+              return true;
+            } catch (error) {
+              if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+                return false;
+              }
+              throw error;
+            }
+          }),
+      );
+      if (!remaining.some(Boolean)) {
+        await fs.rm(path.join(this.directory, 'overlaps', name), { force: true });
+      }
+    }
+  }
+
+  private async names(collection: string): Promise<string[]> {
+    try {
+      return await fs.readdir(path.join(this.directory, collection));
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
   }
 
   public async coverage(input: {
@@ -124,25 +187,49 @@ export class ObservationStore {
     );
   }
 
-  public async list(): Promise<ExecutionObservation[]> {
-    const directory = path.join(this.directory, 'observations');
-    let names: string[];
-    try {
-      names = await fs.readdir(directory);
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
-      throw error;
-    }
+  public async list(
+    collection: 'observations' | 'pending' = 'observations',
+  ): Promise<ExecutionObservation[]> {
+    const directory = path.join(this.directory, collection);
+    const names = await this.names(collection);
     const observations: ExecutionObservation[] = [];
     for (const name of names.filter((name) => name.endsWith('.json'))) {
       const filePath = path.join(directory, name);
+      if (collection === 'pending') {
+        const pid = Number(name.split('_')[0]);
+        if (!Number.isInteger(pid) || pid <= 0) {
+          this.logger.warn('execution_capture.pending_invalid', {
+            filePath,
+            reason: 'invalid-owner-pid',
+          });
+          continue;
+        }
+        try {
+          process.kill(pid, 0);
+        } catch (error) {
+          if (error instanceof Error && 'code' in error && error.code === 'ESRCH') {
+            await fs.rm(filePath, { force: true });
+            continue;
+          }
+          this.logger.warn('execution_capture.owner_check_failed', { filePath, error });
+        }
+      }
       const result = await this.reader.open({
         familyId: 'tool-execution-observation',
         currentSchemaVersion: 1,
-        readSource: async () => ({
-          paths: [filePath],
-          bytesByPath: new Map([[filePath, await fs.readFile(filePath)]]),
-        }),
+        readSource: async () => {
+          try {
+            return {
+              paths: [filePath],
+              bytesByPath: new Map([[filePath, await fs.readFile(filePath)]]),
+            };
+          } catch (error) {
+            if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+              this.logger.warn('execution_capture.observation_read_failed', { filePath, error });
+            }
+            return null;
+          }
+        },
         decodeSource: (source) => {
           const bytes = source.bytesByPath.get(filePath);
           if (!bytes) throw new Error('Missing observation source');
@@ -160,16 +247,30 @@ export class ObservationStore {
           throw new Error('No observation migrations are supported');
         },
       });
-      if (result.status === 'incompatible')
-        throw new Error('Incompatible execution evidence retained without modification');
-      if (result.status === 'ready') observations.push(result.value);
+      if (result.status === 'incompatible') {
+        this.logger.warn('execution_capture.observation_unreadable', {
+          filePath,
+          reason: 'incompatible-evidence-retained',
+        });
+        continue;
+      }
+      if (result.status === 'ready') {
+        if (collection === 'pending' && result.value.state !== 'pending') {
+          await fs.rm(filePath, { force: true });
+          continue;
+        }
+        observations.push(result.value);
+      }
     }
     return observations;
   }
 
   /** Pair files avoid lost updates when independent processes observe the same roots. */
-  public async recordOverlaps(observation: ExecutionObservation): Promise<void> {
-    for (const other of await this.list()) {
+  public async recordOverlaps(
+    observation: ExecutionObservation,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    for (const other of await this.list('pending')) {
       if (other.id === observation.id) continue;
       const sharedRoot = observation.roots.some((left) =>
         other.roots.some((right) => within(left.root, right.root) || within(right.root, left.root)),
@@ -185,6 +286,7 @@ export class ObservationStore {
         path.join(this.directory, 'overlaps', `${ids.join('_')}.json`),
         Buffer.from(JSON.stringify(ids)),
         true,
+        signal,
       );
     }
   }

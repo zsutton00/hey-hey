@@ -35,6 +35,8 @@ const snapshotEntrySchema = z.object({
 export type SnapshotEntry = z.infer<typeof snapshotEntrySchema>;
 const snapshotSchema = z.object({
   entries: z.array(snapshotEntrySchema),
+  /** HEAD at a status-based baseline, for clean files first listed after the command. */
+  gitHeads: z.record(z.string(), z.string().nullable()).optional(),
   rootFailures: z.array(z.string()),
 });
 export type ContentSnapshotData = z.infer<typeof snapshotSchema>;

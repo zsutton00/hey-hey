@@ -138,7 +138,7 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
     const result = (await recorder.store.read())[0]!;
     expect(result.outcome).toBe('failure');
     expect(result.gaps).toContain('writer_lifetime_unresolved');
-    expect(result.after!.entries.some((entry) => entry.path === 'delete.txt')).toBe(false);
+    expect(result.after!.entries.find((entry) => entry.path === 'delete.txt')?.hash).toBeNull();
     const binary = result.after!.entries.find((entry) => entry.path === 'new.bin')!;
     expect(await recorder.store.readBlob(binary.hash!)).toEqual(Buffer.from([0, 255, 1]));
     expect(result.identity).toMatchObject({
@@ -150,7 +150,160 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
     expect((await fs.readdir(path.join(directory, 'evidence'))).sort()).toEqual([
       'blobs',
       'observations',
+      'pending',
     ]);
+  });
+
+  it('captures only status candidates in a populated repository, including dirty edits and reverts', async () => {
+    const source = path.join(root, 'src');
+    await fs.mkdir(source);
+    await Promise.all(
+      Array.from({ length: 250 }, (_, index) =>
+        fs.writeFile(path.join(source, `module-${index}.ts`), `export const value = ${index};\n`),
+      ),
+    );
+    await fs.writeFile(path.join(root, '.gitignore'), 'cache/\n');
+    await exec('git', ['-C', root, 'add', 'src', '.gitignore']);
+    await exec('git', [
+      '-C',
+      root,
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.test',
+      'commit',
+      '-qm',
+      'populated source tree',
+    ]);
+    await fs.writeFile(path.join(root, 'src/module-1.ts'), 'pre-existing dirty content');
+    const { recorder, session, launch, event } = await setup();
+    const indexBefore = await fs.readFile(path.join(root, '.git/index'));
+    await runHook(launch, event);
+    const pending = (await recorder.store.read())[0]!;
+    expect(pending.before!.entries.map((entry) => entry.path).sort()).toEqual([
+      'dirty.txt',
+      'src/module-1.ts',
+    ]);
+    expect(await fs.readFile(path.join(root, '.git/index'))).toEqual(indexBefore);
+    await fs.writeFile(path.join(root, 'dirty.txt'), 'our change to dirty file');
+    await exec('git', ['-C', root, 'restore', 'src/module-1.ts']);
+    await fs.writeFile(path.join(root, 'src/module-2.ts'), 'our change to clean file');
+    await fs.writeFile(path.join(root, 'new file\nwith newline.txt'), 'created');
+    session.outcome(event.session_id, event.tool_use_id, 'success');
+    await runHook(launch, { ...event, hook_event_name: 'PostToolUse', exit_code: 0 });
+    const changes = (file: string) =>
+      recorder.capturedFileChanges('run', 'run-turn', 'service', file);
+    expect(changes('src/module-3.ts')).toEqual([]);
+    expect(changes('dirty.txt')).toHaveLength(1);
+    expect(
+      (await recorder.readCapturedContent(changes('dirty.txt')[0]!.beforeHash!)).toString(),
+    ).toBe('already dirty');
+    expect(
+      (await recorder.readCapturedContent(changes('src/module-1.ts')[0]!.afterHash!)).toString(),
+    ).toBe('export const value = 1;\n');
+    expect(
+      (await recorder.readCapturedContent(changes('src/module-2.ts')[0]!.beforeHash!)).toString(),
+    ).toBe('export const value = 2;\n');
+    expect(changes('new file\nwith newline.txt')[0]!.beforeHash).toBeNull();
+    await recorder.releaseTurn('run', 'run-turn');
+    expect(await recorder.store.read()).toEqual([]);
+  });
+
+  it.each(['baseline-read', 'final-read', 'final-write', 'settlement-read'] as const)(
+    'settles and closes while %s remains blocked, without accepting late evidence',
+    async (stage) => {
+      const { session, recorder, launch, event } = await setup('Edit');
+      if (stage !== 'baseline-read') {
+        await runHook(launch, event);
+        await fs.writeFile(path.join(root, 'dirty.txt'), 'changed by tool');
+      }
+      let release!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let resumed = false;
+      const realpath = fs.realpath.bind(fs);
+      const open = fs.open.bind(fs);
+      const filesystem =
+        stage === 'final-write'
+          ? vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+              const file = await open(...args);
+              if (String(args[0]).includes(`${path.sep}observations${path.sep}`)) {
+                const write = file.writeFile.bind(file);
+                vi.spyOn(file, 'writeFile').mockImplementationOnce(async (...writeArgs) => {
+                  await blocked;
+                  resumed = true;
+                  return write(...writeArgs);
+                });
+              }
+              return file;
+            })
+          : vi.spyOn(fs, 'realpath').mockImplementationOnce(async (file) => {
+              await blocked;
+              resumed = true;
+              return realpath(file);
+            });
+      try {
+        const started = Date.now();
+        if (stage === 'settlement-read') {
+          session.outcome(event.session_id, event.tool_use_id, 'failure');
+        } else {
+          await runHook(launch, {
+            ...event,
+            hook_event_name: stage === 'baseline-read' ? 'PreToolUse' : 'PostToolUse',
+          });
+          expect(Date.now() - started).toBeLessThan(3000);
+        }
+        let settled = false;
+        const ending = session.end().then(() => {
+          settled = true;
+        });
+        await expect.poll(() => settled, { timeout: 3000 }).toBe(true);
+        await ending;
+        await session.close();
+        expect(resumed).toBe(false);
+        expect(recorder.capturedFileChanges('run', 'run-turn', 'service', 'dirty.txt')).toEqual([]);
+        // Releasing a previously blocked OS call must not publish successful evidence.
+        release();
+        await expect.poll(() => resumed).toBe(true);
+        await expect.poll(async () => (await recorder.store.read())[0]?.state).toBe('incomplete');
+        expect((await recorder.store.read())[0]).toMatchObject({
+          gaps: expect.arrayContaining(['interrupted']),
+          after: null,
+        });
+      } finally {
+        release();
+        filesystem.mockRestore();
+      }
+    },
+  );
+
+  it('keeps status paths relative to a Service nested inside a git repository', async () => {
+    const serviceRoot = path.join(root, 'nested');
+    await fs.mkdir(serviceRoot);
+    await fs.writeFile(path.join(serviceRoot, 'clean.txt'), 'baseline');
+    await exec('git', ['-C', root, 'add', 'nested']);
+    await exec('git', [
+      '-C',
+      root,
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.test',
+      'commit',
+      '-qm',
+      'nested service',
+    ]);
+    root = serviceRoot;
+    const { recorder, session, launch, event } = await setup();
+    await runHook(launch, event);
+    await fs.writeFile(path.join(root, 'clean.txt'), 'changed');
+    session.outcome(event.session_id, event.tool_use_id, 'success');
+    await runHook(launch, { ...event, hook_event_name: 'PostToolUse', exit_code: 0 });
+    const [change] = recorder.capturedFileChanges('run', 'run-turn', 'service', 'clean.txt');
+    expect(change).toBeDefined();
+    expect((await recorder.readCapturedContent(change!.beforeHash!)).toString()).toBe('baseline');
+    expect((await recorder.readCapturedContent(change!.afterHash!)).toString()).toBe('changed');
   });
 
   it('completes direct edits without changing git index or writing canonical facts', async () => {
@@ -336,8 +489,8 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
     const abort = new AbortController();
     abort.abort();
     await session.handle(event, abort.signal);
+    await expect.poll(async () => (await recorder.store.read())[0]?.state).toBe('incomplete');
     const result = (await recorder.store.read())[0]!;
-    expect(result.state).toBe('incomplete');
     expect(result.gaps).toContain('interrupted');
   });
 

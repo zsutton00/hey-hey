@@ -9,6 +9,7 @@ import type { ServerLogger } from '../../../server/logger';
 import type { ExecutionRecorder } from './execution-recorder';
 import type { CaptureGap, CaptureIdentity, CaptureRoot } from './observation';
 import { HookChannel, type HookInput } from './hook-channel';
+import { CaptureDeadline } from './capture-deadline';
 import {
   confirmCodexHookLaunch,
   manualCodexHookConfig,
@@ -66,7 +67,7 @@ const scopeRootsToToolInput = (
 
 /** Captures host-owned scope before a tool can use the hook channel; hook input cannot widen it. */
 export class ExecutionCaptureSession {
-  private readonly channel = new HookChannel(this);
+  private readonly channel: HookChannel;
   private scope: CaptureScope | null = null;
   private readonly tools = new Map<string, AdmittedTool>();
   /** The roots each admitted tool's Pre hook read, so its Post hook reads the same files. */
@@ -81,7 +82,9 @@ export class ExecutionCaptureSession {
     private readonly provider: 'codex' | 'claude',
     private readonly recorder: ExecutionRecorder,
     private readonly logger: ServerLogger,
-  ) {}
+  ) {
+    this.channel = new HookChannel(this, logger);
+  }
 
   public async open(
     run: Run,
@@ -262,7 +265,7 @@ export class ExecutionCaptureSession {
         return;
       }
       this.toolRoots.set(toolKey, roots);
-      await this.recorder.begin(identity, roots, scope.harnessVersion);
+      await this.recorder.begin(identity, roots, scope.harnessVersion, signal);
       if (signal.aborted || this.scope !== scope)
         await this.recorder.interrupt(scope.runId, scope.turnId);
     } else {
@@ -283,6 +286,7 @@ export class ExecutionCaptureSession {
         scope.harnessVersion,
         outcome,
         identity.toolName !== 'Bash' && !signal.aborted,
+        signal,
       );
       this.finalized.add(toolKey);
     }
@@ -298,14 +302,17 @@ export class ExecutionCaptureSession {
       ...(cause === undefined ? {} : { error: cause }),
     });
     if (scope) {
+      const capture = new CaptureDeadline();
       try {
-        await this.recorder.store.coverage({ ...scope, reason });
+        await capture.wait(this.recorder.store.coverage({ ...scope, reason }));
       } catch (error) {
         this.logger.warn('execution_capture.coverage_persist_failed', {
           provider: this.provider,
           reason,
           error,
         });
+      } finally {
+        capture.close();
       }
     }
   }

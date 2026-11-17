@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { ExecutionRecorder } from './execution-recorder';
 import { ContentSnapshot } from './content-snapshot';
 import { ObservationStore } from './observation-store';
@@ -25,6 +25,7 @@ beforeEach(async () => {
   directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'hh-store-')));
   root = path.join(directory, 'repo');
   await fs.mkdir(root);
+  execFileSync('git', ['init', '-q', root]);
   await fs.writeFile(path.join(root, 'file'), 'baseline');
 });
 afterEach(async () => {
@@ -91,7 +92,7 @@ describe('execution evidence persistence', () => {
     expect(record.state).toBe('incomplete');
     expect(record.gaps).toContain('missing_baseline');
   });
-  it('retains incompatible source bytes and rejects subsequent capture', async () => {
+  it('retains incompatible source bytes without blocking subsequent capture', async () => {
     const recorder = new ExecutionRecorder(path.join(directory, 'evidence'), NOOP_LOGGER);
     await recorder.begin(identity, [{ serviceId: 'service', root }], '0.156.0');
     const records = path.join(directory, 'evidence', 'observations');
@@ -107,9 +108,34 @@ describe('execution evidence persistence', () => {
         [{ serviceId: 'service', root }],
         '0.156.0',
       ),
-    ).rejects.toThrow('Incompatible');
+    ).resolves.toBeUndefined();
     expect(await fs.readFile(filename, 'utf8')).toBe(source);
-    expect(await fs.readdir(records)).toHaveLength(1);
+    expect(await fs.readdir(records)).toHaveLength(2);
+  });
+
+  it('ignores historical observations during admission and prunes only the consumed turn', async () => {
+    const recorder = new ExecutionRecorder(path.join(directory, 'evidence'), NOOP_LOGGER);
+    const roots = [{ serviceId: 'service', root }];
+    await recorder.begin(identity, roots, 'test');
+    await fs.writeFile(path.join(root, 'file'), 'first edit');
+    await recorder.finish(identity, roots, 'test', 'success', true);
+    const first = (await recorder.store.read())[0]!;
+    const records = path.join(directory, 'evidence', 'observations');
+    for (let index = 0; index < 200; index += 1) {
+      await fs.writeFile(path.join(records, `historical-${index}.json`), 'unreadable old record');
+    }
+    const next = { ...identity, turnId: 'next', toolCallId: 'next' };
+    const reads = vi.spyOn(fs, 'readFile');
+    await recorder.begin(next, roots, 'test');
+    expect(reads.mock.calls.some(([file]) => String(file).includes('historical-'))).toBe(false);
+    reads.mockRestore();
+    await recorder.releaseTurn(identity.runId, identity.turnId);
+    await expect(fs.access(path.join(records, `${first.id}.json`))).rejects.toThrow();
+    expect(await fs.readdir(path.join(directory, 'evidence', 'pending'))).toHaveLength(1);
+    expect(recorder.capturedFileChanges('run', 'turn', 'service', 'file')).toEqual([]);
+    expect(await fs.readFile(path.join(records, 'historical-0.json'), 'utf8')).toBe(
+      'unreadable old record',
+    );
   });
 
   it('marks post-only evidence as missing its baseline', async () => {
@@ -204,17 +230,23 @@ process.stdout.write('ready');process.stdin.once('data',async()=>{await recorder
     }
   });
 
-  it('keeps unresolved writers overlapping later observations after command return', async () => {
+  it('retains unresolved writer evidence without indexing finished Bash captures as active', async () => {
     const recorder = new ExecutionRecorder(path.join(directory, 'evidence'), NOOP_LOGGER);
     const roots = [{ serviceId: 'service', root }];
-    await recorder.begin(identity, roots, '0.156.0');
-    await recorder.finish(identity, roots, '0.156.0', 'success', false);
-    const next = { ...identity, toolCallId: 'next', toolName: 'apply_patch' };
-    await recorder.begin(next, roots, '0.156.0');
-    await recorder.finish(next, roots, '0.156.0', 'success', true);
-    for (const record of await recorder.store.read()) {
-      expect(record.state).toBe('incomplete');
-      expect(record.gaps).toContain('overlap');
+    for (let index = 0; index < 8; index += 1) {
+      const next = { ...identity, toolCallId: `shell-${String(index)}` };
+      await recorder.begin(next, roots, 'test');
+      await fs.writeFile(path.join(root, 'file'), `edit ${String(index)}`);
+      await recorder.finish(next, roots, 'test', 'success', false);
+      // Reports have not consumed any observations, as with a failed report write.
+      expect(await recorder.store.list('pending')).toEqual([]);
+    }
+    const records = await recorder.store.read();
+    expect(records).toHaveLength(8);
+    for (const record of records) {
+      expect(record.endedAt).toBeNull();
+      expect(record.gaps).toContain('writer_lifetime_unresolved');
+      expect(record.gaps).not.toContain('overlap');
     }
   });
 });

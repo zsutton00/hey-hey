@@ -20,8 +20,13 @@ process.stdin.on('end', () => {
       headers: { authorization: token, 'content-type': 'application/json' } }, response => {
       response.resume(); response.on('end', () => process.exit(0));
     });
-    request.on('error', () => process.exit(0));
-    request.setTimeout(115000, () => { request.destroy(); process.exit(0); });
+    const warn = (reason, error) => process.stderr.write(JSON.stringify({
+      level: 'warn', event: 'execution_capture.hook_relay_failed', reason,
+      toolName: event.tool_name, toolCallId: event.tool_use_id,
+      errorCode: error && error.code, error: error && error.message
+    }) + '\n');
+    request.on('error', error => { warn('transport-error', error); process.exit(0); });
+    request.setTimeout(2500, () => { warn('response-timeout'); request.destroy(); process.exit(0); });
     request.end(body);
   } catch { process.exit(0); }
 });

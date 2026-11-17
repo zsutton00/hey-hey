@@ -1,3 +1,4 @@
+import { CaptureDeadline } from './capture-deadline';
 import { randomUUID } from 'node:crypto';
 import type { ServerLogger } from '../../../server/logger';
 import { ObservationStore } from './observation-store';
@@ -28,8 +29,8 @@ export interface CapturedFileChange {
   serviceId: string;
   path: string;
   startedAt: number;
-  /** Null when the file did not exist. */
-  beforeHash: string | null;
+  /** Null when absent; undefined when no reliable baseline was available. */
+  beforeHash: string | null | undefined;
   afterHash: string | null;
 }
 
@@ -61,7 +62,11 @@ const changedBetween = (
     if (failedRoots.has(serviceId) || earlier?.gap || later?.gap) continue;
     // A scoped snapshot names every path it read, so a missing entry is not "absent".
     if (scoped.has(serviceId) && (!earlier || !later)) continue;
-    const beforeHash = earlier?.hash ?? null;
+    const beforeHash = earlier
+      ? earlier.hash
+      : observation.identity.toolName === 'Bash'
+        ? undefined
+        : null;
     const afterHash = later?.hash ?? null;
     if (beforeHash === afterHash) continue;
     changes.push({
@@ -81,6 +86,7 @@ export class ExecutionRecorder {
   private readonly snapshot: ContentSnapshot;
   private readonly pending = new Map<string, ExecutionObservation>();
   private readonly mutations = new Map<string, Promise<void>>();
+  private readonly finished = new Map<string, ExecutionObservation>();
   /** Files each finished tool changed, per `runId:turnId`, until the Turn's report has read them. */
   private readonly capturedChanges = new Map<string, CapturedFileChange[]>();
 
@@ -92,12 +98,61 @@ export class ExecutionRecorder {
     this.snapshot = new ContentSnapshot(this.store, logger);
   }
 
-  private serialize(key: string, operation: () => Promise<void>): Promise<void> {
-    const next = (this.mutations.get(key) ?? Promise.resolve()).then(operation);
+  private serialize(
+    key: string,
+    operation: (capture: CaptureDeadline) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const next = (this.mutations.get(key) ?? Promise.resolve()).then(async () => {
+      const capture = new CaptureDeadline(signal);
+      try {
+        await operation(capture);
+      } catch (error) {
+        if (capture.signal.aborted) {
+          const observation = this.pending.get(key) ?? this.finished.get(key);
+          this.logger.warn('execution_capture.operation_abandoned', {
+            ...observation?.identity,
+            observationId: observation?.id,
+            cause: error instanceof Error ? error.message : String(error),
+          });
+          if (observation) {
+            const abandoned: ExecutionObservation = {
+              ...observation,
+              after: null,
+              state: 'incomplete',
+              outcome: 'interrupted',
+              gaps: [
+                ...new Set<CaptureGap>([...observation.gaps, 'interrupted', 'snapshot_failure']),
+              ],
+            };
+            this.pending.delete(key);
+            this.finished.set(key, abandoned);
+            // Best-effort evidence must not put abandoned I/O back on the serialization queue.
+            const cleanup = new CaptureDeadline();
+            void cleanup
+              .wait(this.store.save(abandoned, cleanup.signal))
+              .catch((cause: unknown) => {
+                this.logger.warn('execution_capture.abandon_persist_failed', {
+                  ...abandoned.identity,
+                  observationId: abandoned.id,
+                  cause,
+                });
+              })
+              .finally(() => cleanup.close());
+          }
+          return;
+        }
+        throw error;
+      } finally {
+        capture.close();
+      }
+    });
     const tracked = next.catch(() => undefined);
     this.mutations.set(key, tracked);
     void tracked.finally(() => {
-      if (this.mutations.get(key) === tracked) this.mutations.delete(key);
+      if (this.mutations.get(key) === tracked) {
+        this.mutations.delete(key);
+      }
     });
     return next;
   }
@@ -106,63 +161,73 @@ export class ExecutionRecorder {
     identity: CaptureIdentity,
     roots: readonly CaptureRoot[],
     harnessVersion: string,
+    signal?: AbortSignal,
   ): Promise<void> {
-    return this.serialize(identityKey(identity), async () => {
-      if (this.pending.has(identityKey(identity))) return;
-      // Compatibility is checked before creating anything that could obscure older evidence.
-      await this.store.list();
-      const observation: ExecutionObservation = {
-        id: randomUUID(),
-        identity,
-        roots: [...roots],
-        harnessVersion,
-        ownerPid: process.pid,
-        startedAt: Date.now(),
-        endedAt: null,
-        state: 'pending',
-        before: null,
-        after: null,
-        outcome: null,
-        gaps: [],
-      };
-      this.pending.set(identityKey(identity), observation);
-      try {
-        await this.store.save(observation);
-        await this.store.recordOverlaps(observation);
-        this.logger.debug('execution_capture.baseline_started', {
-          ...identity,
-          observationId: observation.id,
-        });
-        const snapshotStartedAt = Date.now();
-        observation.before = await this.snapshot.capture(roots, identity, 'baseline');
-        this.logger.debug('execution_capture.baseline_snapshot_completed', {
-          ...identity,
-          observationId: observation.id,
-          elapsedMs: Date.now() - snapshotStartedAt,
-          entryCount: observation.before.entries.length,
-          rootFailureCount: observation.before.rootFailures.length,
-        });
-        if (
-          observation.before.rootFailures.length ||
-          observation.before.entries.some((entry) => entry.gap !== null)
-        )
-          observation.gaps.push('snapshot_failure');
-        await this.store.save(observation);
-        this.logger.debug('execution_capture.baseline_saved', {
-          ...identity,
-          observationId: observation.id,
-          entryCount: observation.before.entries.length,
-          gaps: observation.gaps,
-        });
-      } catch (error) {
-        observation.gaps.push('missing_baseline', 'snapshot_failure');
-        this.logger.warn('execution_capture.baseline_failed', {
-          ...identity,
-          observationId: observation.id,
-        });
-        throw error;
-      }
-    });
+    const queuedAt = Date.now();
+    return this.serialize(
+      identityKey(identity),
+      async (capture) => {
+        if (this.pending.has(identityKey(identity))) return;
+        const observation: ExecutionObservation = {
+          id: randomUUID(),
+          identity,
+          roots: [...roots],
+          harnessVersion,
+          ownerPid: process.pid,
+          startedAt: Date.now(),
+          endedAt: null,
+          state: 'pending',
+          before: null,
+          after: null,
+          outcome: null,
+          gaps: [],
+        };
+        this.pending.set(identityKey(identity), observation);
+        try {
+          const persistStartedAt = Date.now();
+          await capture.wait(this.store.save(observation, capture.signal));
+          await capture.wait(this.store.recordOverlaps(observation, capture.signal));
+          this.logger.debug('execution_capture.baseline_started', {
+            ...identity,
+            observationId: observation.id,
+            persistMs: Date.now() - persistStartedAt,
+          });
+          const snapshotStartedAt = Date.now();
+          observation.before = await capture.wait(
+            this.snapshot.capture(roots, identity, 'baseline', null, capture.signal),
+          );
+          this.logger.debug('execution_capture.baseline_snapshot_completed', {
+            ...identity,
+            observationId: observation.id,
+            elapsedMs: Date.now() - snapshotStartedAt,
+            entryCount: observation.before.entries.length,
+            rootFailureCount: observation.before.rootFailures.length,
+          });
+          if (
+            observation.before.rootFailures.length ||
+            observation.before.entries.some((entry) => entry.gap !== null)
+          )
+            observation.gaps.push('snapshot_failure');
+          await capture.wait(this.store.save(observation, capture.signal));
+          this.logger.debug('execution_capture.baseline_saved', {
+            ...identity,
+            observationId: observation.id,
+            entryCount: observation.before.entries.length,
+            gaps: observation.gaps,
+          });
+        } catch (error) {
+          observation.gaps.push('missing_baseline', 'snapshot_failure');
+          this.logger.warn('execution_capture.baseline_failed', {
+            ...identity,
+            observationId: observation.id,
+            elapsedMs: Date.now() - queuedAt,
+            error,
+          });
+          throw error;
+        }
+      },
+      signal,
+    );
   }
 
   public finish(
@@ -171,73 +236,91 @@ export class ExecutionRecorder {
     harnessVersion: string,
     outcome: NonNullable<ExecutionObservation['outcome']>,
     writerStopped: boolean,
+    signal?: AbortSignal,
   ): Promise<void> {
-    return this.serialize(identityKey(identity), async () => {
-      const key = identityKey(identity);
-      const recovered = this.pending.has(key)
-        ? null
-        : (await this.store.list()).find((entry) => identityKey(entry.identity) === key);
-      if (recovered?.after && recovered.outcome !== null && recovered.outcome !== 'interrupted')
-        return;
-      const observation: ExecutionObservation = this.pending.get(key) ??
-        recovered ?? {
-          id: randomUUID(),
-          identity,
-          roots: [...roots],
-          harnessVersion,
-          ownerPid: process.pid,
-          startedAt: Date.now(),
-          endedAt: null,
-          state: 'incomplete' as const,
-          before: null,
-          after: null,
-          outcome: null,
-          gaps: ['missing_baseline' as const],
-        };
-      if (recovered) observation.gaps.push('interrupted');
-      const snapshotStartedAt = Date.now();
-      this.logger.debug('execution_capture.final_snapshot_started', {
-        ...identity,
-        observationId: observation.id,
-        rootCount: observation.roots.length,
-      });
-      observation.after = await this.snapshot.capture(
-        observation.roots,
-        observation.identity,
-        'final',
-      );
-      this.logger.debug('execution_capture.final_snapshot_completed', {
-        ...identity,
-        observationId: observation.id,
-        elapsedMs: Date.now() - snapshotStartedAt,
-        entryCount: observation.after.entries.length,
-        rootFailureCount: observation.after.rootFailures.length,
-      });
-      observation.outcome = outcome;
-      observation.endedAt = writerStopped ? Date.now() : null;
-      if (!observation.before) observation.gaps.push('missing_baseline');
-      if (!writerStopped) observation.gaps.push('writer_lifetime_unresolved');
-      if (outcome === 'denied') observation.gaps.push('denied');
-      if (outcome === 'interrupted') observation.gaps.push('interrupted');
-      if (outcome === 'unknown') observation.gaps.push('outcome_unresolved');
-      if (
-        observation.after.rootFailures.length ||
-        observation.after.entries.some((entry) => entry.gap !== null)
-      )
-        observation.gaps.push('snapshot_failure');
-      observation.gaps = [...new Set(observation.gaps)];
-      observation.state = observation.gaps.length ? 'incomplete' : 'completed';
-      await this.store.save(observation);
-      await this.store.recordOverlaps(observation);
-      this.pending.delete(key);
-      this.rememberChanges(observation);
-      this.logger.debug('execution_capture.finalized', {
-        ...identity,
-        observationId: observation.id,
-        state: observation.state,
-        gaps: observation.gaps,
-      });
-    });
+    return this.serialize(
+      identityKey(identity),
+      async (capture) => {
+        const key = identityKey(identity);
+        const recovered = this.pending.has(key)
+          ? null
+          : (this.finished.get(key) ??
+            (await capture.wait(this.store.list())).find(
+              (entry) => identityKey(entry.identity) === key,
+            ));
+        if (recovered?.after && recovered.outcome !== null && recovered.outcome !== 'interrupted')
+          return;
+        const observation: ExecutionObservation = this.pending.get(key) ??
+          recovered ?? {
+            id: randomUUID(),
+            identity,
+            roots: [...roots],
+            harnessVersion,
+            ownerPid: process.pid,
+            startedAt: Date.now(),
+            endedAt: null,
+            state: 'incomplete' as const,
+            before: null,
+            after: null,
+            outcome: null,
+            gaps: ['missing_baseline' as const],
+          };
+        if (recovered) observation.gaps.push('interrupted');
+        this.pending.set(key, observation);
+        const snapshotStartedAt = Date.now();
+        this.logger.debug('execution_capture.final_snapshot_started', {
+          ...identity,
+          observationId: observation.id,
+          rootCount: observation.roots.length,
+        });
+        const before = observation.before ? structuredClone(observation.before) : null;
+        observation.after = await capture.wait(
+          this.snapshot.capture(
+            observation.roots,
+            observation.identity,
+            'final',
+            before,
+            capture.signal,
+          ),
+        );
+        observation.before = before;
+        this.logger.debug('execution_capture.final_snapshot_completed', {
+          ...identity,
+          observationId: observation.id,
+          elapsedMs: Date.now() - snapshotStartedAt,
+          entryCount: observation.after.entries.length,
+          rootFailureCount: observation.after.rootFailures.length,
+        });
+        observation.outcome = outcome;
+        observation.endedAt = writerStopped ? Date.now() : null;
+        if (!observation.before) observation.gaps.push('missing_baseline');
+        if (!writerStopped) observation.gaps.push('writer_lifetime_unresolved');
+        if (outcome === 'denied') observation.gaps.push('denied');
+        if (outcome === 'interrupted') observation.gaps.push('interrupted');
+        if (outcome === 'unknown') observation.gaps.push('outcome_unresolved');
+        if (
+          observation.after.rootFailures.length ||
+          observation.after.entries.some((entry) => entry.gap !== null)
+        )
+          observation.gaps.push('snapshot_failure');
+        observation.gaps = [...new Set(observation.gaps)];
+        observation.state = observation.gaps.length ? 'incomplete' : 'completed';
+        await capture.wait(this.store.save(observation, capture.signal));
+        await capture.wait(this.store.recordOverlaps(observation, capture.signal));
+        this.pending.delete(key);
+        this.finished.set(key, observation);
+        if (!signal?.aborted) {
+          this.rememberChanges(observation);
+        }
+        this.logger.debug('execution_capture.finalized', {
+          ...identity,
+          observationId: observation.id,
+          state: observation.state,
+          gaps: observation.gaps,
+        });
+      },
+      signal,
+    );
   }
 
   private rememberChanges(observation: ExecutionObservation): void {
@@ -264,8 +347,37 @@ export class ExecutionRecorder {
     return this.store.readBlob(hash);
   }
 
+  /** Release only after report persistence succeeds, retaining evidence for failed reports. */
+  public async releaseTurn(runId: string, turnId: string): Promise<void> {
+    for (const observation of this.finished.values()) {
+      if (observation.identity.runId !== runId || observation.identity.turnId !== turnId) {
+        continue;
+      }
+      const cleanup = new CaptureDeadline();
+      try {
+        await cleanup.wait(this.store.remove(observation.id, observation.ownerPid));
+        this.finished.delete(identityKey(observation.identity));
+      } catch (error) {
+        this.logger.warn('execution_capture.prune_failed', {
+          runId,
+          turnId,
+          observationId: observation.id,
+          error,
+        });
+      } finally {
+        cleanup.close();
+      }
+    }
+    this.capturedChanges.delete(`${runId}:${turnId}`);
+  }
+
   /** Drops a finished Run's captured changes; its reports have been written. */
   public releaseRun(runId: string): void {
+    for (const [key, observation] of this.finished) {
+      if (observation.identity.runId === runId) {
+        this.finished.delete(key);
+      }
+    }
     for (const key of [...this.capturedChanges.keys()]) {
       if (key.startsWith(`${runId}:`)) {
         this.capturedChanges.delete(key);
@@ -303,7 +415,7 @@ export class ExecutionRecorder {
             hasQueuedMutation: this.mutations.has(key),
           };
           this.logger.debug('execution_capture.interrupt_observation_queued', diagnostic);
-          return this.serialize(key, async () => {
+          return this.serialize(key, async (capture) => {
             this.logger.debug('execution_capture.interrupt_observation_entered', {
               ...diagnostic,
               queueWaitMs: Date.now() - queuedAt,
@@ -327,10 +439,14 @@ export class ExecutionRecorder {
             observation.outcome = 'interrupted';
             const snapshotStartedAt = Date.now();
             this.logger.debug('execution_capture.interrupt_snapshot_started', diagnostic);
-            observation.after = await this.snapshot.capture(
-              observation.roots,
-              observation.identity,
-              'interrupt',
+            observation.after = await capture.wait(
+              this.snapshot.capture(
+                observation.roots,
+                observation.identity,
+                'interrupt',
+                observation.before,
+                capture.signal,
+              ),
             );
             this.logger.debug('execution_capture.interrupt_snapshot_completed', {
               ...diagnostic,
@@ -346,8 +462,9 @@ export class ExecutionRecorder {
               ]),
             ];
             // This is an interruption-time observation, not proof that writers stopped.
-            await this.store.save(observation);
+            await capture.wait(this.store.save(observation, capture.signal));
             this.pending.delete(key);
+            this.finished.set(key, observation);
             this.logger.debug('execution_capture.interrupted', {
               ...observation.identity,
               observationId: observation.id,
@@ -370,10 +487,10 @@ export class ExecutionRecorder {
     harnessVersion: string,
     outcome: 'failure' | 'denied',
   ): Promise<void> {
-    return this.serialize(identityKey(identity), async () => {
+    return this.serialize(identityKey(identity), async (capture) => {
       const startedAt = Date.now();
       this.logger.debug('execution_capture.unobserved_lookup_started', { ...identity });
-      const existing = await this.store.list();
+      const existing = await capture.wait(this.store.list());
       this.logger.debug('execution_capture.unobserved_lookup_completed', {
         ...identity,
         elapsedMs: Date.now() - startedAt,
@@ -399,7 +516,8 @@ export class ExecutionRecorder {
           ...(identity.toolName === 'Bash' ? ['writer_lifetime_unresolved' as const] : []),
         ],
       };
-      await this.store.save(observation);
+      await capture.wait(this.store.save(observation, capture.signal));
+      this.finished.set(identityKey(identity), observation);
       this.logger.info('execution_capture.unobserved_outcome_saved', {
         ...identity,
         observationId: observation.id,
@@ -412,10 +530,14 @@ export class ExecutionRecorder {
     identity: CaptureIdentity,
     outcome: 'success' | 'failure' | 'denied',
   ): Promise<void> {
-    return this.serialize(identityKey(identity), async () => {
-      const observation = (await this.store.list()).find(
-        (entry) => identityKey(entry.identity) === identityKey(identity),
-      );
+    return this.serialize(identityKey(identity), async (capture) => {
+      const key = identityKey(identity);
+      const observation =
+        this.pending.get(key) ??
+        this.finished.get(key) ??
+        (await capture.wait(this.store.list())).find(
+          (entry) => identityKey(entry.identity) === key,
+        );
       if (!observation) return;
       observation.outcome = outcome;
       observation.gaps = observation.gaps.filter((gap) => gap !== 'outcome_unresolved');
@@ -423,7 +545,7 @@ export class ExecutionRecorder {
         observation.gaps.push('denied');
       // Authoritative outcome cannot repair incomplete content coverage.
       if (observation.gaps.length) observation.state = 'incomplete';
-      await this.store.save(observation);
+      await capture.wait(this.store.save(observation, capture.signal));
       this.logger.debug('execution_capture.outcome_confirmed', {
         ...identity,
         outcome,
