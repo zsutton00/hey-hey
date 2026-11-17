@@ -3400,6 +3400,7 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
       discriminator:
         propertyName: operation
         mapping:
@@ -3414,6 +3415,7 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
     CliReadResponseDto:
       oneOf:
         - $ref: "#/components/schemas/CliReadSuccessResponseDto"
@@ -3434,6 +3436,7 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
       discriminator:
         propertyName: operation
         mapping:
@@ -3448,6 +3451,7 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
     CliReadErrorResponseDto:
       oneOf:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
@@ -3461,6 +3465,7 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
       discriminator:
         propertyName: operation
         mapping:
@@ -3475,6 +3480,7 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
     CliReadErrorCode:
       type: string
       enum:
@@ -5322,6 +5328,168 @@ components:
           type: string
           format: date-time
           nullable: true
+      additionalProperties: false
+    AgentSessionContinuationMode:
+      type: string
+      enum:
+        - NATIVE_RESUME
+        - SAVED_HISTORY
+      description: >-
+        NATIVE_RESUME continues the provider session found on the destination. SAVED_HISTORY starts a new provider
+        session inside the same Run from the conversation's saved history, only after the person confirmed it.
+    AgentSessionContinuationMarker:
+      type: object
+      additionalProperties: false
+      required: [continuationId, mode]
+      properties:
+        continuationId:
+          type: string
+          format: uuid
+        mode:
+          $ref: "#/components/schemas/AgentSessionContinuationMode"
+      description: >-
+        Carried on a continuation's materialize-only start_run. It selects which provider session the destination uses
+        and carries no authority.
+    AgentSessionContinuationNativeState:
+      type: string
+      enum:
+        - USABLE
+        - ABSENT
+        - UNUSABLE
+      description: >-
+        Destination-local provider state for a continuation. USABLE: the Run, its provider session and the provider's
+        persisted conversation exist and the provider can resume it. ABSENT: no native state exists (for example a
+        different or wiped computer); continuation needs a new provider session from saved history. UNUSABLE: state
+        exists but cannot be resumed, or could not be read; the reason names the actual cause and is never reported as
+        absence.
+    AgentSessionContinuationInspectionReason:
+      type: string
+      enum:
+        - PROVIDER_STATE_PRESENT
+        - NO_LOCAL_RUN
+        - NO_PROVIDER_SESSION
+        - PROVIDER_TRANSCRIPT_MISSING
+        - PROVIDER_MISMATCH
+        - CONVERSATION_MISMATCH
+        - PROVIDER_RESUME_UNSUPPORTED
+        - LOCAL_STATE_UNREADABLE
+      description: Safe cause code for an inspection outcome. It carries no paths, transcript content or credentials.
+    CliReadAgentSessionContinuationInspectEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - operation
+        - organizationId
+        - projectId
+        - machineId
+        - authorizationRequestId
+        - agentSessionId
+        - conversationId
+        - continuationId
+        - expectedSourceMachineId
+        - provider
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+          description: Destination machine addressed by this inspection.
+        authorizationRequestId:
+          type: string
+          format: uuid
+        agentSessionId:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        continuationId:
+          type: string
+          format: uuid
+        expectedSourceMachineId:
+          type: string
+          format: uuid
+          description: Session binding the authorization was prepared against; part of the authorized action.
+        provider:
+          type: string
+          minLength: 1
+          description: Provider persisted on the Agent Session; local state for another provider is not usable.
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectResult:
+      type: object
+      required:
+        - agentSessionId
+        - continuationId
+        - nativeState
+        - reason
+      properties:
+        agentSessionId:
+          type: string
+          format: uuid
+        continuationId:
+          type: string
+          format: uuid
+        nativeState:
+          $ref: "#/components/schemas/AgentSessionContinuationNativeState"
+        reason:
+          $ref: "#/components/schemas/AgentSessionContinuationInspectionReason"
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectResult"
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
       additionalProperties: false
     CliReadRuntimeModelCatalogResult:
       type: object

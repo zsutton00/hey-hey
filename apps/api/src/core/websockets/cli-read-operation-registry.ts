@@ -20,4 +20,5 @@ export const PROTECTED_CLI_READ_OPERATIONS = Object.freeze([
   ...SESSION_CLI_READ_OPERATIONS,
   'workspace.skills.list',
   'runtime.model_catalog.get',
+  'agent_session.continuation.inspect',
 ] satisfies CliReadEnvelopeBody['operation'][]);

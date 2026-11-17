@@ -182,6 +182,19 @@ const readBodiesByOperation = {
     machineId,
     authorizationRequestId: requestId,
   },
+  'agent_session.continuation.inspect': {
+    requestId,
+    operation: 'agent_session.continuation.inspect',
+    organizationId,
+    projectId,
+    machineId,
+    authorizationRequestId: requestId,
+    agentSessionId,
+    conversationId: requestId,
+    continuationId: requestId,
+    expectedSourceMachineId: requestId,
+    provider: 'claude',
+  },
 } satisfies Record<VerifiedCliReadFrame['body']['operation'], VerifiedCliReadFrame['body']>;
 
 const denialCases = [
@@ -1812,8 +1825,95 @@ describe('workspace catalog admission', () => {
   );
 });
 
+describe('continuation inspection admission', () => {
+  const body = readBodiesByOperation['agent_session.continuation.inspect'];
+
+  it('admits by destination machine and binds the session, continuation and expected binding', async () => {
+    const restore = vi.fn();
+    const admit = vi.fn().mockResolvedValue({ admitted: true });
+    const subject = createSubject(
+      restore,
+      verifiedRead(body),
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { admit },
+    );
+    expect(await subject.handle({})).toMatchObject({
+      operation: 'agent_session.continuation.inspect',
+      status: 'success',
+      result: {
+        agentSessionId,
+        continuationId: body.continuationId,
+        nativeState: 'ABSENT',
+        reason: 'NO_LOCAL_RUN',
+      },
+    });
+    expect(restore).not.toHaveBeenCalled();
+    const admitted = admit.mock.calls[0]![0];
+    expect(admitted).toMatchObject({
+      target: { kind: 'CLI_READ', id: machineId, revision: null },
+      agentSessionId: null,
+    });
+
+    // The authorized action covers the session, continuation and expected
+    // binding: changing any of them changes the payload hash.
+    for (const field of ['agentSessionId', 'continuationId', 'expectedSourceMachineId'] as const) {
+      const changedAdmit = vi.fn().mockResolvedValue({ admitted: true });
+      await createSubject(
+        vi.fn(),
+        verifiedRead({ ...body, [field]: randomUUID() }),
+        undefined,
+        [],
+        undefined,
+        undefined,
+        { admit: changedAdmit },
+      ).handle({});
+      expect(changedAdmit.mock.calls[0]![0].actionPayloadHash).not.toBe(admitted.actionPayloadHash);
+    }
+  });
+
+  it('reads no local state when destination authorization is denied', async () => {
+    const getRunMetadata = vi.spyOn(RunStore.prototype, 'getRunMetadata');
+    const admit = vi.fn().mockResolvedValue({ admitted: false, reason: 'GRANT_NOT_ACTIVE' });
+    const subject = createSubject(
+      vi.fn(),
+      verifiedRead(body),
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { admit },
+    );
+    expect(await subject.handle({})).toBeNull();
+    expect(getRunMetadata).not.toHaveBeenCalled();
+    getRunMetadata.mockRestore();
+  });
+
+  it.each(['organizationId', 'projectId', 'machineId'] as const)(
+    'rejects a mismatched signed %s before admission',
+    async (field) => {
+      const admit = vi.fn();
+      const subject = createSubject(
+        vi.fn(),
+        verifiedRead({ ...body, [field]: serviceId }),
+        undefined,
+        [],
+        undefined,
+        undefined,
+        { admit },
+      );
+      expect(await subject.handle({})).toBeNull();
+      expect(admit).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('fresh controller approval binds delivered session-read inputs', () => {
-  const cases = Object.values(readBodiesByOperation).filter((body) => 'agentSessionId' in body);
+  const cases = Object.values(readBodiesByOperation).filter(
+    (body) => 'agentSessionId' in body && body.operation !== 'agent_session.continuation.inspect',
+  );
 
   it.each(cases)(
     'admits the approved $operation with real controller and platform signatures',
@@ -1916,7 +2016,9 @@ describe('read input field coverage stays aligned with OpenAPI', () => {
     changed: VerifiedCliReadFrame['body'];
   }> = [];
   for (const body of Object.values(readBodiesByOperation)) {
-    if (!('agentSessionId' in body)) continue;
+    // Machine-addressed reads bind their fields through machine-scoped admission.
+    if (!('agentSessionId' in body) || body.operation === 'agent_session.continuation.inspect')
+      continue;
     const variant = variants.find((branch: any) =>
       resolve(branch.properties.operation).enum.includes(body.operation),
     );

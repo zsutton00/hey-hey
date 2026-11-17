@@ -19,7 +19,7 @@
 import type { AgentSkillCatalogContext } from './agent-skill-catalog-context.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { AgentSkillProvider } from './agent-skill-provider.js';
+import type { CliReadAgentSessionContinuationInspectEnvelopeBody } from './cli-read-agent-session-continuation-inspect-envelope-body.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CliReadChangedFileIdentity } from './cli-read-changed-file-identity.js';
@@ -64,4 +64,4 @@ import type { ImplementReportEdit } from './implement-report-edit.js';
  * @type CliReadEnvelopeBody1
  * @export
  */
-export type CliReadEnvelopeBody1 = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;
+export type CliReadEnvelopeBody1 = { operation: 'agent_session.continuation.inspect' } & CliReadAgentSessionContinuationInspectEnvelopeBody1 | { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;

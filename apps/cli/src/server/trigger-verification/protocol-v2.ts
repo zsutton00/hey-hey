@@ -634,6 +634,21 @@ export const CLI_READ_OPERATION_SCHEMAS = {
       operation: z.literal('runtime.model_catalog.get'),
     })
     .strict(),
+  'agent_session.continuation.inspect': z
+    .object({
+      requestId: uuid,
+      authorizationRequestId: uuid,
+      organizationId: uuid,
+      projectId: uuid,
+      machineId: uuid,
+      agentSessionId: uuid,
+      conversationId: uuid,
+      continuationId: uuid,
+      expectedSourceMachineId: uuid,
+      provider: z.string().min(1),
+      operation: z.literal('agent_session.continuation.inspect'),
+    })
+    .strict(),
 } satisfies { [TOperation in CliReadOperation]: CliReadBodySchema<TOperation> };
 
 const cliReadBodyV2Schema = z.union([
@@ -648,6 +663,7 @@ const cliReadBodyV2Schema = z.union([
   CLI_READ_OPERATION_SCHEMAS['project.session_costs.list'],
   CLI_READ_OPERATION_SCHEMAS['provider.usage.get'],
   CLI_READ_OPERATION_SCHEMAS['runtime.model_catalog.get'],
+  CLI_READ_OPERATION_SCHEMAS['agent_session.continuation.inspect'],
 ]) satisfies z.ZodType<unknown, z.ZodTypeDef, ZodCompatibleInput<CliReadEnvelopeBody>>;
 
 export const PROTECTED_CLI_READ_OPERATIONS = Object.freeze(

@@ -3827,6 +3827,9 @@
     "StartRunPromptPayload": {
       "type": "object",
       "properties": {
+        "continuation": {
+          "$ref": "#/definitions/AgentSessionContinuationMarker"
+        },
         "runId": {
           "type": "string",
           "description": "Explicit replacement Run identity; the owning Agent Session is unchanged."
@@ -3925,6 +3928,36 @@
         "agentSessionId"
       ],
       "description": "Payload for the start-run envelope variant (AgentTriggerStartRun, sentinel promptType=`start_run`). Mirrors the fields of the Agent Bridge runtime contract in openapi/specs/agent-bridge/openapi.yaml that the CLI needs to materialize a Run on the host side. The platform start-run producer forwards this payload on the signed envelope so the CLI can materialize the Run without re-deriving any field. Carried inside an `AgentTriggerStartRun` whose discriminator value is the sentinel literal `start_run`. Two arms on the signed trigger envelope, distinguished by a `handlerPromptType` (turn-firing) vs `workflowName` (materialize-only) discriminator — exactly one discriminator is present on any given envelope: - **`handlerPromptType` + `payload` (turn-firing arm).** The   non-workflow case. The CLI materializes the Run and immediately   fires its first turn against `handlerPromptType`, driven by   `payload`. This is the only arm that drives turn one from the CLI. - **`workflowName` (materialize-only arm).** The workflow-orchestrated   case (e.g. plan mode). `handlerPromptType` is absent. A bind-only launch   omits `payload`; a kickoff launch carries a `workflow_kickoff` payload   with the opening user message and optional canonical focal `entity`.   The CLI materializes the Run and binds `conversationId → runId` but   fires no turn — the Temporal workflow (already started server-side)   drives every turn via its own signed SYSTEM triggers. Skipping   `start_run` entirely for a workflow session would leave no   `conversationId → runId` binding and the workflow\\'s triggers would be   dropped as `no_active_run`; the materialize-only arm is how a launch   turn is suppressed without dropping the envelope.  On the kickoff form, the API authors the workflow arm\\'s USER opening row from `payload.userMessage`, while the same payload supplies the CLI with the optional focal `entity` needed for Run materialization. Bind-only launches author no kickoff row and carry no payload. Independently of the arm discriminator, `triggersAgent` (default `true`) governs whether the turn-firing arm actually fires turn one. Setting it `false` turns a `handlerPromptType` + `payload` envelope materialize-only: the CLI materializes the Run and binds `conversationId → runId` but fires no turn. This is the non-workflow way to seed a standing greeting that waits for the user — the same launch-turn suppression the `workflowName` arm achieves by routing dispatch to a Temporal workflow."
+    },
+    "AgentSessionContinuationMarker": {
+      "type": "object",
+      "properties": {
+        "continuationId": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/definitions/AgentSessionContinuationMode"
+        }
+      },
+      "required": [
+        "continuationId",
+        "mode"
+      ],
+      "description": "Carried on a continuation\\'s materialize-only start_run. It selects which provider session the destination uses and carries no authority."
+    },
+    "AgentSessionContinuationMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NATIVE_RESUME"
+        },
+        {
+          "type": "string",
+          "const": "SAVED_HISTORY"
+        },
+        {}
+      ],
+      "description": "NATIVE_RESUME continues the provider session found on the destination. SAVED_HISTORY starts a new provider session inside the same Run from the conversation\\'s saved history, only after the person confirmed it."
     },
     "RunAttachmentReference": {
       "type": "object",

@@ -1,4 +1,5 @@
 import { AgentSessionService } from '../agent-session.service';
+import { isContinuationStart } from '../agent-session-continuation/continuation-start';
 import { DirectActionServiceScopeResolver } from './direct-action-service-scope-resolver';
 import {
   ForbiddenException,
@@ -879,6 +880,25 @@ export class ControllerAuthorizationService {
             params,
           );
       }
+      if ('continuationId' in action) {
+        // A continuation inspection reads one owned session's local state, so
+        // it is bound to the session's current binding, never browser scope.
+        const session = await this.prisma.db.agentSession.findFirst({
+          where: {
+            id: action.agentSessionId,
+            organizationId: params.organizationId,
+            projectId: params.projectId,
+            userId: params.userId,
+            machineId: action.expectedSourceMachineId,
+          },
+          select: { id: true },
+        });
+        if (!session)
+          this.rejectPreparation(
+            ControllerAuthorizationDenialReason.TargetMismatch,
+            params,
+          );
+      }
       return {
         payload: action,
         target: {
@@ -937,7 +957,24 @@ export class ControllerAuthorizationService {
           organizationId: params.organizationId,
           projectId: params.projectId,
           userId: params.userId,
-          machineId: params.machineId,
+          // The only cross-machine authorization: the materialize-only start
+          // of an inspected continuation, prepared for its destination.
+          ...(isContinuationStart(action)
+            ? {
+                OR: [
+                  { machineId: params.machineId },
+                  {
+                    continuations: {
+                      some: {
+                        id: action.inputs.payload.continuation.continuationId,
+                        destinationMachineId: params.machineId,
+                        state: 'INSPECTED',
+                      },
+                    },
+                  },
+                ],
+              }
+            : { machineId: params.machineId }),
         },
         select: { id: true },
       });

@@ -71,6 +71,11 @@ export interface SubmitAgentOperationInput {
 export interface SubmitPreparedAgentOperationInput
   extends SubmitAgentOperationInput {
   executionOwner: string;
+  /**
+   * Caller-owned writes that must precede the operation's binding check and
+   * commit atomically with it (a continuation's rebind).
+   */
+  beforeSubmissionInTx?: (tx: AnyTransactionClient) => Promise<void>;
   /** Caller-owned writes that must commit atomically with the operation. */
   onSubmittedInTx?: (tx: AnyTransactionClient) => Promise<void>;
 }
@@ -239,6 +244,7 @@ export class AgentOperationSubmissionService {
             'The prepared operation is no longer owned by its submitter.',
         });
       }
+      await input.beforeSubmissionInTx?.(tx);
       const committed = await this.commitSubmission(
         tx,
         input,

@@ -214,6 +214,57 @@ export const controllerActionRuntimeSchema = {
               description:
                 'Exact machine-addressed model catalog read under existing CLI_READ authority.',
             },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'requestId',
+                'actionCategory',
+                'actionType',
+                'targetKind',
+                'targetId',
+                'agentSessionId',
+                'continuationId',
+                'expectedSourceMachineId',
+              ],
+              properties: {
+                requestId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+                actionCategory: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                actionType: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetKind: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetId: {
+                  type: 'string',
+                  format: 'uuid',
+                  description: 'Destination machine identity.',
+                },
+                agentSessionId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+                continuationId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+                expectedSourceMachineId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+              },
+              description:
+                "Exact machine-addressed inspection of one Agent Session's local provider state under existing CLI_READ authority, bound to one continuation.",
+            },
           ],
           description:
             'Closed selector for a machine-addressed CLI read under existing CLI_READ authority.',
@@ -348,6 +399,9 @@ export const controllerActionRuntimeSchema = {
                 },
                 {
                   $ref: '#/definitions/CliReadRuntimeModelCatalogGetEnvelopeBody',
+                },
+                {
+                  $ref: '#/definitions/CliReadAgentSessionContinuationInspectEnvelopeBody',
                 },
               ],
             },
@@ -1493,6 +1547,75 @@ export const controllerActionRuntimeSchema = {
       },
       additionalProperties: false,
     },
+    CliReadAgentSessionContinuationInspectEnvelopeBody: {
+      type: 'object',
+      required: [
+        'requestId',
+        'operation',
+        'organizationId',
+        'projectId',
+        'machineId',
+        'authorizationRequestId',
+        'agentSessionId',
+        'conversationId',
+        'continuationId',
+        'expectedSourceMachineId',
+        'provider',
+      ],
+      properties: {
+        requestId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Correlation identity minted by the platform for this read.',
+        },
+        operation: {
+          type: 'string',
+          enum: ['agent_session.continuation.inspect'],
+        },
+        organizationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        projectId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        machineId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Destination machine addressed by this inspection.',
+        },
+        authorizationRequestId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        agentSessionId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        conversationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        continuationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        expectedSourceMachineId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Session binding the authorization was prepared against; part of the authorized action.',
+        },
+        provider: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Provider persisted on the Agent Session; local state for another provider is not usable.',
+        },
+      },
+      additionalProperties: false,
+    },
     ConversationControlQuestionAnswer: {
       type: 'object',
       required: [
@@ -2157,6 +2280,9 @@ export const controllerActionRuntimeSchema = {
         {
           $ref: '#/definitions/CliReadRuntimeModelCatalogGetEnvelopeBody',
         },
+        {
+          $ref: '#/definitions/CliReadAgentSessionContinuationInspectEnvelopeBody',
+        },
       ],
     },
     CliReadRunChangedFilesCountEnvelopeBody: {
@@ -2438,6 +2564,11 @@ export const controllerActionRuntimeSchema = {
         ],
       },
       properties: {
+        continuation: {
+          $ref: '#/definitions/AgentSessionContinuationMarker',
+          description:
+            "Present only on a continuation's materialize-only start_run after the session's previous computer was revoked or removed. The destination materializes the same Run (its id stays the Agent Session id) without firing a Turn, and uses the native provider session or a new one from saved history as the marker says. It carries no authority.\n",
+        },
         runId: {
           type: 'string',
           format: 'uuid',
@@ -2652,6 +2783,28 @@ export const controllerActionRuntimeSchema = {
           description: 'Canonical platform entity id that scopes the Run.',
         },
       },
+    },
+    AgentSessionContinuationMarker: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['continuationId', 'mode'],
+      properties: {
+        continuationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        mode: {
+          $ref: '#/definitions/AgentSessionContinuationMode',
+        },
+      },
+      description:
+        "Carried on a continuation's materialize-only start_run. It selects which provider session the destination uses and carries no authority.",
+    },
+    AgentSessionContinuationMode: {
+      type: 'string',
+      enum: ['NATIVE_RESUME', 'SAVED_HISTORY'],
+      description:
+        "NATIVE_RESUME continues the provider session found on the destination. SAVED_HISTORY starts a new provider session inside the same Run from the conversation's saved history, only after the person confirmed it.",
     },
     RunCreatePayload: {
       oneOf: [

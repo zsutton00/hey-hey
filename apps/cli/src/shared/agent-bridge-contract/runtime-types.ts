@@ -20,6 +20,7 @@ import type {
   AgentSkillSelection,
   ContextData,
   CliReadProviderSessionUsageCost,
+  AgentSessionContinuationMarker,
 } from '@hey-hey/contracts/agent-bridge/models';
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -82,6 +83,8 @@ export interface LocalCreateRunRequest {
   /** Pathless provider Skill identity; the provider resolves it inside the Run workspace. */
   skillSelection?: AgentSkillSelection;
   config?: AgentSessionConfig | null;
+  /** A continuation's provider choice; only on a materialize-only start_run. */
+  continuation?: AgentSessionContinuationMarker;
 }
 
 export interface LocalWorktreeConfig {

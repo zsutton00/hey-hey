@@ -16,13 +16,13 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadAgentSessionContinuationInspectResult } from './cli-read-agent-session-continuation-inspect-result.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadError } from './cli-read-error.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CliReadErrorResponseDto } from './cli-read-error-response-dto.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { CliReadRuntimeModelCatalogResult } from './cli-read-runtime-model-catalog-result.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CliReadSuccessResponseDto } from './cli-read-success-response-dto.js';

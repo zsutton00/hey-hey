@@ -741,6 +741,51 @@ export class CliReadEmitter {
     });
   }
 
+  async readAgentSessionContinuation(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    machineId: MachineId;
+    userId: UserId;
+    agentSessionId: string;
+    conversationId: string;
+    continuationId: string;
+    expectedSourceMachineId: string;
+    provider: string;
+    authorizationRequestId: string;
+    admission: AdmittedCliReadAuthorization;
+  }): Promise<CliReadResponseDto> {
+    const body: CliReadEnvelopeBody = {
+      requestId: randomUUID(),
+      operation: 'agent_session.continuation.inspect',
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      machineId: params.machineId,
+      authorizationRequestId: params.authorizationRequestId,
+      agentSessionId: params.agentSessionId,
+      conversationId: params.conversationId,
+      continuationId: params.continuationId,
+      expectedSourceMachineId: params.expectedSourceMachineId,
+      provider: params.provider,
+    };
+    // Addressed to the selected destination, not the session's binding: the
+    // continuation has not moved the session yet.
+    return this.readBody({
+      body,
+      machineId: params.machineId,
+      userId: params.userId,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      admission: params.admission,
+      agentSessionId: null,
+      timeoutMs: 30_000,
+      target: {
+        kind: HostActionTargetKind.CliRead,
+        id: params.machineId,
+        revision: null,
+      },
+    });
+  }
+
   private async readBody(params: {
     body: CliReadEnvelopeBody;
     machineId: MachineId;

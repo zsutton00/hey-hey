@@ -954,6 +954,7 @@ CliReadHostActionPreparation:
   oneOf:
     - $ref: "#/WorkspaceSkillsHostActionPreparation"
     - $ref: "#/RuntimeModelCatalogHostActionPreparation"
+    - $ref: "./agent-session-continuations.yaml#/AgentSessionContinuationInspectHostActionPreparation"
   description: Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
 
 RuntimeModelCatalogHostActionPreparation:

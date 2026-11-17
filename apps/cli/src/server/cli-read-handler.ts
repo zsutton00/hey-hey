@@ -27,6 +27,7 @@ import {
   type CliReadRunToolCallsLatestTurnErrorResponseDto,
   type CliReadRunToolCallsLatestTurnSuccessResponseDto,
   type CliReadRuntimeModelCatalogGetErrorResponseDto,
+  type CliReadAgentSessionContinuationInspectErrorResponseDto,
   type CliReadRuntimeModelCatalogGetSuccessResponseDto,
 } from '@hey-hey/contracts/agent-bridge';
 import type { RunRegistry } from '../run/run-registry';
@@ -56,6 +57,7 @@ import type { VerifiedCliReadFrame } from './trigger-verification/verify';
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 
 import { RunFileContextReader } from './run-file-context-reader';
+import { AgentSessionContinuationInspector } from './agent-session-continuation-inspector';
 import { projectLatestTurnToolCalls } from './latest-turn-tool-calls';
 import type { SessionActivitySource } from './session-activity-source';
 
@@ -112,6 +114,7 @@ export interface CliReadHandlerDependencies {
 export class CliReadHandler {
   private readonly fileContextReader: RunFileContextReader;
   private readonly restoreCoordinator: RunReadRestoreCoordinator;
+  private readonly continuationInspector: AgentSessionContinuationInspector;
 
   public constructor(private readonly dependencies: CliReadHandlerDependencies) {
     this.fileContextReader = new RunFileContextReader(
@@ -126,6 +129,10 @@ export class CliReadHandler {
         runRegistry: dependencies.runRegistry,
         logger: dependencies.logger.child({ component: 'run-read-restore' }),
       });
+    this.continuationInspector = new AgentSessionContinuationInspector(
+      dependencies.runStore,
+      dependencies.logger.child({ component: 'agent-session-continuation' }),
+    );
   }
 
   public async handle(rawFrame: unknown): Promise<CliReadResponseDto | null> {
@@ -156,7 +163,8 @@ export class CliReadHandler {
     }
     if (
       verification.verified.body.operation === 'workspace.skills.list' ||
-      verification.verified.body.operation === 'runtime.model_catalog.get'
+      verification.verified.body.operation === 'runtime.model_catalog.get' ||
+      verification.verified.body.operation === 'agent_session.continuation.inspect'
     ) {
       const body = verification.verified.body;
       const { envelope, frame } = verification.verified;
@@ -179,6 +187,15 @@ export class CliReadHandler {
                 body.catalogContext.policy === 'non_repository'
                   ? { policy: 'non_repository' }
                   : { policy: 'service_workspace', serviceId: body.catalogContext.serviceId },
+            }
+          : {}),
+        // Inspecting local provider state is a protected read bound to one
+        // session, continuation and expected binding.
+        ...(body.operation === 'agent_session.continuation.inspect'
+          ? {
+              agentSessionId: body.agentSessionId,
+              continuationId: body.continuationId,
+              expectedSourceMachineId: body.expectedSourceMachineId,
             }
           : {}),
       };
@@ -207,6 +224,14 @@ export class CliReadHandler {
         return this.dependencies.agentService.listWorkspaceSkills(body, envelope.userId);
       }
       try {
+        if (body.operation === 'agent_session.continuation.inspect') {
+          return {
+            requestId: body.requestId,
+            operation: 'agent_session.continuation.inspect',
+            status: 'success',
+            result: await this.continuationInspector.inspect(body),
+          };
+        }
         return await this.readRuntimeModelCatalog(verification.verified);
       } catch (error) {
         const resolvedError = error instanceof Error ? error : new Error(String(error));
@@ -313,6 +338,7 @@ export class CliReadHandler {
         return this.readRunToolCallsLatestTurn(verified);
       case 'workspace.skills.list':
       case 'runtime.model_catalog.get':
+      case 'agent_session.continuation.inspect':
         throw new Error('Machine-addressed reads require machine-scoped admission');
     }
   }
@@ -957,6 +983,7 @@ export class CliReadHandler {
     | CliReadProjectSessionCostsListErrorResponseDto
     | CliReadProviderUsageGetErrorResponseDto
     | CliReadRuntimeModelCatalogGetErrorResponseDto
+    | CliReadAgentSessionContinuationInspectErrorResponseDto
     | CliReadRunContextUsageGetErrorResponseDto
     | CliReadRunSkillsListErrorResponseDto
     | CliReadRunToolCallsLatestTurnErrorResponseDto {
@@ -991,6 +1018,14 @@ export class CliReadHandler {
       return {
         requestId: verified.body.requestId,
         operation: 'runtime.model_catalog.get',
+        status: 'error',
+        error: { code, message },
+      };
+    }
+    if (verified.body.operation === 'agent_session.continuation.inspect') {
+      return {
+        requestId: verified.body.requestId,
+        operation: 'agent_session.continuation.inspect',
         status: 'error',
         error: { code, message },
       };
