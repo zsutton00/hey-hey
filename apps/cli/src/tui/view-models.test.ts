@@ -200,10 +200,11 @@ describe('menuViewModel', () => {
     expect(body[0]).toBe(`${STATUS}   Profile e2e`);
   });
 
-  it('names staging, or the server host otherwise, as Environment on the status line', () => {
+  it('names staging and eval, or the server host otherwise, as Environment on the status line', () => {
     for (const [environment, label] of [
       ['localhost:3000', 'localhost:3000'],
       ['staging.heyhey.dev', 'Staging'],
+      ['evals.heyhey.dev', 'Eval'],
     ] as const) {
       const body = texts(menuViewModel(state({ target: { profile: null, environment } })).body);
       expect(body[0]).toBe(`${STATUS}   Environment ${label}`);

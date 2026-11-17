@@ -23,7 +23,7 @@ const PROD_API_HOST = new URL('https://heyhey.dev').host;
 
 /**
  * The platform environment this CLI targets: the host of `HEYHEY_API_URL`
- * (which `--local` / `--staging` set), or null for production. Logins and local
+ * (which `--local`, `--staging` and `--eval` set), or null for production. Logins and local
  * data are both keyed by this one value so they can never disagree about which
  * environment is active. An unparseable URL throws rather than guessing.
  */

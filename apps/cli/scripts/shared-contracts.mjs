@@ -17,8 +17,8 @@ export function resolveSharedContract(specifier) {
   if (subpath === '') {
     return path.join(contractsRoot, 'index.js');
   }
-  if (subpath === 'brands') {
-    return path.join(contractsRoot, 'brands.js');
+  if (subpath === 'brands' || subpath === 'platform-environments') {
+    return path.join(contractsRoot, `${subpath}.js`);
   }
   if (subpath === 'agent-bridge/runtime-schema') {
     return path.join(generatedRoot, 'agent-bridge/repository-feature-enrichment-runtime-schema.js');

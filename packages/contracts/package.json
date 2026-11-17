@@ -19,6 +19,11 @@
       "import": "./dist/esm/brands.js",
       "require": "./dist/cjs/brands.js"
     },
+    "./platform-environments": {
+      "types": "./dist/cjs/platform-environments.d.ts",
+      "import": "./dist/esm/platform-environments.js",
+      "require": "./dist/cjs/platform-environments.js"
+    },
     "./api/models": {
       "types": "./dist/cjs/generated/api/models/index.d.ts",
       "import": "./dist/esm/generated/api/models/index.js",

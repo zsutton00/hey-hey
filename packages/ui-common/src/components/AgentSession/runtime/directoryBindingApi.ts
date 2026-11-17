@@ -32,9 +32,10 @@ import {
   LocalRunProviderSessionTranscriptErrorCode,
   LocalStagedBrowserTabOpenErrorCode,
 } from "@hey-hey/contracts/local";
-
-const DEFAULT_LOCAL_CLI_PORT = 3847;
-const STAGING_LOCAL_CLI_PORT = 3849;
+import {
+  hostedPlatformEnvironmentForHost,
+  PRODUCTION_BRIDGE_PORT,
+} from "@hey-hey/contracts/platform-environments";
 
 const configuredLocalCliPort = (): number | null => {
   const configuredPort = getLocalAgentPort();
@@ -578,18 +579,17 @@ export const resolveLocalDirectoryRuntimeBaseUrl = (): string => {
   const configuredPort = configuredLocalCliPort();
   if (typeof window === "undefined") {
     return `http://localhost:${String(
-      configuredPort ?? DEFAULT_LOCAL_CLI_PORT,
+      configuredPort ?? PRODUCTION_BRIDGE_PORT,
     )}`;
   }
 
   const port = readPort(
     new URLSearchParams(window.location.search).get("server"),
   );
-  // Match the CLI's --staging bridge; production and staging can run together.
+  // Match the CLI's --staging / --eval bridge so each environment's CLI can run alongside production.
   const defaultPort =
-    window.location.hostname === "staging.heyhey.dev"
-      ? STAGING_LOCAL_CLI_PORT
-      : DEFAULT_LOCAL_CLI_PORT;
+    hostedPlatformEnvironmentForHost(window.location.hostname)?.bridgePort ??
+    PRODUCTION_BRIDGE_PORT;
   return `http://localhost:${String(port ?? configuredPort ?? defaultPort)}`;
 };
 

@@ -4,7 +4,12 @@ import { installLocalhostResolution } from './network/localhost-resolution';
 import { version } from '../package.json';
 import type { ServerCommandOptions } from './commands/server';
 import { StorageFailureError, validateKey } from './credentials/store';
-import { setTerminalTitle, type TerminalEnvironment } from './shared/terminal-title';
+import { setTerminalTitle } from './shared/terminal-title';
+import {
+  applyHostedPlatformEnvironment,
+  isPlatformEnvironmentFlag,
+  selectPlatformEnvironment,
+} from './shared/platform-environment-flags';
 
 const HELP_TEXT = `Usage: heyhey [command] [options]
 
@@ -45,6 +50,7 @@ Options:
   -v, --version        Show version number
   --local              Use the local platform API and controller origin
   --staging            Use https://staging.heyhey.dev (bridge port 3849)
+  --eval               Use https://evals.heyhey.dev (bridge port 3852)
   --api-port <number>  Use an explicit localhost platform API port (requires --local;
                        ignored when HEYHEY_API_URL is set)
   --port <number>      Start the internal agent tool bridge on an explicit port
@@ -53,8 +59,13 @@ Options:
   --skip-permissions   Auto-approve all agent permission requests
   --no-track-tools     Disable recording tool names, inputs, and outputs per run (enabled by default)`;
 
-const hasLocalFlag = process.argv.includes('--local');
-const hasStagingFlag = process.argv.includes('--staging');
+const environmentSelection = selectPlatformEnvironment(process.argv);
+if (!environmentSelection.ok) {
+  console.error(environmentSelection.message);
+  process.exit(1);
+}
+const platformEnvironment = environmentSelection.environment;
+const hasLocalFlag = platformEnvironment === 'local';
 const hasDailySessionFlag = process.argv.includes('--daily-session');
 const hasSkipPermissionsFlag = process.argv.includes('--skip-permissions');
 const hasNoTrackToolsFlag = process.argv.includes('--no-track-tools');
@@ -76,10 +87,6 @@ const explicitApiPort = (() => {
   }
   return parsedPort;
 })();
-if (hasLocalFlag && hasStagingFlag) {
-  console.error('Use only one of --local or --staging');
-  process.exit(1);
-}
 if (explicitApiPort !== undefined && !hasLocalFlag) {
   console.error('--api-port requires --local');
   process.exit(1);
@@ -96,13 +103,12 @@ if (hasLocalFlag) {
   process.env['HEYHEY_CONTROLLER_ORIGIN'] ??= 'http://localhost:5173';
   process.env['HEYHEY_CONTROLLER_RP_ID'] ??= 'localhost';
 }
-if (hasStagingFlag) {
-  process.env['HEYHEY_API_URL'] = 'https://staging.heyhey.dev';
-  process.env['HEYHEY_SERVER_PORT'] = '3849';
-  process.env['HEYHEY_WEB_ORIGIN'] ??= 'https://staging.heyhey.dev';
-  process.env['HEYHEY_CONTROLLER_ORIGIN'] ??= 'https://staging.heyhey.dev';
-  process.env['HEYHEY_CONTROLLER_RP_ID'] ??= 'staging.heyhey.dev';
-}
+// A hosted environment's bridge port reaches only the bridge (as its preferred port), not
+// HEYHEY_SERVER_PORT, so it cannot leak into `heyhey local`'s own bridge.
+const hostedBridgePort =
+  platformEnvironment === 'staging' || platformEnvironment === 'eval'
+    ? applyHostedPlatformEnvironment(platformEnvironment)
+    : undefined;
 if (hasSkipPermissionsFlag) {
   process.env['HEYHEY_SKIP_PERMISSIONS'] = '1';
 }
@@ -145,17 +151,11 @@ if (profileFlagIndex !== -1) {
   }
 }
 
-const terminalEnvironment: TerminalEnvironment = hasLocalFlag
-  ? 'local'
-  : hasStagingFlag
-    ? 'staging'
-    : 'production';
-setTerminalTitle(terminalEnvironment, process.env['HEYHEY_PROFILE']);
+setTerminalTitle(platformEnvironment, process.env['HEYHEY_PROFILE']);
 
 const args = process.argv.slice(2).filter((arg, index) => {
   if (
-    arg === '--local' ||
-    arg === '--staging' ||
+    isPlatformEnvironmentFlag(arg) ||
     arg === '--daily-session' ||
     arg === '--skip-permissions' ||
     arg === '--no-track-tools'
@@ -244,9 +244,11 @@ const installConsoleLogFilter = (): void => {
   console.error = wrapConsoleMethod(originalError, 'error', useColors);
 };
 
+const preferredServerPort = explicitServerPort ?? hostedBridgePort;
+
 const getServerCommandOptions = (): ServerCommandOptions => ({
   enableDailySession: hasDailySessionFlag,
-  ...(explicitServerPort !== undefined ? { preferredPort: explicitServerPort } : {}),
+  ...(preferredServerPort !== undefined ? { preferredPort: preferredServerPort } : {}),
 });
 
 const run = async (): Promise<void> => {
