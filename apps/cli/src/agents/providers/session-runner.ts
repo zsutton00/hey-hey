@@ -248,7 +248,7 @@ export type QuestionAnswerDispatchResult =
 
 export interface AgentSessionRunner {
   /** Hook evidence owned by this provider runner, when precise tracking is enabled. */
-  readonly executionRecorder?: ExecutionRecorder;
+  readonly executionRecorder?: ExecutionRecorder | undefined;
 
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult>;
   listSkills?(args: ListSkillsArgs): Promise<AgentSkillCatalog>;

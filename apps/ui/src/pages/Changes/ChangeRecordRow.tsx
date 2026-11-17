@@ -28,9 +28,11 @@ const formatRanges = (values: ImplementReportEdit["beforeRanges"]): string =>
     .join(", ");
 
 export function ChangeRecordRow({
+  projectId,
   record,
   onSelect,
 }: {
+  projectId: string;
   record: ProjectChangeRecord;
   onSelect: (edit: ImplementReportEdit) => void;
 }) {
@@ -41,7 +43,6 @@ export function ChangeRecordRow({
     return null;
   }
 
-  const projectId = report.projectId;
   const entityOf = (entityType: string) =>
     report.entities.find((entity) => entity.entityType === entityType);
   const hrefFor = (entityType: string, entityId: string): string => {

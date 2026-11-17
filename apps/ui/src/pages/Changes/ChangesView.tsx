@@ -158,6 +158,7 @@ export function ChangesView({
       {state.page?.records.map((record) => (
         <ChangeRecordRow
           key={record.report.id}
+          projectId={projectId}
           record={record}
           onSelect={(edit) => setSelection({ record, edit })}
         />
