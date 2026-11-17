@@ -203,6 +203,39 @@ describe("FileReferenceLink", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it("opens from the Run's worktree instead of the mapped checkout", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(repoResponse(true));
+    await act(async () => {
+      render(
+        <ThemeProvider theme={createTheme()}>
+          <FileReferenceLink
+            value={value}
+            workspaceRoot="/work/.worktrees/run-1"
+          />
+        </ThemeProvider>,
+      );
+    });
+    expect(screen.getByTestId("file-reference-link")).toHaveAttribute(
+      "data-source-path",
+      "/work/.worktrees/run-1/src/components/Editor.tsx",
+    );
+  });
+
+  it("keeps a worktree reference non-interactive when the service is unmapped", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(repoResponse(false));
+    await act(async () => {
+      render(
+        <ThemeProvider theme={createTheme()}>
+          <FileReferenceLink
+            value={value}
+            workspaceRoot="/work/.worktrees/run-1"
+          />
+        </ThemeProvider>,
+      );
+    });
+    expect(screen.queryByTestId("file-reference-link")).not.toBeInTheDocument();
+  });
+
   it("opens a mapped file in the configured editor", async () => {
     localStorage.setItem(
       EXTERNAL_EDITOR_PREFERENCE_STORAGE_KEY,

@@ -28,6 +28,8 @@ interface FileReferenceLinkProps {
   value: FileReferenceValueV1;
   renderMode?: FileReferenceRenderMode;
   editorActivation?: FileReferenceEditorActivation;
+  /** Physical root to open from instead of the service's mapped checkout, e.g. a Run's worktree. */
+  workspaceRoot?: string;
 }
 
 const DEFAULT_FILE_REFERENCE_RENDER_MODE = "service-qualified" as const;
@@ -84,12 +86,13 @@ export const FileReferenceLink = ({
   value,
   renderMode = DEFAULT_FILE_REFERENCE_RENDER_MODE,
   editorActivation = "inline",
+  workspaceRoot,
 }: FileReferenceLinkProps) => {
   const editorContext = useContext(MentionEditorContext);
   const projectContext = useProjectContext();
   const [isSetupOpen, setIsSetupOpen, isSetupOpenOwnerKey] =
     useModalState(false);
-  const sourceReference = useFileReferenceSource(value);
+  const sourceReference = useFileReferenceSource(value, workspaceRoot);
   const label = resolveFileReferenceLabel(value, renderMode);
   const contextCandidate = editorContext ?? projectContext;
   const actionContext: FileReferenceActionContext | null =

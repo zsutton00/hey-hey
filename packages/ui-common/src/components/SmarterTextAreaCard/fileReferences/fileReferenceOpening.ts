@@ -9,7 +9,7 @@ const WINDOWS_ROOT = /^([A-Za-z]):\\(.*)$/;
 
 const parseSegments = (
   raw: string,
-  separator: "/" | "\\"
+  separator: "/" | "\\",
 ): readonly string[] | null => {
   if (raw === "") return [];
 
@@ -17,14 +17,14 @@ const parseSegments = (
   if (segments.at(-1) === "") segments.pop();
 
   return segments.some(
-    (segment) => segment === "" || segment === "." || segment === ".."
+    (segment) => segment === "" || segment === "." || segment === "..",
   )
     ? null
     : segments;
 };
 
 const parseRelativePath = (
-  normalizedPath: string
+  normalizedPath: string,
 ): readonly string[] | null => {
   if (
     normalizedPath === "" ||
@@ -42,7 +42,7 @@ const parseRelativePath = (
 
 const joinPosixRoot = (
   repositoryPath: string,
-  relativeSegments: readonly string[]
+  relativeSegments: readonly string[],
 ): string | null => {
   if (!repositoryPath.startsWith("/") || repositoryPath.includes("\\")) {
     return null;
@@ -59,7 +59,7 @@ const joinPosixRoot = (
       : `${normalizedRoot}/${relativeSegments.join("/")}`;
 
   return joinedPath.startsWith(
-    normalizedRoot === "/" ? "/" : `${normalizedRoot}/`
+    normalizedRoot === "/" ? "/" : `${normalizedRoot}/`,
   )
     ? joinedPath
     : null;
@@ -67,7 +67,7 @@ const joinPosixRoot = (
 
 const joinWindowsRoot = (
   repositoryPath: string,
-  relativeSegments: readonly string[]
+  relativeSegments: readonly string[],
 ): string | null => {
   if (repositoryPath.includes("/")) return null;
 
@@ -96,7 +96,8 @@ const joinWindowsRoot = (
 
 export const resolveFileReferenceSource = (
   value: FileReferenceValueV1,
-  bindingsByServiceId: BindingsByServiceId
+  bindingsByServiceId: BindingsByServiceId,
+  workspaceRoot?: string,
 ): SourceReference | null => {
   const binding = bindingsByServiceId[value.serviceId];
   if (!binding || binding.serviceId !== value.serviceId) return null;
@@ -104,9 +105,12 @@ export const resolveFileReferenceSource = (
   const relativeSegments = parseRelativePath(value.normalizedPath);
   if (!relativeSegments) return null;
 
+  // A Run's worktree replaces the mapped checkout as the physical root; the
+  // service must still be mapped on this machine for the file to open.
+  const root = workspaceRoot ?? binding.repositoryPath;
   const path =
-    joinPosixRoot(binding.repositoryPath, relativeSegments) ??
-    joinWindowsRoot(binding.repositoryPath, relativeSegments);
+    joinPosixRoot(root, relativeSegments) ??
+    joinWindowsRoot(root, relativeSegments);
 
   return path ? { path, line: 1, column: 1 } : null;
 };
