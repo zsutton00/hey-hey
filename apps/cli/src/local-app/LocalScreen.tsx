@@ -17,9 +17,14 @@ export function LocalScreen({
   onCancel: () => void;
 }): React.JSX.Element {
   const { useInput } = ink();
-  const actionable = ['installation', 'prerequisite', 'recovery', 'stop', 'update'].includes(
-    state.kind,
-  );
+  const actionable = [
+    'installation',
+    'prerequisite',
+    'recovery',
+    'stop',
+    'update',
+    'docker-repair',
+  ].includes(state.kind);
   useInput((_input, key) => {
     if (!actionable) {
       return;
@@ -31,7 +36,10 @@ export function LocalScreen({
       onCancel();
     }
     if (key.return) {
-      if (selected === (state.kind === 'stop' || state.kind === 'update' ? 0 : 1)) {
+      if (
+        selected ===
+        (state.kind === 'stop' || state.kind === 'update' || state.kind === 'docker-repair' ? 0 : 1)
+      ) {
         onCancel();
       } else {
         onConfirm();
@@ -108,6 +116,16 @@ export function LocalScreen({
       break;
     case 'progress':
       lines = [...state.steps.map((step) => `✓ ${step}`), `⋯ ${state.current}`];
+      break;
+    case 'docker-repair':
+      title = 'Share the managed model with Docker?';
+      lines = [
+        state.message,
+        '',
+        `Repair adds the model share and restarts Colima profile ${state.profile}.`,
+        'Restarting this VM stops its other containers. Existing shares, their options, installation data and volumes are kept. A configuration backup is saved before changes.',
+      ];
+      choices = ['Keep configuration unchanged', 'Repair and restart this VM'];
       break;
     case 'recovery':
       title = "Hey Hey couldn't start";

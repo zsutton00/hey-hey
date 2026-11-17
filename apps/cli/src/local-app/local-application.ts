@@ -181,14 +181,7 @@ export class LocalApplication extends EventEmitter {
     try {
       await new LocalLifecycleOwners(this.storage).exclusive(() => offered.repair.apply());
     } catch (error) {
-      const cause =
-        error instanceof DockerProcessError
-          ? error
-          : new Error(
-              this.docker.process.safe(
-                error instanceof Error ? error.message : 'Runtime repair failed',
-              ),
-            );
+      const cause = this.docker.process.inspectionError(error);
       this.logger.error('local.docker.repair_failed', { error: cause });
       this.show({
         kind: 'recovery',

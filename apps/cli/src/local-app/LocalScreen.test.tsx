@@ -206,3 +206,37 @@ it('renders the reviewed CLI version and exact image set and defaults an update 
   expect(view.lastFrame()).toContain('custom reconnect');
   expect(view.lastFrame()).toContain('custom stop');
 });
+
+it('requires an explicit repair choice after disclosing that the selected VM stops other containers', async () => {
+  const confirm = vi.fn();
+  const cancel = vi.fn();
+  function Repair() {
+    const [selected, select] = useState(0);
+    return (
+      <LocalScreen
+        state={{
+          kind: 'docker-repair',
+          message: 'Docker refused the model mount.',
+          profile: 'work',
+        }}
+        selected={selected}
+        onSelect={select}
+        onConfirm={confirm}
+        onCancel={cancel}
+      />
+    );
+  }
+  const view = render(<Repair />);
+  await nextFrame();
+  expect(view.lastFrame()).toContain('profile work');
+  expect(view.lastFrame()).toContain('stops its other containers');
+  view.stdin.write('\r');
+  await nextFrame();
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(confirm).not.toHaveBeenCalled();
+  view.stdin.write('\u001B[B');
+  await nextFrame();
+  view.stdin.write('\r');
+  await nextFrame();
+  expect(confirm).toHaveBeenCalledOnce();
+});

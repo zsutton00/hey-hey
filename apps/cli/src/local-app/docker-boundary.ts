@@ -1,9 +1,12 @@
 import { DockerProcess, DockerProcessError } from './docker-process';
 import { DockerRuntimeRecovery } from './docker-runtime-recovery';
-import { z as boundaryZ } from 'zod/v4';
 import { StructuredServerLogger } from '../server/logger';
 import { z } from 'zod/v4';
 import { LOCAL_PROJECT, SERVICE_IMAGES } from './compose';
+
+const contextEndpointSchema = z
+  .array(z.object({ Endpoints: z.object({ docker: z.object({ Host: z.string() }) }) }))
+  .min(1);
 
 const containerSchema = z.array(
   z.object({
@@ -33,7 +36,7 @@ export type ObservedContainer = z.infer<typeof containerSchema>[number];
 /** All Docker and Compose process access lives here, including discovery. */
 export class DockerBoundary {
   readonly process: DockerProcess;
-  private endpointSelection?: Promise<void>;
+  private endpointSelection: Promise<void> | undefined;
   private endpointArgs: string[] = [];
   endpoint?: { context?: string; host: string };
   endpointFailure?: string;
@@ -77,14 +80,7 @@ export class DockerBoundary {
         undefined,
         10_000,
       );
-      const contexts = boundaryZ
-        .array(
-          boundaryZ.object({
-            Endpoints: boundaryZ.object({ docker: boundaryZ.object({ Host: boundaryZ.string() }) }),
-          }),
-        )
-        .min(1)
-        .parse(JSON.parse(raw));
+      const contexts = contextEndpointSchema.parse(JSON.parse(raw));
       const selected = contexts[0];
       if (selected) {
         this.endpoint = { context, host: selected.Endpoints.docker.Host };
@@ -116,26 +112,60 @@ export class DockerBoundary {
     this.endpointSelection ??= this.selectEndpoint();
     await this.endpointSelection;
     const operation = args[0] ?? 'docker';
+    const composeOperation =
+      operation === 'compose'
+        ? args.find((argument) =>
+            ['up', 'pull', 'stop', 'exec', 'run', 'rm', 'logs', 'ps'].includes(argument),
+          )
+        : undefined;
+    const processOperation = composeOperation ? `compose.${composeOperation}` : operation;
     this.logger.debug('local.docker.command', { operation });
     try {
+      if (this.endpoint?.context && !this.endpoint.host.startsWith('unix://')) {
+        const raw = await this.process.run(
+          'docker',
+          ['context', 'inspect', this.endpoint.context],
+          'context',
+          undefined,
+          undefined,
+          10_000,
+        );
+        const current = contextEndpointSchema.parse(JSON.parse(raw))[0];
+        if (current?.Endpoints.docker.Host !== this.endpoint.host) {
+          throw this.process.inspectionError(
+            new Error(
+              'The selected Docker context endpoint changed. Restore the original endpoint before retrying this startup.',
+            ),
+          );
+        }
+      }
       return await this.process.run(
         'docker',
         [...this.endpointArgs, ...args],
-        operation,
+        processOperation,
         input,
         service,
       );
     } catch (error) {
+      const failure =
+        error instanceof DockerProcessError
+          ? error
+          : this.process.inspectionError(
+              new Error('Docker endpoint inspection returned invalid data'),
+            );
       this.logger.error('local.docker.command_failed', {
         operation,
-        error,
-        ...(error instanceof DockerProcessError ? { diagnostic: error.diagnostic } : {}),
+        error: failure,
+        diagnostic: failure.diagnostic,
       });
-      throw error;
+      throw failure;
     }
   }
 
   async prerequisite(): Promise<'ready' | 'missing' | 'stopped' | 'compose'> {
+    if (!this.endpoint) {
+      this.endpointSelection = undefined;
+    }
     try {
       await this.command(['--version']);
     } catch (error) {
