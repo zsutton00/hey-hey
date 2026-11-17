@@ -24,6 +24,7 @@ import type {
 import { MentionBadgeInner } from "../../SmarterTextAreaCard/MentionBadge";
 import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMentions";
 import { SmarterTextAreaCard } from "../../SmarterTextAreaCard";
+import { ReportUsageBar } from "./ReportUsageBar";
 import type { EntityMention } from "../../SmarterTextAreaCard/types";
 import {
   ConversationCard,
@@ -65,6 +66,7 @@ type FeatureSyncDecisionReportV1RenderProps = {
 };
 
 type FeatureSyncDecisionReportV2RenderProps = {
+  usage: ReportDtoFeatureSyncDecisionV2["usage"];
   payload: FeatureSyncDecisionReportPayloadV2;
   reportTestId: string;
   interaction?: FeatureSyncDecisionReportInteractionContext;
@@ -142,6 +144,7 @@ export const FeatureSyncDecisionReport: React.FC<
   if ("decisionGroups" in props.payload) {
     return (
       <FeatureSyncDecisionReportV2
+        usage={props.report.usage}
         interaction={props.interaction}
         payload={props.payload}
         recordedResponse={props.recordedResponse}
@@ -396,7 +399,7 @@ const ReconciliationOptionsList: React.FC<ReconciliationOptionsListProps> = ({
 
 const FeatureSyncDecisionReportV2: React.FC<
   FeatureSyncDecisionReportV2RenderProps
-> = ({ payload, reportTestId, interaction, recordedResponse }) => {
+> = ({ usage, payload, reportTestId, interaction, recordedResponse }) => {
   const [selections, setSelections] =
     React.useState<FeatureSyncDecisionSelectionMap>(() =>
       parseFeatureSyncDecisionResponse(
@@ -522,6 +525,7 @@ const FeatureSyncDecisionReportV2: React.FC<
             </Typography>
           </>
         ) : null}
+        <ReportUsageBar usage={usage ?? null} />
       </ConversationCard>
     </Box>
   );

@@ -182,9 +182,11 @@ export const ReportViewerFrame: React.FC<ReportViewerFrameProps> = ({
 
           {children}
 
-          {USAGE_REPORT_TYPES.has(report.reportType) && (
-            <ReportUsageBar usage={report.usage ?? null} />
-          )}
+          {USAGE_REPORT_TYPES.has(report.reportType) &&
+            !(
+              report.reportType === ReportType.FeatureSyncDecision &&
+              report.schemaVersion === 2
+            ) && <ReportUsageBar usage={report.usage ?? null} />}
         </Stack>
       </Paper>
       {afterFrameContent}
