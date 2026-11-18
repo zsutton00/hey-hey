@@ -74,7 +74,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         }),
       ]);
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
       if (!current) {
         return this.toDto(null, entitlement, now);
@@ -113,7 +116,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         where: { organizationId },
       });
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
 
       const current = await tx.organizationAccountLifecycle.findUnique({
@@ -196,7 +202,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         }),
       ]);
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
       if (!current) {
         throw new ConflictException(
@@ -381,7 +390,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       }),
     ]);
     if (!entitlement) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
     if (existing) {
       throw new ConflictException(

@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import type { PrivateBetaAccessRequestDecisionInputDto } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { BrowserSessionRequestMetadata } from '../../auth/browser-session.types';
@@ -321,6 +322,29 @@ describe('PrivateBetaAccessDecisionService', () => {
       },
     });
     expect(harness.onboardApprovedRequest).not.toHaveBeenCalled();
+  });
+
+  it('keeps an approved request approved and surfaces the fault when replay finds its entitlement missing', async () => {
+    const harness = makeHarness(
+      makeRequest({
+        status: 'APPROVED',
+        decisionAt,
+        provisionedUserId: '550e8400-e29b-41d4-a716-446655440028',
+        provisionedOrganizationId: '550e8400-e29b-41d4-a716-446655440029',
+        provisioningAttemptedAt: attemptedAt,
+        provisioningCompletedAt: completedAt,
+      }),
+    );
+    const fault = new ServerStateException(
+      'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+      'Account entitlement does not exist',
+    );
+    harness.assertBetaAdmissionEntitlement.mockRejectedValueOnce(fault);
+
+    await expect(decide(harness.service, 'APPROVE')).rejects.toBe(fault);
+
+    expect(harness.rootUpdate).not.toHaveBeenCalled();
+    expect(harness.getState().status).toBe('APPROVED');
   });
 
   it('allows approval retry after a provisioning failure and preserves the original decision timestamp', async () => {

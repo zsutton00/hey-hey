@@ -165,7 +165,10 @@ export class AccountEntitlementService {
       where: { organizationId },
     });
     if (!entitlement) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
     if (
       entitlement.createdBy !== metadata.actor ||
@@ -287,7 +290,10 @@ export class AccountEntitlementService {
       where: { organizationId },
     });
     if (!current) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
 
     return this.persistTransitionInTransaction(

@@ -1166,7 +1166,8 @@ export class EntityPromptTemplateService {
     const rowsAfter = await this.loadRows(projectId, templateKey, tx);
     const effectiveAfter = this.selectEffectiveRevision(templateKey, rowsAfter);
     if (!effectiveAfter || effectiveAfter.id !== revision.id) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
         `Published entity prompt template ${templateKey} could not be selected`,
       );
     }

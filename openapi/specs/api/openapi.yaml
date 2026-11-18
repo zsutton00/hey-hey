@@ -3073,6 +3073,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/reactivate:
     parameters:
