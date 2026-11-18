@@ -62,4 +62,23 @@ describe('CommitReportTool', () => {
       }),
     );
   });
+
+  it('attaches COMMIT evidence of an Entity Conversation about a task to the Agent Session', async () => {
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create).mockResolvedValue({ content: [], reportId: 'report-1' });
+    const run = makeRun({ entityType: 'TASK', entityId: 'task-1' });
+    run.session.startedPromptTypes = ['entity_conversation'];
+
+    await new CommitReportTool(proxy).execute({ runId: 'session-1', run, args: commitArgs });
+
+    expect(proxy.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          entities: expect.arrayContaining([
+            { entityType: 'AGENT_SESSION', entityId: 'session-1', relation: 'PRIMARY' },
+          ]),
+        }),
+      }),
+    );
+  });
 });

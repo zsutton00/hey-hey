@@ -99,6 +99,7 @@ vi.mock("@hey-hey/ui-common/services", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/components", () => ({
+  useAgentSessionInteractionAccess: () => ({ isDeviceEnabled: true }),
   buildDefaultSurfaceSelection: () => ({
     provider: "claude",
     model: "claude-opus-4-7",
@@ -113,7 +114,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     openBrowserPropsMock(props);
     return <div data-testid="open-browser-action" />;
   },
-  SessionChangedFilesCapsuleAction: (props: Record<string, unknown>) => {
+  SessionChangedFilesCapsuleActions: (props: Record<string, unknown>) => {
     changedFilesPropsMock(props);
     return props.enabled ? <div data-testid="changed-files-action" /> : null;
   },

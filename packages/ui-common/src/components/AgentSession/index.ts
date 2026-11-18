@@ -33,6 +33,7 @@ export * from "./AgentBridgeRecoveryNotice";
 export * from "./CodingSession";
 export * from "./OpenBrowserCapsuleAction";
 export * from "./ChangedFilesCapsuleAction";
+export * from "./CommitCapsuleAction";
 export * from "./runtime/RunBrowserContext";
 export * from "./ValidationSession";
 export * from "./useValidationLauncher";

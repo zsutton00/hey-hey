@@ -356,6 +356,52 @@ describe('executeCanonicalCommit', () => {
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ runId: 'session-1', run }));
   });
 
+  it.each([
+    ['TASK', 'task-1'],
+    ['DESIGN_DOC', 'doc-1'],
+  ] as const)(
+    'commits an Entity Conversation about a %s with Agent Session and Service traceability',
+    async (entityType, entityId) => {
+      const repo = await createRepo();
+      const run = makeRun(repo);
+      run.session.entity = { entityType, entityId };
+      run.session.startedPromptTypes = ['entity_conversation', 'commit'];
+
+      await executeCanonicalCommit({
+        run,
+        payload: { userMessage: '', codingSessionId: 'session-1' },
+        liveFiles: [path.join(repo, 'a.ts')],
+        message: 'fix: update value from conversation',
+        commitReportTool: makeCommitReportTool(),
+        logger: makeLogger() as never,
+      });
+
+      const body = await git(repo, ['show', '-s', '--format=%B', 'HEAD']);
+      expect(body).not.toContain('Task-Id:');
+      expect(body).toContain('Coding-Session-Id: session-1');
+      expect(body).toContain('Service-Id: service-1');
+    },
+  );
+
+  it('still rejects an Entity Conversation without a valid launch Service before staging', async () => {
+    const repo = await createRepo();
+    const run = makeRun(repo);
+    run.session.startedPromptTypes = ['entity_conversation'];
+    run.session.launchServiceId = 'unselected-service';
+
+    await expect(
+      executeCanonicalCommit({
+        run,
+        payload: { userMessage: '' },
+        liveFiles: [path.join(repo, 'a.ts')],
+        message: 'fix: reject',
+        commitReportTool: makeCommitReportTool(),
+        logger: makeLogger() as never,
+      }),
+    ).rejects.toThrow('no valid Service execution scope');
+    expect(await git(repo, ['diff', '--cached', '--name-only'])).toBe('');
+  });
+
   it('emits one report after committing every selected service', async () => {
     const firstRepo = await createRepo();
     const secondRepo = await createRepo();

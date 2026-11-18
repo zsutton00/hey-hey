@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { lstat } from 'node:fs/promises';
 import { CommitGitError } from './commit-git-error';
+import { isEntityConversationRun } from './commit-traceability';
 import { promisify } from 'node:util';
 
 import type { LocalCommitPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
@@ -293,7 +294,8 @@ const deriveCommitTraceability = (
     );
   }
 
-  if (run.taskId) {
+  const entityConversation = isEntityConversationRun(run);
+  if (run.taskId && !entityConversation) {
     if (payload.taskId && payload.taskId !== run.taskId) {
       throw new Error(
         'Commit validation failed: caller task identifier disagrees with Run context.',
@@ -310,9 +312,11 @@ const deriveCommitTraceability = (
 
   const serviceIds = [...new Set(run.session.services.map(({ id }) => id))].sort();
   const subject = run.entity;
+  const subjectInScope = entityConversation
+    ? true
+    : subject?.entityType === 'SERVICE' && serviceIds.includes(subject.entityId);
   if (
-    subject?.entityType !== 'SERVICE' ||
-    !serviceIds.includes(subject.entityId) ||
+    !subjectInScope ||
     !run.session.launchServiceId ||
     !serviceIds.includes(run.session.launchServiceId)
   ) {
@@ -352,6 +356,8 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
   logger.debug('local.commit_runtime.traceability_derived', {
     runId: run.runId,
     traceabilityKind: traceability.kind,
+    entityConversation: isEntityConversationRun(run),
+    launchServiceId: run.session.launchServiceId ?? null,
     ...(traceability.kind === 'task'
       ? { taskId: traceability.taskId }
       : { serviceIds: traceability.serviceIds }),
