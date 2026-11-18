@@ -33,6 +33,21 @@ import {
   TrackingProvider,
 } from "@hey-hey/ui-common/context";
 
+// Test-only wrapper around the imported OnboardingFrame. A page that copies the
+// shell instead of importing it never renders inside this marker.
+vi.mock("../components/OnboardingFrame", async (original) => {
+  const actual =
+    await original<typeof import("../components/OnboardingFrame")>();
+  return {
+    ...actual,
+    OnboardingFrame: (props: Parameters<typeof actual.OnboardingFrame>[0]) => (
+      <div data-testid="imported-onboarding-frame">
+        <actual.OnboardingFrame {...props} />
+      </div>
+    ),
+  };
+});
+
 vi.mock("../../../components/Layout", () => ({
   PageBreadcrumbs: ({
     items,
@@ -794,12 +809,18 @@ describe("Onboarding Page Integration Tests", () => {
     render(<OnboardingPage />, { wrapper });
 
     // Wait for the conversation timeline to load
-    await waitFor(
-      () => {
-        const timeline = screen.getByTestId("conversation-timeline");
-        expect(timeline).toBeInTheDocument();
+    const timeline = await screen.findByTestId(
+      "conversation-timeline",
+      {},
+      {
+        timeout: 15000,
       },
-      { timeout: 15000 },
+    );
+    // The page renders inside the one shared onboarding frame.
+    const frame = screen.getByTestId("onboarding-frame");
+    expect(frame).toContainElement(timeline);
+    expect(screen.getByTestId("imported-onboarding-frame")).toContainElement(
+      frame,
     );
     expect(
       screen.queryByTestId("onboarding-breadcrumbs"),

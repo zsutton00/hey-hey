@@ -23,9 +23,22 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@hey-hey/ui-common/components", async (original) => ({
   ...(await original<typeof import("@hey-hey/ui-common/components")>()),
-  HeyHeyBranding: () => <span>Hey Hey</span>,
   Conversation: () => <div data-testid="conversation-timeline" />,
 }));
+// Test-only wrapper around the imported OnboardingFrame. A page that copies the
+// shell instead of importing it never renders inside this marker.
+vi.mock("../Onboarding/components/OnboardingFrame", async (original) => {
+  const actual =
+    await original<typeof import("../Onboarding/components/OnboardingFrame")>();
+  return {
+    ...actual,
+    OnboardingFrame: (props: Parameters<typeof actual.OnboardingFrame>[0]) => (
+      <div data-testid="imported-onboarding-frame">
+        <actual.OnboardingFrame {...props} />
+      </div>
+    ),
+  };
+});
 vi.mock("../Onboarding/components/ProjectDetailsForm", () => ({
   ProjectDetailsForm: () => null,
 }));
@@ -143,6 +156,13 @@ describe("local onboarding page", () => {
     renderPage();
 
     const conversation = await screen.findByTestId("conversation-timeline");
+    // Local renders inside the same shared frame as hosted onboarding.
+    const frame = screen.getByTestId("onboarding-frame");
+    expect(frame).toContainElement(screen.getByTestId("local-onboarding-page"));
+    expect(frame).toHaveTextContent("HEY HEY");
+    expect(screen.getByTestId("imported-onboarding-frame")).toContainElement(
+      frame,
+    );
     const model = screen.getByTestId("agent-session-metadata-model");
     expect(model).toHaveTextContent("selected-model");
     expect(
