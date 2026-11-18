@@ -1,5 +1,10 @@
+import { projectPendingCommit } from '../agents/commit/commit-intent';
 import path from 'node:path';
-import { projectFileChanges, resolveRunFilePath } from '../run/file-change-facts';
+import {
+  liveFileProjection,
+  projectFileChanges,
+  resolveRunFilePath,
+} from '../run/file-change-facts';
 import type { CanonicalFileChangeFact } from '../run/file-change-facts';
 import type { AgenticSession } from '../session/types';
 import type { RunRegistry } from '../run/run-registry';
@@ -61,7 +66,11 @@ export class RunFileContextReader {
         factCount: facts.length,
         projectionCount: projection.length,
       });
-      return { ...args, getFileChangeProjection: () => projection };
+      return {
+        ...args,
+        getFileChangeProjection: () =>
+          liveFileProjection(projection, facts, args.session.committedFileVersions),
+      };
     } catch (error) {
       const resolvedError =
         error instanceof RunFamilyCompatibilityError
@@ -148,6 +157,7 @@ export class RunFileContextReader {
       );
     }
 
+    await projectPendingCommit(session);
     await this.projectModeBundleRestorer?.restore(args.session);
 
     return { ...args, fileChangeSeed: { facts, touchedFiles } };

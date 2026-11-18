@@ -202,6 +202,8 @@ interface AgenticSessionBase {
         providerSession?: { provider: string; sessionId: string | null };
       };
   /** Last committed final answer; retained when provider carryover is consumed. */
+  commitIntent?: import('../agents/commit/commit-intent').CommitIntent;
+  committedFileVersions?: Record<string, string | null>;
   finalAssistantMessage?: {
     turnId: string;
     messageId: string;

@@ -1,3 +1,4 @@
+import { commitIntentSchema, type CommitIntent } from '../agents/commit/commit-intent';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type { SubAgentResult } from '../run/subagent';
 import crypto from 'node:crypto';
@@ -254,6 +255,12 @@ const parseRunMetadata = (text: string): AgenticSession => {
   }
   if (parsed['tokenUsageFinalized'] !== undefined) {
     z.boolean().parse(parsed['tokenUsageFinalized']);
+  }
+  if (parsed['commitIntent'] !== undefined) {
+    commitIntentSchema.parse(parsed['commitIntent']);
+  }
+  if (parsed['committedFileVersions'] !== undefined) {
+    z.record(z.string(), z.string().nullable()).parse(parsed['committedFileVersions']);
   }
   if (parsed['latestTurn'] !== undefined) {
     z.discriminatedUnion('state', [
@@ -1568,6 +1575,26 @@ export class RunStore {
   ): Promise<ImplementationReadinessDisposition | null> {
     const run = await this.getRunMetadata(runId);
     return run ? parseImplementationReadinessFromSessionContext(run.sessionContext) : null;
+  }
+
+  public saveCommitState(
+    runId: string,
+    intent: CommitIntent | null,
+    versions: Record<string, string | null>,
+  ): Promise<void> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+      if (intent) {
+        run.commitIntent = intent;
+      } else {
+        delete run.commitIntent;
+      }
+      run.committedFileVersions = { ...run.committedFileVersions, ...versions };
+      await writeRunMetadata(this.runFamilies, run);
+    });
   }
 
   public updateRunFinalAssistantMessage(

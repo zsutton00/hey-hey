@@ -1,3 +1,4 @@
+import { projectPendingCommit } from '../../agents/commit/commit-intent';
 import path from 'node:path';
 import type { SubagentConfig } from '../../agents/prompt-type-handler';
 import type { ServerLogger } from '../../server/logger';
@@ -59,6 +60,9 @@ export class SubagentRunner implements Runner {
     const basePayload = preparedPayload !== undefined ? preparedPayload : input.payload;
     const reportChainLengthBefore = run.readReportChain().length;
     const isCommit = handler.promptType === 'commit';
+    if (isCommit) {
+      await projectPendingCommit(run.session);
+    }
     const filesForSubagent = isCommit
       ? (
           await this.deps.runChangedFilesReader.getLiveRunChangedFiles(
