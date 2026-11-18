@@ -13,6 +13,7 @@ import {
   ContinuationAuthorizationDeniedError,
   inspectAgentSessionContinuation,
 } from "../../data/collections/agentSessionContinuation";
+import { invalidateAgentSessionDetail } from "../../data/collections/agentSessions";
 import { conversationCliStatusKeys } from "../../data/collections/conversationCliStatus";
 
 /** Why a continuation step failed; `ambiguous` means the outcome is unknown. */
@@ -129,6 +130,13 @@ export function useAgentSessionContinuation(target: {
   const lastStep = useRef<Step | null>(null);
 
   const refreshServerState = useCallback(async () => {
+    // The coding reply reads the session detail while the composer reads CLI status.
+    await invalidateAgentSessionDetail(
+      queryClient,
+      target.organizationId,
+      target.projectId,
+      target.agentSessionId,
+    );
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: agentSessionContinuationKeys.session(

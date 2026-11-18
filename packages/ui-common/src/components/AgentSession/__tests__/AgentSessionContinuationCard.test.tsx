@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { useState } from "react";
+import { agentSessionKeys } from "../../../data/collections/agentSessions";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentSessionContinuationMode,
@@ -257,6 +258,34 @@ describe("Agent Session continuation card", () => {
           confirmSavedHistory: true,
         }),
       ),
+    );
+  });
+
+  it("refreshes the session binding used by replies after confirming saved history", async () => {
+    const mac = machine("Mac");
+    const continuation = inspected(mac, "SAVED_HISTORY", "attempt-1");
+    const queryClient = new QueryClient();
+    const sessionKey = agentSessionKeys.detail("org", "project", "session");
+    queryClient.setQueryData(sessionKey, { machineId: REVOKED_ID });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Harness
+          destinations={[mac]}
+          state={{
+            type: "continuation_confirm_history",
+            continuation,
+            destination: mac,
+          }}
+        />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByTestId("agent-session-continuation-confirm-history"),
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryState(sessionKey)?.isInvalidated).toBe(true),
     );
   });
 

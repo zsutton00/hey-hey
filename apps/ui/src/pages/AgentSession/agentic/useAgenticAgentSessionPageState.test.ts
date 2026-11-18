@@ -134,6 +134,18 @@ describe("resolveSessionMachineId", () => {
     ).toBe("machine-2");
   });
 
+  it("uses the continued session's binding when launch selections still name the removed machine", () => {
+    expect(
+      resolveSessionMachineId({
+        routeMachineId: "removed-machine",
+        submittedMachineId: "removed-machine",
+        persistedMachineId: "destination",
+        executionReadyMachineIds: ["destination", "other-machine"],
+        machinesReady: true,
+      }),
+    ).toBe("destination");
+  });
+
   it("waits for the machine collection before auto-selecting", () => {
     expect(
       resolveSessionMachineId({
