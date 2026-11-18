@@ -9,6 +9,7 @@ import {
   type LocalStagedRunAttachmentErrorResponse,
   type CliReadRunChangedFileDetailErrorResponseDto,
   type CliReadRunChangedFilesInventoryErrorResponseDto,
+  type CliReadRunRecordedEditErrorResponseDto,
 } from '@hey-hey/contracts/local';
 import type { ServerLogger } from '../logger';
 type LocalRunFailure =
@@ -17,7 +18,8 @@ type LocalRunFailure =
   | LocalRunAttachmentOpenErrorResponse
   | LocalStagedRunAttachmentErrorResponse
   | CliReadRunChangedFileDetailErrorResponseDto
-  | CliReadRunChangedFilesInventoryErrorResponseDto;
+  | CliReadRunChangedFilesInventoryErrorResponseDto
+  | CliReadRunRecordedEditErrorResponseDto;
 type LocalRunOperation = LocalRunFailure['operation'];
 const errorResponse = (operation: LocalRunOperation, requestId: string, message: string) =>
   ({

@@ -675,6 +675,61 @@ WebSocketProposalGroupLifecycleEvent:
       description: Compact project-scoped invalidation signal for refetching the canonical group
 
 # =============================================
+# Work Item Execution State Events
+# =============================================
+WebSocketWorkItemExecutionStateChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - type
+        - projectId
+        - executionState
+      properties:
+        type:
+          type: string
+          enum: ["work_item.execution_state_changed"]
+        projectId:
+          type: string
+          format: uuid
+          description: Project scope of the work item.
+        executionState:
+          $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionState"
+  description: >-
+    Project-scoped outbound latest-value update carrying the complete retained
+    execution state of one participating work item. Clients apply it keyed by
+    work-item identity when its revision is newer than the record they hold.
+    Display and cache only; never a command path.
+
+WebSocketWorkItemExecutionStateDeliveryChangedEvent:
+  allOf:
+    - $ref: "#/WebSocketEvent"
+    - type: object
+      required:
+        - type
+        - projectId
+        - delivery
+      properties:
+        type:
+          type: string
+          enum: ["work_item.execution_state_delivery_changed"]
+        projectId:
+          type: string
+          format: uuid
+        delivery:
+          type: string
+          enum: [INTERRUPTED, RESTORED]
+          description: >-
+            INTERRUPTED: this server stopped receiving execution-state changes
+            from other servers, so updates may be missed. RESTORED: receipt
+            resumed; clients re-read retained state before treating delivery as
+            live again.
+  description: >-
+    Project-scoped signal about this server's ability to deliver execution
+    state changes accepted on other servers. Carries no execution state and
+    never changes a retained record.
+
+# =============================================
 # Agent Session Current State Events
 # =============================================
 AgentSessionCurrentStateObservation:
@@ -1802,6 +1857,7 @@ CliReadRequestDto:
     - $ref: "#/CliReadRunChangedFilesCountRequest"
     - $ref: "#/CliReadRunChangedFilesInventoryRequest"
     - $ref: "#/CliReadRunChangedFileDetailRequest"
+    - $ref: "#/CliReadRunRecordedEditRequest"
     - $ref: "#/CliReadRunContextUsageGetRequest"
     - $ref: "#/CliReadRunSkillsListRequest"
     - $ref: "#/CliReadRunToolCallsLatestTurnRequest"
@@ -1813,6 +1869,7 @@ CliReadRequestDto:
       run.changed_files.count: "#/CliReadRunChangedFilesCountRequest"
       run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryRequest"
       run.changed_files.detail: "#/CliReadRunChangedFileDetailRequest"
+      run.recorded_edit.read: "#/CliReadRunRecordedEditRequest"
       run.context_usage.get: "#/CliReadRunContextUsageGetRequest"
       run.skills.list: "#/CliReadRunSkillsListRequest"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnRequest"
@@ -1914,11 +1971,24 @@ CliReadProviderUsageGetEnvelopeBody:
 CliReadRuntimeModelCatalogGetEnvelopeBody:
   $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
 
+CliReadAgentSessionContinuationInspectEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
+
+CliReadAgentSessionContinuationInspectResult:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectResult"
+
+CliReadAgentSessionContinuationInspectSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
+
+CliReadAgentSessionContinuationInspectErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
+
 CliReadEnvelopeBody:
   oneOf:
     - $ref: "#/CliReadRunChangedFilesCountEnvelopeBody"
     - $ref: "#/CliReadRunChangedFilesInventoryEnvelopeBody"
     - $ref: "#/CliReadRunChangedFileDetailEnvelopeBody"
+    - $ref: "#/CliReadRunRecordedEditEnvelopeBody"
     - $ref: "#/CliReadRunContextUsageGetEnvelopeBody"
     - $ref: "#/CliReadRunSkillsListEnvelopeBody"
     - $ref: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -1926,12 +1996,14 @@ CliReadEnvelopeBody:
     - $ref: "#/CliReadProjectSessionCostsListEnvelopeBody"
     - $ref: "#/CliReadProviderUsageGetEnvelopeBody"
     - $ref: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+    - $ref: "#/CliReadAgentSessionContinuationInspectEnvelopeBody"
   discriminator:
     propertyName: operation
     mapping:
       run.changed_files.count: "#/CliReadRunChangedFilesCountEnvelopeBody"
       run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryEnvelopeBody"
       run.changed_files.detail: "#/CliReadRunChangedFileDetailEnvelopeBody"
+      run.recorded_edit.read: "#/CliReadRunRecordedEditEnvelopeBody"
       run.context_usage.get: "#/CliReadRunContextUsageGetEnvelopeBody"
       run.skills.list: "#/CliReadRunSkillsListEnvelopeBody"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -1939,6 +2011,7 @@ CliReadEnvelopeBody:
       project.session_costs.list: "#/CliReadProjectSessionCostsListEnvelopeBody"
       provider.usage.get: "#/CliReadProviderUsageGetEnvelopeBody"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectEnvelopeBody"
 
 CliReadChangedFilesCountResult:
   type: object
@@ -2272,6 +2345,7 @@ CliReadSuccessResponseDto:
     - $ref: "#/CliReadRunChangedFilesCountSuccessResponseDto"
     - $ref: "#/CliReadRunChangedFilesInventorySuccessResponseDto"
     - $ref: "#/CliReadRunChangedFileDetailSuccessResponseDto"
+    - $ref: "#/CliReadRunRecordedEditSuccessResponseDto"
     - $ref: "#/CliReadRunContextUsageGetSuccessResponseDto"
     - $ref: "#/CliReadRunSkillsListSuccessResponseDto"
     - $ref: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -2279,12 +2353,14 @@ CliReadSuccessResponseDto:
     - $ref: "#/CliReadProjectSessionCostsListSuccessResponseDto"
     - $ref: "#/CliReadProviderUsageGetSuccessResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+    - $ref: "#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
   discriminator:
     propertyName: operation
     mapping:
       run.changed_files.count: "#/CliReadRunChangedFilesCountSuccessResponseDto"
       run.changed_files.inventory: "#/CliReadRunChangedFilesInventorySuccessResponseDto"
       run.changed_files.detail: "#/CliReadRunChangedFileDetailSuccessResponseDto"
+      run.recorded_edit.read: "#/CliReadRunRecordedEditSuccessResponseDto"
       run.context_usage.get: "#/CliReadRunContextUsageGetSuccessResponseDto"
       run.skills.list: "#/CliReadRunSkillsListSuccessResponseDto"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -2292,12 +2368,14 @@ CliReadSuccessResponseDto:
       project.session_costs.list: "#/CliReadProjectSessionCostsListSuccessResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetSuccessResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
 
 CliReadErrorResponseDto:
   oneOf:
     - $ref: "#/CliReadRunChangedFilesCountErrorResponseDto"
     - $ref: "#/CliReadRunChangedFilesInventoryErrorResponseDto"
     - $ref: "#/CliReadRunChangedFileDetailErrorResponseDto"
+    - $ref: "#/CliReadRunRecordedEditErrorResponseDto"
     - $ref: "#/CliReadRunContextUsageGetErrorResponseDto"
     - $ref: "#/CliReadRunSkillsListErrorResponseDto"
     - $ref: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -2305,12 +2383,14 @@ CliReadErrorResponseDto:
     - $ref: "#/CliReadProjectSessionCostsListErrorResponseDto"
     - $ref: "#/CliReadProviderUsageGetErrorResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+    - $ref: "#/CliReadAgentSessionContinuationInspectErrorResponseDto"
   discriminator:
     propertyName: operation
     mapping:
       run.changed_files.count: "#/CliReadRunChangedFilesCountErrorResponseDto"
       run.changed_files.inventory: "#/CliReadRunChangedFilesInventoryErrorResponseDto"
       run.changed_files.detail: "#/CliReadRunChangedFileDetailErrorResponseDto"
+      run.recorded_edit.read: "#/CliReadRunRecordedEditErrorResponseDto"
       run.context_usage.get: "#/CliReadRunContextUsageGetErrorResponseDto"
       run.skills.list: "#/CliReadRunSkillsListErrorResponseDto"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -2318,6 +2398,7 @@ CliReadErrorResponseDto:
       project.session_costs.list: "#/CliReadProjectSessionCostsListErrorResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetErrorResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+      agent_session.continuation.inspect: "#/CliReadAgentSessionContinuationInspectErrorResponseDto"
 
 CliReadResponseDto:
   oneOf:
@@ -3072,6 +3153,8 @@ WebSocketSubscriptionRequest:
           - "agent_session.output_attention_changed"
           - "conversation.phase_changed"
           - "task_monitor.state_changed"
+          - "work_item.execution_state_changed"
+          - "work_item.execution_state_delivery_changed"
           - "daily_session.updated"
           - "proposal.approved"
           - "proposal_group.lifecycle"
@@ -3380,3 +3463,15 @@ WebSocketOpenItemsChangedEvent:
       type: integer
       format: int64
       minimum: 1
+
+CliReadRunRecordedEditRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditRequest"
+
+CliReadRunRecordedEditEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditEnvelopeBody"
+
+CliReadRunRecordedEditSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
+
+CliReadRunRecordedEditErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditErrorResponseDto"

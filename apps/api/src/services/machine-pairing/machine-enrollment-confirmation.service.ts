@@ -26,6 +26,7 @@ import {
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH_MESSAGE,
   MachineEnrollmentAuthenticationFailedException,
   MachineEnrollmentInvalidTransitionException,
+  MachineEnrollmentPollRateLimitException,
 } from '../../common/exceptions/pairing.exceptions';
 import { ServerSigningKeyService } from '../../core/server-signing/server-signing-key.service';
 import { AgentOperationDispatchService } from '../../core/websockets/agent-operation-dispatch.service';
@@ -146,13 +147,27 @@ export class MachineEnrollmentConfirmationService {
         this.assertAuthenticatedEnrollment(current, deviceSecret);
         this.assertPollableEnrollment(current, now);
 
-        if (
-          current.lastPolledAt &&
-          current.lastPolledAt.getTime() +
-            MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS >
+        const remainingMs = current.lastPolledAt
+          ? current.lastPolledAt.getTime() +
+            MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS -
             now.getTime()
-        ) {
-          throw new EnrollmentInvalidTransition();
+          : 0;
+        if (current.lastPolledAt && remainingMs > 0) {
+          this.logger.warn(
+            'Machine enrollment poll refused',
+            machineEnrollmentDiagnostic('failed_transition', {
+              enrollmentId,
+              state: current.state,
+              reasonCode: 'poll_interval_too_short',
+              observedAt: now.toISOString(),
+              lastPolledAt: current.lastPolledAt.toISOString(),
+              elapsedMs: now.getTime() - current.lastPolledAt.getTime(),
+              minimumIntervalMs: MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS,
+            }),
+          );
+          throw new MachineEnrollmentPollRateLimitException(
+            Math.ceil(remainingMs / 1000),
+          );
         }
 
         if (
@@ -197,6 +212,15 @@ export class MachineEnrollmentConfirmationService {
           },
         });
         if (updated.count !== 1) {
+          this.logger.warn(
+            'Machine enrollment poll refused',
+            machineEnrollmentDiagnostic('failed_transition', {
+              enrollmentId,
+              state: current.state,
+              reasonCode: 'poll_update_conflict',
+              observedAt: now.toISOString(),
+            }),
+          );
           throw new EnrollmentInvalidTransition();
         }
 
@@ -734,10 +758,16 @@ export class MachineEnrollmentConfirmationService {
     enrollment: PendingMachineEnrollment,
     now: Date,
   ): void {
-    if (
-      !LIVE_MACHINE_ENROLLMENT_STATES.includes(enrollment.state) ||
-      enrollment.expiresAt.getTime() <= now.getTime()
-    ) {
+    const live = LIVE_MACHINE_ENROLLMENT_STATES.includes(enrollment.state);
+    if (!live || enrollment.expiresAt.getTime() <= now.getTime()) {
+      this.logger.warn(
+        'Machine enrollment poll refused',
+        machineEnrollmentDiagnostic('failed_transition', {
+          enrollmentId: enrollment.id,
+          state: enrollment.state,
+          reasonCode: live ? 'enrollment_expired' : 'enrollment_not_live',
+        }),
+      );
       throw new EnrollmentAuthenticationFailure();
     }
   }

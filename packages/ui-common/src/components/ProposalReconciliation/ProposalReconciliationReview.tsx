@@ -1,5 +1,10 @@
 import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
-import { EditOutlined, SmartToyOutlined } from "@mui/icons-material";
+import {
+  EditOutlined,
+  HelpOutlineOutlined,
+  SmartToyOutlined,
+} from "@mui/icons-material";
+import { ConversationCard } from "../Conversation/Card";
 import { ThreeWayReview } from "./ThreeWayReview";
 import React, {
   createContext,
@@ -14,6 +19,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Stack,
   Stepper,
@@ -35,6 +41,12 @@ import { useInvalidateProposalReview } from "../../data/hooks/useInvalidatePropo
 import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
 import { ManualReconciliationEditor } from "./ManualReconciliationEditor";
 import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
+
+const choiceButtonSx = {
+  border: "2px solid var(--card-main)",
+  color: "var(--card-main)",
+  "&:hover": { border: "2px solid var(--card-main)" },
+};
 
 const AgentConversationView = lazy(() =>
   import("../AgentSession/AgentConversationView").then((module) => ({
@@ -102,11 +114,24 @@ function PendingProposalReconciliationReview({
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const requestSequence = useRef(0);
+  const agentPanelRef = useRef<HTMLDivElement | null>(null);
+  const startedAgentSessionId = agentRequest?.agentSessionId;
   const scope = {
     organizationId: proposal.organizationId,
     projectId: proposal.projectId,
     proposalId: proposal.id,
   };
+  // Once per launch, bring the proposal's own conversation panel into view:
+  // the launch button sits low on the page while the panel is at the top. The
+  // page, not the conversation viewer, owns this movement.
+  useEffect(() => {
+    if (!startedAgentSessionId) {
+      return;
+    }
+
+    agentPanelRef.current?.scrollIntoView({ block: "start" });
+  }, [startedAgentSessionId]);
+
   const refresh = useCallback(async () => {
     const sequence = ++requestSequence.current;
     setState(null);
@@ -306,48 +331,75 @@ function PendingProposalReconciliationReview({
                 <ThreeWayReview proposal={proposal} state={state} />
               ) : null}
               {requiresReconciliation ? (
-                <Stack spacing={1}>
+                <ConversationCard
+                  tone={{ role: "needsAnswer" }}
+                  icon={<HelpOutlineOutlined fontSize="small" />}
+                  kindLabel="Needs your answer"
+                  chips={<Chip size="small" label="Conflict" />}
+                  lead="How do you want to resolve it?"
+                  data-testid="proposal-reconciliation-choices"
+                  footer={{
+                    content: (
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {grouped || proposal.action === "VERSIONED_UPDATE" ? (
+                          <Button
+                            variant="contained"
+                            data-testid="proposal-reconciliation-merge"
+                            disabled={
+                              busy ||
+                              state.status === "AGENT_FIX_REQUIRED" ||
+                              state.overlaps.length > 0
+                            }
+                            onClick={() => void merge()}
+                          >
+                            Merge with current content
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditOutlined />}
+                          data-testid="proposal-reconciliation-edit-by-hand"
+                          disabled={busy || !state.currentBases.length}
+                          onClick={resolve.onEdit}
+                          sx={choiceButtonSx}
+                        >
+                          Choose sections
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          startIcon={<SmartToyOutlined />}
+                          data-testid="proposal-reconciliation-agent-fix"
+                          disabled={busy}
+                          onClick={resolve.onAgentFix}
+                          sx={choiceButtonSx}
+                        >
+                          Work with agent
+                        </Button>
+                      </Stack>
+                    ),
+                  }}
+                >
                   {state.status === "AGENT_FIX_REQUIRED" ? (
                     <Typography variant="body2" color="text.secondary">
                       This change can&apos;t be merged into the current content
                       automatically.
                     </Typography>
                   ) : null}
-                  <Stack direction="row" spacing={1}>
-                    {grouped || proposal.action === "VERSIONED_UPDATE" ? (
-                      <Button
-                        variant="contained"
-                        data-testid="proposal-reconciliation-merge"
-                        disabled={
-                          busy ||
-                          state.status === "AGENT_FIX_REQUIRED" ||
-                          state.overlaps.length > 0
-                        }
-                        onClick={() => void merge()}
-                      >
-                        Merge with current content
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="outlined"
-                      startIcon={<EditOutlined />}
-                      data-testid="proposal-reconciliation-edit-by-hand"
-                      disabled={busy || !state.currentBases.length}
-                      onClick={resolve.onEdit}
-                    >
-                      Edit by hand
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<SmartToyOutlined />}
-                      data-testid="proposal-reconciliation-agent-fix"
-                      disabled={busy}
-                      onClick={resolve.onAgentFix}
-                    >
-                      Agent fix
-                    </Button>
+                  <Stack spacing={1}>
+                    <Typography variant="body2">
+                      <strong>Choose sections:</strong> Pick the live content or
+                      the proposal for each item, and edit any item yourself.
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Work with agent:</strong> Opens an agent
+                      conversation beside this comparison; its suggestions
+                      arrive as diffs you accept or reject.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Neither choice approves or applies anything.
+                    </Typography>
                   </Stack>
-                </Stack>
+                </ConversationCard>
               ) : null}
               {agentFixOpen ? (
                 <AgentFixConfirmDialog
@@ -411,6 +463,7 @@ function PendingProposalReconciliationReview({
         {agentRequest ? (
           <Stack
             spacing={1}
+            ref={agentPanelRef}
             sx={{ flex: 1, minWidth: 0 }}
             data-testid="proposal-reconciliation-agent-panel"
           >
@@ -419,7 +472,7 @@ function PendingProposalReconciliationReview({
               justifyContent="space-between"
               alignItems="center"
             >
-              <Typography variant="subtitle2">Agent fix</Typography>
+              <Typography variant="subtitle2">Work with agent</Typography>
               <Button onClick={() => setAgentRequest(null)}>
                 Close conversation
               </Button>

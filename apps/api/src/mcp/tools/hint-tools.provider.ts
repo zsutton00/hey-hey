@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { isProductDevelopmentEnvironment } from '../../deployment-environment';
 import type { Request } from 'express';
 import {
   HintConnectionEndpointEntityType,
@@ -25,6 +26,11 @@ import {
   resolveProjectId,
 } from './mcp-tool.utils';
 
+/**
+ * Tells the CLI whether this deployment is one where Hey Hey is developed, so it
+ * can add the "do not patch product behavior with hints" rule to the prompt.
+ */
+export const PRODUCT_DEVELOPMENT_META_KEY = 'heyhey/productDevelopment';
 export const CREATE_HINT_TOOL_NAME = 'create_hint';
 export const ADD_HINT_CONNECTION_TOOL_NAME = 'add_hint_connection';
 export const UPDATE_HINT_TOOL_NAME = 'update_hint';
@@ -188,6 +194,9 @@ export class HintWriteToolsProvider {
       'or Decisions; if it belongs there, change that item instead.',
     parameters: createHintParameters,
     outputSchema: hintOutput,
+    _meta: {
+      [PRODUCT_DEVELOPMENT_META_KEY]: isProductDevelopmentEnvironment(),
+    },
   })
   async createHint(
     params: z.infer<typeof createHintParameters>,

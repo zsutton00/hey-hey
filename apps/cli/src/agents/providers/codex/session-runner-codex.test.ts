@@ -1096,6 +1096,57 @@ describe('session-runner-codex', () => {
     }
   });
 
+  it('keeps a read-only handler read-only when its repository-bound session resumes', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-runner-workspace-'));
+    const repoDir = path.join(workspaceDir, 'service-a');
+    const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-home-'));
+    const previousCodexHome = process.env['CODEX_HOME'];
+    process.env['CODEX_HOME'] = codexHome;
+    try {
+      await fs.mkdir(path.join(repoDir, '.git'), { recursive: true });
+      const canonicalRepoDir = await fs.realpath(repoDir);
+      sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+      const runner = new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(repoDir),
+      });
+
+      await runner.resumeSession({
+        session: makeSession({
+          provider_session_id: 'codex-thread-1',
+          services: [{ id: 'svc-1', path: repoDir }],
+          launchServiceId: 'svc-1',
+        }),
+        prompt: 'Revise the plan.',
+        readOnlyFilesystem: true,
+        workspace: {
+          ok: true as const,
+          runMode: 'default' as const,
+          repositoryPathForRunStarted: canonicalRepoDir,
+          cwd: canonicalRepoDir,
+          allowedRepositoryRoots: [canonicalRepoDir],
+          bindingRepositoryPath: canonicalRepoDir,
+          workspaceRoot: null,
+        },
+      });
+
+      const resumeConfig = sdkResumeSessionMock.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(resumeConfig['sandbox']).toBe('read-only');
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env['CODEX_HOME'];
+      } else {
+        process.env['CODEX_HOME'] = previousCodexHome;
+      }
+      await Promise.all([
+        fs.rm(workspaceDir, { recursive: true, force: true }),
+        fs.rm(codexHome, { recursive: true, force: true }),
+      ]);
+    }
+  });
+
   it('uses non-repository authority for graph-only catalogs and the first selected Skill', async () => {
     const list = vi
       .spyOn(CodexSkillCatalog.prototype, 'list')

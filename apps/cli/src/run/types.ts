@@ -277,6 +277,13 @@ export interface ReportChainEntry {
   readonly summary: string;
   readonly audience: 'EXTERNAL' | 'INTERNAL';
   readonly serviceId?: string;
+  readonly sourceRunId?: string;
+  readonly commitHashes?: ReadonlyArray<
+    Omit<
+      import('@hey-hey/contracts/api/models').CommitReportPayload['hashes'][number],
+      'implementReportIds'
+    > & { readonly implementReportIds?: readonly string[] }
+  >;
   /**
    * PHASE_GROUNDING-only payload slice. Present iff `reportType ===
    * 'PHASE_GROUNDING'`; absent on every other report type. The

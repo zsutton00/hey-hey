@@ -66,3 +66,6 @@ export type {
 // Common utilities for CapsuleActions
 export * from "./Common";
 export * from "./useSiteChat";
+
+export { useCapsuleScreenButton } from "./useCapsuleScreenButton";
+export type { CapsuleScreenButton } from "./types";

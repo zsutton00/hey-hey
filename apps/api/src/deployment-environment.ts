@@ -32,3 +32,13 @@ export function isLocalApplication(): boolean {
     process.env.HEYHEY_LOCAL_APPLICATION === 'true'
   );
 }
+
+/**
+ * True where Hey Hey itself is being developed (staging and local), so product
+ * defects can actually be fixed. Unset or unrecognized values are false, so
+ * production-like deployments never opt in by accident.
+ */
+export function isProductDevelopmentEnvironment(): boolean {
+  const value = process.env.DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
+  return value === 'staging' || value === 'local';
+}

@@ -1,7 +1,8 @@
-import { Alert, Box, Button, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "../i18n/keys";
+import { SolidAlert } from "./Conversation/Card/SolidAlert";
 import type { MessageRetryState } from "../types/conversation";
 
 interface SystemMessageErrorProps {
@@ -22,50 +23,31 @@ export const SystemMessageError: React.FC<SystemMessageErrorProps> = ({
 }) => {
   const { t } = useTranslation();
 
+  const retryAction = retryState ? (
+    <Button
+      variant="contained"
+      size="small"
+      color="inherit"
+      onClick={retryState.retry}
+      disabled={retryState.isRetrying}
+      sx={{ minWidth: "auto", px: 2, py: 0.5, fontSize: "0.875rem" }}
+    >
+      {retryState.isRetrying ? t(KEYS.common.retrying) : t(KEYS.common.retry)}
+    </Button>
+  ) : undefined;
+
   return (
     <Box sx={{ mb: 2 }}>
-      <Alert
-        severity="error"
-        sx={{
-          mb: 2,
-          backgroundColor: "transparent",
-          border: "none",
-          padding: 0,
-        }}
-      >
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          {errorMessage}
-        </Typography>
-
-        {retryState && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={retryState.retry}
-              disabled={retryState.isRetrying}
-              sx={{
-                minWidth: "auto",
-                px: 2,
-                py: 0.5,
-                fontSize: "0.875rem",
-              }}
-            >
-              {retryState.isRetrying
-                ? t(KEYS.common.retrying)
-                : t(KEYS.common.retry)}
-            </Button>
-
-            {retryState.isPolling && retryState.retryStatus && (
-              <Typography variant="caption" sx={{ ml: 1, opacity: 0.8 }}>
-                Retry Count: {retryState.retryStatus.retryCount}
-                {retryState.retryStatus.failedWorkflowStep &&
-                  ` - Failed at: ${retryState.retryStatus.failedWorkflowStep}`}
-              </Typography>
-            )}
-          </Box>
+      <SolidAlert severity="error" action={retryAction}>
+        <Typography variant="body2">{errorMessage}</Typography>
+        {retryState?.isPolling && retryState.retryStatus && (
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>
+            Retry Count: {retryState.retryStatus.retryCount}
+            {retryState.retryStatus.failedWorkflowStep &&
+              ` - Failed at: ${retryState.retryStatus.failedWorkflowStep}`}
+          </Typography>
         )}
-      </Alert>
+      </SolidAlert>
     </Box>
   );
 };

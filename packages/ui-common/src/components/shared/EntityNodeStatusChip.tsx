@@ -18,7 +18,6 @@ export const EntityNodeStatusChip: React.FC<EntityNodeStatusChipProps> = ({
       label={formatStatus(status)}
       color={getStatusColorMapping(status)}
       size="small"
-      variant="outlined"
     />
   );
 };

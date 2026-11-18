@@ -1870,6 +1870,14 @@ StartRunPromptPayload:
                 not:
                   $ref: "../agent-bridge/openapi.yaml#/components/schemas/RunCreatePayloadWorkflowKickoff"
   properties:
+    continuation:
+      $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSessionContinuationMarker"
+      description: >
+        Present only on a continuation's materialize-only start_run after the
+        session's previous computer was revoked or removed. The destination
+        materializes the same Run (its id stays the Agent Session id) without
+        firing a Turn, and uses the native provider session or a new one from
+        saved history as the marker says. It carries no authority.
     runId:
       type: string
       format: uuid

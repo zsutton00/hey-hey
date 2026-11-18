@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ImplementReportEdit } from './implement-report-edit.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ImplementReportPayloadAllOfDecisions } from './implement-report-payload-all-of-decisions.js';
 
 /**
@@ -31,11 +34,17 @@ export interface ImplementReportPayloadAllOf {
      */
     'reportType': ImplementReportPayloadAllOfReportTypeEnum;
     /**
-     * Repo-relative paths of files modified during the run.
+     * Repo-relative paths of files modified during the turn, derived from `edits`: the sorted unique paths. Kept for readers that only need which files changed.
      * @type {Array<string>}
      * @memberof ImplementReportPayloadAllOf
      */
     'filesChanged': Array<string>;
+    /**
+     * Every recorded edit to this report\'s Service during the turn, in the order they occurred. Built by the CLI from the Run\'s canonical file-change facts, never authored by the agent. Carries no file content: versions are git object ids kept in the repository that ran the session. Absent on reports written before edits were recorded.
+     * @type {Array<ImplementReportEdit>}
+     * @memberof ImplementReportPayloadAllOf
+     */
+    'edits'?: Array<ImplementReportEdit>;
     /**
      * Notable decisions made during implementation.
      * @type {Array<ImplementReportPayloadAllOfDecisions>}

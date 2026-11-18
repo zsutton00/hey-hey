@@ -19,6 +19,7 @@ import type { ConversationPreviewInput } from "../../types/conversation";
 import { Alert, Box, Paper, Stack, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AgentSessionCurrentState,
   type CreateUserMessage,
@@ -39,6 +40,8 @@ import {
 import { ExternalReplyComposer } from "./ExternalReplyComposer";
 import { AgentSessionCurrentStateIndicator } from "./AgentSessionCurrentStateIndicator";
 import { AgentBridgeRecoveryNotice } from "./AgentBridgeRecoveryNotice";
+import { AgentSessionContinuationCard } from "./AgentSessionContinuationCard";
+import { useAgentSessionContinuationRecovery } from "./useAgentSessionContinuationRecovery";
 import { resolveAgentBridgeRecoveryState } from "./agentBridgeRecoveryState";
 import { getAgentSessionCurrentStatePresentation } from "./agentSessionCurrentStatePresentation";
 import {
@@ -212,6 +215,7 @@ const AgentConversationViewInner = ({
   scrollPolicy: suppliedScrollPolicy,
   attachedAgent,
 }: AgentConversationViewProps) => {
+  const { t } = useTranslation();
   const currentDraftRef = useRef("");
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const focusComposer = useCallback(() => {
@@ -278,6 +282,15 @@ const AgentConversationViewInner = ({
     sessionResumability === "legacy_non_resumable"
       ? resolveAgentBridgeRecoveryState({ type: "legacy_non_resumable" })
       : cliRequired;
+  const continuationRecovery = useAgentSessionContinuationRecovery({
+    organizationId,
+    projectId,
+    agentSessionId,
+    conversationId: normalizedConversationId,
+    base: recoveryState,
+    enabled: !readOnly && !hasPreview && shouldFetch,
+  });
+  const composerRecoveryState = continuationRecovery.state;
   const interactionAccess = useAgentSessionInteractionAccess(
     recoveryState.type === "ready" ? recoveryState.machine.machineId : null,
   );
@@ -616,6 +629,23 @@ const AgentConversationViewInner = ({
             </Alert>
           )}
 
+          {continuationRecovery.outcome &&
+          composerRecoveryState.type === "ready" ? (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              data-testid="agent-session-continuation-outcome"
+              data-mode={continuationRecovery.outcome.mode}
+            >
+              {t(
+                continuationRecovery.outcome.mode === "NATIVE_RESUME"
+                  ? "agentSession.continuation.outcome.resumed"
+                  : "agentSession.continuation.outcome.savedHistory",
+                { name: continuationRecovery.outcome.machineName },
+              )}
+            </Typography>
+          ) : null}
+
           {hideComposer ? null : (
             <Box hidden={composerHidden}>
               <ExternalReplyComposer
@@ -649,10 +679,28 @@ const AgentConversationViewInner = ({
                 focusSignal={composerFocusSignal}
                 availability={replyAvailability}
                 editorReplacement={
-                  recoveryState.type !== "ready" &&
-                  recoveryState.type !== "loading" ? (
+                  composerRecoveryState.type === "continuation_offer" ||
+                  composerRecoveryState.type === "continuation_pending" ||
+                  composerRecoveryState.type === "continuation_failed" ||
+                  composerRecoveryState.type === "continuation_uncertain" ||
+                  composerRecoveryState.type ===
+                    "continuation_confirm_history" ? (
+                    <AgentSessionContinuationCard
+                      state={composerRecoveryState}
+                      controls={continuationRecovery.controls}
+                      selectedDestinationId={
+                        continuationRecovery.selectedDestinationId
+                      }
+                      onSelectDestination={
+                        continuationRecovery.selectDestination
+                      }
+                      pairingHref={continuationRecovery.pairingHref}
+                      machineNames={continuationRecovery.machineNames}
+                    />
+                  ) : composerRecoveryState.type !== "ready" &&
+                    composerRecoveryState.type !== "loading" ? (
                     <AgentBridgeRecoveryNotice
-                      state={recoveryState}
+                      state={composerRecoveryState}
                       presentation="composer"
                       onStartNewSession={
                         onCreateNewConversation

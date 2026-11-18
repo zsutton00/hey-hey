@@ -1,4 +1,3 @@
-import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Alert,
   Box,
@@ -10,6 +9,7 @@ import {
 } from "@mui/material";
 import { useState } from "react";
 import type { BrowserOrganizationSelectionDto } from "../../api";
+import { BrandedHeadline, BrandedWordmark } from "../BrandedFrame";
 import type { AccountDefaultOrganizationState } from "../../data/hooks/useAccountDefaultOrganization";
 
 export interface OrganizationHomeHeaderProps {
@@ -39,34 +39,39 @@ export function OrganizationHomeHeader({
     "preference" in defaultState &&
     defaultState.preference.organizationId === organization.id;
   return (
-    <Stack
-      data-testid="organization-home-header"
-      direction={{ xs: "column", sm: "row" }}
-      justifyContent="space-between"
-      spacing={3}
-      sx={{ mb: 4 }}
-    >
-      <Box sx={{ minWidth: 0 }}>
-        <Typography
-          component="h1"
-          variant="h3"
-          data-testid="organization-home-title"
-        >
-          Home
-        </Typography>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Typography
-            variant="h6"
-            sx={{ minWidth: 0, overflowWrap: "anywhere" }}
-            data-testid="organization-home-user-name"
-          >
-            Hello, {userName}
-          </Typography>
+    <Box sx={{ mb: 4 }}>
+      <BrandedWordmark sx={{ mb: "2rem", textAlign: "center" }}>
+        HEY HEY
+      </BrandedWordmark>
+      <Stack
+        data-testid="organization-home-header"
+        direction={{ xs: "column", md: "row" }}
+        justifyContent="space-between"
+        spacing={3}
+      >
+        <Box data-testid="organization-home-greeting" sx={{ minWidth: 0 }}>
+          <BrandedHeadline>
+            <Box
+              component="span"
+              sx={{ display: "block", overflowWrap: "anywhere" }}
+              data-testid="organization-home-user-name"
+            >
+              Hello, {userName}
+            </Box>
+          </BrandedHeadline>
           <Button
             size="small"
-            startIcon={<LogoutIcon fontSize="small" />}
             disabled={isLoggingOut}
             data-testid="organization-home-logout"
+            sx={{
+              mt: -1.5,
+              px: 0,
+              minWidth: 0,
+              color: "#3fa7b5",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
             onClick={() => {
               setIsLoggingOut(true);
               setLogoutError(null);
@@ -79,74 +84,82 @@ export function OrganizationHomeHeader({
                 });
             }}
           >
-            {isLoggingOut ? "Logging out…" : "Logout"}
+            {isLoggingOut ? "Logging out…" : "Log out"}
           </Button>
-        </Stack>
-        {logoutError && <Alert severity="error">{logoutError}</Alert>}
-      </Box>
-      <Stack spacing={1} sx={{ width: { xs: "100%", sm: 300 }, flexShrink: 0 }}>
-        <TextField
-          select
-          label="Organization"
-          value={organization.id}
-          disabled={
-            defaultState.status === "saving" || organizations.length < 2
-          }
-          data-testid="organization-home-organization-picker"
-          onChange={(event) => {
-            void onOrganizationChange(event.target.value).catch(
-              () => undefined
-            );
-          }}
+          {logoutError && <Alert severity="error">{logoutError}</Alert>}
+        </Box>
+        <Stack
+          spacing={1}
+          sx={{ width: { xs: "100%", md: 300 }, flexShrink: 0 }}
         >
-          {organizations.map((item) => (
-            <MenuItem
-              key={item.id}
-              value={item.id}
-              data-testid="organization-home-organization-option"
-              data-organization-id={item.id}
-            >
-              {item.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        {defaultState.status === "error" ? (
-          <Alert
-            severity="error"
-            action={
-              <Button data-testid="organization-home-retry-default" onClick={() => void onRetryDefault()}>Retry</Button>
-            }
-          >
-            {defaultState.message}
-          </Alert>
-        ) : (
-          <Button
-            data-testid="organization-home-set-default"
+          <TextField
+            select
+            label="Organization"
+            value={organization.id}
             disabled={
-              defaultState.status === "loading" ||
-              defaultState.status === "saving" ||
-              isDefault
+              defaultState.status === "saving" || organizations.length < 2
             }
-            onClick={() => void onSetDefault(organization.id)}
+            data-testid="organization-home-organization-picker"
+            onChange={(event) => {
+              void onOrganizationChange(event.target.value).catch(
+                () => undefined,
+              );
+            }}
           >
-            {defaultState.status === "loading"
-              ? "Loading default…"
-              : defaultState.status === "saving"
-              ? "Saving…"
-              : isDefault
-              ? "Default organization"
-              : "Set as default"}
-          </Button>
-        )}
-        {defaultState.status === "saved" && (
-          <Typography role="status" variant="body2">
-            Default organization saved.
-          </Typography>
-        )}
-        {defaultState.status === "save-error" && (
-          <Alert severity="error">{defaultState.message}</Alert>
-        )}
+            {organizations.map((item) => (
+              <MenuItem
+                key={item.id}
+                value={item.id}
+                data-testid="organization-home-organization-option"
+                data-organization-id={item.id}
+              >
+                {item.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          {defaultState.status === "error" ? (
+            <Alert
+              severity="error"
+              action={
+                <Button
+                  data-testid="organization-home-retry-default"
+                  onClick={() => void onRetryDefault()}
+                >
+                  Retry
+                </Button>
+              }
+            >
+              {defaultState.message}
+            </Alert>
+          ) : (
+            <Button
+              data-testid="organization-home-set-default"
+              disabled={
+                defaultState.status === "loading" ||
+                defaultState.status === "saving" ||
+                isDefault
+              }
+              onClick={() => void onSetDefault(organization.id)}
+            >
+              {defaultState.status === "loading"
+                ? "Loading default…"
+                : defaultState.status === "saving"
+                  ? "Saving…"
+                  : isDefault
+                    ? "Default organization"
+                    : "Set as default"}
+            </Button>
+          )}
+          {defaultState.status === "saved" && (
+            <Typography role="status" variant="body2">
+              Default organization saved.
+            </Typography>
+          )}
+          {defaultState.status === "save-error" && (
+            <Alert severity="error">{defaultState.message}</Alert>
+          )}
+        </Stack>
       </Stack>
-    </Stack>
+    </Box>
   );
 }

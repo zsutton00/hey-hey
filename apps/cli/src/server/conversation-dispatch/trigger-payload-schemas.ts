@@ -759,8 +759,23 @@ const startRunPayloadSchema = z
       .optional(),
     worktree: startRunWorktreePayloadSchema,
     agentSessionId: z.string().min(1, { message: 'agentSessionId must be a non-empty string' }),
+    // A continuation materializes the same Run without a Turn; it carries no authority.
+    continuation: z
+      .object({
+        continuationId: z.string().uuid(),
+        mode: z.enum(['NATIVE_RESUME', 'SAVED_HISTORY']),
+      })
+      .strict()
+      .optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.continuation !== undefined && data.triggersAgent !== false) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'a continuation start_run must be materialize-only (triggersAgent=false)',
+        path: ['continuation'],
+      });
+    }
     if (data.fastMode !== undefined && data.provider === LocalRunProvider.Opencode) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

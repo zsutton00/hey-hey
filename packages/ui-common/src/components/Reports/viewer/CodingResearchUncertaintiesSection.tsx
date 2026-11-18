@@ -1,11 +1,8 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Stack } from "@mui/material";
 import React from "react";
 import type { CodingResearchUncertainty } from "../../../api";
-import {
-  UNCERTAINTY_CATEGORY_LABELS,
-  UncertaintyItem,
-} from "../../Uncertainties";
-import { ReportEntityMention, ReportPanel } from "./reportPrimitives";
+import { UncertaintyItem } from "../../Uncertainties";
+import { ConversationCardRelatedRows } from "../../Conversation/Card";
 
 export interface CodingResearchUncertaintiesSectionProps {
   uncertainties: CodingResearchUncertainty[];
@@ -23,18 +20,15 @@ export const CodingResearchUncertaintiesSection: React.FC<
     ...new Set(uncertainties.map(({ category }) => category)),
   ];
   return (
-    <Paper
+    <Stack
       data-testid={`${reportTestId}-coding-research-uncertainties`}
-      sx={{ p: 1.5, backgroundColor: "action.hover" }}
-      variant="outlined"
+      sx={{ mt: 1 }}
     >
       <Stack spacing={1.25}>
-        <Typography variant="subtitle2">Open questions</Typography>
         {categories.map((category) => (
-          <ReportPanel
+          <Stack
             key={category}
-            testId={`${reportTestId}-coding-research-uncertainties-${category}`}
-            title={UNCERTAINTY_CATEGORY_LABELS[category]}
+            data-testid={`${reportTestId}-coding-research-uncertainties-${category}`}
           >
             <Stack spacing={1}>
               {uncertainties
@@ -48,22 +42,24 @@ export const CodingResearchUncertaintiesSection: React.FC<
                     statement={uncertainty.statement}
                     showAnswerBand={false}
                   >
-                    <Stack spacing={0.5}>
-                      {uncertainty.references.map((reference) => (
-                        <ReportEntityMention
-                          key={`${reference.entityType}-${reference.entityId}`}
-                          entityId={reference.entityId}
-                          entityName={reference.title}
-                          entityType={reference.entityType}
-                        />
-                      ))}
-                    </Stack>
+                    {uncertainty.references.length > 0 ? (
+                      <ConversationCardRelatedRows
+                        rows={uncertainty.references.map((reference) => ({
+                          key: `${reference.entityType}-${reference.entityId}`,
+                          mention: {
+                            entityType: reference.entityType,
+                            entityId: reference.entityId,
+                            entityName: reference.title,
+                          },
+                        }))}
+                      />
+                    ) : null}
                   </UncertaintyItem>
                 ))}
             </Stack>
-          </ReportPanel>
+          </Stack>
         ))}
       </Stack>
-    </Paper>
+    </Stack>
   );
 };

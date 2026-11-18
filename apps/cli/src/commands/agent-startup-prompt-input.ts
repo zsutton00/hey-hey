@@ -1,4 +1,5 @@
 import type { ReadRestriction, ReportDto } from '@hey-hey/contracts/api/models';
+import { isAxiosError } from 'axios';
 import { z } from 'zod';
 import { EntityPromptTemplatesApiFactory } from '@hey-hey/contracts/api';
 import {
@@ -124,8 +125,22 @@ export class AgentStartupPromptInputError extends Error {
   }
 }
 
-/** The failure's cause for the log line: error type and message only, never template or Context content. */
-const describeCause = (error: unknown): { causeName: string; causeMessage: string } => {
+/** The failure's cause for the log line: error type and message, plus HTTP status and the API's own reason; never template or Context content. */
+const describeCause = (
+  error: unknown,
+): { causeName: string; causeMessage: string; httpStatus?: number; apiMessage?: string } => {
+  if (isAxiosError(error)) {
+    const body: unknown = error.response?.data;
+    const apiMessage = z.object({ message: z.string() }).safeParse(body);
+
+    return {
+      causeName: error.name,
+      causeMessage: error.message,
+      ...(error.response ? { httpStatus: error.response.status } : {}),
+      ...(apiMessage.success ? { apiMessage: apiMessage.data.message } : {}),
+    };
+  }
+
   if (error instanceof Error) {
     return { causeName: error.name, causeMessage: error.message };
   }

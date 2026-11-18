@@ -103,6 +103,7 @@ export interface PresentationSources {
     | 'setIntentFirst'
     | 'setRemoteToolCallViewing'
     | 'setHeyHeyContextReminder'
+    | 'setPreciseFileChangeTracking'
     | 'setJevEnabled'
   >;
 }
@@ -428,6 +429,7 @@ export class PresentationOwner {
       'intent-first': this.options?.intentFirst,
       'remote-tool-call-viewing': this.options?.remoteToolCallViewing,
       'hey-hey-context-reminder': this.options?.heyHeyContextReminder,
+      'precise-file-change-tracking': this.options?.preciseFileChangeTracking,
       jev: this.options?.jevEnabled,
     }[row];
     if (!this.sources || current === null || current === undefined) {
@@ -447,6 +449,7 @@ export class PresentationOwner {
       'intent-first': () => options.setIntentFirst(!current),
       'remote-tool-call-viewing': () => options.setRemoteToolCallViewing(!current),
       'hey-hey-context-reminder': () => options.setHeyHeyContextReminder(!current),
+      'precise-file-change-tracking': () => options.setPreciseFileChangeTracking(!current),
       jev: () => options.setJevEnabled(!current),
     }[row]();
     void save.then(
@@ -736,7 +739,11 @@ export class PresentationOwner {
       if (choice.status === 'cancelled') {
         this.diagnosticExportResult = { kind: 'cancelled' };
       } else {
-        const result = await writeDiagnosticExport(snapshot, choice.path);
+        const result = await writeDiagnosticExport(
+          snapshot,
+          choice.path,
+          Boolean(this.dependencies.localApplication),
+        );
         if (!current()) return;
         this.diagnosticExportResult = { kind: 'success', ...result };
       }

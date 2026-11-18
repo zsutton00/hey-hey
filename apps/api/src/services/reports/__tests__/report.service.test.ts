@@ -13,6 +13,7 @@ import { Prisma } from '@prisma/client';
 import {
   CreateReportDto,
   UpdateReportDto,
+  type ImplementReportPayload,
   PlanReportPayload,
   FileTouchServiceHistorySortBy,
   FileTouchServiceHistorySortOrder,
@@ -616,6 +617,72 @@ describe('ReportService', () => {
     });
   });
 
+  it('pages project changes with all filters and resolves commit provenance on returned records', async () => {
+    const report = buildImplementReport({
+      id: 'change-1',
+      createdAt: new Date('2026-11-13T12:00:00Z'),
+      expiresAt: null,
+      reportEntities: [],
+    });
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([{ id: 'change-1' }, { id: 'next-page' }])
+      .mockResolvedValueOnce([
+        {
+          reportId: 'commit-1',
+          service: 'service-a',
+          hash: 'abc123',
+          branch: 'main',
+          implementReportId: 'change-1',
+        },
+      ]);
+    prisma.db.report.findMany.mockResolvedValue([report]);
+    const page = await service.listProjectChanges(
+      'org-1' as OrganizationId,
+      'project-1',
+      {
+        agentSessionId: 'session-1',
+        serviceId: 'service-a',
+        taskId: 'task-1',
+        featureId: 'feature-1',
+        committed: true,
+        limit: 1,
+        offset: 2,
+      },
+    );
+    expect(page.hasMore).toBe(true);
+    expect(page.records).toMatchObject([
+      {
+        report: { id: 'change-1', reportType: 'IMPLEMENT' },
+        commits: [{ hash: 'abc123' }],
+      },
+    ]);
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.values).toEqual(
+      expect.arrayContaining([
+        'org-1',
+        'project-1',
+        'session-1',
+        'service-a',
+        'task-1',
+        'feature-1',
+        2,
+      ]),
+    );
+    expect(query.sql).toContain('WITH RECURSIVE subtree');
+    expect(query.sql).toContain(
+      'ORDER BY reports.created_at DESC, reports.id DESC',
+    );
+    expect(prisma.db.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: 'org-1',
+          projectId: 'project-1',
+          id: { in: ['change-1'] },
+        }),
+      }),
+    );
+  });
+
   const buildImplementReport = (overrides: Partial<any> = {}) => ({
     id: 'report-implement-1',
     organizationId: 'org-1',
@@ -824,6 +891,49 @@ describe('ReportService', () => {
     expect(prisma.db.report.create).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses a COMMIT report after a lost response without publishing it twice', async () => {
+    const payload = {
+      reportType: 'COMMIT' as const,
+      summary: 'Committed canonical changes',
+      files: ['a.ts'],
+      hashes: [{ service: 'service-1', hash: 'abc1234', branch: 'main' }],
+    };
+    const stored = {
+      id: 'commit-report',
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      sourceExecutionId: 'run-1',
+      reportType: 'COMMIT',
+      audience: 'PROJECT_VISIBLE',
+      payload,
+      version: 1,
+      schemaVersion: 1,
+      ragEnabled: true,
+      parentReportId: null,
+      usage: null,
+      expiresAt: null,
+      createdAt: new Date(),
+      reportEntities: [],
+    };
+    prisma.db.report.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(stored);
+    prisma.db.report.create.mockResolvedValue(stored);
+    prisma.db.reportEntity.findMany.mockResolvedValue([]);
+    const dto = {
+      reportType: ReportType.Commit,
+      audience: ReportAudience.ProjectVisible,
+      projectId: 'project-1',
+      sourceExecutionId: 'run-1',
+      payload,
+    } satisfies CreateReportDto;
+    const first = await service.create('org-1' as OrganizationId, dto);
+    const retry = await service.create('org-1' as OrganizationId, dto);
+    expect(retry.id).toBe(first.id);
+    expect(prisma.db.report.create).toHaveBeenCalledTimes(1);
+    expect(prisma.db.$executeRaw).toHaveBeenCalledTimes(2);
+  });
+
   it('creates a report with entities and returns mapped dto', async () => {
     const createdAt = new Date('2026-02-16T22:30:00.000Z');
     const expiresAt = new Date('2026-03-18T22:30:00.000Z');
@@ -979,6 +1089,65 @@ describe('ReportService', () => {
       expect.objectContaining({
         data: expect.objectContaining({ payload }),
       }),
+    );
+    expect(created.payload).toEqual(payload);
+    expect(fetched.payload).toEqual(payload);
+  });
+
+  it('stores and returns IMPLEMENT edits unchanged', async () => {
+    const payload = {
+      reportType: 'IMPLEMENT',
+      summary: 'Recorded the turn edits for the next phase.',
+      filesChanged: ['src/a.ts'],
+      edits: [
+        {
+          path: 'src/a.ts',
+          occurredAt: '2026-11-09T00:00:00.000Z',
+          turnId: 'turn-1',
+          beforeObjectId: 'a'.repeat(40),
+          afterObjectId: 'b'.repeat(40),
+          beforeRanges: [{ startLine: 2, endLine: 2 }],
+          afterRanges: [{ startLine: 2, endLine: 3 }],
+          approximate: false,
+          versionsRecorded: true,
+        },
+      ],
+      decisions: [
+        {
+          topic: 'Storage',
+          choice: 'Git objects',
+          location: { file: 'src/a.ts', startLine: 2 },
+        },
+      ],
+    } satisfies ImplementReportPayload;
+    const persistedReport = {
+      id: 'implement-edits-report',
+      organizationId: 'org-1',
+      projectId: 'project-1',
+      reportType: 'IMPLEMENT',
+      audience: 'PROJECT_VISIBLE',
+      payload,
+      version: 1,
+      schemaVersion: 1,
+      sourceExecutionId: null,
+      parentReportId: null,
+      createdAt: new Date('2026-11-09T00:00:00.000Z'),
+      expiresAt: new Date('2026-12-09T00:00:00.000Z'),
+      reportEntities: [],
+    };
+    prisma.db.report.create.mockResolvedValue(persistedReport);
+    prisma.db.report.findFirst.mockResolvedValue(persistedReport);
+
+    const created = await service.create('org-1' as any, {
+      projectId: 'project-1',
+      reportType: ReportType.Implement,
+      audience: ReportAudience.ProjectVisible,
+      payload,
+    });
+    const fetched = await service.findOne('org-1' as any, created.id);
+
+    expect(prisma.db.report.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ payload }) }),
     );
     expect(created.payload).toEqual(payload);
     expect(fetched.payload).toEqual(payload);

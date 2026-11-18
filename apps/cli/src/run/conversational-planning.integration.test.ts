@@ -7,7 +7,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ClaudeCodeSdkClient } from '../agent-runtime/index';
 import { WorkItemTypesApi, ProjectsApi, AgentSessionsApi } from '@hey-hey/contracts/api';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
@@ -218,7 +217,68 @@ async function makeHarness(rejectFirstContext = false) {
     logger,
   });
   const repoStore = createTestRepoMappingStore();
-  const sessionRunnerFacade = createTestSessionRunnerFacade();
+  const prompts: string[] = [];
+  const planningTurn = async (prompt: string) => {
+    prompts.push(prompt);
+    expect(
+      ownership.submissionToolRegistry.getByRunId(RUN_ID)?.tools.map((tool) => tool.name),
+    ).toContain('emit_coding_plan');
+    // Replies 2 and 3 are discussion only; the first and last emit a plan.
+    if (prompts.length === 2 || prompts.length === 3) return providerResult();
+    const context = {
+      markdown:
+        '# Complete plan\n\nMake discussion replyable before approval. Keep exact agreed context and required Services.',
+      requiredServiceIds: [SERVICE_ID],
+      // The first version carries a discrepancy; the replacement drops it as moot.
+      discrepancies:
+        prompts.length === 1
+          ? [
+              {
+                sourceRef: { sourceType: 'task' as const, sourceId: TASK_ID },
+                sourceField: 'description',
+                sourceExcerpt: 'Approval is required before implementation.',
+                discrepancyText: 'The prior implementation accepts approval from text.',
+                reasoning: 'Retain explicit approval.',
+                severity: 'high' as const,
+                findingId: 'finding-approval-from-text',
+                category: 'implementation' as const,
+                disposition: 'open' as const,
+              },
+            ]
+          : [],
+    };
+    if (rejectFirstContext && prompts.length === 1)
+      await expect(callTool('emit_coding_plan', context)).rejects.toThrow(
+        'temporarily unavailable',
+      );
+    expect((await callTool('emit_coding_plan', context)).isError).not.toBe(true);
+    return providerResult();
+  };
+  // The planner is one provider session: the first reply mints it and later
+  // replies resume it, so the two entry points are recorded separately.
+  const providerResult = () => ({
+    providerSessionId: 'planner-provider',
+    providerConversationId: null,
+    errorCount: 0,
+  });
+  const runner = {
+    runPrompt: vi.fn(async (args: { prompt: string }) => {
+      const result = await planningTurn(args.prompt);
+      // The provider reports the session it minted, owned by the planner.
+      const persisted = await runStore.updateRunProviderIdentity(RUN_ID, {
+        providerSessionId: 'planner-provider',
+        providerSessionAgentId: 'startup_session',
+      });
+      run.refreshSessionFields({
+        provider_session_id: persisted.provider_session_id,
+        provider_session_agent_id: 'startup_session',
+      });
+      return result;
+    }),
+    resumeSession: vi.fn(async (args: { prompt?: string }) => planningTurn(args.prompt ?? '')),
+    getContextUsage: vi.fn(async () => ({ totalTokens: 0 })),
+  };
+  const sessionRunnerFacade = createTestSessionRunnerFacade(runner as never);
   const endpoint = new LocalAgentEndpoint();
   const childAgentLauncher = new ChildAgentLauncher({
     handlerDeps: createPromptTypeHandlerTestDeps(),
@@ -291,47 +351,6 @@ async function makeHarness(rejectFirstContext = false) {
     if (!rpc.result) throw new Error('Tool returned no result.');
     return rpc.result;
   };
-  const prompts: string[] = [];
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'onPermissionRequest').mockImplementation(() => {});
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'onEvent').mockImplementation(() => {});
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'getContextUsage').mockResolvedValue(null as never);
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'getSessionId').mockReturnValue('planner-provider');
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'disconnect').mockResolvedValue(undefined);
-  vi.spyOn(ClaudeCodeSdkClient.prototype, 'startSession').mockImplementation(async (config) => {
-    prompts.push(config.prompt);
-    expect(
-      ownership.submissionToolRegistry.getByRunId(RUN_ID)?.tools.map((tool) => tool.name),
-    ).toContain('emit_coding_plan');
-    if (prompts.length === 2 || prompts.length === 3) return undefined as never;
-    const context = {
-      markdown:
-        '# Complete plan\n\nMake discussion replyable before approval. Keep exact agreed context and required Services.',
-      requiredServiceIds: [SERVICE_ID],
-      // The first version carries a discrepancy; the replacement drops it as moot.
-      discrepancies:
-        prompts.length === 1
-          ? [
-              {
-                sourceRef: { sourceType: 'task' as const, sourceId: TASK_ID },
-                sourceField: 'description',
-                sourceExcerpt: 'Approval is required before implementation.',
-                discrepancyText: 'The prior implementation accepts approval from text.',
-                reasoning: 'Retain explicit approval.',
-                severity: 'high' as const,
-                findingId: 'finding-approval-from-text',
-                category: 'implementation' as const,
-                disposition: 'open' as const,
-              },
-            ]
-          : [],
-    };
-    if (rejectFirstContext && prompts.length === 1)
-      await expect(callTool('emit_coding_plan', context)).rejects.toThrow(
-        'temporarily unavailable',
-      );
-    expect((await callTool('emit_coding_plan', context)).isError).not.toBe(true);
-    return undefined as never;
-  });
   const service = new LocalAgentService({
     ...LOCAL_AGENT_SERVICE_TEST_DEPENDENCIES,
     capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
@@ -411,7 +430,7 @@ async function makeHarness(rejectFirstContext = false) {
       ),
     ).toEqual([]);
   };
-  return { run, prompts, messages, reply, poster, owner };
+  return { run, prompts, messages, reply, poster, owner, runner };
 }
 
 describe('conversational planning through admission, Run, Turn and mounted tools', () => {
@@ -425,12 +444,23 @@ describe('conversational planning through admission, Run, Turn and mounted tools
     ).toHaveLength(1);
     await harness.reply('Looks good, go ahead.');
     expect(harness.prompts).toHaveLength(4);
-    expect(harness.prompts[3]).toContain(
+    // One planner session: the first reply mints it with the full planning
+    // prompt and every later reply resumes it with just that reply.
+    expect(harness.runner.runPrompt).toHaveBeenCalledTimes(1);
+    expect(harness.runner.resumeSession).toHaveBeenCalledTimes(3);
+    expect(harness.prompts[0]).toContain(
       'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
     );
-    expect(harness.prompts[3]?.match(/Keep keyboard access\./g)).toHaveLength(1);
-    expect(harness.prompts[3]).toContain('Start the discussion.');
-    expect(harness.prompts[3]).toContain('Change only point E.');
+    expect(harness.prompts[0]).toContain('Start the discussion.');
+    for (const [index, reply] of [
+      'Keep keyboard access.',
+      'Change only point E.',
+      'Looks good, go ahead.',
+    ].entries()) {
+      const resumedPrompt = harness.prompts[index + 1];
+      expect(resumedPrompt?.startsWith(reply)).toBe(true);
+      expect(resumedPrompt).not.toContain('Only the explicit Approve control');
+    }
     expect(
       harness.messages.filter((row) => JSON.stringify(row).includes('coding_plan_version_v1')),
     ).toHaveLength(2);

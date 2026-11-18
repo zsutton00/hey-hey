@@ -1,7 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskMonitorInterventionSystemMessageData } from "../../../../api";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { TaskMonitorInterventionMessage } from "../TaskMonitorInterventionMessage";
+
+const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: HeyTheme });
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),

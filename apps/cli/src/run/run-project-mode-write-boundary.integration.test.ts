@@ -3,6 +3,8 @@ import { SubmissionToolsHttpController } from '../agents/submission-tools/http-m
 import { WorkItemTypesApi } from '@hey-hey/contracts/api';
 import { readActiveWorkItemTypeDefinitions } from '../agents/prompts/work-item-type-registry';
 import { reportChangedFilesTool } from '../agents/submission-tools/report-changed-files-tool';
+import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
+import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -397,6 +399,9 @@ const makeHarness = async (options: {
     localAgentEndpoint: new LocalAgentEndpoint(),
   });
 
+  const reportProxy = makeCreateReportProxy();
+  vi.mocked(reportProxy.create).mockResolvedValue({ reportId: 'implement-report', content: [] });
+  const reportTool = new CreateReportTool(reportProxy, undefined, logger);
   const createRun = (currentSession = session, hasProviderSession = false) =>
     new Run(
       {
@@ -426,6 +431,7 @@ const makeHarness = async (options: {
         runnerPicker,
         // Default runtime root: under os.tmpdir(), which is a symlink on macOS.
         projectModeBundleMaterializer: new ProjectModeBundleMaterializer(),
+        baseSubmissionTools: [reportTool],
         logger,
       },
     );

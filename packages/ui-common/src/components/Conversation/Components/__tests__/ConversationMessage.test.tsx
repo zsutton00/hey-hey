@@ -4,6 +4,7 @@ import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import type { ComponentProps } from "react";
+import type React from "react";
 import { ConversationMessage as ResolvedConversationMessage } from "../ConversationMessage";
 import { resolveConversationForm } from "../../utils/conversationResponseModel";
 
@@ -153,6 +154,11 @@ vi.mock("../../../Reports/reportConfig", async (importOriginal) => {
   };
 });
 
+const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+const renderThemed = (ui: React.ReactElement) =>
+  render(ui, { wrapper: HeyTheme });
 describe("ConversationMessage", () => {
   const mockProject: ProjectResponseDto = {
     id: "project-1",
@@ -1197,7 +1203,7 @@ describe("ConversationMessage", () => {
 
   describe("automated notices", () => {
     const renderSystemMessage = (data: Record<string, unknown>) =>
-      render(
+      renderThemed(
         <ConversationMessage
           conversationMessage={createMockConversationMessage({
             message: {
@@ -1237,6 +1243,10 @@ describe("ConversationMessage", () => {
 
       expect(screen.getByTestId("notice-caption-msg-1")).toHaveAttribute(
         "data-notice-severity",
+        "warning",
+      );
+      expect(screen.getByRole("status")).toHaveAttribute(
+        "data-severity",
         "warning",
       );
     });
@@ -1289,7 +1299,7 @@ describe("ConversationMessage", () => {
       },
     });
 
-    render(
+    renderThemed(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}
@@ -1330,7 +1340,7 @@ describe("ConversationMessage", () => {
       },
     });
 
-    render(
+    renderThemed(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}

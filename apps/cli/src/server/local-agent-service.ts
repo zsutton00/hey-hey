@@ -48,6 +48,8 @@ import type { SessionRunnerFacade } from './runtime/providers/select';
 import type { Run } from '../run/run';
 import type { AgentSkillCatalog } from '../agents/providers/agent-skills';
 import { resolveAgentProviderId } from '../agents/providers/provider-config';
+import type { AgenticSession } from '../session/types';
+import { listModels } from '../shared/runtime/components/AgentSession/capabilityCatalog';
 import { AgentSessionRunnerError } from '../agents/providers/session-runner';
 import type {
   WorkflowDispatchIdentity,
@@ -415,6 +417,21 @@ export class LocalAgentService {
 
   public listRunSkills(run: Run): Promise<AgentSkillCatalog> {
     return this.requireSessionRunnerFacade().listSkills(run);
+  }
+
+  /**
+   * Proves the provider accepts a resume of this Run's persisted provider
+   * session, in a throwaway process with no prompt, so no Turn runs and the
+   * transcript is unchanged.
+   */
+  public async resumeProviderSessionWithoutPrompt(session: AgenticSession): Promise<void> {
+    await this.requireSessionRunnerFacade().readContextUsageByResume(session);
+  }
+
+  /** Whether this computer's provider catalog reports at least one launchable model. */
+  public async isProviderAvailable(provider: string): Promise<boolean> {
+    await this.capabilityCatalog.settled();
+    return listModels(resolveAgentProviderId(provider)).length > 0;
   }
 
   private requireSessionRunnerFacade(): SessionRunnerFacade {

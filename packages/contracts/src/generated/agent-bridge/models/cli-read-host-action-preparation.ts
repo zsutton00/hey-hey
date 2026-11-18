@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentSessionContinuationInspectHostActionPreparation } from './agent-session-continuation-inspect-host-action-preparation.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSkillCatalogContext } from './agent-skill-catalog-context.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -32,4 +35,4 @@ import type { WorkspaceSkillsHostActionPreparation } from './workspace-skills-ho
  * Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
  * @export
  */
-export type CliReadHostActionPreparation = RuntimeModelCatalogHostActionPreparation | WorkspaceSkillsHostActionPreparation;
+export type CliReadHostActionPreparation = AgentSessionContinuationInspectHostActionPreparation | RuntimeModelCatalogHostActionPreparation | WorkspaceSkillsHostActionPreparation;

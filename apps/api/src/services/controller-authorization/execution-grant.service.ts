@@ -1,3 +1,8 @@
+import {
+  agentSessionMachineAdmission,
+  agentSessionTargetFailure,
+  isContinuationStart,
+} from '../agent-session-continuation/continuation-start';
 import { ControllerAuthorizationService } from './controller-authorization.service';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
@@ -13,12 +18,14 @@ import * as crypto from 'node:crypto';
 import {
   AdmissionEnvelopeAuthorization,
   RuntimeModelCatalogHostActionPreparation,
+  AgentSessionContinuationInspectHostActionPreparation,
   WorkspaceSkillsHostActionPreparation,
   CliReadWorkspaceSkillsListRequest,
   AgentSessionHostActionPreparation,
   ConversationHostActionPreparation,
   ControllerAssertionEvidence,
   ControllerAuthorizationCadence,
+  ControllerAuthorizationDenialReason,
   ExecutableControllerAssertionEvidence,
   ExecutableEnvelopeAuthorization,
   HostActionCategory,
@@ -189,6 +196,11 @@ export class ExecutionGrantService {
       userId: params.userId,
       conversationId: params.conversationId ?? params.targetId,
       requestedAgentSessionId: params.agentSessionId,
+      ...(isContinuationStart(action)
+        ? {
+            continuationId: action.inputs.payload.continuation.continuationId,
+          }
+        : {}),
     });
     this.assertExistingInteractiveGrant(
       authorization.grant,
@@ -334,6 +346,28 @@ export class ExecutionGrantService {
     envelopeAuthorization: ExecutableEnvelopeAuthorization;
   }> {
     return this.assertMachineCliReadAuthorized(params, {});
+  }
+
+  assertContinuationInspectionAuthorized(params: {
+    authorization: AdmissionEnvelopeAuthorization;
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    userId: UserId;
+    machineId: MachineId;
+    controllerBindingSecret: string | undefined;
+    agentSessionId: string;
+    continuationId: string;
+    expectedSourceMachineId: string;
+  }): Promise<{
+    action: AgentSessionContinuationInspectHostActionPreparation;
+    authorizationId: string;
+    envelopeAuthorization: ExecutableEnvelopeAuthorization;
+  }> {
+    return this.assertMachineCliReadAuthorized(params, {
+      agentSessionId: params.agentSessionId,
+      continuationId: params.continuationId,
+      expectedSourceMachineId: params.expectedSourceMachineId,
+    });
   }
 
   private async assertMachineCliReadAuthorized<
@@ -836,26 +870,44 @@ export class ExecutionGrantService {
     userId: UserId;
     conversationId: string;
     requestedAgentSessionId?: AgentSessionId;
+    /** An inspected continuation may authorize its destination before rebind. */
+    continuationId?: string;
   }): Promise<AgentSessionId> {
+    const owned = {
+      ...(params.requestedAgentSessionId
+        ? { id: params.requestedAgentSessionId }
+        : {}),
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      userId: params.userId,
+    } satisfies Prisma.AgentSessionWhereInput;
     const session = await this.prisma.db.agentSession.findFirst({
       where: {
-        ...(params.requestedAgentSessionId
-          ? { id: params.requestedAgentSessionId }
-          : {}),
-        conversationId: params.conversationId,
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        userId: params.userId,
-        OR: [
-          { machineId: params.authorization.machineId },
-          { machineId: null },
-        ],
+        ...owned,
+        ...agentSessionMachineAdmission(
+          params.authorization.machineId,
+          params.continuationId,
+        ),
       },
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (!session) {
-      this.deny('Authorization is not bound to an eligible Agent Session');
+      const failure = await agentSessionTargetFailure(
+        this.prisma.db,
+        owned,
+        params.continuationId,
+      );
+      this.logger.warn('Agent Session rejected at submission', {
+        ...failure,
+        agentSessionId: params.requestedAgentSessionId,
+        machineId: params.authorization.machineId,
+      });
+      this.deny(
+        ControllerAuthorizationDenialReason.TargetMismatch,
+        'agent_session_target_mismatch',
+      );
     }
     return session.id as AgentSessionId;
   }

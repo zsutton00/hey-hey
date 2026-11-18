@@ -11,6 +11,36 @@ beforeAll(async () => {
 afterEach(cleanup);
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 30));
 
+describe('setup progress detail', () => {
+  it('shows combined image download status under the active step', () => {
+    const { lastFrame } = render(
+      <LocalScreen
+        state={{
+          kind: 'progress',
+          steps: ['Local storage created'],
+          current: 'Downloading matching application images',
+          detail: {
+            kind: 'images',
+            bytesDone: 412_000_000,
+            bytesTotal: 1_100_000_000,
+            percent: 37,
+            layersDone: 14,
+            layersTotal: 41,
+          },
+          elapsedMs: 5000,
+        }}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(lastFrame()).toContain('412 MB of 1.1 GB (37%) · 14 of 41 layers done');
+    expect(lastFrame()).toContain('✓ Local storage created');
+  });
+});
+
 describe('local terminal states', () => {
   it.each([
     [{ kind: 'installation' }, 'Install and start', 'Cancel'],
@@ -205,4 +235,133 @@ it('renders the reviewed CLI version and exact image set and defaults an update 
   expect(view.lastFrame()).toContain('http://127.0.0.1:8765');
   expect(view.lastFrame()).toContain('custom reconnect');
   expect(view.lastFrame()).toContain('custom stop');
+});
+
+it('requires an explicit repair choice after disclosing that the selected VM stops other containers', async () => {
+  const confirm = vi.fn();
+  const cancel = vi.fn();
+  function Repair() {
+    const [selected, select] = useState(0);
+    return (
+      <LocalScreen
+        state={{
+          kind: 'docker-repair',
+          message: 'Docker refused the model mount.',
+          profile: 'work',
+        }}
+        selected={selected}
+        onSelect={select}
+        onConfirm={confirm}
+        onCancel={cancel}
+      />
+    );
+  }
+  const view = render(<Repair />);
+  await nextFrame();
+  expect(view.lastFrame()).toContain('profile work');
+  expect(view.lastFrame()).toContain('stops its other containers');
+  view.stdin.write('\r');
+  await nextFrame();
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(confirm).not.toHaveBeenCalled();
+  view.stdin.write('\u001B[B');
+  await nextFrame();
+  view.stdin.write('\r');
+  await nextFrame();
+  expect(confirm).toHaveBeenCalledOnce();
+});
+
+describe('troubleshooting prompt on screen', () => {
+  const prompt = {
+    text: [
+      '# Help me fix `heyhey local` setup',
+      ...Array.from({ length: 40 }, (_, i) => `evidence line ${i}`),
+    ].join('\n'),
+    headline: 'Failed while "Checking application readiness": HTTP_FAILURE (HTTP 409)',
+    savedPath: '/home/dev/.heyhey/local-application/diagnostics/troubleshooting-prompt.md',
+    saveFailure: null,
+  };
+
+  it('offers the prompt as a third choice after Retry and Exit', async () => {
+    const troubleshoot = vi.fn();
+    const confirm = vi.fn();
+    function Screen() {
+      const [selected, select] = useState(0);
+      return (
+        <LocalScreen
+          state={{ kind: 'recovery', message: 'Could not start.' }}
+          selected={selected}
+          onSelect={select}
+          onConfirm={confirm}
+          onCancel={vi.fn()}
+          onTroubleshoot={troubleshoot}
+        />
+      );
+    }
+    const view = render(<Screen />);
+    await nextFrame();
+    expect(view.lastFrame()).toContain('Get troubleshooting prompt');
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    view.stdin.write('\r');
+    await nextFrame();
+    expect(troubleshoot).toHaveBeenCalledOnce();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('shows the whole prompt, scrolls it, copies it and goes back', async () => {
+    const scroll = vi.fn();
+    const copy = vi.fn();
+    const cancel = vi.fn();
+    const state = {
+      kind: 'troubleshooting',
+      prompt,
+      notice: 'Clipboard unavailable (xclip: not installed). Saved to /home/dev/saved.md.',
+      offset: 0,
+      previous: { kind: 'recovery', message: 'Could not start.' },
+    } satisfies LocalState;
+    const view = render(
+      <LocalScreen
+        state={state}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={cancel}
+        onScroll={scroll}
+        onCopy={copy}
+      />,
+    );
+    await nextFrame();
+    expect(view.lastFrame()).toContain('HTTP_FAILURE (HTTP 409)');
+    expect(view.lastFrame()).toContain('Want help? Copy this');
+    expect(view.lastFrame()).toContain('# Help me fix `heyhey local` setup');
+    expect(view.lastFrame()).toContain('evidence line 0');
+    expect(view.lastFrame()).not.toContain('evidence line 39');
+    expect(view.lastFrame()).toContain('more line(s) below');
+    expect(view.lastFrame()).toContain('Clipboard unavailable (xclip: not installed)');
+    view.stdin.write('\u001B[B');
+    await nextFrame();
+    expect(scroll).toHaveBeenCalledWith(1);
+    view.stdin.write('c');
+    await nextFrame();
+    expect(copy).toHaveBeenCalledOnce();
+    view.stdin.write('\u001B');
+    await nextFrame();
+    await nextFrame();
+    expect(cancel).toHaveBeenCalledOnce();
+    view.rerender(
+      <LocalScreen
+        state={{ ...state, offset: 100, notice: null }}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={cancel}
+      />,
+    );
+    await nextFrame();
+    expect(view.lastFrame()).toContain('evidence line 39');
+    expect(view.lastFrame()).toContain(prompt.savedPath);
+  });
 });

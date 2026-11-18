@@ -286,6 +286,86 @@ describe('Run report chain seed', () => {
     ...overrides,
   });
 
+  it.each(['local-first', 'history-first'])(
+    'preserves local ownership and claims with overlapping history (%s)',
+    async (order) => {
+      const collaborators = makeCollaborators();
+      type LocalEvents = Awaited<ReturnType<typeof collaborators.runStore.readDurableRunEvents>>;
+      let finishLocal!: (events: LocalEvents) => void;
+      const local = new Promise<LocalEvents>((resolve) => {
+        finishLocal = resolve;
+      });
+      let finishHistory!: (entries: ReportChainEntry[]) => void;
+      const history = new Promise<ReportChainEntry[]>((resolve) => {
+        finishHistory = resolve;
+      });
+      vi.spyOn(collaborators.runStore, 'readDurableRunEvents').mockReturnValue(local);
+      const entries: ReportChainEntry[] = [
+        seedEntry({
+          phase: 'implement',
+          reportId: '11111111-1111-4111-8111-111111111111',
+          sourceRunId: 'run-1',
+          serviceId: 'svc-1',
+        }),
+        seedEntry({
+          phase: 'implement',
+          reportId: 'eligible',
+          sourceRunId: 'run-1',
+          serviceId: 'svc-1',
+        }),
+        seedEntry({
+          phase: 'implement',
+          reportId: 'commit',
+          reportType: 'COMMIT',
+          sourceRunId: 'run-1',
+          commitHashes: [
+            {
+              service: 'svc-1',
+              hash: 'abc',
+              branch: 'main',
+              implementReportIds: ['11111111-1111-4111-8111-111111111111'],
+            },
+          ],
+        }),
+      ];
+      const run = new Run(makeTaskRunArgs(), {
+        ...collaborators,
+        taskReportChainReader: createTestTaskReportChainReader(() => history),
+      });
+      const resolveLocal = () =>
+        finishLocal(
+          entries.map((entry, seq) => ({
+            schema_version: 1,
+            seq,
+            ts: entry.createdAt,
+            app_session_id: 'app-1',
+            run_id: 'run-1',
+            actor: 'app',
+            state_version: 0,
+            event_type: 'post_processed',
+            payload: {
+              kind: 'report_provenance',
+              record: JSON.stringify({ kind: 'entry', entry }),
+            },
+          })),
+        );
+      const resolveHistory = () =>
+        finishHistory(entries.map(({ sourceRunId, serviceId, commitHashes, ...entry }) => entry));
+      if (order === 'local-first') {
+        resolveLocal();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        resolveHistory();
+      } else {
+        resolveHistory();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        resolveLocal();
+      }
+      await run.ensureSeeded();
+      expect(run.readReportChain()).toEqual(entries);
+      run.cleanup();
+    },
+  );
+
   it('does not invoke the fetcher when taskId is null', async () => {
     const fetcher = vi.fn();
     const collaborators = makeCollaborators();

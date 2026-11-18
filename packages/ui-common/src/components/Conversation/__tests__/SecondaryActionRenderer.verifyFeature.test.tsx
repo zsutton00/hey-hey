@@ -1,6 +1,8 @@
+import { ThemeProvider } from "@mui/material";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { conversationKeys } from "../../../data/collections/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VerifyFeatureElement } from "../../../api";
@@ -168,42 +170,44 @@ const renderSuggestion = (
   conversation: ConversationResponseDto = loadedConversation([]),
 ) =>
   render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ConversationDecisions conversation={conversation}>
-          <VerificationRuntimeContext.Provider
-            value={{
-              parentAgentSessionId: "source-session",
-              machineId: "machine",
-              serviceIds: [],
-              launchServiceId: null,
-            }}
-          >
-            <VerifyFeatureField
-              config={{
-                field: field.id,
-                type: field.type,
-                description: field.label,
+    <ThemeProvider theme={createHeyTheme("light")}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <ConversationDecisions conversation={conversation}>
+            <VerificationRuntimeContext.Provider
+              value={{
+                parentAgentSessionId: "source-session",
+                machineId: "machine",
+                serviceIds: [],
+                launchServiceId: null,
               }}
-              value={field.payload}
-              context={context}
-              isSubmitted={false}
-              onChange={vi.fn()}
-            />
-            <SecondaryActionRenderer
-              action={action}
-              context={context}
-              trackUI={vi.fn()}
-              messageId={messageId}
-              handleNext={vi.fn()}
-              formValues={{}}
-              isSubmissionLocked={false}
-              uiElements={[field]}
-            />
-          </VerificationRuntimeContext.Provider>
-        </ConversationDecisions>
-      </MemoryRouter>
-    </QueryClientProvider>,
+            >
+              <VerifyFeatureField
+                config={{
+                  field: field.id,
+                  type: field.type,
+                  description: field.label,
+                }}
+                value={field.payload}
+                context={context}
+                isSubmitted={false}
+                onChange={vi.fn()}
+              />
+              <SecondaryActionRenderer
+                action={action}
+                context={context}
+                trackUI={vi.fn()}
+                messageId={messageId}
+                handleNext={vi.fn()}
+                formValues={{}}
+                isSubmissionLocked={false}
+                uiElements={[field]}
+              />
+            </VerificationRuntimeContext.Provider>
+          </ConversationDecisions>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
 
 const startedDecision = {
@@ -254,7 +258,7 @@ describe("Verify Feature remembers that it was started", () => {
     );
 
     const link = screen.getByTestId("verify-feature-started-link");
-    expect(link).toHaveTextContent("View session");
+    expect(link).toHaveTextContent("Verification started");
     expect(link).toHaveAttribute(
       "href",
       "/projects/project/sessions/stored-session",

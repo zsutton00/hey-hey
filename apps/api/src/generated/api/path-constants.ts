@@ -115,6 +115,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_PATH = '/o
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_SKELETON_PATH = '/organizations/{organizationId}/projects/{projectId}/features/skeleton';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_GOALS_ACTIVE_PATH = '/organizations/{organizationId}/projects/{projectId}/goals/active';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_CHANGES_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/changes';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_USAGE_TRENDS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/usage-trends';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_FILE_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-file';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_WORK_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-work';
@@ -144,6 +145,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_EDGES_AGENTED
 export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_EDIT_HISTORY_PATH = '/organizations/{organizationId}/initiatives/{initiativeId}/edit-history';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_MONITORID_MONITOR_COMMANDS_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/monitor-commands';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_EXECUTION_STATE_BATCH_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_REFERENCES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/references';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_TASKID_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{taskId}';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_WORKITEMID_GRAPH_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/graph';
@@ -375,6 +377,11 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGEN
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONVERSATION_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_SKILLS_PATH = '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_MACHINES_MACHINEID_MODEL_CATALOG_PATH = '/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/model-catalog';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONTINUATION_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuation';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONTINUATIONS_CONTINUATIONID_INSPECTION_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/inspection';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONTINUATIONS_CONTINUATIONID_COMMIT_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/commit';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONTINUATIONS_CONTINUATIONID_STARTUP_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/startup';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CONTINUATIONS_CONTINUATIONID_CANCEL_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/cancel';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_CLI_READS_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/cli-reads';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_STOP_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/stop';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_SESSIONS_AGENTSESSIONID_COMPACT_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/compact';

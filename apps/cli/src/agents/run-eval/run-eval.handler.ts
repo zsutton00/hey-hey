@@ -69,6 +69,7 @@ const runRecordedAttempts = async (
   const launcher = deps.childAgentLauncher;
   const ports: EvalRunnerPorts = {
     recorder,
+    logger: deps.logger,
     now: () => new Date(),
     async launchTarget(attempt, options) {
       if (!deps.evalAttemptExecution) {

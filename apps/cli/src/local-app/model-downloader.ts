@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import { join } from 'node:path';
 import { StructuredServerLogger } from '../server/logger';
+import type { DownloadDetail } from './pull-progress';
 
 export interface ModelFile {
   /** File name inside the model directory. */
@@ -45,7 +48,11 @@ export class ModelDownloader {
     private readonly baseUrl: string = ARCTIC_EMBED_S_BASE_URL,
   ) {}
 
-  async ensure(directory: string, progress: (action: string) => void): Promise<void> {
+  async ensure(
+    directory: string,
+    progress: (action: string) => void,
+    onDetail?: (detail: DownloadDetail | undefined) => void,
+  ): Promise<void> {
     await mkdir(directory, { recursive: true });
 
     for (const file of this.files) {
@@ -57,7 +64,11 @@ export class ModelDownloader {
       }
 
       progress(`Downloading ${file.name}`);
-      await this.download(file, target);
+      try {
+        await this.download(file, target, onDetail);
+      } finally {
+        onDetail?.(undefined);
+      }
     }
   }
 
@@ -72,7 +83,11 @@ export class ModelDownloader {
     }
   }
 
-  private async download(file: ModelFile, target: string): Promise<void> {
+  private async download(
+    file: ModelFile,
+    target: string,
+    onDetail?: (detail: DownloadDetail) => void,
+  ): Promise<void> {
     const url = `${this.baseUrl}/${file.path}`;
     const temporary = `${target}.${process.pid}.tmp`;
     this.logger.info('local.model.download_started', { file: file.name, url });
@@ -80,23 +95,46 @@ export class ModelDownloader {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
       }
 
-      const content = Buffer.from(await response.arrayBuffer());
-      const actual = sha256(content);
+      if (!response.body) {
+        throw new Error('the response has no body');
+      }
+      const declared = Number(response.headers.get('content-length'));
+      const bytesTotal = Number.isFinite(declared) && declared > 0 ? declared : null;
+      const hash = createHash('sha256');
+      let bytesDone = 0;
+      const reader = response.body.getReader();
+      async function* counted(): AsyncGenerator<Uint8Array> {
+        for (let next = await reader.read(); !next.done; next = await reader.read()) {
+          const chunk = next.value;
+          hash.update(chunk);
+          bytesDone += chunk.length;
+          onDetail?.({
+            kind: 'model',
+            label: file.name,
+            bytesDone,
+            bytesTotal,
+            percent: bytesTotal ? Math.min(100, Math.floor((bytesDone / bytesTotal) * 100)) : null,
+          });
+          yield chunk;
+        }
+      }
+      await pipeline(counted(), createWriteStream(temporary));
+
+      const actual = hash.digest('hex');
       if (actual !== file.sha256) {
         throw new Error(`checksum mismatch: expected ${file.sha256}, received ${actual}`);
       }
 
-      await writeFile(temporary, content);
       await rename(temporary, target);
-      this.logger.info('local.model.download_finished', { file: file.name, bytes: content.length });
+      this.logger.info('local.model.download_finished', { file: file.name, bytes: bytesDone });
     } catch (error) {
       await rm(temporary, { force: true });
       const cause = error instanceof Error ? error.message : String(error);
-      this.logger.error('local.model.download_failed', { file: file.name, url, cause });
-      throw new Error(`Could not download ${file.name} from ${url}: ${cause}`);
+      this.logger.error('local.model.download_failed', { file: file.name, error });
+      throw new Error(`Could not download ${file.name} from ${url}: ${cause}`, { cause: error });
     }
   }
 }

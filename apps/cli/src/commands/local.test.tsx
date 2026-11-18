@@ -1,3 +1,6 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
 import { MachineControllerAuthority } from '../auth/machine-controller-authority';
 import { OAuthClient } from '../auth/oauth-client';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -18,6 +21,14 @@ const fakeJwt = [
   Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString('base64url'),
   'signature',
 ].join('.');
+
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    homedir: () => join(actual.tmpdir(), `heyhey-local-command-home-${process.pid}`),
+  };
+});
 
 const mocks = vi.hoisted(() => ({ server: vi.fn() }));
 vi.mock('../local-app/local-application', () => ({
@@ -57,7 +68,8 @@ vi.mock('./pair-server', () => ({
   },
 }));
 
-afterEach(() => {
+afterEach(async () => {
+  await rm(homedir(), { recursive: true, force: true });
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -74,6 +86,7 @@ it.each([
   async ({ machineId, origin, rpId }) => {
     vi.stubEnv('HEYHEY_CONTROLLER_ORIGIN', origin);
     vi.stubEnv('HEYHEY_CONTROLLER_RP_ID', rpId);
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
     vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(machineId);
     vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
       success: true,
@@ -153,6 +166,7 @@ it.each([
 ])(
   'pairs an account whose passkey state is $accountHasPasskey $approves',
   async ({ accountHasPasskey }) => {
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
     vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(null);
     vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
       success: true,

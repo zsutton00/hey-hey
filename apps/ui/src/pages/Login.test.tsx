@@ -31,7 +31,7 @@ const LocationProbe = ({ label }: { label: string }) => {
 };
 
 const renderLogin = (
-  initialEntry: string | { pathname: string; state?: unknown }
+  initialEntry: string | { pathname: string; state?: unknown },
 ) =>
   render(
     <I18nextProvider i18n={i18n}>
@@ -49,13 +49,13 @@ const renderLogin = (
           />
         </Routes>
       </MemoryRouter>
-    </I18nextProvider>
+    </I18nextProvider>,
   );
 
 const submitLogin = async () => {
   const user = userEvent.setup();
 
-  await user.type(screen.getByLabelText(/Email Address/), "test@example.com");
+  await user.type(screen.getByLabelText(/Email address/), "test@example.com");
   await user.type(screen.getByLabelText(/Password/), "password123");
   await user.click(screen.getByRole("button", { name: "Sign In" }));
 };
@@ -96,7 +96,7 @@ describe("Login", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("current-location")).toHaveTextContent(
-        "feature:/projects/project-1/features/task-1?tab=docs#requirements"
+        "feature:/projects/project-1/features/task-1?tab=docs#requirements",
       );
     });
   });
@@ -108,7 +108,7 @@ describe("Login", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("current-location")).toHaveTextContent(
-        "home:/home"
+        "home:/home",
       );
     });
   });
@@ -127,7 +127,7 @@ describe("Login", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("current-location")).toHaveTextContent(
-        "home:/home"
+        "home:/home",
       );
     });
   });
@@ -152,18 +152,23 @@ describe("Login", () => {
     });
     expect(screen.queryByTestId("current-location")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Welcome Back" })
+      screen.getByRole("heading", { name: "Welcome Back" }),
     ).toBeInTheDocument();
   });
 
   it.each([
     { entry: "/login", destination: "home:/home" },
     {
-      entry: "/login?returnTo=%2Fprojects%2Fproject-1%2Ffeatures%2Ftask-1%3Ftab%3Ddocs%23requirements",
-      destination: "feature:/projects/project-1/features/task-1?tab=docs#requirements",
+      entry:
+        "/login?returnTo=%2Fprojects%2Fproject-1%2Ffeatures%2Ftask-1%3Ftab%3Ddocs%23requirements",
+      destination:
+        "feature:/projects/project-1/features/task-1?tab=docs#requirements",
     },
     {
-      entry: { pathname: "/login", state: { from: "https://example.com/phish" } },
+      entry: {
+        pathname: "/login",
+        state: { from: "https://example.com/phish" },
+      },
       destination: "home:/home",
     },
     {
@@ -181,27 +186,33 @@ describe("Login", () => {
           },
         },
       },
-      destination: "feature:/projects/project-1/features/task-1?tab=docs#requirements",
+      destination:
+        "feature:/projects/project-1/features/task-1?tab=docs#requirements",
     },
-  ])("takes signed-in users directly to $destination", async ({ entry, destination }) => {
-    useAuthMock.mockReturnValue({
-      ...useAuthMock(),
-      isAuthenticated: true,
-      user: { id: "user-1", email: "test@example.com" },
-    });
+  ])(
+    "takes signed-in users directly to $destination",
+    async ({ entry, destination }) => {
+      useAuthMock.mockReturnValue({
+        ...useAuthMock(),
+        isAuthenticated: true,
+        user: { id: "user-1", email: "test@example.com" },
+      });
 
-    renderLogin(entry);
+      renderLogin(entry);
 
-    expect(await screen.findByTestId("current-location")).toHaveTextContent(destination);
-    expect(screen.queryByText("Already Signed In")).not.toBeInTheDocument();
-    expect(login).not.toHaveBeenCalled();
-    expect(logout).not.toHaveBeenCalled();
-    expect(changeCurrentPassword).not.toHaveBeenCalled();
-  });
+      expect(await screen.findByTestId("current-location")).toHaveTextContent(
+        destination,
+      );
+      expect(screen.queryByText("Already Signed In")).not.toBeInTheDocument();
+      expect(login).not.toHaveBeenCalled();
+      expect(logout).not.toHaveBeenCalled();
+      expect(changeCurrentPassword).not.toHaveBeenCalled();
+    },
+  );
 
   it("requests recovery and renders the invariant acknowledgement", async () => {
     initiatePasswordRecovery.mockResolvedValue(
-      "If an eligible account exists, recovery instructions will be sent."
+      "If an eligible account exists, recovery instructions will be sent.",
     );
     renderLogin("/login");
     const user = userEvent.setup();
@@ -210,13 +221,33 @@ describe("Login", () => {
     expect(login).not.toHaveBeenCalled();
     await user.type(
       screen.getByTestId("password-recovery-email"),
-      "person@example.com"
+      "person@example.com",
     );
     await user.click(screen.getByTestId("password-recovery-submit"));
 
     expect(initiatePasswordRecovery).toHaveBeenCalledWith("person@example.com");
     expect(
-      await screen.findByTestId("password-recovery-acknowledgement")
+      await screen.findByTestId("password-recovery-acknowledgement"),
     ).toHaveTextContent("We've sent an email with recovery instructions");
+  });
+
+  it("separates the password and passkey actions only when passkeys are supported", () => {
+    vi.stubGlobal("PublicKeyCredential", class {});
+    vi.stubGlobal("navigator", { credentials: { get: vi.fn() } });
+    const { unmount } = renderLogin("/login");
+
+    expect(screen.getByRole("separator", { name: "or" })).toBeInTheDocument();
+    expect(screen.getByTestId("passkey-sign-in-button")).toBeInTheDocument();
+    unmount();
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal("PublicKeyCredential", undefined);
+    renderLogin("/login");
+
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("passkey-sign-in-button"),
+    ).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 });

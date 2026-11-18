@@ -6,10 +6,13 @@
  * late-bound construction seam is required.
  */
 
+import path from 'node:path';
+
 import {
   ClaudeAgentSessionRunner,
   requestClaudeUsageByControl,
 } from '../../../agents/providers/claude/session-runner-claude';
+import { ExecutionRecorder } from '../../../agents/providers/execution-recorder/execution-recorder';
 import { CodexAgentSessionRunner } from '../../../agents/providers/codex/session-runner-codex';
 import { OpenCodeAgentSessionRunner } from '../../../agents/providers/opencode/session-runner-opencode';
 import {
@@ -25,6 +28,7 @@ import {
 import type { SubmissionToolRegistry } from '../../../agents/submission-tools/registry';
 import type { OAuthClient } from '../../../auth/index';
 import type { RepoMappingStore } from '../../../repo/index';
+import { MachineOptionsStore } from '../../../options/machine-options-store';
 import type { Run } from '../../../run/run';
 import type { RunStore } from '../../../run-store/run-store';
 import type { ToolRuleStore } from '../../../session/tool-rules';
@@ -33,6 +37,7 @@ import type { LocalContextData } from '../../../shared/agent-bridge-contract/con
 import type { AgentSkillCatalog } from '../../../agents/providers/agent-skills';
 import type { UsageData } from '../../../agent-runtime/index';
 import { listModels } from '../../../shared/runtime/components/AgentSession/capabilityCatalog';
+import { resolveBaseDir } from '../../../session/paths';
 import type { LocalAgentEndpoint } from '../../local-base-url';
 import type { ServerLogger } from '../../logger';
 import type { AgentSessionReader } from '../../monitors/agent-session-reader';
@@ -53,6 +58,10 @@ export interface SessionRunnerFacadeDependencies {
   toolRuleStore: ToolRuleStore;
   /** Launches that name no model wait for the providers' first report. */
   capabilityCatalog: Pick<CatalogAvailability, 'settled'>;
+  /** Read once per Run, when its first prompt starts, to decide whether capture hooks are sent. */
+  machineOptionsStore?: Pick<MachineOptionsStore, 'isPreciseFileChangeTrackingEnabled'>;
+  /** Where hook-captured file versions are kept; defaults to the CLI's data directory. */
+  executionEvidenceDirectory?: string;
 }
 
 /**
@@ -70,15 +79,75 @@ export class SessionRunnerFacade {
     { providerId: AgentProviderId; runner: AgentSessionRunner }
   >();
 
-  public constructor(private readonly dependencies: SessionRunnerFacadeDependencies) {}
+  /** Runs whose provider hooks are sent, decided once when the Run's first prompt starts. */
+  private readonly preciseTrackingRuns = new Set<string>();
+  private readonly decidedRuns = new Set<string>();
+  private executionRecorder: ExecutionRecorder | null = null;
+  private readonly machineOptionsStore: Pick<
+    MachineOptionsStore,
+    'isPreciseFileChangeTrackingEnabled'
+  >;
+
+  public constructor(private readonly dependencies: SessionRunnerFacadeDependencies) {
+    this.machineOptionsStore = dependencies.machineOptionsStore ?? new MachineOptionsStore();
+  }
+
+  /**
+   * Reads the precise file change tracking option the first time a Run prompts, so a change
+   * applies to sessions started afterward and never mid-Run. A read failure leaves the Run
+   * approximate and says why; coding continues.
+   */
+  private async decidePreciseTracking(run: Run): Promise<void> {
+    if (this.decidedRuns.has(run.runId)) {
+      return;
+    }
+    this.decidedRuns.add(run.runId);
+    const providerId = resolveAgentProviderId(run.provider);
+    let enabled = false;
+    try {
+      enabled = await this.machineOptionsStore.isPreciseFileChangeTrackingEnabled();
+    } catch (error) {
+      this.dependencies.logger.warn('select.precise_tracking.option_unreadable', {
+        runId: run.runId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    if (!enabled) {
+      return;
+    }
+    if (providerId === 'opencode') {
+      this.dependencies.logger.info('select.precise_tracking.provider_without_hooks', {
+        runId: run.runId,
+        provider: providerId,
+        reason: 'OpenCode has no tool hooks, so its edits stay approximate',
+      });
+      return;
+    }
+    this.preciseTrackingRuns.add(run.runId);
+    // The runner picker calls forRun before the first prompt, so a runner cached without the
+    // recorder must be rebuilt now that this Run is known to want one.
+    this.runners.delete(run.runId);
+  }
+
+  private recorderFor(run: Run): ExecutionRecorder | undefined {
+    if (!this.preciseTrackingRuns.has(run.runId)) {
+      return undefined;
+    }
+    this.executionRecorder ??= new ExecutionRecorder(
+      this.dependencies.executionEvidenceDirectory ??
+        path.join(resolveBaseDir(), 'execution-evidence'),
+      this.dependencies.logger.child({ component: 'execution-capture' }),
+    );
+    return this.executionRecorder;
+  }
 
   public forRun(run: Run): AgentSessionRunner {
     const existing = this.runners.get(run.runId);
     const providerId = resolveAgentProviderId(run.provider);
     if (existing?.providerId === providerId) return existing.runner;
 
-    // Execution-evidence snapshots are disabled: provider hooks must not scan
-    // repository trees before tools or delay turn settlement for those scans.
+    // Provider hooks are sent only for a Run started with precise file change tracking on.
+    const executionRecorder = this.recorderFor(run);
     const common = {
       runStore: this.dependencies.runStore,
       repoStore: this.dependencies.repoStore,
@@ -92,11 +161,13 @@ export class SessionRunnerFacade {
     if (providerId === 'codex') {
       runner = new CodexAgentSessionRunner({
         ...common,
+        ...(executionRecorder ? { executionRecorder } : {}),
         logger: this.dependencies.logger.child({ component: 'runner.codex-mcp' }),
       });
     } else if (providerId === 'claude') {
       runner = new ClaudeAgentSessionRunner({
         ...common,
+        ...(executionRecorder ? { executionRecorder } : {}),
         toolRuleStore: this.dependencies.toolRuleStore,
         logger: this.dependencies.logger.child({ component: 'runner.claude' }),
       });
@@ -114,13 +185,16 @@ export class SessionRunnerFacade {
       runId: run.runId,
       provider: run.provider,
       providerId,
-      executionCaptureEnabled: false,
+      executionCaptureEnabled: executionRecorder !== undefined,
       cachedRunnerCount: this.runners.size,
     });
     return runner;
   }
 
   public forgetRun(runId: string): void {
+    this.executionRecorder?.releaseRun(runId);
+    this.preciseTrackingRuns.delete(runId);
+    this.decidedRuns.delete(runId);
     const forgotten = this.runners.delete(runId);
     this.dependencies.logger.debug('select.runner_cache.forgotten', {
       runId,
@@ -208,6 +282,7 @@ export class SessionRunnerFacade {
     run: Run,
     args: RunPromptArgs,
   ): Promise<Awaited<ReturnType<AgentSessionRunner['runPrompt']>>> {
+    await this.decidePreciseTracking(run);
     const runner = this.forRun(run);
     const named = args.model ?? args.session.model;
     let launch = args;
@@ -232,6 +307,7 @@ export class SessionRunnerFacade {
     run: Run,
     args: ResumeArgs,
   ): Promise<Awaited<ReturnType<AgentSessionRunner['resumeSession']>>> {
+    await this.decidePreciseTracking(run);
     const runner = this.forRun(run);
     if (args.skipPermissions !== undefined) {
       run.setTaskMonitorAutomationAuthorization(false);

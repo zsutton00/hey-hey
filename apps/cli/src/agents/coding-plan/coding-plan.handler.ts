@@ -24,54 +24,10 @@ import {
 } from './conversation-context';
 
 /**
- * Restricted MCP tool allowlist for the coding-plan subagent. The planner may
- * ground its plan in project state, read and maintain graph Hints, and persist
- * its conversation context. It may not mutate project structure or proposals.
- */
-export const CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
-  // Context / read
-  'get_context',
-  'get_full_entity',
-  'get_diagram',
-  'get_edges',
-  'get_tool_guidance',
-  'get_work_item_type_guidance_batch',
-  'get_future_revision',
-  'get_agent_sessions',
-  'get_report_body',
-  'get_report_schema',
-  'list_services',
-  // Search
-  'unified_search',
-  'get_entity_identities',
-  'task_search',
-  'plan_search',
-  'search_features',
-  'search_design_docs',
-  'get_hints_for_items',
-  'create_hint',
-  'add_hint_connection',
-  'delete_hint',
-];
-
-/**
- * Built-in Claude Code tools the planner uses to read the codebase.
- * `Write`/`Edit`/`Bash` are deliberately omitted — planning must not mutate
- * the working tree or run shell commands. `ToolSearch` loads deferred tool
- * schemas; it grants no permission to call them.
- */
-export const CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS: readonly string[] = [
-  'Read',
-  'Glob',
-  'Grep',
-  'ToolSearch',
-];
-
-/**
  * The startup-session payload enriched by `codingPlanHandler.prepare` with the
- * trigger's `recentUserReplies`. The subagent reads the replies off the
- * payload because the runtime SubAgent's `buildPrompt` call carries no
- * per-Turn context.
+ * trigger's `recentUserReplies`, the saved planning conversation and the
+ * selected-Service scope. `buildPrompt` reads them back off the payload; they
+ * are only rendered when the Run mints a fresh provider session.
  */
 export interface EnrichedCodingPlanPromptPayload extends LocalStartupSessionPromptPayload {
   _recentUserReplies?: ReadonlyArray<RecentUserReply>;
@@ -80,14 +36,12 @@ export interface EnrichedCodingPlanPromptPayload extends LocalStartupSessionProm
   _worktreeState?: LocalWorktreeStateByService;
   _planDesignDocReference?: LocalPromptDesignDocInput;
   /**
-   * Content of the `project_assistant` memo when one is present on the run.
-   * Carried on the payload because coding-plan is a subagent: `resolvePrompt`
-   * skips the memo-block prepend for subagent-owned flows (the
-   * `!isSubagentOwned` gate), so unlike provider_session handlers the memo is
-   * NOT already in the prompt and must be threaded through here and rendered by
-   * `buildCodingPlanPrompt`.
+   * Whether a `project_assistant` memo is present on the run. The memo content
+   * itself is already in the prompt: `resolvePrompt` auto-prepends the run's
+   * memos as a `## Context from prior phases` block when a provider session is
+   * minted, so the prompt builder only needs the flag to orient the planner.
    */
-  _researchMemo?: string;
+  _hasResearch?: boolean;
   _planningConversation?: string;
   /** True once the planning conversation holds a saved plan version. */
   _hasSavedPlanVersion?: boolean;
@@ -107,22 +61,28 @@ export const codingPlanHandler: CodingPlanHandler = {
     notifyDiscrepancies: false,
     workItemProposalMode: 'all',
   },
-  runnerKind: 'subagent',
+  // One planning conversation is one provider session: every refinement round
+  // resumes it and receives only the new reply. A session is minted only at a
+  // handoff between agents (Feature Sync in, Implement out), and then `prepare`
+  // and `buildPrompt` rebuild the full planning conversation from the saved
+  // messages so a fresh session starts from the same history.
+  runnerKind: 'provider_session',
+  // The planner reads the codebase and project graph; it never mutates either.
+  // Codex enforces read-only through its sandbox. Claude would otherwise add
+  // Bash to its read-only toolkit, so the built-in surface is declared
+  // explicitly. `ToolSearch` loads deferred tool schemas and grants no
+  // permission to call them.
   readOnlyFilesystem: true,
+  builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+  // The planning use case strips every proposal, edge and authoring-guidance
+  // tool from the coding base and keeps the hint tools. These two read tools
+  // were already part of the planner's surface.
+  mcpToolUseCase: 'planning',
+  additionalAllowedTools: ['get_agent_sessions', 'list_services'],
   providerSessionCountsForContext: true,
-  // A Coding Plan follow-up is a fresh planning round, even though the
-  // provider helper session remains isolated. Re-run prepare so selected
-  // Services, the launch anchor, worktree paths, and current feedback reach
-  // the new subagent prompt instead of forwarding only the raw user message.
-  rebuildPromptOnUserMessage: true,
   reports: [],
   excludedBaseSubmissionTools: ['create_report', 'raise_uncertainty'],
   submissionTools: [...codingPlanSubmissionTools],
-  subagentConfig: {
-    mcpAllowedTools: CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
-    builtinAllowedTools: CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS,
-    adapterId: 'claude-sdk-coding-plan-subagent',
-  },
 
   async prepare(run, payload, deps, ctx?: PromptTypeHandlerContext) {
     // The turn's user message — a composer reply, or the comments carried by
@@ -153,17 +113,16 @@ export const codingPlanHandler: CodingPlanHandler = {
       typeof run.contextMetadata.projectId === 'string' ? run.contextMetadata.projectId.trim() : '';
 
     // A Project Assistant pass runs ahead of this phase when the run is
-    // eligible. Because coding-plan is a subagent, `resolvePrompt` does NOT
-    // auto-prepend the run's memos (the `!isSubagentOwned` gate), so we
-    // carry the memo content on the payload and render it in the prompt builder.
-    const researchMemo = (run.memos ?? []).find(
+    // eligible; `resolvePrompt` auto-prepends its memo when a provider session
+    // is minted, so only the presence flag is carried on the payload.
+    const hasResearch = (run.memos ?? []).some(
       (memo) => memo.source === LocalPromptType.ProjectAssistant,
-    )?.content;
+    );
 
     deps.logger.debug('coding_plan.prepare.entry', {
       runId: run.agentic_session_id,
       recentUserReplyCount: recentUserReplies.length,
-      hasResearchMemo: Boolean(researchMemo),
+      hasResearch,
       turnPath,
       projectId,
       conversationId: run.conversationId,
@@ -227,7 +186,7 @@ export const codingPlanHandler: CodingPlanHandler = {
       ...(run.launchServiceId ? { _launchServiceId: run.launchServiceId } : {}),
       ...(run.worktreeState ? { _worktreeState: run.worktreeState } : {}),
       ...(planDesignDocReference ? { _planDesignDocReference: planDesignDocReference } : {}),
-      ...(researchMemo ? { _researchMemo: researchMemo } : {}),
+      ...(hasResearch ? { _hasResearch: true } : {}),
     });
 
     deps.logger.debug('coding_plan.prepare.run_entity_verified', {
@@ -256,7 +215,7 @@ export const codingPlanHandler: CodingPlanHandler = {
       ...(enriched._launchServiceId ? { launchServiceId: enriched._launchServiceId } : {}),
       ...(enriched._worktreeState ? { worktreeState: enriched._worktreeState } : {}),
       ...(ctx?.entity?.entityId ? { focalEntityId: ctx.entity.entityId } : {}),
-      ...(enriched._researchMemo ? { researchMemo: enriched._researchMemo } : {}),
+      ...(enriched._hasResearch ? { hasResearch: true } : {}),
       ...(enriched._planDesignDocReference
         ? { planDesignDocReference: enriched._planDesignDocReference }
         : {}),

@@ -1,4 +1,5 @@
-import { Alert, Box } from "@mui/material";
+import { Box } from "@mui/material";
+import { SolidAlert } from "../Card/SolidAlert";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { ConversationStatus } from "../../../api";
@@ -34,9 +35,11 @@ export const ConversationStatusIndicator: React.FC<ConversationStatusIndicatorPr
       <Box data-testid={dataTestId}>
         {/* Show error state */}
         {workflowStatus.status === "failed" && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {workflowStatus.message || t(KEYS.conversation.failed)}
-          </Alert>
+          <Box sx={{ mb: 3 }}>
+            <SolidAlert severity="error">
+              {workflowStatus.message || t(KEYS.conversation.failed)}
+            </SolidAlert>
+          </Box>
         )}
       </Box>
     );

@@ -647,6 +647,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispatch({ kind: 'back' });
@@ -665,6 +666,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
 
@@ -676,6 +678,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -691,6 +694,9 @@ describe('PresentationOwner', () => {
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       flushFrame();
       expect(owner.getSnapshot().optionsRow).toBe('hey-hey-context-reminder');
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
+      flushFrame();
+      expect(owner.getSnapshot().optionsRow).toBe('precise-file-change-tracking');
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       flushFrame();
       expect(owner.getSnapshot().optionsRow).toBe('jev');
@@ -714,6 +720,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: false,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -721,6 +728,7 @@ describe('PresentationOwner', () => {
 
     it('flips the Jev on its own row', async () => {
       const { owner, fake } = openOptions(false);
+      owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
       owner.dispatch({ kind: 'move-selection', delta: 1 });
@@ -734,6 +742,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: false,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -753,6 +762,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: true,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispose();
@@ -768,9 +778,9 @@ describe('PresentationOwner', () => {
       }
       created.owner.dispatch({ kind: 'activate-selection' });
       flushFrame();
-      created.owner.dispatch({ kind: 'move-selection', delta: 1 });
-      created.owner.dispatch({ kind: 'move-selection', delta: 1 });
-      created.owner.dispatch({ kind: 'move-selection', delta: 1 });
+      for (let step = 0; step < 4; step += 1) {
+        created.owner.dispatch({ kind: 'move-selection', delta: 1 });
+      }
       created.owner.dispatch({ kind: 'activate-selection' });
       await settle();
       expect(fake.setJevEnabled).not.toHaveBeenCalled();
@@ -803,6 +813,7 @@ describe('PresentationOwner', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       });
       owner.dispose();

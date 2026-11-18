@@ -209,6 +209,8 @@ export interface FieldComponentProps<
    */
   onSubmitValue?: (value: FormValue) => void;
   onValidityChange?: (validity: FieldValidity) => void;
+  /** Secondary actions DynamicForm places inside the field's own card. */
+  footerActions?: ReactNode;
 }
 
 export const PlanGapContinueRevisingHandler =

@@ -3,6 +3,7 @@ import {
   EvalAttemptStopReason,
   EvalMeasurementScope,
   type EvalAutomatedAssessment,
+  type EvalCaseCodingTarget,
   type EvalCheckDefinition,
   type EvalConfiguration,
   type EvalMeasurement,
@@ -354,6 +355,8 @@ export interface CodingResults {
   ended: boolean;
   /** Where the attempt started: the Service and the pinned commit. */
   startPoint: { serviceId: string; sha: string; shortMessage: string };
+  /** What the case is about, as recorded on the run; null when it names none. */
+  target: EvalCaseCodingTarget | null;
 }
 
 /** One Mockup checklist item and, once judged, whether the changes hit it. */
@@ -367,11 +370,10 @@ export interface ChecklistItemView {
 
 /** A coding case's Mockup checklist as judged for one attempt. */
 export interface ChecklistView {
-  kind: "NEW" | "UPDATE";
   items: ChecklistItemView[];
   /** Null until the judge answered. */
   hits: number | null;
-  /** What the change broke; null unless the case is an updated Mockup and judged. */
+  /** What the change broke; null unless the case changes an existing interface and is judged. */
   regressions: string[] | null;
 }
 
@@ -450,7 +452,6 @@ const checklistView = (
   });
 
   return {
-    kind: checklist.kind,
     items,
     hits: judged ? items.filter((item) => item.hit).length : null,
     regressions: judged ? (assessment?.regressions ?? null) : null,
@@ -526,6 +527,7 @@ export const caseRow = (
             sha: codingCase.pinnedCommit.sha,
             shortMessage: codingCase.pinnedCommit.shortMessage,
           },
+          target: codingCase.target ?? null,
         }
       : null,
     checklist: checklistView(codingCase?.mockupChecklist, assessment),

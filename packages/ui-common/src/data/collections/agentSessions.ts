@@ -40,6 +40,8 @@ export type PaginatedAgentSessionsFilters = {
   statuses?: AgentSessionStatus[];
   sort?: AgentSessionListSort;
   limit?: number;
+  /** Server-side, case-insensitive title substring. */
+  search?: string;
 };
 
 export interface PaginatedAgentSessionsPage {
@@ -287,6 +289,7 @@ export async function fetchPaginatedAgentSessions(
       status: normalizeStatuses(filters.statuses),
       sort: filters.sort,
       limit: filters.limit,
+      search: filters.search,
       cursor: cursor?.trim() || undefined,
     },
     requestOptions,

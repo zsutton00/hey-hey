@@ -19,10 +19,16 @@ const evalCaseCodingSchema: z.ZodType<EvalCaseCoding> = z
       .strict(),
     knownGoodDiff: nonEmpty.optional(),
     knownBadDiff: nonEmpty.optional(),
+    target: z
+      .object({
+        kind: z.enum(['NEW', 'EXISTING']),
+        path: nonEmpty.optional(),
+      })
+      .strict()
+      .optional(),
     mockupChecklist: z
       .object({
         mockupId: z.string().uuid(),
-        kind: z.enum(['NEW', 'UPDATE']),
         items: z
           .array(z.object({ id: nonEmpty, description: nonEmpty }).strict())
           .min(1)
@@ -35,7 +41,16 @@ const evalCaseCodingSchema: z.ZodType<EvalCaseCoding> = z
       .strict()
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (coding) =>
+      coding.mockupChecklist === undefined || coding.target !== undefined,
+    {
+      path: ['target'],
+      message:
+        'a case with a mockupChecklist must have a target saying whether it is NEW or EXISTING',
+    },
+  );
 
 export type EvalCaseCodingValidationResult =
   | { success: true; value: EvalCaseCoding; canonicalContent: string }

@@ -9,6 +9,7 @@ import type {
   EvalRunSettings,
 } from '@hey-hey/contracts/api/models';
 import type { SubAgentUsage } from '../../run/subagent';
+import type { ServerLogger } from '../../server/logger';
 
 /** What one target child produced. */
 export interface EvalTargetResult {
@@ -94,6 +95,8 @@ export interface EvalRunnerPorts {
     signal: AbortSignal,
   ): Promise<EvalJudgeResult>;
   now(): Date;
+  /** Records why an attempt ended in ERROR; the attempt record alone is not in the Run log. */
+  logger?: Pick<ServerLogger, 'warn'>;
 }
 
 export interface EvalRunTally {
@@ -163,6 +166,14 @@ export const runEvalAttempts = async (
         : null;
     const startedAt = ports.now();
     const measurements: EvalMeasurement[] = [];
+    const logAttemptError = (stage: string, error: unknown, code?: string): void => {
+      ports.logger?.warn('run_eval.attempt.errored', {
+        attemptId: attempt.attemptId,
+        stage,
+        ...(code ? { code } : {}),
+        error: errorMessage(error),
+      });
+    };
     const finish = async (patch: EvalAttemptPatch): Promise<void> => {
       await ports.recorder.updateAttempt(attempt.attemptId, {
         ...patch,
@@ -197,6 +208,7 @@ export const runEvalAttempts = async (
           await finish({ status: 'STOPPED', stopReason: stopped.reason, ...retained });
         } else {
           tally.errored += 1;
+          logAttemptError('target_failed', error);
           await finish({
             status: 'ERROR',
             error: { message: errorMessage(error) },
@@ -231,6 +243,12 @@ export const runEvalAttempts = async (
       }
       if (!target.assistantCompleted || !target.outputText) {
         tally.errored += 1;
+        ports.logger?.warn('run_eval.attempt.errored', {
+          attemptId: attempt.attemptId,
+          stage: 'target_incomplete',
+          assistantCompleted: target.assistantCompleted,
+          hasOutputText: Boolean(target.outputText),
+        });
         await finish({
           status: 'ERROR',
           error: { message: 'The target ended without a completed answer.' },
@@ -283,6 +301,7 @@ export const runEvalAttempts = async (
           await finish({ status: 'STOPPED', stopReason: stopped.reason, summary });
         } else {
           tally.errored += 1;
+          logAttemptError('judge', error, 'JUDGE_FAILED');
           await finish({
             status: 'ERROR',
             error: { code: 'JUDGE_FAILED', message: errorMessage(error) },
@@ -293,6 +312,7 @@ export const runEvalAttempts = async (
     } catch (error) {
       // A failed record write belongs to this attempt only; the others carry on.
       tally.errored += 1;
+      logAttemptError('record', error, 'RECORD_FAILED');
       await ports.recorder
         .updateAttempt(attempt.attemptId, {
           status: 'ERROR',

@@ -34,6 +34,12 @@ export interface VerifyFeaturePayload {
      */
     'feature': VerifyFeatureReference;
     /**
+     * One sentence naming the specific discrepancy, shown as the card\'s lead. The explanation carries the detail. Suggestions saved before the field existed have no lead.
+     * @type {string}
+     * @memberof VerifyFeaturePayload
+     */
+    'lead'?: string;
+    /**
      *
      * @type {string}
      * @memberof VerifyFeaturePayload

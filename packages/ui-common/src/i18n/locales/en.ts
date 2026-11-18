@@ -14,6 +14,14 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "projectNavigation.overview": "Overview",
+  "projectNavigation.sessions": "Sessions",
+  "projectNavigation.work": "Work",
+  "projectNavigation.proposals": "Proposals",
+  "projectNavigation.knowledge": "Knowledge",
+  "projectNavigation.settings": "Settings",
+  "projectNavigation.admin": "Admin",
+  "projectNavigation.help": "Help",
   "openItems.rename.action": "Rename",
   "openItems.rename.heading": "Rename conversation",
   "openItems.rename.title": "Conversation title",
@@ -46,6 +54,63 @@ export const en = {
   "proposals.existingPlan.resultUnavailable":
     "Adoption completed, but its Plan link is unavailable.",
   "proposals.existingPlan.approve": "Approve",
+  "changes.title": "Changes",
+  "changes.session": "Session",
+  "changes.service": "Service",
+  "changes.task": "Task",
+  "changes.feature": "Feature",
+  "changes.commitStatus": "Commit status",
+  "changes.all": "All",
+  "changes.committed": "Committed",
+  "changes.uncommitted": "Uncommitted",
+  "changes.approximate": "Approximate",
+  "changes.loading": "Loading\u2026",
+  "changes.loadFailed": "Unable to load changes.",
+  "changes.empty": "No changes match these filters.",
+  "changes.previous": "Previous",
+  "changes.next": "Next",
+  "changes.close": "Close",
+  "changes.contextUnavailable": "Context unavailable",
+  "changes.subtitle": "What coding agents changed, newest first",
+  "changes.exact": "Exact",
+  "changes.approximateHint": "Another change may have landed in the same lines",
+  "changes.versionsNotRecorded": "Versions not recorded",
+  "changes.pageRange": "{{from}}\u2013{{to}}",
+  "changes.viewSession": "View session",
+  "changes.commitHashTooltip": "Git commit hash: {{hash}}",
+  "changes.fileCount_one": "{{count}} file",
+  "changes.fileCount_other": "{{count}} files",
+  "changes.editCount_one": "{{count}} edit",
+  "changes.editCount_other": "{{count}} edits",
+  "changes.fileEditSummary": "{{files}}, {{edits}}",
+  "changes.clearSession": "Clear session filter",
+  "changes.sessionLoading": "Loading sessions…",
+  "changes.sessionNoResults": "No sessions match your search",
+  "changes.sessionLoadFailed": "Sessions could not be loaded.",
+  "changes.sessionLoadMoreFailed": "More sessions could not be loaded.",
+  "changes.sessionRetry": "Retry",
+  "changes.sessionLoadMore": "Load more sessions",
+  "changes.sessionLoadingMore": "Loading more sessions…",
+  "changes.sessionUnavailable": "Selected session unavailable",
+  "changes.clearService": "Clear Service filter",
+  "changes.clearTask": "Clear task filter",
+  "changes.clearFeature": "Clear feature filter",
+  "changes.retry": "Retry",
+  "changes.dialogContext":
+    "{{service}} \u00b7 Before \u2192 after this edit \u00b7 {{time}}",
+  "changes.dialogHeading": "This edit can't be shown right now.",
+  "changes.reason.offline":
+    "The computer that ran this session is offline. The record stays in the list; open it again once that computer is connected.",
+  "changes.reason.tooLarge": "This file is too large to show here.",
+  "changes.reason.versionsGone":
+    "The saved versions of this file can no longer be read on the computer that ran the session.",
+  "changes.reason.notInRecord":
+    "This edit is not part of the session's recorded changes.",
+  "changes.reason.denied":
+    "Access to the computer that ran this session was denied.",
+  "changes.reason.sessionUnavailable": "The session could not be loaded.",
+  "changes.reason.generic": "Something went wrong reading this edit.",
+
   "localLogin.title": "Welcome back",
   "localLogin.note": "Use your passkey to continue where you left off.",
   "localLogin.continuing": "Continuing where you left off…",
@@ -910,6 +975,7 @@ export const en = {
   [KEYS.auth.mustChangePassword]:
     "You must set a new password before continuing",
   [KEYS.auth.setNewPassword]: "Set New Password",
+  [KEYS.auth.or]: "OR",
 
   // Beta onboarding translations
   [KEYS.betaOnboarding.title]: "Beta User Onboarding",
@@ -1741,6 +1807,7 @@ export const en = {
   "eval.results.detail.noResult": "The judge hasn't assessed this attempt.",
   "eval.results.detail.openEvalCase": "Open the Eval Case",
   "eval.results.coding.startedFrom": "Started from {{service}} at {{sha}}",
+  "eval.results.coding.target": "Target",
   "eval.results.coding.changes": "Changes made",
   "eval.results.coding.savedNote": "Saved before the workspace was removed.",
   "eval.results.coding.noChanges": "The attempt changed no files.",
@@ -1754,6 +1821,23 @@ export const en = {
   "eval.results.coding.linesAdded": "+{{added}}",
   "eval.results.coding.showDiff": "Show diff",
   "eval.results.coding.hideDiff": "Hide diff",
+  "eval.results.coding.openOutput.button": "Open output",
+  "eval.results.coding.openOutput.none":
+    "Nothing to open: no changes were saved for this attempt.",
+  "eval.results.coding.openOutput.source": "{{service}} at {{sha}}",
+  "eval.results.coding.openOutput.opening.file": "open the file",
+  "eval.results.coding.openOutput.opening.directory": "opens at",
+  "eval.results.coding.openOutput.opening.unknown": "target",
+  "eval.results.coding.openOutput.noPatch":
+    "No text change in this attempt can be applied as a patch, so there is nothing to check out or apply.",
+  "eval.results.coding.openOutput.download": "Download {{name}}",
+  "eval.results.coding.openOutput.copy": "Copy commands",
+  "eval.results.coding.openOutput.note":
+    "Gives the files only. Run your own command to start the service or tests. Run these commands in a clone of the Service.",
+  "eval.results.coding.openOutput.binary":
+    "Binary files differ and will not apply, so they are not included: {{paths}}",
+  "eval.results.coding.openOutput.olderAttempts":
+    "Attempts saved before patches were kept whole may not apply cleanly.",
   "eval.results.coding.errorCell": "Error · {{message}}",
   "eval.results.coding.othersContinued": "Other attempts continued",
   "eval.case.coding.heading": "Coding",
@@ -1773,11 +1857,13 @@ export const en = {
   "eval.case.coding.checklist.heading": "Mockup checklist",
   "eval.case.coding.checklist.from": "From",
   "eval.case.coding.checklist.openMockup": "Open Mockup",
-  "eval.case.coding.checklist.kind.NEW": "new",
-  "eval.case.coding.checklist.kind.UPDATE": "update",
-  "eval.case.coding.checklist.note.NEW": "every control is checked.",
-  "eval.case.coding.checklist.note.UPDATE":
-    "only the changed parts are checked, and anything that used to work and now breaks is flagged.",
+  "eval.case.coding.target": "Target",
+  "eval.case.coding.target.kind.NEW": "New",
+  "eval.case.coding.target.kind.EXISTING": "Existing",
+  "eval.case.coding.target.checklistNote.NEW":
+    "Every control in the Mockup is checked.",
+  "eval.case.coding.target.checklistNote.EXISTING":
+    "Only the changed parts of the Mockup are checked, and anything that used to work and now breaks is flagged.",
   "eval.case.coding.invalid": "The Coding section can't be read.",
   "eval.case.inputs.invalid": "The Inputs section can't be read.",
   "eval.case.inputs.request": "Request",
@@ -1938,4 +2024,78 @@ export const en = {
   "admin.demo.template.repositoryHelp":
     "For example https://github.com/owner/repository",
   "admin.demo.template.save": "Set template",
+  "agentSession.continuation.title": "Your conversation can continue",
+  "agentSession.continuation.offer.body":
+    "The previous computer is no longer paired. Choose where to continue this conversation.",
+  "agentSession.continuation.offer.destinationLabel": "Computer",
+  "agentSession.continuation.offer.action": "Continue on {{name}}",
+  "agentSession.continuation.offer.checking": "Checking {{name}}…",
+  "agentSession.continuation.offer.continuing": "Continuing on {{name}}…",
+  "agentSession.continuation.unready.body":
+    "The previous computer is no longer paired. Your other paired computers need attention before they can continue this conversation.",
+  "agentSession.continuation.pair.body":
+    "The previous computer is no longer paired, and no other computer is paired yet. Your conversation is still available.",
+  "agentSession.continuation.pair.action": "Pair a computer to continue",
+  "agentSession.continuation.pair.note":
+    "After pairing you return to this conversation.",
+  "agentSession.continuation.savedHistory.title":
+    "Continue using saved history",
+  "agentSession.continuation.savedHistory.body":
+    "The original agent session isn’t available on this computer. Start a new agent session using this conversation’s saved history.",
+  "agentSession.continuation.savedHistory.confirm":
+    "Continue with saved history",
+  "agentSession.continuation.savedHistory.resumeRejected":
+    "The original agent session could not be resumed on this computer.",
+  "agentSession.continuation.attempt.failedBody":
+    "Continuing on {{name}} did not finish ({{code}}). Your conversation is still here, and you can try {{name}} again.",
+  "agentSession.continuation.attempt.retry": "Try again on {{name}}",
+  "agentSession.continuation.attempt.chooseAnother":
+    "Continue on another computer",
+  "agentSession.continuation.attempt.uncertainBody":
+    "{{name}} received this conversation but has not confirmed that its agent started. Checking again asks {{name}} for the result without starting a second agent.",
+  "agentSession.continuation.attempt.checkAgain": "Check again on {{name}}",
+  "agentSession.continuation.attempt.destinationUnready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.attempt.unnamed": "the selected computer",
+  "agentSession.continuation.failure.attempt_unresolved":
+    "An earlier continuation of this conversation is still unresolved. Resolve it first.",
+  "agentSession.continuation.cancel": "Cancel",
+  "agentSession.continuation.retry": "Retry",
+  "agentSession.continuation.pending.title": "Preparing this conversation",
+  "agentSession.continuation.pending.body":
+    "Waiting for {{name}} to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.pending.bodyUnnamed":
+    "Waiting for the selected computer to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.outcome.resumed":
+    "Continued on {{name}} with the original agent session.",
+  "agentSession.continuation.outcome.savedHistory":
+    "Continued on {{name}} from saved history. A new agent session starts with your next message.",
+  "agentSession.continuation.failure.binding_changed":
+    "This session’s computer changed while you were continuing. Review the current state and try again.",
+  "agentSession.continuation.failure.not_eligible":
+    "This session can no longer be continued on another computer.",
+  "agentSession.continuation.failure.destination_not_ready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.failure.authorization_denied":
+    "{{name}} did not authorize this continuation. Nothing was changed.",
+  "agentSession.continuation.failure.inspection_failed":
+    "{{name}} could not be checked. Nothing was changed.",
+  "agentSession.continuation.failure.ambiguous":
+    "Hey Hey could not confirm whether this step finished. Retry continues the same request without repeating it.",
+  "agentSession.continuation.reason.NO_LOCAL_RUN":
+    "This computer has no saved agent session for this conversation.",
+  "agentSession.continuation.reason.NO_PROVIDER_SESSION":
+    "This computer never started an agent session for this conversation.",
+  "agentSession.continuation.reason.PROVIDER_TRANSCRIPT_MISSING":
+    "The agent session’s saved data is no longer on this computer.",
+  "agentSession.continuation.reason.PROVIDER_MISMATCH":
+    "The agent session on this computer belongs to a different provider.",
+  "agentSession.continuation.reason.CONVERSATION_MISMATCH":
+    "The agent session on this computer belongs to a different conversation.",
+  "agentSession.continuation.reason.PROVIDER_RESUME_UNSUPPORTED":
+    "This provider’s saved sessions can’t be resumed here.",
+  "agentSession.continuation.reason.LOCAL_STATE_UNREADABLE":
+    "The agent session saved on this computer couldn’t be read.",
+  "agentSession.continuation.reason.PROVIDER_STATE_PRESENT":
+    "The original agent session is available on this computer.",
 } as const;

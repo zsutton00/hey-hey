@@ -32,6 +32,8 @@ export const MACHINE_ENROLLMENT_SESSION_ENDED =
   'MACHINE_ENROLLMENT_SESSION_ENDED' as const;
 export const MACHINE_ENROLLMENT_CLAIM_RATE_LIMITED =
   'MACHINE_ENROLLMENT_CLAIM_RATE_LIMITED' as const;
+export const MACHINE_ENROLLMENT_POLL_RATE_LIMITED =
+  'MACHINE_ENROLLMENT_POLL_RATE_LIMITED' as const;
 export const MACHINE_ENROLLMENT_AUTHENTICATION_FAILED =
   'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED' as const;
 export const MACHINE_ENROLLMENT_INVALID_TRANSITION =
@@ -60,6 +62,7 @@ export type PairingErrorCode =
   | typeof LEGACY_MACHINE_PAIRING_RETIRED
   | typeof INVALID_MACHINE_MATERIAL
   | typeof ENROLLMENT_CREATION_RATE_LIMITED
+  | typeof MACHINE_ENROLLMENT_POLL_RATE_LIMITED
   | typeof MACHINE_ENROLLMENT_CLAIM_RATE_LIMITED
   | typeof MACHINE_ENROLLMENT_AUTHENTICATION_FAILED
   | typeof MACHINE_ENROLLMENT_INVALID_TRANSITION;
@@ -197,5 +200,18 @@ export class MachineEnrollmentInvalidTransitionException extends ConflictExcepti
       message: 'Unable to transition this enrollment.',
       code: MACHINE_ENROLLMENT_INVALID_TRANSITION,
     });
+  }
+}
+
+export class MachineEnrollmentPollRateLimitException extends HttpException {
+  constructor(retryAfterSeconds: number) {
+    super(
+      {
+        code: MACHINE_ENROLLMENT_POLL_RATE_LIMITED,
+        message: 'Enrollment polled too soon.',
+        retryAfterSeconds,
+      } satisfies PairingExceptionPayload,
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 }

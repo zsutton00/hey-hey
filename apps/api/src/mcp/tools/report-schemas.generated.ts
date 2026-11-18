@@ -580,6 +580,16 @@ export const REPORT_SCHEMAS = {
                 required: ['service', 'hash', 'branch'],
                 additionalProperties: false,
                 properties: {
+                  implementReportIds: {
+                    type: 'array',
+                    uniqueItems: true,
+                    description:
+                      'Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports.',
+                    items: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                  },
                   service: {
                     type: 'string',
                     description:
@@ -2101,7 +2111,7 @@ export const REPORT_SCHEMAS = {
                     type: 'object',
                     additionalProperties: false,
                     description:
-                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run. A section with a `mockupChecklist` must also have a `target`.\n",
                     required: ['serviceId', 'pinnedCommit'],
                     properties: {
                       serviceId: {
@@ -2147,22 +2157,39 @@ export const REPORT_SCHEMAS = {
                         description:
                           'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
                       },
+                      target: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          "What a coding case is about: whether the work is a new screen or component or a change to an existing one, and optionally where it lives in the case's Service. For the judge and results viewer only; never passed to the evaluated attempt.\n",
+                        required: ['kind'],
+                        properties: {
+                          kind: {
+                            type: 'string',
+                            enum: ['NEW', 'EXISTING'],
+                            description:
+                              'NEW for a new screen or component; EXISTING for a change to one.',
+                          },
+                          path: {
+                            type: 'string',
+                            minLength: 1,
+                            description:
+                              "Path of the screen or component within the case's Service.",
+                          },
+                        },
+                      },
                       mockupChecklist: {
                         type: 'object',
                         additionalProperties: false,
                         description:
-                          'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
-                        required: ['mockupId', 'kind', 'items'],
+                          "What a coding case built from a Mockup is judged against. Whether the Mockup is new or a change to an existing interface comes from the Coding section's `target`, which is required when a checklist is present. For a new interface the items cover every control; for an existing one only the parts that changed.\n",
+                        required: ['mockupId', 'items'],
                         properties: {
                           mockupId: {
                             type: 'string',
                             format: 'uuid',
                             description:
                               "The source Mockup, which must be in the case's project.",
-                          },
-                          kind: {
-                            type: 'string',
-                            enum: ['NEW', 'UPDATE'],
                           },
                           items: {
                             type: 'array',
@@ -3056,7 +3083,7 @@ export const REPORT_SCHEMAS = {
                   items: {
                     type: 'object',
                     description:
-                      'One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence.\n',
+                      "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity's optional reason is display-only: it plays no part in group identity, target uniqueness or the user's response.\n",
                     required: [
                       'id',
                       'affectedEntities',
@@ -3073,28 +3100,45 @@ export const REPORT_SCHEMAS = {
                         type: 'array',
                         minItems: 1,
                         items: {
-                          type: 'object',
                           description:
-                            'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
-                          required: ['entityType', 'entityId', 'title'],
-                          properties: {
-                            entityType: {
-                              type: 'string',
+                            'An entity a V2 decision group affects: the source reference plus an optional one-line reason saying why the decision affects it. Display-only.\n',
+                          allOf: [
+                            {
+                              type: 'object',
                               description:
-                                'Kind of entity a FEATURE_SYNC discrepancy row points at.',
-                              enum: ['feature', 'task'],
+                                'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
+                              required: ['entityType', 'entityId', 'title'],
+                              properties: {
+                                entityType: {
+                                  type: 'string',
+                                  description:
+                                    'Kind of entity a FEATURE_SYNC discrepancy row points at.',
+                                  enum: ['feature', 'task'],
+                                },
+                                entityId: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                title: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'Human-readable title of the referenced entity (the `|title` half of the mention).',
+                                },
+                              },
                             },
-                            entityId: {
-                              type: 'string',
-                              minLength: 1,
+                            {
+                              type: 'object',
+                              properties: {
+                                reason: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'One-line, display-only explanation of why the decision affects this entity.\n',
+                                },
+                              },
                             },
-                            title: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Human-readable title of the referenced entity (the `|title` half of the mention).',
-                            },
-                          },
+                          ],
                         },
                       },
                       title: {
@@ -3343,10 +3387,122 @@ export const REPORT_SCHEMAS = {
             filesChanged: {
               type: 'array',
               description:
-                'Repo-relative paths of files modified during the run.',
+                'Repo-relative paths of files modified during the turn, derived from `edits`: the sorted unique paths. Kept for readers that only need which files changed.\n',
               items: {
                 type: 'string',
                 minLength: 1,
+              },
+            },
+            edits: {
+              type: 'array',
+              description:
+                "Every recorded edit to this report's Service during the turn, in the order they occurred. Built by the CLI from the Run's canonical file-change facts, never authored by the agent. Carries no file content: versions are git object ids kept in the repository that ran the session. Absent on reports written before edits were recorded.\n",
+              items: {
+                type: 'object',
+                description:
+                  "One recorded edit to a file. Line ranges are measured against the exact before and after versions, so later edits never invalidate them. Edits to one file form a chain: an edit whose `beforeObjectId` is another edit's `afterObjectId` came after it.\n",
+                required: [
+                  'path',
+                  'occurredAt',
+                  'turnId',
+                  'beforeObjectId',
+                  'afterObjectId',
+                  'beforeRanges',
+                  'afterRanges',
+                  'approximate',
+                  'versionsRecorded',
+                ],
+                properties: {
+                  path: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'Repo-relative path of the edited file.',
+                  },
+                  occurredAt: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'When the edit was recorded.',
+                  },
+                  turnId: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'The Turn that made the edit.',
+                  },
+                  beforeObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file before the edit. When `versionsRecorded` is true, null means the file did not exist before the edit.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  afterObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file after the edit. When `versionsRecorded` is true, null means the edit deleted the file.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  beforeRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the before version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  afterRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the after version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  approximate: {
+                    type: 'boolean',
+                    description:
+                      "True when Hey Hey could not establish that the ranges hold only this session's lines. Another session, a script or the person's editor may have changed the same file between the two versions, and the ranges then cover everything observed between them. Hey Hey currently reads each file only after the edit has run, so every edit is approximate.\n",
+                  },
+                  versionsRecorded: {
+                    type: 'boolean',
+                    description:
+                      "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
+                  },
+                },
               },
             },
             decisions: {
@@ -3377,7 +3533,7 @@ export const REPORT_SCHEMAS = {
                         type: 'string',
                         minLength: 1,
                         description:
-                          'Repo-relative path of the file the decision lives in.',
+                          "Repo-relative path of the file the decision lives in. It names a path in this report's `edits`.\n",
                       },
                       startLine: {
                         type: 'integer',

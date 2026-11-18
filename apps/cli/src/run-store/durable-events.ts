@@ -14,6 +14,7 @@ export type DurableJsonValue =
   | { readonly [key: string]: DurableJsonValue };
 
 type DurableEventKind =
+  | 'report_provenance'
   | 'run_started'
   | 'run_completed'
   | 'provider_identity_observed'
@@ -195,6 +196,7 @@ type DurableRunEventPayload =
       kind: 'diff';
       diff: DurableDiffFacts;
     }
+  | { kind: 'report_provenance'; record: string }
   | {
       kind: 'committed_outcome';
       effectId: string;
@@ -499,6 +501,7 @@ const payloadSchema = z.discriminatedUnion('kind', [
     .strict(),
   permissionDecisionSchema.extend({ kind: z.literal('permission_decision_recorded') }).strict(),
   z.object({ kind: z.literal('diff'), diff: diffFactsSchema }).strict(),
+  z.object({ kind: z.literal('report_provenance'), record: z.string() }).strict(),
   z
     .object({
       kind: z.literal('committed_outcome'),

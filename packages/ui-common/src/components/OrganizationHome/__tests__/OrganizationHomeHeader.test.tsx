@@ -26,15 +26,18 @@ describe("Home organization header", () => {
     input.onLogout = vi.fn().mockRejectedValue(new Error("Sign-out failed"));
     render(<OrganizationHomeHeader {...input} />);
 
-    const userName = screen.getByTestId("organization-home-user-name");
+    const greeting = screen.getByTestId("organization-home-greeting");
     const logoutButton = screen.getByTestId("organization-home-logout");
-    expect(userName.parentElement).toContainElement(logoutButton);
+    expect(greeting).toContainElement(
+      screen.getByTestId("organization-home-user-name"),
+    );
+    expect(greeting).toContainElement(logoutButton);
 
     await userEvent.click(logoutButton);
 
     expect(input.onLogout).toHaveBeenCalledOnce();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to log out. Please try again."
+      "Unable to log out. Please try again.",
     );
     expect(logoutButton).toBeEnabled();
   });
@@ -46,7 +49,7 @@ describe("Home organization header", () => {
       () =>
         new Promise<void>((resolve) => {
           resolveLogout = resolve;
-        })
+        }),
     );
     render(<OrganizationHomeHeader {...input} />);
 
@@ -59,7 +62,7 @@ describe("Home organization header", () => {
 
     resolveLogout?.();
 
-    expect(await screen.findByText("Logout")).toBeEnabled();
+    expect(await screen.findByText("Log out")).toBeEnabled();
   });
 
   it("keeps the confirmed choice until the host supplies confirmation and saves separately", async () => {
@@ -67,15 +70,15 @@ describe("Home organization header", () => {
     render(<OrganizationHomeHeader {...input} />);
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.click(
-      screen.getByRole("option", { name: "Second organization" })
+      screen.getByRole("option", { name: "Second organization" }),
     );
     expect(input.onOrganizationChange).toHaveBeenCalledWith("second");
     expect(screen.getByRole("combobox")).toHaveTextContent(
-      "First organization"
+      "First organization",
     );
     expect(input.onSetDefault).not.toHaveBeenCalled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Set as default" })
+      screen.getByRole("button", { name: "Set as default" }),
     );
     expect(input.onSetDefault).toHaveBeenCalledWith("first");
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -84,7 +87,10 @@ describe("Home organization header", () => {
   it("disables unknown and pending defaults, shows failure, then server-confirmed success", () => {
     const input = props();
     const { rerender } = render(
-      <OrganizationHomeHeader {...input} defaultState={{ status: "loading" }} />
+      <OrganizationHomeHeader
+        {...input}
+        defaultState={{ status: "loading" }}
+      />,
     );
     expect(screen.getByTestId("organization-home-set-default")).toBeDisabled();
     rerender(
@@ -94,7 +100,7 @@ describe("Home organization header", () => {
           status: "saving",
           preference: { organizationId: null },
         }}
-      />
+      />,
     );
     expect(screen.getByTestId("organization-home-set-default")).toBeDisabled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -106,7 +112,7 @@ describe("Home organization header", () => {
           preference: { organizationId: null },
           message: "Save denied",
         }}
-      />
+      />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("Save denied");
     expect(screen.getByTestId("organization-home-set-default")).toBeEnabled();
@@ -117,10 +123,10 @@ describe("Home organization header", () => {
           status: "saved",
           preference: { organizationId: "first" },
         }}
-      />
+      />,
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Default organization saved."
+      "Default organization saved.",
     );
     expect(screen.getByTestId("organization-home-set-default")).toBeDisabled();
   });

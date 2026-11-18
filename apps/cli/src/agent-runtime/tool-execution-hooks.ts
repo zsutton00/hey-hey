@@ -5,6 +5,8 @@ export interface ToolExecutionHookLaunch {
     readonly HEY_HEY_CAPTURE_URL: string;
     readonly HEY_HEY_CAPTURE_TOKEN: string;
   };
+  /** `key=value` config overrides the provider process is launched with (Codex reads hooks from config). */
+  readonly configOverrides?: readonly string[];
 }
 
 export interface ToolExecutionCommandHook {

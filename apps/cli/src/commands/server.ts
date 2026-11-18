@@ -31,6 +31,8 @@ export interface ServerCommandOptions {
    * containers are intentionally absent and only the infrastructure containers exist.
    */
   localApplicationServices?: readonly string[];
+  /** The installation's Compose project. Only `heyhey local dev` sets this; see `LocalWorkspace`. */
+  localApplicationProject?: string;
   onLocalApplicationStopping?: () => void;
   preferredPort?: number;
   enableDailySession?: boolean;
@@ -175,7 +177,7 @@ export class ServerCommand {
             `A coordinated update to CLI ${update.target.cliVersion} is pending. Run heyhey local with that release to finish it before connecting.`,
           );
         }
-        const docker = new DockerBoundary();
+        const docker = new DockerBoundary(undefined, undefined, options.localApplicationProject);
         const observed = await docker.inspect();
         assertObservedRelease(observed, options.localApplicationRelease);
         const expectedServices = options.localApplicationServices ?? Object.keys(SERVICE_IMAGES);

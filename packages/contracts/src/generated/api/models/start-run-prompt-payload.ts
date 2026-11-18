@@ -19,6 +19,9 @@
 import type { AgentSessionConfig } from './agent-session-config.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentSessionContinuationMarker } from './agent-session-continuation-marker.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSkillSelection } from './agent-skill-selection.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -42,6 +45,12 @@ import type { StartRunWorktree } from './start-run-worktree.js';
  * @interface StartRunPromptPayload
  */
 export interface StartRunPromptPayload {
+    /**
+     *
+     * @type {AgentSessionContinuationMarker}
+     * @memberof StartRunPromptPayload
+     */
+    'continuation'?: AgentSessionContinuationMarker;
     /**
      * Explicit replacement Run identity; the owning Agent Session is unchanged.
      * @type {string}

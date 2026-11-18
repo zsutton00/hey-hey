@@ -33,6 +33,8 @@ import type { AttachToGoal200Response } from '../models.js';
 // @ts-ignore
 import type { AttachToGoalDto } from '../models.js';
 // @ts-ignore
+import type { BatchReadWorkItemExecutionState200Response } from '../models.js';
+// @ts-ignore
 import type { CreateTaskDependencyDto } from '../models.js';
 // @ts-ignore
 import type { CreateTaskDto } from '../models.js';
@@ -74,6 +76,8 @@ import type { TaskSortDir } from '../models.js';
 import type { UpdateTaskDependencyDto } from '../models.js';
 // @ts-ignore
 import type { UpdateTaskDto } from '../models.js';
+// @ts-ignore
+import type { WorkItemExecutionStateBatchRequestDto } from '../models.js';
 // @ts-ignore
 import type { WorkItemGraphParticipationType } from '../models.js';
 // @ts-ignore
@@ -130,6 +134,54 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(attachToGoalDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Resolve the latest retained execution state for a bounded set of work-item identities in the requested project. Every requested identity gets one result in request order: RETAINED with the complete record and its freshness, or MISSING when no state is available. An identity outside the requested project is reported MISSING without disclosing whether it exists.
+         * @summary Read current execution state for work items
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {WorkItemExecutionStateBatchRequestDto} workItemExecutionStateBatchRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        batchReadWorkItemExecutionState: async (organizationId: string, projectId: string, workItemExecutionStateBatchRequestDto: WorkItemExecutionStateBatchRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('batchReadWorkItemExecutionState', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('batchReadWorkItemExecutionState', 'projectId', projectId)
+            // verify required parameter 'workItemExecutionStateBatchRequestDto' is not null or undefined
+            assertParamExists('batchReadWorkItemExecutionState', 'workItemExecutionStateBatchRequestDto', workItemExecutionStateBatchRequestDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(workItemExecutionStateBatchRequestDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -1205,6 +1257,21 @@ export const TasksApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Resolve the latest retained execution state for a bounded set of work-item identities in the requested project. Every requested identity gets one result in request order: RETAINED with the complete record and its freshness, or MISSING when no state is available. An identity outside the requested project is reported MISSING without disclosing whether it exists.
+         * @summary Read current execution state for work items
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {WorkItemExecutionStateBatchRequestDto} workItemExecutionStateBatchRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async batchReadWorkItemExecutionState(organizationId: string, projectId: string, workItemExecutionStateBatchRequestDto: WorkItemExecutionStateBatchRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<BatchReadWorkItemExecutionState200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.batchReadWorkItemExecutionState(organizationId, projectId, workItemExecutionStateBatchRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['TasksApi.batchReadWorkItemExecutionState']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Remove a `TRACKS` edge from a GOAL-typed task to the specified target entity. The boundary handler enforces that the source task is a GOAL.  Idempotent: detaching an entity that is not currently tracked succeeds silently and returns `deleted: false`.
          * @summary Detach an entity from a goal
          * @param {string} organizationId The ID of the organization that owns the goal.
@@ -1529,6 +1596,16 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
             return localVarFp.attachToGoal(requestParameters.organizationId, requestParameters.projectId, requestParameters.taskId, requestParameters.attachToGoalDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Resolve the latest retained execution state for a bounded set of work-item identities in the requested project. Every requested identity gets one result in request order: RETAINED with the complete record and its freshness, or MISSING when no state is available. An identity outside the requested project is reported MISSING without disclosing whether it exists.
+         * @summary Read current execution state for work items
+         * @param {TasksApiBatchReadWorkItemExecutionStateRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        batchReadWorkItemExecutionState(requestParameters: TasksApiBatchReadWorkItemExecutionStateRequest, options?: RawAxiosRequestConfig): AxiosPromise<BatchReadWorkItemExecutionState200Response> {
+            return localVarFp.batchReadWorkItemExecutionState(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemExecutionStateBatchRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Remove a `TRACKS` edge from a GOAL-typed task to the specified target entity. The boundary handler enforces that the source task is a GOAL.  Idempotent: detaching an entity that is not currently tracked succeeds silently and returns `deleted: false`.
          * @summary Detach an entity from a goal
          * @param {TasksApiDetachFromGoalRequest} requestParameters Request parameters.
@@ -1716,6 +1793,16 @@ export interface TasksApiInterface {
      * @memberof TasksApiInterface
      */
     attachToGoal(requestParameters: TasksApiAttachToGoalRequest, options?: RawAxiosRequestConfig): AxiosPromise<AttachToGoal200Response>;
+
+    /**
+     * Resolve the latest retained execution state for a bounded set of work-item identities in the requested project. Every requested identity gets one result in request order: RETAINED with the complete record and its freshness, or MISSING when no state is available. An identity outside the requested project is reported MISSING without disclosing whether it exists.
+     * @summary Read current execution state for work items
+     * @param {TasksApiBatchReadWorkItemExecutionStateRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApiInterface
+     */
+    batchReadWorkItemExecutionState(requestParameters: TasksApiBatchReadWorkItemExecutionStateRequest, options?: RawAxiosRequestConfig): AxiosPromise<BatchReadWorkItemExecutionState200Response>;
 
     /**
      * Remove a `TRACKS` edge from a GOAL-typed task to the specified target entity. The boundary handler enforces that the source task is a GOAL.  Idempotent: detaching an entity that is not currently tracked succeeds silently and returns `deleted: false`.
@@ -1922,6 +2009,34 @@ export interface TasksApiAttachToGoalRequest {
      * @memberof TasksApiAttachToGoal
      */
     readonly attachToGoalDto: AttachToGoalDto
+}
+
+/**
+ * Request parameters for batchReadWorkItemExecutionState operation in TasksApi.
+ * @export
+ * @interface TasksApiBatchReadWorkItemExecutionStateRequest
+ */
+export interface TasksApiBatchReadWorkItemExecutionStateRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof TasksApiBatchReadWorkItemExecutionState
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof TasksApiBatchReadWorkItemExecutionState
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {WorkItemExecutionStateBatchRequestDto}
+     * @memberof TasksApiBatchReadWorkItemExecutionState
+     */
+    readonly workItemExecutionStateBatchRequestDto: WorkItemExecutionStateBatchRequestDto
 }
 
 /**
@@ -2760,6 +2875,18 @@ export class TasksApi extends BaseAPI implements TasksApiInterface {
      */
     public attachToGoal(requestParameters: TasksApiAttachToGoalRequest, options?: RawAxiosRequestConfig) {
         return TasksApiFp(this.configuration).attachToGoal(requestParameters.organizationId, requestParameters.projectId, requestParameters.taskId, requestParameters.attachToGoalDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Resolve the latest retained execution state for a bounded set of work-item identities in the requested project. Every requested identity gets one result in request order: RETAINED with the complete record and its freshness, or MISSING when no state is available. An identity outside the requested project is reported MISSING without disclosing whether it exists.
+     * @summary Read current execution state for work items
+     * @param {TasksApiBatchReadWorkItemExecutionStateRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public batchReadWorkItemExecutionState(requestParameters: TasksApiBatchReadWorkItemExecutionStateRequest, options?: RawAxiosRequestConfig) {
+        return TasksApiFp(this.configuration).batchReadWorkItemExecutionState(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemExecutionStateBatchRequestDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

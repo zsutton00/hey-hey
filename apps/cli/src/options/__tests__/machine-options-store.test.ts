@@ -23,6 +23,21 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
+    });
+  });
+
+  it('keeps precise file change tracking off until it is turned on, and saves it with the others', async () => {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify({ version: 1, intentFirst: true }));
+    const store = new MachineOptionsStore({ filePath });
+    await expect(store.isPreciseFileChangeTrackingEnabled()).resolves.toBe(false);
+
+    await store.update({ preciseFileChangeTracking: true });
+
+    await expect(new MachineOptionsStore({ filePath }).read()).resolves.toMatchObject({
+      intentFirst: true,
+      preciseFileChangeTracking: true,
     });
   });
 
@@ -36,6 +51,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(true);
   });
@@ -50,6 +66,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     await expect(store.isRemoteToolCallViewingEnabled()).resolves.toBe(false);
   });
@@ -64,6 +81,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: false,
       jevEnabled: false,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     await expect(store.isJevEnabled()).resolves.toBe(false);
     await expect(new MachineOptionsStore({ filePath }).isJevEnabled()).resolves.toBe(false);
@@ -81,6 +99,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
   });
 
@@ -95,6 +114,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     expect(JSON.parse(await fs.readFile(filePath, 'utf8'))).toEqual({
       version: 1,
@@ -102,6 +122,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
   });
 
@@ -136,6 +157,7 @@ describe('MachineOptionsStore', () => {
       remoteToolCallViewing: true,
       jevEnabled: false,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
   });
 

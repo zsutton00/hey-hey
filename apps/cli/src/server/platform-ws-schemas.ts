@@ -12,6 +12,10 @@
  */
 
 import { z } from 'zod';
+import {
+  WorkItemExecutionStateObservationReceiptCodeEnum,
+  WorkItemExecutionStateObservationReceiptOutcomeEnum,
+} from '@hey-hey/contracts/api/models';
 
 import {
   WebSocketConversationUpdatedEventChangeTypeEnum,
@@ -129,3 +133,14 @@ export const PLATFORM_WS_NON_TRIGGER_SCHEMAS = {
 } as const;
 
 type PlatformWsNonTriggerEventType = keyof typeof PLATFORM_WS_NON_TRIGGER_SCHEMAS;
+
+/** Acknowledgement of one `work_item.execution_state_observed` report. */
+export const workItemExecutionStateReceiptSchema = z
+  .object({
+    workItemId: z.string().uuid(),
+    sourceRevision: z.number().int().nonnegative(),
+    outcome: z.nativeEnum(WorkItemExecutionStateObservationReceiptOutcomeEnum),
+    code: z.nativeEnum(WorkItemExecutionStateObservationReceiptCodeEnum).optional(),
+    revision: z.number().int().positive().optional(),
+  })
+  .strict();

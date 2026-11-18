@@ -88,6 +88,9 @@ try {
   run(process.execPath, ['scripts/generate-private-beta-access-schema.js']);
   run(process.execPath, ['scripts/generate-demo-sandbox-schema.js']);
   run(process.execPath, ['scripts/generate-open-items-schemas.js']);
+  run(process.execPath, [
+    'scripts/generate-work-item-execution-state-schema.js',
+  ]);
   run(process.execPath, ['scripts/generate-workflow-review-schemas.js']);
   run(process.execPath, ['scripts/generate-diagram-schemas.js']);
   run(process.execPath, [

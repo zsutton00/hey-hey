@@ -579,6 +579,54 @@ paths:
         "503":
           $ref: "#/components/responses/RunChangedFileDetailFailure"
 
+  /runs/{runId}/recorded-edits/read:
+    post:
+      tags:
+        - RunChangedFileDetail
+      summary: Read the stored before and after versions of one recorded edit
+      description: >
+        Returns the same outcome as the remote `run.recorded_edit.read` CLI read
+        when the submitted paired-machine identity identifies this CLI. Only
+        versions retained for this Run in the Service's repository are read;
+        the working tree is never read.
+      operationId: readLocalRunRecordedEdit
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunRecordedEditRequest"
+      responses:
+        "200":
+          description: The before and after content of the recorded edit.
+          content:
+            application/json:
+              schema:
+                $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
+        "400":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "403":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "404":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "409":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "413":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "422":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "500":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "503":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+
   /runs/{runId}/walkthrough/source:
     post:
       operationId: resolveWalkthroughSource
@@ -722,6 +770,13 @@ components:
         application/json:
           schema:
             $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+
+    RunRecordedEditFailure:
+      description: The local recorded-edit read was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
 
     RunChangedFilesInventoryFailure:
       description: The local inventory request was rejected or could not be completed.
@@ -1104,6 +1159,22 @@ components:
           $ref: "#/components/schemas/LocalMachineId"
         file:
           $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileIdentity"
+
+    LocalRunRecordedEditRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - serviceId
+        - edit
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
 
     LocalWalkthroughSourceRequest:
       type: object

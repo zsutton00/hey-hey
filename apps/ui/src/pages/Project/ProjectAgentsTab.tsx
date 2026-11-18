@@ -16,10 +16,12 @@ import {
 import { buildPlanTaskMonitorPath } from "../Plan/planSessionRoutes";
 import { ProjectWorkItemsTab } from "../../components/Tabs/ProjectWorkItemsTab";
 import { selectProjectEvalType } from "./projectEvalDiscovery";
+import { ChangesView } from "../Changes/ChangesView";
 import { CostsView, UsageTrendsView, UsageView } from "./views";
 
 const projectAgentsViews = [
   "agent-sessions",
+  "changes",
   "conversations",
   "automation",
   "evals",
@@ -31,6 +33,7 @@ type ProjectAgentsView = (typeof projectAgentsViews)[number];
 
 const projectAgentsSegments: readonly Segment<ProjectAgentsView>[] = [
   { value: "agent-sessions", label: "Agent Sessions" },
+  { value: "changes", label: "Changes" },
   { value: "conversations", label: "Conversations" },
   { value: "automation", label: "Automation" },
   { value: "costs", label: "Costs" },
@@ -57,9 +60,9 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
   const segments: readonly Segment<ProjectAgentsView>[] =
     evalType && evalsLabel
       ? [
-          ...projectAgentsSegments.slice(0, 3),
+          ...projectAgentsSegments.slice(0, 4),
           { value: "evals", label: evalsLabel },
-          ...projectAgentsSegments.slice(3),
+          ...projectAgentsSegments.slice(4),
         ]
       : projectAgentsSegments;
   const [agentsView, setAgentsView] = useQueryState(
@@ -105,6 +108,9 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
           organizationId={organizationId}
           projectId={projectId}
         />
+      )}
+      {displayedView === "changes" && (
+        <ChangesView organizationId={organizationId} projectId={projectId} />
       )}
       {displayedView === "conversations" && (
         <PaginatedSessionFeed

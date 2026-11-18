@@ -73,11 +73,6 @@ export interface FileChangeProjection {
   repoRelativePath: string;
 }
 
-export interface ServiceFileChangeProjection {
-  serviceId: string;
-  filesChanged: string[];
-}
-
 export const canonicalFileChangeKey = (serviceId: string, repoRelativePath: string): string =>
   `${serviceId}\u0000${repoRelativePath.split(path.sep).join('/')}`;
 
@@ -434,23 +429,30 @@ export const projectFileChanges = (
   return projection;
 };
 
-export const groupFileChangeProjectionsByService = (
-  projections: readonly FileChangeProjection[],
-): ServiceFileChangeProjection[] => {
-  const byService = new Map<string, Set<string>>();
-  for (const projection of projections) {
-    const serviceFiles = byService.get(projection.serviceId) ?? new Set<string>();
-    serviceFiles.add(projection.repoRelativePath);
-    byService.set(projection.serviceId, serviceFiles);
+export const liveFileProjection = (
+  projection: FileChangeProjection[],
+  facts: readonly CanonicalFileChangeFact[],
+  committed: AgenticSession['committedFileVersions'],
+): FileChangeProjection[] => {
+  if (!committed) {
+    return projection;
   }
-  return [...byService.entries()]
-    .map(([serviceId, files]) => ({
-      serviceId,
-      filesChanged: [...files].sort(),
-    }))
-    .filter((entry) => entry.filesChanged.length > 0)
-    .sort((left, right) => left.serviceId.localeCompare(right.serviceId));
+  const versions = fileChangeVersions(facts);
+  return projection.filter(({ serviceId, repoRelativePath }) => {
+    const key = canonicalFileChangeKey(serviceId, repoRelativePath);
+    return committed[key] !== (versions.get(key) ?? null);
+  });
 };
+
+export const fileChangeVersions = (
+  facts: readonly CanonicalFileChangeFact[],
+): Map<string, string> =>
+  new Map(
+    facts.map((fact) => [
+      canonicalFileChangeKey(fact.serviceId, fact.repoRelativePath),
+      fact.factId,
+    ]),
+  );
 
 export const latestFileChangeFacts = (
   facts: readonly CanonicalFileChangeFact[],
@@ -481,7 +483,13 @@ export const extractFilePathsFromToolInput = (
   input: Record<string, unknown>,
 ): string[] => {
   if (!isFileChangingTool(toolName)) return [];
-  const candidates = [input['file_path'], input['filePath'], input['path'], input['file']];
+  const candidates = [
+    input['file_path'],
+    input['filePath'],
+    input['notebook_path'],
+    input['path'],
+    input['file'],
+  ];
   const paths = candidates.filter((value): value is string => typeof value === 'string');
   const edits = input['edits'];
   if (Array.isArray(edits)) {
@@ -492,5 +500,16 @@ export const extractFilePathsFromToolInput = (
       if (typeof value === 'string') paths.push(value);
     }
   }
+  if (toolName.trim().toLowerCase() === 'apply_patch') {
+    for (const value of Object.values(input)) {
+      if (typeof value === 'string') paths.push(...applyPatchPaths(value));
+    }
+  }
   return [...new Set(paths.map((value) => value.trim()).filter(Boolean))];
 };
+
+const APPLY_PATCH_FILE_HEADER = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm;
+
+/** The files an apply_patch envelope names in its `*** Add/Update/Delete File:` and `*** Move to:` headers. */
+const applyPatchPaths = (patch: string): string[] =>
+  [...patch.matchAll(APPLY_PATCH_FILE_HEADER)].map((match) => match[1]!);

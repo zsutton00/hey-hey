@@ -219,9 +219,6 @@ export const makeTestRun = (
         }))),
   );
   vi.spyOn(run, 'readReportChain').mockImplementation(overrides?.readReportChain ?? (() => []));
-  vi.spyOn(run, 'logImplementReportValidation').mockImplementation(
-    overrides?.logImplementReportValidation ?? (() => {}),
-  );
   vi.spyOn(run, 'recordPendingCompletion').mockImplementation(
     overrides?.recordPendingCompletion ?? (() => {}),
   );

@@ -3228,6 +3228,39 @@ describe('session-runner-claude', () => {
     expect(continueSessionMock).toHaveBeenCalledWith('FOLLOW UP', { attachments: [] });
   });
 
+  it('cold persisted resume rebuilds the planner read-only tool surface', async () => {
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+    const resumed = runner.resumeSession({
+      session: makeSession({ provider_session_id: 'persisted-session' }),
+      prompt: 'FOLLOW UP',
+      mcpToolUseCase: 'planning',
+      additionalAllowedTools: ['get_agent_sessions', 'list_services'],
+      readOnlyFilesystem: true,
+      builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await resumed;
+
+    expect(buildMcpServerConfigMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      useCase: 'planning',
+      additionalTools: ['get_agent_sessions', 'list_services'],
+    });
+    const launch = startSessionMock.mock.calls[0]?.[0];
+    expect(launch).toMatchObject({
+      resumeSessionId: 'persisted-session',
+      builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+    });
+    expect(launch.builtinTools).not.toContain('Bash');
+  });
+
   it.each([false, true])(
     'cold persisted resume retains the handler system-prompt policy (research=%s)',
     async (research) => {

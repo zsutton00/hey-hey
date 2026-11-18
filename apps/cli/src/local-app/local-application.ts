@@ -1,10 +1,16 @@
 import { LocalLifecycleOwners, type DisclosedOwner } from './lifecycle-owners';
 import { ReleasePackage } from './release-package';
+import type { StartupDiagnostics } from './startup-diagnostics';
 import { EventEmitter } from 'node:events';
 import { StructuredServerLogger } from '../server/logger';
 import { ReleaseSource, sameRelease } from './release-source';
 import { InstallationStore } from './installation-store';
 import { ModelDownloader } from './model-downloader';
+import type { DownloadDetail } from './pull-progress';
+import { DockerProcessError } from './docker-process';
+import type { ColimaMountRepair } from './docker-runtime-recovery';
+import { TroubleshootingPrompt, type PreparedPrompt } from './troubleshooting-prompt-owner';
+import { PROMPT_WINDOW_LINES, promptRows } from './troubleshooting-prompt';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
 import {
   composeConfiguration,
@@ -53,13 +59,34 @@ export interface LocalApplicationNavigation {
   stopCommand: string;
 }
 
+export type ReturnableState =
+  | { kind: 'prerequisite'; message: string }
+  | { kind: 'recovery'; message: string };
+
 export type LocalState =
   | { kind: 'update'; release: ReleaseManifest; required: boolean; activeCount: number | null }
   | { kind: 'update-restart'; version: string }
   | { kind: 'installation' }
   | { kind: 'prerequisite'; message: string }
-  | { kind: 'progress'; steps: string[]; current: string }
+  | {
+      kind: 'progress';
+      steps: string[];
+      current: string;
+      /** Live download status for the current step, when it can be measured. */
+      detail?: DownloadDetail | undefined;
+      /** Time spent in the current step, so unmeasurable steps still show activity. */
+      elapsedMs?: number | undefined;
+    }
   | { kind: 'recovery'; message: string }
+  | { kind: 'docker-repair'; message: string; profile: string }
+  | {
+      kind: 'troubleshooting';
+      prompt: PreparedPrompt;
+      /** Result of the last Copy or Save, shown under the prompt. */
+      notice: string | null;
+      offset: number;
+      previous: ReturnableState;
+    }
   | ({
       kind: 'ready';
       bridgeConnected: false;
@@ -69,6 +96,18 @@ export type LocalState =
   | { kind: 'stopped'; restartCommand: string }
   | ({ kind: 'exited' } & LocalApplicationNavigation)
   | { kind: 'cancelled' };
+
+/** A first install never adopts containers or volumes it cannot prove it created. */
+export async function assertNoOrphanedStorage(
+  docker: DockerBoundary,
+  observed: ObservedContainer[],
+): Promise<void> {
+  if (observed.length > 0 || (await docker.hasPersistentStorage())) {
+    throw new Error(
+      'Local containers or persistent volumes exist without installation identity. Restore installation.json from backup before retrying. Data is preserved.',
+    );
+  }
+}
 
 export function assertObservedRelease(
   containers: ObservedContainer[],
@@ -104,6 +143,9 @@ function assertObservedReleases(
   }
 }
 
+/** Live download status reaches the screen about four times a second. */
+const PROGRESS_INTERVAL_MS = 250;
+
 export class LocalApplication extends EventEmitter {
   state: LocalState = { kind: 'progress', steps: [], current: 'Checking local installation' };
   private readonly logger = new StructuredServerLogger({}, { component: 'local-application' });
@@ -113,6 +155,7 @@ export class LocalApplication extends EventEmitter {
   private offeredFrom: ReleaseManifest | undefined;
   private disclosed: DisclosedOwner[] = [];
   private declined = false;
+  private mountRepair: { repair: ColimaMountRepair; message: string } | undefined;
 
   constructor(
     readonly releases: ReleaseSource,
@@ -124,6 +167,8 @@ export class LocalApplication extends EventEmitter {
     /** Resolved once; the bridge listens here and the UI container is told the same value. */
     readonly bridgePort: number = resolveLocalBridgePort(),
     readonly webPort: number = resolveLocalWebPort(),
+    private readonly diagnostics?: StartupDiagnostics,
+    private readonly troubleshooting = new TroubleshootingPrompt(),
   ) {
     super();
   }
@@ -133,6 +178,13 @@ export class LocalApplication extends EventEmitter {
       state: state.kind,
       ...(state.kind === 'progress' ? { action: state.current } : {}),
     });
+    if (
+      state.kind === 'recovery' ||
+      state.kind === 'prerequisite' ||
+      state.kind === 'docker-repair'
+    ) {
+      this.diagnostics?.failure();
+    }
     this.state = state;
     this.emit('change', state);
   }
@@ -147,7 +199,79 @@ export class LocalApplication extends EventEmitter {
     await this.run();
   }
   async retry(): Promise<void> {
+    this.diagnostics?.retry();
     await this.run();
+  }
+
+  declineDockerRepair(): void {
+    if (this.state.kind === 'docker-repair' && this.mountRepair) {
+      this.logger.info('local.docker.repair_decision', { decision: 'declined' });
+      this.show({ kind: 'recovery', message: this.mountRepair.message });
+      this.mountRepair = undefined;
+    }
+  }
+
+  async confirmDockerRepair(): Promise<void> {
+    if (this.state.kind !== 'docker-repair' || !this.mountRepair || this.busy) {
+      return;
+    }
+    const offered = this.mountRepair;
+    this.mountRepair = undefined;
+    this.busy = true;
+    this.logger.info('local.docker.repair_decision', { decision: 'accepted' });
+    try {
+      await new LocalLifecycleOwners(this.storage).exclusive(() => offered.repair.apply());
+      this.logger.info('local.docker.repair_decision', { decision: 'applied' });
+    } catch (error) {
+      const cause = this.docker.process.inspectionError(error);
+      this.logger.error('local.docker.repair_failed', { error: cause });
+      this.show({
+        kind: 'recovery',
+        message: `${offered.message} Repair failed: ${cause.message}. The original Docker refusal is retained above. Configuration backups are kept beside colima.yaml; application data is preserved.`,
+      });
+      return;
+    } finally {
+      this.busy = false;
+    }
+    await this.retry();
+  }
+
+  /** Offered after automatic recovery and any actionable fix; nothing leaves the computer. */
+  async showTroubleshooting(): Promise<void> {
+    const previous = this.state;
+    if (
+      !this.diagnostics ||
+      (previous.kind !== 'recovery' && previous.kind !== 'prerequisite') ||
+      this.busy
+    ) {
+      return;
+    }
+    const prompt = await this.troubleshooting.forCurrentAttempt(this.diagnostics);
+    this.show({ kind: 'troubleshooting', prompt, notice: null, offset: 0, previous });
+  }
+
+  scrollTroubleshooting(delta: number): void {
+    if (this.state.kind !== 'troubleshooting') {
+      return;
+    }
+    const furthest = Math.max(0, promptRows(this.state.prompt.text).length - PROMPT_WINDOW_LINES);
+    const offset = Math.min(furthest, Math.max(0, this.state.offset + delta));
+    this.show({ ...this.state, offset });
+  }
+
+  async copyTroubleshooting(): Promise<void> {
+    if (this.state.kind !== 'troubleshooting') {
+      return;
+    }
+    const shown = this.state;
+    const notice = await this.troubleshooting.copy(shown.prompt);
+    this.show({ ...shown, notice });
+  }
+
+  closeTroubleshooting(): void {
+    if (this.state.kind === 'troubleshooting') {
+      this.show(this.state.previous);
+    }
   }
 
   async requestStop(): Promise<void> {
@@ -162,6 +286,7 @@ export class LocalApplication extends EventEmitter {
         restartCommand: 'heyhey local',
       });
     } catch (error) {
+      this.logger.error('local.application.failure', { operation: 'startup', error });
       this.show({
         kind: 'recovery',
         message:
@@ -188,6 +313,7 @@ export class LocalApplication extends EventEmitter {
         this.show({ kind: 'stopped', restartCommand: 'heyhey local' });
       });
     } catch (error) {
+      this.logger.error('local.application.failure', { operation: 'startup', error });
       this.show({
         kind: 'recovery',
         message:
@@ -222,7 +348,7 @@ export class LocalApplication extends EventEmitter {
         throw error;
       }
       this.disclosed = [];
-      this.logger.warn('local.release.update_work_unavailable');
+      this.logger.warn('local.release.update_work_unavailable', { error });
     }
     this.show({ kind: 'update', release, required, activeCount });
   }
@@ -271,6 +397,7 @@ export class LocalApplication extends EventEmitter {
         await this.runLocked();
       });
     } catch (error) {
+      this.logger.error('local.application.failure', { operation: 'startup', error });
       this.show({
         kind: 'recovery',
         message:
@@ -290,6 +417,7 @@ export class LocalApplication extends EventEmitter {
         await this.runLocked();
       }
     } catch (error) {
+      this.logger.error('local.application.failure', { operation: 'startup', error });
       this.show({
         kind: 'recovery',
         message:
@@ -305,13 +433,42 @@ export class LocalApplication extends EventEmitter {
     this.busy = true;
     let action = 'Checking local installation';
     const steps: string[] = [];
+    let detail: DownloadDetail | undefined;
+    let stepStartedAt = Date.now();
     const progress = (next: string) => {
       action = next;
-      this.show({ kind: 'progress', steps: [...steps], current: next });
+      detail = undefined;
+      stepStartedAt = Date.now();
+      this.show({ kind: 'progress', steps: [...steps], current: next, elapsedMs: 0 });
     };
+    // Live status refreshes the screen without going through show(), so redraws never reach diagnostics.
+    const refresh = () => {
+      if (this.state.kind !== 'progress') {
+        return;
+      }
+      const now = Date.now();
+      this.state = {
+        kind: 'progress',
+        steps: [...steps],
+        current: action,
+        detail,
+        elapsedMs: now - stepStartedAt,
+      };
+      this.emit('change', this.state);
+    };
+    const onDetail = (next: DownloadDetail | undefined) => {
+      const first = detail === undefined;
+      detail = next;
+      // Later updates are picked up by the ticker, which caps redraws at about four a second.
+      if (!next || first) {
+        refresh();
+      }
+    };
+    const ticker = setInterval(refresh, PROGRESS_INTERVAL_MS);
     try {
       const prerequisite = await this.docker.prerequisite();
       if (prerequisite !== 'ready') {
+        this.logger.error('local.docker.prerequisite', { reasonCode: prerequisite });
         const install =
           this.platform === 'darwin'
             ? 'Install and open Docker Desktop for Mac.'
@@ -324,7 +481,12 @@ export class LocalApplication extends EventEmitter {
             : prerequisite === 'compose'
               ? 'Install the Docker Compose v2 plugin, then retry.'
               : 'Start Docker, then retry.';
-        this.show({ kind: 'prerequisite', message });
+        this.show({
+          kind: 'prerequisite',
+          message: this.docker.lastPrerequisiteError
+            ? `${this.docker.lastPrerequisiteError.message}. ${message}`
+            : message,
+        });
         return;
       }
       steps.push('Docker is ready');
@@ -355,8 +517,8 @@ export class LocalApplication extends EventEmitter {
         assertObservedRelease(observed, release);
       }
       if (installation && !updating && !this.declined && this.packages) {
-        const newer = await this.packages.newerThan(release.cliVersion).catch(() => {
-          this.logger.warn('local.release.optional_check_unavailable');
+        const newer = await this.packages.newerThan(release.cliVersion).catch((error: unknown) => {
+          this.logger.warn('local.release.optional_check_unavailable', { error });
           return undefined;
         });
         if (newer) {
@@ -364,10 +526,8 @@ export class LocalApplication extends EventEmitter {
           return;
         }
       }
-      if (!installation && (observed.length > 0 || (await this.docker.hasPersistentStorage()))) {
-        throw new Error(
-          'Local containers or persistent volumes exist without installation identity. Restore installation.json from backup before retrying. Data is preserved.',
-        );
+      if (!installation) {
+        await assertNoOrphanedStorage(this.docker, observed);
       }
       if (!installation && !this.consent) {
         this.show({ kind: 'installation' });
@@ -377,6 +537,7 @@ export class LocalApplication extends EventEmitter {
       await this.models.ensure(
         installation?.modelDirectory ?? this.storage.modelDirectory,
         progress,
+        onDetail,
       );
       installation ??= await this.storage.prepare(release);
       // Recheck the persisted winner if another terminal prepared installation concurrently.
@@ -391,6 +552,7 @@ export class LocalApplication extends EventEmitter {
         if (!webStackIsCurrent(observed, this.bridgePort, this.webPort)) {
           progress('Updating the web app address and bridge port');
           const secrets = await this.storage.secrets();
+          this.docker.process.protect(Object.values(secrets));
           await this.storage.writeCompose(
             composeConfiguration(installation, secrets, this.bridgePort, this.webPort),
           );
@@ -404,6 +566,7 @@ export class LocalApplication extends EventEmitter {
       } else {
         progress('Preparing protected local storage');
         const secrets = await this.storage.secrets();
+        this.docker.process.protect(Object.values(secrets));
         const config = composeConfiguration(installation, secrets, this.bridgePort, this.webPort);
         await this.storage.writeCompose(config);
         steps.push('Local storage created');
@@ -413,7 +576,7 @@ export class LocalApplication extends EventEmitter {
         }
         if (updating || observed.length < Object.keys(SERVICE_IMAGES).length) {
           progress('Downloading matching application images');
-          await this.docker.pull(this.storage.composePath);
+          await this.docker.pull(this.storage.composePath, onDetail);
           steps.push('Application images downloaded');
         }
         progress('Starting PostgreSQL and Redis');
@@ -445,12 +608,34 @@ export class LocalApplication extends EventEmitter {
         executionAuthorized: false,
       });
     } catch (error) {
+      this.logger.error('local.application.failure', { operation: 'startup', action, error });
       const message =
         error instanceof Error
           ? error.message
           : 'Check local Docker and installation configuration, then retry.';
-      this.show({ kind: 'recovery', message: `${action}: ${message}` });
+      let recoveryMessage = `${action}: ${message}`;
+      if (error instanceof DockerProcessError) {
+        const installation = await this.storage.read().catch((cause: unknown) => {
+          this.logger.warn('local.docker.inspection_failed', { error: cause });
+          return undefined;
+        });
+        const diagnosis = await this.docker
+          .recovery()
+          .diagnose(error, installation?.modelDirectory ?? this.storage.modelDirectory);
+        recoveryMessage += diagnosis.message ? `\n${diagnosis.message}` : '';
+        if (diagnosis.repair) {
+          this.mountRepair = { repair: diagnosis.repair, message: recoveryMessage };
+          this.show({
+            kind: 'docker-repair',
+            message: recoveryMessage,
+            profile: diagnosis.repair.profile,
+          });
+          return;
+        }
+      }
+      this.show({ kind: 'recovery', message: recoveryMessage });
     } finally {
+      clearInterval(ticker);
       this.busy = false;
     }
   }

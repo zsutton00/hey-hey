@@ -1,3 +1,4 @@
+import { StructuredServerLogger } from '../server/logger';
 import { createPrivateKey, sign } from 'node:crypto';
 
 import type { CredentialPrompter } from '../agent-runtime/index';
@@ -368,8 +369,14 @@ const isExpired = (expiresAt: string, now: number): boolean => {
   return !Number.isFinite(expiry) || now >= expiry;
 };
 
-const isTerminalPollFailure = (error: Error): boolean =>
-  isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 409);
+const retryAfterSecondsSchema = z.object({ retryAfterSeconds: z.number().int().positive() });
+const pollErrorSchema = z.object({
+  code: z.enum([
+    'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED',
+    'MACHINE_ENROLLMENT_INVALID_TRANSITION',
+  ]),
+  message: z.string(),
+});
 
 const toRegistryEntry = (
   binding: MachineEnrollmentActivatedBindingDto,
@@ -425,6 +432,7 @@ const activationJson = (activation: ConfirmMachineEnrollmentResponseDto): string
 
 /** Owns the browser-claim wait, local consent, signature, and activation cutover. */
 export class MachineEnrollmentConfirmation {
+  private readonly logger = new StructuredServerLogger();
   private readonly keyPairStore: KeyPairStore;
   private readonly controllerRegistryStore: ControllerRegistryStore;
   private readonly client: MachineEnrollmentConfirmationClient;
@@ -560,6 +568,7 @@ export class MachineEnrollmentConfirmation {
       try {
         await cleanup();
       } catch (error) {
+        this.logger.debug('local.pairing.failure', { error });
         firstError ??= error instanceof Error ? error : new Error(String(error));
       }
     }
@@ -574,6 +583,7 @@ export class MachineEnrollmentConfirmation {
       await this.cleanupPendingEnrollment(enrollmentId);
       return true;
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment cleanup is incomplete: ${
@@ -631,6 +641,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.cleanupPendingEnrollment(enrollmentId);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected machine activation cleanup is incomplete: ${
@@ -697,6 +708,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.finalize(metadata.claim, activation, metadata.firstLocalGrant);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected activation recovery is incomplete: ${
@@ -776,6 +788,7 @@ export class MachineEnrollmentConfirmation {
         { waitBeforeFirstPoll: true, onResume: () => onResume?.(metadata) },
       );
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Protected machine enrollment recovery failed: ${
@@ -822,6 +835,8 @@ export class MachineEnrollmentConfirmation {
   ): Promise<MachineEnrollmentConfirmationResult> {
     let ready: MachineEnrollmentPollReadyDto | undefined;
     let waitBeforePoll = options.waitBeforeFirstPoll === true;
+    const normalInterval = Math.max(1, enrollment.pollingIntervalSeconds) * 1000;
+    let interval = normalInterval;
     let resumeAnnounced = false;
     ports.step({
       kind: 'waiting-for-browser',
@@ -839,8 +854,13 @@ export class MachineEnrollmentConfirmation {
           options.onResume?.();
           resumeAnnounced = true;
         }
-        const interval = Math.max(1, enrollment.pollingIntervalSeconds) * 1000;
-        await sleepUnlessCancelled(this.sleep, interval, ports.signal);
+
+        await sleepUnlessCancelled(
+          this.sleep,
+          Math.min(interval, Date.parse(enrollment.expiresAt) - this.now()),
+          ports.signal,
+        );
+        interval = normalInterval;
         if (isCancelled(ports)) return this.cancelled(enrollment.enrollmentId, ports);
       }
       waitBeforePoll = true;
@@ -855,9 +875,28 @@ export class MachineEnrollmentConfirmation {
           enrollment.deviceSecret,
         );
       } catch (error) {
+        this.logger.debug('local.pairing.failure', { error });
         const failure = error instanceof Error ? error : new Error(String(error));
-        if (isTerminalPollFailure(failure)) {
-          problem(ports, 'Saved machine enrollment is no longer recoverable.');
+        const response = isAxiosError<unknown>(failure) ? failure.response : undefined;
+        if (response?.status === 429) {
+          const retry = retryAfterSecondsSchema.safeParse(response.data);
+          interval = retry.success ? retry.data.retryAfterSeconds * 1000 : normalInterval;
+          continue;
+        }
+        const refusal = pollErrorSchema.safeParse(response?.data);
+        if (
+          response?.status === 409 &&
+          refusal.success &&
+          refusal.data.code === 'MACHINE_ENROLLMENT_INVALID_TRANSITION'
+        ) {
+          continue;
+        }
+        if (
+          response?.status === 401 &&
+          refusal.success &&
+          refusal.data.code === 'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED'
+        ) {
+          problem(ports, `${refusal.data.message} (${refusal.data.code}, HTTP ${response.status})`);
           return (await this.discardTerminalEnrollment(enrollment.enrollmentId, ports))
             ? { outcome: 'terminal' }
             : FAILED;
@@ -902,6 +941,7 @@ export class MachineEnrollmentConfirmation {
         }),
       );
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment could not retain verified claimant metadata locally: ${
@@ -924,6 +964,7 @@ export class MachineEnrollmentConfirmation {
       approved =
         locallyApproved || (await ports.requestConfirmation(toMachineEnrollmentReview(ready)));
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       if (error instanceof MachineEnrollmentCancelledError) {
         return this.cancelled(enrollment.enrollmentId, ports);
       }
@@ -957,6 +998,7 @@ export class MachineEnrollmentConfirmation {
         signature: signed.signature,
       });
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine enrollment confirmation failed: ${
@@ -969,6 +1011,7 @@ export class MachineEnrollmentConfirmation {
     try {
       await this.finalize(ready, activation, firstLocalGrant);
     } catch (error) {
+      this.logger.debug('local.pairing.failure', { error });
       problem(
         ports,
         `Machine activation succeeded on the server, but local finalization failed: ${

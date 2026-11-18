@@ -96,7 +96,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../../../i18n";
 import { ConversationViewer } from "../ConversationViewer";
@@ -195,7 +196,7 @@ afterEach(() => {
 // Test wrapper component
 const createTestWrapper = () => {
   const queryClient = testQueryClient;
-  const theme = createTheme();
+  const theme = createHeyTheme("light");
   (theme.palette as Record<string, unknown>).attention = {
     main: "#1976d2",
     light: "#63a4ff",

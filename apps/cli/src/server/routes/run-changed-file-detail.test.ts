@@ -5,18 +5,34 @@ import type { Run } from '../../run/run';
 import type { AgenticSession } from '../../session/types';
 import { CliReadErrorCode } from '@hey-hey/contracts/local';
 import { NOOP_LOGGER } from '../logger';
-import { RunChangedFilesContextError } from '../run-changed-files';
+import { RepoMappingStore } from '../../repo';
+import { RecordedEditLedger } from '../recorded-edit-ledger';
+import { RunChangedFilesContextError, RunChangedFilesReader } from '../run-changed-files';
 import { RunReadPreparationError } from '../restore-persisted-runs';
 import { createRunChangedFileDetailRouter } from './run-changed-file-detail';
 
 const ALLOWED_ORIGIN = 'https://allowed.test';
 const MACHINE_ID = 'machine-1';
 const RUN_ID = '44444444-4444-4444-8444-444444444444';
+const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const SERVICE_ID = '55555555-5555-4555-8555-555555555555';
 const file = {
   serviceId: SERVICE_ID,
   repoPath: '/workspace/service',
   filePath: 'src/example.ts',
+};
+
+const recordedEdit = {
+  path: 'src/example.ts',
+  turnId: 'turn-1',
+  occurredAt: '2026-11-13T12:00:00Z',
+  beforeObjectId: 'a'.repeat(40),
+  afterObjectId: 'b'.repeat(40),
+  beforeRanges: [{ startLine: 1, endLine: 2 }],
+  afterRanges: [{ startLine: 1, endLine: 3 }],
+  approximate: false,
+  versionsRecorded: true,
 };
 
 const OTHER_SERVICE_ID = '66666666-6666-4666-8666-666666666666';
@@ -57,6 +73,11 @@ describe('createRunChangedFileDetailRouter', () => {
   const createHarness = async (
     options: {
       machineId?: string | null;
+      /** Replaces the stubbed reader so a real one can enforce membership. */
+      reader?: Pick<
+        RunChangedFilesReader,
+        'getLiveRunChangedFileDetail' | 'getLiveRunChangedFilesInventory' | 'getRecordedEdit'
+      >;
       restoreError?: Error;
       detailError?: Error;
       inventoryError?: Error;
@@ -73,6 +94,8 @@ describe('createRunChangedFileDetailRouter', () => {
   ) => {
     const projection = [{ serviceId: SERVICE_ID, repoRelativePath: file.filePath }];
     const run = {
+      organizationId: ORGANIZATION_ID,
+      projectId: PROJECT_ID,
       session: { agentic_session_id: RUN_ID } as AgenticSession,
       getFileChangeProjection: () => projection,
     } as Run;
@@ -95,6 +118,17 @@ describe('createRunChangedFileDetailRouter', () => {
     const getLiveRunChangedFilesInventory = vi.fn(() =>
       options.inventoryError ? Promise.reject(options.inventoryError) : Promise.resolve(inventory),
     );
+    const getRecordedEdit = vi.fn(() =>
+      Promise.resolve({
+        serviceId: SERVICE_ID,
+        repoPath: '/workspace/service',
+        filePath: recordedEdit.path,
+        status: 'modify' as const,
+        diff: '',
+        preContent: 'stored before',
+        postContent: 'stored after',
+      }),
+    );
     const loadCurrentMachineId = vi.fn(() =>
       Promise.resolve(options.machineId === undefined ? MACHINE_ID : options.machineId),
     );
@@ -106,7 +140,11 @@ describe('createRunChangedFileDetailRouter', () => {
         allowedOrigins: [ALLOWED_ORIGIN],
         keyPairStore: { loadCurrentMachineId },
         restoreCoordinator: { restore },
-        runChangedFilesReader: { getLiveRunChangedFileDetail, getLiveRunChangedFilesInventory },
+        runChangedFilesReader: options.reader ?? {
+          getLiveRunChangedFileDetail,
+          getLiveRunChangedFilesInventory,
+          getRecordedEdit,
+        },
         logger: NOOP_LOGGER,
       }),
     );
@@ -121,6 +159,7 @@ describe('createRunChangedFileDetailRouter', () => {
       restore,
       getLiveRunChangedFileDetail,
       getLiveRunChangedFilesInventory,
+      getRecordedEdit,
       loadCurrentMachineId,
       run,
       projection,
@@ -282,6 +321,89 @@ describe('createRunChangedFileDetailRouter', () => {
     expect(response.status).toBe(500);
     expect(payload.error?.code).toBe(CliReadErrorCode.ReadFailed);
     expect(payload).not.toHaveProperty('result');
+  });
+
+  describe('recorded edit read', () => {
+    const postRecordedEdit = (
+      baseUrl: string,
+      body: unknown = { machineId: MACHINE_ID, serviceId: SERVICE_ID, edit: recordedEdit },
+    ) =>
+      fetch(`${baseUrl}/api/local/runs/${RUN_ID}/recorded-edits/read`, {
+        method: 'POST',
+        headers: { origin: ALLOWED_ORIGIN, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it('returns the stored versions for the restored Run on a matched machine', async () => {
+      const harness = await createHarness();
+      const response = await postRecordedEdit(harness.baseUrl);
+      const payload = await readPayload(response);
+
+      expect(response.status).toBe(200);
+      expect(payload).toMatchObject({
+        operation: 'run.recorded_edit.read',
+        status: 'success',
+        result: {
+          runId: RUN_ID,
+          file: { preContent: 'stored before', postContent: 'stored after' },
+        },
+      });
+      expect(harness.getRecordedEdit).toHaveBeenCalledWith(
+        harness.run.session,
+        { organizationId: ORGANIZATION_ID, projectId: PROJECT_ID },
+        RUN_ID,
+        SERVICE_ID,
+        recordedEdit,
+      );
+    });
+
+    it("rejects an edit that is not in the Run's stored reports, without reading any version", async () => {
+      const ledger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+      const contains = vi.spyOn(ledger, 'contains').mockResolvedValue(false);
+      const repoStore = new RepoMappingStore();
+      const resolveRepo = vi.spyOn(repoStore, 'getBinding');
+      const harness = await createHarness({
+        reader: new RunChangedFilesReader(repoStore, NOOP_LOGGER, ledger),
+      });
+      const response = await postRecordedEdit(harness.baseUrl);
+
+      expect(response.status).toBe(422);
+      expect((await readPayload(response)).error?.code).toBe(
+        CliReadErrorCode.InvalidFileMembership,
+      );
+      expect(contains).toHaveBeenCalledWith(
+        {
+          organizationId: ORGANIZATION_ID,
+          projectId: PROJECT_ID,
+          agentSessionId: RUN_ID,
+          serviceId: SERVICE_ID,
+        },
+        recordedEdit,
+      );
+      expect(resolveRepo).not.toHaveBeenCalled();
+    });
+
+    it('rejects another machine before restoring the Run', async () => {
+      const harness = await createHarness({ machineId: 'machine-2' });
+      const response = await postRecordedEdit(harness.baseUrl);
+
+      expect(response.ok).toBe(false);
+      expect(harness.restore).not.toHaveBeenCalled();
+      expect(harness.getRecordedEdit).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed edit before restoring the Run', async () => {
+      const harness = await createHarness();
+      const response = await postRecordedEdit(harness.baseUrl, {
+        machineId: MACHINE_ID,
+        serviceId: SERVICE_ID,
+        edit: { ...recordedEdit, beforeRanges: 'all' },
+      });
+
+      expect(response.status).toBe(400);
+      expect((await readPayload(response)).error?.code).toBe(CliReadErrorCode.InvalidRequest);
+      expect(harness.restore).not.toHaveBeenCalled();
+    });
   });
 
   describe('changed-file inventory', () => {

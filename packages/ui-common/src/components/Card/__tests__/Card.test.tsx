@@ -1,5 +1,5 @@
 import { Button } from "@mui/material";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Card } from "../Card";
@@ -19,6 +19,17 @@ describe("Card", () => {
     expect(heading).toHaveStyle({ fontSize: "1rem" });
     expect(screen.getByText("Consumer-owned content")).toBeVisible();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("draws no divider between the header and the body", () => {
+    render(
+      <Card title="Tracked work" dataTestId="tracked-work-card">
+        <p>Consumer-owned content</p>
+      </Card>,
+    );
+
+    const card = screen.getByTestId("tracked-work-card");
+    expect(within(card).queryByRole("separator")).not.toBeInTheDocument();
   });
 
   it("draws a leading icon before the title", () => {

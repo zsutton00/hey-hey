@@ -6,6 +6,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import type { ProjectResponseDto } from "@hey-hey/contracts/api";
 import { useProjectAutosave } from "@hey-hey/ui-common/data";
 import { projectCapabilitiesForRole } from "@hey-hey/ui-common/hooks";
+import {
+  BrandedHeadline,
+  useBrandedAppearance,
+} from "@hey-hey/ui-common/components";
 
 interface ProjectDetailsFormProps {
   project: ProjectResponseDto;
@@ -25,6 +29,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
   );
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const editContainerRef = useRef<HTMLDivElement>(null);
+  const isBranded = useBrandedAppearance();
 
   const { autosaveStatus, triggerManualSave } = useProjectAutosave({
     organizationId,
@@ -154,6 +159,46 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
           variant="outlined"
           data-testid="project-description-input"
         />
+      </Box>
+    );
+  }
+
+  if (isBranded) {
+    return (
+      <Box
+        sx={{ mb: 5, textAlign: "center" }}
+        data-testid="project-details-headline"
+      >
+        <BrandedHeadline
+          line={
+            <Box
+              component="span"
+              sx={{
+                fontStyle: description ? "normal" : "italic",
+                whiteSpace: "pre-wrap",
+              }}
+              data-testid="project-description-display"
+            >
+              {description || "Add a description"}
+            </Box>
+          }
+        >
+          <span data-testid="project-title-display">
+            {name || "Untitled project"}
+          </span>
+          {manageSettings ? (
+            <IconButton
+              size="small"
+              aria-label="Edit project details"
+              onClick={handleEdit}
+              data-testid="project-details-edit-button"
+              sx={{ ml: 1, color: "rgb(255 255 255 / 70%)" }}
+            >
+              <EditIcon fontSize="small" />
+            </IconButton>
+          ) : null}
+        </BrandedHeadline>
+        {renderSaveStatus()}
       </Box>
     );
   }

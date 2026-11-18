@@ -95,6 +95,10 @@ vi.mock('../../../agents/providers/codex/session-runner-codex', () => ({
     public constructor(dependencies: (typeof codexState.createdRunnerDependencies)[number]) {
       codexState.createdRunnerDependencies.push(dependencies);
     }
+
+    public async runPrompt(): Promise<AgentRunResult> {
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    }
   },
 }));
 
@@ -140,8 +144,14 @@ const buildRun = (overrides: { runId?: string; provider?: RunArgs['provider'] } 
   return run;
 };
 
-const buildFacade = (readAgentSession?: (id: string) => Promise<AgentSessionMonitorState | null>) =>
+const buildFacade = (
+  readAgentSession?: (id: string) => Promise<AgentSessionMonitorState | null>,
+  preciseFileChangeTracking = false,
+) =>
   new SessionRunnerFacade({
+    machineOptionsStore: {
+      isPreciseFileChangeTrackingEnabled: async () => preciseFileChangeTracking,
+    },
     capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
     runStore: new RunStore(),
     repoStore: createTestRepoMappingStore(),
@@ -179,14 +189,47 @@ const resetState = (): void => {
 };
 
 describe('SessionRunnerFacade — ToolRuleStore ownership', () => {
-  it('keeps execution-evidence snapshot hooks disabled for production provider runners', () => {
+  it('sends no capture hooks while precise file change tracking is off', async () => {
     resetState();
     const facade = buildFacade();
-    facade.forRun(buildRun({ runId: 'codex-run', provider: 'codex' }));
-    facade.forRun(buildRun({ runId: 'claude-run', provider: 'claude' }));
+    for (const provider of ['codex', 'claude'] as const) {
+      const run = buildRun({ runId: `${provider}-run`, provider });
+      await facade.runPrompt(run, buildRunArgs());
+    }
 
     expect(codexState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
     expect(claudeState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
+  });
+
+  it('rebuilds the runner the picker cached before the first prompt, so the option takes effect', async () => {
+    resetState();
+    const facade = buildFacade(undefined, true);
+    const run = buildRun({ runId: 'picked-run', provider: 'codex' });
+
+    // RunnerPicker.pick calls forRun before the runner prompts.
+    facade.forRun(run);
+    expect(codexState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
+    await facade.runPrompt(run, buildRunArgs());
+
+    const latest = codexState.createdRunnerDependencies.at(-1);
+    expect(latest).toHaveProperty('executionRecorder');
+    expect(vi.mocked(run.setRunner).mock.calls.length).toBe(2);
+    // Later prompts reuse the recorder-equipped runner.
+    await facade.runPrompt(run, buildRunArgs());
+    expect(codexState.createdRunnerDependencies).toHaveLength(2);
+  });
+
+  it('gives Codex and Claude runners the recorder when the option is on, but never OpenCode', async () => {
+    resetState();
+    const facade = buildFacade(undefined, true);
+    for (const provider of ['codex', 'claude', 'opencode'] as const) {
+      const run = buildRun({ runId: `${provider}-run`, provider });
+      await facade.runPrompt(run, buildRunArgs());
+    }
+
+    expect(codexState.createdRunnerDependencies[0]).toHaveProperty('executionRecorder');
+    expect(claudeState.createdRunnerDependencies[0]).toHaveProperty('executionRecorder');
+    expect(opencodeState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
   });
 
   it('launches the first model the provider reported when none is named', async () => {

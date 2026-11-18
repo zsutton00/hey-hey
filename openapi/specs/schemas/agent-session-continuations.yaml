@@ -1,0 +1,311 @@
+# Continuing an Agent Session on another paired computer after its bound
+# computer was revoked or removed. Continuation moves the conversation's
+# routing only; every destination authorizes its own inspection and execution.
+
+AgentSessionContinuationSourceState:
+  type: string
+  enum:
+    - SOURCE_REVOKED
+    - BOUND_AVAILABLE
+    - UNBOUND
+  description: >-
+    Server-confirmed state of the session's current machine binding, read from
+    the persisted machine row. SOURCE_REVOKED: the bound machine was revoked or
+    removed (removal retains a revoked record), so a new continuation may be
+    offered. BOUND_AVAILABLE: the bound machine is not revoked; an offline,
+    disconnected or unverifiable machine keeps its session and is never taken
+    over. UNBOUND: the session has no machine binding (including pre-v2
+    sessions) and is never rebound. Recovery of an already committed attempt
+    is read from the status's attempt, not from this state.
+
+AgentSessionContinuationState:
+  type: string
+  enum:
+    - INSPECTED
+    - AWAITING_HISTORY_CONFIRMATION
+    - PENDING
+    - UNCERTAIN
+    - FAILED
+    - SUCCEEDED
+    - CANCELLED
+  description: >-
+    One durable continuation attempt. INSPECTED: the destination's readiness
+    is known and native resume is possible; nothing has moved.
+    AWAITING_HISTORY_CONFIRMATION: only a new provider session from saved
+    history is possible; nothing starts until the person confirms.
+    PENDING: the session is bound to the destination and delivery or provider
+    startup is in progress; delivery receipt alone is not success.
+    UNCERTAIN: no startup acknowledgement arrived; the attempt must be
+    reconciled before it is retried or undone. FAILED: delivery or startup
+    failed with a known cause; retrying reuses this attempt without a second
+    rebind. SUCCEEDED: provider startup confirmed the attempt's mode.
+    CANCELLED: the person declined; nothing was started.
+
+AgentSessionContinuationMode:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSessionContinuationMode"
+
+AgentSessionContinuationNativeState:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSessionContinuationNativeState"
+
+AgentSessionContinuationInspectionReason:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSessionContinuationInspectionReason"
+
+AgentSessionContinuationMarker:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSessionContinuationMarker"
+
+AgentSessionContinuationDto:
+  type: object
+  additionalProperties: false
+  required:
+    - continuationId
+    - agentSessionId
+    - previousMachineId
+    - destinationMachineId
+    - state
+    - nativeState
+    - inspectionReason
+    - mode
+    - startRunInputs
+    - inspectedAt
+    - historyConfirmedAt
+    - nativeResumeRejectedAt
+    - bindingMovedAt
+    - bindingRevertedAt
+    - deliveryGeneration
+    - deliveryOperationId
+    - deliveredAt
+    - providerStartedAt
+    - terminalAt
+    - outcomeCode
+  properties:
+    continuationId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    previousMachineId:
+      $ref: "./common.yaml#/MachineId"
+      description: Machine the session was bound to when this attempt was inspected.
+    destinationMachineId:
+      $ref: "./common.yaml#/MachineId"
+    state:
+      $ref: "#/AgentSessionContinuationState"
+    nativeState:
+      $ref: "#/AgentSessionContinuationNativeState"
+    inspectionReason:
+      $ref: "#/AgentSessionContinuationInspectionReason"
+    mode:
+      $ref: "#/AgentSessionContinuationMode"
+      description: >-
+        The attempt's selected mode. SAVED_HISTORY starts a new provider
+        session and requires the person's confirmation before delivery.
+    startRunInputs:
+      $ref: "./controller-authorization.yaml#/ControllerStartInputs"
+      description: >-
+        Exact materialize-only start inputs the destination's controller
+        authorization must bind before each delivery. Server-authored.
+    inspectedAt:
+      type: string
+      format: date-time
+    historyConfirmedAt:
+      type: string
+      format: date-time
+      nullable: true
+    nativeResumeRejectedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the provider rejected native resume and the attempt moved to saved history.
+    bindingMovedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When this attempt rebound the session to the destination.
+    bindingRevertedAt:
+      type: string
+      format: date-time
+      nullable: true
+    deliveryGeneration:
+      type: integer
+      minimum: 0
+      description: Number of delivery tries; zero before the first.
+    deliveryOperationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Durable operation of the latest delivery try, or null before the first.
+    deliveredAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When the destination received the latest delivery. Not provider startup.
+    providerStartedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: When provider startup confirmed the attempt's mode.
+    terminalAt:
+      type: string
+      format: date-time
+      nullable: true
+    outcomeCode:
+      type: string
+      nullable: true
+      description: Safe reason code for a failed, uncertain or rejected-resume outcome.
+
+AgentSessionContinuationStatusDto:
+  type: object
+  additionalProperties: false
+  required: [sourceState, boundMachineId, attempt]
+  properties:
+    sourceState:
+      $ref: "#/AgentSessionContinuationSourceState"
+    boundMachineId:
+      allOf:
+        - $ref: "./common.yaml#/MachineId"
+      nullable: true
+    attempt:
+      allOf:
+        - $ref: "#/AgentSessionContinuationDto"
+      nullable: true
+      description: >-
+        The session's committed, unresolved attempt when one exists, so no
+        newer inspection can hide it; otherwise its most recent attempt, or
+        null.
+
+InspectAgentSessionContinuationRequestDto:
+  type: object
+  additionalProperties: false
+  required: [expectedSourceMachineId, destinationMachineId, authorization]
+  properties:
+    expectedSourceMachineId:
+      $ref: "./common.yaml#/MachineId"
+      description: The binding the person saw; a changed binding rejects the request.
+    destinationMachineId:
+      $ref: "./common.yaml#/MachineId"
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+      description: >-
+        Destination controller authorization for the CLI_READ continuation
+        inspection. Inspecting local provider state is a protected read.
+
+CommitAgentSessionContinuationRequestDto:
+  type: object
+  additionalProperties: false
+  required: [confirmSavedHistory, authorization]
+  properties:
+    confirmSavedHistory:
+      type: boolean
+      description: >-
+        Must be true when the attempt's mode is SAVED_HISTORY; the server
+        rejects an unconfirmed saved-history delivery.
+    authorization:
+      $ref: "./controller-authorization.yaml#/AdmissionEnvelopeAuthorization"
+      description: >-
+        Destination controller authorization for CONVERSATION_TRIGGER on the
+        Agent Session with exactly the continuation's startRunInputs.
+
+AgentSessionContinuationInspectHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      requestId,
+      actionCategory,
+      actionType,
+      targetKind,
+      targetId,
+      agentSessionId,
+      continuationId,
+      expectedSourceMachineId,
+    ]
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    actionCategory:
+      type: string
+      enum: [CLI_READ]
+    actionType:
+      type: string
+      enum: [CLI_READ]
+    targetKind:
+      type: string
+      enum: [CLI_READ]
+    targetId:
+      type: string
+      format: uuid
+      description: Destination machine identity.
+    agentSessionId:
+      type: string
+      format: uuid
+    continuationId:
+      type: string
+      format: uuid
+    expectedSourceMachineId:
+      type: string
+      format: uuid
+  description: >-
+    Exact machine-addressed inspection of one Agent Session's local provider
+    state under existing CLI_READ authority, bound to one continuation.
+
+AgentSessionContinuationStartupOutcome:
+  type: string
+  enum:
+    - RESUMED
+    - PREPARED_FROM_HISTORY
+    - NATIVE_RESUME_REJECTED
+    - FAILED
+  description: >-
+    What provider startup on the destination established for one delivery.
+    RESUMED: the provider resumed the original provider session on this
+    computer. PREPARED_FROM_HISTORY: the provider is available here, the
+    saved conversation history is staged and the previous provider identity
+    is cleared; the new provider session starts with the person's next
+    message, because a provider session's tools and startup context are fixed
+    when it starts. NATIVE_RESUME_REJECTED: the provider or local state shows
+    the original session cannot be resumed here; nothing started.
+    FAILED: startup failed before any provider session started.
+
+AgentSessionContinuationStartupReport:
+  type: object
+  additionalProperties: false
+  required: [deliveryOperationId, outcome]
+  properties:
+    deliveryOperationId:
+      type: string
+      format: uuid
+      description: >-
+        The start_run operation this report answers. Reports for an older
+        delivery of the same attempt are not applied.
+    outcome:
+      $ref: "#/AgentSessionContinuationStartupOutcome"
+    reasonCode:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: "^[A-Z][A-Z0-9_]*$"
+      description: Safe reason code; required for NATIVE_RESUME_REJECTED and FAILED.
+    detail:
+      type: string
+      maxLength: 500
+      description: Safe diagnostic detail. Never prompts, credentials or payloads.
+  description: >-
+    The destination computer's acknowledgement of provider startup for one
+    continuation delivery. Sent by that computer under its own machine
+    credential after the provider started, resumed, rejected resume, or
+    failed. Delivery receipt is not this acknowledgement.
+
+AgentSessionContinuationStartupReportResponseDto:
+  type: object
+  additionalProperties: false
+  required: [accepted, state]
+  properties:
+    accepted:
+      type: boolean
+      description: >-
+        False when the report no longer applies (an older delivery, or an
+        attempt already resolved). The computer must not retry a rejected report.
+    state:
+      $ref: "#/AgentSessionContinuationState"

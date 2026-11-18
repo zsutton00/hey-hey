@@ -381,10 +381,13 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   private readonly logger: ServerLogger;
   private readonly providerUsageCapture: ProviderUsageCapture;
 
+  public readonly executionRecorder: ExecutionRecorder | undefined;
+
   public constructor(dependencies: CodexAgentSessionRunnerDependencies) {
     this.attachmentContentReader = new RunAttachmentContentReader(
       new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
     );
+    this.executionRecorder = dependencies.executionRecorder;
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
@@ -1703,6 +1706,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
               sessionStartContext.hintsEnabled,
               additionalAllowedTools ?? [],
             ),
+            hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
           },
         );
         requestContext.log(this.logger, 'debug', 'local.runner.codex.session_start_context.read', {
@@ -2454,6 +2458,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     skipPermissions,
     mcpToolUseCase,
     additionalAllowedTools,
+    readOnlyFilesystem,
     browserMcpMount,
     platformMcpProxyMount,
     workspace,
@@ -2502,6 +2507,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       ...(additionalAllowedTools && additionalAllowedTools.length > 0
         ? { additionalAllowedTools }
         : {}),
+      // The resumed thread is configured with the sandbox resolved for this
+      // call, so the read-only posture must be forwarded on every resume.
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
       ...(browserMcpMount ? { browserMcpMount } : {}),
       ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
       ...(skillSelection ? { skillSelection } : {}),

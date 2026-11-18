@@ -75,6 +75,8 @@ import type { MachineEnrollmentInvalidMachineMaterialErrorDto } from '../models.
 // @ts-ignore
 import type { MachineEnrollmentInvalidTransitionErrorDto } from '../models.js';
 // @ts-ignore
+import type { MachineEnrollmentPollRateLimitErrorDto } from '../models.js';
+// @ts-ignore
 import type { PingMachine200Response } from '../models.js';
 // @ts-ignore
 import type { PollMachineEnrollment200Response } from '../models.js';

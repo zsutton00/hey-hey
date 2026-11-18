@@ -1,3 +1,4 @@
+import { hostedPlatformEnvironmentForHost } from '@hey-hey/contracts/platform-environments';
 import type {
   MachineActionDescriptor,
   MachineActionId,
@@ -91,9 +92,8 @@ const statusRows = (state: PresentationState): Row[] => {
   ];
 };
 
-const STAGING_API_HOST = 'staging.heyhey.dev';
-
-const environmentLabel = (host: string): string => (host === STAGING_API_HOST ? 'Staging' : host);
+const environmentLabel = (host: string): string =>
+  hostedPlatformEnvironmentForHost(host)?.label ?? host;
 
 /** Shown only when the CLI is not on the default profile and production target. */
 const targetSegments = (target: RuntimeTarget) => [

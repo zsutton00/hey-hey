@@ -55,6 +55,9 @@
       ],
       "@hey-hey/contracts/brands": [
         "../../packages/contracts/dist/cjs/brands.d.ts"
+      ],
+      "@hey-hey/contracts/platform-environments": [
+        "../../packages/contracts/dist/cjs/platform-environments.d.ts"
       ]
     },
     "types": ["node", "vitest/globals", "@testing-library/jest-dom"]

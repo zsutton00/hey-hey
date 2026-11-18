@@ -1,3 +1,4 @@
+import { RecordedEditTooLargeError } from './recorded-edit-reader';
 import { hashControllerAction } from '../shared/api/generated/controller-action-contract';
 import type { HostActionPreparation } from '@hey-hey/contracts/api/models';
 import { createHash } from 'node:crypto';
@@ -11,6 +12,8 @@ import {
   type CliReadProviderUsageGetErrorResponseDto,
   type CliReadProviderUsageGetSuccessResponseDto,
   type CliReadResponseDto,
+  type CliReadRunRecordedEditSuccessResponseDto,
+  type CliReadRunRecordedEditErrorResponseDto,
   type CliReadRunChangedFilesCountErrorResponseDto,
   type CliReadRunChangedFilesCountSuccessResponseDto,
   type CliReadRunChangedFileDetailErrorResponseDto,
@@ -24,6 +27,7 @@ import {
   type CliReadRunToolCallsLatestTurnErrorResponseDto,
   type CliReadRunToolCallsLatestTurnSuccessResponseDto,
   type CliReadRuntimeModelCatalogGetErrorResponseDto,
+  type CliReadAgentSessionContinuationInspectErrorResponseDto,
   type CliReadRuntimeModelCatalogGetSuccessResponseDto,
 } from '@hey-hey/contracts/agent-bridge';
 import type { RunRegistry } from '../run/run-registry';
@@ -53,6 +57,7 @@ import type { VerifiedCliReadFrame } from './trigger-verification/verify';
 import type { HostActionAdmission } from './controller-authorization/host-action-admission';
 
 import { RunFileContextReader } from './run-file-context-reader';
+import { AgentSessionContinuationInspector } from './agent-session-continuation-inspector';
 import { projectLatestTurnToolCalls } from './latest-turn-tool-calls';
 import type { SessionActivitySource } from './session-activity-source';
 
@@ -109,6 +114,7 @@ export interface CliReadHandlerDependencies {
 export class CliReadHandler {
   private readonly fileContextReader: RunFileContextReader;
   private readonly restoreCoordinator: RunReadRestoreCoordinator;
+  private readonly continuationInspector: AgentSessionContinuationInspector;
 
   public constructor(private readonly dependencies: CliReadHandlerDependencies) {
     this.fileContextReader = new RunFileContextReader(
@@ -123,6 +129,10 @@ export class CliReadHandler {
         runRegistry: dependencies.runRegistry,
         logger: dependencies.logger.child({ component: 'run-read-restore' }),
       });
+    this.continuationInspector = new AgentSessionContinuationInspector(
+      dependencies.runStore,
+      dependencies.logger.child({ component: 'agent-session-continuation' }),
+    );
   }
 
   public async handle(rawFrame: unknown): Promise<CliReadResponseDto | null> {
@@ -153,7 +163,8 @@ export class CliReadHandler {
     }
     if (
       verification.verified.body.operation === 'workspace.skills.list' ||
-      verification.verified.body.operation === 'runtime.model_catalog.get'
+      verification.verified.body.operation === 'runtime.model_catalog.get' ||
+      verification.verified.body.operation === 'agent_session.continuation.inspect'
     ) {
       const body = verification.verified.body;
       const { envelope, frame } = verification.verified;
@@ -176,6 +187,15 @@ export class CliReadHandler {
                 body.catalogContext.policy === 'non_repository'
                   ? { policy: 'non_repository' }
                   : { policy: 'service_workspace', serviceId: body.catalogContext.serviceId },
+            }
+          : {}),
+        // Inspecting local provider state is a protected read bound to one
+        // session, continuation and expected binding.
+        ...(body.operation === 'agent_session.continuation.inspect'
+          ? {
+              agentSessionId: body.agentSessionId,
+              continuationId: body.continuationId,
+              expectedSourceMachineId: body.expectedSourceMachineId,
             }
           : {}),
       };
@@ -204,6 +224,14 @@ export class CliReadHandler {
         return this.dependencies.agentService.listWorkspaceSkills(body, envelope.userId);
       }
       try {
+        if (body.operation === 'agent_session.continuation.inspect') {
+          return {
+            requestId: body.requestId,
+            operation: 'agent_session.continuation.inspect',
+            status: 'success',
+            result: await this.continuationInspector.inspect(body),
+          };
+        }
         return await this.readRuntimeModelCatalog(verification.verified);
       } catch (error) {
         const resolvedError = error instanceof Error ? error : new Error(String(error));
@@ -275,11 +303,14 @@ export class CliReadHandler {
           resolvedError instanceof RunReadPreparationError ||
           body.operation === 'run.changed_files.count' ||
           body.operation === 'run.changed_files.inventory' ||
-          body.operation === 'run.changed_files.detail'
+          body.operation === 'run.changed_files.detail' ||
+          body.operation === 'run.recorded_edit.read'
             ? safeChangedFilesErrorName(resolvedError)
             : error instanceof Error
               ? error.message
               : String(error),
+        // Recorded-edit messages carry only ids, paths and git error text, never file content.
+        ...(body.operation === 'run.recorded_edit.read' ? { reason: resolvedError.message } : {}),
       });
       return this.toErrorResponse(verification.verified, resolvedError);
     }
@@ -291,6 +322,8 @@ export class CliReadHandler {
         return this.readChangedFilesCount(verified);
       case 'run.changed_files.inventory':
         return this.readChangedFilesInventory(verified);
+      case 'run.recorded_edit.read':
+        return this.readRecordedEdit(verified);
       case 'run.changed_files.detail':
         return this.readChangedFileDetail(verified);
       case 'project.session_costs.list':
@@ -305,6 +338,7 @@ export class CliReadHandler {
         return this.readRunToolCallsLatestTurn(verified);
       case 'workspace.skills.list':
       case 'runtime.model_catalog.get':
+      case 'agent_session.continuation.inspect':
         throw new Error('Machine-addressed reads require machine-scoped admission');
     }
   }
@@ -348,6 +382,43 @@ export class CliReadHandler {
       operation: 'run.changed_files.inventory',
       status: 'success',
       result: { runId: body.runId, entries },
+    };
+  }
+
+  private async readRecordedEdit(
+    verified: VerifiedCliReadFrame,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto> {
+    if (verified.body.operation !== 'run.recorded_edit.read') {
+      throw new Error('Expected a recorded edit read');
+    }
+    const { body, frame } = verified;
+    const run = await this.fileContextReader.read(body.runId);
+    if (
+      body.agentSessionId !== body.runId ||
+      run.runId !== body.runId ||
+      run.organizationId !== frame.organizationId ||
+      run.projectId !== frame.projectId ||
+      run.conversationId !== frame.conversationId
+    ) {
+      throw new RunReadPreparationError(
+        'INVALID_RUN_CONTEXT',
+        'The signed context does not match this Run.',
+      );
+    }
+    const file = this.assertBoundedDetail(
+      await this.dependencies.runChangedFilesReader.getRecordedEdit(
+        run.session,
+        { organizationId: run.organizationId, projectId: run.projectId },
+        body.runId,
+        body.serviceId,
+        body.edit,
+      ),
+    );
+    return {
+      requestId: body.requestId,
+      operation: 'run.recorded_edit.read',
+      status: 'success',
+      result: { runId: body.runId, file },
     };
   }
 
@@ -908,9 +979,11 @@ export class CliReadHandler {
     | CliReadRunChangedFilesCountErrorResponseDto
     | CliReadRunChangedFilesInventoryErrorResponseDto
     | CliReadRunChangedFileDetailErrorResponseDto
+    | CliReadRunRecordedEditErrorResponseDto
     | CliReadProjectSessionCostsListErrorResponseDto
     | CliReadProviderUsageGetErrorResponseDto
     | CliReadRuntimeModelCatalogGetErrorResponseDto
+    | CliReadAgentSessionContinuationInspectErrorResponseDto
     | CliReadRunContextUsageGetErrorResponseDto
     | CliReadRunSkillsListErrorResponseDto
     | CliReadRunToolCallsLatestTurnErrorResponseDto {
@@ -949,10 +1022,26 @@ export class CliReadHandler {
         error: { code, message },
       };
     }
+    if (verified.body.operation === 'agent_session.continuation.inspect') {
+      return {
+        requestId: verified.body.requestId,
+        operation: 'agent_session.continuation.inspect',
+        status: 'error',
+        error: { code, message },
+      };
+    }
     if (verified.body.operation === 'run.changed_files.inventory') {
       return {
         requestId: verified.body.requestId,
         operation: 'run.changed_files.inventory',
+        status: 'error',
+        error: { code, message },
+      };
+    }
+    if (verified.body.operation === 'run.recorded_edit.read') {
+      return {
+        requestId: verified.body.requestId,
+        operation: 'run.recorded_edit.read',
         status: 'error',
         error: { code, message },
       };
@@ -1000,7 +1089,10 @@ export class CliReadHandler {
   private resolveErrorCode(error: Error): CliReadErrorCode {
     if (error instanceof RunReadPreparationError) return error.code;
     if (error instanceof ProjectSessionCostsRequestError) return error.code;
-    if (error instanceof ChangedFilesReadBoundsError) {
+    if (
+      error instanceof ChangedFilesReadBoundsError ||
+      error instanceof RecordedEditTooLargeError
+    ) {
       return CliReadErrorCode.ResultTooLarge;
     }
     if (

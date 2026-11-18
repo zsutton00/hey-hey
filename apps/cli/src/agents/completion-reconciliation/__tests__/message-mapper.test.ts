@@ -3,8 +3,11 @@ import { mapCompletionResponse, withFeatureVerificationSuggestion } from '../mes
 
 const suggestion = {
   feature: { entityType: 'FEATURE' as const, entityId: '33333333-3333-4333-8333-333333333333' },
+  lead: 'The Mockup shows a Retry button but the dialog has none.',
   explanation: 'The Mockup shows a Retry button; the dialog has none.',
-  impactedEntities: [{ entityType: 'TASK', entityId: '44444444-4444-4444-8444-444444444444' }],
+  impactedEntities: [
+    { entityType: 'TASK', entityId: '44444444-4444-4444-8444-444444444444', title: 'Retry dialog' },
+  ],
 };
 
 describe('persisted completion message', () => {

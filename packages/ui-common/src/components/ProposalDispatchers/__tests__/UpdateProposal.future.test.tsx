@@ -165,10 +165,16 @@ vi.mock("../../Entity", () => ({
   EntityLinkWithPreview: ({
     label,
     testId,
+    href,
   }: {
     label: string;
     testId?: string;
-  }) => <a data-testid={testId}>{label}</a>,
+    href?: string;
+  }) => (
+    <a data-testid={testId} href={href}>
+      {label}
+    </a>
+  ),
 }));
 vi.mock("../../SuggestedContent", () => ({
   DiffRenderer: ({
@@ -606,6 +612,11 @@ describe("UpdateProposal future revisions", () => {
       );
       expect(screen.getByTestId("proposal-title")).toHaveTextContent(
         "Review notes",
+      );
+      // The live target still shows pre-revision content; the future lives on its proposal.
+      expect(screen.getByTestId("proposal-title")).toHaveAttribute(
+        "href",
+        "/proposals/future-proposal",
       );
       if (status === "APPROVED") {
         const expand = await screen.findByRole("button", {

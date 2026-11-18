@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -7,11 +9,13 @@ import type {
   SecondaryActionConfig,
 } from "../../../../api";
 import { SecondaryActionHandler } from "../../../../api";
+import { ProjectContext } from "../../../../contexts";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { ImplementationReadinessField } from "../ImplementationReadinessField";
 import { ImplementationReadinessSecondaryAction } from "../ImplementationReadinessSecondaryAction";
 import {
   buildImplementationReadinessDispositionValue,
-  buildImplementationReadinessFindingMarkdown,
+  buildLegacyFindingMarkdown,
 } from "../implementationReadinessUtils";
 import type {
   FieldComponentContext,
@@ -79,6 +83,15 @@ const payload: ImplementationReadinessPayload = {
           action: "Reuse the decided method.",
           state: "REMAINING",
         },
+        {
+          owner: {
+            entityType: "TASK",
+            entityId: LOGIN_ID,
+            title: "Login task",
+          },
+          action: "Record the open question.",
+          state: "DONE",
+        },
       ],
       userRequest: "Decide the recognition method on the login task.",
       boundedEvidence: [
@@ -115,66 +128,129 @@ const action = (label: string): SecondaryActionRenderContext["action"] =>
 
 const actionContext: SecondaryActionRenderContext["context"] = context;
 
-describe("ImplementationReadinessField", () => {
-  it("renders the read-only finding and bounded evidence", () => {
-    render(
+const renderField = (fieldConfig: FieldConfig) =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <ImplementationReadinessField
-          config={config}
-          context={context}
-          isSubmitted={false}
-        />
-      </MemoryRouter>,
+        <ProjectContext.Provider
+          value={{
+            organizationId: "org-1",
+            projectId: "project-1",
+            navigate: vi.fn(),
+          }}
+        >
+          <ThemeProvider theme={createHeyTheme("light")}>
+            <ImplementationReadinessField
+              config={fieldConfig}
+              context={context}
+              isSubmitted={false}
+            />
+          </ThemeProvider>
+        </ProjectContext.Provider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+describe("ImplementationReadinessField", () => {
+  it("shows the problem as the lead and the parts in the required order", () => {
+    renderField(config);
+
+    expect(screen.getByTestId("implementation-readiness-field")).toBeVisible();
+    expect(screen.getByText("Readiness review")).toBeInTheDocument();
+    expect(screen.getByText("Blocks planning")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
+      "The home page depends on an undecided recognition method.",
     );
+    expect(
+      screen
+        .getAllByTestId("conversation-card-section-label")
+        .map((label) => label.textContent),
+    ).toEqual([
+      "What you asked for",
+      "How the agent got here",
+      "What could go wrong",
+      "Steps to fix",
+    ]);
+    expect(
+      screen.getByTestId("implementation-readiness-ask-label"),
+    ).toHaveTextContent("What I need from you");
+  });
+
+  it("numbers the trail and failure scenario with each source and explanation", () => {
+    renderField(config);
+
+    const [trail] = screen.getAllByTestId("conversation-card-related-rows");
+    const rows = within(trail).getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Home page task");
+    expect(rows[0]).toHaveTextContent(
+      "It reuses the login page's way of recognizing a local user.",
+    );
+    expect(rows[1]).toHaveTextContent("Login task");
+    expect(
+      within(
+        screen.getByTestId("implementation-readiness-failure-scenario"),
+      ).getAllByRole("listitem"),
+    ).toHaveLength(3);
+  });
+
+  it("names each fix step's owner, action and state", () => {
+    renderField(config);
+
+    const [, steps] = screen.getAllByTestId("conversation-card-related-rows");
+    const rows = within(steps).getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("Login task");
+    expect(rows[0]).toHaveTextContent(
+      "Decide how the browser proves it is local.",
+    );
+    expect(rows[0]).toHaveTextContent("your decision");
+    expect(rows[1]).toHaveTextContent("Home page task");
+    expect(rows[1]).toHaveTextContent("work remaining");
+    expect(rows[2]).toHaveTextContent("already done");
+  });
+
+  it("puts the request in the ask block and keeps evidence hidden", () => {
+    renderField(config);
 
     expect(
-      screen.getByTestId("implementation-readiness-field"),
-    ).toBeInTheDocument();
+      screen.getByTestId("implementation-readiness-ask"),
+    ).toHaveTextContent("Decide the recognition method on the login task.");
+    expect(
+      screen.queryByText(/The login task lists recognition/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still shows a finding saved in the earlier layout inside the card", () => {
+    renderField({
+      ...config,
+      payload: {
+        ...payload,
+        disposition: {
+          ...payload.disposition,
+          finding: {
+            affectedSourceContext: "The task description",
+            unresolvedDecision: "Which service owns persistence?",
+            consequentialInventionRisk: "Ownership could be assigned wrongly.",
+            boundedEvidence: [],
+            answerKind: "Name the owning service.",
+          },
+        },
+      },
+    });
+
+    expect(screen.getByText("Readiness review")).toBeInTheDocument();
     const finding = screen.getByTestId("implementation-readiness-finding");
-    const renderedMarkdown = finding.textContent ?? "";
-    const headings = [
-      "## What you asked for",
-      "## How the agent got here",
-      "## The problem",
-      "## What could go wrong",
-      "## Steps to fix",
-      "## What I need from you",
-    ].map((heading) => renderedMarkdown.indexOf(heading));
-    expect(headings.every((position) => position >= 0)).toBe(true);
-    expect([...headings].sort((x, y) => x - y)).toEqual(headings);
-    expect(finding).toHaveTextContent(
-      "The page needs to recognize the browser.",
-    );
-    expect(finding).toHaveTextContent(
-      "Decide the recognition method on the login task.",
-    );
-    expect(finding).not.toHaveTextContent("The login task lists recognition");
+    expect(finding).toHaveTextContent("Issue");
+    expect(finding).toHaveTextContent("Ownership could be assigned wrongly.");
+    expect(finding).toHaveTextContent("Which service owns persistence?");
+    expect(screen.queryByTestId("conversation-card-lead")).toBeNull();
   });
 });
 
-describe("buildImplementationReadinessFindingMarkdown", () => {
-  const finding = payload.disposition.finding;
-
-  it("numbers the scenario, links each source and owner, and labels step states", () => {
-    if (!finding) {
-      throw new Error("fixture finding missing");
-    }
-
-    const markdown = buildImplementationReadinessFindingMarkdown(finding);
-
-    expect(markdown).toContain(`1. @[task:${HOME_ID}|Home page task] — `);
-    expect(markdown).toContain(`2. @[task:${LOGIN_ID}|Login task] — `);
-    expect(markdown).toContain("1. A local user opens the home page.");
-    expect(markdown).toContain(
-      `1. Decide how the browser proves it is local. — @[task:${LOGIN_ID}|Login task] (your decision)`,
-    );
-    expect(markdown).toContain(
-      `2. Reuse the decided method. — @[task:${HOME_ID}|Home page task] (work remaining)`,
-    );
-  });
-
+describe("buildLegacyFindingMarkdown", () => {
   it("keeps a finding saved in the earlier layout in its original layout", () => {
-    const markdown = buildImplementationReadinessFindingMarkdown({
+    const markdown = buildLegacyFindingMarkdown({
       affectedSourceContext: "The task description",
       unresolvedDecision: "Which service owns persistence?",
       consequentialInventionRisk: "Ownership could be assigned incorrectly.",
@@ -197,13 +273,15 @@ describe("ImplementationReadinessSecondaryAction", () => {
     const onExecute = vi.fn();
 
     render(
-      <ImplementationReadinessSecondaryAction
-        action={action("Clarify")}
-        context={{ ...actionContext, onFocusComposer }}
-        formValues={{}}
-        onExecute={onExecute}
-        kind="clarify"
-      />,
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ImplementationReadinessSecondaryAction
+          action={action("Clarify")}
+          context={{ ...actionContext, onFocusComposer }}
+          formValues={{}}
+          onExecute={onExecute}
+          kind="clarify"
+        />
+      </ThemeProvider>,
     );
 
     await user.click(

@@ -1,16 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Alert, CircularProgress, Typography } from "@mui/material";
 import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Typography,
-} from "@mui/material";
+  BrandedButton,
+  BrandedCard,
+  BrandedHeadline,
+  BrandedPage,
+  BrandedWordmark,
+} from "@hey-hey/ui-common/components";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@hey-hey/ui-common/context";
 import {
   isPasskeySupported,
+  recordLocalStartupDiagnostic,
   PasskeyCeremonyCancelledError,
   signInWithPasskey,
 } from "@hey-hey/ui-common/services";
@@ -26,6 +28,12 @@ export function LocalLogin() {
   const [failed, setFailed] = useState(false);
   const target = resolveAuthReturnTarget(location);
   const supported = isPasskeySupported();
+  useEffect(() => {
+    recordLocalStartupDiagnostic("auth_state", {
+      authenticated: isAuthenticated,
+      loading,
+    });
+  }, [isAuthenticated, loading]);
 
   const handleSignIn = async () => {
     setPending(true);
@@ -47,72 +55,45 @@ export function LocalLogin() {
   }
 
   return (
-    <Box
-      component="main"
-      data-testid="local-login"
-      sx={{
-        minHeight: "100vh",
-        boxSizing: "border-box",
-        background: "#333",
-        color: "#fff",
-        textAlign: "center",
-        px: 3,
-        py: { xs: 4, md: 10 },
-      }}
-    >
+    <BrandedPage data-testid="local-login">
       {loading ? (
         <Typography role="status" data-testid="return-progress">
           {t("localLogin.continuing")}
         </Typography>
       ) : (
         <>
-          <Typography
-            sx={{
-              color: "#3fa7b5",
-              fontFamily: "Monoton, Arial Black, sans-serif",
-              fontSize: "2.2rem",
-              mb: 3,
-            }}
-          >
-            HEY HEY
-          </Typography>
-          <Typography
-            component="h1"
-            variant="h3"
-            sx={{ fontWeight: 900, mb: 3 }}
-          >
+          <BrandedWordmark>HEY HEY</BrandedWordmark>
+          <BrandedHeadline line={t("localLogin.note")}>
             {t("localLogin.title")}
-          </Typography>
-          <Typography sx={{ mb: 3 }}>{t("localLogin.note")}</Typography>
-          {failed && (
-            <Alert severity="error" sx={{ maxWidth: 400, mx: "auto", mb: 3 }}>
-              {t("localLogin.failed")}
-            </Alert>
-          )}
-          {supported ? (
-            <Button
-              data-testid="return-passkey"
-              variant="contained"
-              disabled={pending}
-              onClick={() => void handleSignIn()}
-              sx={{ background: "#fff", color: "#333" }}
-            >
-              {pending ? (
-                <CircularProgress
-                  size={24}
-                  aria-label={t("localLogin.continuing")}
-                />
-              ) : (
-                t("localLogin.signIn")
-              )}
-            </Button>
-          ) : (
-            <Alert severity="warning" sx={{ maxWidth: 400, mx: "auto" }}>
-              {t("localLogin.unsupported")}
-            </Alert>
-          )}
+          </BrandedHeadline>
+          <BrandedCard>
+            {failed && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {t("localLogin.failed")}
+              </Alert>
+            )}
+            {supported ? (
+              <BrandedButton
+                data-testid="return-passkey"
+                disabled={pending}
+                onClick={() => void handleSignIn()}
+              >
+                {pending ? (
+                  <CircularProgress
+                    size={24}
+                    color="inherit"
+                    aria-label={t("localLogin.continuing")}
+                  />
+                ) : (
+                  t("localLogin.signIn")
+                )}
+              </BrandedButton>
+            ) : (
+              <Alert severity="warning">{t("localLogin.unsupported")}</Alert>
+            )}
+          </BrandedCard>
         </>
       )}
-    </Box>
+    </BrandedPage>
   );
 }

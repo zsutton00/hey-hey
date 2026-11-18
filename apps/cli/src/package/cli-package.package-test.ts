@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { build } from 'esbuild';
+import { OFFLINE_DOC_FILES, findOfflineDocs } from '../local-app/offline-docs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execFileAsync = promisify(execFile);
@@ -132,6 +133,24 @@ describe('published artifact shape', () => {
     if (process.platform !== 'win32') {
       expect((await stat(artifact)).mode & fsConstants.S_IXUSR).toBeTruthy();
     }
+  });
+
+  it('ships version-matched recovery documentation that every cited path resolves in', async () => {
+    const docsDirectory = path.join(cliRoot, 'dist/docs');
+    const lookup = await findOfflineDocs(docsDirectory, pkg.version);
+    expect(lookup).toMatchObject({ found: true });
+    for (const file of Object.values(OFFLINE_DOC_FILES)) {
+      expect((await stat(path.join(docsDirectory, file))).isFile()).toBe(true);
+    }
+    expect(await readFile(path.join(docsDirectory, OFFLINE_DOC_FILES.index), 'utf8')).toContain(
+      `CLI ${pkg.version}`,
+    );
+  });
+
+  it('says why `heyhey local troubleshoot` has nothing to show when no attempt failed', async () => {
+    const result = await runCli(['local', 'troubleshoot']);
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain('diagnostics directory');
   });
 
   it('is self-contained ESM: only Node builtins, keyring and Playwright stay external', async () => {

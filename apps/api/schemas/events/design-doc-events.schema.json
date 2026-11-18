@@ -3827,6 +3827,9 @@
     "StartRunPromptPayload": {
       "type": "object",
       "properties": {
+        "continuation": {
+          "$ref": "#/definitions/AgentSessionContinuationMarker"
+        },
         "runId": {
           "type": "string",
           "description": "Explicit replacement Run identity; the owning Agent Session is unchanged."
@@ -3925,6 +3928,36 @@
         "agentSessionId"
       ],
       "description": "Payload for the start-run envelope variant (AgentTriggerStartRun, sentinel promptType=`start_run`). Mirrors the fields of the Agent Bridge runtime contract in openapi/specs/agent-bridge/openapi.yaml that the CLI needs to materialize a Run on the host side. The platform start-run producer forwards this payload on the signed envelope so the CLI can materialize the Run without re-deriving any field. Carried inside an `AgentTriggerStartRun` whose discriminator value is the sentinel literal `start_run`. Two arms on the signed trigger envelope, distinguished by a `handlerPromptType` (turn-firing) vs `workflowName` (materialize-only) discriminator — exactly one discriminator is present on any given envelope: - **`handlerPromptType` + `payload` (turn-firing arm).** The   non-workflow case. The CLI materializes the Run and immediately   fires its first turn against `handlerPromptType`, driven by   `payload`. This is the only arm that drives turn one from the CLI. - **`workflowName` (materialize-only arm).** The workflow-orchestrated   case (e.g. plan mode). `handlerPromptType` is absent. A bind-only launch   omits `payload`; a kickoff launch carries a `workflow_kickoff` payload   with the opening user message and optional canonical focal `entity`.   The CLI materializes the Run and binds `conversationId → runId` but   fires no turn — the Temporal workflow (already started server-side)   drives every turn via its own signed SYSTEM triggers. Skipping   `start_run` entirely for a workflow session would leave no   `conversationId → runId` binding and the workflow\\'s triggers would be   dropped as `no_active_run`; the materialize-only arm is how a launch   turn is suppressed without dropping the envelope.  On the kickoff form, the API authors the workflow arm\\'s USER opening row from `payload.userMessage`, while the same payload supplies the CLI with the optional focal `entity` needed for Run materialization. Bind-only launches author no kickoff row and carry no payload. Independently of the arm discriminator, `triggersAgent` (default `true`) governs whether the turn-firing arm actually fires turn one. Setting it `false` turns a `handlerPromptType` + `payload` envelope materialize-only: the CLI materializes the Run and binds `conversationId → runId` but fires no turn. This is the non-workflow way to seed a standing greeting that waits for the user — the same launch-turn suppression the `workflowName` arm achieves by routing dispatch to a Temporal workflow."
+    },
+    "AgentSessionContinuationMarker": {
+      "type": "object",
+      "properties": {
+        "continuationId": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/definitions/AgentSessionContinuationMode"
+        }
+      },
+      "required": [
+        "continuationId",
+        "mode"
+      ],
+      "description": "Carried on a continuation\\'s materialize-only start_run. It selects which provider session the destination uses and carries no authority."
+    },
+    "AgentSessionContinuationMode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NATIVE_RESUME"
+        },
+        {
+          "type": "string",
+          "const": "SAVED_HISTORY"
+        },
+        {}
+      ],
+      "description": "NATIVE_RESUME continues the provider session found on the destination. SAVED_HISTORY starts a new provider session inside the same Run from the conversation\\'s saved history, only after the person confirmed it."
     },
     "RunAttachmentReference": {
       "type": "object",
@@ -8226,6 +8259,9 @@
           "type": "string",
           "description": "Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target."
         },
+        "target": {
+          "$ref": "#/definitions/EvalCaseCodingTarget"
+        },
         "mockupChecklist": {
           "$ref": "#/definitions/EvalCaseMockupChecklist"
         }
@@ -8234,7 +8270,7 @@
         "serviceId",
         "pinnedCommit"
       ],
-      "description": "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\\'s handler is `free_form`; checked at approval and at launch, and recorded with each run."
+      "description": "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\\'s handler is `free_form`; checked at approval and at launch, and recorded with each run. A section with a `mockupChecklist` must also have a `target`."
     },
     "EvalCaseCodingCommit": {
       "type": "object",
@@ -8254,15 +8290,42 @@
       ],
       "description": "The commit a coding attempt starts from."
     },
+    "EvalCaseCodingTarget": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/EvalCaseCodingTargetKindEnum",
+          "description": "NEW for a new screen or component; EXISTING for a change to one."
+        },
+        "path": {
+          "type": "string",
+          "description": "Path of the screen or component within the case\\'s Service."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "description": "What a coding case is about: whether the work is a new screen or component or a change to an existing one, and optionally where it lives in the case\\'s Service. For the judge and results viewer only; never passed to the evaluated attempt."
+    },
+    "EvalCaseCodingTargetKindEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "NEW"
+        },
+        {
+          "type": "string",
+          "const": "EXISTING"
+        },
+        {}
+      ]
+    },
     "EvalCaseMockupChecklist": {
       "type": "object",
       "properties": {
         "mockupId": {
           "type": "string",
           "description": "The source Mockup, which must be in the case\\'s project."
-        },
-        "kind": {
-          "$ref": "#/definitions/EvalCaseMockupChecklistKindEnum"
         },
         "items": {
           "type": "array",
@@ -8273,23 +8336,9 @@
       },
       "required": [
         "mockupId",
-        "kind",
         "items"
       ],
-      "description": "What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed."
-    },
-    "EvalCaseMockupChecklistKindEnum": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "NEW"
-        },
-        {
-          "type": "string",
-          "const": "UPDATE"
-        },
-        {}
-      ]
+      "description": "What a coding case built from a Mockup is judged against. Whether the Mockup is new or a change to an existing interface comes from the Coding section\\'s `target`, which is required when a checklist is present. For a new interface the items cover every control; for an existing one only the parts that changed."
     },
     "EvalCaseMockupChecklistItem": {
       "type": "object",
@@ -17689,6 +17738,10 @@
         "feature": {
           "$ref": "#/definitions/VerifyFeatureReference"
         },
+        "lead": {
+          "type": "string",
+          "description": "One sentence naming the specific discrepancy, shown as the card\\'s lead. The explanation carries the detail. Suggestions saved before the field existed have no lead."
+        },
         "explanation": {
           "type": "string"
         },
@@ -24290,7 +24343,14 @@
               "items": {
                 "type": "string"
               },
-              "description": "Repo-relative paths of files modified during the run."
+              "description": "Repo-relative paths of files modified during the turn, derived from `edits`: the sorted unique paths. Kept for readers that only need which files changed."
+            },
+            "edits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ImplementReportEdit"
+              },
+              "description": "Every recorded edit to this report\\'s Service during the turn, in the order they occurred. Built by the CLI from the Run\\'s canonical file-change facts, never authored by the agent. Carries no file content: versions are git object ids kept in the repository that ran the session. Absent on reports written before edits were recorded."
             },
             "decisions": {
               "type": "array",
@@ -25150,6 +25210,13 @@
     "CommitReportPayloadAllOfHashes": {
       "type": "object",
       "properties": {
+        "implementReportIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports."
+        },
         "service": {
           "type": "string",
           "description": "Session service id of the repository this commit landed in."
@@ -25829,7 +25896,7 @@
         "affectedEntities": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/FeatureSyncReportSourceRef"
+            "$ref": "#/definitions/FeatureSyncDecisionAffectedEntity"
           }
         },
         "title": {
@@ -25852,7 +25919,31 @@
         "summary",
         "choices"
       ],
-      "description": "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence."
+      "description": "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity\\'s optional reason is display-only: it plays no part in group identity, target uniqueness or the user\\'s response."
+    },
+    "FeatureSyncDecisionAffectedEntity": {
+      "type": "object",
+      "properties": {
+        "entityType": {
+          "$ref": "#/definitions/FeatureSyncReportSourceType"
+        },
+        "entityId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the referenced entity (the `|title` half of the mention)."
+        },
+        "reason": {
+          "type": "string",
+          "description": "One-line, display-only explanation of why the decision affects this entity."
+        }
+      },
+      "required": [
+        "entityId",
+        "entityType",
+        "title"
+      ]
     },
     "FeatureSyncDecisionChoice": {
       "type": "object",
@@ -25922,6 +26013,87 @@
         {}
       ]
     },
+    "ImplementReportEdit": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Repo-relative path of the edited file."
+        },
+        "occurredAt": {
+          "type": "string",
+          "description": "When the edit was recorded."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "The Turn that made the edit."
+        },
+        "beforeObjectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Git object id of the file before the edit. When `versionsRecorded` is true, null means the file did not exist before the edit."
+        },
+        "afterObjectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Git object id of the file after the edit. When `versionsRecorded` is true, null means the edit deleted the file."
+        },
+        "beforeRanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ImplementReportLineRange"
+          },
+          "description": "Changed line ranges in the before version."
+        },
+        "afterRanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ImplementReportLineRange"
+          },
+          "description": "Changed line ranges in the after version."
+        },
+        "approximate": {
+          "type": "boolean",
+          "description": "True when Hey Hey could not establish that the ranges hold only this session\\'s lines. Another session, a script or the person\\'s editor may have changed the same file between the two versions, and the ranges then cover everything observed between them. Hey Hey currently reads each file only after the edit has run, so every edit is approximate."
+        },
+        "versionsRecorded": {
+          "type": "boolean",
+          "description": "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository\\'s object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate."
+        }
+      },
+      "required": [
+        "path",
+        "occurredAt",
+        "turnId",
+        "beforeObjectId",
+        "afterObjectId",
+        "beforeRanges",
+        "afterRanges",
+        "approximate",
+        "versionsRecorded"
+      ],
+      "description": "One recorded edit to a file. Line ranges are measured against the exact before and after versions, so later edits never invalidate them. Edits to one file form a chain: an edit whose `beforeObjectId` is another edit\\'s `afterObjectId` came after it."
+    },
+    "ImplementReportLineRange": {
+      "type": "object",
+      "properties": {
+        "startLine": {
+          "type": "number"
+        },
+        "endLine": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "startLine",
+        "endLine"
+      ],
+      "description": "A 1-based, inclusive range of lines in one version of a file."
+    },
     "ImplementReportPayloadAllOfDecisions": {
       "type": "object",
       "properties": {
@@ -25948,7 +26120,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "Repo-relative path of the file the decision lives in."
+          "description": "Repo-relative path of the file the decision lives in. It names a path in this report\\'s `edits`."
         },
         "startLine": {
           "type": "number",

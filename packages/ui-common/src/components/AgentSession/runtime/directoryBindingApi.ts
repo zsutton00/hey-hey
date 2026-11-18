@@ -7,6 +7,8 @@ import type {
   CliReadErrorCode,
   CliReadRunChangedFileDetailSuccessResponseDto,
   CliReadRunChangedFilesInventorySuccessResponseDto,
+  CliReadRunRecordedEditSuccessResponseDto,
+  ImplementReportEdit,
   LocalListRepoBindingsResponse,
   LocalRunAttachmentOpenSuccessResponse,
   LocalRunAttachmentSuccessResponse,
@@ -30,9 +32,10 @@ import {
   LocalRunProviderSessionTranscriptErrorCode,
   LocalStagedBrowserTabOpenErrorCode,
 } from "@hey-hey/contracts/local";
-
-const DEFAULT_LOCAL_CLI_PORT = 3847;
-const STAGING_LOCAL_CLI_PORT = 3849;
+import {
+  hostedPlatformEnvironmentForHost,
+  PRODUCTION_BRIDGE_PORT,
+} from "@hey-hey/contracts/platform-environments";
 
 const configuredLocalCliPort = (): number | null => {
   const configuredPort = getLocalAgentPort();
@@ -221,6 +224,30 @@ const readChangedFileDetailResponse = (
     status: "success",
     result: { runId, file: value.result.file },
   } satisfies CliReadRunChangedFileDetailSuccessResponseDto;
+};
+
+const readRecordedEditResponse = (
+  value: unknown,
+  runId: string,
+): CliReadRunRecordedEditSuccessResponseDto => {
+  if (
+    !isRecord(value) ||
+    typeof value.requestId !== "string" ||
+    value.requestId.trim().length === 0 ||
+    value.operation !== "run.recorded_edit.read" ||
+    value.status !== "success" ||
+    !isRecord(value.result) ||
+    value.result.runId !== runId ||
+    !isChangedFileDetail(value.result.file)
+  ) {
+    throw new Error("The local CLI returned an invalid recorded edit.");
+  }
+  return {
+    requestId: value.requestId,
+    operation: "run.recorded_edit.read",
+    status: "success",
+    result: { runId, file: value.result.file },
+  } satisfies CliReadRunRecordedEditSuccessResponseDto;
 };
 
 const isChangedFileInventoryEntry = (
@@ -552,18 +579,17 @@ export const resolveLocalDirectoryRuntimeBaseUrl = (): string => {
   const configuredPort = configuredLocalCliPort();
   if (typeof window === "undefined") {
     return `http://localhost:${String(
-      configuredPort ?? DEFAULT_LOCAL_CLI_PORT,
+      configuredPort ?? PRODUCTION_BRIDGE_PORT,
     )}`;
   }
 
   const port = readPort(
     new URLSearchParams(window.location.search).get("server"),
   );
-  // Match the CLI's --staging bridge; production and staging can run together.
+  // Match the CLI's --staging / --eval bridge so each environment's CLI can run alongside production.
   const defaultPort =
-    window.location.hostname === "staging.heyhey.dev"
-      ? STAGING_LOCAL_CLI_PORT
-      : DEFAULT_LOCAL_CLI_PORT;
+    hostedPlatformEnvironmentForHost(window.location.hostname)?.bridgePort ??
+    PRODUCTION_BRIDGE_PORT;
   return `http://localhost:${String(port ?? configuredPort ?? defaultPort)}`;
 };
 
@@ -600,6 +626,12 @@ export interface DirectoryBindingApi {
     runId: string,
     machineId: string,
   ): Promise<CliReadRunChangedFilesInventorySuccessResponseDto>;
+  readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto>;
   openRunBrowserTab(
     runId: string,
     body: LocalRunBrowserOpenRequest,
@@ -755,6 +787,23 @@ export const createDirectoryBindingApi = (
       },
     );
     return readChangedFileDetailResponse(payload, runId);
+  },
+
+  async readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto> {
+    const payload = await request<unknown>(
+      baseUrl,
+      `/api/local/runs/${encodeURIComponent(runId)}/recorded-edits/read`,
+      {
+        method: "POST",
+        body: JSON.stringify({ machineId, serviceId, edit }),
+      },
+    );
+    return readRecordedEditResponse(payload, runId);
   },
 
   async readRunChangedFilesInventory(

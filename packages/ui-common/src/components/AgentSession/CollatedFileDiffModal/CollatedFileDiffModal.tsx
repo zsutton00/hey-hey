@@ -31,6 +31,7 @@ import React, {
   useState,
 } from "react";
 import type {
+  ImplementReportEdit,
   CliReadChangedFileDetail,
   CliReadChangedFileInventoryEntry,
 } from "../../../api";
@@ -46,10 +47,15 @@ import {
   FullFileSplitView,
   type DiffPresentationMode,
 } from "./FullFileSplitView";
-import type { LocatedDecision } from "./locatedDecisions";
+import {
+  decisionsForFile,
+  type LocatedDecision,
+  type ServiceLocatedDecision,
+} from "./locatedDecisions";
 import { resolveFileTypeIcon } from "./resolveFileTypeIcon";
 
 export interface CollatedFileDiffModalProps {
+  recordedRanges?: Pick<ImplementReportEdit, "beforeRanges" | "afterRanges">;
   open: boolean;
   onClose: () => void;
   entries: CliReadChangedFileInventoryEntry[];
@@ -71,10 +77,10 @@ export interface CollatedFileDiffModalProps {
     | { status: "ready"; serviceNamesById: ReadonlyMap<string, string> };
   /**
    * Located IMPLEMENT-report decisions to anchor inline in the diff. For the
-   * selected file, only decisions whose `location.file` matches that file's
-   * path are shown. Defaults to none, in which case the diff renders as today.
+   * selected file, only decisions from that file's Service whose
+   * `location.file` matches its path are shown. Defaults to none, in which case the diff renders as today.
    */
-  decisions?: LocatedDecision[];
+  decisions?: ServiceLocatedDecision[];
 }
 
 const FILE_LIST_WIDTH_STORAGE_KEY = "diffViewer.fileListWidth";
@@ -209,7 +215,7 @@ const ChangedFileReference = (props: ChangedFileReferenceProps) => {
   };
 
   if (presentation === "selected-file-heading") {
-    return <FileReferenceLink value={value} />;
+    return <FileReferenceLink value={value} workspaceRoot={patch.repoPath} />;
   }
 
   const { editType } = props;
@@ -238,6 +244,7 @@ const ChangedFileReference = (props: ChangedFileReferenceProps) => {
           value={value}
           renderMode="file-name"
           editorActivation="context-menu"
+          workspaceRoot={patch.repoPath}
         />
         <Typography
           variant="caption"
@@ -271,6 +278,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   onRetry,
   serviceNamesState,
   decisions,
+  recordedRanges,
 }) => {
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
@@ -371,12 +379,20 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
   };
 
   const selectedPatchFilePath = selectedPatch?.filePath ?? null;
+  const selectedPatchServiceId = selectedPatch?.serviceId ?? null;
   const fileDecisions = useMemo<LocatedDecision[]>(() => {
-    if (selectedPatchFilePath === null || !decisions) return [];
-    return decisions.filter(
-      (decision) => decision.location.file === selectedPatchFilePath,
-    );
-  }, [decisions, selectedPatchFilePath]);
+    if (
+      selectedPatchFilePath === null ||
+      selectedPatchServiceId === null ||
+      !decisions
+    ) {
+      return [];
+    }
+    return decisionsForFile(decisions, {
+      serviceId: selectedPatchServiceId,
+      filePath: selectedPatchFilePath,
+    });
+  }, [decisions, selectedPatchFilePath, selectedPatchServiceId]);
 
   const handleHideCommentsChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -776,6 +792,7 @@ export const CollatedFileDiffModal: React.FC<CollatedFileDiffModalProps> = ({
                             presentationMode={presentationMode}
                             hideComments={hideComments}
                             annotations={fileDecisions}
+                            recordedRanges={recordedRanges}
                           />
                         </Box>
                       ) : (

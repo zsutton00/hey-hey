@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadAgentSessionContinuationInspectErrorResponseDto } from './cli-read-agent-session-continuation-inspect-error-response-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadError } from './cli-read-error.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -37,6 +40,9 @@ import type { CliReadRunChangedFilesInventoryErrorResponseDto } from './cli-read
 import type { CliReadRunContextUsageGetErrorResponseDto } from './cli-read-run-context-usage-get-error-response-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadRunRecordedEditErrorResponseDto } from './cli-read-run-recorded-edit-error-response-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadRunSkillsListErrorResponseDto } from './cli-read-run-skills-list-error-response-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -52,6 +58,6 @@ import type { CliReadWorkspaceSkillsListErrorResponseDto } from './cli-read-work
  * @type CliReadErrorResponseDto
  * @export
  */
-export type CliReadErrorResponseDto = { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListErrorResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetErrorResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountErrorResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailErrorResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryErrorResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetErrorResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListErrorResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnErrorResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetErrorResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListErrorResponseDto;
+export type CliReadErrorResponseDto = { operation: 'agent_session.continuation.inspect' } & CliReadAgentSessionContinuationInspectErrorResponseDto | { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListErrorResponseDto | { operation: 'provider.usage.get' } & CliReadProviderUsageGetErrorResponseDto | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountErrorResponseDto | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailErrorResponseDto | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryErrorResponseDto | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetErrorResponseDto | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditErrorResponseDto | { operation: 'run.skills.list' } & CliReadRunSkillsListErrorResponseDto | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnErrorResponseDto | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetErrorResponseDto | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListErrorResponseDto;
 
-export const CliReadErrorResponseDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","workspace.skills.list","project.session_costs.list","provider.usage.get","runtime.model_catalog.get"] as const;
+export const CliReadErrorResponseDtoDiscriminatorValues = ["run.changed_files.count","run.changed_files.inventory","run.changed_files.detail","run.recorded_edit.read","run.context_usage.get","run.skills.list","run.tool_calls.latest_turn","workspace.skills.list","project.session_costs.list","provider.usage.get","runtime.model_catalog.get","agent_session.continuation.inspect"] as const;

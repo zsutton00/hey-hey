@@ -11,6 +11,16 @@ interface PairingPageProps {
   journey?: PairingJourney;
 }
 
+/**
+ * An in-app path to return to after pairing (for example the conversation the
+ * person was continuing). Only same-origin absolute paths are accepted.
+ */
+export const readInternalReturnPath = (value: string | null): string | null => {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (value.includes("\\") || value.startsWith("/pairing")) return null;
+  return value;
+};
+
 export const PairingPage = ({
   journey = "first-machine",
 }: PairingPageProps) => {
@@ -18,6 +28,9 @@ export const PairingPage = ({
   const navigate = useNavigate();
   const localSetupReturn =
     journey === "first-machine" && searchParams.get("returnTo") === "local";
+  const internalReturn = localSetupReturn
+    ? null
+    : readInternalReturnPath(searchParams.get("returnTo"));
   const authorizationTarget =
     journey === "first-machine" &&
     searchParams.get("intent") === "authorize-browser" &&
@@ -50,10 +63,16 @@ export const PairingPage = ({
             journey={journey}
             authorizationTarget={authorizationTarget}
             completionActionLabel={
-              localSetupReturn ? "Continue to Hey Hey" : "Go to projects"
+              localSetupReturn
+                ? "Continue to Hey Hey"
+                : internalReturn
+                  ? "Return to conversation"
+                  : "Go to projects"
             }
             onCompletionAction={() =>
-              navigate(localSetupReturn ? "/local" : "/projects")
+              navigate(
+                localSetupReturn ? "/local" : (internalReturn ?? "/projects"),
+              )
             }
           />
         </Box>

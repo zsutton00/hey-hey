@@ -1,3 +1,4 @@
+import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type {
   AgentSessionDto,
@@ -30,7 +31,13 @@ import {
   within,
 } from "@testing-library/react";
 import React from "react";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalPmConversationLink } from "@hey-hey/ui-common/components";
 import { GoalPage } from "./GoalPage";
@@ -474,6 +481,7 @@ vi.mock("@hey-hey/ui-common/services", () => ({
     plan: ({ planId }: { planId: string }) => `/plans/${planId}`,
   }),
   WebPathService: {
+    project: (projectId: string) => `/projects/${projectId}`,
     task: ({ taskId }: { taskId: string }) => `/tasks/${taskId}`,
     goal: ({ taskId }: { taskId: string }) => `/tasks/${taskId}`,
     designDoc: ({ designDocId }: { designDocId: string }) =>
@@ -779,8 +787,19 @@ const findEntityListItemProps = (
     .map(([props]) => props as Record<string, unknown>)
     .find((props) => props.title === title);
 
+function ArchiveLocationProbe() {
+  useArchiveHistory();
+  const location = useLocation();
+  return (
+    <output data-testid="archive-location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
+}
 const goalPageRoute = (): React.ReactElement => (
   <MemoryRouter initialEntries={["/projects/project-1/tasks/goal-task-1"]}>
+    <ArchiveLocationProbe />
     <Routes>
       <Route path="/projects/:projectId/tasks/:taskId" element={<GoalPage />} />
     </Routes>
@@ -896,6 +915,36 @@ describe("GoalPage tabs", () => {
       }),
     );
   });
+
+  it.each(["applied", "pending", "failed"])(
+    "handles Goal archive: %s",
+    async (outcome) => {
+      if (outcome === "failed") {
+        mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));
+      } else {
+        mockUpdateTask.mockResolvedValueOnce({
+          ...createGoalTask(),
+          status:
+            outcome === "applied" ? WorkStatus.Archived : WorkStatus.Backlog,
+        });
+      }
+      renderGoalPage();
+      const props = mockWorkItemMetadata.mock.calls.at(-1)?.[0] as {
+        fields: { status: { onChange: (status: WorkStatus) => Promise<void> } };
+      };
+      await act(async () => {
+        await props.fields.status.onChange(WorkStatus.Archived);
+      });
+      expect(mockUpdateTask).toHaveBeenCalledWith("goal-task-1", {
+        status: WorkStatus.Archived,
+      });
+      expect(screen.getByTestId("archive-location").textContent).toBe(
+        outcome === "applied"
+          ? "/projects/project-1"
+          : "/projects/project-1/tasks/goal-task-1",
+      );
+    },
+  );
 
   it("keeps the responsive Conversations destination without an outer tab bar for ordinary users", async () => {
     renderGoalPage();

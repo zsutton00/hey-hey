@@ -62,6 +62,7 @@ import { SystemMessage } from "./Components/SystemMessage";
 import { ConversationDebugPanel } from "./ConversationDebugPanel";
 import type { ConversationNavigatorOrientation } from "./ConversationNavigator";
 import { ConversationNavigator } from "./ConversationNavigator";
+import { useBrandedAppearance } from "../BrandedFrame";
 import { ConversationToolbar, type ToolbarButton } from "./ConversationToolbar";
 import type { ProposalsAcceptedHandler } from "./hooks/proposalsAcceptedTypes";
 import {
@@ -542,6 +543,7 @@ const ConversationViewerContent: React.FC<{
     isLoading: false,
   });
 
+  const isBranded = useBrandedAppearance();
   const isHorizontal = navigationOrientation === "horizontal";
   const showContent = true;
   const hasToolbar = toolbarButtons && toolbarButtons.length > 0;
@@ -660,7 +662,15 @@ const ConversationViewerContent: React.FC<{
           data-conversation-content
           {...slotProps?.paper}
           sx={{
-            p: { xs: 2, sm: 3, md: 4 },
+            ...(isBranded
+              ? {
+                  border: "none",
+                  backgroundColor: "transparent",
+                  backgroundImage: "none",
+                  boxShadow: "none",
+                }
+              : {}),
+            p: isBranded ? 0 : { xs: 2, sm: 3, md: 4 },
             flex: 1,
             minWidth: 0, // Prevent flex item from overflowing
             maxWidth: "100%",

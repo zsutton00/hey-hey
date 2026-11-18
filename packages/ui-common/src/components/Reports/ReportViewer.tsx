@@ -84,11 +84,14 @@ export interface ReportViewerProps {
   planInteraction?: PlanReportInteractionContext;
   /** Conversation-only response context for grouped Feature Sync decisions. */
   featureSyncDecisionInteraction?: FeatureSyncDecisionReportInteractionContext;
+  /** The user's persisted reply to a Feature Sync decision, used to restore the chosen options. */
+  featureSyncDecisionRecordedResponse?: string;
   /**
    * Saved eval attempt output: marked with the evaluation badge and shown
    * from its saved payload with no response controls. Display only.
    */
   evaluationOutput?: boolean;
+  renderOpenQuestions?: boolean;
 }
 
 export const ReportViewer: React.FC<ReportViewerProps> = ({
@@ -100,26 +103,14 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
   sx,
   planInteraction,
   featureSyncDecisionInteraction,
+  featureSyncDecisionRecordedResponse,
   evaluationOutput = false,
+  renderOpenQuestions = true,
 }) => {
   const testId = `${testIdPrefix}-${report.id}`;
-  const afterFrameContent = (() => {
-    if (report.reportType !== ReportType.CodingResearch) {
-      return null;
-    }
-
-    const payload = narrowReportPayload(report);
-    if (payload.reportType !== ReportType.CodingResearch) {
-      return null;
-    }
-
-    return (
-      <CodingResearchUncertaintiesSection
-        reportTestId={testId}
-        uncertainties={getCodingResearchUncertainties(payload)}
-      />
-    );
-  })();
+  const afterFrameContent = renderOpenQuestions ? (
+    <ReportOpenQuestions report={report} testId={testId} />
+  ) : null;
   // Exactly one host title: the frame header or title link when present,
   // otherwise the renderer's own heading, unless the surface owns the title.
   const isInteractive =
@@ -128,6 +119,13 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
       (report.reportType === ReportType.FeatureSyncDecision &&
         featureSyncDecisionInteraction !== undefined));
   const rendererShowsTitle = renderTitle && !renderHeader && !titleLink;
+  // A V2 decision report is its own framed card; in the conversation (no
+  // standard header) the grey report panel would nest a second frame around it.
+  const ownsFrame =
+    report.reportType === ReportType.FeatureSyncDecision &&
+    report.schemaVersion === 2 &&
+    !renderHeader;
+  const frameSx = ownsFrame ? withUnframedReportSx(sx) : sx;
 
   return (
     <ReportViewerFrame
@@ -135,7 +133,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
       testId={testId}
       renderHeader={renderHeader}
       titleLink={titleLink}
-      sx={sx}
+      sx={frameSx}
       interactive={isInteractive}
       afterFrameContent={afterFrameContent}
     >
@@ -151,9 +149,46 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
         evaluationOutput ? undefined : planInteraction,
         evaluationOutput ? undefined : featureSyncDecisionInteraction,
         evaluationOutput,
+        featureSyncDecisionRecordedResponse,
       )}
     </ReportViewerFrame>
   );
+};
+
+export const ReportOpenQuestions: React.FC<{
+  report: ReportDto;
+  testId: string;
+}> = ({ report, testId }) => {
+  if (report.reportType !== ReportType.CodingResearch) {
+    return null;
+  }
+  const payload = narrowReportPayload(report);
+  if (payload.reportType !== ReportType.CodingResearch) {
+    return null;
+  }
+  return (
+    <CodingResearchUncertaintiesSection
+      reportTestId={testId}
+      uncertainties={getCodingResearchUncertainties(payload)}
+    />
+  );
+};
+
+const unframedReportStyles = {
+  p: 0,
+  border: "none",
+  backgroundColor: "transparent",
+} as const;
+
+/** ReportViewerFrame merges a function or object sx; the unframed styles win. */
+const withUnframedReportSx = (
+  sx: ReportViewerProps["sx"],
+): ReportViewerProps["sx"] => {
+  if (typeof sx === "function") {
+    return (theme) => ({ ...sx(theme), ...unframedReportStyles });
+  }
+
+  return { ...sx, ...unframedReportStyles };
 };
 
 const renderReportBody = (
@@ -163,6 +198,7 @@ const renderReportBody = (
   planInteraction?: PlanReportInteractionContext,
   featureSyncDecisionInteraction?: FeatureSyncDecisionReportInteractionContext,
   evaluationOutput = false,
+  featureSyncDecisionRecordedResponse?: string,
 ): React.ReactElement => {
   if (report.reportType === ReportType.ProjectReport) {
     const projectReportPayload = narrowProjectReportPayload(report);
@@ -274,6 +310,7 @@ const renderReportBody = (
         narrowFeatureSyncDecisionReport(report),
         reportTestId,
         featureSyncDecisionInteraction,
+        featureSyncDecisionRecordedResponse,
       );
     case ReportType.DecisionNeeded:
       return (
@@ -384,6 +421,7 @@ const renderFeatureSyncDecisionReport = (
   report: FeatureSyncDecisionReportDto,
   reportTestId: string,
   interaction?: FeatureSyncDecisionReportInteractionContext,
+  recordedResponse?: string,
 ): React.ReactElement => {
   if (report.schemaVersion === 1) {
     return (
@@ -402,6 +440,7 @@ const renderFeatureSyncDecisionReport = (
       report={report}
       reportTestId={reportTestId}
       interaction={interaction}
+      recordedResponse={recordedResponse}
     />
   );
 };

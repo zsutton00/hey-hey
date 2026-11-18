@@ -25,7 +25,7 @@ import {
   resolveMcpToolNames,
   type McpSessionContext,
 } from './mcp-server-config';
-import { CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS } from './coding-plan/coding-plan.handler';
+import { codingPlanHandler } from './coding-plan/coding-plan.handler';
 import { featureSyncAnalyzeHandler } from './feature-sync/analyze.handler';
 import { featureSyncIterateHandler } from './feature-sync/iterate.handler';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../auth/oauth-client.test-support';
@@ -500,7 +500,12 @@ describe('buildMcpServerConfig', () => {
         GENERAL_MCP_TOOLS,
         PLANNING_MCP_TOOLS,
         RESEARCH_MCP_TOOLS,
-        CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
+        CODING_PLAN_TOOLS: resolveMcpToolNames({
+          ...(codingPlanHandler.mcpToolUseCase
+            ? { useCase: codingPlanHandler.mcpToolUseCase }
+            : {}),
+          additionalTools: codingPlanHandler.additionalAllowedTools ?? [],
+        }),
       };
       for (const tools of Object.values(surfaces)) {
         for (const tool of LEGACY_IMPLEMENTATION_HINT_TOOLS) {

@@ -1,5 +1,6 @@
 export * from "./ActionsCapsule";
 export * from "./Auth";
+export * from "./BrandedFrame";
 export * from "./Card";
 export * from "./Activity";
 export * from "./Adr";

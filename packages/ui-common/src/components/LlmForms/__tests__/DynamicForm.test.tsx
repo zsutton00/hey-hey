@@ -99,8 +99,11 @@ vi.mock("../Registry", () => ({
         (value.choice === "yes" || value.choice === "no"),
     },
     verify_feature: {
-      Component: () => (
-        <div data-testid="verify-feature-field">Verification explanation</div>
+      Component: ({ footerActions }: FieldComponentProps) => (
+        <div data-testid="verify-feature-field">
+          Verification explanation
+          <div data-testid="verify-feature-footer">{footerActions}</div>
+        </div>
       ),
       getHasContent: () => false,
     },
@@ -457,7 +460,7 @@ describe("DynamicForm", () => {
       );
     });
 
-    it("places Verify Feature explanation before its inline action only", () => {
+    it("hands the Verify Feature inline action to its card footer only", () => {
       const verifyFieldId = "verify-feature-field";
       const verifyField = createUIElement({
         id: verifyFieldId,
@@ -495,19 +498,9 @@ describe("DynamicForm", () => {
 
       const verifyExplanation = screen.getByTestId("verify-feature-field");
       const verifyAction = screen.getByTestId("inline-secondary-verify-action");
-      const verifyRoot = screen.getByTestId(
-        "registry-field-root-message-message-1-verify_feature-verify-feature-field",
+      expect(screen.getByTestId("verify-feature-footer")).toContainElement(
+        verifyAction,
       );
-      const verifyRootStyle = window.getComputedStyle(verifyRoot);
-      expect(verifyRootStyle.borderStyle).toBe("solid");
-      expect(verifyRootStyle.borderWidth).toBe("1px");
-      expect(verifyRootStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
-      expect(verifyRootStyle.marginTop).toBe("8px");
-      expect(verifyRoot).toContainElement(verifyAction);
-      expect(
-        window.getComputedStyle(verifyAction.parentElement as HTMLElement)
-          .marginTop,
-      ).toBe("16px");
       expect(
         verifyExplanation.compareDocumentPosition(verifyAction) &
           Node.DOCUMENT_POSITION_FOLLOWING,

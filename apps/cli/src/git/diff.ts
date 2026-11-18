@@ -35,14 +35,15 @@ const splitIntoPatchesByFile = (diffOutput: string): RawFilePatch[] => {
   const sections = diffOutput.split(/(?=^diff --git )/mu);
 
   for (const section of sections) {
-    const trimmed = section.trim();
-    if (!trimmed) {
+    // Whitespace at the end is part of the patch: a trailing blank context line
+    // or the final newline, and `git apply` rejects a hunk that lacks either.
+    if (!section.trim()) {
       continue;
     }
 
     // Extract file path from "diff --git a/<path> b/<path>".
     // Non-greedy on the a/ side to avoid mis-parsing paths containing " b/".
-    const headerMatch = /^diff --git a\/.+? b\/(.+)$/mu.exec(trimmed);
+    const headerMatch = /^diff --git a\/.+? b\/(.+)$/mu.exec(section);
     if (!headerMatch || !headerMatch[1]) {
       continue;
     }
@@ -54,7 +55,7 @@ const splitIntoPatchesByFile = (diffOutput: string): RawFilePatch[] => {
       continue;
     }
 
-    patches.push({ filePath, diff: trimmed });
+    patches.push({ filePath, diff: section });
   }
 
   return patches;
@@ -244,8 +245,12 @@ export const getGitChangedFileDetail = async (options: {
  * and hooks are switched off, and every filter driver it defined is emptied.
  * Diff commands also pass `--no-ext-diff --no-textconv` themselves.
  */
-const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): Promise<string> => {
-  const env = stripCredentialEnvironment(process.env);
+export const untrustedCheckoutGit = async (
+  repoPath: string,
+  args: readonly string[],
+  options: { input?: string; env?: Readonly<Record<string, string>> } = {},
+): Promise<string> => {
+  const env = { ...stripCredentialEnvironment(process.env), ...options.env };
   delete env['GIT_EXTERNAL_DIFF'];
   const overrides = [
     '-c',
@@ -254,11 +259,15 @@ const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): 
     'core.hooksPath=/dev/null',
     ...(await disabledFilterOverrides(repoPath, env)),
   ];
-  const { stdout } = await execFileAsync('git', [...overrides, ...args], {
+  const execution = execFileAsync('git', [...overrides, ...args], {
     cwd: repoPath,
     env,
     maxBuffer: MAX_DIFF_BUFFER,
   });
+  if (options.input !== undefined) {
+    execution.child.stdin?.end(options.input);
+  }
+  const { stdout } = await execution;
 
   return stdout;
 };
@@ -337,14 +346,12 @@ const diffUntrackedFile = async (
     const stdout = options.untrusted
       ? await untrustedCheckoutGit(repoPath, diffArgs)
       : (await execFileAsync('git', diffArgs, { cwd: repoPath })).stdout;
-    const trimmed = stdout.trim();
-    return trimmed ? { filePath, diff: trimmed } : null;
+    return stdout.trim() ? { filePath, diff: stdout } : null;
   } catch (error: unknown) {
     // git diff --no-index exits with code 1 when files differ (normal case).
     const execError = error as { code?: number; stdout?: string };
     if (execError.code === 1 && execError.stdout) {
-      const trimmed = execError.stdout.trim();
-      return trimmed ? { filePath, diff: trimmed } : null;
+      return execError.stdout.trim() ? { filePath, diff: execError.stdout } : null;
     }
     return null;
   }

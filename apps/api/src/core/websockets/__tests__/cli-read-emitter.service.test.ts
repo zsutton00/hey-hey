@@ -34,6 +34,24 @@ const runChangedFileDetailRequest: CliReadRequestDto = {
   authorization: { kind: 'bounded_grant', grantId: 'grant-1' },
 };
 
+const recordedEditRequest = {
+  operation: 'run.recorded_edit.read',
+  runId,
+  serviceId: '66666666-6666-4666-8666-666666666666',
+  edit: {
+    path: 'src/example.ts',
+    turnId: 'turn-1',
+    occurredAt: '2026-11-13T12:00:00Z',
+    beforeObjectId: 'a'.repeat(40),
+    afterObjectId: 'b'.repeat(40),
+    beforeRanges: [{ startLine: 1, endLine: 1 }],
+    afterRanges: [{ startLine: 1, endLine: 1 }],
+    approximate: true,
+    versionsRecorded: true,
+  },
+  authorization: { kind: 'bounded_grant', grantId: 'grant-1' },
+} satisfies CliReadRequestDto;
+
 const runChangedFilesInventoryRequest: CliReadRequestDto = {
   operation: 'run.changed_files.inventory',
   runId,
@@ -79,6 +97,7 @@ const requestsByOperation = {
   'run.changed_files.count': runRequest,
   'run.changed_files.inventory': runChangedFilesInventoryRequest,
   'run.changed_files.detail': runChangedFileDetailRequest,
+  'run.recorded_edit.read': recordedEditRequest,
   'run.context_usage.get': runContextUsageRequest,
   'run.skills.list': runSkillsListRequest,
   'run.tool_calls.latest_turn': runToolCallsLatestTurnRequest,
@@ -319,6 +338,44 @@ describe('CliReadEmitter', () => {
       },
     });
   });
+
+  it.each([false, true])(
+    'correlates historical detail with its requested Service and path (mismatch=%s)',
+    async (mismatch) => {
+      const { gateway, read } = createSubject(recordedEditRequest);
+      gateway.emitCliReadWithAck.mockImplementation(async (event) => ({
+        kind: 'ack',
+        value: {
+          requestId: event.envelope.event.requestId,
+          operation: 'run.recorded_edit.read',
+          status: 'success',
+          result: {
+            runId,
+            file: {
+              serviceId: mismatch ? projectId : recordedEditRequest.serviceId,
+              repoPath: '/tmp/repository',
+              filePath: recordedEditRequest.edit.path,
+              status: 'modify',
+              diff: '',
+              preContent: 'before',
+              postContent: 'after',
+            },
+          },
+        },
+      }));
+      await expect(read()).resolves.toMatchObject(
+        mismatch
+          ? {
+              status: 'error',
+              error: { code: CliReadErrorCode.CorrelationMismatch },
+            }
+          : {
+              status: 'success',
+              result: { file: { preContent: 'before', postContent: 'after' } },
+            },
+      );
+    },
+  );
 
   it.each(
     SESSION_CLI_READ_OPERATIONS.flatMap((operation) =>
@@ -895,6 +952,68 @@ describe('CliReadEmitter', () => {
       error: { code: CliReadErrorCode.CorrelationMismatch },
     });
   });
+});
+
+describe('continuation inspection acknowledgements', () => {
+  it.each(['success', 'error', 'invalid'] as const)(
+    'validates a %s response at the emitter boundary',
+    async (outcome) => {
+      const { subject, gateway } = createSubject();
+      gateway.emitCliReadWithAck.mockImplementation(async (event) => ({
+        kind: 'ack',
+        value: [
+          {
+            requestId: event.envelope.event.requestId,
+            operation: 'agent_session.continuation.inspect',
+            ...(outcome === 'error'
+              ? {
+                  status: 'error',
+                  error: { code: 'READ_FAILED', message: 'Read failed' },
+                }
+              : {
+                  status: 'success',
+                  result: {
+                    agentSessionId: runId,
+                    continuationId: conversationId,
+                    nativeState: outcome === 'invalid' ? 'INVALID' : 'ABSENT',
+                    reason: 'NO_LOCAL_RUN',
+                  },
+                }),
+          },
+        ],
+      }));
+      const response = await subject.readAgentSessionContinuation({
+        organizationId: '66666666-6666-4666-8666-666666666666' as any,
+        projectId: projectId as any,
+        machineId: machineId as any,
+        userId: userId as any,
+        agentSessionId: runId,
+        conversationId,
+        continuationId: conversationId,
+        expectedSourceMachineId: machineId,
+        provider: 'codex',
+        authorizationRequestId: runId,
+        admission: {
+          authorizationId: runId,
+          envelopeAuthorization: { kind: 'bounded_grant', grantId: 'grant-1' },
+          actionPayloadHash: 'a'.repeat(64),
+        },
+      });
+      if (outcome === 'success') {
+        expect(response).toMatchObject({
+          status: 'success',
+          result: { nativeState: 'ABSENT', reason: 'NO_LOCAL_RUN' },
+        });
+      } else {
+        expect(response).toMatchObject({
+          status: 'error',
+          error: {
+            code: outcome === 'error' ? 'READ_FAILED' : 'MALFORMED_ACK',
+          },
+        });
+      }
+    },
+  );
 });
 
 describe('machine-addressed Skill catalog acknowledgements', () => {

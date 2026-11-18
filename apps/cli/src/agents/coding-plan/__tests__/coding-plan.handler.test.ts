@@ -12,14 +12,10 @@ import {
   createPromptTypeHandlerTestAuth,
   createPromptTypeHandlerTestDeps,
 } from '../../prompt-type-handler.test-support';
-import {
-  CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS,
-  CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
-  codingPlanHandler,
-  type EnrichedCodingPlanPromptPayload,
-} from '../coding-plan.handler';
+import { codingPlanHandler, type EnrichedCodingPlanPromptPayload } from '../coding-plan.handler';
 import { codingPlanSubmissionTools } from '../submission-tools';
-import { resolveHintPromptAccess } from '../../mcp-server-config';
+import { resolveHintPromptAccess, resolveMcpToolNames } from '../../mcp-server-config';
+import { classifyProviderSessionDecision } from '../../../run/provider-session-startup-input';
 
 const makeStartupInput = (): LocalPromptStartupInput =>
   ({
@@ -86,11 +82,12 @@ describe('codingPlanHandler', () => {
     expect(codingPlanHandler.promptType).toBe('startup_session');
   });
 
-  it('runs in an isolated subagent with declarative SubAgent config', () => {
-    expect(codingPlanHandler.runnerKind).toBe('subagent');
-    expect(codingPlanHandler.rebuildPromptOnUserMessage).toBe(true);
-    expect(codingPlanHandler.subagentConfig?.adapterId).toBe('claude-sdk-coding-plan-subagent');
-    expect(codingPlanHandler.subagentConfig?.mcpAllowedTools.length).toBeGreaterThan(0);
+  it('keeps one resumable provider session across the planning conversation', () => {
+    expect(codingPlanHandler.runnerKind).toBe('provider_session');
+    expect(codingPlanHandler.subagentConfig).toBeUndefined();
+    expect(codingPlanHandler.rebuildPromptOnUserMessage).toBeUndefined();
+    expect(codingPlanHandler.providerSessionLifetime ?? 'run').toBe('run');
+    expect(codingPlanHandler.providerSessionStart ?? 'inherit').toBe('inherit');
   });
 
   it('requires no reports and mounts only conversation tools', () => {
@@ -102,51 +99,96 @@ describe('codingPlanHandler', () => {
     );
   });
 
-  it('allows graph-Hints maintenance without proposal or structural graph mutations', () => {
-    const allow = new Set(CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS);
-    // The subagent calls create_report via the run-scoped submission tool wrapper,
-    // while get_report_schema is a read-only platform lookup required by the prompt.
-    expect(allow).toContain('get_report_schema');
-    expect(allow).not.toContain('create_report');
-    // Read/search tools survive.
-    expect(allow).toContain('get_context');
-    for (const reader of [
-      'get_diagram',
-      'get_edges',
-      'get_tool_guidance',
-      'get_work_item_type_guidance_batch',
-    ]) {
-      expect(allow).toContain(reader);
-    }
-    expect(allow).toContain('unified_search');
-    expect(allow).toContain('get_hints_for_items');
-    for (const hintWriter of ['create_hint', 'add_hint_connection', 'delete_hint']) {
-      expect(allow).toContain(hintWriter);
-    }
-    expect(resolveHintPromptAccess(true, [...allow])).toBe('write');
-    // Every proposal-mutating and edge tool is stripped.
-    for (const tool of [
-      'create_work_item',
-      'edit_work_item',
-      'create_step',
-      'update_step',
-      'update_proposal',
-      'create_edge',
-      'update_edge',
-      'delete_edge',
-    ]) {
-      expect(allow).not.toContain(tool);
-    }
-  });
+  describe('tool surface', () => {
+    const plannerTools = (): string[] =>
+      resolveMcpToolNames({
+        ...(codingPlanHandler.mcpToolUseCase ? { useCase: codingPlanHandler.mcpToolUseCase } : {}),
+        additionalTools: codingPlanHandler.additionalAllowedTools ?? [],
+      });
 
-  it('limits the subagent to read-only built-in tools (no Write/Edit/Bash)', () => {
-    const builtin = new Set(CODING_PLAN_SUBAGENT_BUILTIN_ALLOWED_TOOLS);
-    expect(builtin).toContain('Read');
-    expect(builtin).toContain('Glob');
-    expect(builtin).toContain('Grep');
-    expect(builtin).not.toContain('Write');
-    expect(builtin).not.toContain('Edit');
-    expect(builtin).not.toContain('Bash');
+    it('allows graph-Hints maintenance without proposal or structural graph mutations', () => {
+      const allow = new Set(plannerTools());
+      // create_report reaches the planner only through the run-scoped
+      // submission tool wrapper; get_report_schema is a read-only lookup.
+      expect(allow).toContain('get_report_schema');
+      expect(allow).not.toContain('create_report');
+      for (const reader of [
+        'get_context',
+        'get_full_entity',
+        'get_diagram',
+        'get_edges',
+        'get_tool_guidance',
+        'get_work_item_type_guidance_batch',
+        'unified_search',
+        'get_hints_for_items',
+      ]) {
+        expect(allow).toContain(reader);
+      }
+      for (const hintWriter of ['create_hint', 'add_hint_connection', 'delete_hint']) {
+        expect(allow).toContain(hintWriter);
+      }
+      expect(resolveHintPromptAccess(true, [...allow])).toBe('write');
+      for (const tool of [
+        'create_work_item',
+        'edit_work_item',
+        'create_design_doc',
+        'edit_design_doc',
+        'update_proposal',
+        'delete_proposal',
+        'create_edge',
+        'update_edge',
+        'delete_edge',
+        'get_authoring_guidance',
+        'propose_future_revision',
+      ]) {
+        expect(allow).not.toContain(tool);
+      }
+    });
+
+    it('keeps every platform tool the planner could already call', () => {
+      const allow = new Set(plannerTools());
+      for (const tool of [
+        'get_context',
+        'get_full_entity',
+        'get_diagram',
+        'get_edges',
+        'get_tool_guidance',
+        'get_work_item_type_guidance_batch',
+        'get_future_revision',
+        'get_agent_sessions',
+        'get_report_body',
+        'get_report_schema',
+        'list_services',
+        'unified_search',
+        'get_entity_identities',
+        'task_search',
+        'plan_search',
+        'search_features',
+        'search_design_docs',
+        'get_hints_for_items',
+        'create_hint',
+        'add_hint_connection',
+        'delete_hint',
+      ]) {
+        expect(allow).toContain(tool);
+      }
+    });
+
+    it('limits the session to read-only built-in tools (no Write/Edit/Bash)', () => {
+      expect(codingPlanHandler.readOnlyFilesystem).toBe(true);
+      expect([...(codingPlanHandler.builtinTools ?? [])].sort()).toEqual([
+        'Glob',
+        'Grep',
+        'Read',
+        'ToolSearch',
+      ]);
+    });
+
+    it('keeps emit_coding_plan as the planner submission tool', () => {
+      expect(codingPlanHandler.submissionTools?.map((tool) => tool.name)).toContain(
+        'emit_coding_plan',
+      );
+    });
   });
 
   it('keeps response transformation hooks disabled for the report/action protocol', () => {
@@ -494,7 +536,7 @@ describe('codingPlanHandler', () => {
       );
     });
 
-    it('threads a project_assistant memo onto the enriched payload — the subagent needs it carried since the resolver skips the memo prepend', async () => {
+    it('flags a project_assistant memo without carrying its content — the resolver prepends the memo itself', async () => {
       const logger = makeLogger();
       const deps = makeDeps(logger);
       const session = makeSession({
@@ -509,25 +551,19 @@ describe('codingPlanHandler', () => {
       } as unknown as Partial<AgenticSession>);
       const result = await codingPlanHandler.prepare!(session, makePayload(), deps);
       const enriched = result.payload as EnrichedCodingPlanPromptPayload;
-      expect(enriched._researchMemo).toContain('feature F surfaced');
+      expect(enriched._hasResearch).toBe(true);
+      expect(JSON.stringify(enriched)).not.toContain('feature F surfaced');
       const prompt = codingPlanHandler.buildPrompt(enriched);
-      for (const content of [
-        'retain shared triage cards',
-        'preserve both decision branches',
-        'CUSTOM_REVIEW: retain review evidence',
-        'user chose the modal',
-        'Gap: unavailable governing item',
-      ]) {
-        expect(prompt).toContain(content);
-      }
+      expect(prompt).not.toContain('feature F surfaced');
+      expect(prompt).toContain('Use the Project Assistant findings above');
       expect(prompt).toContain('read the current content of each before planning');
       expect(logger.debug).toHaveBeenCalledWith(
         'coding_plan.prepare.entry',
-        expect.objectContaining({ hasResearchMemo: true }),
+        expect.objectContaining({ hasResearch: true }),
       );
     });
 
-    it('leaves _researchMemo unset when no project_assistant memo is on the run', async () => {
+    it('leaves _hasResearch unset when no project_assistant memo is on the run', async () => {
       const session = makeSession({
         memos: [
           { source: 'daily_session', content: 'unrelated', writtenAt: '2026-04-17T00:00:00Z' },
@@ -535,7 +571,7 @@ describe('codingPlanHandler', () => {
       } as unknown as Partial<AgenticSession>);
       const result = await codingPlanHandler.prepare!(session, makePayload(), noopDeps);
       const enriched = result.payload as EnrichedCodingPlanPromptPayload;
-      expect(enriched._researchMemo).toBeUndefined();
+      expect(enriched._hasResearch).toBeUndefined();
     });
 
     it('uses Run-owned worktree paths in the Plan Services context', async () => {
@@ -586,11 +622,16 @@ describe('codingPlanHandler', () => {
       expect(prompt).toContain('emit_coding_plan');
       expect(prompt).not.toContain('emit_coding_plan_discrepancy');
       expect(prompt).toContain("emit_coding_plan's discrepancies list");
-      expect(prompt).toContain('It contains no gates of any kind');
+      expect(prompt).toContain(
+        'It contains no gates: nothing that says work cannot proceed when the user approves',
+      );
       expect(prompt).toContain('Every replacement re-lists every finding that still applies');
       expect(prompt).toContain('project_context');
       expect(prompt).not.toContain('ask_coding_plan_question');
-      expect(prompt).toContain('record it as a discrepancy with a proposed resolution');
+      expect(prompt).toContain(
+        'A discrepancy is a real problem the user must see before approving',
+      );
+      expect(prompt).toContain('Your job is to produce a plan.');
       expect(prompt).toContain('their assent does not erase it');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
@@ -625,5 +666,32 @@ describe('coding-plan registry wiring', () => {
   it('the registered handler carries the explicit completion tools', async () => {
     const fetched = registry.get('startup_session');
     expect(fetched?.submissionTools?.map((tool) => tool.name)).toEqual(['emit_coding_plan']);
+  });
+
+  describe('provider-session boundaries', () => {
+    const decisionFor = (outgoingId: string, incomingId: string) => {
+      const incoming = registry.getById(incomingId);
+      return classifyProviderSessionDecision({
+        hasProviderSession: true,
+        outgoingAgentId: outgoingId,
+        incomingAgentId: incomingId,
+        providerSessionStart: incoming?.providerSessionStart ?? 'inherit',
+        ...(incoming?.providerSessionLifetime
+          ? { providerSessionLifetime: incoming.providerSessionLifetime }
+          : {}),
+      });
+    };
+
+    it('mints once when Feature Sync hands off to the planner', () => {
+      expect(decisionFor('feature_sync_analyze', 'startup_session')).toBe('agent-transition-mint');
+    });
+
+    it('resumes the planner session on every refinement round', () => {
+      expect(decisionFor('startup_session', 'startup_session')).toBe('resume');
+    });
+
+    it('mints once when approval hands the plan to Implement', () => {
+      expect(decisionFor('startup_session', 'implement')).toBe('agent-transition-mint');
+    });
   });
 });

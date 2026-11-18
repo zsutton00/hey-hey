@@ -1,13 +1,18 @@
+import { ThemeProvider } from "@mui/material";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VerifyFeatureElement } from "../../../../api";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { VerifyFeatureField } from "../VerifyFeatureField";
 import { SecondaryActionRenderer } from "../../../Conversation/SecondaryActionRenderer";
 import { VerificationRuntimeContext } from "../../../Conversation/SecondaryActions/verificationRuntimeContext";
 import type { EntityConversationPromptRuntimeSelection } from "../../../InteractionComponent/EntityConversationPromptDialog";
 
-const mocks = vi.hoisted(() => ({ launch: vi.fn(), next: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  launch: vi.fn(),
+  next: vi.fn(),
+}));
 vi.mock(
   "../../../InteractionComponent/useFeatureSyncConversationLauncher",
   () => ({
@@ -115,7 +120,7 @@ vi.mock("../index", () => ({ getSecondaryActionBehavior: () => undefined }));
 vi.mock("../../../SmarterTextAreaCard/MentionBadge", () => ({
   MentionBadgeInner: ({
     mention,
-    mode,
+    mode = "full",
   }: {
     mention: { entityType: string; entityId: string; entityName: string };
     mode: string;
@@ -158,6 +163,9 @@ const action = {
   presentation: "INLINE" as const,
 };
 
+const renderField = (ui: React.ReactElement) =>
+  render(<ThemeProvider theme={createHeyTheme("light")}>{ui}</ThemeProvider>);
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.launch.mockResolvedValue({ agentSessionId: "created-session" });
@@ -166,7 +174,7 @@ beforeEach(() => {
 describe("Verify Feature field and secondary action", () => {
   it("renders the explanation as markdown without changing form values", () => {
     const change = vi.fn();
-    render(
+    renderField(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={field.payload}
@@ -184,7 +192,7 @@ describe("Verify Feature field and secondary action", () => {
     expect(change).not.toHaveBeenCalled();
   });
   it("renders mention tokens in the explanation as mention nodes", () => {
-    render(
+    renderField(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={{
@@ -202,8 +210,202 @@ describe("Verify Feature field and secondary action", () => {
     );
   });
 
+  it("renders the card header with the after-implementation chip", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={field.payload}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("conversation-card-header")).toHaveTextContent(
+      "Project sync · Possible issue",
+    );
+    expect(screen.getByText("After implementation")).toBeInTheDocument();
+  });
+
+  it("splits a multi-sentence explanation into a lead and details", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={{
+          ...field.payload,
+          explanation: "The sync drifted. Tasks no longer match the feature.",
+        }}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
+      "The sync drifted.",
+    );
+    expect(
+      screen.getByTestId("conversation-card-section-label"),
+    ).toHaveTextContent("Details");
+    expect(screen.getByTestId("conversation-card-section")).toHaveTextContent(
+      "Tasks no longer match the feature.",
+    );
+  });
+
+  it.each([
+    [
+      "a paragraph break",
+      "The sync drifted.\n\nTasks no longer match the feature.",
+    ],
+    [
+      "a bolded sentence ending",
+      "**The sync drifted.** Tasks no longer match the feature.",
+    ],
+  ])("splits lead and details across %s", (_label, explanation) => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={{ ...field.payload, explanation }}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent("The sync drifted.");
+    expect(lead).not.toHaveTextContent("Tasks no longer");
+    expect(
+      screen.getByTestId("conversation-card-section-label"),
+    ).toHaveTextContent("Details");
+    expect(screen.getByTestId("conversation-card-section")).toHaveTextContent(
+      "Tasks no longer match the feature.",
+    );
+  });
+
+  it("renders only a lead for a single-sentence explanation", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={field.payload}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
+      "A delivered capability changed.",
+    );
+    expect(screen.queryByText("Details")).not.toBeInTheDocument();
+  });
+
+  it("does not split inside a mention whose title contains a period", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={{
+          ...field.payload,
+          explanation:
+            "Check @[feature:3782302e-54ad-4908-b168-0b2260a89b3c|Sync v2. Beta] now. Then review.",
+        }}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent("now.");
+    expect(lead).not.toHaveTextContent("Then review.");
+    expect(screen.getByTestId("conversation-card-section")).toHaveTextContent(
+      "Then review.",
+    );
+  });
+
+  it("shows the supplied lead and keeps the whole explanation under Details", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={{
+          ...field.payload,
+          lead: "A new Decision requires core entity types, but Configuration does not state that rule.",
+          explanation:
+            "A new Decision states that product data uses core types. Configuration never mentions this storage rule, so readers would choose their own.",
+          impactedEntities: [
+            {
+              entityType: "feature",
+              entityId: "3782302e-54ad-4908-b168-0b2260a89b3c",
+              title: "Configuration",
+            },
+          ],
+        }}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent("A new Decision requires core entity types");
+    expect(lead).not.toHaveTextContent("readers would choose");
+    expect(
+      screen.getAllByTestId("conversation-card-section")[0],
+    ).toHaveTextContent(
+      "A new Decision states that product data uses core types.",
+    );
+  });
+
+  it("renders a suggestion stored before leads existed with the first-sentence split", () => {
+    // Shape of a suggestion stored before the lead field: no `lead`.
+    const stored = {
+      feature: {
+        entityType: "FEATURE" as const,
+        entityId: "3782302e-54ad-4908-b168-0b2260a89b3c",
+      },
+      explanation:
+        "The card derives its lead from the first sentence. The Mockup shows a separate summary of the discrepancy.",
+      impactedEntities: [
+        {
+          entityType: "mockup",
+          entityId: "39f9e923-da6e-4c7c-ade0-a4736ab30b67",
+          title: "Verify Feature Suggestion",
+        },
+      ],
+    };
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={stored}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const lead = screen.getByTestId("conversation-card-lead");
+    expect(lead).toHaveTextContent(
+      "The card derives its lead from the first sentence.",
+    );
+    expect(lead).not.toHaveTextContent("The Mockup shows");
+    expect(
+      screen.getAllByTestId("conversation-card-section")[0],
+    ).toHaveTextContent(
+      "The Mockup shows a separate summary of the discrepancy.",
+    );
+  });
+
+  it("renders footer actions inside the card footer", () => {
+    renderField(
+      <VerifyFeatureField
+        config={{ field: field.id, type: field.type, description: field.label }}
+        value={field.payload}
+        context={context}
+        isSubmitted={false}
+        onChange={vi.fn()}
+        footerActions={<button type="button">Act</button>}
+      />,
+    );
+    expect(screen.getByTestId("conversation-card-footer")).toContainElement(
+      screen.getByRole("button", { name: "Act" }),
+    );
+  });
+
   it("lists affected entities as full mention nodes after the concern, once each, in order", () => {
-    render(
+    renderField(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={{
@@ -234,7 +436,7 @@ describe("Verify Feature field and secondary action", () => {
   });
 
   it("labels affected entities with their supplied titles and falls back to the id for older references", () => {
-    render(
+    renderField(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={{
@@ -260,7 +462,7 @@ describe("Verify Feature field and secondary action", () => {
     ["empty", []],
     ["missing", undefined],
   ])("renders no list area for a %s list", (_label, impactedEntities) => {
-    render(
+    renderField(
       <VerifyFeatureField
         config={{ field: field.id, type: field.type, description: field.label }}
         value={{ ...field.payload, impactedEntities }}
@@ -276,7 +478,7 @@ describe("Verify Feature field and secondary action", () => {
   });
 
   it("opens shared staging without launching until the edited modal is submitted", async () => {
-    render(
+    renderField(
       <MemoryRouter>
         <VerificationRuntimeContext.Provider
           value={{
@@ -300,7 +502,9 @@ describe("Verify Feature field and secondary action", () => {
     );
     expect(mocks.launch).not.toHaveBeenCalled();
     const verifyButton = screen.getByTestId("project-topology-button");
-    expect(verifyButton).toHaveAccessibleName("Potential project sync issue");
+    expect(verifyButton).toHaveAccessibleName(
+      "Start a conversation to verify this feature",
+    );
     fireEvent.click(verifyButton);
     expect(mocks.launch).not.toHaveBeenCalled();
     expect(
@@ -345,7 +549,7 @@ describe("Verify Feature field and secondary action", () => {
     mocks.launch
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ agentSessionId: "created-session" });
-    render(
+    renderField(
       <MemoryRouter>
         <VerificationRuntimeContext.Provider
           value={{

@@ -1,5 +1,8 @@
 import { DeterministicE2EEvidence } from '../run/runners/deterministic-e2e-evidence';
-import type { TaskMonitorStateObservation } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemExecutionStateObservation,
+  WorkItemExecutionStateObservationReceipt,
+} from '@hey-hey/contracts/api/models';
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type { ServerLogger } from './logger';
 import type { OAuthClient } from '../auth/oauth-client';
@@ -8,6 +11,7 @@ import {
   authResponseRevokedReasonSchema,
   machineChallengeFrameSchema,
   PLATFORM_WS_NON_TRIGGER_SCHEMAS,
+  workItemExecutionStateReceiptSchema,
 } from './platform-ws-schemas';
 import { MachineChallengeSigner } from './machine-challenge';
 import { guardCliReadResponse, MAX_CLI_READ_ACK_BYTES } from './cli-read-response-size-guard';
@@ -93,6 +97,15 @@ const pickEventIdentifiers = (
 };
 
 /** Base shape shared by all platform WebSocket events. */
+
+const EXECUTION_STATE_RECEIPT_TIMEOUT_MS = 10_000;
+
+/** What became of one execution-state report at the platform boundary. */
+export type WorkItemExecutionStateReport =
+  | { kind: 'SKIPPED' }
+  | { kind: 'NO_RECEIPT'; reason: string }
+  | { kind: 'RECEIPT'; receipt: WorkItemExecutionStateObservationReceipt };
+
 export interface PlatformWebSocketEvent {
   type: string;
   timestamp: string;
@@ -1375,9 +1388,68 @@ export class PlatformWebSocketManager {
     this.socket.emit('daily_session.updated', payload);
   };
 
-  public emitTaskMonitorStateObservation(observation: TaskMonitorStateObservation): void {
-    if (!this.socket?.connected) return;
-    this.socket.emit('task_monitor.state_observed', observation);
+  /**
+   * The one seam through which any participating work-item type reports its
+   * committed execution state. The platform orders and retains it and answers
+   * with a receipt that certifies only what it retained. A report skipped
+   * while disconnected is recovered by the producer's reconnect replay.
+   */
+  public async reportWorkItemExecutionStateObservation(
+    observation: WorkItemExecutionStateObservation,
+  ): Promise<WorkItemExecutionStateReport> {
+    const logPayload = {
+      workItemId: observation.workItemId,
+      stateType: observation.state.type,
+      sourceRevision: observation.sourceRevision,
+    };
+    const socket = this.socket;
+    if (!socket?.connected) {
+      this.logger.debug('platform-ws.report-work-item-execution-state.skipped', {
+        hasSocket: !!socket,
+        ...logPayload,
+      });
+      return { kind: 'SKIPPED' };
+    }
+
+    this.logger.trace('platform-ws.report-work-item-execution-state.sent', logPayload);
+    let response: unknown;
+    try {
+      response = await socket
+        .timeout(EXECUTION_STATE_RECEIPT_TIMEOUT_MS)
+        .emitWithAck('work_item.execution_state_observed', observation);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn('platform-ws.report-work-item-execution-state.no-receipt', {
+        ...logPayload,
+        reason,
+      });
+      return { kind: 'NO_RECEIPT', reason };
+    }
+
+    const parsed = workItemExecutionStateReceiptSchema.safeParse(response);
+    if (
+      !parsed.success ||
+      parsed.data.workItemId !== observation.workItemId ||
+      parsed.data.sourceRevision !== observation.sourceRevision
+    ) {
+      this.logger.warn('platform-ws.report-work-item-execution-state.no-receipt', {
+        ...logPayload,
+        reason: 'RECEIPT_INVALID',
+        issues: parsed.success
+          ? ['identity']
+          : parsed.error.issues.map(({ path }) => path.join('.')),
+      });
+      return { kind: 'NO_RECEIPT', reason: 'RECEIPT_INVALID' };
+    }
+
+    const { code, revision, ...answer } = parsed.data;
+    const receipt: WorkItemExecutionStateObservationReceipt = {
+      ...answer,
+      ...(code ? { code } : {}),
+      ...(revision === undefined ? {} : { revision }),
+    };
+
+    return { kind: 'RECEIPT', receipt };
   }
 
   public readonly emitAgentSessionCurrentStateObservation = (

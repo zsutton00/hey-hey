@@ -184,6 +184,10 @@ export class AuthController {
     try {
       const refreshSecret = request.cookies?.[REFRESH_COOKIE_NAME];
       if (typeof refreshSecret !== 'string' || refreshSecret.length === 0) {
+        this.logger.warn('Browser session renewal refused', {
+          event: 'browser_session.refresh_refused',
+          reasonCode: 'refresh_cookie_missing',
+        });
         throw new UnauthorizedException('Browser session is not authenticated');
       }
 
@@ -198,8 +202,16 @@ export class AuthController {
           : await this.authService.refreshToken(refreshSecret, requestMetadata);
 
       setBrowserSessionCookies(response, session);
+      this.logger.log('Browser renewal cookies set', {
+        event: 'browser_session.refresh_cookies_set',
+        sessionId: session.sessionId,
+      });
       return session.response;
     } catch (error) {
+      this.logger.warn('Browser renewal cookies cleared after failure', {
+        event: 'browser_session.refresh_cookies_cleared',
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+      });
       this.clearBrowserSessionCookies(response);
       throw error;
     }

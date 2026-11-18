@@ -93,6 +93,7 @@ export const OPTIONS_ROWS = [
   'intent-first',
   'remote-tool-call-viewing',
   'hey-hey-context-reminder',
+  'precise-file-change-tracking',
   'jev',
 ] as const;
 export type OptionsRow = (typeof OPTIONS_ROWS)[number];

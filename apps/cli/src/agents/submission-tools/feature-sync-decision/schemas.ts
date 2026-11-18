@@ -16,6 +16,19 @@ const sourceSchema = z
   })
   .passthrough();
 
+const affectedEntitySchema = z
+  .object({
+    entityType: z.nativeEnum(FeatureSyncReportSourceType),
+    entityId: textSchema,
+    title: textSchema,
+    reason: textSchema.optional(),
+  })
+  .passthrough()
+  .transform(({ reason, ...entity }) => ({
+    ...entity,
+    ...(reason === undefined ? {} : { reason }),
+  }));
+
 const choiceSchema = z
   .object({
     id: textSchema,
@@ -35,7 +48,7 @@ const choiceSchema = z
 const featureSyncDecisionGroupSchema = z
   .object({
     id: textSchema,
-    affectedEntities: z.array(sourceSchema).min(1),
+    affectedEntities: z.array(affectedEntitySchema).min(1),
     title: textSchema,
     summary: textSchema,
     choices: z.array(choiceSchema).min(2),

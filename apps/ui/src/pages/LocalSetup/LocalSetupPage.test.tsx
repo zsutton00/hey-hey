@@ -3,18 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { acceptBrowserAuthSession } from "@hey-hey/ui-common/services";
 import { createHash, createHmac } from "node:crypto";
 import { LocalSetupPage } from "./LocalSetupPage";
 import {
   computeLocalApprovalProof,
   forgetLocalPairing,
 } from "../Settings/localApproval";
+import { loadDocument } from "../../localSetup/loadDocument";
+import {
+  forgetSetupSession,
+  getSetupSession,
+} from "../../localSetup/setupSession";
 
 const { authClient, listPasskeys } = vi.hoisted(() => ({
   authClient: {
     completeLocalHandoff: vi.fn(),
+    refreshToken: vi.fn(),
     getLocalSetupStatus: vi.fn(),
     saveLocalDisplayName: vi.fn(),
     getLocalPasskeyRepair: vi.fn(),
@@ -30,52 +34,49 @@ vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
 
 vi.mock("@hey-hey/ui-common/services", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/services")>()),
-  acceptBrowserAuthSession: vi.fn(),
   listAccountPasskeys: listPasskeys,
-  refreshAuthToken: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock("../Settings/ClaimMachine", () => ({
-  ClaimMachine: ({
-    initialCode,
-    localApprovalSecret,
-    localAgents,
-    onLocalPasskeyCreated,
-    localReturning,
-    onLocalPasskeyUnavailable,
-    localRepair,
+vi.mock("../../localSetup/loadDocument", () => ({ loadDocument: vi.fn() }));
+
+vi.mock("../../localSetup/LocalPairingClaim", () => ({
+  LocalPairingClaim: ({
+    code,
+    approvalSecret,
+    agents,
+    onPasskeyCreated,
+    returning,
+    onPasskeyUnavailable,
+    repair,
   }: {
-    initialCode: string | null;
-    localApprovalSecret?: string | null;
-    localAgents?: unknown;
-    onLocalPasskeyCreated?: (enrollmentId: string) => void;
-    localReturning?: boolean;
-    onLocalPasskeyUnavailable?: () => void;
-    localRepair?: React.ReactNode;
+    code: string;
+    approvalSecret: string | null;
+    agents: unknown;
+    onPasskeyCreated: (enrollmentId: string) => void;
+    returning: boolean;
+    onPasskeyUnavailable: () => void;
+    repair: React.ReactNode;
   }) => (
-    <div data-testid="claim-machine">
-      {initialCode}|{localApprovalSecret}
-      <span data-testid="claim-agents">{JSON.stringify(localAgents)}</span>
-      <span data-testid="claim-returning">{String(localReturning)}</span>
+    <div data-testid="pairing-claim">
+      {code}|{approvalSecret}
+      <span data-testid="claim-agents">{JSON.stringify(agents)}</span>
+      <span data-testid="claim-returning">{String(returning)}</span>
       <button
-        onClick={() =>
-          onLocalPasskeyCreated?.("11111111-1111-4111-8111-111111111111")
-        }
+        onClick={() => onPasskeyCreated("11111111-1111-4111-8111-111111111111")}
       >
         passkey created
       </button>
-      <button onClick={onLocalPasskeyUnavailable}>passkey unavailable</button>
-      {localRepair}
+      <button onClick={onPasskeyUnavailable}>passkey unavailable</button>
+      {repair}
     </div>
   ),
 }));
 
-vi.mock("@hey-hey/ui-common/context", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@hey-hey/ui-common/context")>()),
-  useAuth: () => ({ isAuthenticated: true }),
-}));
-
 const HANDOFF_TOKEN = "one-use-local-handoff-token";
+
+const session = (accessToken = "local-access-token") => ({
+  data: { data: { accessToken, expiresIn: 900, user: { id: "user-1" } } },
+});
 
 const statusResponse = (
   overrides: Partial<{
@@ -101,33 +102,20 @@ const statusResponse = (
   },
 });
 
-function LocationProbe(): React.JSX.Element {
-  const location = useLocation();
-  return <p data-testid="location">{location.pathname + location.search}</p>;
-}
-
-function renderLocalPage(initialPath = "/local") {
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/local" element={<LocalSetupPage />} />
-        <Route path="/welcome" element={<LocationProbe />} />
-        <Route path="/home" element={<LocationProbe />} />
-        <Route
-          path="/projects/:projectId/onboarding"
-          element={<LocationProbe />}
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
+function renderLocalPage() {
+  return render(<LocalSetupPage />);
 }
 
 describe("LocalSetupPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     forgetLocalPairing();
+    forgetSetupSession();
     sessionStorage.clear();
     localStorage.clear();
+    window.history.replaceState({}, "", "/local");
+    // Without a handoff in the address, setup restores its session from the cookie once.
+    authClient.refreshToken.mockResolvedValue(session());
     authClient.getLocalSetupStatus.mockResolvedValue(statusResponse());
     listPasskeys.mockResolvedValue([]);
     authClient.saveLocalDisplayName.mockResolvedValue(
@@ -150,61 +138,72 @@ describe("LocalSetupPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("scrubs the one-use handoff from the URL and keeps it out of browser storage", async () => {
-    const handoffToken = HANDOFF_TOKEN;
-    authClient.completeLocalHandoff.mockResolvedValue({
-      data: { data: { accessToken: "local-access-token" } },
-    });
-    window.history.replaceState({}, "", `/local#handoff=${handoffToken}`);
+  it("scrubs the one-use handoff from the URL, holds the session itself and keeps it out of browser storage", async () => {
+    authClient.completeLocalHandoff.mockResolvedValue(session());
+    window.history.replaceState({}, "", `/local#handoff=${HANDOFF_TOKEN}`);
 
     renderLocalPage();
 
     await waitFor(() => {
       expect(authClient.completeLocalHandoff).toHaveBeenCalledWith({
-        localHandoffRequestDto: { handoffToken },
+        localHandoffRequestDto: { handoffToken: HANDOFF_TOKEN },
       });
     });
-    await waitFor(() => {
-      expect(acceptBrowserAuthSession).toHaveBeenCalledWith({
-        accessToken: "local-access-token",
-      });
-    });
+    await waitFor(() =>
+      expect(getSetupSession()?.accessToken).toBe("local-access-token"),
+    );
+    expect(authClient.refreshToken).not.toHaveBeenCalled();
     expect(window.location.hash).toBe("");
     expect(localStorage.length).toBe(0);
     expect(JSON.stringify({ ...sessionStorage })).not.toContain(HANDOFF_TOKEN);
   });
 
   it("spends the one-use handoff once when the page is remounted in development", async () => {
-    authClient.completeLocalHandoff.mockResolvedValue({
-      data: { data: { accessToken: "local-access-token" } },
-    });
+    authClient.completeLocalHandoff.mockResolvedValue(session());
     window.history.replaceState({}, "", `/local#handoff=${HANDOFF_TOKEN}`);
 
     render(
       <StrictMode>
-        <MemoryRouter initialEntries={["/local"]}>
-          <Routes>
-            <Route path="/local" element={<LocalSetupPage />} />
-          </Routes>
-        </MemoryRouter>
+        <LocalSetupPage />
       </StrictMode>,
     );
 
-    await waitFor(() => {
-      expect(acceptBrowserAuthSession).toHaveBeenCalledWith({
-        accessToken: "local-access-token",
-      });
-    });
+    await screen.findByLabelText("Name");
     expect(authClient.completeLocalHandoff).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a browser with no handoff and no usable cookie to passkey sign-in, returning here", async () => {
+    authClient.refreshToken.mockRejectedValue(new Error("401"));
+    window.history.replaceState({}, "", "/local?pairing=started");
+
+    renderLocalPage();
+
+    await waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith(
+        `/login?returnTo=${encodeURIComponent("/local?pairing=started")}`,
+      ),
+    );
+    expect(authClient.getLocalSetupStatus).not.toHaveBeenCalled();
+    expect(screen.getByText("Opening your local workspace…")).toBeVisible();
+  });
+
+  it("tells the person to run heyhey local again when the handoff is refused", async () => {
+    authClient.completeLocalHandoff.mockRejectedValue(new Error("refused"));
+    window.history.replaceState({}, "", `/local#handoff=${HANDOFF_TOKEN}`);
+
+    renderLocalPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Run heyhey local again to restore access to this computer.",
+    );
+    expect(loadDocument).not.toHaveBeenCalled();
   });
 
   it("takes the CLI code and approval secret from the fragment through name entry straight to passkey approval", async () => {
     const user = userEvent.setup();
     const code = "ABCDEFGHJK";
     const secret = Buffer.alloc(32, 9).toString("base64url");
-    authClient.completeLocalHandoff.mockResolvedValue({
-      data: { data: { accessToken: "local-access-token" } },
-    });
+    authClient.completeLocalHandoff.mockResolvedValue(session());
     authClient.getLocalSetupStatus
       .mockResolvedValueOnce(statusResponse())
       .mockResolvedValue(statusResponse({ nameComplete: true }));
@@ -213,7 +212,7 @@ describe("LocalSetupPage", () => {
       "",
       `/local?pairing=started#code=${code}&approval=${secret}&handoff=token`,
     );
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
 
     await screen.findByLabelText("Name");
     expect(window.location.hash).toBe("");
@@ -222,17 +221,19 @@ describe("LocalSetupPage", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     // The next screen is the passkey step itself, with no page to click through.
-    expect(await screen.findByTestId("claim-machine")).toHaveTextContent(
+    expect(await screen.findByTestId("pairing-claim")).toHaveTextContent(
       `${code}|${secret}`,
     );
     expect(
       screen.queryByRole("link", { name: "Continue to pairing" }),
     ).not.toBeInTheDocument();
+    // Saving the name is followed by the one renewal setup makes, and nothing else renews.
+    expect(authClient.refreshToken).toHaveBeenCalledTimes(1);
 
     // The app tree remounts while the session refreshes; the cleared fragment must not matter.
     cleanup();
-    renderLocalPage("/local?pairing=started");
-    expect(await screen.findByTestId("claim-machine")).toHaveTextContent(
+    renderLocalPage();
+    expect(await screen.findByTestId("pairing-claim")).toHaveTextContent(
       `${code}|${secret}`,
     );
     expect(localStorage.length).toBe(0);
@@ -271,7 +272,7 @@ describe("LocalSetupPage", () => {
       statusResponse({ nameComplete: true }),
     );
     window.history.replaceState({}, "", "/local?pairing=started");
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "did not receive its pairing details",
@@ -299,7 +300,7 @@ describe("LocalSetupPage", () => {
       "",
       `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}&agents=${encodeURIComponent(JSON.stringify(agents))}`,
     );
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
 
     expect(await screen.findByTestId("claim-agents")).toHaveTextContent(
       JSON.stringify(agents),
@@ -313,7 +314,7 @@ describe("LocalSetupPage", () => {
       "",
       `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}&agents=${encodeURIComponent('{"claude":"nonsense"}')}`,
     );
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
     expect(await screen.findByTestId("claim-agents")).toHaveTextContent("null");
   });
 
@@ -328,12 +329,12 @@ describe("LocalSetupPage", () => {
       "",
       `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
     );
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
     await user.click(await screen.findByText("passkey created"));
 
     const progress = await screen.findByTestId("local-pairing-progress");
     expect(progress.querySelector("button")).toBeNull();
-    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    expect(loadDocument).not.toHaveBeenCalled();
     expect(screen.queryByTestId("local-pairing-progress-error")).toBeNull();
 
     authClient.getLocalSetupStatus.mockResolvedValue(
@@ -341,7 +342,7 @@ describe("LocalSetupPage", () => {
     );
     await waitFor(
       () => {
-        expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+        expect(loadDocument).toHaveBeenCalledWith("/welcome");
       },
       { timeout: 5000 },
     );
@@ -358,7 +359,7 @@ describe("LocalSetupPage", () => {
       "",
       `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
     );
-    renderLocalPage("/local?pairing=started");
+    renderLocalPage();
     await user.click(await screen.findByText("passkey created"));
 
     expect(
@@ -374,7 +375,7 @@ describe("LocalSetupPage", () => {
     );
     await user.click(screen.getByTestId("local-pairing-progress-retry"));
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+      expect(loadDocument).toHaveBeenCalledWith("/welcome");
     });
   });
 
@@ -392,7 +393,7 @@ describe("LocalSetupPage", () => {
         "",
         `/local?pairing=started#code=ABCDEFGHJK&approval=${secret}`,
       );
-      renderLocalPage("/local?pairing=started");
+      renderLocalPage();
       await user.click(await screen.findByText("passkey created"));
 
       expect(
@@ -424,7 +425,7 @@ describe("LocalSetupPage", () => {
         "",
         "/local?pairing=started#code=ABCDEFGHJK",
       );
-      renderLocalPage("/local?pairing=started");
+      renderLocalPage();
       await user.click(await screen.findByText("passkey created"));
       authClient.getLocalSetupStatus.mockResolvedValue(
         statusResponse({ nameComplete: true, pairingState }),
@@ -443,7 +444,7 @@ describe("LocalSetupPage", () => {
       expect(
         screen.queryByTestId("local-pairing-confirm-in-terminal"),
       ).toBeNull();
-      expect(screen.queryByTestId("location")).toBeNull();
+      expect(loadDocument).not.toHaveBeenCalled();
     },
   );
 
@@ -459,13 +460,13 @@ describe("LocalSetupPage", () => {
         "",
         "/local?pairing=started#code=ABCDEFGHJK",
       );
-      renderLocalPage("/local?pairing=started");
+      renderLocalPage();
       await user.click(await screen.findByText("passkey created"));
       await vi.advanceTimersByTimeAsync(60_000);
       expect(
         await screen.findByTestId("local-pairing-progress-error"),
       ).toBeInTheDocument();
-      expect(screen.queryByTestId("location")).toBeNull();
+      expect(loadDocument).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -480,9 +481,9 @@ describe("LocalSetupPage", () => {
       "",
       "/local?pairing=started#code=ABCDEFGHJK",
     );
-    renderLocalPage("/local?pairing=started");
-    expect(await screen.findByTestId("claim-machine")).toBeInTheDocument();
-    expect(screen.queryByTestId("location")).toBeNull();
+    renderLocalPage();
+    expect(await screen.findByTestId("pairing-claim")).toBeInTheDocument();
+    expect(loadDocument).not.toHaveBeenCalled();
   });
 
   it("goes straight on for an already-connected computer without a button", async () => {
@@ -492,7 +493,7 @@ describe("LocalSetupPage", () => {
     renderLocalPage();
 
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/welcome");
+      expect(loadDocument).toHaveBeenCalledWith("/welcome");
     });
   });
 
@@ -532,7 +533,7 @@ describe("LocalSetupPage", () => {
     expect(
       screen.queryByText("Create a pairing passkey"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByTestId("claim-machine")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pairing-claim")).not.toBeInTheDocument();
   });
 
   it("resumes first-project setup on the project saved with the name once connected", async () => {
@@ -547,7 +548,7 @@ describe("LocalSetupPage", () => {
     );
     renderLocalPage();
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent(
+      expect(loadDocument).toHaveBeenCalledWith(
         `/welcome?projectId=${projectId}`,
       );
     });
@@ -563,7 +564,7 @@ describe("LocalSetupPage", () => {
     );
     renderLocalPage();
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/home");
+      expect(loadDocument).toHaveBeenCalledWith("/home");
     });
   });
 
@@ -579,7 +580,7 @@ describe("LocalSetupPage", () => {
         "",
         "/local?pairing=started#code=ABCDEFGHJK",
       );
-      renderLocalPage("/local?pairing=started");
+      renderLocalPage();
     };
 
     it("says so, asks for the existing passkey, and sends the person to the terminal to confirm", async () => {
@@ -589,7 +590,7 @@ describe("LocalSetupPage", () => {
       expect(
         await screen.findByRole("heading", { name: "Reconnect this computer" }),
       ).toBeVisible();
-      expect(screen.getByTestId("claim-machine")).toHaveTextContent(
+      expect(screen.getByTestId("pairing-claim")).toHaveTextContent(
         "ABCDEFGHJK|",
       );
       await waitFor(() =>

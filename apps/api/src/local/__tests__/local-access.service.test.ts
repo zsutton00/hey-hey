@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { LocalAuthController } from '../local-auth.controller';
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { createMockPrismaService } from '../../utils/testUtils';
 import { UserId } from '../../types';
 import { LocalAccessService } from '../local-access.service';
@@ -148,6 +148,7 @@ describe('LocalAccessService', () => {
     ])(
       'reports %s without confusing presence with completed pairing',
       async (state, remaining, pairingState, machineConnected) => {
+        const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
         pendingMachineEnrollment.findFirst.mockResolvedValue({
           state,
           machineId: 'machine-1',
@@ -156,6 +157,27 @@ describe('LocalAccessService', () => {
         await expect(
           service.getLocalStatus(userId, enrollmentId),
         ).resolves.toMatchObject({ pairingState, machineConnected });
+        expect(log).toHaveBeenCalledWith(
+          'local.setup.pairing_status',
+          expect.objectContaining({
+            enrollmentId,
+            enrollmentState: state,
+            pairingState,
+            machineConnected,
+            presentMachineCount: 1,
+            reasonCode:
+              state === 'CONSUMED' || state === 'ACTIVE'
+                ? 'activation_completed'
+                : state === 'REJECTED'
+                  ? 'enrollment_rejected'
+                  : pairingState === 'EXPIRED'
+                    ? 'enrollment_deadline_elapsed'
+                    : 'awaiting_activation',
+            expiresAt: expect.any(String),
+            observedAt: expect.any(String),
+          }),
+        );
+        log.mockRestore();
         expect(pendingMachineEnrollment.findFirst).toHaveBeenCalledWith(
           expect.objectContaining({
             where: {

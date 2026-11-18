@@ -33,6 +33,7 @@ export const createTestTriggerVerificationRuntime = (
   });
   const apiRuntime = createBrowserApiRuntime({ baseUrl: 'https://api.trigger.test' });
   return new TriggerVerificationRuntime({
+    apiBaseUrl: 'https://api.trigger.test',
     servicesApi: {
       getService: async () => ({ data: { data: { name: 'Test Service' } } }),
     } as never,

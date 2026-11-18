@@ -20,7 +20,7 @@ import type { ActivityMetricContinuationDto } from "../../api";
 import { usePathService } from "../../contexts";
 import type { UseProjectMetricsReturn } from "../../data/hooks/useProjectMetrics";
 import { useCanHover } from "../../hooks/useCanHover";
-import { Card } from "../Card";
+import { Card, type CardAppearance } from "../Card";
 import {
   formatProjectMetricsWindow,
   groupProjectMetrics,
@@ -56,6 +56,17 @@ export type OrganizationHomeEvidenceProps = Pick<
   viewScope?: "project" | "organization";
   summaryAriaLabel?: string;
   includeProjectInfo?: boolean;
+  /** Home passes `translucent`; other hosts keep the outlined default. */
+  appearance?: CardAppearance;
+};
+
+const metricGroupSx: Record<CardAppearance, object> = {
+  outlined: { border: 1, borderColor: "divider", borderRadius: 1 },
+  translucent: {
+    border: "1px solid rgb(255 255 255 / 16%)",
+    borderRadius: "8px",
+    bgcolor: "rgb(255 255 255 / 5%)",
+  },
 };
 
 const EvidenceLoading: React.FC<{ includeProjectInfo: boolean }> = ({
@@ -110,7 +121,8 @@ const MetricGroup: React.FC<{
   windowLabel: string;
   windowDetails: string;
   onActivate: OrganizationHomeMetricContinuationActivation;
-}> = ({ group, windowLabel, windowDetails, onActivate }) => {
+  appearance: CardAppearance;
+}> = ({ group, windowLabel, windowDetails, onActivate, appearance }) => {
   const chartData = React.useMemo(
     () =>
       group.metrics.map((metric) => ({
@@ -133,9 +145,7 @@ const MetricGroup: React.FC<{
       sx={{
         minWidth: 0,
         p: 1.5,
-        border: 1,
-        borderColor: "divider",
-        borderRadius: 1,
+        ...metricGroupSx[appearance],
       }}
     >
       <Typography
@@ -170,6 +180,7 @@ const MetricSectionCard: React.FC<{
   description?: string;
   infoDescription?: string;
   showTimeRange?: boolean;
+  appearance: CardAppearance;
 }> = ({
   testId,
   viewScope,
@@ -182,6 +193,7 @@ const MetricSectionCard: React.FC<{
   description,
   infoDescription,
   showTimeRange = false,
+  appearance,
 }) => {
   const canHover = useCanHover();
   return (
@@ -201,6 +213,7 @@ const MetricSectionCard: React.FC<{
         ) : undefined
       }
       dataTestId={testId}
+      appearance={appearance}
       inlineActionOnMobile
       action={
         showTimeRange ? (
@@ -249,6 +262,7 @@ const MetricSectionCard: React.FC<{
             windowLabel={windowLabel}
             windowDetails={windowDetails}
             onActivate={onActivate}
+            appearance={appearance}
           />
         ))}
       </Box>
@@ -276,6 +290,7 @@ export const OrganizationHomeEvidence: React.FC<
   viewScope,
   summaryAriaLabel = "Home activity summary",
   includeProjectInfo = true,
+  appearance = "outlined",
 }) => {
   const pathService = usePathService();
   const handleMetricActivate = React.useCallback(
@@ -377,6 +392,7 @@ export const OrganizationHomeEvidence: React.FC<
           windowLabel={windowLabel}
           windowDetails={windowDetails}
           onActivate={handleMetricActivate}
+          appearance={appearance}
           scopeLabel={scopeLabel}
           description={description}
           infoDescription={infoDescription}
@@ -391,6 +407,7 @@ export const OrganizationHomeEvidence: React.FC<
             windowLabel={windowLabel}
             windowDetails={windowDetails}
             onActivate={handleMetricActivate}
+            appearance={appearance}
           />
         )}
       </Box>

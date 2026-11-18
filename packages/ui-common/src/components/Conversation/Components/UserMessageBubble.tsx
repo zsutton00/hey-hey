@@ -59,17 +59,11 @@ export interface UserMessageBubbleProps {
 }
 
 export const getMonitorVisualTreatmentSx = (theme: Theme) => ({
-  backgroundColor:
-    theme.palette.mode === "dark"
-      ? "rgba(87, 48, 154, 0.35)"
-      : "rgba(103, 58, 183, 0.15)",
-  borderColor:
-    theme.palette.mode === "dark"
-      ? "rgba(87, 48, 154, 0.35)"
-      : "rgba(103, 58, 183, 0.15)",
+  backgroundColor: theme.palette.monitorMessage.soft,
+  borderColor: theme.palette.monitorMessage.border,
   boxShadow: "none",
   minHeight: "auto",
-  color: theme.palette.attention?.contrastText || theme.palette.text.primary,
+  color: theme.palette.text.primary,
   fontFamily: [
     '"Tilt Neon"',
     '"Fira Code"',
@@ -292,15 +286,10 @@ export function UserMessageBubble({
               delivery.state === "failed"
                 ? theme.palette.error.main
                 : isMonitor
-                  ? theme.palette.mode === "dark"
-                    ? "rgba(87, 48, 154, 0.35)"
-                    : "rgba(103, 58, 183, 0.15)"
+                  ? theme.palette.monitorMessage.border
                   : theme.palette.divider
             }`,
-            color: isMonitor
-              ? theme.palette.attention?.contrastText ||
-                theme.palette.text.primary
-              : "text.primary",
+            color: "text.primary",
             ...(isMonitor ? getMonitorVisualTreatmentSx(theme) : {}),
           }}
         >

@@ -1,3 +1,4 @@
+import { useArchiveNavigation } from "../../navigation/useArchiveNavigation";
 import {
   indexWorkItemTypeDefinitions,
   WORK_ITEM_TYPE_KEYS,
@@ -547,6 +548,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
     taskId: string;
   }>();
   const projectId = projectIdProp ?? routeParams.projectId ?? "";
+  const navigateAfterArchive = useArchiveNavigation(projectId);
   const taskId = taskIdProp ?? routeParams.taskId ?? "";
   const { currentOrgId } = useUserIdentity() || {};
   const organizationId = organizationIdProp ?? currentOrgId ?? "";
@@ -1102,12 +1104,15 @@ export const GoalPage: React.FC<GoalPageProps> = ({
       if (!goalTask?.id) return;
 
       try {
-        await updateTask(goalTask.id, { status: newStatus });
+        const updated = await updateTask(goalTask.id, { status: newStatus });
+        if (newStatus === "ARCHIVED" && updated.status === "ARCHIVED") {
+          navigateAfterArchive(goalTask.id);
+        }
       } catch (error) {
         console.error("Failed to update goal status:", error);
       }
     },
-    [goalTask?.id, updateTask],
+    [goalTask?.id, updateTask, navigateAfterArchive],
   );
 
   const handleDueDateChange = useCallback(

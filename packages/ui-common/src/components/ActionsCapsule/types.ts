@@ -100,6 +100,9 @@ export type CapsuleActionRegistration =
  * Context value provided by ActionsCapsuleProvider
  */
 export interface ActionsCapsuleContextValue {
+  screenButtons: CapsuleScreenButton[];
+  registerScreenButton: (button: CapsuleScreenButton) => void;
+  unregisterScreenButton: (key: string) => void;
   capsuleTop: number | null;
   setCapsuleTop: (top: number | null) => void;
   anchor: "bottom-left" | "bottom-right";
@@ -167,3 +170,17 @@ export interface CapsuleActionClickableProps extends CapsuleActionVisualBase {
 
 export type CapsuleActionProps =
   CapsuleActionExpandableProps | CapsuleActionClickableProps;
+
+/** Screen-owned controls. Keys are independent of shared action IDs. */
+export type CapsuleScreenButton = {
+  key: string;
+  accessibleName: string;
+  onClick: () => void;
+  status?: {
+    state: "running" | "paused" | "needs-you" | "done";
+    text?: string;
+  };
+} & (
+  | { label: string; icon?: React.ElementType }
+  | { label?: string; icon: React.ElementType }
+);

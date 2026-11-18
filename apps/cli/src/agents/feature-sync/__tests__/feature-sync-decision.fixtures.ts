@@ -18,7 +18,7 @@ export const jointDecision = {
   decisionGroups: [
     {
       id: 'schedule-scope',
-      affectedEntities: [reporting, delivery],
+      affectedEntities: [{ ...reporting, reason: 'Promises weekly scheduling' }, delivery],
       title: 'Scheduled reporting scope',
       summary:
         'The feature promises weekly scheduling while the delivery task describes daily scheduling.',

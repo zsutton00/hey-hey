@@ -42,6 +42,7 @@ import type { PlatformAuthContext } from './platform-auth-context';
 import type { PlatformWebSocketManager } from './platform-ws';
 import { ReportSyncService } from './report-sync-service';
 import type { EntityReportIndex } from './reports/entity-report-index';
+import { RecordedEditLedger } from './recorded-edit-ledger';
 import { RunChangedFilesReader } from './run-changed-files';
 import type { RunLifecycleEvents } from './run-lifecycle-events';
 import type { TaskMonitorManagedTurnRuntime } from './task-monitor-managed-turn-runtime';
@@ -376,6 +377,11 @@ export class RunApplicationRuntime {
     this.runChangedFilesReader = new RunChangedFilesReader(
       dependencies.repoStore,
       dependencies.logger.child({ component: 'changed-files' }),
+      new RecordedEditLedger(
+        dependencies.oauthClient,
+        dependencies.apiBaseUrl,
+        dependencies.logger.child({ component: 'recorded-edit-ledger' }),
+      ),
     );
     this.sessionRunnerFacade = new SessionRunnerFacade({
       runStore: dependencies.runStore,

@@ -8,6 +8,8 @@ export type { UseConversationPhaseReturn } from "./useConversationPhase";
 export { useConversationByWorkflow } from "./useConversationByWorkflow";
 export { useConversationCliStatus } from "./useConversationCliStatus";
 export type { UseConversationCliStatusReturn } from "./useConversationCliStatus";
+export { useWorkItemExecutionState } from "./useWorkItemExecutionState";
+export type { WorkItemExecutionStateResult } from "./useWorkItemExecutionState";
 export {
   useAgentSessionCurrentState,
   useAgentSessionCurrentStates,
@@ -111,6 +113,10 @@ export { useAgentSession } from "./useAgentSession";
 export { useAgentSessions } from "./useAgentSessions";
 export { useAgentSessionRouting } from "./useAgentSessionRouting";
 export { usePaginatedAgentSessions } from "./usePaginatedAgentSessions";
+export {
+  useAgentSessionTitleOptions,
+  AGENT_SESSION_TITLE_OPTIONS_PAGE_SIZE,
+} from "./useAgentSessionTitleOptions";
 export { useCreateAgentSession } from "./useCreateAgentSession";
 export { useCreateAgentSessionConversation } from "./useCreateAgentSessionConversation";
 export { useResolveWorkItemCoordinator } from "./useResolveWorkItemCoordinator";

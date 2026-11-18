@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS } from './commit/commit.handler';
-import { CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS } from './coding-plan/coding-plan.handler';
+import { codingPlanHandler } from './coding-plan/coding-plan.handler';
 import { FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS } from './final-assessment/final-assessment.handler';
 import {
   PROJECT_REPORT_SECTION_MCP_TOOLS,
@@ -64,7 +64,6 @@ const USE_CASES_WITH_GRAPH_READS: Array<McpToolUseCase | undefined> = [
 ];
 
 const CHILD_SURFACES: Array<{ name: string; tools: readonly string[] }> = [
-  { name: 'coding plan', tools: CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS },
   { name: 'commit', tools: COMMIT_SUBAGENT_MCP_ALLOWED_TOOLS },
   { name: 'final assessment', tools: FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS },
   { name: 'review', tools: REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS },
@@ -87,6 +86,19 @@ describe('shared read advice and the tool surface', () => {
       expect(missing).toEqual([]);
     },
   );
+
+  it('admits every tool the shared prompt recommends to the coding plan session', () => {
+    const allowed = new Set(
+      resolveMcpToolNames({
+        ...(codingPlanHandler.mcpToolUseCase ? { useCase: codingPlanHandler.mcpToolUseCase } : {}),
+        additionalTools: codingPlanHandler.additionalAllowedTools ?? [],
+      }),
+    );
+
+    const missing = sharedPromptReadTools().filter((tool) => !allowed.has(tool));
+
+    expect(missing).toEqual([]);
+  });
 
   it.each(CHILD_SURFACES)(
     'admits every tool the shared prompt recommends to the $name subagent',

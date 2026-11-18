@@ -1,5 +1,6 @@
 import React, { memo, useRef } from "react";
-import { Alert, Box, Button } from "@mui/material";
+import { Box, Button } from "@mui/material";
+import { SolidAlert } from "../Card/SolidAlert";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useTranslation } from "react-i18next";
 import { FadeIn } from "../../../animations";
@@ -71,8 +72,8 @@ export const ConversationTimeline: React.FC<ConversationTimelineProps> = memo(
     ) {
       seenMessageIdsRef.current = new Set(
         conversationTimeline.map(
-          (conversationMessage) => conversationMessage.message.id
-        )
+          (conversationMessage) => conversationMessage.message.id,
+        ),
       );
       hasCapturedInitialBatchRef.current = true;
     }
@@ -80,7 +81,7 @@ export const ConversationTimeline: React.FC<ConversationTimelineProps> = memo(
     const previewScope = inputScope(
       project.organizationId,
       project.id,
-      activeConversation.id
+      activeConversation.id,
     );
 
     return (
@@ -126,15 +127,13 @@ export const ConversationTimeline: React.FC<ConversationTimelineProps> = memo(
           </Box>
         )}
         {olderMessagesError && (
-          <Alert
-            severity="error"
-            data-testid="older-messages-error"
-            sx={{ mb: 1 }}
-          >
-            {t("conversation.loadOlderMessagesError", {
-              defaultValue: "Older messages could not be loaded.",
-            })}
-          </Alert>
+          <Box sx={{ mb: 1 }}>
+            <SolidAlert severity="error" data-testid="older-messages-error">
+              {t("conversation.loadOlderMessagesError", {
+                defaultValue: "Older messages could not be loaded.",
+              })}
+            </SolidAlert>
+          </Box>
         )}
         {conversationTimeline.map((conversationMessage, index) => {
           const isLastMessage = index === conversationTimeline.length - 1;
@@ -191,5 +190,5 @@ export const ConversationTimeline: React.FC<ConversationTimelineProps> = memo(
         })}
       </Box>
     );
-  }
+  },
 );

@@ -1379,7 +1379,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           const inlineActions =
             uiElementInlineActions.length > 0 ? (
               <Box
-                sx={registryType === "verify_feature" ? { mt: 2 } : { mb: 2 }}
+                sx={registryType === "verify_feature" ? undefined : { mb: 2 }}
               >
                 {uiElementInlineActions.map((action) => (
                   <SecondaryActionRenderer
@@ -1434,14 +1434,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                         data-ui-element-id={uiElement.id}
                         sx={
                           registryType === "verify_feature"
-                            ? {
-                                border: "1px solid",
-                                borderColor: "divider",
-                                borderRadius: 1,
-                                p: 2,
-                                mt: 1,
-                                backgroundColor: "transparent",
-                              }
+                            ? { mt: 1 }
                             : undefined
                         }
                       >
@@ -1478,10 +1471,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                           onValidityChange={(validity) =>
                             handleFieldValidityChange(uiElement.id, validity)
                           }
+                          footerActions={
+                            registryType === "verify_feature"
+                              ? inlineActions
+                              : undefined
+                          }
                         />
-                        {registryType === "verify_feature"
-                          ? inlineActions
-                          : null}
                       </Box>
                     </Box>
                   </Box>

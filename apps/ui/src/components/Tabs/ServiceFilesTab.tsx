@@ -1,3 +1,5 @@
+import { WebPathService } from "@hey-hey/ui-common/services";
+import { useTranslation } from "react-i18next";
 import HistoryIcon from "@mui/icons-material/History";
 import {
   Alert,
@@ -42,7 +44,7 @@ interface ServiceFilePaginationState {
 }
 
 const toFileReferenceValue = (
-  file: ServiceFileHistoryEntry
+  file: ServiceFileHistoryEntry,
 ): FileReferenceValueV1 => ({
   version: 1,
   serviceId: file.serviceId,
@@ -56,13 +58,14 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
   serviceId,
   active,
 }) => {
+  const { t } = useTranslation();
   const pathService = usePathService();
   const [pathFilter, setPathFilter] = useState("");
   const [sortBy, setSortBy] = useState<FileTouchServiceHistorySortBy>(
-    FileTouchServiceHistorySortBy.LastTouchedAt
+    FileTouchServiceHistorySortBy.LastTouchedAt,
   );
   const [sortOrder, setSortOrder] = useState<FileTouchServiceHistorySortOrder>(
-    FileTouchServiceHistorySortOrder.Desc
+    FileTouchServiceHistorySortOrder.Desc,
   );
   const [pagination, setPagination] = useState<ServiceFilePaginationState>({
     serviceId,
@@ -84,8 +87,7 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
     active,
   });
 
-  const resetPagination = () =>
-    setPagination({ serviceId, cursors: [] });
+  const resetPagination = () => setPagination({ serviceId, cursors: [] });
   const historyPanelProps: FileTouchHistoryPanelProps | null =
     historyFile?.serviceId === serviceId
       ? {
@@ -143,7 +145,7 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
             value={sortOrder}
             onChange={(event) => {
               setSortOrder(
-                event.target.value as FileTouchServiceHistorySortOrder
+                event.target.value as FileTouchServiceHistorySortOrder,
               );
               resetPagination();
             }}
@@ -157,6 +159,14 @@ export const ServiceFilesTab: React.FC<ServiceFilesTabProps> = ({
             </MenuItem>
           </Select>
         </FormControl>
+        <Button
+          component={RouterLink}
+          to={WebPathService.projectChanges(projectId, { serviceId })}
+          data-testid="open-changes"
+          sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+        >
+          {t("changes.title")}
+        </Button>
       </Stack>
 
       {state.status === "loading" && (

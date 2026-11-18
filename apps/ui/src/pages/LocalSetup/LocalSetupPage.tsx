@@ -1,19 +1,19 @@
+import type { LocalStartupBrowserRecord } from "@hey-hey/contracts/agent-bridge";
+import { holdStartupDiagnosticTransport } from "./localStartupDiagnosticTransport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Navigate,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
-  acceptBrowserAuthSession,
-  refreshAuthToken,
+  recordLocalStartupDiagnostic,
+  diagnosticFailureFacts,
 } from "@hey-hey/ui-common/services";
-import { useAuth } from "@hey-hey/ui-common/context";
+import {
+  BrandedCard,
+  BrandedHeadline,
+  BrandedPage,
+  BrandedWordmark,
+} from "@hey-hey/ui-common/components";
 import type { LocalSetupStatusDto } from "@hey-hey/ui-common/api";
-import { ClaimMachine } from "../Settings/ClaimMachine";
 import { LocalPairingProgress } from "./LocalPairingProgress";
 import {
   heldLocalPairing,
@@ -29,41 +29,28 @@ import {
   describeNavigationType,
   recordLocalSetupEvent,
 } from "./localSetupEvents";
+import { LocalPairingClaim } from "../../localSetup/LocalPairingClaim";
+import { loadDocument } from "../../localSetup/loadDocument";
+import {
+  openSetupSession,
+  renewSetupSession,
+  useSetupSession,
+} from "../../localSetup/setupSession";
 import "./LocalSetupPage.css";
 
 let mountCount = 0;
+
+/** The setup card is wider and roomier than the default branded card. */
+const LOCAL_CARD_SX = {
+  maxWidth: "31rem",
+  padding: "clamp(1.25rem, 4vw, 2rem)",
+} as const;
 
 /** Pairing normally finishes in seconds; past this the person is told how to recover. */
 const CONNECT_TIMEOUT_MS = 60_000;
 
 const describeFailure = (failure: unknown): string =>
   failure instanceof Error ? failure.message : String(failure);
-
-type HandoffExchange = ReturnType<
-  ReturnType<typeof getApiRuntime>["clients"]["auth"]["completeLocalHandoff"]
->;
-
-const handoffExchanges = new Map<string, HandoffExchange>();
-
-/**
- * The handoff token is single-use, and a remount (React StrictMode in development) runs the
- * exchange effect again with the same token. Every mount shares the one request per token.
- */
-const exchangeHandoffToken = (handoffToken: string): HandoffExchange => {
-  const inFlight = handoffExchanges.get(handoffToken);
-  if (inFlight) {
-    return inFlight;
-  }
-
-  const exchange = getApiRuntime().clients.auth.completeLocalHandoff({
-    localHandoffRequestDto: { handoffToken },
-  });
-  handoffExchanges.set(handoffToken, exchange);
-  const forget = () => handoffExchanges.delete(handoffToken);
-  exchange.then(forget, forget);
-
-  return exchange;
-};
 
 interface CliFragment {
   handoffToken: string | null;
@@ -73,6 +60,7 @@ interface CliFragment {
 
 /** Reads the CLI's one-time fragment values; the pairing details are kept for remounts. */
 const readCliFragment = (): CliFragment => {
+  holdStartupDiagnosticTransport(window.location.hash);
   const fragment = new URLSearchParams(window.location.hash.slice(1));
   const code = fragment.get("code");
   const approval = fragment.get("approval");
@@ -124,7 +112,7 @@ const describeView = ({
   status: LocalSetupStatusDto | null;
   pairingStarted: boolean;
   pairing: unknown;
-}): string => {
+}): NonNullable<NonNullable<LocalStartupBrowserRecord["facts"]>["view"]> => {
   if (step === "error") return "error";
   if (step === "loading" || !status) return "loading";
   if (status.nameComplete && status.machineConnected) return "continuing";
@@ -135,44 +123,52 @@ const describeView = ({
   return "waiting-for-cli";
 };
 
+/** Where setup sends a browser whose session is gone: local passkey sign-in, then back here. */
+const LOGIN_FOR_SETUP = (returnTo: string): string =>
+  `/login?returnTo=${encodeURIComponent(returnTo)}`;
+
+/** Local first-time setup: name, passkey, then the CLI's confirmation, in that order. */
 export function LocalSetupPage(): React.JSX.Element {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { isAuthenticated, loading: authLoading } = useAuth();
-  const location = useLocation();
+  const session = useSetupSession();
   const [status, setStatus] = useState<LocalSetupStatusDto | null>(null);
   const [name, setName] = useState("");
   const [step, setStep] = useState<"loading" | "name" | "error">("loading");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [cliFragment] = useState(readCliFragment);
-  const [handoffPending, setHandoffPending] = useState(() =>
-    Boolean(cliFragment.handoffToken),
-  );
+  const [opening, setOpening] = useState(true);
   const lastStatus = useRef<string | null>(null);
+  const leaving = useRef(false);
   const refreshStatusNow = useRef<() => Promise<void>>(() => Promise.resolve());
   const [passkeyCreated, setPasskeyCreated] = useState(false);
   const passkeyCreatedRef = useRef(false);
   const [enrollmentId, setEnrollmentId] = useState<string>();
   const handlePasskeyCreated = useCallback((id: string) => {
+    recordLocalStartupDiagnostic("passkey_registration_succeeded");
     setEnrollmentId(id);
     passkeyCreatedRef.current = true;
     setPasskeyCreated(true);
   }, []);
   const [connectionFailed, setConnectionFailed] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
+  const hasSession = session !== null;
 
-  const pairingStarted = searchParams.get("pairing") === "started";
+  useEffect(() => {
+    recordLocalStartupDiagnostic("auth_state", {
+      authenticated: hasSession,
+      loading: opening,
+      handoffPending: opening && cliFragment.handoffToken !== null,
+    });
+  }, [hasSession, opening, cliFragment]);
+
+  const pairingStarted =
+    new URLSearchParams(window.location.search).get("pairing") === "started";
   const pairing = heldLocalPairing();
   const hasPairingHandoff = pairingStarted && pairing !== null;
   const confirmAtTerminal = pairing !== null && pairing.approvalSecret === null;
   const returningPasskey = useLocalReturningPasskey(
-    pairingStarted &&
-      pairing !== null &&
-      isAuthenticated &&
-      !authLoading &&
-      !handoffPending,
+    pairingStarted && pairing !== null && hasSession,
   );
 
   useEffect(() => {
@@ -221,74 +217,102 @@ export function LocalSetupPage(): React.JSX.Element {
     const { handoffToken } = cliFragment;
     if (!handoffToken) {
       recordLocalSetupEvent("handoff: no token in the address");
-      return;
     }
 
-    // Initial renewal must settle before a handoff establishes a new session.
-    // Otherwise a late renewal rejection can clear the accepted session.
-    if (authLoading) {
-      return;
-    }
-
-    recordLocalSetupEvent("handoff: exchanging the one-use token");
-    void exchangeHandoffToken(handoffToken)
-      .then((response) => {
-        if ("accessToken" in response.data.data) {
-          acceptBrowserAuthSession(response.data.data);
-          recordLocalSetupEvent("handoff: browser session accepted");
-          return;
-        }
-        throw new Error(
-          "Local browser session did not select its organization.",
-        );
+    let active = true;
+    openSetupSession(handoffToken)
+      .then(() => {
+        if (active) setOpening(false);
       })
       .catch((failure: unknown) => {
-        recordLocalSetupEvent(`handoff: failed (${describeFailure(failure)})`);
+        if (!active) return;
+        if (!handoffToken) {
+          // No handoff and no usable cookie: sign in with the passkey, then return here.
+          recordLocalStartupDiagnostic("setup_redirect", {
+            destination: "login",
+            reason: "unauthenticated",
+          });
+          leaving.current = true;
+          loadDocument(
+            LOGIN_FOR_SETUP(
+              `${window.location.pathname}${window.location.search}`,
+            ),
+          );
+          return;
+        }
+        recordLocalSetupEvent(
+          `handoff: failed (${describeFailure(failure)})`,
+          diagnosticFailureFacts(failure),
+        );
         setError("Run heyhey local again to restore access to this computer.");
         setStep("error");
-      })
-      .finally(() => setHandoffPending(false));
-  }, [cliFragment, authLoading]);
+        setOpening(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [cliFragment]);
 
   useEffect(() => {
-    if (!isAuthenticated || authLoading || handoffPending) {
+    if (!hasSession || opening) {
       return;
     }
 
     let active = true;
     const refreshStatus = async () => {
+      if (leaving.current) return;
       try {
         const response = await getApiRuntime().clients.auth.getLocalSetupStatus(
           { enrollmentId },
         );
-        if (!active) return;
+        if (!active || leaving.current) return;
         const nextStatus = response.data.data;
         const statusSummary = `name-saved=${String(nextStatus.nameComplete)} cli-connected=${String(nextStatus.machineConnected)} pairing=${nextStatus.pairingState ?? "none"} has-projects=${String(nextStatus.hasProjects)} setup-unfinished=${String(nextStatus.setupProjectId !== null)}`;
         if (statusSummary !== lastStatus.current) {
           lastStatus.current = statusSummary;
           recordLocalSetupEvent(`status: ${statusSummary}`);
+          recordLocalStartupDiagnostic("setup_status", {
+            nameSaved: nextStatus.nameComplete,
+            machineConnected: nextStatus.machineConnected,
+            hasProjects: nextStatus.hasProjects,
+            setupUnfinished: nextStatus.setupProjectId !== null,
+          });
         }
         setStatus(nextStatus);
         setStep((currentStep) =>
           currentStep === "loading" ? "name" : currentStep,
         );
-        // Move on only once the connection is real. The protected routes keep
-        // the terms gate, then first-project setup resumes the saved project.
+        // Move on only once the connection is real. The main app starts fresh
+        // from here with this session's cookie, keeps the terms gate, then
+        // first-project setup resumes the saved project.
         if (
           nextStatus.nameComplete &&
           nextStatus.machineConnected &&
           (!hasPairingHandoff || enrollmentId !== undefined)
         ) {
-          await navigate(destinationAfterConnecting(nextStatus), {
-            replace: true,
+          recordLocalStartupDiagnostic("setup_redirect", {
+            destination:
+              nextStatus.setupProjectId || !nextStatus.hasProjects
+                ? "welcome"
+                : "home",
+            reason: "connected",
           });
+          leaving.current = true;
+          loadDocument(destinationAfterConnecting(nextStatus));
         }
       } catch (failure: unknown) {
         if (active && passkeyCreatedRef.current) {
-          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
+          recordLocalSetupEvent(
+            `status: failed (${describeFailure(failure)})`,
+            diagnosticFailureFacts(failure),
+          );
           setConnectionFailed(true);
         } else if (active) {
-          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
+          recordLocalSetupEvent(
+            `status: failed (${describeFailure(failure)})`,
+            diagnosticFailureFacts(failure),
+          );
           setError(
             "Local account status is unavailable. Run heyhey local and retry.",
           );
@@ -304,14 +328,7 @@ export function LocalSetupPage(): React.JSX.Element {
       active = false;
       window.clearInterval(interval);
     };
-  }, [
-    isAuthenticated,
-    authLoading,
-    handoffPending,
-    navigate,
-    enrollmentId,
-    hasPairingHandoff,
-  ]);
+  }, [hasSession, opening, enrollmentId, hasPairingHandoff]);
 
   const saveName = async () => {
     const displayName = name.trim();
@@ -324,12 +341,16 @@ export function LocalSetupPage(): React.JSX.Element {
       const response = await getApiRuntime().clients.auth.saveLocalDisplayName({
         localNameRequestDto: { name: displayName },
       });
-      await refreshAuthToken();
+      // The one renewal during setup, in sequence, so pairing shows the saved name.
+      await renewSetupSession();
       setStatus(response.data.data);
       setStep("name");
       recordLocalSetupEvent("name: saved and session refreshed");
     } catch (failure: unknown) {
-      recordLocalSetupEvent(`name: failed (${describeFailure(failure)})`);
+      recordLocalSetupEvent(
+        `name: failed (${describeFailure(failure)})`,
+        diagnosticFailureFacts(failure),
+      );
       setError("We couldn't save your name. Try again.");
     } finally {
       setSaving(false);
@@ -339,37 +360,26 @@ export function LocalSetupPage(): React.JSX.Element {
   const view = describeView({ step, status, pairingStarted, pairing });
   useEffect(() => {
     recordLocalSetupEvent(`view: ${view}`);
+    recordLocalStartupDiagnostic("setup_view", { view });
   }, [view]);
 
   if (step === "error") {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>LOCAL SETUP NEEDS ATTENTION</h1>
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>LOCAL SETUP NEEDS ATTENTION</BrandedHeadline>
         <p role="alert">{error}</p>
         <LocalSetupDiagnostics />
-      </main>
+      </BrandedPage>
     );
   }
 
-  if (!authLoading && !handoffPending && !isAuthenticated) {
+  if (opening || !session || step === "loading" || !status) {
     return (
-      <Navigate
-        to="/login"
-        replace
-        state={{
-          from: { pathname: location.pathname, search: location.search },
-        }}
-      />
-    );
-  }
-
-  if (authLoading || handoffPending || step === "loading" || !status) {
-    return (
-      <main className="local-setup" aria-live="polite">
-        <p className="local-setup__wordmark">HEY HEY</p>
+      <BrandedPage className="local-setup" aria-live="polite">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
         <p>Opening your local workspace…</p>
-      </main>
+      </BrandedPage>
     );
   }
 
@@ -378,10 +388,10 @@ export function LocalSetupPage(): React.JSX.Element {
     ((!hasPairingHandoff && status.machineConnected) || passkeyCreated)
   ) {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>{t("localSetup.progress.title")}</h1>
-        <section className="local-setup__card">
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>{t("localSetup.progress.title")}</BrandedHeadline>
+        <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
           <LocalPairingProgress
             failed={connectionFailed}
             pairingState={status.pairingState}
@@ -392,17 +402,17 @@ export function LocalSetupPage(): React.JSX.Element {
               status.pairingState !== "ACTIVE"
             }
           />
-        </section>
-      </main>
+        </BrandedCard>
+      </BrandedPage>
     );
   }
 
   if (!status.nameComplete) {
     return (
-      <main className="local-setup">
-        <p className="local-setup__wordmark">HEY HEY</p>
-        <h1>WHAT SHOULD WE CALL YOU?</h1>
-        <section className="local-setup__card">
+      <BrandedPage className="local-setup">
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedHeadline>WHAT SHOULD WE CALL YOU?</BrandedHeadline>
+        <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
           <label htmlFor="local-display-name">Name</label>
           <input
             id="local-display-name"
@@ -418,47 +428,46 @@ export function LocalSetupPage(): React.JSX.Element {
           >
             {saving ? "Saving…" : "Continue"}
           </button>
-        </section>
-      </main>
+        </BrandedCard>
+      </BrandedPage>
     );
   }
 
   return (
-    <main className="local-setup">
-      <p className="local-setup__wordmark">HEY HEY</p>
+    <BrandedPage className="local-setup">
+      <BrandedWordmark>HEY HEY</BrandedWordmark>
       {pairingStarted && pairing ? (
         <header>
           <p className="local-setup__eyebrow">
             {t("localSetup.pairing.eyebrow")}
           </p>
-          <h1>
+          <BrandedHeadline
+            line={
+              returningPasskey.returning
+                ? t("localSetup.pairing.returning.purpose")
+                : returningPasskey.repaired
+                  ? t("localSetup.repair.completed")
+                  : t("localSetup.pairing.purpose")
+            }
+          >
             {returningPasskey.returning
               ? t("localSetup.pairing.returning.title")
               : t("localSetup.pairing.title")}
-          </h1>
-          <p className="local-setup__intro">
-            {returningPasskey.returning
-              ? t("localSetup.pairing.returning.purpose")
-              : returningPasskey.repaired
-                ? t("localSetup.repair.completed")
-                : t("localSetup.pairing.purpose")}
-          </p>
+          </BrandedHeadline>
         </header>
       ) : null}
-      <section className="local-setup__card">
+      <BrandedCard className="local-setup__card" sx={LOCAL_CARD_SX}>
         {pairingStarted && pairing ? (
-          <ClaimMachine
-            initialCode={pairing.code}
-            enrollment="first-use-shared-new"
-            localApprovalSecret={pairing.approvalSecret}
-            localAgents={pairing.agents}
-            onLocalPasskeyCreated={handlePasskeyCreated}
-            localReturning={returningPasskey.returning}
-            onLocalPasskeyUnavailable={returningPasskey.offerRepair}
-            onLocalAccountProofRequired={
-              returningPasskey.requireExistingPasskey
-            }
-            localRepair={
+          <LocalPairingClaim
+            code={pairing.code}
+            approvalSecret={pairing.approvalSecret}
+            agents={pairing.agents}
+            user={session.user}
+            returning={returningPasskey.returning}
+            onPasskeyCreated={handlePasskeyCreated}
+            onPasskeyUnavailable={returningPasskey.offerRepair}
+            onAccountProofRequired={returningPasskey.requireExistingPasskey}
+            repair={
               returningPasskey.returning &&
               returningPasskey.repair !== "none" ? (
                 <LocalRepairPanel
@@ -480,7 +489,7 @@ export function LocalSetupPage(): React.JSX.Element {
         ) : (
           <p>Waiting for the local CLI to connect to Hey Hey…</p>
         )}
-      </section>
-    </main>
+      </BrandedCard>
+    </BrandedPage>
   );
 }

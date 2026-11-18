@@ -1,12 +1,20 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Run } from '../../../run/run';
-import { createTestRun } from '../../../run/run.test-support';
+import {
+  createTestRun,
+  createTestRunStore,
+  createTestRunRegistry,
+  createTestRepoMappingStore,
+} from '../../../run/run.test-support';
+import { RunFileContextReader } from '../../../server/run-file-context-reader';
+import { RunChangedFilesReader } from '../../../server/run-changed-files';
+import type { CanonicalFileChangeFact } from '../../../run/file-change-facts';
 import { CommitReportTool } from '../../submission-tools/create-commit-report-tool';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
 import { failureMessage } from '../../../run/failure-message';
@@ -34,16 +42,18 @@ const createRepo = async (): Promise<string> => {
   return repo;
 };
 
-const makeRun = (
+const makeRun = async (
   repo: string,
   overrides: {
+    runId?: string;
     services?: Array<{ id: string; path: string }>;
     taskId?: string | null;
     worktreeState?: Record<string, { repoPath: string; worktreePath: string; branch: string }>;
     projections?: Array<{ serviceId: string; repoRelativePath: string }>;
   } = {},
-): Run => {
-  const run = createTestRun({ runId: 'session-1' });
+  runStore = createTestRunStore(),
+): Promise<Run> => {
+  const run = createTestRun({ runId: overrides.runId ?? 'session-1' }, { runStore });
   run.session.services = overrides.services ?? [{ id: 'service-1', path: repo }];
   run.session.launchServiceId = 'service-1';
   if (overrides.worktreeState !== undefined) {
@@ -58,6 +68,17 @@ const makeRun = (
     taskId === null
       ? { entityType: 'SERVICE', entityId: 'service-1' }
       : { entityType: 'TASK', entityId: taskId };
+  await runStore.initialize();
+  await runStore.createRun({
+    agentic_session_id: run.runId,
+    entity: null,
+    services: run.session.services,
+    launchServiceId: 'service-1',
+    provider: 'claude',
+    provider_session_id: 'provider-1',
+    conversationId: run.conversationId,
+    contextMetadata: { ...run.session.contextMetadata, agentSessionId: run.runId },
+  });
   vi.spyOn(run, 'getFileChangeProjection').mockReturnValue(
     overrides.projections ?? [{ serviceId: 'service-1', repoRelativePath: 'a.ts' }],
   );
@@ -88,11 +109,246 @@ afterEach(async () => {
 });
 
 describe('executeCanonicalCommit', () => {
+  it.each([false, true])(
+    'keeps a foreign edit out of restored reads (interrupted after Git: %s)',
+    async (interrupted) => {
+      const repo = await createRepo();
+      const store = createTestRunStore();
+      const fixture = await makeRun(repo, {}, store);
+      const fact: CanonicalFileChangeFact = {
+        factId: 'first',
+        runId: fixture.runId,
+        turnId: 'turn-1',
+        provider: 'claude',
+        providerSessionId: 'provider-1',
+        providerTurnId: null,
+        providerThreadId: null,
+        serviceId: 'service-1',
+        repoRelativePath: 'a.ts',
+        occurredAt: new Date().toISOString(),
+        evidence: { kind: 'baseline', diff: '', baselineContent: '1', postContent: '2' },
+      };
+      await store.appendFileChangeFacts(fixture.runId, [fact]);
+      const run = createTestRun(
+        { runId: fixture.runId, session: fixture.session },
+        { runStore: store },
+      );
+      run.session.promptType = 'commit';
+      const proxy = makeCreateReportProxy();
+      vi.mocked(proxy.create).mockResolvedValue({ content: [], reportId: 'commit-report' });
+      const input = {
+        run,
+        payload: { userMessage: '' },
+        liveFiles: [path.join(repo, 'a.ts')],
+        message: 'Update file',
+        commitReportTool: new CommitReportTool(proxy),
+        logger: makeLogger(),
+      };
+      if (interrupted) {
+        vi.spyOn(run.reportProvenance, 'retain').mockRejectedValueOnce(
+          new Error('disk unavailable'),
+        );
+        await expect(executeCanonicalCommit(input)).rejects.toThrow('disk unavailable');
+      } else {
+        await executeCanonicalCommit(input);
+      }
+      const head = await git(repo, ['rev-parse', 'HEAD']);
+      await writeFile(input.liveFiles[0]!, 'another session edited this file');
+
+      const reader = new RunFileContextReader(store, createTestRunRegistry(), input.logger);
+      const inventory = new RunChangedFilesReader(createTestRepoMappingStore());
+      const readInventory = async () => {
+        const restored = await reader.read(run.runId);
+        return inventory.getLiveRunChangedFilesInventory(
+          restored.session,
+          restored.getFileChangeProjection(),
+        );
+      };
+      expect(await readInventory()).toEqual([]);
+      if (interrupted) {
+        const session = await store.getRunMetadata(run.runId);
+        if (!session) throw new Error('Missing persisted Run');
+        const restarted = createTestRun({ runId: run.runId, session }, { runStore: store });
+        restarted.session.promptType = 'commit';
+        await executeCanonicalCommit({ ...input, run: restarted });
+        expect(restarted.readReportChain().at(-1)?.commitHashes?.[0]?.hash).toBe(
+          await git(repo, ['rev-parse', '--short', head]),
+        );
+        expect(restarted.getFileChangeProjection()).toEqual([]);
+      } else {
+        expect(run.getFileChangeProjection()).toEqual([]);
+        await expect(executeCanonicalCommit(input)).rejects.toThrow();
+      }
+      expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(head);
+      expect(await git(repo, ['diff', '--cached', '--name-only'])).toBe('');
+      expect(await store.getFileChangeFacts(run.runId)).toEqual([fact]);
+      await store.appendFileChangeFacts(run.runId, [{ ...fact, factId: 'next', turnId: 'turn-2' }]);
+      expect(await readInventory()).toMatchObject([{ filePath: 'a.ts' }]);
+    },
+  );
+
+  it('reports each Run’s own commit when B advances HEAD before A returns from Git', async () => {
+    const repo = await createRepo();
+    const a = await makeRun(repo);
+    const b = await makeRun(repo, {
+      runId: 'session-2',
+      projections: [{ serviceId: 'service-1', repoRelativePath: 'b.ts' }],
+    });
+    const hooks = await mkdtemp(path.join(os.tmpdir(), 'commit-hooks-'));
+    tempDirs.push(hooks);
+    await git(repo, ['config', 'core.hooksPath', hooks]);
+    await writeFile(
+      path.join(hooks, 'post-commit'),
+      [
+        '#!/bin/sh',
+        'case "$(git log -1 --format=%s)" in',
+        'first)',
+        'touch .git/first-ready',
+        'for i in $(seq 1 200); do test -f .git/second-done && exit 0; sleep 0.05; done',
+        ';;',
+        'esac',
+      ].join('\n'),
+      { mode: 0o755 },
+    );
+    const commit = (run: Run, file: string, message: string) =>
+      executeCanonicalCommit({
+        run,
+        payload: { userMessage: '' },
+        liveFiles: [path.join(repo, file)],
+        message,
+        logger: makeLogger(),
+        commitReportTool: makeCommitReportTool(),
+      });
+    const first = commit(a, 'a.ts', 'first');
+    try {
+      await vi.waitFor(() => access(path.join(repo, '.git/first-ready')), { timeout: 4000 });
+      await writeFile(path.join(repo, 'b.ts'), 'second edit');
+      await commit(b, 'b.ts', 'second');
+    } finally {
+      await writeFile(path.join(repo, '.git/second-done'), '');
+      await first;
+    }
+    expect(a.reportProvenance.pending).toMatchObject({
+      files: ['a.ts'],
+      hashes: [{ hash: await git(repo, ['rev-parse', '--short', 'HEAD^']) }],
+    });
+    expect(b.reportProvenance.pending).toMatchObject({
+      files: ['b.ts'],
+      hashes: [{ hash: await git(repo, ['rev-parse', '--short', 'HEAD']) }],
+    });
+  });
+
+  it('claims only new same-Run and same-Service records across durable commits', async () => {
+    const repo = await createRepo();
+    const run = await makeRun(repo);
+    run.session.promptType = 'commit';
+    const append = (reportId: string, sourceRunId: string, serviceId: string) =>
+      run.appendReportChainEntry({
+        reportId,
+        sourceRunId,
+        serviceId,
+        reportType: 'IMPLEMENT',
+        phase: 'implement',
+        createdAt: new Date().toISOString(),
+        summary: 'Changed canonical file',
+        audience: 'EXTERNAL',
+      });
+    append('11111111-1111-4111-8111-111111111111', run.runId, 'service-1');
+    append('22222222-2222-4222-8222-222222222222', 'another-run', 'service-1');
+    append('33333333-3333-4333-8333-333333333333', run.runId, 'service-2');
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create)
+      .mockResolvedValueOnce({ content: [], reportId: 'commit-report-1' })
+      .mockResolvedValue({ content: [], reportId: 'commit-report-2' });
+    const tool = new CommitReportTool(proxy);
+    const input = {
+      run,
+      payload: { userMessage: '', taskId: 'task-1', codingSessionId: run.runId },
+      liveFiles: [path.join(repo, 'a.ts')],
+      message: 'Update file',
+      commitReportTool: tool,
+      logger: makeLogger() as never,
+    };
+    await executeCanonicalCommit(input);
+    expect(run.readReportChain().at(-1)?.commitHashes?.[0]?.implementReportIds).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+    ]);
+    append('44444444-4444-4444-8444-444444444444', run.runId, 'service-1');
+    await writeFile(path.join(repo, 'a.ts'), 'export const value = 3;\n');
+    await executeCanonicalCommit(input);
+    expect(run.readReportChain().at(-1)?.commitHashes?.[0]?.implementReportIds).toEqual([
+      '44444444-4444-4444-8444-444444444444',
+    ]);
+  });
+
+  it('reports a successful Service when a later Service fails', async () => {
+    const first = await createRepo();
+    const second = await createRepo();
+    await git(second, ['config', 'core.hooksPath', '/dev/null']);
+    await git(second, ['config', 'user.name', '']);
+    const run = await makeRun(first, {
+      services: [
+        { id: 'service-1', path: first },
+        { id: 'service-2', path: second },
+      ],
+      projections: [
+        { serviceId: 'service-1', repoRelativePath: 'a.ts' },
+        { serviceId: 'service-2', repoRelativePath: 'a.ts' },
+      ],
+    });
+    const tool = makeCommitReportTool();
+    await expect(
+      executeCanonicalCommit({
+        run,
+        payload: { userMessage: '', taskId: 'task-1', codingSessionId: run.runId },
+        liveFiles: [path.join(first, 'a.ts'), path.join(second, 'a.ts')],
+        message: 'Update files',
+        commitReportTool: tool,
+        logger: makeLogger() as never,
+      }),
+    ).rejects.toThrow();
+    expect(tool.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          hashes: [expect.objectContaining({ service: 'service-1', implementReportIds: [] })],
+        }),
+      }),
+    );
+  });
+
+  it('retries failed durable reporting without producing a second git commit', async () => {
+    const repo = await createRepo();
+    const run = await makeRun(repo);
+    run.session.promptType = 'commit';
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create)
+      .mockRejectedValueOnce(new Error('lost report response'))
+      .mockResolvedValue({ content: [], reportId: 'recovered-report' });
+    const input = {
+      run,
+      payload: { userMessage: '', taskId: 'task-1', codingSessionId: run.runId },
+      liveFiles: [path.join(repo, 'a.ts')],
+      message: 'Update file',
+      commitReportTool: new CommitReportTool(proxy),
+      logger: makeLogger() as never,
+    };
+    await expect(executeCanonicalCommit(input)).rejects.toThrow('lost report response');
+    const head = await git(repo, ['rev-parse', 'HEAD']);
+    expect(run.reportProvenance.pending?.hashes[0]?.hash).toBe(head.slice(0, 7));
+    await executeCanonicalCommit(input);
+    expect(await git(repo, ['rev-parse', 'HEAD'])).toBe(head);
+    expect(run.reportProvenance.pending).toBeUndefined();
+    expect(proxy.create).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(proxy.create).mock.calls[1]?.[0]).toEqual(
+      vi.mocked(proxy.create).mock.calls[0]?.[0],
+    );
+  });
+
   it('commits only canonical files with runtime-owned trailers and emits COMMIT evidence', async () => {
     const repo = await createRepo();
     const execute = vi.fn().mockResolvedValue({ content: [] });
     const reportTool = makeCommitReportTool(execute);
-    const run = makeRun(repo);
+    const run = await makeRun(repo);
     await writeFile(path.join(repo, 'unrelated.ts'), 'export const unrelated = 2;\n');
     await git(repo, ['add', 'unrelated.ts']);
 
@@ -120,7 +376,7 @@ describe('executeCanonicalCommit', () => {
       args: {
         summary: 'fix: update canonical value',
         files: ['a.ts'],
-        hashes: [{ service: 'service-1', hash, branch }],
+        hashes: [{ service: 'service-1', hash, branch, implementReportIds: [] }],
       },
     });
     const args = execute.mock.calls[0]![0].args;
@@ -145,7 +401,7 @@ describe('executeCanonicalCommit', () => {
       const files = withEdit ? ['a.ts', 'b.ts'] : ['b.ts'];
       const execute = vi.fn().mockResolvedValue({ content: [] });
       await executeCanonicalCommit({
-        run: makeRun(repo, {
+        run: await makeRun(repo, {
           projections: files.map((repoRelativePath) => ({
             serviceId: 'service-1',
             repoRelativePath,
@@ -173,7 +429,7 @@ describe('executeCanonicalCommit', () => {
     await git(repo, ['add', '--', 'a.ts']);
     await writeFile(path.join(repo, 'a.ts'), 'recreated\n');
     await executeCanonicalCommit({
-      run: makeRun(repo),
+      run: await makeRun(repo),
       payload: { userMessage: '' },
       liveFiles: [path.join(repo, 'a.ts')],
       message: 'Recreate file',
@@ -187,7 +443,7 @@ describe('executeCanonicalCommit', () => {
     const repo = await createRepo();
     const execute = vi.fn();
     const error = await executeCanonicalCommit({
-      run: makeRun(repo, {
+      run: await makeRun(repo, {
         projections: [{ serviceId: 'service-1', repoRelativePath: 'missing.ts' }],
       }),
       payload: { userMessage: '' },
@@ -208,7 +464,7 @@ describe('executeCanonicalCommit', () => {
     const execute = vi.fn().mockResolvedValue({ content: [] });
 
     await executeCanonicalCommit({
-      run: makeRun(repo, {
+      run: await makeRun(repo, {
         projections: [
           { serviceId: 'service-1', repoRelativePath: 'a.ts' },
           { serviceId: 'service-1', repoRelativePath: 'b.ts' },
@@ -231,7 +487,7 @@ describe('executeCanonicalCommit', () => {
   it('commits a taskless Service Run with Agent Session and Service traceability', async () => {
     const repo = await createRepo();
     const execute = vi.fn().mockResolvedValue({ content: [] });
-    const run = makeRun(repo, { taskId: null });
+    const run = await makeRun(repo, { taskId: null });
 
     await executeCanonicalCommit({
       run,
@@ -250,13 +506,59 @@ describe('executeCanonicalCommit', () => {
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ runId: 'session-1', run }));
   });
 
+  it.each([
+    ['TASK', 'task-1'],
+    ['DESIGN_DOC', 'doc-1'],
+  ] as const)(
+    'commits an Entity Conversation about a %s with Agent Session and Service traceability',
+    async (entityType, entityId) => {
+      const repo = await createRepo();
+      const run = await makeRun(repo);
+      run.session.entity = { entityType, entityId };
+      run.session.startedPromptTypes = ['entity_conversation', 'commit'];
+
+      await executeCanonicalCommit({
+        run,
+        payload: { userMessage: '', codingSessionId: 'session-1' },
+        liveFiles: [path.join(repo, 'a.ts')],
+        message: 'fix: update value from conversation',
+        commitReportTool: makeCommitReportTool(),
+        logger: makeLogger() as never,
+      });
+
+      const body = await git(repo, ['show', '-s', '--format=%B', 'HEAD']);
+      expect(body).not.toContain('Task-Id:');
+      expect(body).toContain('Coding-Session-Id: session-1');
+      expect(body).toContain('Service-Id: service-1');
+    },
+  );
+
+  it('still rejects an Entity Conversation without a valid launch Service before staging', async () => {
+    const repo = await createRepo();
+    const run = await makeRun(repo);
+    run.session.startedPromptTypes = ['entity_conversation'];
+    run.session.launchServiceId = 'unselected-service';
+
+    await expect(
+      executeCanonicalCommit({
+        run,
+        payload: { userMessage: '' },
+        liveFiles: [path.join(repo, 'a.ts')],
+        message: 'fix: reject',
+        commitReportTool: makeCommitReportTool(),
+        logger: makeLogger() as never,
+      }),
+    ).rejects.toThrow('no valid Service execution scope');
+    expect(await git(repo, ['diff', '--cached', '--name-only'])).toBe('');
+  });
+
   it('emits one report after committing every selected service', async () => {
     const firstRepo = await createRepo();
     const secondRepo = await createRepo();
     await git(secondRepo, ['checkout', '-b', 'second-checkout']);
     const execute = vi.fn().mockResolvedValue({ content: [] });
 
-    const run = makeRun(firstRepo, {
+    const run = await makeRun(firstRepo, {
       services: [
         { id: 'service-1', path: firstRepo },
         { id: 'service-2', path: secondRepo },
@@ -290,8 +592,14 @@ describe('executeCanonicalCommit', () => {
             service: 'service-1',
             hash: firstHash,
             branch: await git(firstRepo, ['rev-parse', '--abbrev-ref', 'HEAD']),
+            implementReportIds: [],
           },
-          { service: 'service-2', hash: secondHash, branch: 'second-checkout' },
+          {
+            service: 'service-2',
+            hash: secondHash,
+            branch: 'second-checkout',
+            implementReportIds: [],
+          },
         ],
       },
     });
@@ -309,7 +617,7 @@ describe('executeCanonicalCommit', () => {
     const hostHead = await git(repo, ['rev-parse', 'HEAD']);
     const execute = vi.fn().mockResolvedValue({ content: [] });
     const logger = makeLogger();
-    const run = makeRun(repo, {
+    const run = await makeRun(repo, {
       worktreeState: {
         'service-1': {
           repoPath: repo,
@@ -340,7 +648,9 @@ describe('executeCanonicalCommit', () => {
       args: {
         summary: 'fix: commit active worktree',
         files: ['a.ts'],
-        hashes: [{ service: 'service-1', hash, branch: 'session-worktree' }],
+        hashes: [
+          { service: 'service-1', hash, branch: 'session-worktree', implementReportIds: [] },
+        ],
       },
     });
     const args = execute.mock.calls[0]![0].args;
@@ -379,7 +689,7 @@ describe('executeCanonicalCommit', () => {
     const logger = makeLogger();
     await expect(
       executeCanonicalCommit({
-        run: makeRun(repo, {
+        run: await makeRun(repo, {
           worktreeState: {
             'service-1': {
               repoPath: repo,
@@ -428,7 +738,7 @@ describe('executeCanonicalCommit', () => {
 
     await expect(
       executeCanonicalCommit({
-        run: makeRun(repo, { services: [{ id: 'different-service', path: repo }] }),
+        run: await makeRun(repo, { services: [{ id: 'different-service', path: repo }] }),
         payload: { userMessage: '' },
         liveFiles: [path.join(repo, 'a.ts')],
         message: 'fix: update canonical value',
@@ -446,7 +756,7 @@ describe('executeCanonicalCommit', () => {
 
     await expect(
       executeCanonicalCommit({
-        run: makeRun(repo),
+        run: await makeRun(repo),
         payload: { userMessage: '', taskId: 'different-task' },
         liveFiles: [path.join(repo, 'a.ts')],
         message: 'fix: update canonical value',
@@ -463,7 +773,7 @@ describe('executeCanonicalCommit', () => {
 
     await expect(
       executeCanonicalCommit({
-        run: makeRun(repo, { taskId: null }),
+        run: await makeRun(repo, { taskId: null }),
         payload: { userMessage: '', taskId: 'caller-task' },
         liveFiles: [path.join(repo, 'a.ts')],
         message: 'fix: reject caller task attribution',
@@ -477,7 +787,7 @@ describe('executeCanonicalCommit', () => {
 
   it('rejects invalid taskless Service scope before staging', async () => {
     const repo = await createRepo();
-    const run = makeRun(repo, { taskId: null });
+    const run = await makeRun(repo, { taskId: null });
     run.session.entity = { entityType: 'SERVICE', entityId: 'unselected-service' };
 
     await expect(
@@ -500,7 +810,7 @@ describe('executeCanonicalCommit', () => {
 
     await expect(
       executeCanonicalCommit({
-        run: makeRun(repo, {
+        run: await makeRun(repo, {
           projections: [{ serviceId: 'service-1', repoRelativePath: 'b.ts' }],
         }),
         payload: { userMessage: '' },

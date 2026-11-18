@@ -18,7 +18,7 @@ const MY_FIRST_PROJECT_ID = 'e39a7dfd-9a36-466e-848a-23d9082404ea';
 describe('Help content source', () => {
   it('loads the source-controlled Help catalog as an acyclic ordered tree', async () => {
     const nodes = await loadHelpContentSource();
-    expect(nodes).toHaveLength(26);
+    expect(nodes).toHaveLength(27);
     expect(
       nodes
         .filter((node) => node.parentId === null)

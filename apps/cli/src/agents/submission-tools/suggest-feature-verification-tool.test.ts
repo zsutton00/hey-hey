@@ -5,6 +5,7 @@ import { SubmissionToolCorrectableError } from './types';
 import { suggestFeatureVerificationTool } from './suggest-feature-verification-tool';
 
 const FEATURE_ID = '33333333-3333-4333-8333-333333333333';
+const LEAD = 'The Mockup shows a Retry button but the dialog has none.';
 
 const textOf = (result: { content: ReadonlyArray<{ text?: unknown }> }) =>
   String(result.content[0]?.text);
@@ -33,6 +34,7 @@ describe('suggest_feature_verification', () => {
     ];
     const { turn, result } = call({
       featureId: FEATURE_ID,
+      lead: LEAD,
       discrepancy: 'The Mockup shows a Retry button; the dialog has none.',
       impactedEntities,
     });
@@ -40,6 +42,7 @@ describe('suggest_feature_verification', () => {
     expect(textOf(result)).toContain('Recorded');
     expect(turn.featureVerificationSuggestion).toEqual({
       feature: { entityType: 'FEATURE', entityId: FEATURE_ID },
+      lead: LEAD,
       explanation: 'The Mockup shows a Retry button; the dialog has none.',
       impactedEntities,
     });
@@ -47,9 +50,9 @@ describe('suggest_feature_verification', () => {
 
   it('keeps the first concern when the Turn calls the tool again', () => {
     const turn = makeTestTurn(codingFreeformHandler);
-    call({ featureId: FEATURE_ID, discrepancy: 'First.', impactedEntities: [] }, turn);
+    call({ featureId: FEATURE_ID, lead: LEAD, discrepancy: 'First.', impactedEntities: [] }, turn);
     const second = call(
-      { featureId: FEATURE_ID, discrepancy: 'Second.', impactedEntities: [] },
+      { featureId: FEATURE_ID, lead: LEAD, discrepancy: 'Second.', impactedEntities: [] },
       turn,
     ).result;
 
@@ -60,14 +63,26 @@ describe('suggest_feature_verification', () => {
   it.each([
     [
       'a non-UUID feature id',
-      { featureId: 'feature-1', discrepancy: 'Differs.', impactedEntities: [] },
+      { featureId: 'feature-1', lead: LEAD, discrepancy: 'Differs.', impactedEntities: [] },
     ],
-    ['a blank discrepancy', { featureId: FEATURE_ID, discrepancy: '  ', impactedEntities: [] }],
-    ['a missing impacted-entity list', { featureId: FEATURE_ID, discrepancy: 'Differs.' }],
+    [
+      'a blank discrepancy',
+      { featureId: FEATURE_ID, lead: LEAD, discrepancy: '  ', impactedEntities: [] },
+    ],
+    ['a missing lead', { featureId: FEATURE_ID, discrepancy: 'Differs.', impactedEntities: [] }],
+    [
+      'a blank lead',
+      { featureId: FEATURE_ID, lead: '  ', discrepancy: 'Differs.', impactedEntities: [] },
+    ],
+    [
+      'a missing impacted-entity list',
+      { featureId: FEATURE_ID, lead: LEAD, discrepancy: 'Differs.' },
+    ],
     [
       'a non-UUID impacted entity id',
       {
         featureId: FEATURE_ID,
+        lead: LEAD,
         discrepancy: 'Differs.',
         impactedEntities: [{ entityType: 'TASK', entityId: 'task-1', title: 'x' }],
       },
@@ -76,6 +91,7 @@ describe('suggest_feature_verification', () => {
       'an impacted entity without a title',
       {
         featureId: FEATURE_ID,
+        lead: LEAD,
         discrepancy: 'Differs.',
         impactedEntities: [{ entityType: 'TASK', entityId: FEATURE_ID }],
       },
@@ -84,6 +100,7 @@ describe('suggest_feature_verification', () => {
       'an impacted entity with extra fields',
       {
         featureId: FEATURE_ID,
+        lead: LEAD,
         discrepancy: 'Differs.',
         impactedEntities: [{ entityType: 'TASK', entityId: FEATURE_ID, title: 'x', extra: 1 }],
       },
@@ -100,7 +117,7 @@ describe('suggest_feature_verification', () => {
     turn.recordCompletedAssistantMessage('message-1');
 
     const { result } = call(
-      { featureId: FEATURE_ID, discrepancy: 'Late.', impactedEntities: [] },
+      { featureId: FEATURE_ID, lead: LEAD, discrepancy: 'Late.', impactedEntities: [] },
       turn,
     );
 

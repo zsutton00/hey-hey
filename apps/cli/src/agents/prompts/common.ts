@@ -482,16 +482,20 @@ Recorded features and tasks are still sparse, so much of this project's intent e
 Help establish enough reviewed knowledge for the next useful action: suggest a concrete next step, and at natural breaks in the conversation (not after every message) offer to record points as reviewed knowledge — work items, design docs or Decisions through proposals. Offer based on whether future work will need the point and whether its meaning is clear, not on how often it was said: one consequential choice stated once is worth recording; an idea repeated five times may still be exploration.`;
 
 const hintDefinition =
-  'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building.';
+  'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building. Hints are internal: never mention them to the user unless asked. When one matters to a decision, state its substance plainly and say who decides.';
 
 const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
+
+/** Added to the hint-writing guidance only where Hey Hey itself is developed (staging and local). */
+const productDefectRule = `
+- A hint records direction or a gotcha for this project's work. Never write one to correct how Hey Hey itself behaves, such as its prompts, tool wording, or defaults that would also affect other projects: a hint is seen only in this project, so the defect would stay for everyone else. When you find such behavior wrong, say so and propose a task or change to the product instead.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
  * while the platform's hints switch is on. Opens with the shared definition
  * because platform tool descriptions are deferred until the agent loads them.
  */
-export const hintWritingGuidance = `## Hints
+export const buildHintWritingGuidance = (productDevelopment: boolean): string => `## Hints
 
 ${hintDefinition}
 
@@ -500,13 +504,16 @@ ${hintReadingInstructions}
 Record a new hint with \`create_hint\`. Hint text cannot be edited in place: replace an inaccurate hint with a corrected one and remove the stale hint. If an existing hint also applies to another item, connect it with \`add_hint_connection\` instead of duplicating it:
 
 - In a conversation, when the user gives direction or a correction that is not requirement-worthy, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it.
-- At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.
+- At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.${productDevelopment ? productDefectRule : ''}
 
 Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
 
 Project direction goes in a hint, which every future agent sees; private memory is only for facts about the user.
 
 Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
+
+/** The hint-writing guidance every deployment other than staging and local receives. */
+export const hintWritingGuidance = buildHintWritingGuidance(false);
 
 /**
  * Hint-reading guidance for read-only sessions: composed only when
@@ -529,6 +536,8 @@ export interface PlatformPromptOptions {
   maturity: ProjectMaturity;
   /** Which hint guidance the session carries, from the hints switch and the session's tools. */
   hints: HintPromptAccess;
+  /** The API is a staging or local deployment; the hint-writing guidance then adds the product-defect rule. */
+  hintsProductDevelopment?: boolean;
 }
 
 /**
@@ -565,7 +574,7 @@ export function buildPlatformSystemPrompt(
     contractDiscoveryRecognition,
     topologyAuthoringRecognition,
     options?.hints === 'write'
-      ? hintWritingGuidance
+      ? buildHintWritingGuidance(options.hintsProductDevelopment ?? false)
       : options?.hints === 'read'
         ? hintReadingGuidance
         : null,

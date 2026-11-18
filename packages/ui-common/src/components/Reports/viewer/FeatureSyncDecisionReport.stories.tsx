@@ -1,4 +1,6 @@
+import { Box, ThemeProvider } from "@mui/material";
 import type { Meta, StoryObj } from "@storybook/react";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import {
   ReportAudience,
   ReportType,
@@ -22,11 +24,31 @@ const buildReport = (payload: FeatureSyncDecisionReportPayload): ReportDto =>
     createdAt: "2026-06-28T00:00:00.000Z",
     expiresAt: "2026-07-28T00:00:00.000Z",
     entities: [],
-  } as ReportDto);
+  }) as ReportDto;
 
 const meta: Meta<typeof FeatureSyncDecisionReport> = {
   title: "Components/Reports/FeatureSyncDecisionReport",
   component: FeatureSyncDecisionReport,
+  // Show every story in the Hey light and dark themes so both can be checked.
+  decorators: [
+    (Story) => (
+      <>
+        {(["light", "dark"] as const).map((mode) => (
+          <ThemeProvider key={mode} theme={createHeyTheme(mode)}>
+            <Box
+              sx={{
+                bgcolor: "background.default",
+                p: 2,
+                color: "text.primary",
+              }}
+            >
+              <Story />
+            </Box>
+          </ThemeProvider>
+        ))}
+      </>
+    ),
+  ],
 };
 
 export default meta;
@@ -203,5 +225,78 @@ export const GroupedV2Payload: Story = {
     payload: groupedPayload,
     report: buildReport(groupedPayload),
     reportTestId: "story-feature-sync-decision-grouped-v2",
+  },
+};
+
+const [firstGroup, secondGroup] = groupedPayload.decisionGroups;
+
+const singleGroupWithReasonsPayload: FeatureSyncDecisionReportPayloadV2 = {
+  reportType: "FEATURE_SYNC_DECISION",
+  summary: "The report renderer task and the Reports feature disagree.",
+  decisionGroups: [
+    {
+      ...firstGroup,
+      affectedEntities: [
+        {
+          ...firstGroup.affectedEntities[0],
+          reason: "Its description names a dispatcher that no longer exists.",
+        },
+        {
+          entityType: "feature",
+          entityId: "6e671950-78ff-41fc-b001-1e1378b6e41a",
+          title: "Reports",
+          reason: "Its requirements promise the current presentation.",
+        },
+      ],
+    },
+  ],
+};
+
+const mixedReasonsPayload: FeatureSyncDecisionReportPayloadV2 = {
+  ...groupedPayload,
+  decisionGroups: [
+    {
+      ...firstGroup,
+      affectedEntities: [
+        {
+          ...firstGroup.affectedEntities[0],
+          reason: "Its description names a dispatcher that no longer exists.",
+        },
+      ],
+    },
+    secondGroup,
+  ],
+};
+
+const storyInteraction = {
+  conversationId: "story-conversation",
+  disabled: false,
+  parentMessageId: "story-message",
+  submit: () => undefined,
+};
+
+export const SingleGroupWithReasons: Story = {
+  args: {
+    payload: singleGroupWithReasonsPayload,
+    report: buildReport(singleGroupWithReasonsPayload),
+    reportTestId: "story-feature-sync-decision-single-reasons",
+    interaction: storyInteraction,
+  },
+};
+
+export const MixedReasonsAndNoReasons: Story = {
+  args: {
+    payload: mixedReasonsPayload,
+    report: buildReport(mixedReasonsPayload),
+    reportTestId: "story-feature-sync-decision-mixed-reasons",
+    interaction: storyInteraction,
+  },
+};
+
+export const ReadOnlyWithReasons: Story = {
+  args: {
+    payload: mixedReasonsPayload,
+    report: buildReport(mixedReasonsPayload),
+    reportTestId: "story-feature-sync-decision-read-only",
   },
 };

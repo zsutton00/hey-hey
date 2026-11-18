@@ -16,3 +16,4 @@
 
 
 export * from './apis/local-lifecycle-api.js';
+export * from './apis/local-startup-api.js';

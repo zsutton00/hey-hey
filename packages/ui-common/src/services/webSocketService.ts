@@ -1,4 +1,8 @@
 import {
+  recordBrowserSessionDiagnostic,
+  diagnosticFailureFacts,
+} from "./browserSessionDiagnostics";
+import {
   roomKey,
   selectRoomOperation,
   settleRoomOperation,
@@ -41,6 +45,8 @@ import {
   type WebSocketAgentSessionDeletedEvent,
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
+  type WebSocketWorkItemExecutionStateChangedEvent,
+  type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -410,6 +416,7 @@ export class WebSocketService {
     this.deniedRooms.clear();
     this.observedConversations.clear();
     this.handler.clearConversationPhases();
+    this.handler.interruptWorkItemExecutionStateDelivery();
     this.throttledDispatchers.forEach((dispatcher) => dispatcher.cancel());
   }
 
@@ -442,6 +449,13 @@ export class WebSocketService {
           this.observedConversations.delete(room.roomId);
           this.handler.clearConversationPhases([room.roomId]);
           this.throttledDispatchers.get("onConversationPhaseChanged")?.cancel();
+        }
+        const organizationId = this.config.organizationId;
+        if (room.roomType === "project" && organizationId) {
+          this.handler.interruptWorkItemExecutionStateProjectDelivery(
+            organizationId,
+            room.roomId,
+          );
         }
       }
     }
@@ -626,10 +640,14 @@ export class WebSocketService {
         organizationId,
         room.roomId,
       ),
+      this.handler.refreshLoadedWorkItemExecutionStates(
+        organizationId,
+        room.roomId,
+      ),
     ]).catch((error: unknown) => {
       logger.warn(
         "services_websockets",
-        "Agent Session refresh failed after room join",
+        "Latest-value refresh failed after room join",
         { error },
       );
     });
@@ -1331,6 +1349,34 @@ export class WebSocketService {
     );
 
     socket.on(
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+      (event: WebSocketWorkItemExecutionStateChangedEvent) => {
+        logger.info(
+          "services_websockets",
+          WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+          {
+            workItemId: event.executionState.workItemId,
+            revision: event.executionState.revision,
+            freshness: event.executionState.freshness.status,
+          },
+        );
+        this.handleAuthorizedEvent(event);
+      },
+    );
+
+    socket.on(
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+      (event: WebSocketWorkItemExecutionStateDeliveryChangedEvent) => {
+        logger.info(
+          "services_websockets",
+          WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+          { projectId: event.projectId, delivery: event.delivery },
+        );
+        this.handleAuthorizedEvent(event);
+      },
+    );
+
+    socket.on(
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
       (event: WebSocketAgentSessionCurrentStateChangedEvent) => {
         logger.info(
@@ -1489,13 +1535,20 @@ export class WebSocketService {
     }
 
     this.hasAttemptedLiveAccessRenewal = true;
+    recordBrowserSessionDiagnostic("socket_renewal_started", {
+      reason: "terminal_socket_auth",
+    });
 
     try {
       await refreshAuthToken();
       if (this.config.userId && !this.socket) {
         this.connect();
       }
-    } catch {
+    } catch (error) {
+      recordBrowserSessionDiagnostic(
+        "socket_renewal_failed",
+        diagnosticFailureFacts(error),
+      );
       // authService owns the terminal unauthenticated transition and clears
       // the shared in-memory browser access state.
     }
@@ -1552,6 +1605,8 @@ export class WebSocketService {
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionDeleted,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionStatusChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged,
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+      WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged,
       WebSocketSubscriptionRequestEventTypesEnum.AgentSessionOutputAttentionChanged,
       WebSocketSubscriptionRequestEventTypesEnum.ConversationPhaseChanged,

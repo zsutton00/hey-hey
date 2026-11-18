@@ -1439,6 +1439,7 @@ describe("ReportViewer dispatcher", () => {
               entityType: "task",
               entityId: "task-one",
               title: "Renderer task",
+              reason: "Its description still names the old presentation.",
             },
           ],
           title: "Presentation decision",
@@ -1470,14 +1471,18 @@ describe("ReportViewer dispatcher", () => {
       payload,
     } as ReportDto;
 
-    render(<ReportViewer report={featureSyncDecisionReport} />);
+    render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ReportViewer report={featureSyncDecisionReport} />
+      </ThemeProvider>,
+    );
 
     const baseTestId = "report-viewer-dispatch-feature-sync-decision-v2";
     expect(
       screen.getByTestId(`${baseTestId}-feature-sync-decision-summary`),
     ).toHaveTextContent("Grouped Feature Sync decisions are ready for review.");
     expect(
-      screen.getByTestId(`${baseTestId}-feature-sync-decision-groups`),
+      screen.getByTestId(`${baseTestId}-feature-sync-decision-groups-list`),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId(`${baseTestId}-feature-sync-decision-group-title`),
@@ -1490,6 +1495,9 @@ describe("ReportViewer dispatcher", () => {
         `${baseTestId}-feature-sync-decision-group-entities`,
       ),
     ).toHaveTextContent("Renderer task");
+    expect(
+      within(group).getByTestId("conversation-card-row-reason"),
+    ).toHaveTextContent("Its description still names the old presentation.");
     const choices = within(group).getAllByTestId(
       `${baseTestId}-feature-sync-decision-choice`,
     );
@@ -1520,6 +1528,59 @@ describe("ReportViewer dispatcher", () => {
         `${baseTestId}-feature-sync-decision-group-option-card`,
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("drops the grey report frame around a V2 decision card in the conversation but keeps it on report pages", () => {
+    const payload: FeatureSyncDecisionReportPayloadV2 = {
+      reportType: "FEATURE_SYNC_DECISION",
+      summary: "One decision is ready for review.",
+      decisionGroups: [
+        {
+          id: "group-one",
+          affectedEntities: [
+            {
+              entityType: "task",
+              entityId: "task-one",
+              title: "Renderer task",
+            },
+          ],
+          title: "Presentation decision",
+          summary: "Choose the report presentation.",
+          choices: [
+            { id: "update", label: "Update", isNoChange: false },
+            { id: "keep", label: "Keep", isNoChange: true },
+          ],
+        },
+      ],
+    };
+    const decisionReport = {
+      ...baseFixture,
+      id: "dispatch-feature-sync-decision-frame",
+      reportType: ReportType.FeatureSyncDecision,
+      schemaVersion: 2,
+      title: "Feature Sync Decision Report",
+      payload,
+    } as ReportDto;
+    const frameId = "report-viewer-dispatch-feature-sync-decision-frame";
+    const frameStyle = () => getComputedStyle(screen.getByTestId(frameId));
+
+    const { unmount } = render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ReportViewer report={decisionReport} renderHeader={false} />
+      </ThemeProvider>,
+    );
+    expect(
+      screen.getByTestId(`${frameId}-feature-sync-decision-card`),
+    ).toHaveAttribute("data-tone", "projectSync");
+    expect(frameStyle().padding).toBe("0px");
+    unmount();
+
+    render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ReportViewer report={decisionReport} />
+      </ThemeProvider>,
+    );
+    expect(frameStyle().padding).not.toBe("0px");
   });
 
   it("routes DECISION_NEEDED reports to the typed renderer with the question before every ordered option", () => {

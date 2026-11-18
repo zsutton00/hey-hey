@@ -1,8 +1,28 @@
 import React from "react";
 import { Box, Button, Typography, useTheme, Chip } from "@mui/material";
+import { useBrandedAppearance } from "../../BrandedFrame";
 import type { FieldComponentProps } from "./types";
 
 export type ButtonGroupFieldProps = FieldComponentProps<string>;
+
+/** White-outlined pill; the selected one is filled white so it reads without colour. */
+const brandedChipSx = (isSelected: boolean) =>
+  ({
+    flex: "0 1 auto",
+    minWidth: 0,
+    borderRadius: "999px",
+    px: "0.8rem",
+    py: "0.35rem",
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    borderColor: isSelected ? "#fff" : "rgb(255 255 255 / 45%)",
+    backgroundColor: isSelected ? "#fff" : "transparent",
+    color: isSelected ? "#333" : "#fff",
+    "&:hover": {
+      borderColor: "#fff",
+      backgroundColor: isSelected ? "#fff" : "rgb(255 255 255 / 10%)",
+    },
+  }) as const;
 
 export const ButtonGroupField: React.FC<ButtonGroupFieldProps> = ({
   config,
@@ -13,6 +33,7 @@ export const ButtonGroupField: React.FC<ButtonGroupFieldProps> = ({
   isSubmitted = false,
 }) => {
   const theme = useTheme();
+  const isBranded = useBrandedAppearance();
 
   const options = config.options || [];
 
@@ -75,6 +96,7 @@ export const ButtonGroupField: React.FC<ButtonGroupFieldProps> = ({
               color={isSelected ? "primary" : "inherit"}
               onClick={() => handleSelect(option)}
               disabled={disabled}
+              aria-pressed={isSelected}
               sx={{
                 flex: { xs: "1 1 auto", sm: "0 1 auto" },
                 minWidth: { xs: "100%", sm: "120px" },
@@ -93,8 +115,9 @@ export const ButtonGroupField: React.FC<ButtonGroupFieldProps> = ({
                   ["background-color", "border-color", "box-shadow"],
                   {
                     duration: theme.transitions.duration.short,
-                  }
+                  },
                 ),
+                ...(isBranded ? brandedChipSx(isSelected) : {}),
               }}
             >
               {option}

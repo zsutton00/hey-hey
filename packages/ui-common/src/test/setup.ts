@@ -293,3 +293,6 @@ afterAll(() => server.close());
 
 // Make server available globally for test setup
 globalThis.mswServer = server;
+
+// jsdom does not implement scrollIntoView.
+Element.prototype.scrollIntoView = vi.fn();

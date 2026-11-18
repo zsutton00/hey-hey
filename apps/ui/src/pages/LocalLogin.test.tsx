@@ -9,7 +9,10 @@ import { clearAuthToken } from "@hey-hey/ui-common/services";
 import "@hey-hey/ui-common/i18n";
 import LoginRoute from "./LoginRoute";
 import HomeRoute from "./HomeRoute";
-import { LocalSetupPage } from "./LocalSetup/LocalSetupPage";
+import { LocalSetupRoute } from "../localSetup/LocalSetupRoute";
+import { loadDocument } from "../localSetup/loadDocument";
+
+vi.mock("../localSetup/loadDocument", () => ({ loadDocument: vi.fn() }));
 
 class TestCredential {
   id = "AQ";
@@ -71,6 +74,7 @@ function renderLogin(
 
 beforeEach(() => {
   clearAuthToken();
+  vi.mocked(loadDocument).mockClear();
   localStorage.clear();
   initializeBrowserApiRuntime({ baseUrl: "http://localhost:3000/api/v1" });
   window.__HEY_HEY_RUNTIME_CONFIG__ = { deployment: "local" };
@@ -103,50 +107,32 @@ afterEach(() => {
 });
 
 describe("deployment login", () => {
-  it.each([null, "550e8400-e29b-41d4-a716-446655440077"])(
-    "recovers /local through passkey sign-in and resumes the existing workspace or setup (%s)",
-    async (setupProjectId) => {
-      globalThis.mswServer.use(
-        http.post("*/auth/passkeys/sign-in", () =>
-          HttpResponse.json({ data: session }),
-        ),
-        http.get("*/auth/local/status", ({ request }) => {
-          expect(request.headers.get("authorization")).toBe(
-            "Bearer local-access-token",
-          );
-          return HttpResponse.json({
-            data: {
-              nameComplete: true,
-              browserSession: true,
-              machineConnected: true,
-              executionReady: false,
-              hasProjects: true,
-              setupProjectId,
-            },
-          });
-        }),
-      );
-      render(
-        <MemoryRouter initialEntries={["/local?pairing=started"]}>
-          <AuthProvider>
-            <Routes>
-              <Route path="/local" element={<LocalSetupPage />} />
-              <Route path="/login" element={<LoginRoute />} />
-              <Route path="/home" element={<Destination />} />
-              <Route path="/welcome" element={<Destination />} />
-            </Routes>
-          </AuthProvider>
-        </MemoryRouter>,
-      );
-      await userEvent.click(await screen.findByTestId("return-passkey"));
-      expect(await screen.findByTestId("destination")).toHaveTextContent(
-        setupProjectId ? `/welcome?projectId=${setupProjectId}` : "/home",
-      );
-      expect(
-        screen.queryByLabelText(/email|password/i),
-      ).not.toBeInTheDocument();
-    },
-  );
+  it("signs in with the passkey and returns /local to the setup app as a fresh page load", async () => {
+    globalThis.mswServer.use(
+      http.post("*/auth/passkeys/sign-in", () =>
+        HttpResponse.json({ data: session }),
+      ),
+    );
+    render(
+      <MemoryRouter
+        initialEntries={[
+          `/login?returnTo=${encodeURIComponent("/local?pairing=started")}`,
+        ]}
+      >
+        <AuthProvider>
+          <Routes>
+            <Route path="/local" element={<LocalSetupRoute />} />
+            <Route path="/login" element={<LoginRoute />} />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByTestId("return-passkey"));
+    await vi.waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith("/local?pairing=started"),
+    );
+    expect(screen.queryByLabelText(/email|password/i)).not.toBeInTheDocument();
+  });
 
   it("renews a valid session and restores the whole destination without a passkey prompt", async () => {
     globalThis.mswServer.use(
@@ -178,6 +164,7 @@ describe("deployment login", () => {
     );
     expect(completed).toBe(true);
     expect(screen.queryByLabelText(/email|password/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
     expect(screen.queryByText(session.user.email)).not.toBeInTheDocument();
   });
 
@@ -211,7 +198,7 @@ describe("deployment login", () => {
   it("renders the existing hosted login when the local flag is absent", async () => {
     delete window.__HEY_HEY_RUNTIME_CONFIG__;
     renderLogin();
-    expect(await screen.findByLabelText(/Email Address/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Email address/)).toBeInTheDocument();
     expect(screen.queryByTestId("local-login")).not.toBeInTheDocument();
   });
 

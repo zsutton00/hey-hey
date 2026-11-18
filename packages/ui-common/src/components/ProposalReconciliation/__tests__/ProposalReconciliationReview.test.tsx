@@ -2,11 +2,19 @@ import React, { useContext } from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderBare,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+
+const render = (ui: React.ReactElement) =>
+  renderBare(
+    <ThemeProvider theme={createHeyTheme("light")}>{ui}</ThemeProvider>,
+  );
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   InlineReconciliationBodyContext,
@@ -293,6 +301,20 @@ describe("complete reconciliation review", () => {
     await screen.findByTestId("proposal-reconciliation-agent-fix");
     expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
     expect(screen.queryByText("Approve displayed revision")).toBeNull();
+  });
+  it("explains both resolution choices without approving or applying", async () => {
+    const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
+    const card = await screen.findByTestId("proposal-reconciliation-choices");
+    expect(card).toHaveAttribute("data-tone", "needsAnswer");
+    expect(card).toHaveTextContent("Choose sections:");
+    expect(card).toHaveTextContent("Work with agent:");
+    expect(card).toHaveTextContent(
+      "Neither choice approves or applies anything.",
+    );
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-agent-fix"));
+    expect(screen.getByTestId("proposal-agent-fix-confirm")).toBeVisible();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
+    expect(apply).not.toHaveBeenCalled();
   });
   it("warns that Agent fix starts a session instead of linking to the proposal page", async () => {
     const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
@@ -890,6 +912,19 @@ describe("same-page staged recovery", () => {
         "This content requires its specialized presentation.",
       ),
     ).toHaveLength(2);
+  });
+  it("scrolls the conversation panel into view once when Agent fix starts", async () => {
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Launch recorded session"));
+    await screen.findByTestId("proposal-reconciliation-agent-panel");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
   it("keeps the agent conversation open during manual editing", async () => {
     mount(conflict);

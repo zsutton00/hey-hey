@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ReportAudience,
+  ReportEntityRelation,
+  ReportRelatedEntityType,
   ReportType,
   type ImplementReportPayload,
   type ReportDto,
 } from "../../../../api";
-import { selectLocatedDecisions } from "../locatedDecisions";
+import { decisionsForFile, selectLocatedDecisions } from "../locatedDecisions";
 
 const buildImplementReport = (
   payload: ImplementReportPayload,
@@ -124,5 +126,82 @@ describe("selectLocatedDecisions", () => {
 
     expect(located).toHaveLength(1);
     expect(located[0].topic).toBe("Newest decision");
+  });
+
+  it("keeps each Service's notes when one turn writes a report per Service", () => {
+    const serviceEntity = (serviceId: string) => ({
+      entityType: ReportRelatedEntityType.Service,
+      entityId: serviceId,
+      relation: ReportEntityRelation.Context,
+      createdAt: "2026-05-17T00:00:00.000Z",
+    });
+    const reportFor = (serviceId: string, topic: string) =>
+      buildImplementReport(
+        {
+          reportType: "IMPLEMENT",
+          summary: "turn summary",
+          filesChanged: ["src/index.ts"],
+          decisions: [
+            {
+              topic,
+              choice: "choice",
+              location: { file: "src/index.ts", startLine: 3 },
+            },
+            { topic: "Cross-cutting", choice: "everywhere" },
+          ],
+        },
+        { id: `report-${serviceId}`, entities: [serviceEntity(serviceId)] },
+      );
+
+    // Newest first: service-b's report was saved after service-a's, and an
+    // older service-a report from an earlier turn follows both.
+    const decisions = selectLocatedDecisions([
+      reportFor("service-b", "Service B note"),
+      reportFor("service-a", "Service A note"),
+      reportFor("service-a", "Older service A note"),
+    ]);
+
+    expect(
+      decisions.map((decision) => [decision.serviceId, decision.topic]),
+    ).toEqual([
+      ["service-b", "Service B note"],
+      ["service-a", "Service A note"],
+    ]);
+    expect(
+      decisionsForFile(decisions, {
+        serviceId: "service-a",
+        filePath: "src/index.ts",
+      }).map((decision) => decision.topic),
+    ).toEqual(["Service A note"]);
+    expect(
+      decisionsForFile(decisions, {
+        serviceId: "service-b",
+        filePath: "src/index.ts",
+      }).map((decision) => decision.topic),
+    ).toEqual(["Service B note"]);
+  });
+
+  it("shows notes from a report attached to no Service on any Service's file", () => {
+    const decisions = selectLocatedDecisions([
+      buildImplementReport({
+        reportType: "IMPLEMENT",
+        summary: "older report",
+        filesChanged: ["src/a.ts"],
+        decisions: [
+          {
+            topic: "Legacy note",
+            choice: "kept",
+            location: { file: "src/a.ts" },
+          },
+        ],
+      }),
+    ]);
+
+    expect(
+      decisionsForFile(decisions, {
+        serviceId: "service-a",
+        filePath: "src/a.ts",
+      }).map((decision) => decision.topic),
+    ).toEqual(["Legacy note"]);
   });
 });

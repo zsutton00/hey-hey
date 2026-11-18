@@ -23,6 +23,12 @@ import {
 import { useProjectIds } from "../../hooks/useEditorContext";
 import type { FileReferenceScope } from "../../data/hooks/useFileReferenceCandidates";
 import { SmarterTextAreaEditor } from "./SmarterTextAreaEditor";
+import {
+  BRANDED_NESTED_FILL,
+  BRANDED_NESTED_HEADER_FILL,
+  BRANDED_NESTED_RULE_COLOR,
+  useBrandedAppearance,
+} from "../BrandedFrame";
 
 type SaveStatus =
   "draft" | "saving" | "saved" | "submitting" | "sent" | "complete";
@@ -215,6 +221,66 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
     [actionLockBehavior],
   );
   const isAnyActionLocked = effectiveLockedAction !== null;
+  const isBranded = useBrandedAppearance();
+
+  const editorBody = (
+    <SmarterTextAreaEditor
+      context={
+        editorContextData
+          ? {
+              organizationId: editorContextData.organizationId,
+              projectId: editorContextData.projectId,
+              conversationId,
+            }
+          : null
+      }
+      initialValue={value}
+      onChange={onChange}
+      fileReferenceScope={fileReferenceScope}
+      focalEntity={focalEntity}
+      editable={!disabled}
+      submitDisabled={disabled}
+      onSubmit={onSubmit}
+      rendering={rendering}
+      presentation={{
+        containerSx: isBranded
+          ? {
+              position: "relative",
+              border: "1px solid rgb(255 255 255 / 35%)",
+              borderRadius: "6px",
+              bgcolor: BRANDED_NESTED_FILL,
+            }
+          : {
+              bgcolor: transparent ? "transparent" : "background.paper",
+              position: "relative",
+              border: `1px solid ${theme.palette.divider}`,
+              ...(headerText
+                ? {
+                    borderTop: "none",
+                    borderBottomLeftRadius: 14,
+                    borderBottomRightRadius: 14,
+                  }
+                : { borderRadius: "14px" }),
+            },
+        contentEditableTestId: "smarter-textarea-input",
+        contentEditableStyle: {
+          outline: "none",
+          padding: isBranded ? "0.55rem 0.8rem" : "16px",
+          minHeight: minInputHeight,
+          fontSize: "1.125rem",
+          lineHeight: 1.5,
+        },
+        onFocus,
+        onBlur,
+        placeholder,
+        placeholderStyle: {
+          color: isBranded
+            ? "rgb(255 255 255 / 55%)"
+            : theme.palette.text.secondary,
+        },
+      }}
+    />
+  );
 
   return (
     <Paper
@@ -223,6 +289,15 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
       sx={{
         overflow: "hidden",
         border: "none",
+        ...(isBranded
+          ? {
+              border: `1px solid ${BRANDED_NESTED_RULE_COLOR}`,
+              borderRadius: "10px",
+              bgcolor: BRANDED_NESTED_FILL,
+              backgroundImage: "none",
+              mb: 2,
+            }
+          : {}),
       }}
     >
       {headerText && (
@@ -238,6 +313,12 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
             bgcolor: "background.paper",
             borderBottom: `1px solid ${theme.palette.divider}`,
             ...(headerSx || {}),
+            ...(isBranded
+              ? {
+                  bgcolor: BRANDED_NESTED_HEADER_FILL,
+                  borderBottom: `1px solid ${BRANDED_NESTED_RULE_COLOR}`,
+                }
+              : {}),
           }}
         >
           {/* Q Icon */}
@@ -279,53 +360,7 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
         </Box>
       )}
 
-      <SmarterTextAreaEditor
-        context={
-          editorContextData
-            ? {
-                organizationId: editorContextData.organizationId,
-                projectId: editorContextData.projectId,
-                conversationId,
-              }
-            : null
-        }
-        initialValue={value}
-        onChange={onChange}
-        fileReferenceScope={fileReferenceScope}
-        focalEntity={focalEntity}
-        editable={!disabled}
-        submitDisabled={disabled}
-        onSubmit={onSubmit}
-        rendering={rendering}
-        presentation={{
-          containerSx: {
-            bgcolor: transparent ? "transparent" : "background.paper",
-            position: "relative",
-            border: `1px solid ${theme.palette.divider}`,
-            ...(headerText
-              ? {
-                  borderTop: "none",
-                  borderBottomLeftRadius: 14,
-                  borderBottomRightRadius: 14,
-                }
-              : { borderRadius: "14px" }),
-          },
-          contentEditableTestId: "smarter-textarea-input",
-          contentEditableStyle: {
-            outline: "none",
-            padding: "16px",
-            minHeight: minInputHeight,
-            fontSize: "1.125rem",
-            lineHeight: 1.5,
-          },
-          onFocus,
-          onBlur,
-          placeholder,
-          placeholderStyle: {
-            color: theme.palette.text.secondary,
-          },
-        }}
-      />
+      {isBranded ? <Box sx={{ p: "1rem" }}>{editorBody}</Box> : editorBody}
 
       {helperText && (
         <Typography

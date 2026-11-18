@@ -1,3 +1,4 @@
+import { useArchiveHistory } from "./navigation/useArchiveNavigation";
 import { OrganizationAccessBoundary } from "./components/OrganizationAccessBoundary";
 import type { ComponentType, FC, ReactElement, ReactNode } from "react";
 import { Suspense, lazy, useEffect, useMemo, useRef } from "react";
@@ -46,6 +47,7 @@ import { OpenItemsPreviewHost } from "./components/OpenItemsPreviewHost";
 import { usePageMetadata } from "./hooks/usePageMetadata";
 import { useTabLocationRegistry } from "./hooks/useTabLocationRegistry";
 import { LEGAL_ROUTES } from "./pages/Legal/legalContent";
+import { LocalSetupRoute } from "./localSetup/LocalSetupRoute";
 import {
   OpenItemsProvider,
   useOpenItemLocatorHandler,
@@ -74,10 +76,6 @@ const ActionsCapsule = lazy(() =>
 );
 
 const HomeRoute = lazy(() => import("./pages/HomeRoute"));
-const LocalSetupPage = lazyNamed(
-  () => import("./pages/LocalSetup/LocalSetupPage"),
-  "LocalSetupPage",
-);
 const OrganizationHomePage = lazyNamed(
   () => import("./pages/OrganizationHome/OrganizationHomePage"),
   "OrganizationHomePage",
@@ -312,6 +310,10 @@ const ProjectReportRequestPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportRequestPage"),
   "ProjectReportRequestPage",
 );
+const ChangesRedirect = lazyNamed(
+  () => import("./pages/Changes/ChangesRedirect"),
+  "ChangesRedirect",
+);
 const ProjectReportHistoryPage = lazyNamed(
   () => import("./pages/Reports/ProjectReportHistoryPage"),
   "ProjectReportHistoryPage",
@@ -395,6 +397,7 @@ const OpenItemsActivationBridge: FC<{
 };
 
 export const AppRouteShell = () => {
+  useArchiveHistory();
   usePageMetadata();
   useTabLocationRegistry();
   const { currentOrganization } = useOrganization();
@@ -465,7 +468,7 @@ export const router = createBrowserRouter(
     <>
       <Route
         path="/local"
-        element={withRouteSuspense(<LocalSetupPage />)}
+        element={withRouteSuspense(<LocalSetupRoute />)}
         errorElement={<RouteErrorBoundary />}
       />
       <Route
@@ -563,6 +566,10 @@ export const router = createBrowserRouter(
         <Route
           path="projects/:projectId/activities/:activityEntityRef"
           element={withProtectedRoute(<ProjectActivityPage />)}
+        />
+        <Route
+          path="projects/:projectId/changes"
+          element={withProtectedRoute(<ChangesRedirect />)}
         />
         <Route
           path="projects/:projectId/reports/new"

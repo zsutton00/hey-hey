@@ -2,6 +2,11 @@ import { LocalOnboardingController } from './controllers/local-onboarding.contro
 import { ProjectApprovalPolicyController } from './controllers/project-approval-policy.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
+import {
+  AgentSessionContinuationController,
+  MachineAgentSessionContinuationController,
+} from './controllers/agent-session-continuation.controller';
+import { AgentSessionContinuationService } from './services/agent-session-continuation/agent-session-continuation.service';
 import { RuntimeModelCatalogReadService } from './services/runtime-model-catalog-read.service';
 import { WorkspaceSkillsReadService } from './services/workspace-skills-read.service';
 import { Module } from '@nestjs/common';
@@ -92,6 +97,7 @@ import {
 } from './controllers/agent-interaction.controller';
 import { AgentInteractionAdmissionService } from './services/agent-interaction/agent-interaction-admission.service';
 import { AgentSessionCurrentStateController } from './controllers/agent-session-current-state.controller';
+import { WorkItemExecutionStateController } from './controllers/work-item-execution-state.controller';
 import { AgentSessionOutputAttentionController } from './controllers/agent-session-output-attention.controller';
 import { SecondaryActionsController } from './controllers/secondary-actions.controller';
 import { CodingPromptController } from './controllers/coding-prompt.controller';
@@ -259,6 +265,8 @@ import { isLocalApplication } from './deployment-environment';
   controllers: [
     WorkspaceSkillsController,
     RuntimeModelCatalogController,
+    AgentSessionContinuationController,
+    MachineAgentSessionContinuationController,
     AdminController,
     PlatformAdminAccessController,
     AdminImplementationHintController,
@@ -315,6 +323,7 @@ import { isLocalApplication } from './deployment-environment';
     SessionMessageTargetController,
     AgentSessionTurnAdmissionController,
     AgentSessionCurrentStateController,
+    WorkItemExecutionStateController,
     AgentSessionOutputAttentionController,
     SecondaryActionsController,
     CodingPromptController,
@@ -356,6 +365,7 @@ import { isLocalApplication } from './deployment-environment';
   providers: [
     WorkspaceSkillsReadService,
     RuntimeModelCatalogReadService,
+    AgentSessionContinuationService,
     CustomLoggerService,
     {
       provide: APP_INTERCEPTOR,

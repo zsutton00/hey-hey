@@ -1,3 +1,4 @@
+import { useArchiveNavigation } from "../../navigation/useArchiveNavigation";
 import {
   useModalState,
   ModalWorkOwner,
@@ -81,6 +82,7 @@ export const PlanPage = ({
   automationHeightMode = "auto",
 }: PlanPageProps) => {
   const navigate = useNavigate();
+  const navigateAfterArchive = useArchiveNavigation(projectId);
   const location = useLocation();
   const { isPlatformAdmin } = usePlatformAdminAccess();
   const result = useCanonicalPlanAggregate(organizationId, projectId, planId);
@@ -484,6 +486,7 @@ export const PlanPage = ({
             planId={planId}
             planName={shell.name}
             planStatus={shell.status}
+            onArchived={() => navigateAfterArchive(planId)}
             onDeleted={() => navigate("/projects/" + projectId + "/plans")}
           />
         </ModalWorkOwner.Provider>

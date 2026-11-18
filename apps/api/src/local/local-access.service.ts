@@ -223,6 +223,33 @@ export class LocalAccessService {
             (credential) => !credential.revokedAt,
           ),
       );
+    if (enrollmentId) {
+      this.logger.log('local.setup.pairing_status', {
+        event: 'local.setup.pairing_status',
+        enrollmentId,
+        machineId: enrollment?.machineId ?? null,
+        enrollmentState: enrollment?.state ?? null,
+        pairingState,
+        observedAt: new Date().toISOString(),
+        expiresAt: enrollment?.expiresAt.toISOString() ?? null,
+        reasonCode: !enrollment
+          ? 'enrollment_unavailable'
+          : enrollment.state === 'ACTIVE' || enrollment.state === 'CONSUMED'
+            ? 'activation_completed'
+            : enrollment.state === 'REJECTED'
+              ? 'enrollment_rejected'
+              : enrollment.state === 'EXPIRED'
+                ? 'enrollment_marked_expired'
+                : pairingState === 'EXPIRED'
+                  ? 'enrollment_deadline_elapsed'
+                  : 'awaiting_activation',
+        machineCount: machines.length,
+        presentMachineCount: connected.filter(Boolean).length,
+        machineConnected,
+        executionReady,
+      });
+    }
+
     return {
       nameComplete: user.name.trim().length > 0,
       browserSession: true,
