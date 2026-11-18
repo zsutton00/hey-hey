@@ -304,6 +304,31 @@ describe('buildPlatformSystemPrompt', () => {
     expect(options('read')).toContain('At the start of each session');
   });
 
+  it('tells every hint-capable session once, in every environment, not to surface hints to users', () => {
+    const rule = 'never mention them to the user unless asked';
+    const substance = 'state its substance plainly and say who decides';
+    const promptFor = (hints: 'write' | 'read' | 'none', hintsProductDevelopment: boolean) =>
+      buildPlatformSystemPrompt(sampleDefs, undefined, {
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints,
+        hintsProductDevelopment,
+      });
+    const occurrences = (text: string, part: string) => text.split(part).length - 1;
+
+    for (const hints of ['write', 'read'] as const) {
+      for (const productDevelopment of [false, true]) {
+        const prompt = promptFor(hints, productDevelopment);
+        expect(occurrences(prompt, rule)).toBe(1);
+        expect(occurrences(prompt, substance)).toBe(1);
+      }
+    }
+    expect(promptFor('read', false)).toContain(
+      'Include relevant hints in the context you hand forward',
+    );
+    expect(promptFor('none', true)).not.toContain(rule);
+  });
+
   it('words hint writing neutrally and records the direction, not the mood', () => {
     expect(hintWritingGuidance).toContain('emphatic about a correction or repeats it');
     expect(hintWritingGuidance).toContain('never how it was said');
