@@ -5,6 +5,24 @@ import { WorkStatus } from "../../../api";
 import { TaskMonitorControlDock } from "../TaskMonitorControlDock";
 
 describe("TaskMonitorControlDock", () => {
+  it("tells the user automation uses the provider's auto mode", () => {
+    render(
+      <TaskMonitorControlDock
+        monitorStatus={WorkStatus.Backlog}
+        presentation={{ status: "ready" }}
+        pendingAction={null}
+        onStart={vi.fn()}
+        onPause={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("task-monitor-automation-note"),
+    ).toHaveTextContent(
+      "Automation uses the coding provider's auto mode when available.",
+    );
+  });
+
   it("offers Start while ready and shows control-owned progress while starting", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
@@ -15,23 +33,23 @@ describe("TaskMonitorControlDock", () => {
         pendingAction={null}
         onStart={onStart}
         onPause={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getAllByRole("button")).toHaveLength(2);
     expect(screen.getByTestId("task-monitor-start")).toBeEnabled();
     expect(screen.getByTestId("task-monitor-pause")).toBeDisabled();
     expect(screen.getByTestId("task-monitor-start")).toHaveAccessibleName(
-      "Start"
+      "Start",
     );
     expect(screen.getByTestId("task-monitor-pause")).toHaveAccessibleName(
-      "Pause"
+      "Pause",
     );
     expect(screen.getByTestId("task-monitor-start")).not.toHaveTextContent(
-      "Start"
+      "Start",
     );
     expect(screen.getByTestId("task-monitor-pause")).not.toHaveTextContent(
-      "Pause"
+      "Pause",
     );
     const startButton = screen.getByTestId("task-monitor-start");
     const startButtonStyle = window.getComputedStyle(startButton);
@@ -54,7 +72,7 @@ describe("TaskMonitorControlDock", () => {
         pendingAction={null}
         onStart={onStart}
         onPause={vi.fn()}
-      />
+      />,
     );
     expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
     expect(screen.getByTestId("task-monitor-start-progress")).toBeVisible();
@@ -68,7 +86,7 @@ describe("TaskMonitorControlDock", () => {
         pendingAction={null}
         onStart={vi.fn()}
         onPause={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByTestId("task-monitor-pause")).toBeEnabled();
@@ -86,7 +104,7 @@ describe("TaskMonitorControlDock", () => {
         pendingAction={null}
         onStart={onStart}
         onPause={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByTestId("task-monitor-start")).toBeEnabled();
@@ -103,7 +121,7 @@ describe("TaskMonitorControlDock", () => {
         pendingAction="RESUME"
         onStart={vi.fn()}
         onPause={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
@@ -128,16 +146,16 @@ describe("TaskMonitorControlDock", () => {
           pendingAction={null}
           onStart={vi.fn()}
           onPause={vi.fn()}
-        />
+        />,
       );
 
       expect(screen.getByTestId("task-monitor-control-dock")).toBeVisible();
       expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
       expect(screen.getByTestId("task-monitor-pause")).toBeDisabled();
       expect(
-        screen.queryByTestId("task-monitor-resume")
+        screen.queryByTestId("task-monitor-resume"),
       ).not.toBeInTheDocument();
-    }
+    },
   );
 
   it("disables the projected lifecycle action without an authorized machine", () => {
@@ -149,7 +167,7 @@ describe("TaskMonitorControlDock", () => {
         controlsDisabled
         onStart={vi.fn()}
         onPause={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByTestId("task-monitor-start")).toBeDisabled();

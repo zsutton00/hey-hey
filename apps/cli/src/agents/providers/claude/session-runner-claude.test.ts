@@ -2157,6 +2157,65 @@ describe('session-runner-claude', () => {
     },
   );
 
+  it('starts Claude in auto mode with write tools kept on the permission callback, and keeps it on a cold resume', async () => {
+    const newRunner = () =>
+      new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+        oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+      });
+
+    const launched = newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Run.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await launched;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      permissionMode: 'auto',
+      alwaysAskTools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
+    });
+
+    const resumed = newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'provider-session-1' }),
+      prompt: 'Continue.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await resumed;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({ permissionMode: 'auto' });
+  });
+
+  it('keeps the default mode when no provider mode is requested', async () => {
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+
+    const run = runner.runPrompt({ session: makeSession(), prompt: 'Run.' });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await run;
+
+    const config = startSessionMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(config).toMatchObject({ permissionMode: 'default' });
+    expect(config).not.toHaveProperty('alwaysAskTools');
+  });
+
   it('passes mcpServers and allowedTools to startSession when oauthClient is provided', async () => {
     const mockMcpConfig = {
       mcpServers: {

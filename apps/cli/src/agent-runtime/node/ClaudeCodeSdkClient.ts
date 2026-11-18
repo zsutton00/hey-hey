@@ -39,7 +39,12 @@ export interface ClaudeCodeSessionConfig {
   attachments?: readonly RunAttachmentContent[] | undefined;
   prompt: string;
   cwd: string;
-  permissionMode?: ('default' | 'acceptEdits' | 'bypassPermissions' | 'plan') | undefined;
+  permissionMode?: ('default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'auto') | undefined;
+  /**
+   * Tools that must always reach the permission callback, whatever the
+   * permission mode decides on its own. Emitted as `permissions.ask` rules.
+   */
+  alwaysAskTools?: readonly string[] | undefined;
   model?: string | undefined;
   /**
    * Reasoning effort id passed as --effort to the Claude CLI. It is one of the
@@ -578,10 +583,12 @@ export class ClaudeCodeSdkClient {
       args.push('--setting-sources', config.workspaceContainment.settingSources.join(','));
     }
 
+    const askTools = config.alwaysAskTools ?? [];
     args.push(
       '--settings',
       JSON.stringify({
         ...config.workspaceContainment?.settings,
+        ...(askTools.length > 0 ? { permissions: { ask: [...askTools] } } : {}),
         fastMode: config.fastMode,
         ...(config.toolExecutionHooks
           ? {

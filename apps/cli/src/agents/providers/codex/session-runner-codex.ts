@@ -11,7 +11,10 @@ import {
   BROWSER_ALLOWED_TOOLS,
   BROWSER_MCP_SERVER_NAME,
 } from '../../browser-tools/mcp-config';
-import { applyCodexSessionReviewerPolicy } from './codex-session-policy';
+import {
+  applyCodexSessionReviewerPolicy,
+  resolveCodexApprovalsReviewer,
+} from './codex-session-policy';
 import { ProviderUsageCapture } from '../../../provider-usage/provider-usage-capture';
 import { ProviderUsageStore } from '../../../provider-usage/provider-usage-store';
 import crypto from 'node:crypto';
@@ -676,6 +679,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       readOnlyFilesystem,
       repositoryResearch,
       skipPermissions,
+      providerPermissionMode,
       model,
       reasoningEffort,
       mcpToolUseCase,
@@ -849,6 +853,18 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         : {}),
     });
     const sandboxMode = codexPermissionPlan.sandboxMode;
+    // The sandbox still confines writes; the automatic reviewer only rules on
+    // escalations Codex raises, and a denial stays a denial.
+    const approvalsReviewer = resolveCodexApprovalsReviewer(providerPermissionMode, sandboxMode);
+    requestContext.log(this.logger, 'info', 'local.runner.codex.permission_mode.resolved', {
+      approvalsReviewer: approvalsReviewer ?? 'user',
+      reason: approvalsReviewer
+        ? 'provider_native_mode'
+        : providerPermissionMode === 'auto'
+          ? 'read_only_requires_user_reviewer'
+          : 'no_native_mode_requested',
+      skipPermissions: skipPermissions ?? false,
+    });
     const runCwd = codexPermissionPlan.cwd;
     const resolvedSkill: CodexSdkSkillTurnInput | null = skillSelection
       ? await this.resolveSkillSelection(
@@ -2003,6 +2019,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             : {}),
           ...(resolvedSkill ? { skill: resolvedSkill } : {}),
           ...(sandboxMode ? { sandbox: sandboxMode } : {}),
+          ...(approvalsReviewer ? { approvalsReviewer } : {}),
           ...(extraWritableDirs.length > 0 ? { extraWritableDirs } : {}),
           ...(selectedModel ? { model: selectedModel } : {}),
           ...(config ? { config } : {}),
@@ -2050,6 +2067,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           cwd: runCwd,
           ...(resolvedSkill ? { skill: resolvedSkill } : {}),
           ...(sandboxMode ? { sandbox: sandboxMode } : {}),
+          ...(approvalsReviewer ? { approvalsReviewer } : {}),
           ...(extraWritableDirs.length > 0 ? { extraWritableDirs } : {}),
           ...(selectedModel ? { model: selectedModel } : {}),
           ...(config ? { config } : {}),
@@ -2456,6 +2474,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     model,
     reasoningEffort,
     skipPermissions,
+    providerPermissionMode,
     mcpToolUseCase,
     additionalAllowedTools,
     readOnlyFilesystem,
@@ -2503,6 +2522,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),
       ...(skipPermissions !== undefined ? { skipPermissions } : {}),
+      ...(providerPermissionMode ? { providerPermissionMode } : {}),
       ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
       ...(additionalAllowedTools && additionalAllowedTools.length > 0
         ? { additionalAllowedTools }
