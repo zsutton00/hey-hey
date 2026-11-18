@@ -62,7 +62,16 @@ export function ChangeRecordRow({
   };
 
   const edits = payload.edits ?? [];
-  const fileCount = edits.length || payload.filesChanged.length;
+  const fileCount = edits.length
+    ? new Set(edits.map((edit) => edit.path)).size
+    : payload.filesChanged.length;
+  const filesLabel = t("changes.fileCount", { count: fileCount });
+  const summaryLabel = edits.length
+    ? t("changes.fileEditSummary", {
+        files: filesLabel,
+        edits: t("changes.editCount", { count: edits.length }),
+      })
+    : filesLabel;
 
   return (
     <Paper
@@ -166,7 +175,7 @@ export function ChangeRecordRow({
         sx={{ mt: 1, typography: "body2", gap: 0.5 }}
       >
         <span aria-hidden>{expanded ? "▾" : "▸"}</span>
-        {t("changes.fileCount", { count: fileCount })}
+        {summaryLabel}
       </ButtonBase>
       <Box
         id={filesId}
