@@ -17,7 +17,11 @@ export function resolveSharedContract(specifier) {
   if (subpath === '') {
     return path.join(contractsRoot, 'index.js');
   }
-  if (subpath === 'brands' || subpath === 'platform-environments' || subpath === 'monitor-kind-policy') {
+  if (
+    subpath === 'brands' ||
+    subpath === 'platform-environments' ||
+    subpath === 'monitor-kind-policy'
+  ) {
     return path.join(contractsRoot, `${subpath}.js`);
   }
   if (subpath === 'agent-bridge/runtime-schema') {
