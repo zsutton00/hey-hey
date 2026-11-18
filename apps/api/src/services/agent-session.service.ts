@@ -172,6 +172,7 @@ export type PaginatedAgentSessionFilters = {
   userId?: string;
   serviceId?: string;
   taskId?: string;
+  search?: string;
   cursor?: string;
 };
 
@@ -314,6 +315,14 @@ export function parseAgentSessionTaskIdQuery(
     throw new BadRequestException('taskId must be a valid UUID');
   }
   return value;
+}
+
+/** Trimmed title search term; an empty or whitespace-only term means no search. */
+export function parseAgentSessionSearchQuery(
+  value: string | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 export function parseAgentSessionStatusesQuery(
@@ -1361,6 +1370,12 @@ export class AgentSessionService {
         cs.entity_type::text = ${EntityType.TASK}
         AND cs.entity_id::text = ${filters.taskId}
       `);
+    }
+    if (filters.search) {
+      // strpos is a literal substring match, so %, _ and \\ need no escaping.
+      whereConditions.push(
+        Prisma.sql`strpos(lower(cs.title), lower(${filters.search})) > 0`,
+      );
     }
     if (cursor) {
       whereConditions.push(this.buildPageCursorWhereClause(cursor));
@@ -3424,9 +3439,17 @@ export class AgentSessionService {
   private buildPageCursorFingerprint(
     filters: Pick<
       PaginatedAgentSessionFilters,
-      'type' | 'statuses' | 'sort' | 'userId' | 'serviceId' | 'taskId'
+      | 'type'
+      | 'statuses'
+      | 'sort'
+      | 'userId'
+      | 'serviceId'
+      | 'taskId'
+      | 'search'
     >,
   ): string {
+    // `search` joins the identity only when present, so cursors issued
+    // without a search keep their original fingerprint.
     const canonicalFilters = JSON.stringify({
       type: filters.type ?? null,
       statuses: Array.from(new Set(filters.statuses)).sort(),
@@ -3434,6 +3457,7 @@ export class AgentSessionService {
       userId: filters.userId ?? null,
       serviceId: filters.serviceId ?? null,
       taskId: filters.taskId ?? null,
+      ...(filters.search ? { search: filters.search.toLowerCase() } : {}),
     });
     return createHash('sha256').update(canonicalFilters).digest('hex');
   }

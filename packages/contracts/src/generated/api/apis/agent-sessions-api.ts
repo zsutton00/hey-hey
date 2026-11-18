@@ -1297,7 +1297,7 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
@@ -1309,12 +1309,13 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
          * @param {string} [taskId] Filter by a matching TASK attachment within the project.
          * @param {Array<AgentSessionStatus>} [status] Filter by one or more lifecycle statuses using repeated query parameters.
          * @param {AgentSessionListSort} [sort]
+         * @param {string} [search] Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
          * @param {number} [limit]
          * @param {string} [cursor] Opaque cursor returned by the previous page.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listAgentSessionsPaginated: async (organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, limit?: number, cursor?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listAgentSessionsPaginated: async (organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, search?: string, limit?: number, cursor?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('listAgentSessionsPaginated', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -1367,6 +1368,10 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
 
             if (sort !== undefined) {
                 localVarQueryParameter['sort'] = sort;
+            }
+
+            if (search !== undefined) {
+                localVarQueryParameter['search'] = search;
             }
 
             if (limit !== undefined) {
@@ -2878,7 +2883,7 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
@@ -2890,13 +2895,14 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
          * @param {string} [taskId] Filter by a matching TASK attachment within the project.
          * @param {Array<AgentSessionStatus>} [status] Filter by one or more lifecycle statuses using repeated query parameters.
          * @param {AgentSessionListSort} [sort]
+         * @param {string} [search] Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
          * @param {number} [limit]
          * @param {string} [cursor] Opaque cursor returned by the previous page.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listAgentSessionsPaginated(organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, limit?: number, cursor?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListAgentSessionsPaginated200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listAgentSessionsPaginated(organizationId, projectId, type, excludeType, hasUserMessage, userId, serviceId, taskId, status, sort, limit, cursor, options);
+        async listAgentSessionsPaginated(organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, search?: string, limit?: number, cursor?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListAgentSessionsPaginated200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listAgentSessionsPaginated(organizationId, projectId, type, excludeType, hasUserMessage, userId, serviceId, taskId, status, sort, search, limit, cursor, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.listAgentSessionsPaginated']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -3482,14 +3488,14 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.listAgentSessions(requestParameters.organizationId, requestParameters.projectId, requestParameters.ids, requestParameters.userId, requestParameters.conversationId, requestParameters.entityType, requestParameters.entityId, requestParameters.serviceId, requestParameters.type, requestParameters.includeService, options).then((request) => request(axios, basePath));
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         listAgentSessionsPaginated(requestParameters: AgentSessionsApiListAgentSessionsPaginatedRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListAgentSessionsPaginated200Response> {
-            return localVarFp.listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.limit, requestParameters.cursor, options).then((request) => request(axios, basePath));
+            return localVarFp.listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.search, requestParameters.limit, requestParameters.cursor, options).then((request) => request(axios, basePath));
         },
         /**
          *
@@ -3939,7 +3945,7 @@ export interface AgentSessionsApiInterface {
     listAgentSessions(requestParameters: AgentSessionsApiListAgentSessionsRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListAgentSessions200Response>;
 
     /**
-     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
      * @summary List agent sessions with cursor pagination
      * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -5008,6 +5014,13 @@ export interface AgentSessionsApiListAgentSessionsPaginatedRequest {
     readonly sort?: AgentSessionListSort
 
     /**
+     * Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
+     * @type {string}
+     * @memberof AgentSessionsApiListAgentSessionsPaginated
+     */
+    readonly search?: string
+
+    /**
      *
      * @type {number}
      * @memberof AgentSessionsApiListAgentSessionsPaginated
@@ -6036,7 +6049,7 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
-     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
      * @summary List agent sessions with cursor pagination
      * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -6044,7 +6057,7 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      * @memberof AgentSessionsApi
      */
     public listAgentSessionsPaginated(requestParameters: AgentSessionsApiListAgentSessionsPaginatedRequest, options?: RawAxiosRequestConfig) {
-        return AgentSessionsApiFp(this.configuration).listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.limit, requestParameters.cursor, options).then((request) => request(this.axios, this.basePath));
+        return AgentSessionsApiFp(this.configuration).listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.search, requestParameters.limit, requestParameters.cursor, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

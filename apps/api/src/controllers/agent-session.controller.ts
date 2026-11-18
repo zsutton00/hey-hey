@@ -84,6 +84,7 @@ import {
   parseAgentSessionPageLimitQuery,
   parseAgentSessionServiceIdQuery,
   parseAgentSessionTaskIdQuery,
+  parseAgentSessionSearchQuery,
   parseAgentSessionStatusesQuery,
   parseAgentSessionTypeQuery,
   parseAgentSessionUserIdQuery,
@@ -464,6 +465,13 @@ export class AgentSessionController {
     type: String,
     description: 'Filter by a matching TASK attachment within the project.',
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description:
+      'Case-insensitive literal substring of the session title, applied before pagination.',
+  })
   async findPaginated(
     @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
     @CurrentOrganization() organizationId: OrganizationId,
@@ -475,6 +483,7 @@ export class AgentSessionController {
     @Query('userId') userId?: string,
     @Query('serviceId') serviceId?: string,
     @Query('taskId') taskId?: string,
+    @Query('search') search?: string,
   ): Promise<PaginatedAgentSessionResponseDto> {
     return this.agentSessionService.findPaginated(organizationId, projectId, {
       type: parseAgentSessionTypeQuery(type),
@@ -484,6 +493,7 @@ export class AgentSessionController {
       userId: parseAgentSessionUserIdQuery(userId),
       serviceId: parseAgentSessionServiceIdQuery(serviceId),
       taskId: parseAgentSessionTaskIdQuery(taskId),
+      search: parseAgentSessionSearchQuery(search),
       ...(cursor !== undefined ? { cursor } : {}),
     });
   }

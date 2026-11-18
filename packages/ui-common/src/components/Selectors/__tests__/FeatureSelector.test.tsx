@@ -30,7 +30,7 @@ const feature: TaskResponseDto = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-    referencesResponse([feature]) as never
+    referencesResponse([feature]) as never,
   );
 });
 
@@ -40,7 +40,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
     () =>
       new Promise((done) => {
         resolve = done;
-      }) as never
+      }) as never,
   );
   const onChange = vi.fn();
   const user = userEvent.setup();
@@ -52,7 +52,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
         value={feature.id}
         onChange={onChange}
       />
-    </Provider>
+    </Provider>,
   );
   expect(await screen.findByText(feature.name)).toBeVisible();
   expect(unifiedApiClient.getTasks).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
         value={null}
         onChange={onChange}
       />
-    </Provider>
+    </Provider>,
   );
   await user.click(screen.getByRole("combobox"));
   expect(await screen.findByText("Status: Loading…")).toBeVisible();
@@ -77,6 +77,40 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
     expect.objectContaining({
       taskIds: [feature.id],
       includeSectionKeys: undefined,
-    })
+    }),
+  );
+});
+
+it("builds no feature options while closed, keeps the selected title, and lists every feature once opened", async () => {
+  const many = Array.from({ length: 300 }, (_, index) => ({
+    ...feature,
+    id: `feature-${index}`,
+    name: `Feature ${String(index).padStart(3, "0")}`,
+  }));
+  vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
+    referencesResponse(many) as never,
+  );
+  vi.mocked(unifiedApiClient.getTasks).mockResolvedValue({
+    data: { data: many },
+  } as never);
+  const user = userEvent.setup();
+  render(
+    <Provider>
+      <FeatureSelector
+        organizationId="org"
+        projectId="project"
+        value="feature-42"
+        onChange={vi.fn()}
+      />
+    </Provider>,
+  );
+
+  expect(await screen.findByText("Feature 042")).toBeVisible();
+  expect(screen.queryAllByTestId("feature-selector-option")).toHaveLength(0);
+  expect(unifiedApiClient.getTasks).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("combobox"));
+  await waitFor(() =>
+    expect(screen.getAllByTestId("feature-selector-option")).toHaveLength(300),
   );
 });

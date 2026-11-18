@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AgentSession, Prisma } from '@prisma/client';
-import { AgentSessionService } from '../agent-session.service';
+import {
+  AgentSessionService,
+  parseAgentSessionSearchQuery,
+  type PaginatedAgentSessionFilters,
+} from '../agent-session.service';
 import {
   createMockConversationWorkflowService,
   createMockConversationService,
@@ -2224,6 +2228,94 @@ describe('AgentSessionService', () => {
     } finally {
       sqlSpy.mockRestore();
     }
+  });
+
+  describe('paginated title search', () => {
+    const base: PaginatedAgentSessionFilters = {
+      statuses: [],
+      sort: 'LAST_MESSAGE',
+      limit: 2,
+    };
+
+    it('binds the term as a literal substring before ordering and limiting', async () => {
+      prisma.db.$queryRaw.mockResolvedValue([]);
+      const sqlSpy = jest.spyOn(Prisma, 'sql');
+
+      try {
+        await service.findPaginated('org-1' as any, 'proj-1' as any, {
+          ...base,
+          search: '100%_done',
+        });
+
+        const predicate = sqlSpy.mock.results
+          .map((result) => result.value as Prisma.Sql)
+          .find((sql) =>
+            sql.strings.join('').includes('strpos(lower(cs.title)'),
+          );
+        expect(predicate?.values).toEqual(['100%_done']);
+        // The predicate is part of the page's WHERE clause, so it narrows the
+        // rows before the ORDER BY / LIMIT that follow it.
+        const [, ...args] = prisma.db.$queryRaw.mock.calls[0] as unknown[];
+        expect(
+          args.some((arg) => (arg as Prisma.Sql).values?.includes('100%_done')),
+        ).toBe(true);
+      } finally {
+        sqlSpy.mockRestore();
+      }
+    });
+
+    it('treats an empty or whitespace-only term as no search', () => {
+      expect(parseAgentSessionSearchQuery('   ')).toBeUndefined();
+      expect(parseAgentSessionSearchQuery('')).toBeUndefined();
+      expect(parseAgentSessionSearchQuery(undefined)).toBeUndefined();
+      expect(parseAgentSessionSearchQuery('  Fix Bug ')).toBe('Fix Bug');
+    });
+
+    it('rejects a cursor from a different search and keeps no-search cursors valid', async () => {
+      const rows = [
+        buildPaginatedRow({ id: sessionId1 }),
+        buildPaginatedRow({ id: sessionId2 }),
+        buildPaginatedRow({ id: sessionId3 }),
+      ];
+      prisma.db.$queryRaw.mockResolvedValue(rows);
+      const searched = await service.findPaginated(
+        'org-1' as any,
+        'proj-1' as any,
+        { ...base, search: 'alpha' },
+      );
+      const unsearched = await service.findPaginated(
+        'org-1' as any,
+        'proj-1' as any,
+        base,
+      );
+
+      await expect(
+        service.findPaginated('org-1' as any, 'proj-1' as any, {
+          ...base,
+          search: 'beta',
+          cursor: searched.nextCursor!,
+        }),
+      ).rejects.toThrow('cursor does not match the requested filters');
+      await expect(
+        service.findPaginated('org-1' as any, 'proj-1' as any, {
+          ...base,
+          cursor: searched.nextCursor!,
+        }),
+      ).rejects.toThrow('cursor does not match the requested filters');
+      await expect(
+        service.findPaginated('org-1' as any, 'proj-1' as any, {
+          ...base,
+          search: 'ALPHA',
+          cursor: searched.nextCursor!,
+        }),
+      ).resolves.toBeDefined();
+      await expect(
+        service.findPaginated('org-1' as any, 'proj-1' as any, {
+          ...base,
+          cursor: unsearched.nextCursor!,
+        }),
+      ).resolves.toBeDefined();
+    });
   });
 
   it('restricts a paginated page to sessions attached to the selected task', async () => {
