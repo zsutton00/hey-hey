@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   AccountEntitlement,
   OrganizationAccountLifecycle,
@@ -535,7 +536,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       current.lifecycleState !== OrganizationAccountLifecycleState.ACTIVE ||
       current.accessEndsAt !== null
     ) {
-      throw new ConflictException('Account lifecycle state is invalid');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account lifecycle state is invalid',
+      );
     }
     const updated = await tx.organizationAccountLifecycle.updateMany({
       where: {
@@ -688,7 +692,8 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       !lifecycle.irreversibleClosureAt ||
       lifecycle.irreversibleClosureAt.getTime() > now.getTime()
     ) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
         'Organization closure evidence requires committed irreversible closure',
       );
     }
@@ -717,7 +722,8 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         existingExecution.deletionDeadline.getTime() !==
           deletionDeadline.getTime()
       ) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
           'Organization closure evidence is inconsistent',
         );
       }

@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   EntityPromptTemplateLifecycleState as PrismaLifecycleState,
   EntityPromptTemplateOwnershipScope as PrismaOwnershipScope,
@@ -734,7 +735,8 @@ export class EntityPromptTemplateService {
           },
         });
         if (!transitioned) {
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             'The published project template revision could not be reloaded',
           );
         }
@@ -900,7 +902,8 @@ export class EntityPromptTemplateService {
           },
         });
         if (!transitioned) {
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             'The retired project template revision could not be reloaded',
           );
         }
@@ -917,7 +920,8 @@ export class EntityPromptTemplateService {
               effectiveRevisionId: effective?.id ?? null,
             },
           );
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             `Canonical entity prompt template ${templateKey} could not be selected after retirement`,
           );
         }
@@ -1076,7 +1080,8 @@ export class EntityPromptTemplateService {
         where: { id: active.id },
       });
       if (!transitioned) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
           'Retired entity prompt-template revision could not be reloaded',
         );
       }
@@ -1090,7 +1095,8 @@ export class EntityPromptTemplateService {
         !effectiveAfter ||
         effectiveAfter.ownershipScope !== PrismaOwnershipScope.CANONICAL
       ) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
           `Canonical entity prompt template ${templateKey} could not be selected after retirement`,
         );
       }

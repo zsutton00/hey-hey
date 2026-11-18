@@ -1,4 +1,5 @@
 import * as crypto from 'node:crypto';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import {
   BadRequestException,
   ConflictException,
@@ -202,7 +203,7 @@ export class SessionMonitorDecisionService {
         params.input.decisionId,
         begun.executionOwner,
         error instanceof ConflictException ||
-        error instanceof MissingRecordException
+          error instanceof MissingRecordException
           ? 'SESSION_MONITOR_BINDING_MISMATCH'
           : 'SESSION_MONITOR_DECISION_FAILED',
         error instanceof Error ? error.message : 'Decision admission failed',
@@ -547,7 +548,10 @@ export class SessionMonitorDecisionService {
     }
     const result = operation.result;
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      throw new ConflictException('Session Monitor decision result is missing');
+      throw new ServerStateException(
+        'SESSION_MONITOR_DECISION_RESULT_INVALID',
+        'Session Monitor decision result is missing',
+      );
     }
     const consequenceMessageId = result['consequenceMessageId'];
     if (
@@ -559,7 +563,10 @@ export class SessionMonitorDecisionService {
         typeof consequenceMessageId === 'string'
       )
     ) {
-      throw new ConflictException('Session Monitor decision result is invalid');
+      throw new ServerStateException(
+        'SESSION_MONITOR_DECISION_RESULT_INVALID',
+        'Session Monitor decision result is invalid',
+      );
     }
     return {
       decisionId: result['decisionId'],

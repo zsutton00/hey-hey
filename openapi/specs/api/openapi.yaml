@@ -2969,6 +2969,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/cancel:
     parameters:
@@ -3014,6 +3020,12 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Cancellation conflicts with the current lifecycle state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
           content:
             application/json:
               schema:
@@ -3111,6 +3123,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganizationReactivationDeadlineLostResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/members:
     parameters:
@@ -11947,6 +11965,12 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Decision identity or persisted Session Monitor binding mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (SESSION_MONITOR_DECISION_RESULT_INVALID)
           content:
             application/json:
               schema:
@@ -20897,6 +20921,12 @@ paths:
           description: Unauthorized
         "404":
           description: Owning work item not found.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}:
     parameters:
@@ -21098,6 +21128,12 @@ paths:
           description: Unauthorized
         "409":
           description: Conflict — agent session already has a conversation.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills:
     parameters:

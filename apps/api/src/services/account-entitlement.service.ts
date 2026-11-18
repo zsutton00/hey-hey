@@ -5,6 +5,7 @@ import {
   OrganizationAccountLifecycle,
   Prisma,
 } from '@prisma/client';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   BadRequestException,
   ConflictException,
@@ -221,7 +222,8 @@ export class AccountEntitlementService {
       currentTransition.changedBy !== entitlement.updatedBy ||
       currentTransition.reason !== entitlement.updateReason
     ) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
         'Existing account entitlement state conflicts with its evidence',
       );
     }
