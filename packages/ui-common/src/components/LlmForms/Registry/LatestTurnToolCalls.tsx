@@ -396,7 +396,7 @@ export const LatestTurnToolCalls: React.FC<{
             display: "flex",
             justifyContent: "flex-start",
             py: 0.25,
-            ml: "46px",
+            ml: "20px",
             color: "primary.main",
             borderRadius: 1,
           }}
