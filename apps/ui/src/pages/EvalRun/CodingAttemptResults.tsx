@@ -59,7 +59,15 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
           label={t(`eval.results.coding.${FILE_TAG[file.status]}`)}
           sx={FILE_TAG_COLORS[file.status]}
         />
-        <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: "monospace",
+            flex: "1 1 auto",
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
           {file.path}
         </Typography>
         <Typography variant="caption" color="text.secondary">
@@ -70,7 +78,11 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
             { added: file.additions, removed: file.deletions },
           )}
         </Typography>
-        <Button size="small" onClick={() => setOpen((value) => !value)}>
+        <Button
+          size="small"
+          sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+          onClick={() => setOpen((value) => !value)}
+        >
           {open
             ? t("eval.results.coding.hideDiff")
             : t("eval.results.coding.showDiff")}

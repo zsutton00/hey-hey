@@ -254,11 +254,20 @@ const DiffField: React.FC<{
           return (
             <Box key={filePath}>
               <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontFamily: "monospace",
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                    overflowWrap: "anywhere",
+                  }}
+                >
                   {filePath}
                 </Typography>
                 <Button
                   size="small"
+                  sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
                   onClick={() => setOpenFilePath(fileOpen ? null : filePath)}
                 >
                   {fileOpen
@@ -396,7 +405,7 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
         ) : null}
         {coding.knownGoodDiff !== undefined ||
         coding.knownBadDiff !== undefined ? (
-          <Stack direction="row" spacing={1.5}>
+          <Stack spacing={1.5}>
             {coding.knownGoodDiff !== undefined ? (
               <DiffField
                 id="coding-known-good"
