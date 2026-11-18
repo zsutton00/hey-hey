@@ -625,6 +625,7 @@ export class SubAgent {
         intentFirst: sessionStartContext.intentFirst,
         maturity: sessionStartContext.maturity,
         hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, config.mcpAllowedTools),
+        hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
       },
     );
 

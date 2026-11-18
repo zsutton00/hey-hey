@@ -69,14 +69,27 @@ describe('platform system prompt', () => {
   });
 
   it('matches captured graph-Hints prompts for read and write access', () => {
-    const promptFor = (hints: 'read' | 'write') =>
+    const promptFor = (hints: 'read' | 'write', hintsProductDevelopment = false) =>
       buildPlatformSystemPrompt(builtInTypes, undefined, {
         intentFirst: false,
         maturity: ProjectMaturity.Established,
         hints,
+        hintsProductDevelopment,
       });
 
     expect({ read: promptFor('read'), write: promptFor('write') }).toMatchSnapshot();
+  });
+
+  it('adds the product-defect rule once, only where Hey Hey is developed', () => {
+    const withRule = buildPlatformSystemPrompt(builtInTypes, undefined, {
+      intentFirst: false,
+      maturity: ProjectMaturity.Established,
+      hints: 'write',
+      hintsProductDevelopment: true,
+    });
+
+    expect(withRule).toMatchSnapshot();
+    expect(withRule.match(/correct how Hey Hey itself behaves/g)).toHaveLength(1);
   });
 
   it('excludes archived references from usable context', () => {

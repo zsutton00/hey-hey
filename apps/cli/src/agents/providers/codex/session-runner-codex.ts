@@ -1706,6 +1706,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
               sessionStartContext.hintsEnabled,
               additionalAllowedTools ?? [],
             ),
+            hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
           },
         );
         requestContext.log(this.logger, 'debug', 'local.runner.codex.session_start_context.read', {

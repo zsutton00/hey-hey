@@ -1,4 +1,30 @@
 import { Logger } from '@nestjs/common';
+import { type ExecutionContext, type INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import * as cookieParser from 'cookie-parser';
+import request = require('supertest');
+import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { OrganizationGuard } from '../../../auth/guards/organization.guard';
+import { ProjectAccessGuard } from '../../../auth/guards/project-access.guard';
+import { ControllerBindingOriginGuard } from '../../../common/guards/controller-binding-origin.guard';
+import { ControllerAuthorizationController } from '../../../controllers/controller-authorization.controller';
+import { ConversationController } from '../../../controllers/conversation.controller';
+import { canonicalizeJcs } from '../../../core/websockets/trigger-canonicalization';
+import { TriggerEmitter } from '../../../core/websockets/trigger-emitter.service';
+import { WebsocketConnectionManager } from '../../../core/websockets/websocket-connection-manager.service';
+import { AgentSessionService as AgentSessionServiceToken } from '../../agent-session.service';
+import { ConversationService } from '../../conversation.service';
+import { MessageService as MessageServiceToken } from '../../message.service';
+import { ControllerBindingCookieService } from '../../controller-authorization/controller-binding-cookie.service';
+import { EvalRunService } from '../../eval-runs/eval-run.service';
+import { ProjectReportLaunchService } from '../../project-reports/project-report-launch.service';
+import { ProposalAgentFixService } from '../../proposal/proposal-agent-fix.service';
+import { ConversationWorkflowService } from '../../workflows/conversation-workflow.service';
+import { FlowExecutionService } from '../../workflows/flow-execution.service';
+import { NodeExecutionService } from '../../workflows/node-execution.service';
+import { PendingTriggerService } from '../../workflows/pending-trigger.service';
+import { WorkflowExecutionService } from '../../workflows/workflow-execution.service';
+import { WorkflowRouterService } from '../../workflows/workflow-router.service';
 import {
   ControllerAuthorizationCadence,
   ExecutionAuthorizationOutcome,
@@ -8,14 +34,20 @@ import {
   HostAffectingActionType as PrismaHostAffectingActionType,
   Prisma,
 } from '@prisma/client';
-import { randomBytes, randomUUID } from 'node:crypto';
-import type {
-  AgentSessionContinuationNativeState,
-  AgentSessionContinuationStartupReport,
-  CliReadResponseDto,
-  StartRunPromptPayload,
-  SystemMessageData,
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import {
+  HostActionCategory,
+  HostActionTargetKind,
+  HostAffectingActionType,
+  type AgentSessionContinuationNativeState,
+  type AgentSessionContinuationStartupReport,
+  type CliReadResponseDto,
+  type ControllerStartInputs,
+  type ConversationStartRunRequestDto,
+  type StartRunPromptPayload,
+  type SystemMessageData,
 } from '@hey-hey/contracts/api/models';
+import { startControllerInputs } from '../../../generated/controller-action-contract';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type {
   AgentSessionId,
@@ -30,6 +62,7 @@ import type { MachinePresenceService } from '../../../core/websockets/machine-pr
 import type { CreateMessageInput, MessageService } from '../../message.service';
 import type { AgentSessionService } from '../../agent-session.service';
 import {
+  ControllerAuthorizationService,
   CONTROLLER_AUTHORIZATION_TTL_MS,
   CONTROLLER_DEVICE_POLICY_REVISION,
   PRISMA_CURRENT_AGENT_OPERATIONS,
@@ -55,6 +88,10 @@ type Fixture = Awaited<ReturnType<typeof createFixture>>;
 describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
   let prisma: PrismaService;
   let service: AgentSessionContinuationService;
+  let controllerAuthorization: ControllerAuthorizationService;
+  let grants: ExecutionGrantService;
+  let submission: AgentOperationSubmissionService;
+  let warn: jest.SpyInstance;
   let nativeState: AgentSessionContinuationNativeState;
   let emitterCalls: Array<{ machineId: string; continuationId: string }>;
   const fixtures: Fixture[] = [];
@@ -78,7 +115,38 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
       controllerBindingSecret: fixture.controllerBindingSecret,
     });
 
-  const commit = (
+  /**
+   * The browser resolves controller authorization for exactly the delivery it
+   * is about to submit, through the real `/resolve` target rules. A delivery
+   * the commit endpoint would accept must resolve here too.
+   */
+  const resolveDelivery = async (fixture: Fixture, continuationId: string) => {
+    const { startRunInputs } =
+      await prisma.db.agentSessionContinuation.findUniqueOrThrow({
+        where: { id: continuationId },
+        select: { startRunInputs: true },
+      });
+    return controllerAuthorization.resolve({
+      organizationId: fixture.organizationId as OrganizationId,
+      projectId: fixture.projectId as ProjectId,
+      userId: fixture.userId as UserId,
+      controllerBindingSecret: fixture.controllerBindingSecret,
+      input: {
+        machineId: fixture.destinationMachineId,
+        action: {
+          requestId: randomUUID(),
+          actionCategory: HostActionCategory.Conversation,
+          actionType: HostAffectingActionType.ConversationTrigger,
+          targetKind: HostActionTargetKind.AgentSession,
+          targetId: fixture.sessionId,
+          inputs: startRunInputs as unknown as ControllerStartInputs,
+        },
+      },
+    });
+  };
+
+  /** What the commit endpoint does with a request, without the browser's resolve. */
+  const submitCommit = (
     fixture: Fixture,
     continuationId: string,
     confirmSavedHistory = false,
@@ -92,6 +160,18 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
       },
       controllerBindingSecret: fixture.controllerBindingSecret,
     });
+
+  /** The browser's delivery: resolve authorization, then commit. */
+  const commit = async (
+    fixture: Fixture,
+    continuationId: string,
+    confirmSavedHistory = false,
+  ) => {
+    expect(await resolveDelivery(fixture, continuationId)).toMatchObject({
+      outcome: 'ACTIVE_GRANT',
+    });
+    return submitCommit(fixture, continuationId, confirmSavedHistory);
+  };
 
   const bindingOf = async (fixture: Fixture) =>
     (
@@ -155,15 +235,36 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
-    const grants = new ExecutionGrantService(
+    // The browser-binding cookie boundary: the fixture's secret is the binding.
+    const browserBinding = {
+      resolveForAdmission: jest
+        .fn()
+        .mockImplementation(({ secret }) =>
+          Promise.resolve(secret ? JSON.parse(secret) : null),
+        ),
+      resolveForSelection: jest
+        .fn()
+        .mockImplementation(({ secret }) =>
+          Promise.resolve(secret ? JSON.parse(secret) : null),
+        ),
+    };
+    const machinePresence = {
+      isPresent: jest.fn().mockResolvedValue(true),
+    } as unknown as MachinePresenceService;
+    const agentSessions = {
+      resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AgentSessionService;
+    controllerAuthorization = new ControllerAuthorizationService(
       prisma,
-      {
-        resolveForAdmission: jest
-          .fn()
-          .mockImplementation(({ secret }) =>
-            Promise.resolve(secret ? JSON.parse(secret) : null),
-          ),
-      } as never,
+      machinePresence,
+      {} as never,
+      {} as never,
+      browserBinding as never,
+      agentSessions,
+    );
+    grants = new ExecutionGrantService(
+      prisma,
+      browserBinding as never,
       {
         resolveDirectInputs: jest
           .fn()
@@ -188,7 +289,7 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
           },
         }),
     };
-    const submission = new AgentOperationSubmissionService(
+    submission = new AgentOperationSubmissionService(
       prisma,
       registry,
       messageService as unknown as MessageService,
@@ -226,20 +327,19 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
       prisma,
       grants,
       emitter as unknown as CliReadEmitter,
-      new MachineExecutionReadinessService(prisma, {
-        isPresent: jest.fn().mockResolvedValue(true),
-      } as unknown as MachinePresenceService),
+      new MachineExecutionReadinessService(prisma, machinePresence),
       registry,
       submission,
-      {
-        resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
-      } as unknown as AgentSessionService,
+      agentSessions,
     );
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
   });
 
   beforeEach(() => {
+    warn.mockClear();
     nativeState = 'USABLE';
     emitterCalls = [];
   });
@@ -449,7 +549,13 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
       deliveryOperationId: null,
     });
     expect(cancelled.terminalAt).not.toBeNull();
-    await expect(commit(fixture, continuationId, true)).rejects.toMatchObject({
+    // Neither authorization nor the endpoint accepts a cancelled attempt.
+    await expect(
+      resolveDelivery(fixture, continuationId),
+    ).rejects.toMatchObject({ reason: 'TARGET_MISMATCH' });
+    await expect(
+      submitCommit(fixture, continuationId, true),
+    ).rejects.toMatchObject({
       response: { code: 'CONTINUATION_CANCELLED' },
     });
     expect(await bindingOf(fixture)).toBe(fixture.sourceMachineId);
@@ -766,6 +872,211 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
     expect(await bindingOf(fixture)).toBe(fixture.sourceMachineId);
   });
 
+  /** A start the browser launches for a session the person already owns. */
+  const startInputs = (fixture: Fixture) =>
+    ({
+      kind: 'START_RUN',
+      payload: {
+        handlerPromptType: 'free_form',
+        payload: {
+          promptType: 'free_form',
+          userMessage: 'Start from a new launcher',
+          entity: { entityType: 'PROJECT', entityId: fixture.projectId },
+        },
+        attachments: [],
+        stagedBrowserTab: null,
+        model: 'claude-opus-5-5',
+        provider: 'claude',
+        agentSessionId: fixture.sessionId,
+        contextMetadata: {
+          capturedAt: new Date().toISOString(),
+          organizationId: fixture.organizationId,
+          projectId: fixture.projectId,
+          agentSessionId: fixture.sessionId,
+          userComments: [],
+          fileReferences: { resolved: [], unresolved: [] },
+        },
+      },
+    }) as unknown as ControllerStartInputs;
+
+  const startAction = (fixture: Fixture, targetId = fixture.sessionId) => ({
+    requestId: randomUUID(),
+    actionCategory: HostActionCategory.Conversation,
+    actionType: HostAffectingActionType.ConversationTrigger,
+    targetKind: HostActionTargetKind.AgentSession,
+    targetId,
+    inputs: startInputs(fixture),
+  });
+
+  const resolveStart = (
+    fixture: Fixture,
+    action = startAction(fixture),
+    asUser = fixture,
+  ) =>
+    controllerAuthorization.resolve({
+      organizationId: fixture.organizationId as OrganizationId,
+      projectId: fixture.projectId as ProjectId,
+      userId: asUser.userId as UserId,
+      controllerBindingSecret: fixture.controllerBindingSecret,
+      input: { machineId: fixture.destinationMachineId, action },
+    });
+
+  const prepareStart = (fixture: Fixture) =>
+    controllerAuthorization.prepare({
+      organizationId: fixture.organizationId as OrganizationId,
+      projectId: fixture.projectId as ProjectId,
+      userId: fixture.userId as UserId,
+      controllerBindingSecret: fixture.controllerBindingSecret,
+      input: {
+        machineId: fixture.destinationMachineId,
+        controllerCredentialId: fixture.machines[1]!.credential.credentialId,
+        cadence: ControllerAuthorizationCadence.FIVE_MINUTES,
+        action: startAction(fixture),
+      } as never,
+    });
+
+  /** Sending: admit the start against the grant, then commit it. */
+  const sendStart = async (fixture: Fixture, asUserId = fixture.userId) => {
+    const admission = await grants.assertInteractiveAuthorized({
+      authorization: { kind: 'bounded_grant', grantId: fixture.grantId },
+      inputs: startInputs(fixture),
+      organizationId: fixture.organizationId as OrganizationId,
+      projectId: fixture.projectId as ProjectId,
+      userId: asUserId as UserId,
+      controllerBindingSecret: fixture.controllerBindingSecret,
+      actionType: HostAffectingActionType.ConversationTrigger,
+      targetKind: HostActionTargetKind.AgentSession,
+      targetId: fixture.sessionId,
+      conversationId: fixture.conversationId as never,
+      agentSessionId: fixture.sessionId as AgentSessionId,
+      machineId: fixture.destinationMachineId as MachineId,
+    });
+    const operationId = randomUUID();
+    const triggerMessageId = randomUUID();
+    return submission.submit({
+      operationId,
+      operationFingerprint: '4'.repeat(64),
+      organizationId: fixture.organizationId as OrganizationId,
+      projectId: fixture.projectId as ProjectId,
+      userId: fixture.userId as UserId,
+      agentSessionId: fixture.sessionId as AgentSessionId,
+      conversationId: fixture.conversationId as never,
+      kind: 'START_RUN',
+      admission,
+      triggerMessage: {
+        id: triggerMessageId as never,
+        type: 'SYSTEM',
+        conversationId: fixture.conversationId as never,
+        projectId: fixture.projectId as ProjectId,
+        status: 'completed' as never,
+        data: {
+          type: 'AGENT',
+          triggersAgent: {
+            promptType: 'start_run',
+            operationId,
+            operationFingerprint: '4'.repeat(64),
+            triggerMessageId,
+            payload: startInputs(fixture).payload,
+          },
+        } as unknown as SystemMessageData,
+      },
+    });
+  };
+
+  const loggedFailedChecks = () =>
+    warn.mock.calls
+      .map(([, context]) => (context as { failedCheck?: string })?.failedCheck)
+      .filter(Boolean);
+
+  describe('starting work on a session before it has a computer', () => {
+    it('accepts the person’s own unbound session at resolve, prepare and sending, then binds it on start', async () => {
+      const fixture = await createFixture(prisma);
+      fixtures.push(fixture);
+      await prisma.db.agentSession.update({
+        where: { id: fixture.sessionId },
+        data: { machineId: null },
+      });
+
+      expect(await resolveStart(fixture)).toMatchObject({
+        outcome: 'ACTIVE_GRANT',
+      });
+      await expect(prepareStart(fixture)).resolves.toBeDefined();
+      await sendStart(fixture);
+
+      expect(await bindingOf(fixture)).toBe(fixture.destinationMachineId);
+      expect(loggedFailedChecks()).toEqual([]);
+    });
+
+    it('refuses a session bound to a different computer at resolve and sending, and keeps its binding', async () => {
+      const fixture = await createFixture(prisma);
+      fixtures.push(fixture);
+
+      await expect(resolveStart(fixture)).rejects.toMatchObject({
+        status: 403,
+        response: expect.objectContaining({ message: 'TARGET_MISMATCH' }),
+      });
+      await expect(sendStart(fixture)).rejects.toMatchObject({
+        status: 403,
+        response: expect.objectContaining({ message: 'TARGET_MISMATCH' }),
+      });
+
+      expect(loggedFailedChecks()).toEqual([
+        'agent_session_bound_elsewhere',
+        'agent_session_bound_elsewhere',
+      ]);
+      expect(await bindingOf(fixture)).toBe(fixture.sourceMachineId);
+    });
+
+    it('refuses a session owned by another user at resolve and sending', async () => {
+      const fixture = await createFixture(prisma);
+      const stranger = await createFixture(prisma);
+      fixtures.push(fixture, stranger);
+      const foreign = await createForeignOwnedSession(
+        prisma,
+        stranger,
+        fixture.userId,
+      );
+
+      try {
+        await expect(
+          resolveStart(stranger, startAction(stranger, foreign.id)),
+        ).rejects.toMatchObject({
+          status: 403,
+          response: expect.objectContaining({ message: 'TARGET_MISMATCH' }),
+        });
+        await expect(
+          grants.assertInteractiveAuthorized({
+            authorization: {
+              kind: 'bounded_grant',
+              grantId: stranger.grantId,
+            },
+            inputs: startInputs(stranger),
+            organizationId: stranger.organizationId as OrganizationId,
+            projectId: stranger.projectId as ProjectId,
+            userId: stranger.userId as UserId,
+            controllerBindingSecret: stranger.controllerBindingSecret,
+            actionType: HostAffectingActionType.ConversationTrigger,
+            targetKind: HostActionTargetKind.AgentSession,
+            targetId: foreign.id,
+            conversationId: stranger.conversationId as never,
+            agentSessionId: foreign.id as AgentSessionId,
+            machineId: stranger.destinationMachineId as MachineId,
+          }),
+        ).rejects.toMatchObject({
+          status: 403,
+          response: expect.objectContaining({ message: 'TARGET_MISMATCH' }),
+        });
+
+        expect(loggedFailedChecks()).toEqual([
+          'agent_session_not_owned',
+          'agent_session_not_owned',
+        ]);
+      } finally {
+        await prisma.db.agentSession.deleteMany({ where: { id: foreign.id } });
+      }
+    });
+  });
+
   it('never rebinds an unbound (pre-v2) session', async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
@@ -870,6 +1181,397 @@ describeDatabase('Agent Session continuation PostgreSQL invariants', () => {
     });
   });
 });
+
+/**
+ * The launcher's real path over HTTP: `/resolve`, `/prepare`, then the
+ * start-run endpoint, through the real controllers, authorization, grant and
+ * submission services and PostgreSQL. Only the collaborators outside session
+ * admission (conversation lookup, dispatch, workflow engines) are stubbed.
+ */
+describeDatabase('Starting on a session with no computer, over HTTP', () => {
+  let prisma: PrismaService;
+  let app: INestApplication;
+  let warn: jest.SpyInstance;
+  const fixtures: Fixture[] = [];
+  const ownerByConversation = new Map<string, string>();
+
+  beforeAll(async () => {
+    prisma = new PrismaService();
+    await prisma.$connect();
+    const parseSecret = ({ secret }: { secret?: string }) =>
+      Promise.resolve(secret ? JSON.parse(secret) : null);
+    const browserBinding = {
+      resolveForAdmission: jest.fn().mockImplementation(parseSecret),
+      resolveForSelection: jest.fn().mockImplementation(parseSecret),
+    };
+    const machinePresence = {
+      isPresent: jest.fn().mockResolvedValue(true),
+    } as unknown as MachinePresenceService;
+    const sessionStubs = {
+      resolveStartRunConversationBinding: jest
+        .fn()
+        .mockResolvedValue({ kind: 'STANDARD_LAUNCH' }),
+      resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+      claimStartRunLaunch: jest.fn().mockResolvedValue(true),
+      releaseStartRunLaunchClaim: jest.fn().mockResolvedValue(undefined),
+    };
+    const controllerAuthorization = new ControllerAuthorizationService(
+      prisma,
+      machinePresence,
+      {} as never,
+      {} as never,
+      browserBinding as never,
+      sessionStubs as never,
+    );
+    const grants = new ExecutionGrantService(
+      prisma,
+      browserBinding as never,
+      {
+        resolveDirectInputs: jest
+          .fn()
+          .mockImplementation(async ({ action }) => action),
+      } as never,
+    );
+    const registry = new AgentOperationRegistryService(prisma);
+    const messageService = {
+      getMessage: jest.fn().mockResolvedValue(null),
+      addMessageInTransaction: (
+        tx: Parameters<Parameters<PrismaService['db']['$transaction']>[0]>[0],
+        input: CreateMessageInput,
+      ) =>
+        tx.message.create({
+          data: {
+            id: input.id,
+            projectId: input.projectId,
+            conversationId: input.conversationId,
+            type: input.type,
+            status: 'completed',
+            userId: input.userId ?? 'system',
+            data: input.data as Prisma.InputJsonValue,
+          },
+        }),
+    };
+    const submission = new AgentOperationSubmissionService(
+      prisma,
+      registry,
+      messageService as unknown as MessageServiceToken,
+      grants,
+      {
+        nudgeForOperation: jest.fn().mockResolvedValue(false),
+      } as unknown as AgentOperationDispatchService,
+      { recordWake: jest.fn() } as never,
+      {} as never,
+    );
+    const conversationService = {
+      getConversationFromAdapter: jest
+        .fn()
+        .mockImplementation(async (_project, id) => ({
+          id,
+          workflowName: undefined,
+        })),
+      getOwnerUserId: jest
+        .fn()
+        .mockImplementation(async (id) => ownerByConversation.get(id)),
+    };
+    const assertNothing = {
+      assertStartRun: jest.fn().mockResolvedValue(undefined),
+    };
+    const unused = {};
+
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ControllerAuthorizationController, ConversationController],
+      providers: [
+        {
+          provide: ControllerAuthorizationService,
+          useValue: controllerAuthorization,
+        },
+        { provide: ControllerBindingCookieService, useValue: {} },
+        { provide: ExecutionGrantService, useValue: grants },
+        { provide: AgentOperationRegistryService, useValue: registry },
+        { provide: AgentOperationSubmissionService, useValue: submission },
+        { provide: ConversationService, useValue: conversationService },
+        { provide: MessageServiceToken, useValue: messageService },
+        { provide: AgentSessionServiceToken, useValue: sessionStubs },
+        { provide: ProjectReportLaunchService, useValue: assertNothing },
+        { provide: EvalRunService, useValue: assertNothing },
+        { provide: ProposalAgentFixService, useValue: assertNothing },
+        { provide: ConversationWorkflowService, useValue: unused },
+        { provide: WorkflowExecutionService, useValue: unused },
+        { provide: NodeExecutionService, useValue: unused },
+        { provide: WorkflowRouterService, useValue: unused },
+        { provide: FlowExecutionService, useValue: unused },
+        { provide: WebsocketConnectionManager, useValue: unused },
+        { provide: MachineExecutionReadinessService, useValue: unused },
+        { provide: TriggerEmitter, useValue: unused },
+        { provide: PendingTriggerService, useValue: unused },
+      ],
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          const req = context.switchToHttp().getRequest();
+          req.user = { userId: req.headers['x-test-user'] };
+          return true;
+        },
+      })
+      .overrideGuard(OrganizationGuard)
+      .useValue({
+        // The global JWT guard authenticates in production.
+        canActivate: (context: ExecutionContext) => {
+          const req = context.switchToHttp().getRequest();
+          req.user = { userId: req.headers['x-test-user'] };
+          return true;
+        },
+      })
+      .overrideGuard(ProjectAccessGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(ControllerBindingOriginGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+    app = moduleRef.createNestApplication();
+    app.use(cookieParser());
+    await app.init();
+
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+  });
+
+  beforeEach(() => warn.mockClear());
+
+  afterEach(async () => {
+    for (const fixture of fixtures.splice(0)) {
+      await deleteFixture(prisma, fixture);
+    }
+  });
+
+  afterAll(async () => {
+    jest.restoreAllMocks();
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const base = (f: Fixture) =>
+    `/api/v1/organizations/${f.organizationId}/projects/${f.projectId}`;
+
+  const startBody = (f: Fixture, sessionId = f.sessionId) => ({
+    machineId: f.destinationMachineId,
+    handlerPromptType: 'free_form',
+    payload: {
+      promptType: 'free_form',
+      userMessage: 'Start from a new launcher',
+      entity: { entityType: 'PROJECT', entityId: f.projectId },
+    },
+    attachments: [],
+    stagedBrowserTab: null,
+    model: 'claude-opus-5-5',
+    provider: 'claude',
+    agentSessionId: sessionId,
+    contextMetadata: {
+      capturedAt: new Date().toISOString(),
+      organizationId: f.organizationId,
+      projectId: f.projectId,
+      agentSessionId: sessionId,
+      userComments: [],
+      fileReferences: { resolved: [], unresolved: [] },
+    },
+  });
+
+  const post = (f: Fixture, path: string, asUserId: string, body: object) =>
+    request(app.getHttpServer())
+      .post(`${base(f)}${path}`)
+      .set('x-test-user', asUserId)
+      .set(
+        'Cookie',
+        `hey_hey_controller_binding=${encodeURIComponent(f.controllerBindingSecret)}`,
+      )
+      .send(body);
+
+  const actionFor = (f: Fixture, sessionId = f.sessionId) => ({
+    requestId: randomUUID(),
+    actionCategory: HostActionCategory.Conversation,
+    actionType: HostAffectingActionType.ConversationTrigger,
+    targetKind: HostActionTargetKind.AgentSession,
+    targetId: sessionId,
+    inputs: startControllerInputs(
+      startBody(f, sessionId) as unknown as ConversationStartRunRequestDto,
+    ),
+  });
+
+  const startRun = (f: Fixture, asUserId: string, sessionId = f.sessionId) => {
+    const body = {
+      ...startBody(f, sessionId),
+      authorization: { kind: 'bounded_grant', grantId: f.grantId },
+      operationId: randomUUID(),
+    };
+    const { authorization: _a, operationId: _o, ...semantic } = body;
+    const operationFingerprint = createHash('sha256')
+      .update(
+        canonicalizeJcs({
+          kind: 'START_RUN',
+          organizationId: f.organizationId,
+          projectId: f.projectId,
+          conversationId: f.conversationId,
+          request: semantic,
+        }),
+        'utf8',
+      )
+      .digest('hex');
+    return post(f, `/conversations/${f.conversationId}/start-run`, asUserId, {
+      ...body,
+      operationFingerprint,
+    });
+  };
+
+  const boundTo = async (f: Fixture) =>
+    (
+      await prisma.db.agentSession.findUniqueOrThrow({
+        where: { id: f.sessionId },
+        select: { machineId: true },
+      })
+    ).machineId;
+
+  const failedChecks = () =>
+    warn.mock.calls
+      .map(([, context]) => (context as { failedCheck?: string })?.failedCheck)
+      .filter(Boolean);
+
+  const prepared = (f: Fixture) => ({
+    machineId: f.destinationMachineId,
+    controllerCredentialId: f.machines[1]!.credential.credentialId,
+    cadence: ControllerAuthorizationCadence.FIVE_MINUTES,
+    action: actionFor(f),
+  });
+
+  it('launches an unbound own session through resolve, prepare and start-run, and binds it', async () => {
+    const f = await createFixture(prisma);
+    fixtures.push(f);
+    ownerByConversation.set(f.conversationId, f.userId);
+    await prisma.db.agentSession.update({
+      where: { id: f.sessionId },
+      data: { machineId: null },
+    });
+
+    const resolved = await post(
+      f,
+      '/controller-authorizations/resolve',
+      f.userId,
+      {
+        machineId: f.destinationMachineId,
+        action: actionFor(f),
+      },
+    );
+    expect(resolved.status).toBe(200);
+    expect(resolved.body).toMatchObject({ outcome: 'ACTIVE_GRANT' });
+
+    const prep = await post(
+      f,
+      '/controller-authorizations/prepare',
+      f.userId,
+      prepared(f),
+    );
+    expect(prep.status).toBe(200);
+
+    const started = await startRun(f, f.userId);
+    expect(started.status).toBeLessThan(300);
+    expect(started.body).toMatchObject({ dispatched: true });
+    expect(await boundTo(f)).toBe(f.destinationMachineId);
+    expect(failedChecks()).toEqual([]);
+  });
+
+  it('refuses a session bound to another computer with 403 TARGET_MISMATCH at resolve and start-run', async () => {
+    const f = await createFixture(prisma);
+    fixtures.push(f);
+    ownerByConversation.set(f.conversationId, f.userId);
+
+    const resolved = await post(
+      f,
+      '/controller-authorizations/resolve',
+      f.userId,
+      {
+        machineId: f.destinationMachineId,
+        action: actionFor(f),
+      },
+    );
+    expect(resolved.status).toBe(403);
+    expect(resolved.body.message).toBe('TARGET_MISMATCH');
+
+    const started = await startRun(f, f.userId);
+    expect(started.status).toBe(403);
+    expect(started.body.message).toBe('TARGET_MISMATCH');
+    expect(failedChecks()).toEqual([
+      'agent_session_bound_elsewhere',
+      'agent_session_bound_elsewhere',
+    ]);
+    expect(await boundTo(f)).toBe(f.sourceMachineId);
+  });
+
+  it('refuses a session owned by another user with 403 TARGET_MISMATCH at resolve and start-run', async () => {
+    const f = await createFixture(prisma);
+    const stranger = await createFixture(prisma);
+    fixtures.push(f, stranger);
+    ownerByConversation.set(stranger.conversationId, stranger.userId);
+    const foreign = await createForeignOwnedSession(prisma, stranger, f.userId);
+
+    try {
+      const resolved = await post(
+        stranger,
+        '/controller-authorizations/resolve',
+        stranger.userId,
+        {
+          machineId: stranger.destinationMachineId,
+          action: actionFor(stranger, foreign.id),
+        },
+      );
+      expect(resolved.status).toBe(403);
+      expect(resolved.body.message).toBe('TARGET_MISMATCH');
+
+      const started = await startRun(stranger, stranger.userId, foreign.id);
+      expect(started.status).toBe(403);
+      expect(started.body.message).toBe('TARGET_MISMATCH');
+      expect(failedChecks()).toEqual([
+        'agent_session_not_owned',
+        'agent_session_not_owned',
+      ]);
+      expect(
+        (
+          await prisma.db.agentSession.findUniqueOrThrow({
+            where: { id: foreign.id },
+          })
+        ).machineId,
+      ).toBeNull();
+    } finally {
+      await prisma.db.agentOperation.deleteMany({
+        where: { agentSessionId: foreign.id },
+      });
+      await prisma.db.agentSession.deleteMany({ where: { id: foreign.id } });
+    }
+  });
+});
+
+/** A session in `host`'s own conversation that belongs to a different user. */
+function createForeignOwnedSession(
+  prisma: PrismaService,
+  host: Fixture,
+  ownerUserId: string,
+) {
+  return prisma.db.agentSession.create({
+    data: {
+      id: randomUUID(),
+      organizationId: host.organizationId,
+      userId: ownerUserId,
+      projectId: host.projectId,
+      conversationId: host.conversationId,
+      machineId: null,
+      provider: 'claude',
+      status: 'IN_PROGRESS',
+      sessionDate: new Date(),
+      title: 'Someone else’s session',
+    },
+  });
+}
 
 async function createMachine(
   prisma: PrismaService,
@@ -1012,7 +1714,11 @@ async function createFixture(
           triggerMessageId: originalTriggerId,
           payload: {
             handlerPromptType: 'free_form',
-            payload: { promptType: 'free_form', userMessage: 'Original ask' },
+            payload: {
+              promptType: 'free_form',
+              userMessage: 'Original ask',
+              entity: { entityType: 'PROJECT', entityId: project.id },
+            },
             attachments: [
               { attachmentId: randomUUID(), fileName: 'notes.txt' },
             ],

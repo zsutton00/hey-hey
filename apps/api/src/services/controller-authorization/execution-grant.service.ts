@@ -1,4 +1,8 @@
-import { isContinuationStart } from '../agent-session-continuation/continuation-start';
+import {
+  agentSessionMachineAdmission,
+  agentSessionTargetFailure,
+  isContinuationStart,
+} from '../agent-session-continuation/continuation-start';
 import { ControllerAuthorizationService } from './controller-authorization.service';
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
@@ -21,6 +25,7 @@ import {
   ConversationHostActionPreparation,
   ControllerAssertionEvidence,
   ControllerAuthorizationCadence,
+  ControllerAuthorizationDenialReason,
   ExecutableControllerAssertionEvidence,
   ExecutableEnvelopeAuthorization,
   HostActionCategory,
@@ -868,41 +873,41 @@ export class ExecutionGrantService {
     /** An inspected continuation may authorize its destination before rebind. */
     continuationId?: string;
   }): Promise<AgentSessionId> {
+    const owned = {
+      ...(params.requestedAgentSessionId
+        ? { id: params.requestedAgentSessionId }
+        : {}),
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      userId: params.userId,
+    } satisfies Prisma.AgentSessionWhereInput;
     const session = await this.prisma.db.agentSession.findFirst({
       where: {
-        ...(params.requestedAgentSessionId
-          ? { id: params.requestedAgentSessionId }
-          : {}),
-        conversationId: params.conversationId,
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        userId: params.userId,
-        OR: [
-          { machineId: params.authorization.machineId },
-          { machineId: null },
-          ...(params.continuationId
-            ? [
-                {
-                  continuations: {
-                    some: {
-                      id: params.continuationId,
-                      destinationMachineId: params.authorization.machineId,
-                      bindingMovedAt: null,
-                      state: {
-                        in: ['INSPECTED', 'AWAITING_HISTORY_CONFIRMATION'],
-                      },
-                    },
-                  },
-                },
-              ]
-            : []),
-        ],
+        ...owned,
+        ...agentSessionMachineAdmission(
+          params.authorization.machineId,
+          params.continuationId,
+        ),
       },
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     });
     if (!session) {
-      this.deny('Authorization is not bound to an eligible Agent Session');
+      const failure = await agentSessionTargetFailure(
+        this.prisma.db,
+        owned,
+        params.continuationId,
+      );
+      this.logger.warn('Agent Session rejected at submission', {
+        ...failure,
+        agentSessionId: params.requestedAgentSessionId,
+        machineId: params.authorization.machineId,
+      });
+      this.deny(
+        ControllerAuthorizationDenialReason.TargetMismatch,
+        'agent_session_target_mismatch',
+      );
     }
     return session.id as AgentSessionId;
   }

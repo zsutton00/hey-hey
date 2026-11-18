@@ -1,5 +1,9 @@
 import { AgentSessionService } from '../agent-session.service';
-import { isContinuationStart } from '../agent-session-continuation/continuation-start';
+import {
+  agentSessionMachineAdmission,
+  agentSessionTargetFailure,
+  isContinuationStart,
+} from '../agent-session-continuation/continuation-start';
 import { DirectActionServiceScopeResolver } from './direct-action-service-scope-resolver';
 import {
   ForbiddenException,
@@ -951,30 +955,20 @@ export class ControllerAuthorizationService {
     }
 
     if (action.targetKind === 'AGENT_SESSION') {
+      const continuationId = isContinuationStart(action)
+        ? action.inputs.payload.continuation.continuationId
+        : undefined;
+      const owned = {
+        id: action.targetId,
+        organizationId: params.organizationId,
+        projectId: params.projectId,
+        userId: params.userId,
+      } satisfies Prisma.AgentSessionWhereInput;
       const session = await this.prisma.db.agentSession.findFirst({
         where: {
-          id: action.targetId,
-          organizationId: params.organizationId,
-          projectId: params.projectId,
-          userId: params.userId,
-          // The only cross-machine authorization: the materialize-only start
-          // of an inspected continuation, prepared for its destination.
-          ...(isContinuationStart(action)
-            ? {
-                OR: [
-                  { machineId: params.machineId },
-                  {
-                    continuations: {
-                      some: {
-                        id: action.inputs.payload.continuation.continuationId,
-                        destinationMachineId: params.machineId,
-                        state: 'INSPECTED',
-                      },
-                    },
-                  },
-                ],
-              }
-            : { machineId: params.machineId }),
+          ...owned,
+          // Shared with submission admission so the two cannot disagree.
+          ...agentSessionMachineAdmission(params.machineId, continuationId),
         },
         select: { id: true },
       });
@@ -982,6 +976,11 @@ export class ControllerAuthorizationService {
         this.rejectPreparation(
           ControllerAuthorizationDenialReason.TargetMismatch,
           params,
+          await agentSessionTargetFailure(
+            this.prisma.db,
+            owned,
+            continuationId,
+          ),
         );
       }
       const target = {

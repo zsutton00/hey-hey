@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { agentSessionMachineAdmission } from '../../agent-session-continuation/continuation-start';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { ControllerAuthorizationController } from '../../../controllers/controller-authorization.controller';
@@ -715,7 +716,7 @@ describe('ControllerAuthorizationService', () => {
         organizationId: ids.organization,
         projectId: ids.project,
         userId: ids.user,
-        machineId: ids.machine,
+        ...agentSessionMachineAdmission(ids.machine, undefined),
       },
       select: { id: true },
     });
@@ -745,7 +746,7 @@ describe('ControllerAuthorizationService', () => {
         organizationId: ids.organization,
         projectId: ids.project,
         userId: ids.user,
-        machineId: ids.machine,
+        ...agentSessionMachineAdmission(ids.machine, undefined),
       },
       select: { id: true },
     });
