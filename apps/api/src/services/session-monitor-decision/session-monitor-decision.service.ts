@@ -47,6 +47,7 @@ import {
   ProjectId,
   UserId,
 } from '../../types';
+import { MissingRecordException } from '../../common/exceptions/missing-record.exceptions';
 import { isExternalAgentNode } from '../../types/flow-internal.types';
 import { AgentOperationRegistryService } from '../agent-operation/agent-operation-registry.service';
 import {
@@ -200,7 +201,8 @@ export class SessionMonitorDecisionService {
       await this.operationRegistry.fail(
         params.input.decisionId,
         begun.executionOwner,
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof MissingRecordException
           ? 'SESSION_MONITOR_BINDING_MISMATCH'
           : 'SESSION_MONITOR_DECISION_FAILED',
         error instanceof Error ? error.message : 'Decision admission failed',
@@ -431,7 +433,10 @@ export class SessionMonitorDecisionService {
       select: { id: true },
     });
     if (!parentSession) {
-      throw new ConflictException('The parent Agent Session no longer exists.');
+      throw new MissingRecordException(
+        'AGENT_SESSION_NOT_FOUND',
+        'The parent Agent Session no longer exists.',
+      );
     }
     const trigger = {
       operationId: params.input.decisionId,

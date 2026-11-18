@@ -11,6 +11,7 @@ import {
   PaymentProviderEventProcessingStatus,
   Prisma,
 } from '@prisma/client';
+import { MissingRecordException } from '../../common/exceptions/missing-record.exceptions';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { OrganizationId } from '../../types';
 import { AccountEntitlementService } from '../account-entitlement.service';
@@ -578,7 +579,10 @@ export class PaymentEntitlementReconciliationService extends PaymentEntitlementR
       `,
     );
     if (rows.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
   }
 

@@ -32,6 +32,7 @@ import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
   parseEntityPromptTemplate,
 } from '../generated/entity-prompt-template-language';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import type { OrganizationId, ProjectId } from '../types';
 import { PrismaService, AnyTransactionClient } from '../prisma/prisma.service';
 import { WORK_ITEM_TYPE_KEYS } from './tasks/work-item-type-keys';
@@ -323,7 +324,8 @@ export class EntityPromptTemplateService {
         templateKey,
         candidateCount: rows.length,
       });
-      throw new NotFoundException(
+      throw new MissingRecordException(
+        'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
         `No eligible entity prompt template exists for ${templateKey}`,
       );
     }
@@ -748,7 +750,8 @@ export class EntityPromptTemplateService {
               revisionId,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No eligible entity prompt template exists for ${templateKey}`,
           );
         }
@@ -820,7 +823,8 @@ export class EntityPromptTemplateService {
               templateKey,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No published canonical entity prompt template exists for ${templateKey}`,
           );
         }
@@ -852,7 +856,8 @@ export class EntityPromptTemplateService {
               templateKey,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No active project entity prompt template exists for ${templateKey}`,
           );
         }
@@ -1040,7 +1045,8 @@ export class EntityPromptTemplateService {
           row.validationStatus === PrismaValidationStatus.VALID,
       );
       if (!active) {
-        throw new ConflictException(
+        throw new MissingRecordException(
+          'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
           `No active project entity prompt template exists for ${templateKey}`,
         );
       }
@@ -1412,7 +1418,8 @@ export class EntityPromptTemplateService {
           selector: row.selector,
         })),
       });
-      throw new NotFoundException(
+      throw new MissingRecordException(
+        'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
         `No eligible entity prompt template exists for ${templateKey}`,
       );
     }

@@ -1207,7 +1207,10 @@ describe('EntityPromptTemplateService', () => {
         projectId,
         'entity_context',
       ),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { code: 'ENTITY_PROMPT_TEMPLATE_NOT_FOUND' },
+    });
     expect(revisionUpdateMany).toHaveBeenCalledTimes(1);
   });
 

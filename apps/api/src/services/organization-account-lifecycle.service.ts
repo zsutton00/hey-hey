@@ -24,6 +24,7 @@ import {
   OrganizationReactivationDeadlineLostResponseAllOfData as DeadlineLostData,
   OrganizationReactivationSuccess as ReactivationSuccess,
 } from '@hey-hey/contracts/api/models';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import { DomainEventPublisher } from '../core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../core/events/tokens';
 import { EVENT_TYPES } from '../core/events/types/event.types';
@@ -444,7 +445,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE
     `);
     if (rows.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
     this.logger.debug({
       event: 'organization_account_lifecycle_lock_acquired',

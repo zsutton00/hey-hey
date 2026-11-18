@@ -13,6 +13,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationId } from '../types';
 
@@ -269,7 +270,10 @@ export class AccountEntitlementService {
         `,
     );
     if (lockedOrganizations.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
     this.logger.debug({
       event: 'account_entitlement_transition_lock_acquired',
@@ -312,7 +316,10 @@ export class AccountEntitlementService {
       );
       if (lockedOrganizations.length !== 1) {
         this.logAdministrativeRejection(organizationId, 'organization_missing');
-        throw new NotFoundException('Organization does not exist');
+        throw new MissingRecordException(
+          'ORGANIZATION_NOT_FOUND',
+          'Organization does not exist',
+        );
       }
 
       const [current, lifecycle] = await Promise.all([

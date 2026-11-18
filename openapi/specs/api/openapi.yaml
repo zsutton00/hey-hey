@@ -3006,6 +3006,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Cancellation conflicts with the current lifecycle state
           content:
@@ -3049,6 +3055,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/reactivate:
     parameters:
@@ -3083,6 +3095,12 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "403":
           description: Eligible organization membership required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
           content:
             application/json:
               schema:
@@ -11917,6 +11935,12 @@ paths:
                         $ref: "#/components/schemas/SubmitSessionMonitorDecisionResponseDto"
         "401":
           description: Machine credential or exact effect proof rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Parent Agent Session not found (AGENT_SESSION_NOT_FOUND)
           content:
             application/json:
               schema:
