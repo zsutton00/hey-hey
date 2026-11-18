@@ -508,6 +508,78 @@ describe("EvalRunPage", () => {
     );
   });
 
+  it("shows each coding attempt's recorded target beside where it started, with or without a path", () => {
+    const base = run("FINISHED");
+    const codingCase = (
+      id: string,
+      target: { kind: string; path?: string } | undefined,
+    ) => ({
+      id,
+      evalCaseId: `eval-${id}`,
+      title: `Coding ${id}`,
+      target: {
+        inputs: {
+          inputs: [{ kind: "text_message", text: "Add stage estimates." }],
+        },
+      },
+      grading: { expectations: "Names the source.", checks: [], rubric: [] },
+      coding: {
+        serviceId: "svc-1",
+        pinnedCommit: {
+          sha: "7d9a5ac5c".padEnd(40, "0"),
+          shortMessage: "Start",
+        },
+        ...(target ? { target } : {}),
+      },
+    });
+    const codingRun = {
+      ...base,
+      payload: {
+        ...base.payload,
+        cases: [
+          codingCase("pathed", {
+            kind: "EXISTING",
+            path: "apps/ui/src/pages/Plan/PlanStageHeader.tsx",
+          }),
+          codingCase("kind-only", { kind: "NEW" }),
+          codingCase("untargeted", undefined),
+        ],
+      },
+    } as unknown as EvalRunReport;
+    givenRun(codingRun, [
+      attempt("pathed", "pathed", setupA, { status: "COMPLETED" }),
+      attempt("kind-only", "kind-only", setupA, { status: "COMPLETED" }),
+      attempt("untargeted", "untargeted", setupA, { status: "COMPLETED" }),
+    ]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-pathed"));
+    const pathed = screen.getByTestId("eval-attempt-detail-pathed");
+    expect(within(pathed).getByTestId("eval-coding-start-point")).toBeTruthy();
+    expect(
+      within(pathed).getByTestId("eval-coding-target-kind"),
+    ).toHaveTextContent("eval.case.coding.target.kind.EXISTING");
+    expect(
+      within(pathed).getByTestId("eval-coding-target-path"),
+    ).toHaveTextContent("apps/ui/src/pages/Plan/PlanStageHeader.tsx");
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-kind-only"));
+    const kindOnly = screen.getByTestId("eval-attempt-detail-kind-only");
+    expect(
+      within(kindOnly).getByTestId("eval-coding-target-kind"),
+    ).toHaveTextContent("eval.case.coding.target.kind.NEW");
+    expect(
+      within(kindOnly).queryByTestId("eval-coding-target-path"),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-untargeted"));
+    const untargeted = screen.getByTestId("eval-attempt-detail-untargeted");
+    expect(
+      within(untargeted).getByTestId("eval-coding-start-point"),
+    ).toBeTruthy();
+    expect(within(untargeted).queryByTestId("eval-coding-target")).toBeNull();
+  });
+
   it("shows the messages frozen on the run, numbered with the last judged, and one message plainly", () => {
     givenRun(run("FINISHED"), mixedAttempts);
     render(<EvalRunPage />);

@@ -16,6 +16,7 @@ import { z } from 'zod';
 import type { ReportChainEntry } from '../../run/types';
 import type { CommitReportPayload, CreateReportDto } from '@hey-hey/contracts/api/models';
 import type { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { commitsAsAgentSession } from '../commit/commit-traceability';
 import type { CreateReportProxy } from './create-report-proxy';
 import type { PassThroughSubmissionToolDeclaration, SubmissionToolExecuteContext } from './types';
 
@@ -117,26 +118,27 @@ export class CommitReportTool implements PassThroughSubmissionToolDeclaration {
       )
       .parse(hashesRaw);
 
-    const entities = run.taskId
-      ? [
-          {
-            entityType: 'TASK' as const,
-            entityId: run.taskId,
-            relation: 'PRIMARY' as const,
-          },
-        ]
-      : [
-          {
-            entityType: 'AGENT_SESSION' as const,
-            entityId: run.runId,
-            relation: 'PRIMARY' as const,
-          },
-          ...hashes.map(({ service }) => ({
-            entityType: 'SERVICE' as const,
-            entityId: service,
-            relation: 'CONTEXT' as const,
-          })),
-        ];
+    const entities =
+      !commitsAsAgentSession(run) && run.taskId
+        ? [
+            {
+              entityType: 'TASK' as const,
+              entityId: run.taskId,
+              relation: 'PRIMARY' as const,
+            },
+          ]
+        : [
+            {
+              entityType: 'AGENT_SESSION' as const,
+              entityId: run.runId,
+              relation: 'PRIMARY' as const,
+            },
+            ...hashes.map(({ service }) => ({
+              entityType: 'SERVICE' as const,
+              entityId: service,
+              relation: 'CONTEXT' as const,
+            })),
+          ];
 
     const platformArgs = {
       reportType: 'COMMIT',

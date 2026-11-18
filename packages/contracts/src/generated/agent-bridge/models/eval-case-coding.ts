@@ -19,10 +19,13 @@
 import type { EvalCaseCodingCommit } from './eval-case-coding-commit.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalCaseCodingTarget } from './eval-case-coding-target.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalCaseMockupChecklist } from './eval-case-mockup-checklist.js';
 
 /**
- * Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\'s handler is `free_form`; checked at approval and at launch, and recorded with each run.
+ * Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case\'s handler is `free_form`; checked at approval and at launch, and recorded with each run. A section with a `mockupChecklist` must also have a `target`.
  * @export
  * @interface EvalCaseCoding
  */
@@ -51,6 +54,12 @@ export interface EvalCaseCoding {
      * @memberof EvalCaseCoding
      */
     'knownBadDiff'?: string;
+    /**
+     *
+     * @type {EvalCaseCodingTarget}
+     * @memberof EvalCaseCoding
+     */
+    'target'?: EvalCaseCodingTarget;
     /**
      *
      * @type {EvalCaseMockupChecklist}

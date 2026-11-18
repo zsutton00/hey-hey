@@ -153,14 +153,14 @@ function summarizeLogs(output: string) {
   };
 }
 
-async function discoverContainers() {
+async function discoverContainers(project: string) {
   const listing = await execute(
     'docker',
     [
       'ps',
       '-a',
       '--filter',
-      `label=com.docker.compose.project=${LOCAL_PROJECT}`,
+      `label=com.docker.compose.project=${project}`,
       '--format',
       '{{.ID}} {{.Label "com.docker.compose.service"}}',
     ],
@@ -184,12 +184,12 @@ async function discoverContainers() {
  * reduced to identifiers and cause codes, plus the closed-vocabulary codes found in raw output.
  * Always returns records, including the specific reason when nothing could be collected.
  */
-export async function collectLocalStartupContainerDiagnostics(): Promise<
-  Array<Record<string, unknown>>
-> {
+export async function collectLocalStartupContainerDiagnostics(
+  project = LOCAL_PROJECT,
+): Promise<Array<Record<string, unknown>>> {
   let discovered: Awaited<ReturnType<typeof discoverContainers>>;
   try {
-    discovered = await discoverContainers();
+    discovered = await discoverContainers(project);
   } catch (error) {
     const cause = safeStartupCause(error);
     return [

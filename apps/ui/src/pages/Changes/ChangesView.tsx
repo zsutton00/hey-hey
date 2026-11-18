@@ -1,11 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
 import { useTranslation } from "react-i18next";
-import {
-  useAgentSession,
-  useAgentSessions,
-  useProjectChanges,
-} from "@hey-hey/ui-common/data";
+import { useProjectChanges } from "@hey-hey/ui-common/data";
 import {
   ServiceSelector,
   TaskSelector,
@@ -17,7 +13,6 @@ import type {
 } from "@hey-hey/ui-common/api";
 import {
   Alert,
-  Autocomplete,
   Button,
   MenuItem,
   Stack,
@@ -25,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import { ChangeRecordRow } from "./ChangeRecordRow";
+import { SessionFilter } from "./SessionFilter";
 import { RecordedEditModal } from "./RecordedEditModal";
 
 const PAGE_SIZE = 50;
@@ -49,18 +45,6 @@ export function ChangesView({
     record: ProjectChangeRecord;
     edit: ImplementReportEdit;
   } | null>(null);
-  const { agentSessions } = useAgentSessions(organizationId, projectId);
-  const { agentSession: selectedSession } = useAgentSession(
-    organizationId,
-    projectId,
-    filters.agentSessionId ?? "",
-    { enabled: !!filters.agentSessionId },
-  );
-  const sessions =
-    selectedSession &&
-    !agentSessions.some((session) => session.id === selectedSession.id)
-      ? [selectedSession, ...agentSessions]
-      : agentSessions;
   const state = useProjectChanges({
     organizationId,
     projectId,
@@ -77,6 +61,11 @@ export function ChangesView({
           ? false
           : undefined,
   });
+  const handleSelect = useCallback(
+    (record: ProjectChangeRecord, edit: ImplementReportEdit) =>
+      setSelection({ record, edit }),
+    [],
+  );
   const handleFilter = (
     key: "agentSessionId" | "serviceId" | "taskId" | "featureId" | "committed",
     value: string | null,
@@ -94,25 +83,11 @@ export function ChangesView({
         </Typography>
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-        <Autocomplete
-          sx={{ minWidth: 200, flex: 1 }}
-          options={sessions}
-          getOptionLabel={(session) => session.title}
-          value={
-            sessions.find((session) => session.id === filters.agentSessionId) ??
-            null
-          }
-          clearText={t("changes.clearSession")}
-          onChange={(_, session) =>
-            handleFilter("agentSessionId", session?.id ?? null)
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label={t("changes.session")}
-              data-testid="changes-session-filter"
-            />
-          )}
+        <SessionFilter
+          organizationId={organizationId}
+          projectId={projectId}
+          value={filters.agentSessionId}
+          onChange={(value) => handleFilter("agentSessionId", value)}
         />
         <ServiceSelector
           organizationId={organizationId}
@@ -160,7 +135,7 @@ export function ChangesView({
           key={record.report.id}
           projectId={projectId}
           record={record}
-          onSelect={(edit) => setSelection({ record, edit })}
+          onSelect={handleSelect}
         />
       ))}
       <Stack direction="row" spacing={1}>

@@ -97,6 +97,18 @@ export type LocalState =
   | ({ kind: 'exited' } & LocalApplicationNavigation)
   | { kind: 'cancelled' };
 
+/** A first install never adopts containers or volumes it cannot prove it created. */
+export async function assertNoOrphanedStorage(
+  docker: DockerBoundary,
+  observed: ObservedContainer[],
+): Promise<void> {
+  if (observed.length > 0 || (await docker.hasPersistentStorage())) {
+    throw new Error(
+      'Local containers or persistent volumes exist without installation identity. Restore installation.json from backup before retrying. Data is preserved.',
+    );
+  }
+}
+
 export function assertObservedRelease(
   containers: ObservedContainer[],
   release: ReleaseManifest,
@@ -514,10 +526,8 @@ export class LocalApplication extends EventEmitter {
           return;
         }
       }
-      if (!installation && (observed.length > 0 || (await this.docker.hasPersistentStorage()))) {
-        throw new Error(
-          'Local containers or persistent volumes exist without installation identity. Restore installation.json from backup before retrying. Data is preserved.',
-        );
+      if (!installation) {
+        await assertNoOrphanedStorage(this.docker, observed);
       }
       if (!installation && !this.consent) {
         this.show({ kind: 'installation' });

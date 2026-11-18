@@ -532,6 +532,7 @@ describe("coding attempts", () => {
         sha: "abcdef1234567",
         shortMessage: "Start here",
       },
+      target: null,
     });
     expect(row.errorMessage).toBe("boom");
   });
@@ -542,7 +543,7 @@ describe("coding attempts", () => {
     expect(caseRow("p1", codingRun, running).coding?.ended).toBe(false);
   });
 
-  it("maps checklist hits and regressions for an updated Mockup", () => {
+  it("maps checklist hits and regressions for a change to an existing interface", () => {
     const checklistRun = {
       ...codingRun,
       payload: {
@@ -552,8 +553,8 @@ describe("coding attempts", () => {
             ...codingRun.payload.cases[0],
             coding: {
               ...codingRun.payload.cases[0].coding,
+              target: { kind: "EXISTING", path: "apps/ui/src/pages/Plan.tsx" },
               mockupChecklist: {
-                kind: "UPDATE",
                 items: [
                   { id: "a", description: "Shows it" },
                   { id: "b", description: "Clears it" },
@@ -580,8 +581,12 @@ describe("coding attempts", () => {
 
     const row = caseRow("p1", checklistRun, judged);
 
+    expect(row.coding?.target).toEqual({
+      kind: "EXISTING",
+      path: "apps/ui/src/pages/Plan.tsx",
+    });
+    expect(row.checklist).not.toHaveProperty("kind");
     expect(row.checklist).toMatchObject({
-      kind: "UPDATE",
       hits: 1,
       regressions: ["Sorting broke"],
     });

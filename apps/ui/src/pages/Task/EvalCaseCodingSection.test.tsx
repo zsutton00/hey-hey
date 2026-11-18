@@ -160,12 +160,12 @@ describe("EvalCaseCodingSection", () => {
     expect(secondHunkLine).toHaveTextContent("20");
   });
 
-  it("shows the Mockup checklist with its kind and items, and omits it when absent", () => {
+  it("shows the target beside the Service and new-versus-existing only there", () => {
     const withChecklist = JSON.stringify({
       ...JSON.parse(content),
+      target: { kind: "EXISTING", path: "apps/ui/src/pages/Plan/PlanPage.tsx" },
       mockupChecklist: {
         mockupId: "55555555-5555-4555-8555-555555555555",
-        kind: "UPDATE",
         items: [
           { id: "estimate", description: "Each stage shows an estimate" },
           { id: "empty", description: "A stage without one shows No estimate" },
@@ -180,8 +180,17 @@ describe("EvalCaseCodingSection", () => {
       />,
     );
 
-    expect(screen.getByTestId("coding-mockup-kind")).toHaveTextContent(
-      "eval.case.coding.checklist.kind.UPDATE",
+    expect(screen.getByTestId("coding-target-kind")).toHaveTextContent(
+      "eval.case.coding.target.kind.EXISTING",
+    );
+    expect(screen.getByTestId("coding-target-path")).toHaveTextContent(
+      "apps/ui/src/pages/Plan/PlanPage.tsx",
+    );
+    expect(
+      screen.getAllByText(/eval\.case\.coding\.target\.kind\./),
+    ).toHaveLength(1);
+    expect(screen.getByTestId("coding-mockup-source")).not.toHaveTextContent(
+      /EXISTING|UPDATE|NEW/,
     );
     expect(
       within(screen.getByTestId("coding-mockup-checklist")).getAllByRole(
@@ -198,6 +207,26 @@ describe("EvalCaseCodingSection", () => {
         projectId="project"
       />,
     );
+    expect(screen.queryByTestId("coding-mockup-checklist")).toBeNull();
+    expect(screen.queryByTestId("coding-target")).toBeNull();
+  });
+
+  it("shows a target without a path or a Mockup checklist", () => {
+    render(
+      <EvalCaseCodingSection
+        content={JSON.stringify({
+          ...JSON.parse(content),
+          target: { kind: "NEW" },
+        })}
+        organizationId="org"
+        projectId="project"
+      />,
+    );
+
+    expect(screen.getByTestId("coding-target-kind")).toHaveTextContent(
+      "eval.case.coding.target.kind.NEW",
+    );
+    expect(screen.queryByTestId("coding-target-path")).toBeNull();
     expect(screen.queryByTestId("coding-mockup-checklist")).toBeNull();
   });
 

@@ -1,5 +1,4 @@
 import {
-  ControllerDeviceGrantCadence,
   CurrentControllerMachineEligibilityState,
   MachineEnrollmentClaimFailureCode,
   MachineEnrollmentMode,
@@ -24,7 +23,6 @@ import {
   acceptBrowserAuthResponse,
   recordBrowserSessionDiagnostic,
   diagnosticFailureFacts,
-  PasskeyUnsupportedError,
   requestRegistrationProof,
   type AccountProofInput,
 } from "@hey-hey/ui-common/services";
@@ -51,10 +49,6 @@ import {
   WebAuthnUnsupportedError,
 } from "./machineEnrollmentWebAuthn";
 import { normalizeEnrollmentCode } from "./machineEnrollmentClaimUtils";
-import { computeLocalApprovalProof } from "./localApproval";
-import { useTranslation } from "react-i18next";
-import type { LocalCodingAgentDetectionDto } from "@hey-hey/ui-common/api";
-import { LocalPairingScreen } from "../LocalSetup/LocalPairingScreen";
 
 type ClaimViewState =
   | "run-cli"
@@ -74,40 +68,15 @@ type PairingStepId =
 
 export type PairingJourney = "first-machine" | "existing-machine";
 
-/**
- * How the passkey is enrolled. A parent that knows it is the local first use
- * asks for one new passkey that both pairs the computer and signs the person
- * in, authorized by the CLI-opened session instead of account proof.
- */
-export type ClaimEnrollment = "controller-only" | "first-use-shared-new";
-
 interface ClaimMachineProps {
   initialCode: string | null;
   completionActionLabel?: string;
   onCompletionAction?: () => void;
   journey?: PairingJourney;
-  enrollment?: ClaimEnrollment;
   authorizationTarget?: {
     machineId: string;
     machineName: string;
   };
-  /** First-time `heyhey local` only: proves this claim came from the page the CLI opened. */
-  localApprovalSecret?: string | null;
-  /** First-time `heyhey local` only: coding agents the CLI found on this computer. */
-  localAgents?: LocalCodingAgentDetectionDto | null;
-  /** First-time `heyhey local` only: the passkey is created and the CLI is finishing. */
-  onLocalPasskeyCreated?: (enrollmentId: string) => void;
-  /**
-   * Local setup on a computer whose account already has a passkey: the claim
-   * is proven with that passkey instead of skipping account proof.
-   */
-  localReturning?: boolean;
-  /** Local setup only: the existing passkey could not be produced in this browser. */
-  onLocalPasskeyUnavailable?: () => void;
-  /** Local setup only: the API refused a proofless passkey because one already exists. */
-  onLocalAccountProofRequired?: () => void;
-  /** Local setup only: the Repair explanation and action, when offered. */
-  localRepair?: React.ReactNode;
 }
 
 const PAIRING_STEPS: ReadonlyArray<{ id: PairingStepId; label: string }> = [
@@ -117,10 +86,6 @@ const PAIRING_STEPS: ReadonlyArray<{ id: PairingStepId; label: string }> = [
   { id: "confirm-in-cli", label: "Confirm in the Agent Bridge" },
   { id: "complete", label: "Complete" },
 ];
-
-/** First-time `heyhey local`: the CLI supplied the code, so the person only approves with a passkey. */
-const LOCAL_MACHINE_NAME = "This computer";
-const LOCAL_CONTROLLER_LABEL = "Passkey on this computer";
 
 const CONTROLLER_AUTHORIZATION_PROMPT =
   "Authorize this controller on this machine? [y/N]";
@@ -202,17 +167,8 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   completionActionLabel = "Continue",
   onCompletionAction,
   journey = "first-machine",
-  enrollment = "controller-only",
   authorizationTarget,
-  localApprovalSecret = null,
-  localAgents = null,
-  onLocalPasskeyCreated,
-  localReturning = false,
-  onLocalPasskeyUnavailable,
-  onLocalAccountProofRequired,
-  localRepair = null,
 }) => {
-  const { t } = useTranslation();
   const identity = useUserIdentity();
   const organizationContext = useOptionalOrganization();
   const organization = organizationContext?.currentOrganization;
@@ -222,15 +178,8 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const [initialJourney] = useState(() => initializeClaimJourney(initialCode));
   const [state, setState] = useState<ClaimViewState>(initialJourney.state);
   const [code, setCode] = useState(initialJourney.code);
-  const firstUseSharedNew = enrollment === "first-use-shared-new";
-  // The local setup page, whether the CLI approves by secret or at the terminal.
-  const localHandoff = localApprovalSecret !== null || firstUseSharedNew;
-  const [machineName, setMachineName] = useState(
-    localHandoff ? LOCAL_MACHINE_NAME : "",
-  );
-  const [controllerLabel, setControllerLabel] = useState(
-    localHandoff ? LOCAL_CONTROLLER_LABEL : "",
-  );
+  const [machineName, setMachineName] = useState("");
+  const [controllerLabel, setControllerLabel] = useState("");
   const [claim, setClaim] = useState<BeginMachineEnrollmentClaimableDto | null>(
     null,
   );
@@ -247,15 +196,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
   const [passkeyRetryMessage, setPasskeyRetryMessage] = useState<string | null>(
     null,
   );
-  // First-time local pairing: the duration the same passkey grants.
-  const [localGrantCadence, setLocalGrantCadence] =
-    useState<ControllerDeviceGrantCadence>(
-      ControllerDeviceGrantCadence.OneMonth,
-    );
-  const firstLocalGrantRequest = (
-    cadence: ControllerDeviceGrantCadence,
-  ): { firstLocalGrant?: { cadence: ControllerDeviceGrantCadence } } =>
-    localApprovalSecret !== null ? { firstLocalGrant: { cadence } } : {};
   const abandonClaim = useAbandonMachineEnrollmentClaim();
   const beginClaim = useBeginMachineEnrollmentClaim();
   const completeClaim = useCompleteMachineEnrollmentClaim();
@@ -365,12 +305,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     return () => window.clearInterval(timer);
   }, [completion, pairedMachines, refetchPairedMachines, state]);
 
-  useEffect(() => {
-    if (localHandoff && state === "awaiting-local-confirmation" && completion) {
-      onLocalPasskeyCreated?.(completion.enrollmentId);
-    }
-  }, [localHandoff, onLocalPasskeyCreated, state, completion]);
-
   const clearClaim = (): void => {
     setCode("");
     setMachineName("");
@@ -420,9 +354,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     return false;
   };
 
-  const handleBegin = async (
-    cadence: ControllerDeviceGrantCadence = localGrantCadence,
-  ): Promise<void> => {
+  const handleBegin = async (): Promise<void> => {
     if (!validatedClaimContext) {
       setState("identity-blocked");
       return;
@@ -452,10 +384,9 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         organizationId: validatedClaimContext.organization.id,
         userCode: normalizedCode,
         controllerLabel: normalizedLabel,
-        ...(shareForSignIn || firstUseSharedNew
+        ...(shareForSignIn
           ? { enrollmentMode: MachineEnrollmentMode.SharedNew }
           : {}),
-        ...firstLocalGrantRequest(cadence),
       };
       const response = await beginClaim.mutate(beginRequest);
       if (activeAttemptRevision !== attemptRevision.current) return;
@@ -507,30 +438,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     }
   };
 
-  const autoBeginStarted = useRef(false);
-  useEffect(() => {
-    if (
-      !localHandoff ||
-      autoBeginStarted.current ||
-      state !== "code-entry" ||
-      validatedClaimContext === null
-    ) {
-      return;
-    }
-    autoBeginStarted.current = true;
-    void handleBegin();
-  });
-
-  /** The passkey challenge commits to the duration, so a change re-prepares it. */
-  const handleLocalGrantCadenceChange = (
-    cadence: ControllerDeviceGrantCadence,
-  ): void => {
-    setLocalGrantCadence(cadence);
-    setPasskeyRetryMessage(null);
-    setState("code-entry");
-    void handleBegin(cadence);
-  };
-
   const cancelClaim = async (): Promise<void> => {
     if (!claim) {
       setState("cancelled");
@@ -566,25 +473,13 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
     }
   };
 
-  /**
-   * Only an account's very first passkey may skip account proof. Local setup
-   * re-pairing an account that already has one proves with that passkey.
-   */
-  const sharedSignInProof = async (): Promise<AccountProofDto | undefined> => {
-    if (!firstUseSharedNew) {
-      return requestRegistrationProof(
-        signInProofKind === "password"
-          ? { kind: "password", currentPassword: signInProofPassword }
-          : { kind: "passkey" },
-      );
-    }
-
-    if (!localReturning) {
-      return undefined;
-    }
-
-    return requestRegistrationProof({ kind: "passkey" });
-  };
+  /** Sharing the passkey for sign-in needs fresh proof that the person owns the account. */
+  const sharedSignInProof = (): Promise<AccountProofDto> =>
+    requestRegistrationProof(
+      signInProofKind === "password"
+        ? { kind: "password", currentPassword: signInProofPassword }
+        : { kind: "passkey" },
+    );
 
   const handleCreatePasskey = async (): Promise<void> => {
     if (
@@ -610,7 +505,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       claim.enrollmentMode === MachineEnrollmentMode.SharedNew;
     if (
       sharedForSignIn &&
-      !firstUseSharedNew &&
       signInProofKind === "password" &&
       signInProofPassword === ""
     ) {
@@ -633,12 +527,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           diagnosticFailureFacts(error),
         );
         if (activeAttemptRevision !== attemptRevision.current) return;
-        if (firstUseSharedNew && !(error instanceof PasskeyUnsupportedError)) {
-          // The existing passkey isn't available here; the parent offers Repair.
-          onLocalPasskeyUnavailable?.();
-          setState("review");
-          return;
-        }
         setPasskeyRetryMessage(
           error instanceof Error
             ? error.message
@@ -679,25 +567,12 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       return;
     }
 
-    const { credential, publicKeySpki } = registration;
+    const { credential } = registration;
     try {
-      // Without the new key the proof cannot bind it; the CLI then asks in the terminal.
-      const localApprovalProof =
-        localApprovalSecret === null || publicKeySpki === null
-          ? undefined
-          : await computeLocalApprovalProof(localApprovalSecret, {
-              enrollmentId: claim.enrollmentId,
-              accountId: validatedClaimContext.identity.userId,
-              organizationId: validatedClaimContext.organization.id,
-              controllerCredentialId: credential.rawId,
-              credentialPublicKeySpki: publicKeySpki,
-              registrationChallenge: claim.registrationOptions.challenge,
-            });
       const response = await completeClaim.mutate({
         enrollmentId: claim.enrollmentId,
         organizationId: validatedClaimContext.organization.id,
         credential,
-        ...(localApprovalProof === undefined ? {} : { localApprovalProof }),
         ...(accountProof === undefined ? {} : { accountProof }),
       });
       recordBrowserSessionDiagnostic("passkey_registration_succeeded", {
@@ -736,12 +611,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           ? error.message
           : "Unable to claim this enrollment.";
       if (error instanceof MachineEnrollmentClaimError && error.code !== null) {
-        if (
-          error.code ===
-          MachineEnrollmentClaimFailureCode.MachineEnrollmentAccountProofRequired
-        ) {
-          onLocalAccountProofRequired?.();
-        }
         setPasskeyRetryMessage(authoritativeMessage);
         setState("review");
         return;
@@ -751,10 +620,6 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
           organizationId: validatedClaimContext.organization.id,
           userCode: normalizeEnrollmentCode(code),
           controllerLabel: claim.controllerLabel,
-          ...(firstUseSharedNew
-            ? { enrollmentMode: MachineEnrollmentMode.SharedNew }
-            : {}),
-          ...firstLocalGrantRequest(localGrantCadence),
         };
         const recovered = await beginClaim.mutate(recoveryRequest);
         if (activeAttemptRevision !== attemptRevision.current) return;
@@ -791,25 +656,21 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
   return (
     <Box data-testid="settings-machine-claim" sx={{ mb: 3 }}>
-      {localHandoff ? null : (
-        <>
-          <Typography variant="h6" component="h2" gutterBottom>
-            {authorizationTarget
-              ? `Authorize this browser for ${authorizationTarget.machineName}`
-              : existingMachineJourney
-                ? "Add a controller"
-                : "Add an Agent Bridge"}
-          </Typography>
+      <Typography variant="h6" component="h2" gutterBottom>
+        {authorizationTarget
+          ? `Authorize this browser for ${authorizationTarget.machineName}`
+          : existingMachineJourney
+            ? "Add a controller"
+            : "Add an Agent Bridge"}
+      </Typography>
 
-          <Stepper activeStep={activeStepIndex} alternativeLabel sx={{ mb: 3 }}>
-            {PAIRING_STEPS.map(({ id, label }, index) => (
-              <Step key={id} completed={index < activeStepIndex}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
-        </>
-      )}
+      <Stepper activeStep={activeStepIndex} alternativeLabel sx={{ mb: 3 }}>
+        {PAIRING_STEPS.map(({ id, label }, index) => (
+          <Step key={id} completed={index < activeStepIndex}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
 
       {identityGateBlocked ? (
         <Alert
@@ -861,35 +722,26 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
 
       {!identityGateBlocked && state === "expired" ? (
         <Alert severity="info" data-testid="settings-machine-claim-expired">
-          {localHandoff
-            ? "This pairing expired. Run heyhey local again to start a new one."
-            : (claimFailureMessage ??
-              "This enrollment has expired. Start a fresh CLI enrollment to get a new code.")}
-          {localHandoff ? null : (
-            <Box sx={{ mt: 1 }}>
-              <Button variant="outlined" onClick={startFreshEnrollment}>
-                Try a new code
-              </Button>
-            </Box>
-          )}
+          {claimFailureMessage ??
+            "This enrollment has expired. Start a fresh CLI enrollment to get a new code."}
+          <Box sx={{ mt: 1 }}>
+            <Button variant="outlined" onClick={startFreshEnrollment}>
+              Try a new code
+            </Button>
+          </Box>
         </Alert>
       ) : null}
 
       {!identityGateBlocked && state === "cancelled" ? (
         <Alert severity="info" data-testid="settings-machine-claim-cancelled">
-          {localHandoff
-            ? "Pairing was cancelled. Run heyhey local again to start over."
-            : "Pairing was cancelled."}
-          {localHandoff ? null : (
-            <Box sx={{ mt: 1 }}>
-              <Button onClick={startFreshEnrollment}>Start over</Button>
-            </Box>
-          )}
+          Pairing was cancelled.
+          <Box sx={{ mt: 1 }}>
+            <Button onClick={startFreshEnrollment}>Start over</Button>
+          </Box>
         </Alert>
       ) : null}
 
       {!identityGateBlocked &&
-      !localHandoff &&
       state === "awaiting-local-confirmation" &&
       completion ? (
         <Alert severity="success" data-testid="settings-machine-claim-success">
@@ -993,69 +845,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         </Stack>
       ) : null}
 
-      {!identityGateBlocked && localHandoff && inputError ? (
-        <Alert
-          severity="warning"
-          data-testid="settings-machine-claim-local-failed"
-        >
-          {inputError} Run heyhey local again to start a new pairing.
-        </Alert>
-      ) : null}
-
-      {!identityGateBlocked &&
-      localHandoff &&
-      !inputError &&
-      validatedClaimContext &&
-      (state === "code-entry" ||
-        state === "review" ||
-        state === "passkey-in-progress") ? (
-        <LocalPairingScreen
-          computerName={claim?.machineName ?? machineName}
-          agents={localAgents}
-          technicalDetails={[
-            ...(claim
-              ? [
-                  {
-                    label: t("localSetup.pairing.technical.os"),
-                    value: osLabel(claim.osFamily),
-                  },
-                  {
-                    label: t("localSetup.pairing.technical.cliVersion"),
-                    value: claim.cliVersion,
-                  },
-                  {
-                    label: t("localSetup.pairing.technical.fingerprint"),
-                    value: claim.machineKeyFingerprint,
-                  },
-                ]
-              : []),
-            {
-              label: t("localSetup.pairing.technical.account"),
-              value: formatUserIdentity(validatedClaimContext.identity),
-            },
-            {
-              label: t("localSetup.pairing.technical.organization"),
-              value: `${validatedClaimContext.organization.name} (${validatedClaimContext.organization.id})`,
-            },
-            {
-              label: t("localSetup.pairing.technical.passkeyName"),
-              value: claim?.controllerLabel ?? controllerLabel,
-            },
-          ]}
-          ready={claim !== null && state !== "code-entry"}
-          busy={state === "passkey-in-progress"}
-          retryMessage={passkeyRetryMessage}
-          returning={localReturning}
-          grantsAccess={localApprovalSecret !== null}
-          repair={localRepair}
-          cadence={localGrantCadence}
-          onCadenceChange={handleLocalGrantCadenceChange}
-          onCreatePasskey={() => void handleCreatePasskey()}
-          onCancel={() => void cancelClaim()}
-        />
-      ) : null}
-
-      {!identityGateBlocked && !localHandoff && state === "code-entry" ? (
+      {!identityGateBlocked && state === "code-entry" ? (
         <Stack spacing={2} data-testid="settings-machine-claim-code-entry">
           <Typography variant="body2" color="text.secondary">
             {authorizationTarget
@@ -1160,7 +950,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         </Stack>
       ) : null}
 
-      {!identityGateBlocked && !localHandoff && state === "review" && claim ? (
+      {!identityGateBlocked && state === "review" && claim ? (
         <Stack spacing={2} data-testid="settings-machine-claim-review">
           {passkeyRetryMessage ? (
             <Alert
@@ -1246,9 +1036,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         </Stack>
       ) : null}
 
-      {!identityGateBlocked &&
-      !localHandoff &&
-      state === "passkey-in-progress" ? (
+      {!identityGateBlocked && state === "passkey-in-progress" ? (
         <Stack
           spacing={2}
           data-testid="settings-machine-claim-passkey-in-progress"

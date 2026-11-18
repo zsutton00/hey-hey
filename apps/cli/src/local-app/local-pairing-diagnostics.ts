@@ -133,7 +133,7 @@ const lifecycleRecord = z.object({
 });
 const enrollmentRecord = z.union([pairingRecord, lifecycleRecord]);
 /** Bounded API evidence supplements the CLI snapshot even after pairing fails. */
-export async function collectLocalPairingDiagnostics() {
+export async function collectLocalPairingDiagnostics(project = LOCAL_PROJECT) {
   const records: Array<Record<string, unknown>> = [];
   let ids: string[];
   try {
@@ -143,7 +143,7 @@ export async function collectLocalPairingDiagnostics() {
         'ps',
         '-aq',
         '--filter',
-        `label=com.docker.compose.project=${LOCAL_PROJECT}`,
+        `label=com.docker.compose.project=${project}`,
         '--filter',
         'label=com.docker.compose.service=api',
       ],

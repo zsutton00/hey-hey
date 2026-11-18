@@ -20671,7 +20671,7 @@ paths:
         selected project are returned. When taskId is provided, only sessions
         whose TASK attachment matches that identifier are returned. Cursors are
         bound to the requested type selection, user, statuses, service, task,
-        user-message presence, and sort.
+        user-message presence, sort, and search term.
       operationId: listAgentSessionsPaginated
       tags: [AgentSessions]
       parameters:
@@ -20730,6 +20730,12 @@ paths:
           schema:
             $ref: "#/components/schemas/AgentSessionListSort"
             default: LAST_MESSAGE
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
         - name: limit
           in: query
           required: false
@@ -32656,6 +32662,8 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCoding"
     EvalCaseCodingCommit:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingCommit"
+    EvalCaseCodingTarget:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingTarget"
     EvalCaseMockupChecklist:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklist"
     EvalCaseMockupChecklistItem:

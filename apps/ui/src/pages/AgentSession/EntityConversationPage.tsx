@@ -6,7 +6,8 @@ import {
   EntityConversationChat,
   OpenBrowserCapsuleAction,
   RunBrowserProvider,
-  SessionChangedFilesCapsuleAction,
+  SessionChangedFilesCapsuleActions,
+  useAgentSessionInteractionAccess,
   type ConversationScrollPolicy,
 } from "@hey-hey/ui-common/components";
 import {
@@ -141,6 +142,11 @@ export const EntityConversationPage: React.FC = () => {
     [agentSession],
   );
 
+  const commitProvider = runtimeSelection?.provider ?? agentSession?.provider;
+  const commitInteractionAccess = useAgentSessionInteractionAccess(
+    agentSession?.machineId,
+  );
+
   // The Run exists once the conversation does; before that the pencil on a
   // mockup is disabled, like the Open browser button.
   const runBrowserRunId =
@@ -273,7 +279,7 @@ export const EntityConversationPage: React.FC = () => {
             sessionMachineId={runBrowserContext.sessionMachineId}
             order={35}
           />
-          <SessionChangedFilesCapsuleAction
+          <SessionChangedFilesCapsuleActions
             organizationId={organizationId}
             projectId={projectId ?? ""}
             agentSessionId={agentSession.id}
@@ -281,6 +287,29 @@ export const EntityConversationPage: React.FC = () => {
             enabled={hasServiceInScope && Boolean(canonicalConversationId)}
             canonicalCurrentState={agentSession.currentState}
             order={100}
+            commitOrder={30}
+            commit={
+              commitProvider && canonicalConversationId
+                ? {
+                    runId: agentSession.id,
+                    providerRunId:
+                      agentSession.agentSessionId ?? agentSession.id,
+                    provider: commitProvider,
+                    organizationId,
+                    projectId: projectId ?? "",
+                    agentSessionId: agentSession.id,
+                    conversationId: canonicalConversationId,
+                    interactionAccess: commitInteractionAccess,
+                    catalogSource: agentSession.machineId
+                      ? {
+                          organizationId,
+                          projectId: projectId ?? "",
+                          machineId: agentSession.machineId,
+                        }
+                      : null,
+                  }
+                : undefined
+            }
           />
           <Box data-testid="entity-conversation-page">
             <PageBreadcrumbs

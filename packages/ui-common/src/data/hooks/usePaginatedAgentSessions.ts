@@ -35,6 +35,7 @@ export interface UsePaginatedAgentSessionsOptions {
   statuses?: AgentSessionStatus[];
   sort?: AgentSessionListSort;
   limit?: number;
+  search?: string;
   enabled?: boolean;
   staleTimeMs?: number;
   maxCacheAgeMs?: number;
@@ -73,7 +74,7 @@ const pageKeyOf = (pageParam: unknown): string =>
 export function usePaginatedAgentSessions(
   organizationId: string | undefined,
   projectId: string | undefined,
-  options: UsePaginatedAgentSessionsOptions = {}
+  options: UsePaginatedAgentSessionsOptions = {},
 ): UsePaginatedAgentSessionsReturn {
   const {
     type,
@@ -84,6 +85,7 @@ export function usePaginatedAgentSessions(
     taskId,
     sort,
     limit,
+    search,
     enabled: enabledOption = true,
     staleTimeMs,
     maxCacheAgeMs,
@@ -104,27 +106,29 @@ export function usePaginatedAgentSessions(
         : undefined,
       sort,
       limit,
+      search,
     }),
     [
       excludeType,
       hasUserMessage,
       limit,
+      search,
       serviceId,
       sort,
       statusesKey,
       taskId,
       type,
       userId,
-    ]
+    ],
   );
   const queryOptions = useMemo(
     () =>
       paginatedAgentSessionsQueryOptions(
         organizationId ?? "__noop__",
         projectId ?? "__noop__",
-        filters
+        filters,
       ),
-    [filters, organizationId, projectId]
+    [filters, organizationId, projectId],
   );
   const { queryKey } = queryOptions;
   const filterKey = useMemo(() => JSON.stringify(queryKey), [queryKey]);
@@ -136,14 +140,14 @@ export function usePaginatedAgentSessions(
     staleTime,
     retryOnMount: shouldRetryOnMount(
       enabled ? queryClient.getQueryState(queryKey) : undefined,
-      staleTime
+      staleTime,
     ),
   });
   const queryState = useCollectionQueryState(
     query as unknown as UseQueryResult<PaginatedAgentSessionsData, Error>,
     queryKey,
     enabled,
-    { maxCacheAgeMs }
+    { maxCacheAgeMs },
   );
 
   const [accumulated, setAccumulated] = useState(() => ({
@@ -193,7 +197,7 @@ export function usePaginatedAgentSessions(
           snapshot = acceptAgentSessionPage(
             snapshot,
             pageKeyOf(data.pageParams[index]),
-            page
+            page,
           );
         });
       } else {
@@ -211,13 +215,13 @@ export function usePaginatedAgentSessions(
       : emptyAgentSessionSnapshot();
   const visibleAgentSessionIds = useMemo(
     () => visible.items.map((item) => item.agentSession.id),
-    [visible.items]
+    [visible.items],
   );
   const currentStateOverlay = useAgentSessionCurrentStates(
     organizationId,
     projectId,
     visibleAgentSessionIds,
-    { enabled }
+    { enabled },
   );
   const overlaidItems = useMemo(
     () =>
@@ -234,7 +238,7 @@ export function usePaginatedAgentSessions(
             }
           : item;
       }),
-    [currentStateOverlay.currentStateById, visible.items]
+    [currentStateOverlay.currentStateById, visible.items],
   );
 
   const { fetchNextPage, refetch: refetchQuery } = query;
@@ -272,7 +276,7 @@ export function usePaginatedAgentSessions(
           setRequestError(
             error instanceof Error
               ? error
-              : new Error("Unable to load more sessions.")
+              : new Error("Unable to load more sessions."),
           );
         }
       })
@@ -310,8 +314,7 @@ export function usePaginatedAgentSessions(
       if (scope !== scopeRef.current || generation !== scope.generation)
         return "superseded";
       const freshPage = result.data?.pages[0];
-      if (!freshPage)
-        throw new Error("Unable to refresh sessions. Try again.");
+      if (!freshPage) throw new Error("Unable to refresh sessions. Try again.");
       scope.observed.clear();
       scope.observed.set(pageKeyOf(null), freshPage);
       setAccumulated({
@@ -319,7 +322,7 @@ export function usePaginatedAgentSessions(
         snapshot: acceptAgentSessionPage(
           emptyAgentSessionSnapshot(),
           pageKeyOf(null),
-          freshPage
+          freshPage,
         ),
       });
       return "applied";

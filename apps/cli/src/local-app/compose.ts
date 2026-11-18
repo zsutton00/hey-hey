@@ -2,6 +2,8 @@ import type { Installation, InstallationSecrets } from './installation-store';
 import { LOCAL_WEB_CONTAINER_PORT } from './local-port';
 
 export const LOCAL_PROJECT = 'heyhey-local';
+/** `heyhey local dev`'s own Compose project: its containers and volumes never hold installed data. */
+export const LOCAL_DEV_PROJECT = 'heyhey-local-dev';
 /** The browser, not the API, is the WebAuthn origin: passkeys are bound to the local web app. */
 export const localWebOrigin = (webPort: number) => `http://localhost:${webPort}`;
 export const localWebSocketUrl = (webPort: number) => `ws://localhost:${webPort}`;
@@ -200,8 +202,9 @@ export const DEV_INFRASTRUCTURE_ENDPOINTS: InfrastructureEndpoints = {
 };
 
 /**
- * Developer-only Compose document for `heyhey local dev`: the same pinned infrastructure and
- * volumes as the installed stack, with loopback-published ports. There is no UI service, and the
+ * Developer-only Compose document for `heyhey local dev`: the same pinned infrastructure as the
+ * installed stack, in its own Compose project (so its own volumes), with loopback-published ports.
+ * There is no UI service, and the
  * API service exists only to run Flyway against the checkout's migrations; it is never started.
  * Graph/search reaches the API on the host for its signing keys.
  */
@@ -219,6 +222,7 @@ export function devComposeConfiguration(
   const graphSearchPort = new URL(dev.graphSearchUrl).port;
   return {
     ...installed,
+    name: LOCAL_DEV_PROJECT,
     services: {
       postgres: { ...postgres, ports: [`127.0.0.1:${dev.postgres.port}:5432`] },
       redis: { ...redis, ports: [`127.0.0.1:${dev.redis.port}:6379`] },

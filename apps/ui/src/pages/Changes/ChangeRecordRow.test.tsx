@@ -4,6 +4,7 @@ import { ChangesView } from "./ChangesView";
 import { FullFileSplitView } from "@hey-hey/ui-common/components/AgentSession/CollatedFileDiffModal/FullFileSplitView";
 import { installDiffViewerLayoutShims } from "@hey-hey/ui-common/components/AgentSession/CollatedFileDiffModal/__tests__/diffViewerLayoutShims";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectChangeRecord } from "@hey-hey/ui-common/api";
 import { ChangeRecordRow } from "./ChangeRecordRow";
@@ -16,8 +17,15 @@ const { read, changes } = vi.hoisted(() => ({
 vi.mock("@hey-hey/ui-common/data", () => ({
   useRecordedEdit: read,
   useProjectChanges: changes,
-  useAgentSessions: () => ({
-    agentSessions: [{ id: "session", title: "History session" }],
+  useAgentSessionTitleOptions: () => ({
+    options: [{ id: "session", title: "History session" }],
+    hasNextPage: false,
+    isLoading: false,
+    isFetchingNextPage: false,
+    initialError: null,
+    nextPageError: null,
+    loadNextPage: () => {},
+    retry: () => {},
   }),
   useAgentSession: () => ({
     agentSession: { id: "session", title: "History session" },
@@ -213,7 +221,7 @@ describe("change records", () => {
     expect(screen.getByText("changes.approximate")).toBeInTheDocument();
     expect(screen.queryByText(/2–4/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("change-edit"));
-    expect(select).toHaveBeenCalledWith(edit);
+    expect(select).toHaveBeenCalledWith(record, edit);
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("change-edit")).not.toBeInTheDocument();
@@ -316,6 +324,49 @@ describe("change records", () => {
         serviceId: "service",
         edit,
       }),
+    );
+  });
+});
+
+describe("change record rendering cost", () => {
+  it("does not re-render a record whose data is unchanged, but does when it changes", () => {
+    const onSelect = vi.fn();
+    let renders = 0;
+    let bump: () => void = () => {};
+    function Parent({ shown }: { shown: ProjectChangeRecord }) {
+      const [, setTick] = useState(0);
+      bump = () => setTick((tick) => tick + 1);
+      return (
+        <MemoryRouter>
+          <Profiler id="row" onRender={() => (renders += 1)}>
+            <ChangeRecordRow record={shown} onSelect={onSelect} />
+          </Profiler>
+        </MemoryRouter>
+      );
+    }
+    const { rerender } = render(<Parent shown={record} />);
+    const initial = renders;
+
+    fireEvent.click(screen.getByTestId("change-files-toggle"));
+    const afterExpand = renders;
+    expect(afterExpand).toBeGreaterThan(initial);
+
+    bump();
+    bump();
+    expect(renders).toBe(afterExpand);
+
+    const changed = {
+      ...record,
+      report: {
+        ...record.report,
+        payload: { ...record.report.payload, summary: "Updated summary" },
+      },
+    } as ProjectChangeRecord;
+    rerender(<Parent shown={changed} />);
+    expect(renders).toBeGreaterThan(afterExpand);
+    expect(screen.getByTestId("change-files-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "true",
     );
   });
 });

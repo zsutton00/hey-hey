@@ -5,6 +5,11 @@ import type { AgentSessionCurrentState } from "../../api";
 import { useAgentSession } from "../../data/hooks/useAgentSession";
 import { useAgentSessionCurrentState } from "../../data/hooks/useAgentSessionCurrentState";
 import { CapsuleAction } from "../ActionsCapsule/CapsuleAction";
+import {
+  CommitCapsuleAction,
+  type CommitCapsuleActionProps,
+} from "./CommitCapsuleAction";
+import type { FollowupSubmissionAction } from "./runtime/coding/agent-session-helpers";
 import { CollatedFileDiffModalContainer } from "./CollatedFileDiffModal/CollatedFileDiffModalContainer";
 import type { UnavailableOutcome } from "./codingSessionFeedback";
 import {
@@ -204,19 +209,35 @@ export const ChangedFilesCapsuleAction: React.FC<
   );
 };
 
-export interface SessionChangedFilesCapsuleActionProps extends UseChangedFilesCapsuleParams {
+export interface SessionChangedFilesCapsuleActionsProps extends UseChangedFilesCapsuleParams {
   order: number;
+  /** Commit follows the same count as the "N files" entry. */
+  commit:
+    | Omit<
+        CommitCapsuleActionProps,
+        | "changedFiles"
+        | "showAction"
+        | "requestingCommit"
+        | "setSubmittingPrompt"
+        | "setSubmittingFollowupAction"
+        | "trackSubmitPromptTelemetry"
+        | "order"
+      >
+    | undefined;
+  commitOrder: number;
 }
 
 /**
- * Self-contained changed-files entry for pages that don't need the count
- * state. A Service can be admitted during a Turn without any push to the
- * client, so the session is re-read at each Turn boundary to let the entry's
- * gate open without reopening the page.
+ * Self-contained changed-files and Commit entries for pages that don't need
+ * the count state. Both read one count. Commit is absent until that count is
+ * above zero; its modal and an in-flight commit stay mounted regardless. A
+ * Service can be admitted during a Turn without any push to the client, so
+ * the session is re-read at each Turn boundary to let the gate open without
+ * reopening the page.
  */
-export const SessionChangedFilesCapsuleAction: React.FC<
-  SessionChangedFilesCapsuleActionProps
-> = ({ order, ...params }) => {
+export const SessionChangedFilesCapsuleActions: React.FC<
+  SessionChangedFilesCapsuleActionsProps
+> = ({ order, commit, commitOrder, ...params }) => {
   const capsule = useChangedFilesCapsule(params);
   const { refetch } = useAgentSession(
     params.organizationId,
@@ -231,15 +252,35 @@ export const SessionChangedFilesCapsuleAction: React.FC<
   ).currentState;
   const refreshSession = useCallback(() => void refetch(), [refetch]);
   useTurnCompletionRevision(currentState, refreshSession);
+  const [, setSubmittingPrompt] = useState(false);
+  const [submittingFollowupAction, setSubmittingFollowupAction] =
+    useState<FollowupSubmissionAction | null>(null);
+  const trackSubmitPromptTelemetry = useCallback(() => undefined, []);
+  const hasChangedFiles =
+    capsule.count.status === "success" && capsule.count.count > 0;
 
   return (
-    <ChangedFilesCapsuleAction
-      capsule={capsule}
-      organizationId={params.organizationId}
-      projectId={params.projectId}
-      agentSessionId={params.agentSessionId}
-      runId={params.runId}
-      order={order}
-    />
+    <>
+      <ChangedFilesCapsuleAction
+        capsule={capsule}
+        organizationId={params.organizationId}
+        projectId={params.projectId}
+        agentSessionId={params.agentSessionId}
+        runId={params.runId}
+        order={order}
+      />
+      {commit ? (
+        <CommitCapsuleAction
+          {...commit}
+          changedFiles={capsule.count}
+          showAction={params.enabled && hasChangedFiles}
+          requestingCommit={submittingFollowupAction === "commit"}
+          setSubmittingPrompt={setSubmittingPrompt}
+          setSubmittingFollowupAction={setSubmittingFollowupAction}
+          trackSubmitPromptTelemetry={trackSubmitPromptTelemetry}
+          order={commitOrder}
+        />
+      ) : null}
+    </>
   );
 };

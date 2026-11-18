@@ -2,7 +2,9 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { lstat } from 'node:fs/promises';
 import { CommitGitError } from './commit-git-error';
-import { promisify } from 'node:util';
+import { isEntityConversationRun } from './commit-traceability';
+import { randomUUID } from 'node:crypto';
+import { resolveCommitIntent, type CommitIntent } from './commit-intent';
 
 import type { LocalCommitPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type { ServerLogger } from '../../server/logger';
@@ -14,7 +16,6 @@ import {
 import type { Run } from '../../run/run';
 import type { CommitReportTool } from '../submission-tools/create-commit-report-tool';
 
-const execFileAsync = promisify(execFile);
 const MAX_GIT_BUFFER = 50 * 1024 * 1024;
 
 interface ServiceCommitScope {
@@ -28,12 +29,11 @@ type CommitTraceability =
   | { kind: 'service'; runId: string; serviceIds: string[] };
 
 type GitOperation =
+  | 'read_workspace_prefix'
   | 'read_staged_deletions'
   | 'add'
   | 'commit'
-  | 'read_head'
-  | 'read_branch'
-  | 'read_committed_files';
+  | 'read_branch';
 
 interface GitOperationContext {
   runId: string;
@@ -52,13 +52,19 @@ export interface ExecuteCanonicalCommitInput {
   logger: ServerLogger;
 }
 
-const git = (repoPath: string, args: readonly string[], trim = true): Promise<string> =>
+const git = (
+  repoPath: string,
+  args: readonly string[],
+  trim = true,
+  intentId?: string,
+): Promise<string> =>
   new Promise((resolve, reject) => {
     execFile(
       'git',
-      ['--literal-pathspecs', ...args],
+      ['--literal-pathspecs', ...(intentId ? ['-c', 'core.logAllRefUpdates=always'] : []), ...args],
       {
         cwd: repoPath,
+        ...(intentId ? { env: { ...process.env, GIT_REFLOG_ACTION: intentId } } : {}),
         maxBuffer: MAX_GIT_BUFFER,
       },
       (error, stdout, stderr) => {
@@ -131,22 +137,6 @@ const runGitOperation = async <Result>(
     });
     throw error;
   }
-};
-
-const readCommittedFiles = async (repoPath: string, hash: string): Promise<string[]> => {
-  const { stdout } = await execFileAsync(
-    'git',
-    ['diff-tree', '--no-commit-id', '--name-only', '--root', '-r', '-z', hash],
-    {
-      cwd: repoPath,
-      maxBuffer: MAX_GIT_BUFFER,
-    },
-  );
-
-  return stdout
-    .split('\0')
-    .filter((file) => file.length > 0)
-    .sort();
 };
 
 const getServiceWorkspaces = (run: Run) =>
@@ -293,7 +283,8 @@ const deriveCommitTraceability = (
     );
   }
 
-  if (run.taskId) {
+  const entityConversation = isEntityConversationRun(run);
+  if (run.taskId && !entityConversation) {
     if (payload.taskId && payload.taskId !== run.taskId) {
       throw new Error(
         'Commit validation failed: caller task identifier disagrees with Run context.',
@@ -310,9 +301,11 @@ const deriveCommitTraceability = (
 
   const serviceIds = [...new Set(run.session.services.map(({ id }) => id))].sort();
   const subject = run.entity;
+  const subjectInScope = entityConversation
+    ? true
+    : subject?.entityType === 'SERVICE' && serviceIds.includes(subject.entityId);
   if (
-    subject?.entityType !== 'SERVICE' ||
-    !serviceIds.includes(subject.entityId) ||
+    !subjectInScope ||
     !run.session.launchServiceId ||
     !serviceIds.includes(run.session.launchServiceId)
   ) {
@@ -335,6 +328,35 @@ const buildCommitTrailers = (
   ...(traceability.kind === 'service' ? [`Service-Id: ${serviceId}`] : []),
 ];
 
+async function finishCommitIntent(run: Run, intent: CommitIntent) {
+  const outcome = await resolveCommitIntent(run.session, intent);
+  if (!outcome) {
+    return false;
+  }
+  const pending = run.reportProvenance.pending;
+  if (
+    !pending?.hashes.some(
+      (entry) => entry.service === intent.service && entry.hash === outcome.hash,
+    )
+  ) {
+    await run.reportProvenance.retain({
+      summary: intent.summary,
+      files: [...(pending?.files ?? []), ...outcome.files],
+      hashes: [
+        ...(pending?.hashes ?? []),
+        {
+          service: intent.service,
+          branch: intent.branch,
+          hash: outcome.hash,
+          implementReportIds: intent.implementReportIds,
+        },
+      ],
+    });
+  }
+  await run.saveCommitState(null, outcome.versions);
+  return true;
+}
+
 const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promise<void> => {
   const { run, payload, liveFiles, message, commitReportTool, logger } = input;
   logger.debug('local.commit_runtime.validation_started', {
@@ -352,10 +374,13 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
   logger.debug('local.commit_runtime.traceability_derived', {
     runId: run.runId,
     traceabilityKind: traceability.kind,
+    entityConversation: isEntityConversationRun(run),
+    launchServiceId: run.session.launchServiceId ?? null,
     ...(traceability.kind === 'task'
       ? { taskId: traceability.taskId }
       : { serviceIds: traceability.serviceIds }),
   });
+  const versions = run.captureFileChangeVersions();
   const scopes = buildScopes(run, liveFiles, logger);
   if (scopes.length === 0) {
     throw new Error('Commit validation failed: no uncommitted canonical Run files remain.');
@@ -367,7 +392,6 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
 
   const planId = run.session.contextMetadata.launchPlanId;
 
-  const commits: Array<{ service: string; hash: string; branch: string; files: string[] }> = [];
   const chain = run.readReportChain();
   const claimed = new Set(
     chain
@@ -376,25 +400,6 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
         (entry) => entry.commitHashes?.flatMap((hash) => hash.implementReportIds ?? []) ?? [],
       ),
   );
-  const outcomeHashes = () =>
-    commits.map(({ service, hash, branch }) => ({
-      service,
-      hash,
-      branch,
-      implementReportIds: [
-        ...new Set(
-          chain
-            .filter(
-              (entry) =>
-                entry.reportType === 'IMPLEMENT' &&
-                entry.sourceRunId === run.runId &&
-                entry.serviceId === service &&
-                !claimed.has(entry.reportId),
-            )
-            .map((entry) => entry.reportId),
-        ),
-      ],
-    }));
   let commitFailure: unknown;
   try {
     for (const scope of scopes) {
@@ -411,6 +416,12 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
         repositoryRoot: scope.repoPath,
         files: scope.files,
       };
+      const prefix = await runGitOperation(
+        logger,
+        { ...context, operation: 'read_workspace_prefix' },
+        async () =>
+          (await git(scope.repoPath, ['rev-parse', '--show-prefix'], false)).replace(/\n$/, ''),
+      );
       const stagingFiles = await runGitOperation(
         logger,
         { ...context, operation: 'read_staged_deletions' },
@@ -421,53 +432,75 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
           git(scope.repoPath, ['add', '--', ...stagingFiles]),
         );
       }
-      await runGitOperation(logger, { ...context, operation: 'commit' }, () =>
-        git(scope.repoPath, [
-          'commit',
-          '--only',
-          '-m',
-          message,
-          '-m',
-          trailers.join('\n'),
-          '--',
-          ...scope.files,
-        ]),
+      const branch = await git(scope.repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']).catch(
+        async (error) => {
+          // An unborn branch has a symbolic HEAD but no commit to resolve.
+          if (!(error instanceof CommitGitError)) {
+            throw error;
+          }
+          return git(scope.repoPath, ['symbolic-ref', '--short', 'HEAD']);
+        },
       );
-      const hash = await runGitOperation(logger, { ...context, operation: 'read_head' }, () =>
-        git(scope.repoPath, ['rev-parse', '--short', 'HEAD']),
-      );
-      // Traceability only: the branch name is recorded, never the (machine-local) repoPath.
-      const branch = await runGitOperation(logger, { ...context, operation: 'read_branch' }, () =>
-        git(scope.repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
-      );
-      const committedFiles = await runGitOperation(
-        logger,
-        { ...context, operation: 'read_committed_files' },
-        () => readCommittedFiles(scope.repoPath, hash),
-      );
-      commits.push({ service: scope.serviceId, hash, branch, files: committedFiles });
-      await run.reportProvenance.retain({
-        summary: message,
-        files: commits.flatMap((commit) => commit.files),
-        hashes: outcomeHashes(),
-      });
-      logger.info('local.commit_runtime.commit_succeeded', {
-        runId: run.runId,
-        serviceId: scope.serviceId,
-        hash,
+      const intent: CommitIntent = {
+        id: randomUUID(),
+        service: scope.serviceId,
         branch,
-        files: committedFiles,
+        prefix,
+        summary: message,
+        versions: Object.fromEntries(
+          scope.files.map((file) => [
+            file,
+            versions.get(canonicalFileChangeKey(scope.serviceId, file)) ?? null,
+          ]),
+        ),
+        implementReportIds: [
+          ...new Set(
+            chain
+              .filter(
+                (entry) =>
+                  entry.reportType === 'IMPLEMENT' &&
+                  entry.sourceRunId === run.runId &&
+                  entry.serviceId === scope.serviceId &&
+                  !claimed.has(entry.reportId),
+              )
+              .map((entry) => entry.reportId),
+          ),
+        ],
+      };
+      await run.saveCommitState(intent);
+      trailers.push(`Hey-Hey-Commit-Id: ${intent.id}`);
+      try {
+        await runGitOperation(logger, { ...context, operation: 'commit' }, () =>
+          git(
+            scope.repoPath,
+            ['commit', '--only', '-m', message, '-m', trailers.join('\n'), '--', ...scope.files],
+            true,
+            intent.id,
+          ),
+        );
+      } catch (error) {
+        if (!(await finishCommitIntent(run, intent))) {
+          await run.saveCommitState(null);
+        }
+        throw error;
+      }
+      if (!(await finishCommitIntent(run, intent))) {
+        throw new Error(`Git succeeded but commit intent ${intent.id} could not be resolved`);
+      }
+      logger.info('local.commit_runtime.commit_succeeded', {
+        ...context,
+        branch,
+        hash: run.reportProvenance.pending?.hashes.at(-1)?.hash,
       });
     }
   } catch (error) {
     commitFailure = error;
   }
-  if (commits.length === 0) {
+  const pending = run.reportProvenance.pending;
+  if (!pending || run.session.commitIntent) {
     throw commitFailure;
   }
-  const hashes = outcomeHashes();
-  const files = commits.flatMap(({ files: committedFiles }) => committedFiles);
-  await run.reportProvenance.retain({ summary: message, files, hashes });
+  const { hashes, files } = pending;
   try {
     await commitReportTool.execute({
       runId: run.runId,
@@ -497,6 +530,10 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
 export const executeCanonicalCommit = async (input: ExecuteCanonicalCommitInput): Promise<void> => {
   try {
     await input.run.ensureSeeded();
+    const intent = input.run.session.commitIntent;
+    if (intent && !(await finishCommitIntent(input.run, intent))) {
+      await input.run.saveCommitState(null);
+    }
     const pending = input.run.reportProvenance.pending;
     if (pending) {
       await input.commitReportTool.execute({

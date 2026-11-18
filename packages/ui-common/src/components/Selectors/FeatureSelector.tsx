@@ -65,14 +65,18 @@ export const FeatureSelector: React.FC<FeatureSelectorProps> = ({
       [...nodes.values()]
         .map((node) => node.feature)
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [nodes]
+    [nodes],
+  );
+  const selectedFeature = useMemo(
+    () => (value ? (nodes.get(value)?.feature ?? null) : null),
+    [nodes, value],
   );
   const { entries } = useFeatureDocumentContent(
     organizationId,
     projectId,
     open ? features.map((feature) => feature.id) : [],
     undefined,
-    "metadata"
+    "metadata",
   );
 
   const handleChange = useCallback(
@@ -86,7 +90,7 @@ export const FeatureSelector: React.FC<FeatureSelectorProps> = ({
       const selected = entries.get(rawValue)?.data;
       if (selected) onChange(rawValue, selected);
     },
-    [entries, onChange]
+    [entries, onChange],
   );
 
   const handleClear = useCallback(
@@ -94,7 +98,7 @@ export const FeatureSelector: React.FC<FeatureSelectorProps> = ({
       event.stopPropagation();
       onChange(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const renderValue = useCallback(
@@ -117,7 +121,7 @@ export const FeatureSelector: React.FC<FeatureSelectorProps> = ({
         </Typography>
       );
     },
-    [features, placeholder, isLoading, value]
+    [features, placeholder, isLoading, value],
   );
 
   const computedHelperText =
@@ -151,28 +155,34 @@ export const FeatureSelector: React.FC<FeatureSelectorProps> = ({
           <MenuItem value={NO_SELECTION_VALUE} disabled>
             {placeholder}
           </MenuItem>
-          {features.map((feature) => (
-            <MenuItem
-              key={feature.id}
-              value={feature.id}
-              disabled={!entries.get(feature.id)?.data}
-              data-testid="feature-selector-option"
-              data-feature-id={feature.id}
-            >
-              <Box sx={{ display: "flex", flexDirection: "column" }}>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {feature.name}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Status:{" "}
-                  {entries.get(feature.id)?.data?.status ??
-                    (entries.get(feature.id)?.status === "error"
-                      ? "Unavailable"
-                      : "Loading…")}
-                </Typography>
-              </Box>
+          {open &&
+            features.map((feature) => (
+              <MenuItem
+                key={feature.id}
+                value={feature.id}
+                disabled={!entries.get(feature.id)?.data}
+                data-testid="feature-selector-option"
+                data-feature-id={feature.id}
+              >
+                <Box sx={{ display: "flex", flexDirection: "column" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {feature.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Status:{" "}
+                    {entries.get(feature.id)?.data?.status ??
+                      (entries.get(feature.id)?.status === "error"
+                        ? "Unavailable"
+                        : "Loading…")}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            ))}
+          {!open && selectedFeature && (
+            <MenuItem value={selectedFeature.id} sx={{ display: "none" }}>
+              {selectedFeature.name}
             </MenuItem>
-          ))}
+          )}
           {isLoading && (
             <MenuItem disabled>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

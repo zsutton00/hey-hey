@@ -271,6 +271,40 @@ describe('toEvalRunCaseInput', () => {
     expect(recorded.target).not.toHaveProperty('coding');
   });
 
+  it('freezes the coding target into the run and never gives it to the attempt', () => {
+    const base = {
+      serviceId: '44444444-4444-4444-8444-444444444444',
+      pinnedCommit: { sha: 'b'.repeat(40), shortMessage: 'Add settings page' },
+    };
+    const targeted = {
+      ...base,
+      target: { kind: 'EXISTING', path: 'apps/ui/src/pages/Settings.tsx' },
+      mockupChecklist: {
+        mockupId: '55555555-5555-4555-8555-555555555555',
+        items: [{ id: 'save', description: 'Saving shows a confirmation' }],
+      },
+    };
+    const caseWith = (coding: object) => ({
+      ...withHandlers('free_form', ''),
+      sections: [
+        ...withHandlers('free_form', '').sections,
+        section('coding', JSON.stringify(coding)),
+      ],
+    });
+    const record = caseWith(targeted);
+
+    const recorded = toEvalRunCaseInput(record);
+    const untargeted = toEvalRunCaseInput(caseWith(base));
+    record.sections = caseWith({
+      ...targeted,
+      target: { kind: 'NEW', path: 'apps/ui/src/pages/Other.tsx' },
+    }).sections;
+
+    expect(recorded.coding?.target).toEqual(targeted.target);
+    expect(recorded.target).toEqual(untargeted.target);
+    expect(JSON.stringify(recorded.target)).not.toContain('Settings.tsx');
+  });
+
   it('rejects a case that cannot be run', () => {
     expect(() =>
       toEvalRunCaseInput({

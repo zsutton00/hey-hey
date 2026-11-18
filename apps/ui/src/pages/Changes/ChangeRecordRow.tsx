@@ -15,7 +15,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useId, useState } from "react";
+import { memo, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -23,14 +23,14 @@ const SHORT_HASH_LENGTH = 8;
 const FILE_LIST_MAX_HEIGHT = 360;
 const NON_FOCAL_ENTITY_TYPES = new Set(["AGENT_SESSION", "SERVICE"]);
 
-export function ChangeRecordRow({
+export const ChangeRecordRow = memo(function ChangeRecordRow({
   projectId,
   record,
   onSelect,
 }: {
   projectId: string;
   record: ProjectChangeRecord;
-  onSelect: (edit: ImplementReportEdit) => void;
+  onSelect: (record: ProjectChangeRecord, edit: ImplementReportEdit) => void;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -209,7 +209,7 @@ export function ChangeRecordRow({
                 <Button
                   data-testid="change-edit"
                   data-edit-index={index}
-                  onClick={() => onSelect(edit)}
+                  onClick={() => onSelect(record, edit)}
                   sx={{
                     textTransform: "none",
                     overflowWrap: "anywhere",
@@ -247,4 +247,4 @@ export function ChangeRecordRow({
       </Box>
     </Paper>
   );
-}
+});

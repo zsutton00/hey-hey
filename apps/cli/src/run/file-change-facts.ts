@@ -429,6 +429,31 @@ export const projectFileChanges = (
   return projection;
 };
 
+export const liveFileProjection = (
+  projection: FileChangeProjection[],
+  facts: readonly CanonicalFileChangeFact[],
+  committed: AgenticSession['committedFileVersions'],
+): FileChangeProjection[] => {
+  if (!committed) {
+    return projection;
+  }
+  const versions = fileChangeVersions(facts);
+  return projection.filter(({ serviceId, repoRelativePath }) => {
+    const key = canonicalFileChangeKey(serviceId, repoRelativePath);
+    return committed[key] !== (versions.get(key) ?? null);
+  });
+};
+
+export const fileChangeVersions = (
+  facts: readonly CanonicalFileChangeFact[],
+): Map<string, string> =>
+  new Map(
+    facts.map((fact) => [
+      canonicalFileChangeKey(fact.serviceId, fact.repoRelativePath),
+      fact.factId,
+    ]),
+  );
+
 export const latestFileChangeFacts = (
   facts: readonly CanonicalFileChangeFact[],
 ): CanonicalFileChangeFact[] => {

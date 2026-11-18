@@ -43,9 +43,9 @@ const withCoding = (handler: string, content?: string) => ({
 });
 const MOCKUP = '55555555-5555-4555-8555-555555555555';
 const checklist = (overrides: Record<string, unknown> = {}) => ({
+  target: { kind: 'EXISTING', path: 'apps/ui/src/pages/Settings.tsx' },
   mockupChecklist: {
     mockupId: MOCKUP,
-    kind: 'NEW',
     items: [{ id: 'save', description: 'Saving shows a confirmation' }],
     ...overrides,
   },
@@ -183,7 +183,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('approves a Coding section with a Mockup checklist', async () => {
+    it('approves a Coding section with a Mockup checklist and its target', async () => {
       await expect(
         assertApprovedEvalCaseHandlers(
           withCoding('free_form', coding(checklist())),
@@ -191,6 +191,27 @@ describe('assertApprovedEvalCaseHandlers', () => {
           mockupExists,
         ),
       ).resolves.toBeUndefined();
+    });
+
+    it('approves a target without a Mockup checklist, and a target with no path', async () => {
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding({ target: { kind: 'NEW' } })),
+          serviceExists,
+          mockupExists,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a Mockup checklist without a target, naming the cause', async () => {
+      const { target: _omitted, ...withoutTarget } = checklist();
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding(withoutTarget)),
+          serviceExists,
+          mockupExists,
+        ),
+      ).rejects.toThrow(/target/);
     });
 
     it.each([
@@ -213,6 +234,14 @@ describe('assertApprovedEvalCaseHandlers', () => {
           'free_form',
           coding(checklist({ mockupId: crypto.randomUUID() })),
         ),
+      ],
+      [
+        'a checklist that still carries its own new-or-update kind',
+        withCoding('free_form', coding(checklist({ kind: 'UPDATE' }))),
+      ],
+      [
+        'a target with an unknown kind',
+        withCoding('free_form', coding({ target: { kind: 'UPDATE' } })),
       ],
       [
         'a checklist with no items',

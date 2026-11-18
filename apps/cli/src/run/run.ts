@@ -211,6 +211,8 @@ import type { ReviewFileScopeDecisionInput } from '../agents/review-file-scope-r
 import {
   canonicalFileChangeKey,
   captureFileChangeEvidence,
+  fileChangeVersions,
+  liveFileProjection,
   projectFileChanges,
   resolveProjectedFilePath,
   resolveReportedFileChanges,
@@ -1893,6 +1895,32 @@ export class Run {
   }
 
   getFileChangeProjection(turnId?: string): FileChangeProjection[] {
+    const projection = this.historicalFileProjection(turnId);
+    return liveFileProjection(
+      projection,
+      this._fileChangeFacts,
+      this.session.committedFileVersions,
+    );
+  }
+
+  captureFileChangeVersions() {
+    return fileChangeVersions(this._fileChangeFacts);
+  }
+
+  async saveCommitState(
+    intent: NonNullable<AgenticSession['commitIntent']> | null,
+    versions: Record<string, string | null> = {},
+  ): Promise<void> {
+    await this.runStore.saveCommitState(this.runId, intent, versions);
+    if (intent) {
+      this.session.commitIntent = intent;
+    } else {
+      delete this.session.commitIntent;
+    }
+    this.session.committedFileVersions = { ...this.session.committedFileVersions, ...versions };
+  }
+
+  private historicalFileProjection(turnId?: string): FileChangeProjection[] {
     if (this._fileChangeFacts.length > 0) {
       return projectFileChanges(this._fileChangeFacts, turnId);
     }
