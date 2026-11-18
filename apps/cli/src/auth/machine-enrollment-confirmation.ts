@@ -369,8 +369,14 @@ const isExpired = (expiresAt: string, now: number): boolean => {
   return !Number.isFinite(expiry) || now >= expiry;
 };
 
-const isTerminalPollFailure = (error: Error): boolean =>
-  isAxiosError(error) && (error.response?.status === 401 || error.response?.status === 409);
+const retryAfterSecondsSchema = z.object({ retryAfterSeconds: z.number().int().positive() });
+const pollErrorSchema = z.object({
+  code: z.enum([
+    'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED',
+    'MACHINE_ENROLLMENT_INVALID_TRANSITION',
+  ]),
+  message: z.string(),
+});
 
 const toRegistryEntry = (
   binding: MachineEnrollmentActivatedBindingDto,
@@ -829,6 +835,8 @@ export class MachineEnrollmentConfirmation {
   ): Promise<MachineEnrollmentConfirmationResult> {
     let ready: MachineEnrollmentPollReadyDto | undefined;
     let waitBeforePoll = options.waitBeforeFirstPoll === true;
+    const normalInterval = Math.max(1, enrollment.pollingIntervalSeconds) * 1000;
+    let interval = normalInterval;
     let resumeAnnounced = false;
     ports.step({
       kind: 'waiting-for-browser',
@@ -846,8 +854,13 @@ export class MachineEnrollmentConfirmation {
           options.onResume?.();
           resumeAnnounced = true;
         }
-        const interval = Math.max(1, enrollment.pollingIntervalSeconds) * 1000;
-        await sleepUnlessCancelled(this.sleep, interval, ports.signal);
+
+        await sleepUnlessCancelled(
+          this.sleep,
+          Math.min(interval, Date.parse(enrollment.expiresAt) - this.now()),
+          ports.signal,
+        );
+        interval = normalInterval;
         if (isCancelled(ports)) return this.cancelled(enrollment.enrollmentId, ports);
       }
       waitBeforePoll = true;
@@ -864,8 +877,26 @@ export class MachineEnrollmentConfirmation {
       } catch (error) {
         this.logger.debug('local.pairing.failure', { error });
         const failure = error instanceof Error ? error : new Error(String(error));
-        if (isTerminalPollFailure(failure)) {
-          problem(ports, 'Saved machine enrollment is no longer recoverable.');
+        const response = isAxiosError<unknown>(failure) ? failure.response : undefined;
+        if (response?.status === 429) {
+          const retry = retryAfterSecondsSchema.safeParse(response.data);
+          interval = retry.success ? retry.data.retryAfterSeconds * 1000 : normalInterval;
+          continue;
+        }
+        const refusal = pollErrorSchema.safeParse(response?.data);
+        if (
+          response?.status === 409 &&
+          refusal.success &&
+          refusal.data.code === 'MACHINE_ENROLLMENT_INVALID_TRANSITION'
+        ) {
+          continue;
+        }
+        if (
+          response?.status === 401 &&
+          refusal.success &&
+          refusal.data.code === 'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED'
+        ) {
+          problem(ports, `${refusal.data.message} (${refusal.data.code}, HTTP ${response.status})`);
           return (await this.discardTerminalEnrollment(enrollment.enrollmentId, ports))
             ? { outcome: 'terminal' }
             : FAILED;

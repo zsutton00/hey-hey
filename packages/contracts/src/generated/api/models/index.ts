@@ -2040,6 +2040,7 @@ export * from './machine-enrollment-invalid-machine-material-error-dto.js';
 export * from './machine-enrollment-invalid-transition-error-dto.js';
 export * from './machine-enrollment-mode.js';
 export * from './machine-enrollment-poll-pending-dto.js';
+export * from './machine-enrollment-poll-rate-limit-error-dto.js';
 export * from './machine-enrollment-poll-ready-dto.js';
 export * from './machine-enrollment-poll-warning-dto.js';
 export * from './machine-enrollment-web-authn-attestation-response-dto.js';
