@@ -116,6 +116,8 @@ export interface AgentConversationViewProps {
   onCreateNewConversation?: (draftText: string) => Promise<void>;
   /** Draft to seed when this view switches to a newly created session. */
   initialDraft?: string;
+  /** Presentation-only draft notification for embedding workspaces. */
+  onDraftChange?: (draft: string) => void;
   /** Whether starting a new conversation requires an explicit confirmation. */
   confirmBeforeNewConversation?: boolean;
   onStopRun?: () => void;
@@ -194,6 +196,7 @@ const AgentConversationViewInner = ({
   actionsSlot,
   onCreateNewConversation,
   initialDraft,
+  onDraftChange,
   confirmBeforeNewConversation = false,
   onGoalPmAction,
   triageApplication,
@@ -221,9 +224,13 @@ const AgentConversationViewInner = ({
   const focusComposer = useCallback(() => {
     setComposerFocusSignal((signal) => signal + 1);
   }, []);
-  const captureDraft = useCallback((draft: string) => {
-    currentDraftRef.current = draft;
-  }, []);
+  const captureDraft = useCallback(
+    (draft: string) => {
+      currentDraftRef.current = draft;
+      onDraftChange?.(draft);
+    },
+    [onDraftChange],
+  );
   const stateProjection = useAgentSessionCurrentState(
     organizationId,
     projectId,

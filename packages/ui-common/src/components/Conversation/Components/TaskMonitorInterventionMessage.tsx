@@ -1,6 +1,8 @@
 import { Box, Button, Chip, Stack, Typography } from "@mui/material";
 import { SolidAlert } from "../Card/SolidAlert";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { TaskMonitorResponsePresentationContext } from "../../TaskMonitor/TaskMonitorResponsePresentationContext";
+import logger from "../../../utils/logger";
 import {
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
   TaskMonitorHumanDecisionCommandCauseEnum,
@@ -71,6 +73,7 @@ export const TaskMonitorInterventionMessage = ({
   const { activeConversation, project, taskMonitorId, isReadOnly } =
     useConversationContext();
   const submitMonitorCommand = useSubmitTaskMonitorCommand();
+  const onAnswered = useContext(TaskMonitorResponsePresentationContext);
   const messagesQuery = useConversationMessages(
     project.organizationId,
     project.id,
@@ -134,6 +137,11 @@ export const TaskMonitorInterventionMessage = ({
         request,
       });
     } catch (error) {
+      logger.warn("data_hooks", "Task Monitor intervention submission failed", {
+        code: "TASK_MONITOR_INTERVENTION_SUBMISSION_FAILED",
+        interventionId: data.interventionId,
+        cause: error instanceof Error ? error.message : String(error),
+      });
       if (activeInterventionIdRef.current === data.interventionId) {
         setErrorMessage(
           error instanceof Error
@@ -147,10 +155,16 @@ export const TaskMonitorInterventionMessage = ({
     setIsRefreshing(true);
     try {
       await Promise.all([conversationQuery.refetch(), messagesQuery.refetch()]);
-    } catch {
+    } catch (error) {
+      const cause = error instanceof Error ? error.message : String(error);
+      logger.warn("data_hooks", "Task Monitor intervention refresh failed", {
+        code: "TASK_MONITOR_INTERVENTION_REFRESH_FAILED",
+        interventionId: data.interventionId,
+        cause,
+      });
       if (activeInterventionIdRef.current === data.interventionId) {
         setErrorMessage(
-          "The decision was acknowledged, but the canonical conversation could not be refreshed.",
+          `The decision was acknowledged, but the canonical conversation could not be refreshed. ${cause}`,
         );
       }
       return;
@@ -162,9 +176,19 @@ export const TaskMonitorInterventionMessage = ({
       activeInterventionIdRef.current === data.interventionId &&
       outcome.status === SubmitTaskMonitorCommandResponseDtoStatusEnum.Rejected
     ) {
+      logger.warn("data_hooks", "Task Monitor intervention decision rejected", {
+        code: outcome.reason ?? "TASK_MONITOR_DECISION_REJECTED",
+        stage: outcome.stage,
+        interventionId: data.interventionId,
+        cause: outcome.message,
+      });
       setErrorMessage(
         outcome.message ?? "The Task Monitor rejected the decision.",
       );
+      return;
+    }
+    if (activeInterventionIdRef.current === data.interventionId) {
+      onAnswered?.(taskMonitorId);
     }
   };
 

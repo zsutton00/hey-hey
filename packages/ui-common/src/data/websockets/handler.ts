@@ -90,6 +90,7 @@ import {
   writeNotificationRecords,
 } from "../collections/notifications";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
+import { reportKeys } from "../collections/reports";
 import {
   invalidateAllDataLayerQueries,
   invalidateInitiativeChange,
@@ -1038,6 +1039,28 @@ export class WebSocketHandler {
    */
   private handleSystemNotification(event: WebSocketSystemNotificationEvent) {
     const queryClient = this.queryClient;
+    if (event.notification.eventType === "session_report_ready") {
+      if (event.projectId) {
+        void invalidateWithFollowUpRead(queryClient, {
+          queryKey: [
+            ...reportKeys.entityList(event.organizationId, event.projectId),
+            {
+              entityType: "AGENT_SESSION",
+              entityId: event.notification.payload.sessionId,
+            },
+          ],
+        });
+      } else {
+        logger.warn(
+          "data_websockets",
+          "Report-ready notification has no project scope",
+          {
+            code: "REPORT_READY_SCOPE_MISSING",
+            sessionId: event.notification.payload.sessionId,
+          },
+        );
+      }
+    }
     writeNotificationRecords(
       queryClient,
       event.organizationId,

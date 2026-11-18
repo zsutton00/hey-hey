@@ -1,4 +1,4 @@
-import { Box, Button, useTheme } from "@mui/material";
+import { alpha, Box, Button, useTheme } from "@mui/material";
 import type { CapsuleScreenButton } from "./types";
 import { screenButtonColors } from "./capsuleActionButtonColors";
 
@@ -12,6 +12,10 @@ export function CapsuleScreenButtonControl({
   const theme = useTheme();
   const colors = screenButtonColors[theme.palette.mode];
   const Icon = button.icon;
+  const needsAttention = button.status?.state === "needs-you";
+  const background = needsAttention
+    ? alpha(theme.palette.warning.main, 0.18)
+    : colors.background;
   const statusColors = {
     running: theme.palette.info.main,
     paused: theme.palette.warning.main,
@@ -37,14 +41,16 @@ export function CapsuleScreenButtonControl({
         p: 0.5,
         borderRadius: "6px",
         border: "1px solid",
-        borderColor: colors.border,
-        bgcolor: colors.background,
+        borderColor: needsAttention
+          ? theme.palette.warning.main
+          : colors.border,
+        bgcolor: background,
         color: colors.foreground,
         flexDirection: "column",
         fontSize: 10,
         textTransform: "none",
         whiteSpace: "nowrap",
-        "&:hover": { bgcolor: colors.background },
+        "&:hover": { bgcolor: background },
         "&.Mui-focusVisible": { outline: "2px solid", outlineOffset: 2 },
       }}
     >

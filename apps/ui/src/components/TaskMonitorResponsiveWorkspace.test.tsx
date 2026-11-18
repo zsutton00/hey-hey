@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TaskMonitorResponsiveWorkspace } from "./TaskMonitorResponsiveWorkspace";
 
@@ -17,23 +17,27 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 }));
 
 describe("TaskMonitorResponsiveWorkspace", () => {
-  it("uses the shared pane selector to control the compact workspace", () => {
+  it("leaves state-dependent pane navigation with the canonical workspace", () => {
     render(
       <TaskMonitorResponsiveWorkspace
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-      />
+      />,
     );
 
-    expect(screen.getByTestId("task-monitor")).toHaveTextContent("monitor");
-    fireEvent.click(screen.getByRole("button", { name: "Active Session" }));
     expect(screen.getByTestId("task-monitor")).toHaveTextContent("session");
-    expect(taskMonitorMock).toHaveBeenLastCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      monitorId: "monitor-1",
-      activePane: "session",
-    });
+    expect(
+      screen.queryByRole("button", { name: "Active Session" }),
+    ).not.toBeInTheDocument();
+    expect(taskMonitorMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+        activePane: "session",
+        renderPaneNavigation: expect.any(Function),
+      }),
+    );
   });
 });

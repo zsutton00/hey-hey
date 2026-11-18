@@ -4,6 +4,7 @@ import { useConversation } from "../../data/hooks/useConversation";
 import { useConversationMessages } from "../../data/hooks/useConversationMessages";
 import { useProject } from "../../data/hooks/useProject";
 import { useResolveWorkItemCoordinator } from "../../data/hooks/useResolveWorkItemCoordinator";
+import logger from "../../utils/logger";
 
 export interface UseTaskMonitorConversationOptions {
   organizationId: string;
@@ -27,13 +28,13 @@ export const useTaskMonitorConversation = ({
     { conversationId: session?.conversationId ?? "" },
     {
       enabled: Boolean(session?.conversationId),
-    }
+    },
   );
   const messagesQuery = useConversationMessages(
     organizationId,
     projectId,
     session?.conversationId ?? undefined,
-    { enabled: hasConversation, refetchOnWindowFocus: true }
+    { enabled: hasConversation, refetchOnWindowFocus: true },
   );
   return {
     conversation: conversationQuery.data,
@@ -76,6 +77,7 @@ export const useTaskMonitorCoordinatorConversation = ({
     onSuccess: ({ agentSession }) => setSession(agentSession),
   });
 
+  const resolveCoordinator = coordinator.mutate;
   useEffect(() => {
     if (
       !organizationId ||
@@ -87,19 +89,23 @@ export const useTaskMonitorCoordinatorConversation = ({
       return;
     }
     requestedMonitorId.current = monitorId;
-    void coordinator
-      .mutate({
-        organizationId,
-        projectId,
-        body: {
-          type: AgentSessionType.TaskMonitor,
-          workItemType: "TASK_MONITOR",
-          workItemId: monitorId,
-          sessionDate,
-        },
-      })
-      .catch(() => undefined);
-  }, [coordinator.mutate, monitorId, organizationId, projectId, sessionDate]);
+    void resolveCoordinator({
+      organizationId,
+      projectId,
+      body: {
+        type: AgentSessionType.TaskMonitor,
+        workItemType: "TASK_MONITOR",
+        workItemId: monitorId,
+        sessionDate,
+      },
+    }).catch((error: unknown) => {
+      logger.warn("data_hooks", "Coordinator resolution failed", {
+        code: "TASK_MONITOR_COORDINATOR_RESOLUTION_FAILED",
+        monitorId,
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, [resolveCoordinator, monitorId, organizationId, projectId, sessionDate]);
 
   const conversation = useTaskMonitorConversation({
     organizationId,
@@ -114,12 +120,12 @@ export const useTaskMonitorCoordinatorConversation = ({
     fetched: !sessionDate
       ? true
       : coordinator.isSuccess
-      ? conversation.fetched
-      : coordinator.isError,
+        ? conversation.fetched
+        : coordinator.isError,
     errorMessage: !sessionDate
       ? "The Task Monitor coordinator cannot be resolved without its session date."
       : coordinator.error
-      ? "Monitor activity could not be loaded."
-      : conversation.errorMessage,
+        ? `Monitor activity could not be loaded. ${coordinator.error.message}`
+        : conversation.errorMessage,
   };
 };

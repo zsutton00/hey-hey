@@ -1,6 +1,12 @@
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
-import { Button, CircularProgress, Paper, Stack } from "@mui/material";
+import {
+  Button,
+  CircularProgress,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { WorkStatus } from "../../api";
 import {
   resolveTaskMonitorLifecycleAction,
@@ -21,6 +27,8 @@ export interface TaskMonitorControlDockProps {
   monitorStatus: WorkStatus;
   presentation: TaskMonitorStartPresentation;
   pendingAction: TaskMonitorPauseResumeAction | null;
+  /** Canonical advertised controls; setup alone owns readiness before creation. */
+  availability?: { start: boolean; pause: boolean; setup: boolean };
   controlsDisabled?: boolean;
   onStart: () => void;
   onPause: () => void;
@@ -30,6 +38,7 @@ export const TaskMonitorControlDock = ({
   monitorStatus,
   presentation,
   pendingAction,
+  availability,
   controlsDisabled = false,
   onStart,
   onPause,
@@ -38,9 +47,14 @@ export const TaskMonitorControlDock = ({
   const lifecyclePending =
     presentation.status === "starting" || pendingAction !== null;
   const disabled = controlsDisabled || lifecyclePending;
-  const startDisabled =
-    lifecycleAction !== "START" || presentation.status !== "ready" || disabled;
-  const pauseDisabled = lifecycleAction !== "PAUSE" || disabled;
+  const startDisabled = availability
+    ? !availability.start || disabled
+    : lifecycleAction !== "START" ||
+      presentation.status !== "ready" ||
+      disabled;
+  const pauseDisabled =
+    (availability ? !availability.pause : lifecycleAction !== "PAUSE") ||
+    disabled;
 
   return (
     <Paper
@@ -83,26 +97,36 @@ export const TaskMonitorControlDock = ({
             <PlayArrowIcon />
           )}
         </Button>
-        <Button
-          size="small"
-          variant="contained"
-          sx={primaryControlButtonSx}
-          disabled={pauseDisabled}
-          onClick={onPause}
-          aria-label="Pause"
-          data-testid="task-monitor-pause"
-        >
-          {pendingAction === "PAUSE" ? (
-            <CircularProgress
-              color="inherit"
-              size={16}
-              data-testid="task-monitor-pause-progress"
-            />
-          ) : (
-            <PauseIcon />
-          )}
-        </Button>
+        {!availability?.setup ? (
+          <Button
+            size="small"
+            variant="contained"
+            sx={primaryControlButtonSx}
+            disabled={pauseDisabled}
+            onClick={onPause}
+            aria-label="Pause"
+            data-testid="task-monitor-pause"
+          >
+            {pendingAction === "PAUSE" ? (
+              <CircularProgress
+                color="inherit"
+                size={16}
+                data-testid="task-monitor-pause-progress"
+              />
+            ) : (
+              <PauseIcon />
+            )}
+          </Button>
+        ) : null}
       </Stack>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        data-testid="task-monitor-automation-note"
+        sx={{ display: "block", mt: 0.75 }}
+      >
+        Automation uses the coding provider&apos;s auto mode when available.
+      </Typography>
     </Paper>
   );
 };
