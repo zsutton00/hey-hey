@@ -1,10 +1,20 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { LocalStartupBrowserEvent } from '@hey-hey/contracts/agent-bridge';
+import {
+  LocalStartupBrowserEvent,
+  type LocalStartupBrowserRecord,
+} from '@hey-hey/contracts/agent-bridge';
 import { z } from 'zod';
+import { localLifecycleRuntimeSchema } from '@hey-hey/contracts/agent-bridge/local-lifecycle-runtime-schema';
+import { createAgentBridgeRuntimeValidator } from '../shared/agent-bridge-contract/runtime-schema-validator';
+
 import { safeStartupCause } from './startup-diagnostic-boundary';
 import type { StartupDiagnostics } from './startup-diagnostics';
 
+const validateRecord = createAgentBridgeRuntimeValidator<LocalStartupBrowserRecord>(
+  'LocalStartupBrowserRecord',
+  localLifecycleRuntimeSchema,
+);
 /** Receives only closed-vocabulary events; its capability cannot authorize any other action. */
 export class StartupBrowserDiagnostics {
   private readonly token = randomBytes(32).toString('base64url');
@@ -26,6 +36,9 @@ export class StartupBrowserDiagnostics {
         request.headers.origin !== this.origin ||
         request.url !== '/local-startup/events'
       ) {
+        this.journal.record('browser.evidence.refused', {
+          reasonCode: 'host_origin_or_path_mismatch',
+        });
         response.writeHead(403).end();
         return;
       }
@@ -44,6 +57,9 @@ export class StartupBrowserDiagnostics {
         !/^[A-Za-z0-9_-]{43}$/u.test(supplied) ||
         !timingSafeEqual(Buffer.from(supplied), Buffer.from(this.token))
       ) {
+        this.journal.record('browser.evidence.refused', {
+          reasonCode: 'method_or_capability_mismatch',
+        });
         response.writeHead(403).end();
         return;
       }
@@ -66,7 +82,8 @@ export class StartupBrowserDiagnostics {
           return;
         }
         bytes += chunk.length;
-        if (bytes > 128) {
+        if (bytes > 2048) {
+          this.journal.record('browser.evidence.refused', { reasonCode: 'event_too_large' });
           rejected = true;
           response.writeHead(413).end();
           request.destroy();
@@ -78,13 +95,41 @@ export class StartupBrowserDiagnostics {
         if (rejected) {
           return;
         }
-        const parsed = z.nativeEnum(LocalStartupBrowserEvent).safeParse(body);
-        if (!parsed.success) {
+        const legacy = z.nativeEnum(LocalStartupBrowserEvent).safeParse(body);
+        let value: unknown;
+        try {
+          value = JSON.parse(body);
+        } catch {
+          value = undefined;
+        }
+        const record = validateRecord(value) ? value : undefined;
+        const event = legacy.success ? legacy.data : record?.event;
+        if (!event) {
+          this.journal.record('browser.evidence.refused', { reasonCode: 'invalid_event_schema' });
           response.writeHead(400).end();
           return;
         }
-        this.journal.record('browser.setup', { state: parsed.data });
-        if (parsed.data.endsWith('_failed') || parsed.data === 'connection_timeout') {
+        this.journal.record('browser.setup', {
+          state: event,
+          ...(record
+            ? {
+                browserSequence: record.sequence,
+                observedAt: record.observedAt,
+                facts: record.facts,
+              }
+            : {}),
+        });
+        // Renewal can fail before the CLI handoff, and passkey cancellation can
+        // be retried. Diagnostic observations must not turn those into failed starts.
+        const blockingFailure = new Set<LocalStartupBrowserEvent>([
+          LocalStartupBrowserEvent.HandoffFailed,
+          LocalStartupBrowserEvent.StatusFailed,
+          LocalStartupBrowserEvent.NameFailed,
+          LocalStartupBrowserEvent.RepairFailed,
+          LocalStartupBrowserEvent.PasskeyFailed,
+          LocalStartupBrowserEvent.ConnectionTimeout,
+        ]);
+        if (blockingFailure.has(event)) {
           this.journal.failure();
         }
         response.writeHead(204).end();
@@ -95,7 +140,9 @@ export class StartupBrowserDiagnostics {
     });
     server.requestTimeout = 3000;
     server.headersTimeout = 3000;
-    server.maxConnections = 4;
+    // Browsers can open six connections to an origin; setup emits bursts when
+    // authentication and pairing state change together. Keep a bounded margin.
+    server.maxConnections = 16;
     this.server = server;
     try {
       await new Promise<void>((resolve, reject) => {

@@ -1,3 +1,4 @@
+import { MachineEnrollmentClaimFailureCode } from '@hey-hey/contracts/api';
 import { DockerProcessError, type DockerFailureRecord } from './docker-process';
 import { z } from 'zod';
 
@@ -41,6 +42,13 @@ const safeCode = z.enum([
   'UNEXPECTED',
   'INVALID_JSON',
   'VALIDATION_FAILED',
+  'MACHINE_ENROLLMENT_INVALID_TRANSITION',
+  'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED',
+  'UNAUTHORIZED',
+  'ERR_NETWORK',
+  'ERR_BAD_REQUEST',
+  'ERR_BAD_RESPONSE',
+  ...Object.values(MachineEnrollmentClaimFailureCode),
 ]);
 /** The closed vocabulary of cause codes; also used to recognise codes in unstructured output. */
 export const startupErrorCodes: readonly string[] = safeCode.options;
@@ -49,7 +57,13 @@ const errorBoundary = z.object({
   status: z.number().int().min(100).max(599).optional().catch(undefined),
   statusCode: z.number().int().min(100).max(599).optional().catch(undefined),
   response: z
-    .object({ status: z.number().int().min(100).max(599) })
+    .object({
+      status: z.number().int().min(100).max(599),
+      data: z
+        .object({ code: safeCode.optional(), errorCode: safeCode.optional() })
+        .optional()
+        .catch(undefined),
+    })
     .optional()
     .catch(undefined),
   exitCode: z.number().int().nullable().optional().catch(undefined),
@@ -97,6 +111,8 @@ export function safeStartupCause(error: unknown, depth = 0): SafeStartupCause {
   const status = parsed.data.status ?? parsed.data.statusCode ?? parsed.data.response?.status;
   return {
     code:
+      parsed.data.response?.data?.code ??
+      parsed.data.response?.data?.errorCode ??
       code ??
       (status
         ? 'HTTP_FAILURE'

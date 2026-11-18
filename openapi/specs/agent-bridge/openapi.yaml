@@ -14,7 +14,7 @@ paths:
         An ephemeral loopback-only diagnostic listener, available only while heyhey local runs.
         The CLI-opened fragment carries a fresh capability for this invocation. The listener
         requires that capability and the exact local web Origin, accepts at most 120 events
-        per attempt and 128 bytes per request. It grants no controller or account authority.
+        per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
       parameters:
         - in: header
           name: X-HeyHey-Diagnostic
@@ -23,6 +23,9 @@ paths:
       requestBody:
         required: true
         content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalStartupBrowserRecord"
           text/plain:
             schema:
               $ref: "#/components/schemas/LocalStartupBrowserEvent"
@@ -100,6 +103,102 @@ components:
         - repair_offered
         - repair_failed
         - passkey_failed
+        - setup_view
+        - setup_status
+        - passkey_inventory
+        - auth_state
+        - auth_renewal_started
+        - auth_renewal_succeeded
+        - auth_renewal_failed
+        - auth_cleared
+        - socket_renewal_started
+        - socket_renewal_failed
+        - passkey_registration_started
+        - passkey_registration_succeeded
+        - passkey_registration_failed
+        - replacement_session_accepted
+        - setup_redirect
+    LocalStartupBrowserRecord:
+      type: object
+      additionalProperties: false
+      required: [event, sequence, observedAt]
+      properties:
+        event:
+          $ref: "#/components/schemas/LocalStartupBrowserEvent"
+        sequence: { type: integer, minimum: 1 }
+        observedAt: { type: string, format: date-time }
+        facts:
+          type: object
+          additionalProperties: false
+          properties:
+            authenticated: { type: boolean }
+            loading: { type: boolean }
+            handoffPending: { type: boolean }
+            nameSaved: { type: boolean }
+            machineConnected: { type: boolean }
+            hasProjects: { type: boolean }
+            setupUnfinished: { type: boolean }
+            replacementSession: { type: boolean }
+            passkeyCount: { type: integer, minimum: 0 }
+            status: { type: integer, minimum: 100, maximum: 599 }
+            errorName:
+              type: string
+              enum:
+                [
+                  Error,
+                  TypeError,
+                  SyntaxError,
+                  AxiosError,
+                  AbortError,
+                  TimeoutError,
+                  SecurityError,
+                  InvalidStateError,
+                  NotAllowedError,
+                  NotSupportedError,
+                  WebAuthnCancelledError,
+                  WebAuthnUnsupportedError,
+                  PasskeyCeremonyCancelledError,
+                  PasskeyUnsupportedError,
+                  MachineEnrollmentClaimError,
+                  UnknownError,
+                ]
+            transportCode:
+              type: string
+              enum:
+                [
+                  ERR_NETWORK,
+                  ERR_BAD_REQUEST,
+                  ERR_BAD_RESPONSE,
+                  ECONNABORTED,
+                  ETIMEDOUT,
+                  ERR_CANCELED,
+                ]
+            elapsedMs: { type: number, minimum: 0 }
+            view:
+              type: string
+              enum:
+                [
+                  loading,
+                  name,
+                  error,
+                  passkey-step,
+                  continuing,
+                  missing-pairing-details,
+                  waiting-for-cli,
+                ]
+            destination:
+              type: string
+              enum: [login, welcome, home]
+            reason:
+              type: string
+              enum:
+                [
+                  unauthenticated,
+                  connected,
+                  terminal_socket_auth,
+                  request_failed,
+                  unknown_failure,
+                ]
     LocalLifecycleWork:
       type: object
       additionalProperties: false

@@ -1,3 +1,4 @@
+import type { LocalStartupBrowserRecord } from "@hey-hey/contracts/agent-bridge";
 import { holdStartupDiagnosticTransport } from "./localStartupDiagnosticTransport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +12,8 @@ import { getApiRuntime } from "@hey-hey/ui-common/clients";
 import {
   acceptBrowserAuthSession,
   refreshAuthToken,
+  recordLocalStartupDiagnostic,
+  diagnosticFailureFacts,
 } from "@hey-hey/ui-common/services";
 import { useAuth } from "@hey-hey/ui-common/context";
 import {
@@ -138,7 +141,7 @@ const describeView = ({
   status: LocalSetupStatusDto | null;
   pairingStarted: boolean;
   pairing: unknown;
-}): string => {
+}): NonNullable<NonNullable<LocalStartupBrowserRecord["facts"]>["view"]> => {
   if (step === "error") return "error";
   if (step === "loading" || !status) return "loading";
   if (status.nameComplete && status.machineConnected) return "continuing";
@@ -170,12 +173,27 @@ export function LocalSetupPage(): React.JSX.Element {
   const passkeyCreatedRef = useRef(false);
   const [enrollmentId, setEnrollmentId] = useState<string>();
   const handlePasskeyCreated = useCallback((id: string) => {
+    recordLocalStartupDiagnostic("passkey_registration_succeeded");
     setEnrollmentId(id);
     passkeyCreatedRef.current = true;
     setPasskeyCreated(true);
   }, []);
   const [connectionFailed, setConnectionFailed] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
+
+  useEffect(() => {
+    recordLocalStartupDiagnostic("auth_state", {
+      authenticated: isAuthenticated,
+      loading: authLoading,
+      handoffPending,
+    });
+    if (!authLoading && !handoffPending && !isAuthenticated) {
+      recordLocalStartupDiagnostic("setup_redirect", {
+        destination: "login",
+        reason: "unauthenticated",
+      });
+    }
+  }, [isAuthenticated, authLoading, handoffPending]);
 
   const pairingStarted = searchParams.get("pairing") === "started";
   const pairing = heldLocalPairing();
@@ -257,7 +275,10 @@ export function LocalSetupPage(): React.JSX.Element {
         );
       })
       .catch((failure: unknown) => {
-        recordLocalSetupEvent(`handoff: failed (${describeFailure(failure)})`);
+        recordLocalSetupEvent(
+          `handoff: failed (${describeFailure(failure)})`,
+          diagnosticFailureFacts(failure),
+        );
         setError("Run heyhey local again to restore access to this computer.");
         setStep("error");
       })
@@ -281,6 +302,12 @@ export function LocalSetupPage(): React.JSX.Element {
         if (statusSummary !== lastStatus.current) {
           lastStatus.current = statusSummary;
           recordLocalSetupEvent(`status: ${statusSummary}`);
+          recordLocalStartupDiagnostic("setup_status", {
+            nameSaved: nextStatus.nameComplete,
+            machineConnected: nextStatus.machineConnected,
+            hasProjects: nextStatus.hasProjects,
+            setupUnfinished: nextStatus.setupProjectId !== null,
+          });
         }
         setStatus(nextStatus);
         setStep((currentStep) =>
@@ -293,16 +320,29 @@ export function LocalSetupPage(): React.JSX.Element {
           nextStatus.machineConnected &&
           (!hasPairingHandoff || enrollmentId !== undefined)
         ) {
+          recordLocalStartupDiagnostic("setup_redirect", {
+            destination:
+              nextStatus.setupProjectId || !nextStatus.hasProjects
+                ? "welcome"
+                : "home",
+            reason: "connected",
+          });
           await navigate(destinationAfterConnecting(nextStatus), {
             replace: true,
           });
         }
       } catch (failure: unknown) {
         if (active && passkeyCreatedRef.current) {
-          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
+          recordLocalSetupEvent(
+            `status: failed (${describeFailure(failure)})`,
+            diagnosticFailureFacts(failure),
+          );
           setConnectionFailed(true);
         } else if (active) {
-          recordLocalSetupEvent(`status: failed (${describeFailure(failure)})`);
+          recordLocalSetupEvent(
+            `status: failed (${describeFailure(failure)})`,
+            diagnosticFailureFacts(failure),
+          );
           setError(
             "Local account status is unavailable. Run heyhey local and retry.",
           );
@@ -343,7 +383,10 @@ export function LocalSetupPage(): React.JSX.Element {
       setStep("name");
       recordLocalSetupEvent("name: saved and session refreshed");
     } catch (failure: unknown) {
-      recordLocalSetupEvent(`name: failed (${describeFailure(failure)})`);
+      recordLocalSetupEvent(
+        `name: failed (${describeFailure(failure)})`,
+        diagnosticFailureFacts(failure),
+      );
       setError("We couldn't save your name. Try again.");
     } finally {
       setSaving(false);
@@ -353,6 +396,7 @@ export function LocalSetupPage(): React.JSX.Element {
   const view = describeView({ step, status, pairingStarted, pairing });
   useEffect(() => {
     recordLocalSetupEvent(`view: ${view}`);
+    recordLocalStartupDiagnostic("setup_view", { view });
   }, [view]);
 
   if (step === "error") {

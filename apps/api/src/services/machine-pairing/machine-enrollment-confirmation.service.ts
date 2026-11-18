@@ -152,6 +152,18 @@ export class MachineEnrollmentConfirmationService {
             MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS >
             now.getTime()
         ) {
+          this.logger.warn(
+            'Machine enrollment poll refused',
+            machineEnrollmentDiagnostic('failed_transition', {
+              enrollmentId,
+              state: current.state,
+              reasonCode: 'poll_interval_too_short',
+              observedAt: now.toISOString(),
+              lastPolledAt: current.lastPolledAt.toISOString(),
+              elapsedMs: now.getTime() - current.lastPolledAt.getTime(),
+              minimumIntervalMs: MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS,
+            }),
+          );
           throw new EnrollmentInvalidTransition();
         }
 
@@ -197,6 +209,15 @@ export class MachineEnrollmentConfirmationService {
           },
         });
         if (updated.count !== 1) {
+          this.logger.warn(
+            'Machine enrollment poll refused',
+            machineEnrollmentDiagnostic('failed_transition', {
+              enrollmentId,
+              state: current.state,
+              reasonCode: 'poll_update_conflict',
+              observedAt: now.toISOString(),
+            }),
+          );
           throw new EnrollmentInvalidTransition();
         }
 

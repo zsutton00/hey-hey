@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Alert, CircularProgress, Typography } from "@mui/material";
 import {
@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "@hey-hey/ui-common/context";
 import {
   isPasskeySupported,
+  recordLocalStartupDiagnostic,
   PasskeyCeremonyCancelledError,
   signInWithPasskey,
 } from "@hey-hey/ui-common/services";
@@ -27,6 +28,12 @@ export function LocalLogin() {
   const [failed, setFailed] = useState(false);
   const target = resolveAuthReturnTarget(location);
   const supported = isPasskeySupported();
+  useEffect(() => {
+    recordLocalStartupDiagnostic("auth_state", {
+      authenticated: isAuthenticated,
+      loading,
+    });
+  }, [isAuthenticated, loading]);
 
   const handleSignIn = async () => {
     setPending(true);

@@ -649,6 +649,13 @@ export class AccountPasskeyService {
       };
     });
 
+    this.logger.log('Publishing passkey session replacement invalidation', {
+      event: 'browser_session.replacement_invalidation',
+      reasonCode: reason,
+      sessionId: committed.session.sessionId,
+      revokedSessionCount: committed.revocation.revokedSessionIds.length,
+      authorizationRevision: committed.revision,
+    });
     this.browserSessionService.invalidateRevokedSessions(
       committed.revocation.revokedSessionIds,
     );
@@ -657,6 +664,7 @@ export class AccountPasskeyService {
       committed.revision,
     );
     this.logger.log('Account passkey change committed', {
+      event: 'browser_session.passkey_change_committed',
       eventType:
         reason === 'passkey_added'
           ? 'ACCOUNT_PASSKEY_ADDED'

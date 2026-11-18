@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { LocalPasskeyRepairState } from "@hey-hey/ui-common/api";
 import { getApiRuntime } from "@hey-hey/ui-common/clients";
-import { listAccountPasskeys } from "@hey-hey/ui-common/services";
+import {
+  listAccountPasskeys,
+  recordLocalStartupDiagnostic,
+  diagnosticFailureFacts,
+} from "@hey-hey/ui-common/services";
 import { getErrorMessage } from "@hey-hey/ui-common/utils";
 import { recordLocalSetupEvent } from "./localSetupEvents";
 
@@ -54,6 +58,9 @@ export function useLocalReturningPasskey(
         recordLocalSetupEvent(
           `passkeys: account has ${String(passkeys.length)}`,
         );
+        recordLocalStartupDiagnostic("passkey_inventory", {
+          passkeyCount: passkeys.length,
+        });
         setReturning(passkeys.length > 0);
       })
       .catch((failure: unknown) => {
@@ -61,6 +68,7 @@ export function useLocalReturningPasskey(
         // switches this page to the existing-passkey path.
         recordLocalSetupEvent(
           `passkeys: list failed (${describeFailure(failure)})`,
+          diagnosticFailureFacts(failure),
         );
       });
 
@@ -104,6 +112,7 @@ export function useLocalReturningPasskey(
         }
         recordLocalSetupEvent(
           `repair: status failed (${describeFailure(failure)})`,
+          diagnosticFailureFacts(failure),
         );
         setRepairError(
           getErrorMessage(
@@ -141,6 +150,7 @@ export function useLocalReturningPasskey(
     } catch (failure: unknown) {
       recordLocalSetupEvent(
         `repair: request failed (${describeFailure(failure)})`,
+        diagnosticFailureFacts(failure),
       );
       setRepairError(
         getErrorMessage(

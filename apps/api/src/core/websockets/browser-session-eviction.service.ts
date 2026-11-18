@@ -130,7 +130,7 @@ export class BrowserSessionEvictionService
       }
       return closed;
     } catch (error) {
-      this.logger.warn({
+      this.logger.warn('browser_session_reconcile_failed', {
         event: 'browser_session_reconcile_failed',
         errorType: error instanceof Error ? error.name : 'UnknownError',
       });
@@ -147,7 +147,7 @@ export class BrowserSessionEvictionService
       );
     } catch (error) {
       // Other replicas still close the sockets at their next reconciliation.
-      this.logger.warn({
+      this.logger.warn('browser_session_eviction_publish_failed', {
         event: 'browser_session_eviction_publish_failed',
         kind: message.kind,
         errorType: error instanceof Error ? error.name : 'UnknownError',
@@ -171,7 +171,10 @@ export class BrowserSessionEvictionService
     }
     const message = evictionMessageSchema.safeParse(parsed);
     if (!message.success) {
-      this.logger.warn({ event: 'browser_session_eviction_rejected' });
+      this.logger.warn('browser_session_eviction_rejected', {
+        event: 'browser_session_eviction_rejected',
+        reasonCode: 'invalid_eviction_message',
+      });
       return;
     }
     this.applyLocal(message.data, 'subscriber');
@@ -192,7 +195,7 @@ export class BrowserSessionEvictionService
             message.userId as UserId,
             message.revision,
           );
-    this.logger.log({
+    this.logger.log('browser_session_eviction_applied', {
       event: 'browser_session_eviction_applied',
       kind: message.kind,
       closed,

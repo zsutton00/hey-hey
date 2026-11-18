@@ -19,8 +19,34 @@ const containerRow = z.object({
 // Only identifiers and cause codes survive; messages, stacks and request content never do.
 const structuredLine = z.object({
   timestamp: z.string().datetime().optional().catch(undefined),
-  level: z.enum(['warn', 'error', 'fatal']),
+  level: z.enum(['info', 'warn', 'error', 'fatal']),
   event: z
+    .string()
+    .regex(/^[A-Za-z0-9_.:-]{1,80}$/u)
+    .optional()
+    .catch(undefined),
+  component: z
+    .string()
+    .regex(/^[A-Za-z0-9_.:-]{1,80}$/u)
+    .optional()
+    .catch(undefined),
+  reasonCode: z
+    .enum([
+      'refresh_cookie_missing',
+      'not_found',
+      'revoked',
+      'inactive',
+      'absolutely_expired',
+      'replay_detected',
+      'poll_interval_too_short',
+      'poll_update_conflict',
+    ])
+    .optional()
+    .catch(undefined),
+  requestId: z.string().uuid().optional().catch(undefined),
+  errorCode: z.unknown().optional(),
+  statusCode: z.number().int().min(100).max(599).optional().catch(undefined),
+  eventType: z
     .string()
     .regex(/^[A-Za-z0-9_.:-]{1,80}$/u)
     .optional()
@@ -28,6 +54,17 @@ const structuredLine = z.object({
   error: z.unknown().optional(),
   code: z.unknown().optional(),
 });
+const sessionEvents = new Set([
+  'browser_session.established',
+  'browser_session.refreshed',
+  'browser_session.replacement_invalidation',
+  'browser_session.passkey_change_committed',
+  'browser_session.replacement_cookies_set',
+  'browser_session.refresh_cookies_set',
+  'browser_session.refresh_cookies_cleared',
+  'browser_session.refresh_refused',
+  'browser_session_eviction_applied',
+]);
 const causeCodePattern = new RegExp(`\\b(${startupErrorCodes.join('|')})\\b`, 'gu');
 
 interface EventGroup {
@@ -35,6 +72,8 @@ interface EventGroup {
   event: string | undefined;
   cause: unknown;
   count: number;
+  reasonCode: string | undefined;
+  requestId: string | undefined;
   firstAt: string | undefined;
   lastAt: string | undefined;
 }
@@ -65,11 +104,18 @@ function summarizeLogs(output: string) {
       continue;
     }
 
-    const { level, event, timestamp } = parsed.data;
-    const raw = parsed.data.error ?? parsed.data.code;
+    const { level, timestamp } = parsed.data;
+    const event = parsed.data.event ?? parsed.data.eventType ?? parsed.data.component;
+    if (level === 'info' && !sessionEvents.has(event ?? '')) {
+      otherStructuredLines += 1;
+      continue;
+    }
+    const raw = parsed.data.error ?? parsed.data.errorCode ?? parsed.data.code;
     const cause =
-      raw === undefined ? undefined : safeStartupCause(parsed.data.error ?? { code: raw });
-    const key = JSON.stringify([level, event, cause]);
+      raw === undefined && parsed.data.statusCode === undefined
+        ? undefined
+        : safeStartupCause(parsed.data.error ?? { code: raw, status: parsed.data.statusCode });
+    const key = JSON.stringify([level, event, cause, parsed.data.reasonCode]);
     const group = groups.get(key);
     if (group) {
       group.count += 1;
@@ -78,9 +124,22 @@ function summarizeLogs(output: string) {
     }
     if (groups.size >= MAX_EVENT_GROUPS) {
       omittedEventGroups += 1;
-      continue;
+      const informational = [...groups].find(([, existing]) => existing.level === 'info');
+      if (level === 'info' || !informational) {
+        continue;
+      }
+      groups.delete(informational[0]);
     }
-    groups.set(key, { level, event, cause, count: 1, firstAt: timestamp, lastAt: timestamp });
+    groups.set(key, {
+      level,
+      event,
+      cause,
+      count: 1,
+      firstAt: timestamp,
+      lastAt: timestamp,
+      reasonCode: parsed.data.reasonCode,
+      requestId: parsed.data.requestId,
+    });
   }
 
   return {

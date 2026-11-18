@@ -1,3 +1,4 @@
+import { MachineEnrollmentClaimFailureCode } from '@hey-hey/contracts/api';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod/v4';
@@ -35,6 +36,10 @@ const state = z
 const reasonCode = z
   .enum([
     'unrecognized_reason_code',
+    'shared_registration_account_proof_required',
+    'shared_registration_account_proof_failed',
+    'shared_registration_passkey_already_registered',
+    'shared_registration_session_ended',
     'enrollment_unavailable',
     'activation_completed',
     'enrollment_rejected',
@@ -42,6 +47,8 @@ const reasonCode = z
     'enrollment_deadline_elapsed',
     'awaiting_activation',
     'poll_succeeded',
+    'poll_interval_too_short',
+    'poll_update_conflict',
     'signature_verification_failed',
     'signature_verification_succeeded',
     'activation_with_first_local_grant',
@@ -97,6 +104,10 @@ const lifecycleRecord = z.object({
   decision: z
     .enum([
       'unrecognized_decision',
+      'created',
+      'claim',
+      'resume',
+      'unusable',
       'accepted',
       'rejected',
       'verified',
@@ -109,11 +120,16 @@ const lifecycleRecord = z.object({
       'ready',
       'pending',
       'warning',
+      ...Object.values(MachineEnrollmentClaimFailureCode),
     ])
     .catch('unrecognized_decision')
     .optional(),
   reasonCode,
   expiresAt: z.string().datetime().optional(),
+  observedAt: z.string().datetime().optional(),
+  lastPolledAt: z.string().datetime().optional(),
+  elapsedMs: z.number().nonnegative().optional(),
+  minimumIntervalMs: z.number().nonnegative().optional(),
 });
 const enrollmentRecord = z.union([pairingRecord, lifecycleRecord]);
 /** Bounded API evidence supplements the CLI snapshot even after pairing fails. */

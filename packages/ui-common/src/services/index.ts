@@ -15,3 +15,7 @@ export * from "./workItemService";
 export * from "./workItemTypes";
 export * from "./workflowService";
 export * from "./runtimeConfig";
+
+export * from "./localStartupDiagnostics";
+
+export { recordBrowserSessionDiagnostic } from "./browserSessionDiagnostics";

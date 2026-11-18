@@ -22,6 +22,8 @@ import {
 import { formatUserIdentity, useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
   acceptBrowserAuthResponse,
+  recordBrowserSessionDiagnostic,
+  diagnosticFailureFacts,
   PasskeyUnsupportedError,
   requestRegistrationProof,
   type AccountProofInput,
@@ -494,6 +496,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       setPasskeyRetryMessage(null);
       setState("review");
     } catch (error) {
+      recordBrowserSessionDiagnostic(
+        "passkey_registration_failed",
+        diagnosticFailureFacts(error),
+      );
       if (activeAttemptRevision !== attemptRevision.current) return;
       if (!applyAuthoritativeClaimFailure(error)) {
         setState("code-entry");
@@ -614,6 +620,7 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       return;
     }
 
+    recordBrowserSessionDiagnostic("passkey_registration_started");
     let accountProof: AccountProofDto | undefined;
     if (sharedForSignIn) {
       setState("passkey-in-progress");
@@ -621,6 +628,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         accountProof = await sharedSignInProof();
         if (activeAttemptRevision !== attemptRevision.current) return;
       } catch (error) {
+        recordBrowserSessionDiagnostic(
+          "passkey_registration_failed",
+          diagnosticFailureFacts(error),
+        );
         if (activeAttemptRevision !== attemptRevision.current) return;
         if (firstUseSharedNew && !(error instanceof PasskeyUnsupportedError)) {
           // The existing passkey isn't available here; the parent offers Repair.
@@ -646,6 +657,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       );
       if (activeAttemptRevision !== attemptRevision.current) return;
     } catch (error) {
+      recordBrowserSessionDiagnostic(
+        "passkey_registration_failed",
+        diagnosticFailureFacts(error),
+      );
       if (activeAttemptRevision !== attemptRevision.current) return;
       if (error instanceof WebAuthnUnsupportedError) {
         setPasskeyRetryMessage(
@@ -685,9 +700,13 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
         ...(localApprovalProof === undefined ? {} : { localApprovalProof }),
         ...(accountProof === undefined ? {} : { accountProof }),
       });
+      recordBrowserSessionDiagnostic("passkey_registration_succeeded", {
+        replacementSession: response.session !== undefined,
+      });
       if (response.session) {
         // Adding sign-in eligibility replaced every earlier browser session.
         acceptBrowserAuthResponse(response.session);
+        recordBrowserSessionDiagnostic("replacement_session_accepted");
       }
       if (activeAttemptRevision !== attemptRevision.current) return;
       setCompletion(response);
@@ -695,6 +714,10 @@ export const ClaimMachine: React.FC<ClaimMachineProps> = ({
       setCode("");
       setState("awaiting-local-confirmation");
     } catch (error) {
+      recordBrowserSessionDiagnostic(
+        "passkey_registration_failed",
+        diagnosticFailureFacts(error),
+      );
       if (activeAttemptRevision !== attemptRevision.current) return;
       if (
         error instanceof MachineEnrollmentClaimError &&

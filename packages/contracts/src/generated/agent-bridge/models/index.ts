@@ -453,6 +453,8 @@ export * from './local-set-splitting-response.js';
 export * from './local-set-splitting-service.js';
 export * from './local-set-splitting-split-mode.js';
 export * from './local-startup-browser-event.js';
+export * from './local-startup-browser-record.js';
+export * from './local-startup-browser-record-facts.js';
 export * from './local-startup-plan-discrepancy-disposition.js';
 export * from './local-startup-plan-discrepancy-review.js';
 export * from './local-startup-plan-question-answer.js';

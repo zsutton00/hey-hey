@@ -1,3 +1,4 @@
+import { recordBrowserSessionDiagnostic } from "../services/browserSessionDiagnostics";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import type {
@@ -68,6 +69,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [organizationSwitchError, setOrganizationSwitchError] = useState<
     string | null
   >(null);
+
+  useEffect(() => {
+    recordBrowserSessionDiagnostic("auth_state", {
+      authenticated: isAuthenticated,
+      loading,
+    });
+  }, [isAuthenticated, loading]);
 
   useEffect(() => {
     return onAuthChange((authenticated) => {

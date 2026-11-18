@@ -1,3 +1,4 @@
+import type { LocalStartupBrowserRecord } from "@hey-hey/contracts/agent-bridge";
 import { sendStartupBrowserEvent } from "./localStartupDiagnosticTransport";
 /**
  * A short, non-secret timeline of what the local setup page did in this tab.
@@ -17,8 +18,16 @@ const isStringArray = (value: unknown): value is string[] =>
 const listeners = new Set<() => void>();
 
 /** The stored timeline exactly as persisted; a stable value for subscribers. */
-export const readStoredLocalSetupEvents = (): string | null =>
-  sessionStorage.getItem(STORAGE_KEY);
+export const readStoredLocalSetupEvents = (): string | null => {
+  try {
+    return sessionStorage.getItem(STORAGE_KEY);
+  } catch (error) {
+    console.warn("[local-setup] timeline read failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+    return null;
+  }
+};
 
 export const subscribeToLocalSetupEvents = (
   listener: () => void,
@@ -43,8 +52,11 @@ export const parseLocalSetupEvents = (stored: string | null): string[] => {
   }
 };
 
-export const recordLocalSetupEvent = (message: string): void => {
-  sendStartupBrowserEvent(message);
+export const recordLocalSetupEvent = (
+  message: string,
+  facts?: LocalStartupBrowserRecord["facts"],
+): void => {
+  sendStartupBrowserEvent(message, facts);
   const time = new Date().toISOString().slice(11, 23);
   const events = [
     ...parseLocalSetupEvents(readStoredLocalSetupEvents()),
@@ -52,10 +64,16 @@ export const recordLocalSetupEvent = (message: string): void => {
   ];
 
   console.info("[local-setup]", message);
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(events.slice(-MAX_EVENTS)),
-  );
+  try {
+    sessionStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(events.slice(-MAX_EVENTS)),
+    );
+  } catch (error) {
+    console.warn("[local-setup] timeline write failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+  }
   listeners.forEach((listener) => listener());
 };
 

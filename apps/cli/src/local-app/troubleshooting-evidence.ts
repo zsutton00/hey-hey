@@ -1,3 +1,9 @@
+import {
+  LocalStartupBrowserEvent,
+  type LocalStartupBrowserRecord,
+} from '@hey-hey/contracts/agent-bridge';
+import { localLifecycleRuntimeSchema } from '@hey-hey/contracts/agent-bridge/local-lifecycle-runtime-schema';
+import { createAgentBridgeRuntimeValidator } from '../shared/agent-bridge-contract/runtime-schema-validator';
 import { constants } from 'node:fs';
 import { open, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -6,6 +12,10 @@ import type { StartupDiagnostics } from './startup-diagnostics';
 import { safeStartupCause } from './startup-diagnostic-boundary';
 
 /** Journals are bounded to 1 MiB by retention; reading twice that never needs unbounded memory. */
+const validateBrowserRecord = createAgentBridgeRuntimeValidator<LocalStartupBrowserRecord>(
+  'LocalStartupBrowserRecord',
+  localLifecycleRuntimeSchema,
+);
 const MAX_READ_BYTES = 2 * 1024 * 1024;
 const JOURNAL_PATTERN = /^startup-\d{13}-[a-f0-9-]{36}\.jsonl$/u;
 
@@ -98,6 +108,8 @@ const containerFields = z.object({
       z.object({
         level: z.string(),
         event: z.string().optional(),
+        reasonCode: z.string().optional(),
+        requestId: z.string().uuid().optional(),
         cause: causeSchema.optional(),
         count: z.number(),
       }),
@@ -128,6 +140,12 @@ export interface TroubleshootingEvidence {
   /** Absolute path of the journal this evidence came from; null when no saved file was readable. */
   journalPath: string | null;
   versions: z.infer<typeof startedFields>;
+  browserTimeline?: Array<{
+    state: string;
+    observedAt?: string | undefined;
+    browserSequence?: number | undefined;
+    facts?: LocalStartupBrowserRecord['facts'] | undefined;
+  }>;
   lastStage: string | null;
   causes: RecordedCause[];
   prerequisite: string | null;
@@ -322,8 +340,7 @@ function evidenceFor(
     );
   }
   const finished = attempt.find((record) => record.event === 'attempt.finished') as
-    | { evidenceComplete?: unknown }
-    | undefined;
+    { evidenceComplete?: unknown } | undefined;
   if (finished?.evidenceComplete === false) {
     gaps.push('The journal marked its evidence incomplete (evidenceComplete: false).');
   }
@@ -358,6 +375,18 @@ function evidenceFor(
       gaps.push(`Container evidence for ${item.service ?? 'a service'} is incomplete.`);
     }
   }
+  if (
+    attempt.some(
+      (record) =>
+        record.event === 'browser.evidence.truncated' ||
+        record.event === 'browser.evidence.refused' ||
+        record.event === 'browser.evidence.unavailable',
+    )
+  ) {
+    gaps.push(
+      'Browser evidence was refused, unavailable or reached its limit; see browser.evidence records.',
+    );
+  }
   const laterSuccess = attemptOrder.slice(index + 1).find((item) => item.succeeded);
 
   return {
@@ -367,6 +396,41 @@ function evidenceFor(
     journalPath: location.journalPath,
     versions: first.success ? first.data : {},
     lastStage: stage,
+    browserTimeline: attempt
+      .filter((record) => record.event === 'browser.setup')
+      .flatMap<NonNullable<TroubleshootingEvidence['browserTimeline']>[number]>((record) => {
+        const event = z.nativeEnum(LocalStartupBrowserEvent).safeParse(record['state']);
+        if (!event.success) {
+          gaps.push('A browser event had an unknown event name and was omitted.');
+          return [];
+        }
+        if (record['browserSequence'] === undefined) {
+          return [{ state: event.data }];
+        }
+        const browserRecord: unknown = {
+          event: event.data,
+          sequence: record['browserSequence'],
+          observedAt: record['observedAt'],
+          ...(record['facts'] !== undefined ? { facts: record['facts'] } : {}),
+        };
+        if (!validateBrowserRecord(browserRecord)) {
+          gaps.push('A browser event had invalid diagnostic facts and was omitted.');
+          return [];
+        }
+        return [
+          {
+            state: browserRecord.event,
+            observedAt: browserRecord.observedAt,
+            browserSequence: browserRecord.sequence,
+            facts: browserRecord.facts,
+          },
+        ];
+      })
+      .sort(
+        (left, right) =>
+          (left.observedAt ?? '').localeCompare(right.observedAt ?? '') ||
+          (left.browserSequence ?? 0) - (right.browserSequence ?? 0),
+      ),
     causes: causesOf(attempt),
     prerequisite:
       lastWith(attempt, 'local.docker.prerequisite', prerequisiteFields)?.reasonCode ?? null,

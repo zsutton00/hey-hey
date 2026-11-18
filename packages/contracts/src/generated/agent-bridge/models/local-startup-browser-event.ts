@@ -37,6 +37,21 @@ export const LocalStartupBrowserEvent = {
     RepairOffered: 'repair_offered',
     RepairFailed: 'repair_failed',
     PasskeyFailed: 'passkey_failed',
+    SetupView: 'setup_view',
+    SetupStatus: 'setup_status',
+    PasskeyInventory: 'passkey_inventory',
+    AuthState: 'auth_state',
+    AuthRenewalStarted: 'auth_renewal_started',
+    AuthRenewalSucceeded: 'auth_renewal_succeeded',
+    AuthRenewalFailed: 'auth_renewal_failed',
+    AuthCleared: 'auth_cleared',
+    SocketRenewalStarted: 'socket_renewal_started',
+    SocketRenewalFailed: 'socket_renewal_failed',
+    PasskeyRegistrationStarted: 'passkey_registration_started',
+    PasskeyRegistrationSucceeded: 'passkey_registration_succeeded',
+    PasskeyRegistrationFailed: 'passkey_registration_failed',
+    ReplacementSessionAccepted: 'replacement_session_accepted',
+    SetupRedirect: 'setup_redirect',
     "mounted": "mounted",
     "unmounted": "unmounted",
     "handoff_started": "handoff_started",
@@ -52,6 +67,21 @@ export const LocalStartupBrowserEvent = {
     "repair_offered": "repair_offered",
     "repair_failed": "repair_failed",
     "passkey_failed": "passkey_failed",
+    "setup_view": "setup_view",
+    "setup_status": "setup_status",
+    "passkey_inventory": "passkey_inventory",
+    "auth_state": "auth_state",
+    "auth_renewal_started": "auth_renewal_started",
+    "auth_renewal_succeeded": "auth_renewal_succeeded",
+    "auth_renewal_failed": "auth_renewal_failed",
+    "auth_cleared": "auth_cleared",
+    "socket_renewal_started": "socket_renewal_started",
+    "socket_renewal_failed": "socket_renewal_failed",
+    "passkey_registration_started": "passkey_registration_started",
+    "passkey_registration_succeeded": "passkey_registration_succeeded",
+    "passkey_registration_failed": "passkey_registration_failed",
+    "replacement_session_accepted": "replacement_session_accepted",
+    "setup_redirect": "setup_redirect",
 } as const;
 Object.defineProperty(LocalStartupBrowserEvent, "mounted", { enumerable: false, value: LocalStartupBrowserEvent["Mounted"] });
 Object.defineProperty(LocalStartupBrowserEvent, "unmounted", { enumerable: false, value: LocalStartupBrowserEvent["Unmounted"] });
@@ -68,5 +98,20 @@ Object.defineProperty(LocalStartupBrowserEvent, "repair_requested", { enumerable
 Object.defineProperty(LocalStartupBrowserEvent, "repair_offered", { enumerable: false, value: LocalStartupBrowserEvent["RepairOffered"] });
 Object.defineProperty(LocalStartupBrowserEvent, "repair_failed", { enumerable: false, value: LocalStartupBrowserEvent["RepairFailed"] });
 Object.defineProperty(LocalStartupBrowserEvent, "passkey_failed", { enumerable: false, value: LocalStartupBrowserEvent["PasskeyFailed"] });
+Object.defineProperty(LocalStartupBrowserEvent, "setup_view", { enumerable: false, value: LocalStartupBrowserEvent["SetupView"] });
+Object.defineProperty(LocalStartupBrowserEvent, "setup_status", { enumerable: false, value: LocalStartupBrowserEvent["SetupStatus"] });
+Object.defineProperty(LocalStartupBrowserEvent, "passkey_inventory", { enumerable: false, value: LocalStartupBrowserEvent["PasskeyInventory"] });
+Object.defineProperty(LocalStartupBrowserEvent, "auth_state", { enumerable: false, value: LocalStartupBrowserEvent["AuthState"] });
+Object.defineProperty(LocalStartupBrowserEvent, "auth_renewal_started", { enumerable: false, value: LocalStartupBrowserEvent["AuthRenewalStarted"] });
+Object.defineProperty(LocalStartupBrowserEvent, "auth_renewal_succeeded", { enumerable: false, value: LocalStartupBrowserEvent["AuthRenewalSucceeded"] });
+Object.defineProperty(LocalStartupBrowserEvent, "auth_renewal_failed", { enumerable: false, value: LocalStartupBrowserEvent["AuthRenewalFailed"] });
+Object.defineProperty(LocalStartupBrowserEvent, "auth_cleared", { enumerable: false, value: LocalStartupBrowserEvent["AuthCleared"] });
+Object.defineProperty(LocalStartupBrowserEvent, "socket_renewal_started", { enumerable: false, value: LocalStartupBrowserEvent["SocketRenewalStarted"] });
+Object.defineProperty(LocalStartupBrowserEvent, "socket_renewal_failed", { enumerable: false, value: LocalStartupBrowserEvent["SocketRenewalFailed"] });
+Object.defineProperty(LocalStartupBrowserEvent, "passkey_registration_started", { enumerable: false, value: LocalStartupBrowserEvent["PasskeyRegistrationStarted"] });
+Object.defineProperty(LocalStartupBrowserEvent, "passkey_registration_succeeded", { enumerable: false, value: LocalStartupBrowserEvent["PasskeyRegistrationSucceeded"] });
+Object.defineProperty(LocalStartupBrowserEvent, "passkey_registration_failed", { enumerable: false, value: LocalStartupBrowserEvent["PasskeyRegistrationFailed"] });
+Object.defineProperty(LocalStartupBrowserEvent, "replacement_session_accepted", { enumerable: false, value: LocalStartupBrowserEvent["ReplacementSessionAccepted"] });
+Object.defineProperty(LocalStartupBrowserEvent, "setup_redirect", { enumerable: false, value: LocalStartupBrowserEvent["SetupRedirect"] });
 
 export type LocalStartupBrowserEvent = typeof LocalStartupBrowserEvent[keyof typeof LocalStartupBrowserEvent];

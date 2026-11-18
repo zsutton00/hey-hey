@@ -169,6 +169,7 @@ export class BrowserSessionService {
       );
 
       this.logger.log('Browser session established', {
+        event: 'browser_session.established',
         userId: principal.userId,
         selectedOrganizationId: established.response.user.currentOrganizationId,
         sessionId: established.sessionId,
@@ -457,6 +458,7 @@ export class BrowserSessionService {
 
     if (result.status === 'rotated') {
       this.logger.log('Browser session refreshed', {
+        event: 'browser_session.refreshed',
         userId: result.userId,
         selectedOrganizationId: result.response.user.currentOrganizationId,
         organizationSelection:

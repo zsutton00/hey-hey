@@ -1,4 +1,8 @@
 import {
+  recordBrowserSessionDiagnostic,
+  diagnosticFailureFacts,
+} from "./browserSessionDiagnostics";
+import {
   roomKey,
   selectRoomOperation,
   settleRoomOperation,
@@ -1531,13 +1535,20 @@ export class WebSocketService {
     }
 
     this.hasAttemptedLiveAccessRenewal = true;
+    recordBrowserSessionDiagnostic("socket_renewal_started", {
+      reason: "terminal_socket_auth",
+    });
 
     try {
       await refreshAuthToken();
       if (this.config.userId && !this.socket) {
         this.connect();
       }
-    } catch {
+    } catch (error) {
+      recordBrowserSessionDiagnostic(
+        "socket_renewal_failed",
+        diagnosticFailureFacts(error),
+      );
       // authService owns the terminal unauthenticated transition and clears
       // the shared in-memory browser access state.
     }

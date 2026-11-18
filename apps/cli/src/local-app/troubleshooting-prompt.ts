@@ -73,7 +73,7 @@ function describeContainer(item: ContainerEvidence): string {
     }
     const events = groups.map(
       (group) =>
-        `${group.level} ${plain(group.event ?? 'unnamed event', 80)}${group.cause ? ` [${describeCause(group.cause)}]` : ''} ×${String(group.count)}`,
+        `${group.level} ${plain(group.event ?? 'unnamed event', 80)}${group.reasonCode ? ` (${plain(group.reasonCode, 80)})` : ''}${group.cause ? ` [${describeCause(group.cause)}]` : ''} ×${String(group.count)}`,
     );
     const raw = codes.map(([code, count]) => `${code} ×${String(count)} in unstructured output`);
     return `${label}: ${[...events, ...raw].join('; ')}${bounded}${item.omittedEventGroups ? `; ${String(item.omittedEventGroups)} more event group(s) omitted` : ''}`;
@@ -258,6 +258,17 @@ export function buildTroubleshootingPrompt({
       ),
     ],
     ['Container evidence', bullets(containerLines(evidence))],
+    [
+      'Browser timeline',
+      bullets(
+        (evidence.browserTimeline ?? []).length > 0
+          ? (evidence.browserTimeline ?? []).map(
+              (item) =>
+                `Browser ${item.observedAt ?? 'time unavailable'}${item.browserSequence ? ` #${String(item.browserSequence)}` : ''}: ${plain(item.state, 80)}${item.facts ? ` ${plain(JSON.stringify(item.facts), 600)}` : ''}`,
+            )
+          : ['Browser timeline was not captured; the journal cannot establish what the UI did.'],
+      ),
+    ],
     ['Recovery already attempted', bullets(recoveryLines(evidence))],
     [
       'What is missing or limited',
