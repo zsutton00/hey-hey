@@ -622,11 +622,16 @@ describe('codingPlanHandler', () => {
       expect(prompt).toContain('emit_coding_plan');
       expect(prompt).not.toContain('emit_coding_plan_discrepancy');
       expect(prompt).toContain("emit_coding_plan's discrepancies list");
-      expect(prompt).toContain('It contains no gates of any kind');
+      expect(prompt).toContain(
+        'It contains no gates: nothing that says work cannot proceed when the user approves',
+      );
       expect(prompt).toContain('Every replacement re-lists every finding that still applies');
       expect(prompt).toContain('project_context');
       expect(prompt).not.toContain('ask_coding_plan_question');
-      expect(prompt).toContain('record it as a discrepancy with a proposed resolution');
+      expect(prompt).toContain(
+        'A discrepancy is a real problem the user must see before approving',
+      );
+      expect(prompt).toContain('Your job is to produce a plan.');
       expect(prompt).toContain('their assent does not erase it');
       expect(prompt).toContain(
         'Only the explicit Approve control on the current complete emitted plan authorizes implementation',
