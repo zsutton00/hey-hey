@@ -2040,6 +2040,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
               hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
                 ...this.activeAllowedToolNames,
               ]),
+              hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
             },
           )
         : null;
@@ -2891,6 +2892,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
               ...this.activeAllowedToolNames,
             ]),
+            hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
           },
         );
       } catch (err: unknown) {

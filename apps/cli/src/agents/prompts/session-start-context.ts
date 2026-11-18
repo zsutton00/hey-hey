@@ -3,7 +3,7 @@ import { MachineOptionsStore } from '../../options/machine-options-store';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../shared/api/index';
 import { readActiveWorkItemTypeDefinitions } from './work-item-type-registry';
 import { readProjectMaturity } from './project-session-context';
-import { readHintsEnabled } from './hint-availability';
+import { readHintAvailability } from './hint-availability';
 
 /**
  * The validated context every fresh provider session opens with: the project's
@@ -20,6 +20,8 @@ export interface SessionStartContext {
   maturity: ProjectMaturity;
   /** Whether the platform offers the hint tools (the API's deployment-wide switch). */
   hintsEnabled: boolean;
+  /** Whether the API is a staging or local deployment, where hint guidance adds the product-defect rule. */
+  hintsProductDevelopment: boolean;
 }
 
 /**
@@ -53,7 +55,13 @@ export const readSessionStartContext = async (input: {
   const { intentFirst } = await new MachineOptionsStore().read();
   const maturity = await readProjectMaturity(tokenResult.data, input.projectId);
 
-  const hintsEnabled = await readHintsEnabled(tokenResult.data, input.projectId);
+  const hintAvailability = await readHintAvailability(tokenResult.data, input.projectId);
 
-  return { workItemTypeDefinitions, intentFirst, maturity, hintsEnabled };
+  return {
+    workItemTypeDefinitions,
+    intentFirst,
+    maturity,
+    hintsEnabled: hintAvailability.enabled,
+    hintsProductDevelopment: hintAvailability.productDevelopment,
+  };
 };
