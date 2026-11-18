@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { IdempotencyKeyReusedException } from '../../common/exceptions/idempotency-key-reuse.exception';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   BadRequestException,
@@ -444,7 +445,7 @@ export class AgentInteractionAdmissionService {
         existing.requestFingerprint !==
           this.requestFingerprint(admissionRequest, request.serviceIds)
       ) {
-        throw new ConflictException(
+        throw new IdempotencyKeyReusedException(
           'The idempotency identity is already used by a different interaction.',
         );
       }
@@ -1430,7 +1431,7 @@ export class AgentInteractionAdmissionService {
               existing.id !== request.id ||
               existing.requestFingerprint !== fingerprint
             ) {
-              throw new ConflictException(
+              throw new IdempotencyKeyReusedException(
                 'The idempotency identity is already used by a different interaction.',
               );
             }
@@ -1558,7 +1559,12 @@ export class AgentInteractionAdmissionService {
             replayed: true,
           };
         }
-        if (existing || retry === 2) {
+        if (existing) {
+          throw new IdempotencyKeyReusedException(
+            'The idempotency identity is already used by a different interaction.',
+          );
+        }
+        if (retry === 2) {
           throw new ConflictException(
             'Concurrent admission changed this interaction or session order.',
           );

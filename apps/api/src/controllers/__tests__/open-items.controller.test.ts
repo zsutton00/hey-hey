@@ -8,7 +8,7 @@ import * as http from 'http';
 import { Socket } from 'net';
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { OpenItemsConflictException } from '../../services/open-items/open-items.errors';
+import { OpenItemsIdempotencyKeyReusedException } from '../../services/open-items/open-items.errors';
 import { OpenItemsService } from '../../services/open-items/open-items.service';
 import { OpenItemsGoalPromotionService } from '../../services/open-items/open-items-goal-promotion.service';
 import { OpenItemsController } from '../open-items.controller';
@@ -316,9 +316,9 @@ describe('OpenItemsController (HTTP)', () => {
     );
   });
 
-  it('writes conflicts as the closed conflict error shape', async () => {
+  it('writes a reused idempotency key as the closed 422 error shape', async () => {
     service.setOpenItemNote.mockRejectedValue(
-      OpenItemsConflictException.of('IDEMPOTENCY_KEY_REUSED', 'reused', 4),
+      OpenItemsIdempotencyKeyReusedException.of('reused', 4),
     );
     const response = await call('POST', `${BASE}/items/TASK/${ENTITY}/note`, {
       idempotencyKey: 'idem-key-1',
@@ -326,7 +326,7 @@ describe('OpenItemsController (HTTP)', () => {
       note: '',
     });
     expect(response).toEqual({
-      status: 409,
+      status: 422,
       body: {
         success: false,
         code: 'IDEMPOTENCY_KEY_REUSED',
