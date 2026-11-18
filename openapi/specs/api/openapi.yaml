@@ -24896,6 +24896,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineEnrollmentInvalidTransitionErrorDto"
+        "429":
+          description: Poll arrived too soon. Retry the same enrollment after retryAfterSeconds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineEnrollmentPollRateLimitErrorDto"
 
   /machines/enrollments/{enrollmentId}/confirm:
     parameters:
@@ -28959,6 +28965,62 @@ components:
           type: string
           description: Request path.
           example: "/api/v1/machines/enrollments/claim/begin"
+
+    MachineEnrollmentPollRateLimitErrorDto:
+      type: object
+      additionalProperties: false
+      required:
+        - success
+        - message
+        - code
+        - data
+        - retryAfterSeconds
+        - timestamp
+        - statusCode
+        - path
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+          description: Always false for enrollment poll rate-limit responses.
+          example: false
+        message:
+          type: string
+          description: Authoritative, privacy-safe temporary-throttling guidance.
+          example: "Enrollment polled too soon."
+        code:
+          type: string
+          enum:
+            - MACHINE_ENROLLMENT_POLL_RATE_LIMITED
+          description: Stable discriminator for enrollment poll rate limits.
+          example: "MACHINE_ENROLLMENT_POLL_RATE_LIMITED"
+        data:
+          type: object
+          nullable: true
+          additionalProperties: false
+          description: Always null; no account, source, or enrollment detail is returned.
+          example: null
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+          description: Minimum delay before the CLI may poll this enrollment again.
+          example: 1
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO timestamp of when the response was generated.
+          example: "2026-08-11T18:00:00.000Z"
+        statusCode:
+          type: integer
+          enum:
+            - 429
+          description: HTTP status code for enrollment poll rate limits.
+          example: 429
+        path:
+          type: string
+          description: Request path.
+          example: "/api/v1/machines/enrollments/{enrollmentId}/poll"
 
     MachineEnrollmentInvalidMachineMaterialErrorDto:
       type: object

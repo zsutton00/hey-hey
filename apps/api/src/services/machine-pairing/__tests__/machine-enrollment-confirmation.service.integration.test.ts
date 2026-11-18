@@ -4,7 +4,7 @@ import * as crypto from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
   MachineEnrollmentAuthenticationFailedException,
-  MachineEnrollmentInvalidTransitionException,
+  MachineEnrollmentPollRateLimitException,
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH,
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH_MESSAGE,
 } from '../../../common/exceptions/pairing.exceptions';
@@ -379,7 +379,7 @@ describeDatabase(
       );
       await expect(
         service.poll(fixture.enrollment.id, input),
-      ).rejects.toBeInstanceOf(MachineEnrollmentInvalidTransitionException);
+      ).rejects.toBeInstanceOf(MachineEnrollmentPollRateLimitException);
 
       await prisma.db.pendingMachineEnrollment.update({
         where: { id: fixture.enrollment.id },
