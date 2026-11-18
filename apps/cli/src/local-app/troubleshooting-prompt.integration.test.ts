@@ -102,6 +102,31 @@ it('hands an agent the Linux keyring failure, where the evidence is, and the shi
   expect((await stat(saved)).mode & 0o777).toBe(0o600);
 });
 
+it('prints a banner, a one-line cause and a compact prompt between copy markers', async () => {
+  const path = await directory();
+  vi.stubEnv('PATH', path);
+  const diagnostics = journal(join(path, 'diagnostics'));
+  logger.error('local.protected_storage', {
+    outcome: 'failed',
+    error: new DefaultCollectionMissingError(secret),
+  });
+  diagnostics.failure();
+  const { prompts, printed } = await owner();
+
+  await prompts.printUnlessAnnounced(diagnostics);
+
+  const output = printed.join('\n');
+  const prompt = (await prompts.forCurrentAttempt(diagnostics)).text;
+  expect(output).toContain('HEY HEY COULD NOT START');
+  expect(output).toContain('Failed: DEFAULT_COLLECTION_MISSING');
+  expect(output).toContain('Want help? Copy everything between the markers');
+  const between = output
+    .split('-------- COPY FROM HERE --------\n')[1]
+    ?.split('\n-------- COPY TO HERE')[0];
+  expect(between).toBe(prompt);
+  expect(prompt.split('\n').length).toBeLessThanOrEqual(24);
+});
+
 it('names the Docker refusal and container cause of a restricted Colima mount', async () => {
   const path = await directory();
   await dockerExecutable(
@@ -131,7 +156,7 @@ else if (args[0] === 'logs') process.stdout.write(JSON.stringify({ level: 'error
 
   const { text } = await prompts.forCurrentAttempt(diagnostics);
 
-  expect(text).toContain('Last stage: Starting application services');
+  expect(text).toContain('last stage: Starting application services');
   expect(text).toContain('DOCKER_EXIT');
   expect(text).toContain('mounts denied');
   expect(text).toContain('api #0');
@@ -180,7 +205,7 @@ it('discloses unsaved evidence, truncation and a partial journal line instead of
 
   expect(memory.text).toContain('Diagnostic storage failed (ENOTDIR)');
   expect(memory.text).toContain('could not be read');
-  expect(memory.text).toContain('No readable journal file exists');
+  expect(memory.text).toContain('No readable journal exists');
   expect(memory.savedPath).toBeNull();
   expect(memory.text).not.toContain(secret);
 

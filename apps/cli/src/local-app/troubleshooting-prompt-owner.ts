@@ -14,9 +14,10 @@ import {
   readNewestFailureEvidence,
   type TroubleshootingEvidence,
 } from './troubleshooting-evidence';
-import { buildTroubleshootingPrompt } from './troubleshooting-prompt';
+import { buildTroubleshootingPrompt, failureHeadline } from './troubleshooting-prompt';
 import { safeStartupCause } from './startup-diagnostic-boundary';
 
+const BANNER_WIDTH = 44;
 export const PROMPT_FILE = 'troubleshooting-prompt.md';
 export const TROUBLESHOOT_COMMAND = 'heyhey local troubleshoot';
 export const defaultDiagnosticsDirectory = () =>
@@ -24,6 +25,8 @@ export const defaultDiagnosticsDirectory = () =>
 
 export interface PreparedPrompt {
   text: string;
+  /** One line saying where it failed and why, for the banner. */
+  headline: string;
   /** The same text, saved. Null when saving failed; `saveFailure` then says why. */
   savedPath: string | null;
   saveFailure: string | null;
@@ -56,8 +59,27 @@ export class TroubleshootingPrompt {
     this.print(await this.forCurrentAttempt(diagnostics));
   }
 
+  /** A banner first so the failure stands out, then the prompt between clear copy markers. */
   print(prepared: PreparedPrompt): void {
-    this.write(`\n${prepared.text}\n\n${this.afterwards(prepared)}`);
+    const rule = `+${'-'.repeat(BANNER_WIDTH)}+`;
+    const title = '  !!  HEY HEY COULD NOT START';
+    this.write(
+      [
+        '',
+        rule,
+        `|${title.padEnd(BANNER_WIDTH)}|`,
+        rule,
+        prepared.headline,
+        '',
+        'Want help? Copy everything between the markers into your coding agent (Claude Code, Codex, ...) and it will try to fix this with you.',
+        '',
+        '-------- COPY FROM HERE --------',
+        prepared.text,
+        '-------- COPY TO HERE ----------',
+        '',
+        this.afterwards(prepared),
+      ].join('\n'),
+    );
   }
 
   async forCurrentAttempt(diagnostics: StartupDiagnostics): Promise<PreparedPrompt> {
@@ -110,13 +132,14 @@ export class TroubleshootingPrompt {
       docs: await this.docs(),
       runningCliVersion: this.cliVersion,
     });
+    const headline = failureHeadline(evidence);
     try {
       const savedPath = await this.save(evidence.directory, text);
-      return { text, savedPath, saveFailure: null };
+      return { text, headline, savedPath, saveFailure: null };
     } catch (error) {
       const code = safeStartupCause(error).code;
       this.logger.error('local.troubleshooting.save_failed', { error });
-      return { text, savedPath: null, saveFailure: code };
+      return { text, headline, savedPath: null, saveFailure: code };
     }
   }
 

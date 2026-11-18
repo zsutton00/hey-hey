@@ -198,6 +198,8 @@ export interface PromptInputs {
   runningCliVersion: string;
 }
 
+const MAX_CONTAINER_LINES = 4;
+
 const bullets = (lines: string[]) => lines.map((line) => `- ${line}`);
 
 /** Plain function over parsed evidence: the same text is shown, copied, saved and printed. */
@@ -220,84 +222,68 @@ export function buildTroubleshootingPrompt({
   }
 
   const evidenceLocation = evidence.journalPath
+    ? `Evidence files (one JSON object per line): this attempt's journal ${evidence.journalPath}; all journals, earlier failures included, in ${evidence.directory}`
+    : `No readable journal exists for this attempt; journals would be in ${evidence.directory}`;
+  const relevantDocs = docs.found
     ? [
-        `Journal for this attempt: ${evidence.journalPath}`,
-        `All diagnostics (one JSON object per line, newest file last; earlier failed attempts are kept): ${evidence.directory}`,
+        docs.docs.index,
+        ...(credentialRelated ? [docs.docs.credentialStorage] : []),
+        ...(dockerRelated || !credentialRelated ? [docs.docs.startupTroubleshooting] : []),
       ]
-    : [
-        `No readable journal file exists for this attempt. The diagnostics directory would be: ${evidence.directory}`,
-      ];
+    : [];
   const guidance = docs.found
-    ? [
-        `Offline guidance for CLI ${runningCliVersion} (works without a network or a running application): ${docs.docs.directory}`,
-        `${docs.docs.index} — index`,
-        `${docs.docs.credentialStorage} — protected credential storage${credentialRelated ? ' (most relevant to this failure)' : ''}`,
-        `${docs.docs.startupTroubleshooting} — Docker, managed model folder and reading the journals${dockerRelated ? ' (most relevant to this failure)' : ''}`,
-      ]
-    : [`No bundled guidance is cited. ${docs.reason}`];
-
-  const sections: Array<[string, string[]]> = [
-    [
-      'What failed',
-      bullets([
-        `Failed attempt ${evidence.attemptId} (session ${evidence.sessionId}) of \`heyhey local\`.`,
-        `Last stage: ${evidence.lastStage ?? 'not recorded'}.`,
-        `CLI ${v.cliVersion ?? 'unknown'}, Node ${v.nodeVersion ?? 'unknown'}, ${platform} (OS release ${v.osRelease ?? 'unknown'}).`,
-        ...causeLines(evidence),
-      ]),
-    ],
-    [
-      'Runtime facts',
-      bullets(
-        evidence.readiness && evidence.readiness.length > 0
-          ? evidence.readiness.map(
-              (item) =>
-                `${item.service}: ${item.present ? item.status : 'absent'}, health ${item.health}`,
-            )
-          : ['No application readiness observations were recorded.'],
-      ),
-    ],
-    ['Container evidence', bullets(containerLines(evidence))],
-    [
-      'Browser timeline',
-      bullets(
-        (evidence.browserTimeline ?? []).length > 0
-          ? (evidence.browserTimeline ?? []).map(
-              (item) =>
-                `Browser ${item.observedAt ?? 'time unavailable'}${item.browserSequence ? ` #${String(item.browserSequence)}` : ''}: ${plain(item.state, 80)}${item.facts ? ` ${plain(JSON.stringify(item.facts), 600)}` : ''}`,
-            )
-          : ['Browser timeline was not captured; the journal cannot establish what the UI did.'],
-      ),
-    ],
-    ['Recovery already attempted', bullets(recoveryLines(evidence))],
-    [
-      'What is missing or limited',
-      bullets(gaps.length > 0 ? gaps : ['The journal reports no gaps for this attempt.']),
-    ],
-    [
-      'Where the evidence is',
-      [
-        'If you can read files on my computer, start here. If you cannot (for example a remote chat), do not claim you can: use the facts above and ask me for excerpts.',
-        ...bullets([...evidenceLocation, ...guidance]),
-      ],
-    ],
-  ];
-
-  const instructions = [
-    'Read the evidence and the guidance. Separate what the evidence shows (facts) from what you suspect (hypotheses), and label each.',
-    'If the cause is unknown or the evidence is truncated, say so rather than guessing.',
-    'Keep my data and unrelated configuration unchanged. Ask me before any change that is disruptive, such as restarting a VM or service, and say what it interrupts.',
-    'After a fix, verify by running `heyhey local` again and report what it shows.',
-    'Never suggest storing credentials in plaintext, deleting credentials or the keyring, setting a model path, or editing Compose files.',
-  ];
+    ? `Offline guidance for CLI ${runningCliVersion} (no network needed): ${relevantDocs.join('; ')}`
+    : `No bundled guidance is cited. ${docs.reason}`;
+  const containers = containerLines(evidence);
+  const shownContainers =
+    containers.length > MAX_CONTAINER_LINES
+      ? [
+          ...containers.slice(0, MAX_CONTAINER_LINES),
+          `${String(containers.length - MAX_CONTAINER_LINES)} more container line(s) are in the journal (container.evidence records).`,
+        ]
+      : containers;
+  const services =
+    evidence.readiness && evidence.readiness.length > 0
+      ? `Services at the last readiness check: ${evidence.readiness
+          .map((item) => `${item.service} ${item.present ? item.status : 'absent'}/${item.health}`)
+          .join(', ')}.`
+      : 'No application readiness observations were recorded.';
 
   return [
     '# Help me fix `heyhey local` setup',
     '',
-    'Hey Hey could not finish starting on this computer and could not fix it automatically. Please diagnose it with me using the evidence below.',
+    'Hey Hey could not start on this computer and could not fix it automatically. Diagnose it with me from the evidence below.',
     '',
-    ...sections.flatMap(([title, lines]) => [`## ${title}`, ...lines, '']),
-    '## How to help',
-    ...instructions.map((line, index) => `${String(index + 1)}. ${line}`),
+    ...bullets([
+      `Failed attempt ${evidence.attemptId} (session ${evidence.sessionId}); last stage: ${evidence.lastStage ?? 'not recorded'}.`,
+      `CLI ${v.cliVersion ?? 'unknown'}, Node ${v.nodeVersion ?? 'unknown'}, ${platform} (OS release ${v.osRelease ?? 'unknown'}).`,
+      ...causeLines(evidence),
+      services,
+      ...shownContainers,
+      ...((evidence.browserTimeline ?? []).length > 0
+        ? (evidence.browserTimeline ?? []).map(
+            (item) =>
+              `Browser ${item.observedAt ?? 'time unavailable'}${item.browserSequence ? ` #${String(item.browserSequence)}` : ''}: ${plain(item.state, 80)}${item.facts ? ` ${plain(JSON.stringify(item.facts), 600)}` : ''}`,
+          )
+        : ['Browser timeline was not captured; the journal cannot establish what the UI did.']),
+      ...recoveryLines(evidence),
+      ...(gaps.length > 0
+        ? gaps.map((gap) => `Limit: ${gap}`)
+        : ['Limit: the journal reports no gaps for this attempt.']),
+      evidenceLocation,
+      guidance,
+    ]),
+    '',
+    'If you can read files on my computer, start with the evidence files. If you cannot (for example a remote chat), do not claim you can: use the facts above and ask me for excerpts.',
+    'Separate facts from hypotheses and label each; say so when the cause is unknown. Keep my data and unrelated configuration unchanged, and ask before any disruptive change (say what it interrupts). Verify the fix by running `heyhey local` again.',
+    'Never suggest storing credentials in plaintext, deleting credentials or the keyring, setting a model path, or editing Compose files.',
   ].join('\n');
+}
+
+/** One line for the banner: where it failed and what is known about why. */
+export function failureHeadline(evidence: TroubleshootingEvidence): string {
+  const first = evidence.causes[0];
+  const why = first ? describeCause(first.cause) : (evidence.prerequisite ?? 'cause unknown');
+  const where = evidence.lastStage ? ` while "${evidence.lastStage}"` : '';
+  return `Failed${where}: ${why}`;
 }

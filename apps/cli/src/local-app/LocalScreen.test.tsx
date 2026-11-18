@@ -277,6 +277,7 @@ describe('troubleshooting prompt on screen', () => {
       '# Help me fix `heyhey local` setup',
       ...Array.from({ length: 40 }, (_, i) => `evidence line ${i}`),
     ].join('\n'),
+    headline: 'Failed while "Checking application readiness": HTTP_FAILURE (HTTP 409)',
     savedPath: '/home/dev/.heyhey/local-application/diagnostics/troubleshooting-prompt.md',
     saveFailure: null,
   };
@@ -333,6 +334,8 @@ describe('troubleshooting prompt on screen', () => {
       />,
     );
     await nextFrame();
+    expect(view.lastFrame()).toContain('HTTP_FAILURE (HTTP 409)');
+    expect(view.lastFrame()).toContain('Want help? Copy this');
     expect(view.lastFrame()).toContain('# Help me fix `heyhey local` setup');
     expect(view.lastFrame()).toContain('evidence line 0');
     expect(view.lastFrame()).not.toContain('evidence line 39');
