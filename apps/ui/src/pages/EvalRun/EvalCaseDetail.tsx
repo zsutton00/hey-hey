@@ -490,6 +490,7 @@ const ExpectedVersusResult: React.FC<{
         <CodingStartPoint
           organizationId={organizationId}
           startPoint={row.coding.startPoint}
+          target={row.coding.target}
         />
       )}
       <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
@@ -546,7 +547,13 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
       projectId={projectId}
       isRepeat={repeat !== null}
     />
-    {row.coding && <CodingAttemptResults coding={row.coding} />}
+    {row.coding && (
+      <CodingAttemptResults
+        coding={row.coding}
+        organizationId={organizationId}
+        attemptId={attempt.id}
+      />
+    )}
     <AttemptTurns
       attempt={attempt}
       plannedMessages={
