@@ -603,6 +603,7 @@ export const TaskMonitorWorkspaceView = ({
                 organizationId={organizationId}
                 projectId={projectId}
                 machineId={selectedMachineId}
+                monitorKindKey={definition.kind}
                 node={selectedNode}
                 isSavingLaunchConfiguration={isSavingLaunchConfiguration}
                 onSaveLaunchConfiguration={onSaveLaunchConfiguration}

@@ -32,6 +32,7 @@ import type {
   TaskMonitorStartMonitor,
   TaskMonitorStartRuntime,
 } from '../../../server/task-monitor-start';
+import type { TaskMonitorKind } from '../kinds/task-monitor-kind';
 import type { TaskMonitorLaunchFailureRuntime } from '../../../server/task-monitor-launch-failure-runtime';
 import type {
   TaskMonitorExecutionNode,
@@ -282,6 +283,7 @@ export class TaskMonitorLoadEffectHandler implements EffectHandler<
           cursor: loaded.definition.cursor,
           worktree: loaded.definition.launchPolicy.worktree ?? null,
           terminalPolicy: loaded.definition.launchPolicy.terminalSupervision,
+          kindKey: loaded.definition.kind,
         },
       };
     } catch (error) {
@@ -410,38 +412,62 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
       if (effect.cursor > effect.executionPlan.length) {
         throw new Error('Task Monitor cursor exceeds its executionPlan length.');
       }
+      // Exhausted work needs no kind, so a finished monitor never reads its type definition.
+      const kind =
+        effect.cursor < effect.executionPlan.length ? await this.runtime.kindFor(effect) : null;
+      const recordedSessionOf = (nodeId: string) =>
+        effect.executionPlan.find((candidate) => candidate.taskId === nodeId)?.agentSessionId ??
+        null;
       for (let cursor = effect.cursor; cursor < effect.executionPlan.length; cursor += 1) {
         const entry = effect.executionPlan[cursor];
-        if (!entry) break;
-        const task = await this.runtime.readTask({
+        if (!entry || !kind) break;
+        const task = await kind.readNode({
           organizationId: effect.organizationId,
           projectId: effect.projectId,
-          taskId: entry.taskId,
+          nodeId: entry.taskId,
         });
         this.logger.debug('task_monitor.machine.coordination.task_read', {
           monitorId: effect.taskMonitorId,
           taskId: entry.taskId,
           cursor,
-          status: task.status ?? null,
         });
-        if (task.status === WorkStatus.Completed) continue;
+        if (await kind.isDone(effect, task, entry.agentSessionId)) {
+          this.logger.info('task_monitor.machine.coordination.node_skipped', {
+            monitorId: effect.taskMonitorId,
+            taskId: entry.taskId,
+            cursor,
+            reason: 'node is already done by its kind',
+          });
+          continue;
+        }
         if (entry.agentSessionId !== null) {
           throw new Error('Task Monitor selected work already has a recorded Agent Session.');
         }
         const dependencies = await Promise.all(
-          entry.dependsOnTaskIds.map((taskId) =>
-            this.runtime.readTask({
-              organizationId: effect.organizationId,
-              projectId: effect.projectId,
-              taskId,
-            }),
+          entry.dependsOnTaskIds.map(async (taskId) =>
+            kind.isDone(
+              effect,
+              await kind.readNode({
+                organizationId: effect.organizationId,
+                projectId: effect.projectId,
+                nodeId: taskId,
+              }),
+              recordedSessionOf(taskId),
+            ),
           ),
         );
-        const incomplete = dependencies.find(
-          (dependency) => dependency.status !== WorkStatus.Completed,
-        );
-        if (incomplete) {
-          throw new Error('Task Monitor current execution node has an incomplete dependency.');
+        const incompleteIndex = dependencies.indexOf(false);
+        if (incompleteIndex !== -1) {
+          const blockingId = entry.dependsOnTaskIds[incompleteIndex];
+          this.logger.warn('task_monitor.machine.coordination.dependency_not_done', {
+            monitorId: effect.taskMonitorId,
+            taskId: entry.taskId,
+            dependencyId: blockingId,
+            cursor,
+          });
+          throw new Error(
+            `Task Monitor current execution node has an incomplete dependency (${String(blockingId)}).`,
+          );
         }
         this.logger.info('task_monitor.machine.coordination.selected', {
           monitorId: effect.taskMonitorId,
@@ -627,6 +653,7 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
         taskMonitorId: effect.taskMonitorId,
         organizationId: effect.organizationId,
         projectId: effect.projectId,
+        kindKey: effect.kindKey,
         ...(effect.authorityCommandId ? { authorityCommandId: effect.authorityCommandId } : {}),
         runId,
         agentSessionId,
@@ -706,53 +733,61 @@ export class TaskMonitorLaunchValidationEffectHandler implements EffectHandler<
       );
     }
 
-    let task: Awaited<ReturnType<TaskMonitorStartRuntime['readTask']>>;
+    let kind: TaskMonitorKind;
+    let task: Awaited<ReturnType<TaskMonitorKind['readNode']>>;
     let planGuidance: TaskMonitorPlanGuidanceProjection | null;
     try {
-      task = await this.runtime.readTask({
+      kind = await this.runtime.kindFor(effect);
+      task = await kind.readNode({
         organizationId: effect.organizationId,
         projectId: effect.projectId,
-        taskId: effect.taskId,
+        nodeId: effect.taskId,
       });
-      if (task.status === WorkStatus.Completed) {
+      if (await kind.isDone(effect, task, entry.agentSessionId)) {
         return validationFailure(
           effect,
           'Selected Task completed after coordination.',
           this.logger,
         );
       }
+      const doneKind = kind;
       const dependencies = await Promise.all(
-        entry.dependsOnTaskIds.map((taskId) =>
-          this.runtime.readTask({
-            organizationId: effect.organizationId,
-            projectId: effect.projectId,
-            taskId,
-          }),
+        entry.dependsOnTaskIds.map(async (taskId) =>
+          doneKind.isDone(
+            effect,
+            await doneKind.readNode({
+              organizationId: effect.organizationId,
+              projectId: effect.projectId,
+              nodeId: taskId,
+            }),
+            effect.executionPlan.find((candidate) => candidate.taskId === taskId)?.agentSessionId ??
+              null,
+          ),
         ),
       );
-      if (dependencies.some((dependency) => dependency.status !== WorkStatus.Completed)) {
+      const incompleteIndex = dependencies.indexOf(false);
+      if (incompleteIndex !== -1) {
         return validationFailure(
           effect,
-          'Selected Task has an incomplete canonical dependency.',
+          `Selected Task has an incomplete canonical dependency (${String(entry.dependsOnTaskIds[incompleteIndex])}).`,
           this.logger,
         );
       }
-      planGuidance = await this.runtime.resolvePlanContext({
+      planGuidance = await kind.resolveGuidance({
         organizationId: effect.organizationId,
         projectId: effect.projectId,
-        taskId: effect.taskId,
+        nodeId: effect.taskId,
       });
     } catch (error) {
       return validationFailure(effect, reasonFrom(error), this.logger);
     }
 
-    if (task.status !== WorkStatus.Active) {
+    if (!kind.isStarted(task)) {
       try {
-        task = await this.runtime.persistTaskActive({
-          organizationId: effect.organizationId,
-          projectId: effect.projectId,
+        task = await kind.start(
+          { organizationId: effect.organizationId, projectId: effect.projectId },
           task,
-        });
+        );
       } catch (error) {
         const reason = reasonFrom(error);
         return isSettledMutationFailure(reason)
@@ -760,7 +795,7 @@ export class TaskMonitorLaunchValidationEffectHandler implements EffectHandler<
           : validationUncertain(effect, 'TASK_ACTIVATION', reason, this.logger);
       }
     }
-    if (task.status !== WorkStatus.Active) {
+    if (!kind.isStarted(task)) {
       return validationFailure(
         effect,
         'Selected Task activation did not settle as ACTIVE.',
@@ -824,6 +859,7 @@ export class TaskMonitorLaunchValidationEffectHandler implements EffectHandler<
       executionOrder: effect.executionPlan.map((node) => node.taskId),
       dependsOnTaskIds: entry.dependsOnTaskIds,
       terminalPolicy: effect.terminalPolicy,
+      kindKey: effect.kindKey,
     };
     this.logger.info('task_monitor.machine.launch_validation.completed', {
       monitorId: effect.taskMonitorId,
@@ -1036,17 +1072,18 @@ export class TaskMonitorLaunchReconciliationEffectHandler implements EffectHandl
     conversationId?: string;
   }> {
     switch (effect.operation) {
-      case 'TASK_ACTIVATION':
+      case 'TASK_ACTIVATION': {
+        const kind = await this.runtime.kindFor(effect);
         return {
-          found:
-            (
-              await this.runtime.readTask({
-                organizationId: effect.organizationId,
-                projectId: effect.projectId,
-                taskId: effect.taskId,
-              })
-            ).status === WorkStatus.Active,
+          found: kind.isStarted(
+            await kind.readNode({
+              organizationId: effect.organizationId,
+              projectId: effect.projectId,
+              nodeId: effect.taskId,
+            }),
+          ),
         };
+      }
       case 'MONITOR_PROJECTION':
         return { found: await this.monitorProjectionExists(effect) };
       case 'RUN_START': {

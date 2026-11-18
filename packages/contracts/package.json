@@ -68,6 +68,11 @@
       "types": "./dist/cjs/generated/local/*.d.ts",
       "import": "./dist/esm/generated/local/*.js",
       "require": "./dist/cjs/generated/local/*.js"
+    },
+    "./monitor-kind-policy": {
+      "types": "./dist/cjs/monitor-kind-policy.d.ts",
+      "import": "./dist/esm/monitor-kind-policy.js",
+      "require": "./dist/cjs/monitor-kind-policy.js"
     }
   },
   "files": [

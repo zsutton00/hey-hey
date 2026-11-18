@@ -201,7 +201,12 @@ export const validateTaskMonitorDecision = (
       }
       return { ok: true, value: decision };
     case 'ACCEPT_TASK': {
-      if (evidence.selectedTask.status !== 'COMPLETED') {
+      // Reusable operations are confirmed by the kind's retained-result admission and
+      // acceptance effects. Only item-completion policies require a completed definition.
+      if (
+        evidence.operationPolicy?.acceptance.type !== 'NO_STATUS_CHANGE' &&
+        evidence.selectedTask.status !== 'COMPLETED'
+      ) {
         return { ok: false, reason: 'Task acceptance requires a canonically completed Task.' };
       }
       if (

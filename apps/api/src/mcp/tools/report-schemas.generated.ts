@@ -3555,6 +3555,60 @@ export const REPORT_SCHEMAS = {
       ],
     },
   },
+  MONITOR_NODE_RESULT: {
+    description:
+      "Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a monitor node's session records on itself, accept or fail with a reason. The report is linked to the node's Agent Session, and the monitor reads it to accept the node directly, to satisfy later nodes' dependencies, and to restore progress after a restart. Kind-specific detail, such as a Test report, lives in its own report; the monitor reads only this verdict.",
+    schema: {
+      description:
+        "Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a monitor node's session records on itself, accept or fail with a reason. The report is linked to the node's Agent Session, and the monitor reads it to accept the node directly, to satisfy later nodes' dependencies, and to restore progress after a restart. Kind-specific detail, such as a Test report, lives in its own report; the monitor reads only this verdict.\n",
+      allOf: [
+        {
+          type: 'object',
+          description:
+            'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
+          required: ['summary'],
+          properties: {
+            summary: {
+              type: 'string',
+              minLength: 1,
+              description:
+                '50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.\n',
+            },
+          },
+        },
+        {
+          type: 'object',
+          required: ['reportType', 'nodeId', 'outcome', 'reason'],
+          additionalProperties: false,
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['MONITOR_NODE_RESULT'],
+            },
+            nodeId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'Work item of the monitor node this verdict settles.',
+            },
+            outcome: {
+              type: 'string',
+              enum: ['ACCEPTED', 'FAILED'],
+              description:
+                'The normalized verdict on one monitor node: accept it, or fail it. Only ACCEPTED makes the node done under a normalized-result monitor kind.\n',
+            },
+            reason: {
+              type: 'string',
+              minLength: 1,
+              description:
+                "Why the node was accepted or failed. A failure's reason is shown when the monitor halts.\n",
+            },
+            summary: {},
+          },
+        },
+      ],
+    },
+  },
   PHASE_GROUNDING: {
     description:
       'Payload for PHASE_GROUNDING reports — the forcing-function pre-flight a phase emits before it starts executing. Each entry in `touchPoints` names a file the phase intends to touch and the outcome it expects there; populating the array forces the agent to commit, in writing, to the concrete surface area of the upcoming work before it begins. The optional `planAdjustment` field captures a one-shot description of any change to the approved plan this grounding round implies — e.g. an added or dropped touch point that the plan did not anticipate.',

@@ -54,6 +54,7 @@ const emptyLoadedMonitor = (monitorId: string): TaskMonitorStartMonitor => ({
   projectId: '30000000-0000-4000-8000-000000000003',
   status: 'ACTIVE',
   definition: {
+    kind: 'task',
     executionPlan: [],
     launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' as const } },
     cursor: 0,
@@ -317,6 +318,7 @@ describe('StateMachineApplicationRuntime', () => {
       status: 'succeeded',
       outcome: {
         type: 'MONITOR_LOADED',
+        kindKey: 'task',
         taskMonitorId: settledMonitorId,
         organizationId: '20000000-0000-4000-8000-000000000002',
         projectId: '30000000-0000-4000-8000-000000000003',

@@ -7,10 +7,17 @@ import {
   UpdateTaskResultStatus,
   WorkStatus,
   type TaskMonitorExecutionDefinition,
+  type TaskMonitorOperationEvidence,
 } from '@hey-hey/contracts/api/models';
 import type { ServerLogger } from './logger';
 import type { PlatformAuthContext } from './platform-auth-context';
 import { TaskMonitorPlanContext } from './task-monitor-plan-context';
+import {
+  TaskMonitorKind,
+  TaskMonitorKindConfigurationError,
+  resolveTaskMonitorKindConfiguration,
+} from '../agents/task-monitor/kinds/task-monitor-kind';
+import { TaskMonitorNodeResultReader } from '../agents/task-monitor/kinds/task-monitor-node-result-reader';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 
 const sectionSchema = z
@@ -201,10 +208,81 @@ export interface TaskMonitorStartRuntimeDependencies {
 export class TaskMonitorStartRuntime {
   private readonly baseUrl: string;
   private readonly planContext: TaskMonitorPlanContext;
+  private readonly nodeResults: TaskMonitorNodeResultReader;
 
   public constructor(private readonly dependencies: TaskMonitorStartRuntimeDependencies) {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
     this.planContext = new TaskMonitorPlanContext(dependencies);
+    this.nodeResults = new TaskMonitorNodeResultReader(dependencies);
+  }
+
+  /**
+   * The kind a monitor runs: the entry of its project's effective TASK_MONITOR definition, as the
+   * API resolves it, whose key the monitor recorded. Each call reads the definition afresh, so
+   * monitors never share a kind by project, and a missing or unknown kind fails only its monitor.
+   * State persisted before monitors recorded a key carries none (`kindKey: null`); the key is then
+   * read from the monitor's own execution definition.
+   */
+  public async kindFor(scope: {
+    organizationId: string;
+    projectId: string;
+    taskMonitorId: string;
+    kindKey: string | null;
+  }): Promise<TaskMonitorKind> {
+    const kindKey =
+      scope.kindKey ??
+      (
+        await this.readMonitor({
+          organizationId: scope.organizationId,
+          projectId: scope.projectId,
+          monitorId: scope.taskMonitorId,
+        })
+      ).definition.kind;
+    if (scope.kindKey === null) {
+      this.dependencies.logger.debug('task_monitor.kind.key_read_from_monitor', {
+        monitorId: scope.taskMonitorId,
+        projectId: scope.projectId,
+        kind: kindKey,
+      });
+    }
+
+    const token = await this.dependencies.authContext.getAccessToken();
+    try {
+      const configuration = await resolveTaskMonitorKindConfiguration(this.dependencies, {
+        ...scope,
+        kindKey,
+        accessToken: token,
+      });
+      this.dependencies.logger.debug('task_monitor.kind.resolved', {
+        monitorId: scope.taskMonitorId,
+        projectId: scope.projectId,
+        kind: configuration.key,
+        start: configuration.start.type,
+        done: configuration.done.type,
+        supervision: configuration.supervision.type,
+      });
+      return new TaskMonitorKind(
+        {
+          runtime: this,
+          apiBaseUrl: this.dependencies.apiBaseUrl,
+          fetchImpl: this.dependencies.fetchImpl,
+          logger: this.dependencies.logger,
+          results: this.nodeResults,
+          monitorId: scope.taskMonitorId,
+        },
+        configuration,
+      );
+    } catch (error) {
+      if (error instanceof TaskMonitorKindConfigurationError) {
+        this.dependencies.logger.error('task_monitor.kind.configuration_invalid', {
+          monitorId: scope.taskMonitorId,
+          projectId: scope.projectId,
+          kind: kindKey,
+          reason: error.message,
+        });
+      }
+      throw error;
+    }
   }
 
   public async resolvePlanContext(input: {
@@ -352,33 +430,86 @@ export class TaskMonitorStartRuntime {
     return result;
   }
 
-  public async readTask(input: {
+  public async readNodeItem(input: {
     organizationId: string;
     projectId: string;
     taskId: string;
+    taskProjection?: boolean;
   }): Promise<TaskMonitorStartTask> {
     const task = await this.readWorkItem(input.organizationId, input.projectId, input.taskId);
-    const description = readSection(task, ['description']);
-    if (!description) throw new Error(`Selected task "${task.name}" is missing its description.`);
+    const taskDescription = readSection(task, ['description']);
+    if (input.taskProjection && !taskDescription) {
+      throw new Error(`Selected task "${task.name}" is missing its description.`);
+    }
+    const description = input.taskProjection
+      ? taskDescription
+      : (task.sections ?? [])
+          .map((section) => `## ${section.key}\n${section.materializedMarkdown}`)
+          .join('\n\n');
+
     return {
       id: task.id,
       name: task.name,
       type: task.type,
-      description,
+      description: description ?? '',
       acceptanceCriteria: readSection(task, ['acceptanceCriteria', 'acceptance_criteria']),
       ...(task.status === undefined ? {} : { status: task.status }),
       serviceIds: [...new Set((task.serviceRelations ?? []).map((relation) => relation.serviceId))],
     };
   }
 
-  public async persistTaskActive({
+  public async readTask(input: {
+    organizationId: string;
+    projectId: string;
+    taskId: string;
+  }): Promise<TaskMonitorStartTask> {
+    const task = await this.readNodeItem({ ...input, taskProjection: true });
+    if (!task.description) {
+      throw new Error(`Selected task "${task.name}" is missing its description.`);
+    }
+    return task;
+  }
+
+  public async persistOperationEvidence(input: {
+    organizationId: string;
+    projectId: string;
+    monitorId: string;
+    nodeId: string;
+    agentSessionId: string;
+    evidence: TaskMonitorOperationEvidence | null;
+  }): Promise<void> {
+    const monitor = await this.readMonitor(input);
+    const entry = monitor.definition.executionPlan[monitor.definition.cursor];
+    if (entry?.taskId !== input.nodeId || entry.agentSessionId !== input.agentSessionId) {
+      throw new Error('Operation result no longer matches the canonical cursor and session.');
+    }
+    await this.persistDefinition(
+      monitor,
+      {
+        ...monitor.definition,
+        executionPlan: monitor.definition.executionPlan.map((node, index) =>
+          index === monitor.definition.cursor
+            ? (() => {
+                const { operationEvidence: _prior, ...current } = node;
+                return input.evidence ? { ...current, operationEvidence: input.evidence } : current;
+              })()
+            : node,
+        ),
+      },
+      'Record scoped Task Monitor operation evidence and coordinator admission.',
+    );
+  }
+
+  public async persistTaskStatus({
     organizationId,
     projectId,
     task,
+    status,
   }: {
     organizationId: string;
     projectId: string;
     task: TaskMonitorStartTask;
+    status: WorkStatus;
   }): Promise<TaskMonitorStartTask> {
     const token = await this.dependencies.authContext.getAccessToken();
     const response = await this.dependencies.fetchImpl(
@@ -390,15 +521,15 @@ export class TaskMonitorStartRuntime {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: WorkStatus.Active,
-          reason: 'Activate selected Task Monitor work for coding-session launch.',
+          status,
+          reason: 'Start selected Task Monitor work for coding-session launch.',
         }),
       },
     );
-    await requireOk(response, 'Task Monitor selected-task ACTIVE update');
+    await requireOk(response, `Task Monitor selected-task ${status} update`);
     const mutation = parseTaskMonitorMutationResponse(await response.text());
     this.requireAppliedTaskMonitorMutation(organizationId, projectId, task.id, mutation);
-    return { ...task, status: WorkStatus.Active };
+    return { ...task, status };
   }
 
   public async persistMonitorActive({
@@ -497,7 +628,7 @@ export class TaskMonitorStartRuntime {
     const persisted = await this.persistDefinition(
       monitor,
       definition,
-      'Advance Task Monitor cursor past a canonically completed task.',
+      'Advance Task Monitor cursor past a satisfied operation.',
     );
     this.dependencies.logger.info('task_monitor.start.cursor.advance.completed', {
       monitorId: monitor.id,
@@ -516,7 +647,12 @@ export class TaskMonitorStartRuntime {
     agentSessionId: string;
   }): Promise<TaskMonitorStartMonitor> {
     const executionPlan = monitor.definition.executionPlan.map((entry, index) =>
-      index === planIndex ? { ...entry, agentSessionId } : entry,
+      index === planIndex
+        ? (() => {
+            const { operationEvidence: _prior, ...fresh } = entry;
+            return { ...fresh, agentSessionId };
+          })()
+        : entry,
     );
     return this.persistDefinition(
       monitor,
@@ -536,7 +672,7 @@ export class TaskMonitorStartRuntime {
     return this.persistMonitorStatus({
       monitor,
       status: WorkStatus.Completed,
-      reason: 'Complete Task Monitor after every execution-plan task completed.',
+      reason: 'Complete Task Monitor after every selected operation is satisfied.',
     });
   }
 

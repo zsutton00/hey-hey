@@ -448,7 +448,16 @@ WorkItemHtmlCssAnnotation:
   type: object
   additionalProperties: false
   required:
-    [id, note, author, category, lifecycle, authoredProposalId, authoredSizeKey, target]
+    [
+      id,
+      note,
+      author,
+      category,
+      lifecycle,
+      authoredProposalId,
+      authoredSizeKey,
+      target,
+    ]
   properties:
     id:
       $ref: "#/WorkItemStructuredMockupAnnotationId"
@@ -986,7 +995,19 @@ WorkItemStructuredMockupSemanticRole:
 
 WorkItemStructuredMockupColor:
   type: string
-  enum: [primary, secondary, success, warning, error, info, neutral, muted, surface, transparent]
+  enum:
+    [
+      primary,
+      secondary,
+      success,
+      warning,
+      error,
+      info,
+      neutral,
+      muted,
+      surface,
+      transparent,
+    ]
   description: Host palette token used for constrained component color.
 
 WorkItemStructuredMockupOverflow:
@@ -1665,7 +1686,194 @@ WorkItemTypeCapabilities:
       description: Whether this type opts into an Explorer Sidebar section; false or omission means no Explorer section is configured.
     graph:
       $ref: "#/WorkItemTypeGraphCapability"
+    monitorKinds:
+      type: array
+      minItems: 1
+      description: >
+        The kinds a monitor of this monitor-role type may run, each identified
+        by a key unique within the type. Each monitor records the key of the
+        kind it runs in its execution definition.
+      items:
+        $ref: "#/WorkItemTypeMonitorKind"
   additionalProperties: false
+
+WorkItemTypeMonitorKind:
+  type: object
+  additionalProperties: false
+  description: >
+    One kind declared on a monitor-role work-item type: what each execution
+    node of a monitor of this kind may be, how it may be launched, and how it
+    starts, finishes and is supervised. Kinds are configuration on the monitor
+    type, not separate types. A monitor selects one declared kind by `key`,
+    and keys are unique within the type.
+  required:
+    - key
+    - allowedNodeTypes
+    - allowedLaunchMethods
+    - allowedRuntimeProviders
+    - allowedReasoningEfforts
+  properties:
+    key:
+      type: string
+      minLength: 1
+      description: Stable kind identifier, e.g. "task".
+    allowedNodeTypes:
+      type: array
+      minItems: 1
+      description: Work-item type keys a node of a monitor of this kind may be.
+      items:
+        $ref: "#/WorkItemTypeKey"
+    allowedLaunchMethods:
+      type: array
+      minItems: 1
+      description: Launch modes a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchMethod"
+    allowedRuntimeProviders:
+      type: array
+      minItems: 1
+      description: Runtime providers, one half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchProvider"
+    allowedReasoningEfforts:
+      type: array
+      minItems: 1
+      description: Reasoning efforts, the other half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorReasoningEffort"
+    start:
+      $ref: "#/WorkItemTypeMonitorKindStartPolicy"
+    done:
+      $ref: "#/WorkItemTypeMonitorKindDonePolicy"
+    acceptance:
+      $ref: "#/WorkItemTypeMonitorKindAcceptancePolicy"
+    supervision:
+      $ref: "#/WorkItemTypeMonitorKindSupervisionPolicy"
+
+WorkItemTypeMonitorKindStartPolicy:
+  description: >
+    What starting a node does to its work item before its session launches.
+    The registry resolves an omitted start policy from the canonical
+    TASK_MONITOR definition, so only an explicit declaration changes it.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindStatusTransitionStart"
+    - $ref: "#/WorkItemTypeMonitorKindNoStatusChangeStart"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindStatusTransitionStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node moves its work item to the declared status through Work Items.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - STATUS_TRANSITION
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNoStatusChangeStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node leaves its work item status unchanged.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NO_STATUS_CHANGE
+
+WorkItemTypeMonitorKindDonePolicy:
+  description: >
+    How a node counts as done for selection, dependencies, acceptance
+    confirmation and monitor completion, independently of item lifecycle effects.
+    Item-status completion requires canonical COMPLETED and Work Items completion.
+    Normalized-result completion requires no lifecycle effects and supports either
+    supervision policy. The registry resolves an omitted done policy from the canonical
+    TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindItemStatusDone"
+    - $ref: "#/WorkItemTypeMonitorKindNormalizedResultDone"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindItemStatusDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when its work item is canonically COMPLETED. Only COMPLETED
+    is supported; acceptance effects are declared separately. Task execution
+    cannot substitute an intermediate status, regardless of kind key or allowed types.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - ITEM_STATUS
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNormalizedResultDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when the durable normalized result of its recorded session
+    accepts it. A missing, failed, malformed or mismatched result is never done,
+    and the work item's status is not consulted or changed. Coordinator supervision
+    additionally requires durable admitted acceptance bound to this result and session.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NORMALIZED_RESULT
+
+WorkItemTypeMonitorKindSupervisionPolicy:
+  description: >
+    How a settled node is accepted. The registry resolves an omitted
+    supervision policy from the canonical TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindCoordinatorReviewSupervision"
+    - $ref: "#/WorkItemTypeMonitorKindDirectAcceptanceSupervision"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindCoordinatorReviewSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    Every settled node goes to the coordinator agent under the monitor's
+    Review mode. Supports canonical item completion or normalized operation results.
+    Normalized results alone cannot bypass coordinator acceptance or required Review.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COORDINATOR_REVIEW
+
+WorkItemTypeMonitorKindDirectAcceptanceSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    A settled node is accepted or failed from its normalized structured result,
+    with no coordinator run. Requires normalized-result completion.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - DIRECT_ACCEPTANCE
 
 WorkItemTypeGraphCapability:
   type: object
@@ -2335,3 +2543,24 @@ DiagramReferenceTargetRule:
       description: Allowed TASK discriminators; omitted permits any work-item type. Targets must still be accessible and non-archived. Invalid for SERVICE.
       items:
         $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeMonitorKindAcceptancePolicy:
+  type: object
+  additionalProperties: false
+  description: >
+    The explicit item lifecycle effect of accepting the operation. COMPLETE_ITEM
+    delegates canonical completion to Work Items, requires ITEM_STATUS COMPLETED
+    and COORDINATOR_REVIEW, and supports STANDARD Tasks only. NO_STATUS_CHANGE
+    requires NORMALIZED_RESULT and NO_STATUS_CHANGE start, and supports either
+    supervision policy. STANDARD Task execution always requires COMPLETE_ITEM.
+    The registry supplies omitted acceptance centrally: existing explicit
+    NORMALIZED_RESULT policies take canonical no-lifecycle acceptance; other
+    omissions take the canonical Task acceptance. Explicit done rules are preserved.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COMPLETE_ITEM
+        - NO_STATUS_CHANGE

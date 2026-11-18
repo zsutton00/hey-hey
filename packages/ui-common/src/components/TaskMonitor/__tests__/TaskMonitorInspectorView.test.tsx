@@ -32,6 +32,14 @@ const { useTaskMonitorConversationMock } = vi.hoisted(() => ({
   useTaskMonitorConversationMock: vi.fn(),
 }));
 
+const { useWorkItemTypeByKeyMock } = vi.hoisted(() => ({
+  useWorkItemTypeByKeyMock: vi.fn(),
+}));
+
+vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
+  useWorkItemTypeByKey: useWorkItemTypeByKeyMock,
+}));
+
 vi.mock("../useTaskMonitorSessionReports", () => ({
   useTaskMonitorConversation: useTaskMonitorConversationMock,
 }));
@@ -114,6 +122,34 @@ describe("TaskMonitorInspectorView", () => {
     vi.clearAllMocks();
     localStorage.clear();
     resetModelSelectionFavoritesForTests();
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: {
+        capabilities: {
+          monitorKinds: [
+            {
+              key: "task",
+              allowedNodeTypes: ["STANDARD"],
+              allowedLaunchMethods: ["plan", "open", "quick"],
+              allowedRuntimeProviders: ["claude", "codex", "opencode"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "STATUS_TRANSITION", status: "ACTIVE" },
+              done: { type: "ITEM_STATUS", status: "COMPLETED" },
+              supervision: { type: "COORDINATOR_REVIEW" },
+            },
+            {
+              key: "requirement-test",
+              allowedNodeTypes: ["REQUIREMENT_TEST"],
+              allowedLaunchMethods: ["quick"],
+              allowedRuntimeProviders: ["codex"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "NO_STATUS_CHANGE" },
+              done: { type: "NORMALIZED_RESULT" },
+              supervision: { type: "DIRECT_ACCEPTANCE" },
+            },
+          ],
+        },
+      },
+    });
     useTaskMonitorConversationMock.mockReturnValue({
       conversation: null,
       project: null,
@@ -296,6 +332,7 @@ describe("TaskMonitorInspectorView", () => {
         organizationId="org-1"
         projectId="project-1"
         machineId={null}
+        monitorKindKey="task"
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
@@ -322,12 +359,77 @@ describe("TaskMonitorInspectorView", () => {
     });
   });
 
+  it("offers only the node's current method until the effective kind has loaded", () => {
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: undefined,
+    });
+
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorKindKey="task"
+        machineId={null}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick"]);
+  });
+
+  it("offers every launch method of a Task monitor's kind", () => {
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorKindKey="task"
+        machineId={null}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Plan", "Open", "Quick"]);
+  });
+
+  it("offers only the launch methods the monitor's own kind allows when the type declares two", () => {
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorKindKey="requirement-test"
+        machineId={null}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick"]);
+  });
+
   it("saves explicit Fast mode against the reopened task configuration", async () => {
     render(
       <TaskMonitorLaunchConfigurationEditor
         organizationId="org-1"
         projectId="project-1"
         machineId={null}
+        monitorKindKey="task"
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
@@ -357,6 +459,7 @@ describe("TaskMonitorInspectorView", () => {
         organizationId="org-1"
         projectId="project-1"
         machineId={null}
+        monitorKindKey="task"
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}

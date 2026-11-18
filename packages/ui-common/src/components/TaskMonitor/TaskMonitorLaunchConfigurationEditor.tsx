@@ -2,7 +2,6 @@ import {
   Alert,
   FormControl,
   InputLabel,
-  MenuItem,
   Select,
   Stack,
   Typography,
@@ -18,6 +17,8 @@ import {
   TASK_MONITOR_SETUP_SURFACE_ID,
   writeSurfaceSelection,
 } from "../AgentSession/surfaceSelectionMemory";
+import { taskMonitorLaunchMethodOptions } from "./TaskMonitorLaunchMethodOptions";
+import { useMonitorKind } from "./useMonitorKind";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 function isLaunchMethod(value: string): value is TaskMonitorLaunchMethod {
   return value === "plan" || value === "open" || value === "quick";
@@ -36,6 +37,7 @@ export function TaskMonitorLaunchConfigurationEditor({
   organizationId,
   projectId,
   machineId,
+  monitorKindKey,
   node,
   isSavingLaunchConfiguration,
   onSaveLaunchConfiguration,
@@ -43,6 +45,7 @@ export function TaskMonitorLaunchConfigurationEditor({
   organizationId: string;
   projectId: string;
   machineId: string | null;
+  monitorKindKey: string;
   node: TaskMonitorProjectedNode;
   isSavingLaunchConfiguration: boolean;
   onSaveLaunchConfiguration: (
@@ -50,6 +53,7 @@ export function TaskMonitorLaunchConfigurationEditor({
     configuration: TaskMonitorExecutionNodeLaunchConfiguration,
   ) => Promise<void>;
 }) {
+  const monitorKind = useMonitorKind(organizationId, projectId, monitorKindKey);
   const [launchConfiguration, setLaunchConfiguration] = useState(
     node.launchConfiguration,
   );
@@ -135,9 +139,10 @@ export function TaskMonitorLaunchConfigurationEditor({
               }
             }}
           >
-            <MenuItem value="plan">Plan</MenuItem>
-            <MenuItem value="open">Open</MenuItem>
-            <MenuItem value="quick">Quick</MenuItem>
+            {taskMonitorLaunchMethodOptions(
+              monitorKind?.allowedLaunchMethods ?? [],
+              launchConfiguration.method,
+            )}
           </Select>
         </FormControl>
         <RuntimeModelSelector

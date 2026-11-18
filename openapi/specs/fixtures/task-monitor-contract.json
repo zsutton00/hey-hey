@@ -1,5 +1,6 @@
 {
   "notStarted": {
+    "kind": "task",
     "executionPlan": [
       {
         "taskId": "66666666-6666-4666-8666-666666666666",
@@ -40,6 +41,7 @@
     "cursor": 0
   },
   "running": {
+    "kind": "task",
     "executionPlan": [
       {
         "taskId": "66666666-6666-4666-8666-666666666666",
@@ -61,6 +63,7 @@
     "cursor": 0
   },
   "paused": {
+    "kind": "task",
     "executionPlan": [
       {
         "taskId": "66666666-6666-4666-8666-666666666666",

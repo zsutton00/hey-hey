@@ -108,6 +108,7 @@ const FROZEN_SEED_REPORT_TYPES = ALL_REPORT_TYPES.filter(
     type !== ReportType.FeatureSyncDecision &&
     type !== ReportType.DecisionNeeded &&
     type !== ReportType.SessionMonitorDeferral &&
+    type !== ReportType.MonitorNodeResult &&
     type !== ReportType.ChangeWalkthrough &&
     type !== ReportType.EvalRun &&
     type !== ReportType.EvalAttempt &&

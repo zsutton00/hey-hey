@@ -1,9 +1,20 @@
+import { monitorOperationPolicyIssues } from '@hey-hey/contracts/monitor-kind-policy';
 import { z } from 'zod';
 import { AgentEdgeCategory } from '@hey-hey/contracts/api/models';
 import { AgentEdgeDirection } from '@hey-hey/contracts/api/models';
 import { AgentEdgeEndpointEntityType } from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeCapabilities } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemTypeMonitorKind,
+  WorkItemTypeMonitorKindDonePolicy,
+  WorkItemTypeMonitorKindStartPolicy,
+  WorkItemTypeMonitorKindSupervisionPolicy,
+} from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import { TaskMonitorLaunchMethod } from '@hey-hey/contracts/api/models';
+import { TaskMonitorLaunchProvider } from '@hey-hey/contracts/api/models';
+import { TaskMonitorReasoningEffort } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGraphAction } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGraphCapability } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGraphEndpointRole } from '@hey-hey/contracts/api/models';
@@ -118,7 +129,10 @@ export const workItemTypeGraphCapabilitySchema: z.ZodType<WorkItemTypeGraphCapab
     })
     .passthrough();
 
-type BooleanCapabilityKey = Exclude<keyof WorkItemTypeCapabilities, 'graph'>;
+type BooleanCapabilityKey = Exclude<
+  keyof WorkItemTypeCapabilities,
+  'graph' | 'monitorKinds'
+>;
 type BooleanCapabilityShape = {
   [K in BooleanCapabilityKey]-?: z.ZodOptional<z.ZodBoolean>;
 };
@@ -136,17 +150,108 @@ type PersistedWorkItemTypeCapabilities = Omit<
   'graph'
 >;
 
-const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCapabilities> =
-  z.object(booleanCapabilityShape).strict();
+const monitorKindStartPolicySchema: z.ZodType<WorkItemTypeMonitorKindStartPolicy> =
+  z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('STATUS_TRANSITION'),
+        status: z.nativeEnum(WorkStatus),
+      })
+      .strict(),
+    z.object({ type: z.literal('NO_STATUS_CHANGE') }).strict(),
+  ]);
+
+const monitorKindDonePolicySchema: z.ZodType<WorkItemTypeMonitorKindDonePolicy> =
+  z.discriminatedUnion('type', [
+    z
+      .object({
+        type: z.literal('ITEM_STATUS'),
+        status: z.nativeEnum(WorkStatus),
+      })
+      .strict(),
+    z.object({ type: z.literal('NORMALIZED_RESULT') }).strict(),
+  ]);
+
+const monitorKindSupervisionPolicySchema: z.ZodType<WorkItemTypeMonitorKindSupervisionPolicy> =
+  z.discriminatedUnion('type', [
+    z.object({ type: z.literal('COORDINATOR_REVIEW') }).strict(),
+    z.object({ type: z.literal('DIRECT_ACCEPTANCE') }).strict(),
+  ]);
+
+/**
+ * A declared policy is optional: the registry resolves an omitted one from the
+ * canonical TASK_MONITOR definition. Explicit null, unknown policy types and
+ * unknown fields are rejected, and a kind that declares both done and
+ * supervision must declare a supported pairing.
+ */
+const workItemTypeMonitorKindSchema: z.ZodType<WorkItemTypeMonitorKind> = z
+  .object({
+    key: z.string().min(1),
+    allowedNodeTypes: z.array(z.string()).min(1),
+    allowedLaunchMethods: z.array(z.nativeEnum(TaskMonitorLaunchMethod)).min(1),
+    allowedRuntimeProviders: z
+      .array(z.nativeEnum(TaskMonitorLaunchProvider))
+      .min(1),
+    allowedReasoningEfforts: z
+      .array(z.nativeEnum(TaskMonitorReasoningEffort))
+      .min(1),
+    start: monitorKindStartPolicySchema.optional(),
+    done: monitorKindDonePolicySchema.optional(),
+    supervision: monitorKindSupervisionPolicySchema.optional(),
+    acceptance: z
+      .object({ type: z.enum(['COMPLETE_ITEM', 'NO_STATUS_CHANGE']) })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((kind, context) => {
+    for (const message of monitorOperationPolicyIssues(kind)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['done', 'type'],
+        message,
+      });
+    }
+  });
+
+/**
+ * The kinds a monitor type declares. Each monitor selects one by key, so a key
+ * may be declared only once.
+ */
+const workItemTypeMonitorKindsSchema: z.ZodType<WorkItemTypeMonitorKind[]> = z
+  .array(workItemTypeMonitorKindSchema)
+  .min(1)
+  .superRefine((kinds, context) => {
+    const seen = new Set<string>();
+    kinds.forEach((kind, index) => {
+      if (seen.has(kind.key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'key'],
+          message: `monitor kind key "${kind.key}" is declared more than once`,
+        });
+      }
+      seen.add(kind.key);
+    });
+  });
 
 const workItemTypeCapabilityShape = {
   ...booleanCapabilityShape,
   graph: workItemTypeGraphCapabilitySchema.optional(),
+  monitorKinds: workItemTypeMonitorKindsSchema.optional(),
 } satisfies {
   [K in keyof WorkItemTypeCapabilities]-?: z.ZodType<
     WorkItemTypeCapabilities[K]
   >;
 };
+
+const persistedWorkItemTypeCapabilitiesSchema: z.ZodType<PersistedWorkItemTypeCapabilities> =
+  z
+    .object({
+      ...booleanCapabilityShape,
+      monitorKinds: workItemTypeMonitorKindsSchema.optional(),
+    })
+    .strict();
 
 /**
  * Strict runtime representation of the generated capability contract. The

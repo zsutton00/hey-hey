@@ -203,6 +203,13 @@ export const VALID_PAYLOAD_BY_TYPE: Record<ReportSchemaKey, ReportPayloadStub> =
       assessedReportIds: [STUB_UUID],
       reasoning: 'The report did not provide a safe automatic continuation.',
     },
+    MONITOR_NODE_RESULT: {
+      reportType: 'MONITOR_NODE_RESULT',
+      summary: 'Requirement checks passed.',
+      nodeId: STUB_UUID,
+      outcome: 'ACCEPTED',
+      reason: 'All requirement checks passed.',
+    },
     SNAPSHOT: { reportType: 'SNAPSHOT', summary: 'Snapshot stub.' },
     PLAN: {
       reportType: 'PLAN',

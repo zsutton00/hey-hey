@@ -77,6 +77,8 @@ export interface TaskMonitorLaunchDeclaration {
   readonly executionOrder: readonly string[];
   readonly dependsOnTaskIds: readonly string[];
   readonly terminalPolicy: TaskMonitorTerminalPolicy;
+  /** Key of the monitor's kind, carried opaquely; null in state persisted before monitors recorded one. */
+  readonly kindKey?: string | null | undefined;
 }
 
 export interface TaskMonitorRetryableLaunch {
@@ -160,6 +162,8 @@ export interface TaskMonitorMachineContext {
   readonly taskMonitorId: string;
   readonly organizationId: string | null;
   readonly projectId: string | null;
+  /** Key of the monitor's kind, carried opaquely; null in state persisted before monitors recorded one. */
+  readonly kindKey?: string | null | undefined;
   readonly authorityCommandId?: string | null | undefined;
   readonly coordinationCause?: TaskMonitorCoordinationCause | null | undefined;
   readonly coordinationCorrelationId?: string | null | undefined;

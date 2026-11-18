@@ -15,10 +15,8 @@ import {
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import {
   buildTaskMonitorRunEffectPayload,
-  taskMonitorConversationWorkflow,
   toCreateProvider,
   toTaskMonitorSessionConfig,
-  toTaskPromptType,
   type TaskMonitorCodingSessionLaunchInput,
 } from '../../../commands/agent-session-starter';
 import { MachineEffectProofSigner } from '../../../auth/machine-effect-proof';
@@ -26,6 +24,7 @@ import type { KeyPairStore } from '../../../credentials';
 import type { RunStore } from '../../../run-store';
 import { SessionValidationError } from '../../../session/errors';
 import type { ServerLogger } from '../../../server/logger';
+import type { TaskMonitorStartRuntime } from '../../../server/task-monitor-start';
 import type { TaskMonitorLaunchDeclaration } from './context';
 import type {
   CreateTaskMonitorAgentSessionEffect,
@@ -159,7 +158,6 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
     const input = taskMonitorLaunchInputFromDeclaration(effect.launch);
     const operationId = execution.effectId;
     try {
-      toTaskPromptType(input.task.type);
       const launchServiceId = input.task.serviceIds[0];
       if (!launchServiceId) {
         throw new SessionValidationError('Task Monitor task is missing its launch service.');
@@ -286,6 +284,7 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
   public constructor(
     private readonly apiRuntime: ApiRuntime,
     private readonly logger: ServerLogger,
+    private readonly startRuntime: TaskMonitorStartRuntime,
   ) {}
 
   public async execute(
@@ -300,16 +299,23 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
         taskId: input.task.id,
         agentSessionId: effect.agentSessionId,
       });
+      const kind = await this.startRuntime.kindFor({
+        organizationId: effect.launch.organizationId,
+        projectId: effect.launch.projectId,
+        taskMonitorId: effect.launch.taskMonitorId,
+        kindKey: effect.launch.kindKey ?? null,
+      });
+      const target = kind.conversationTarget(input.method, input.task.id);
       const response = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
         organizationId: input.organizationId,
         projectId: input.projectId,
         agentSessionId: effect.agentSessionId,
         createAgentSessionConversationDto: {
-          workflowType: taskMonitorConversationWorkflow(input.method),
+          workflowType: target.workflowType,
           workflowAboutType: 'agent-session',
           workflowAboutId: effect.agentSessionId,
-          entityType: 'task',
-          entityId: input.task.id,
+          entityType: target.entityType,
+          entityId: target.entityId,
           title: input.task.name,
         },
       });
