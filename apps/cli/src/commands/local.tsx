@@ -251,12 +251,14 @@ export async function continueLocalApplication(
   bridgePort: number,
   webPort: number,
   onStopping: () => void,
-  /** Dev mode only: the containers expected to be running. See `ServerCommandOptions`. */
-  expectedServices?: readonly string[],
+  /** Dev mode only: its Compose project and the containers expected to run. See `ServerCommandOptions`. */
+  devStack?: { project: string; services: readonly string[] },
   state = new LocalCliState(storage.directory),
   diagnostics?: StartupDiagnostics,
 ): Promise<boolean> {
-  const serverServices = expectedServices ? { localApplicationServices: expectedServices } : {};
+  const serverServices = devStack
+    ? { localApplicationServices: devStack.services, localApplicationProject: devStack.project }
+    : {};
   const originalApiUrl = process.env['HEYHEY_API_URL'];
   const originalWebOrigin = process.env['HEYHEY_WEB_ORIGIN'];
   const originalControllerOrigin = process.env['HEYHEY_CONTROLLER_ORIGIN'];
@@ -323,7 +325,7 @@ export async function continueLocalApplication(
     logger.debug('local.pairing.readiness', { state: readiness.state });
     const currentMachineId = await keyPairStore.loadCurrentMachineId();
     console.log(
-      `Pairing state: store=heyhey-local-cli state=${readiness.state} machineId=${currentMachineId ?? 'none'}.`,
+      `Pairing state: store=${state.localKeyPairStore.service} state=${readiness.state} machineId=${currentMachineId ?? 'none'}.`,
     );
     const pairLocal = async (): Promise<boolean> => {
       const agents = await new CodingAgentDetector().detect();
@@ -515,9 +517,9 @@ async function runLocalAttempt(
   diagnostics: StartupDiagnostics,
   troubleshooting: TroubleshootingPrompt,
 ): Promise<boolean> {
-  if (args.length === 1 && args[0] === 'dev') {
+  if (args[0] === 'dev' && (args.length === 1 || (args.length === 2 && args[1] === '--fresh'))) {
     const { runLocalDevCommand } = await import('./local-dev');
-    return runLocalDevCommand(diagnostics);
+    return runLocalDevCommand({ fresh: args[1] === '--fresh' }, diagnostics);
   }
   const stopping = args.length === 1 && args[0] === 'stop';
   if (args.length > 0 && !stopping) {

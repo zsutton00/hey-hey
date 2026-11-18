@@ -50,6 +50,8 @@ export class DockerBoundary {
   constructor(
     private readonly readiness = { attempts: 120, intervalMs: 1000 },
     processBoundary = new DockerProcess(),
+    /** The Compose project this boundary sees and drives; see `LocalWorkspace`. */
+    readonly project = LOCAL_PROJECT,
   ) {
     this.process = processBoundary;
   }
@@ -214,7 +216,7 @@ export class DockerBoundary {
         'ps',
         '-aq',
         '--filter',
-        `label=com.docker.compose.project=${LOCAL_PROJECT}`,
+        `label=com.docker.compose.project=${this.project}`,
       ])
     )
       .trim()
@@ -232,7 +234,7 @@ export class DockerBoundary {
       'ls',
       '-q',
       '--filter',
-      `label=com.docker.compose.project=${LOCAL_PROJECT}`,
+      `label=com.docker.compose.project=${this.project}`,
     ]);
     return volumes.trim().length > 0;
   }
@@ -245,7 +247,7 @@ export class DockerBoundary {
     onLine?: (line: string) => boolean,
   ): Promise<void> {
     await this.command(
-      ['compose', '--project-name', LOCAL_PROJECT, '--file', path, ...args],
+      ['compose', '--project-name', this.project, '--file', path, ...args],
       input,
       service,
       onLine,
@@ -256,8 +258,57 @@ export class DockerBoundary {
     await this.compose(path, ['stop']);
   }
 
-  /** Pulls every image, reporting combined progress across all of them while it runs. */
-  async pull(path: string, onProgress?: (detail: DownloadDetail) => void): Promise<void> {
+  /**
+   * Services whose pinned image reference is not on this Docker host. Images are content-addressed
+   * references from the release, so presence by reference is presence of the exact pinned image.
+   */
+  private async missingServiceImages(images: Record<string, string>): Promise<string[]> {
+    const missing: string[] = [];
+    for (const [service, reference] of Object.entries(images)) {
+      try {
+        await this.command(
+          ['image', 'inspect', '--format', '{{.Id}}', reference],
+          undefined,
+          undefined,
+          undefined,
+          true,
+        );
+      } catch {
+        // The refusal and its cause are logged by command(); an absent image is the expected answer.
+        missing.push(service);
+      }
+    }
+    this.logger.info('local.docker.image_presence', { missing });
+    return missing;
+  }
+
+  /**
+   * Pulls only the services whose pinned image is absent, so a download interrupted on an earlier
+   * run resumes instead of leaving startup blocked on `--pull never`. Returns what it fetched.
+   */
+  async pullMissing(
+    path: string,
+    images: Record<string, string>,
+    onStart: (services: string[]) => void,
+    onProgress?: (detail: DownloadDetail) => void,
+  ): Promise<string[]> {
+    const missing = await this.missingServiceImages(images);
+    if (missing.length > 0) {
+      onStart(missing);
+      await this.pull(path, onProgress, missing);
+    }
+    return missing;
+  }
+
+  /**
+   * Pulls the given services' images (every image when none are named), reporting combined
+   * progress across all of them while it runs.
+   */
+  async pull(
+    path: string,
+    onProgress?: (detail: DownloadDetail) => void,
+    services: string[] = [],
+  ): Promise<void> {
     const mode = await this.progressMode(path);
     const aggregator = new PullProgressAggregator(mode);
     const started = Date.now();
@@ -265,7 +316,7 @@ export class DockerBoundary {
     try {
       await this.compose(
         path,
-        [...(mode === 'json' ? ['--progress', 'json'] : []), 'pull'],
+        [...(mode === 'json' ? ['--progress', 'json'] : []), 'pull', ...services],
         undefined,
         undefined,
         (line) => {
@@ -304,7 +355,7 @@ export class DockerBoundary {
         [
           'compose',
           '--project-name',
-          LOCAL_PROJECT,
+          this.project,
           '--file',
           path,
           '--progress',
@@ -413,11 +464,6 @@ export class DockerBoundary {
   /** Developer-only: graph/search alone, once an API run from source serves signing keys. */
   async startGraphSearch(path: string): Promise<void> {
     await this.startService(path, 'graph-search', false);
-  }
-
-  /** Removes containers only; named volumes, and so all data, are kept. */
-  async removeContainers(path: string, services: string[]): Promise<void> {
-    await this.compose(path, ['rm', '--stop', '--force', ...services]);
   }
 
   private async waitForServices(services: string[]): Promise<void> {

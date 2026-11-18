@@ -720,7 +720,8 @@ describe('local application installation and return visits', () => {
       '/flyway',
     );
 
-    expect(dev.name).toBe(installed.name);
+    // Its own Compose project, so the same volume names never resolve to the installed app's data.
+    expect(dev.name).not.toBe(installed.name);
     expect(dev.volumes).toEqual(installed.volumes);
     expect(dev.services).not.toHaveProperty('ui');
     expect(dev.services.api).not.toHaveProperty('ports');

@@ -18,6 +18,7 @@ import { arch, release } from 'node:os';
 import { version } from '../../package.json';
 import { DiagnosticFeed, writeDirectOutput } from '../server/diagnostic-feed';
 import { observeServerLogs, type ServerLogEntry, type ServerLogSink } from '../server/logger';
+import { LOCAL_PROJECT } from './compose';
 import { collectLocalPairingDiagnostics } from './local-pairing-diagnostics';
 import { collectLocalStartupContainerDiagnostics } from './local-startup-container-diagnostics';
 import { safeStartupCause, selectStartupFields } from './startup-diagnostic-boundary';
@@ -59,6 +60,8 @@ export class StartupDiagnostics implements ServerLogSink {
   private collecting: Promise<void> = Promise.resolve();
   private readonly unsubscribe: () => void;
   private seq = 0;
+  /** The Compose project failure evidence is collected from; `heyhey local dev` selects its own. */
+  dockerProject = LOCAL_PROJECT;
 
   constructor(
     readonly directory: string,
@@ -252,8 +255,8 @@ export class StartupDiagnostics implements ServerLogSink {
     const attemptId = this.attemptId;
     this.collecting = this.collecting.then(async () => {
       const records = [
-        ...(await collectLocalPairingDiagnostics()),
-        ...(await collectLocalStartupContainerDiagnostics()),
+        ...(await collectLocalPairingDiagnostics(this.dockerProject)),
+        ...(await collectLocalStartupContainerDiagnostics(this.dockerProject)),
       ];
       for (const record of records) {
         this.record('container.evidence', record, 'info', attemptId);

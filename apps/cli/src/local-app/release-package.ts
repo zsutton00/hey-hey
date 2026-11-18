@@ -35,12 +35,7 @@ export class ReleasePackage {
   private target: ReleaseManifest | undefined;
 
   async newerThan(current: string): Promise<ReleaseManifest | undefined> {
-    const { stdout } = await execute(
-      'npm',
-      ['view', `${packageName}@latest`, 'version', '--json'],
-      { timeout: 30_000 },
-    );
-    const version = versionSchema.parse(JSON.parse(stdout));
+    const version = await this.latestVersion();
     const numeric = (value: string) => value.split('-')[0]!.split('.').map(Number);
     const left = numeric(version),
       right = numeric(current);
@@ -49,6 +44,20 @@ export class ReleasePackage {
       return undefined;
     }
     return this.read(version);
+  }
+
+  /** The pinned image set of the latest published release. Reads the package; installs nothing. */
+  async latest(): Promise<ReleaseManifest> {
+    return this.read(await this.latestVersion());
+  }
+
+  private async latestVersion(): Promise<string> {
+    const { stdout } = await execute(
+      'npm',
+      ['view', `${packageName}@latest`, 'version', '--json'],
+      { timeout: 30_000 },
+    );
+    return versionSchema.parse(JSON.parse(stdout));
   }
 
   async read(version: string): Promise<ReleaseManifest> {

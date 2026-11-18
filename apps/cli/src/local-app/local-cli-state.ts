@@ -4,9 +4,12 @@ import { LocalKeyPairStore } from './local-key-pair-store';
 
 /** The installation owns local CLI state independently of hosted configuration. */
 export class LocalCliState extends CliState {
-  constructor(installationDirectory: string, keyPairStore = new LocalKeyPairStore()) {
+  constructor(
+    installationDirectory: string,
+    readonly localKeyPairStore = new LocalKeyPairStore(),
+  ) {
     super(
-      keyPairStore,
+      localKeyPairStore,
       join(installationDirectory, 'cli'),
       'heyhey:oauth:local-application',
       'http://localhost:3000',
