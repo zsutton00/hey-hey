@@ -2,11 +2,7 @@ import { AnimatedConditional, FadeIn } from "@hey-hey/ui-common/animations";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
-  Conversation,
-  DISABLED_CONVERSATION_SCROLL_POLICY,
   determineMessageState,
-  BrandedAppearanceProvider,
-  BrandedWordmark,
   type OnboardingReplySubmission,
 } from "@hey-hey/ui-common/components";
 import { WebPathService } from "@hey-hey/ui-common";
@@ -16,7 +12,6 @@ import {
   useDebugActions,
   useOrganization,
   usePageTracking,
-  createHeyTheme,
 } from "@hey-hey/ui-common/context";
 import {
   ConversationStatus,
@@ -33,19 +28,12 @@ import {
   useProject,
   useSubmitOnboardingReply,
 } from "@hey-hey/ui-common/data";
-import { Box } from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ConversationMessage } from "../../types/conversation";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { OnboardingLoadingScreen } from "./components/Loading";
-import { ProjectDetailsForm } from "./components/ProjectDetailsForm";
-
-/** The branded frame is always dark, whatever mode the rest of the app is in. */
-const BRANDED_THEME_MODE = "dark";
-
-/** Conversation content sits at most this wide, centred under the headline. */
-const ONBOARDING_CONTENT_MAX_WIDTH = "1100px";
+import { OnboardingConversation } from "./components/OnboardingConversation";
+import { OnboardingFrame } from "./components/OnboardingFrame";
 
 const ONBOARDING_CONVERSATION_STATUSES: ConversationStatus[] = [
   ConversationStatus.NotStarted,
@@ -94,7 +82,6 @@ const isSelectedExistingWorkIntentAnswer = (answer: unknown): boolean =>
 // Container component for data loading and orchestration
 const OnboardingPageContent = () => {
   const navigate = useNavigate();
-  const brandedTheme = useMemo(() => createHeyTheme(BRANDED_THEME_MODE), []);
   // Read the active org from the app-wide OrganizationContext — the same source
   // every other page (and project creation) uses. The JWT's currentOrgId is a
   // stale snapshot from token-issue time and diverges once a multi-org user
@@ -376,75 +363,47 @@ const OnboardingPageContent = () => {
     return null;
   }
 
-  // Debug logging removed to prevent re-render cycles
   const conversationContent =
     project && resolvedOnboardingConversation ? (
-      <>
-        <ProjectDetailsForm project={project} organizationId={currentOrgId!} />
-        <Conversation
-          animationType="minimal"
-          navigationOrientation="vertical"
-          conversation={resolvedOnboardingConversation}
-          project={project}
-          agentSessionId={resolvedAgentSession?.id}
-          agentSessionCurrentState={resolvedAgentSession?.currentState}
-          scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
-          sidebarMode="minimal"
-          stepCount={-1}
-          showNavigation
-          onSubmitOnboardingReply={handleSubmitOnboardingReply}
-        />
-      </>
+      <OnboardingConversation
+        project={project}
+        conversation={resolvedOnboardingConversation}
+        agentSessionId={resolvedAgentSession?.id}
+        agentSessionCurrentState={resolvedAgentSession?.currentState}
+        onSubmitOnboardingReply={handleSubmitOnboardingReply}
+      />
     ) : null;
 
   return (
-    <ThemeProvider theme={brandedTheme}>
-      <BrandedAppearanceProvider value>
-        <Box
-          sx={{
-            minHeight: "100vh",
-            boxSizing: "border-box",
-            px: { xs: 2, md: 4 },
-            pt: "clamp(2rem, 5vw, 3.5rem)",
-            pb: 8,
-            bgcolor: "background.default",
-            color: "#fff",
-            fontFamily: '"Atkinson Hyperlegible", Arial, sans-serif',
-          }}
-        >
-          {existingImportBreadcrumbs ? (
-            <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
-          ) : null}
-          <Box sx={{ textAlign: "center" }}>
-            <BrandedWordmark>HEY HEY</BrandedWordmark>
-          </Box>
+    <OnboardingFrame
+      header={
+        existingImportBreadcrumbs ? (
+          <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
+        ) : null
+      }
+    >
+      <AnimatedConditional show={!isLoaded} animationType="fade">
+        <OnboardingLoadingScreen
+          isNew={isNew}
+          loadingTextConfig={[
+            { text: "Initializing Project...", delay: 300 },
+            { text: "Loading project...", delay: 500 },
+          ]}
+        />
+      </AnimatedConditional>
 
-          <Box sx={{ maxWidth: ONBOARDING_CONTENT_MAX_WIDTH, mx: "auto" }}>
-            <AnimatedConditional show={!isLoaded} animationType="fade">
-              <OnboardingLoadingScreen
-                isNew={isNew}
-                loadingTextConfig={[
-                  { text: "Initializing Project...", delay: 300 },
-                  { text: "Loading project...", delay: 500 },
-                ]}
-              />
-            </AnimatedConditional>
-
-            <AnimatedConditional
-              show={!!isLoaded}
-              animationType="fade"
-              duration="slow"
-            >
-              {isLoaded && resolvedOnboardingConversation && project && (
-                <FadeIn delay={0.26} duration="slow">
-                  {conversationContent}
-                </FadeIn>
-              )}
-            </AnimatedConditional>
-          </Box>
-        </Box>
-      </BrandedAppearanceProvider>
-    </ThemeProvider>
+      <AnimatedConditional
+        show={!!isLoaded}
+        animationType="fade"
+        duration="slow"
+      >
+        {isLoaded && resolvedOnboardingConversation && project && (
+          <FadeIn delay={0.26} duration="slow">
+            {conversationContent}
+          </FadeIn>
+        )}
+      </AnimatedConditional>
+    </OnboardingFrame>
   );
 };
 

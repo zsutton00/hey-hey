@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Box, useTheme } from "@mui/material";
+import { Box } from "@mui/material";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   AgentSessionStatus,
@@ -7,7 +7,6 @@ import {
   ConversationStatus,
   ProjectStatus,
 } from "@hey-hey/ui-common/api";
-import { HeyHeyBranding } from "@hey-hey/ui-common/components";
 import {
   TrackingProvider,
   useOrganization,
@@ -20,6 +19,7 @@ import {
 } from "@hey-hey/ui-common/data";
 
 import { OnboardingLoadingScreen } from "../Onboarding/components/Loading";
+import { OnboardingFrame } from "../Onboarding/components/OnboardingFrame";
 import { LocalOnboardingReadError } from "./LocalOnboardingReadError";
 import { LocalOnboardingSession } from "./LocalOnboardingSession";
 
@@ -32,7 +32,6 @@ const ONBOARDING_STATUSES = Object.values(ConversationStatus);
  */
 function LocalOnboardingPageContent() {
   const navigate = useNavigate();
-  const theme = useTheme();
   const { projectId } = useParams<{ projectId: string }>();
   const { currentOrganization } = useOrganization();
   const organizationId = currentOrganization?.id;
@@ -118,42 +117,28 @@ function LocalOnboardingPageContent() {
   }
 
   return (
-    <Box
-      data-testid="local-onboarding-page"
-      sx={{ px: { xs: 2, sm: 4, md: 6 }, py: 3 }}
-    >
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          mb: 3,
-          "& > .MuiTypography-root": {
-            color:
-              theme.palette.mode === "dark" ? "common.white" : "text.primary",
-          },
-        }}
-      >
-        <HeyHeyBranding variant="header" />
+    <OnboardingFrame>
+      <Box data-testid="local-onboarding-page">
+        {readError ? (
+          <LocalOnboardingReadError
+            message={readError.message}
+            onRetry={handleRetryRead}
+          />
+        ) : project && conversation.data && session ? (
+          <LocalOnboardingSession
+            project={project}
+            conversation={conversation.data}
+            session={session}
+            onActivated={handleActivated}
+          />
+        ) : (
+          <OnboardingLoadingScreen
+            isNew={false}
+            loadingTextConfig={[{ text: "Loading project...", delay: 300 }]}
+          />
+        )}
       </Box>
-      {readError ? (
-        <LocalOnboardingReadError
-          message={readError.message}
-          onRetry={handleRetryRead}
-        />
-      ) : project && conversation.data && session ? (
-        <LocalOnboardingSession
-          project={project}
-          conversation={conversation.data}
-          session={session}
-          onActivated={handleActivated}
-        />
-      ) : (
-        <OnboardingLoadingScreen
-          isNew={false}
-          loadingTextConfig={[{ text: "Loading project...", delay: 300 }]}
-        />
-      )}
-    </Box>
+    </OnboardingFrame>
   );
 }
 
