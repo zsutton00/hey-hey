@@ -15,6 +15,7 @@ const context: TaskMonitorMachineContext = {
   taskMonitorId: MONITOR_ID,
   organizationId: '40000000-0000-4000-8000-000000000004',
   projectId: '50000000-0000-4000-8000-000000000005',
+  kindKey: 'task',
   authorityCommandId: '90000000-0000-4000-8000-000000000009',
   requestedLaunchConfig: null,
   executionPlan: [],
@@ -151,6 +152,7 @@ describe('Task Monitor settled Run supervision', () => {
         taskMonitorId: MONITOR_ID,
         organizationId: context.organizationId,
         projectId: context.projectId,
+        kindKey: 'task',
         authorityCommandId: context.authorityCommandId,
         runId: RUN_ID,
         agentSessionId: SESSION_ID,
@@ -412,6 +414,7 @@ describe('invalid coordinator recovery', () => {
     const { definition, snapshot } = evaluating();
     const evaluation: EvaluateTaskMonitorSettledRunEffect = {
       type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+      kindKey: 'task',
       taskMonitorId: MONITOR_ID,
       organizationId: context.organizationId!,
       projectId: context.projectId!,

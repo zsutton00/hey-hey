@@ -34,6 +34,7 @@ export type ReportType =
   | 'FEATURE_TREE_ANALYSIS'
   | 'COMPETITIVE_ANALYSIS'
   | 'SESSION_MONITOR_DEFERRAL'
+  | 'MONITOR_NODE_RESULT'
   | 'EVAL_RUN'
   | 'EVAL_ATTEMPT'
   | 'EVAL_HUMAN_REVIEW';
@@ -62,6 +63,7 @@ export const ReportType = {
   FeatureTreeAnalysis: 'FEATURE_TREE_ANALYSIS' as ReportType,
   CompetitiveAnalysis: 'COMPETITIVE_ANALYSIS' as ReportType,
   SessionMonitorDeferral: 'SESSION_MONITOR_DEFERRAL' as ReportType,
+  MonitorNodeResult: 'MONITOR_NODE_RESULT' as ReportType,
   EvalRun: 'EVAL_RUN' as ReportType,
   EvalAttempt: 'EVAL_ATTEMPT' as ReportType,
   EvalHumanReview: 'EVAL_HUMAN_REVIEW' as ReportType,

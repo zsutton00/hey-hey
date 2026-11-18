@@ -64,6 +64,12 @@ export type PlanStageTaskMonitorSetupResult =
   | { ok: true; draft: PlanStageTaskMonitorSetupDraft }
   | { ok: false; error: PlanStageTaskMonitorSetupError };
 
+/**
+ * The monitor kind Plan-stage setup records on the monitors it creates: it
+ * selects a stage's Tasks, so it always creates Task monitors.
+ */
+export const PLAN_STAGE_TASK_MONITOR_KIND_KEY = "task";
+
 const isNonEmpty = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -204,6 +210,7 @@ export const composePlanStageTaskMonitorSetup = (
       },
       executableTasks,
       definition: {
+        kind: PLAN_STAGE_TASK_MONITOR_KIND_KEY,
         executionPlan: executableTasks.map((task) => ({
           taskId: task.taskId,
           dependsOnTaskIds: (

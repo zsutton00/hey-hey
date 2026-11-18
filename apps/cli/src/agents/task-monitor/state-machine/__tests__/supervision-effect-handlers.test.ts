@@ -1,6 +1,16 @@
 import crypto from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
+import { TaskMonitorKind, taskMonitorKindConfiguration } from '../../kinds/task-monitor-kind';
+import {
+  directResultKind,
+  fetchServingMonitorKinds,
+  nodeResultPayload,
+  shippedTaskMonitorKind,
+  type ServedNodeResult,
+} from '../../kinds/task-monitor-kind.test-support';
+import { TaskMonitorNodeResultReader } from '../../kinds/task-monitor-node-result-reader';
 import { TaskMonitorDecisionStore } from '../../task-monitor-decision-store';
 import { NOOP_LOGGER } from '../../../../server/logger';
 import {
@@ -31,6 +41,7 @@ import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/age
 
 const effect: EvaluateTaskMonitorSettledRunEffect = {
   type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+  kindKey: 'task',
   taskMonitorId: '10000000-0000-4000-8000-000000000001',
   organizationId: '20000000-0000-4000-8000-000000000002',
   projectId: '30000000-0000-4000-8000-000000000003',
@@ -137,8 +148,18 @@ describe('Task Monitor settled-Run evaluation', () => {
         TaskMonitorSettledRunEvaluationEffectHandlerDependencies,
         'authContext' | 'agentSessionReader'
       >
-    > = {},
+    > & {
+      kind?: WorkItemTypeMonitorKind;
+      remainingNodes?: readonly { taskId: string; agentSessionId: string | null }[];
+      nodeResults?: readonly ServedNodeResult[];
+    } = {},
   ) => {
+    const {
+      kind: kindConfiguration,
+      remainingNodes = [],
+      nodeResults = [],
+      ...handlerOverrides
+    } = overrides;
     const input = dependencies(createTestPlatformAuthContext(auth));
     const machineId = 'a0000000-0000-4000-8000-00000000000a';
     const keyPairStore = createTestKeyPairStore({ currentMachineId: machineId });
@@ -162,8 +183,12 @@ describe('Task Monitor settled-Run evaluation', () => {
     const monitor = {
       status: WorkStatus.Active,
       definition: {
+        kind: 'task',
         cursor: 0,
-        executionPlan: [executionEntry],
+        executionPlan: [
+          executionEntry,
+          ...remainingNodes.map((node) => ({ ...executionEntry, ...node })),
+        ],
         launchPolicy: {
           worktree: undefined,
           terminalSupervision: { mode },
@@ -221,9 +246,31 @@ describe('Task Monitor settled-Run evaluation', () => {
         readMonitor: vi.fn().mockResolvedValue(monitor),
         completeMonitor,
         haltMonitor,
+        kindFor: vi.fn(() =>
+          Promise.resolve(
+            new TaskMonitorKind(
+              {
+                runtime: {} as never,
+                apiBaseUrl: 'https://api.test',
+                fetchImpl: fetchImpl as never,
+                logger: NOOP_LOGGER,
+                results: new TaskMonitorNodeResultReader({
+                  apiBaseUrl: 'https://api.test',
+                  fetchImpl: fetchServingMonitorKinds({}, fetchImpl as never, nodeResults),
+                  authContext: createTestPlatformAuthContext(null, 'token'),
+                  logger: NOOP_LOGGER,
+                }),
+              },
+              taskMonitorKindConfiguration(
+                (kindConfiguration ?? shippedTaskMonitorKind()).key,
+                kindConfiguration ?? shippedTaskMonitorKind(),
+              ),
+            ),
+          ),
+        ),
       } as never,
       coordinatorRunner: { runTaskMonitor } as never,
-      ...overrides,
+      ...handlerOverrides,
     };
     return {
       handler: new TaskMonitorSettledRunEvaluationEffectHandler(configured),
@@ -339,6 +386,184 @@ describe('Task Monitor settled-Run evaluation', () => {
     });
     expect(fetchImpl).toHaveBeenCalled();
     expect(completeMonitor).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['REJECTED', 'UNCHANGED'] as const)(
+    'does not advance an incomplete Task when Work Items completion is %s',
+    async (completion) => {
+      const { handler, fetchImpl, completeMonitor } = await decisionHarness(
+        TaskMonitorReviewMode.AgentDecides,
+        {
+          action: 'ACCEPT_TASK',
+          rationale: 'The evidence supports requesting canonical completion.',
+        },
+      );
+      fetchImpl.mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (init?.method === 'PATCH') {
+          return new Response(null, {
+            status: url.includes('/work-items/') && completion === 'REJECTED' ? 400 : 204,
+          });
+        }
+        return Response.json({ status: WorkStatus.Verifying });
+      });
+      await expect(handler.execute(effect, execution)).resolves.toMatchObject({
+        status: 'failed',
+        outcome: { type: 'OUTCOME_JUDGMENT_REQUIRED' },
+      });
+      expect(completeMonitor).not.toHaveBeenCalled();
+      const itemWrites = fetchImpl.mock.calls.filter(
+        ([url, init]) => String(url).includes('/work-items/') && init?.method === 'PATCH',
+      );
+      expect(itemWrites).toHaveLength(1);
+      expect(JSON.parse(String(itemWrites[0]![1]!.body))).toMatchObject({
+        status: WorkStatus.Completed,
+      });
+    },
+  );
+
+  describe('direct acceptance from a configured normalized-result kind', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const settledNode = '80000000-0000-4000-8000-000000000008';
+    const nextNode = 'd0000000-0000-4000-8000-00000000000d';
+    const nextSession = 'e0000000-0000-4000-8000-00000000000e';
+    const turnReport = 'f0000000-0000-4000-8000-00000000000f';
+    const earlierReport = 'f1000000-0000-4000-8000-0000000000f1';
+    const settledWithResult: EvaluateTaskMonitorSettledRunEffect = {
+      ...effect,
+      reports: [{ reportId: turnReport, reportType: 'MONITOR_NODE_RESULT' }],
+    };
+    const turnResult = (payload: unknown): ServedNodeResult => ({
+      reportId: turnReport,
+      agentSessionId: effect.agentSessionId,
+      payload,
+    });
+
+    it.each([
+      { remainingNodes: [], outcome: 'SUPERVISION_COMPLETED', completes: 1 },
+      {
+        remainingNodes: [{ taskId: nextNode, agentSessionId: null }],
+        outcome: 'COORDINATION_CONTINUES',
+        completes: 0,
+      },
+      {
+        remainingNodes: [{ taskId: nextNode, agentSessionId: nextSession }],
+        outcome: 'SUPERVISION_COMPLETED',
+        completes: 1,
+      },
+    ])(
+      'accepts the settled node from its Turn result with no coordinator run or status change ($outcome)',
+      async ({ remainingNodes, outcome, completes }) => {
+        const {
+          handler,
+          fetchImpl,
+          runTaskMonitor,
+          createOutOfBand,
+          completeMonitor,
+          haltMonitor,
+        } = await decisionHarness(
+          TaskMonitorReviewMode.RequireReview,
+          { action: 'WAIT', rationale: 'unused' },
+          {
+            kind: directResultKind(),
+            remainingNodes,
+            nodeResults: [
+              turnResult(nodeResultPayload(settledNode, 'ACCEPTED')),
+              {
+                reportId: crypto.randomUUID(),
+                agentSessionId: nextSession,
+                payload: nodeResultPayload(nextNode, 'ACCEPTED'),
+              },
+            ],
+          },
+        );
+
+        await expect(handler.execute(settledWithResult, execution)).resolves.toMatchObject({
+          status: 'succeeded',
+          outcome: { type: outcome },
+        });
+        expect(runTaskMonitor).not.toHaveBeenCalled();
+        expect(createOutOfBand).not.toHaveBeenCalled();
+        expect(completeMonitor).toHaveBeenCalledTimes(completes);
+        expect(haltMonitor).not.toHaveBeenCalled();
+        expect(fetchImpl).not.toHaveBeenCalledWith(
+          expect.stringContaining('/work-items/'),
+          expect.objectContaining({ method: 'PATCH' }),
+        );
+      },
+    );
+
+    it.each([
+      {
+        case: 'a failed result',
+        nodeResults: [
+          turnResult(nodeResultPayload(settledNode, 'FAILED', 'Requirement check 3 failed.')),
+        ],
+        reason: 'Requirement check 3 failed.',
+      },
+      {
+        case: 'a result for another node',
+        nodeResults: [turnResult(nodeResultPayload(nextNode, 'ACCEPTED'))],
+        reason: `No valid MONITOR_NODE_RESULT report for node ${settledNode}`,
+      },
+      {
+        case: 'an accepted result left by an earlier Turn',
+        nodeResults: [
+          {
+            reportId: earlierReport,
+            agentSessionId: effect.agentSessionId,
+            payload: nodeResultPayload(settledNode, 'ACCEPTED'),
+          },
+        ],
+        reason: 'in the settled Turn',
+      },
+      {
+        case: 'a malformed result',
+        nodeResults: [
+          turnResult({ ...nodeResultPayload(settledNode, 'ACCEPTED'), outcome: 'PASS' }),
+        ],
+        reason: `No valid MONITOR_NODE_RESULT report for node ${settledNode}`,
+      },
+      { case: 'no result', nodeResults: [], reason: 'No valid MONITOR_NODE_RESULT report' },
+    ])(
+      'halts with the reason and starts no coordinator run on $case',
+      async ({ nodeResults, reason }) => {
+        const { handler, runTaskMonitor, completeMonitor, haltMonitor } = await decisionHarness(
+          TaskMonitorReviewMode.AgentDecides,
+          { action: 'WAIT', rationale: 'unused' },
+          { kind: directResultKind(), nodeResults },
+        );
+
+        await expect(handler.execute(settledWithResult, execution)).resolves.toMatchObject({
+          status: 'succeeded',
+          outcome: { type: 'SUPERVISION_HALTED', reason: expect.stringContaining(reason) },
+        });
+        expect(runTaskMonitor).not.toHaveBeenCalled();
+        expect(completeMonitor).not.toHaveBeenCalled();
+        expect(haltMonitor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            monitorId: effect.taskMonitorId,
+            failureContext: expect.stringContaining(reason),
+          }),
+        );
+      },
+    );
+
+    it('keeps the shipped Task kind on coordinator supervision', async () => {
+      const read = vi.spyOn(TaskMonitorNodeResultReader.prototype, 'read');
+      const { handler, runTaskMonitor } = await decisionHarness(
+        TaskMonitorReviewMode.AgentDecides,
+        { action: 'WAIT', rationale: 'Still working.' },
+      );
+
+      await handler.execute(effect, execution);
+
+      expect(runTaskMonitor).toHaveBeenCalledTimes(1);
+      expect(read).not.toHaveBeenCalled();
+    });
   });
 
   it('does not treat an unsuccessful bound Review as acceptance authority', async () => {

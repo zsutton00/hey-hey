@@ -17,6 +17,7 @@ import type {
   WorkItemTypeSectionDefinition,
 } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeRegistryService } from '../../src/services/tasks/work-item-type-registry.service';
+import { shippedTaskMonitorKinds } from './shipped-task-monitor-kind';
 
 const ALL_ENTITY_TYPES = Object.values(EntityType);
 const ALL_REPORT_TYPES = Object.values(ReportType);
@@ -155,7 +156,7 @@ interface TypeFixture {
   agentSettableStatuses?: WorkStatus[];
   anchorableReportTypes?: ReportType[];
   acceptedConfigKinds?: WorkItemConfigKind[];
-  capabilities: Record<string, boolean>;
+  capabilities: Record<string, unknown>;
 }
 
 export type BuiltInTypeKey =
@@ -525,6 +526,7 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
       hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
+      monitorKinds: shippedTaskMonitorKinds(),
     },
   },
 };

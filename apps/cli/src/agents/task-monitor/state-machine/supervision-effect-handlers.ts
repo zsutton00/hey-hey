@@ -39,9 +39,8 @@ import type {
   EvaluateTaskMonitorSettledRunEffect,
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
+import type { TaskMonitorKind } from '../kinds/task-monitor-kind';
 
-const workItemStatusSchema = z.object({ status: z.nativeEnum(WorkStatus) }).passthrough();
-const workItemStatusEnvelopeSchema = z.object({ data: workItemStatusSchema }).passthrough();
 const guidanceEffectResponseSchema = z
   .object({ data: z.object({ messageId: z.string().uuid() }).passthrough() })
   .passthrough();
@@ -66,6 +65,7 @@ interface TaskMonitorCoordinationDecisionEffect {
   readonly taskMonitorId: string;
   readonly organizationId: string;
   readonly projectId: string;
+  readonly kindKey: string | null;
   readonly authorityCommandId?: string | undefined;
   readonly runId: string;
   readonly agentSessionId: string;
@@ -88,6 +88,16 @@ class TaskMonitorSupervisionOwners {
     this.baseUrl = dependencies.apiBaseUrl.replace(/\/$/u, '');
   }
 
+  /** The kind the monitor recorded, resolved from its project's effective definition. */
+  public kindFor(effect: TaskMonitorSupervisionEffect): Promise<TaskMonitorKind> {
+    return this.dependencies.taskMonitorStartRuntime.kindFor({
+      organizationId: effect.organizationId,
+      projectId: effect.projectId,
+      taskMonitorId: effect.taskMonitorId,
+      kindKey: effect.kindKey,
+    });
+  }
+
   public async completeAgentSession(auth: PlatformAuth, agentSessionId: string): Promise<void> {
     const machineId = await this.dependencies.keyPairStore.loadCurrentMachineId();
     if (!machineId) {
@@ -98,29 +108,6 @@ class TaskMonitorSupervisionOwners {
       status: AgentSessionStatus.Completed,
     } satisfies UpdateAgentSessionDto;
     await this.patch(auth, `/agent-sessions/${encodeURIComponent(agentSessionId)}`, update);
-  }
-
-  public async completeTask(auth: PlatformAuth, taskId: string): Promise<void> {
-    await this.patch(auth, `/work-items/${encodeURIComponent(taskId)}`, {
-      status: WorkStatus.Completed,
-      reason: 'Apply an accepted Task Monitor decision through Work Items.',
-    });
-  }
-
-  public async readTaskStatus(auth: PlatformAuth, taskId: string): Promise<WorkStatus> {
-    const response = await this.dependencies.fetchImpl(
-      this.urlFor(auth, `/work-items/${encodeURIComponent(taskId)}`),
-      { headers: { Authorization: `Bearer ${auth.accessToken}` } },
-    );
-    if (!response.ok) {
-      throw new Error(`Selected Task read failed with status ${String(response.status)}.`);
-    }
-    const payload: unknown = await response.json();
-    const envelope = workItemStatusEnvelopeSchema.safeParse(payload);
-    const direct = workItemStatusSchema.safeParse(payload);
-    if (envelope.success) return envelope.data.data.status;
-    if (direct.success) return direct.data.status;
-    throw new Error('Selected Task read returned an invalid response.');
   }
 
   public requestReview(agentSessionId: string, rationale: string): Promise<void> {
@@ -553,6 +540,23 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
         );
       }
 
+      const kind = await this.owners.kindFor(effect);
+      if (kind.supervision === 'DIRECT_ACCEPTANCE') {
+        return await this.superviseDirectly(effect, auth, entry.taskId, kind);
+      }
+
+      await kind.retainOperationResult(
+        {
+          organizationId: effect.organizationId,
+          projectId: effect.projectId,
+          nodeId: entry.taskId,
+          agentSessionId: effect.agentSessionId,
+          turnReportIds: effect.reports.map((report) => report.reportId),
+        },
+        effect.turnId,
+        effect.promptType === 'code_review',
+      );
+
       const completedAssistantMessage = effect.completedAssistantMessageId
         ? await this.dependencies.agentService.readAssistantMessage({
             organizationId: auth.organizationId,
@@ -756,57 +760,119 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
             'Task acceptance requires a successful Review bound to the current selected work.',
           );
         }
-        if (completeAgentSession) {
-          await this.owners.completeAgentSession(auth, effect.agentSessionId);
-        }
-        const currentTaskStatus = await this.owners.readTaskStatus(auth, taskId);
-        if (currentTaskStatus !== WorkStatus.Completed) {
-          await this.owners.completeTask(auth, taskId);
-        }
-        const taskStatus = await this.owners.readTaskStatus(auth, taskId);
-        if (taskStatus !== WorkStatus.Completed) {
-          return this.failed(effect, `Selected Task did not settle completed (${taskStatus}).`);
-        }
-        const latestMonitor = await this.dependencies.taskMonitorStartRuntime.readMonitor({
-          monitorId: effect.taskMonitorId,
-          organizationId: effect.organizationId,
-          projectId: effect.projectId,
-        });
-        const remaining = latestMonitor.definition.executionPlan.slice(
-          latestMonitor.definition.cursor + 1,
+        const kind = await this.owners.kindFor(effect);
+        await kind.admitOperation(
+          auth,
+          { nodeId: taskId, agentSessionId: effect.agentSessionId },
+          coordinatorRunId,
         );
-        const remainingStatuses = await Promise.all(
-          remaining.map((entry) => this.owners.readTaskStatus(auth, entry.taskId)),
+        return this.settleAcceptedNode(effect, auth, kind, taskId, completeAgentSession, () =>
+          this.owners.publishDecision(auth, coordinatorRunId, decision),
         );
-        if (remainingStatuses.every((status) => status === WorkStatus.Completed)) {
-          await this.dependencies.taskMonitorStartRuntime.completeMonitor({
-            monitorId: effect.taskMonitorId,
-            organizationId: effect.organizationId,
-            projectId: effect.projectId,
-          });
-          await this.owners.publishDecision(auth, coordinatorRunId, decision);
-          return {
-            status: 'succeeded',
-            outcome: {
-              type: 'SUPERVISION_COMPLETED',
-              taskMonitorId: effect.taskMonitorId,
-              runId: effect.runId,
-              agentSessionId: effect.agentSessionId,
-            },
-          };
-        }
-        await this.owners.publishDecision(auth, coordinatorRunId, decision);
-        return {
-          status: 'succeeded',
-          outcome: {
-            type: 'COORDINATION_CONTINUES',
-            taskMonitorId: effect.taskMonitorId,
-            runId: effect.runId,
-            agentSessionId: effect.agentSessionId,
-          },
-        };
       }
     }
+  }
+
+  /**
+   * Direct acceptance: the node's durable normalized result settles it and no coordinator run
+   * starts. A failed or unavailable result halts the monitor with its reason.
+   */
+  private async superviseDirectly(
+    effect: EvaluateTaskMonitorSettledRunEffect,
+    auth: PlatformAuth,
+    nodeId: string,
+    kind: TaskMonitorKind,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const verdict = await kind.judgeSettled({
+      organizationId: auth.organizationId,
+      projectId: auth.projectId,
+      nodeId,
+      agentSessionId: effect.agentSessionId,
+      turnReportIds: effect.reports.map((report) => report.reportId),
+    });
+    if (!verdict.accept) {
+      this.dependencies.logger.error('task_monitor.supervision.direct.failed', {
+        taskMonitorId: effect.taskMonitorId,
+        runId: effect.runId,
+        agentSessionId: effect.agentSessionId,
+        turnId: effect.turnId,
+        kind: kind.key,
+        nodeId,
+        reason: verdict.reason,
+      });
+      await this.owners.halt(effect, auth, verdict.reason);
+      return {
+        status: 'succeeded',
+        outcome: {
+          type: 'SUPERVISION_HALTED',
+          taskMonitorId: effect.taskMonitorId,
+          runId: effect.runId,
+          agentSessionId: effect.agentSessionId,
+          reason: verdict.reason,
+        },
+      };
+    }
+
+    this.dependencies.logger.info('task_monitor.supervision.direct.accepted', {
+      taskMonitorId: effect.taskMonitorId,
+      runId: effect.runId,
+      turnId: effect.turnId,
+      kind: kind.key,
+      nodeId,
+    });
+    return this.settleAcceptedNode(effect, auth, kind, nodeId, true, null);
+  }
+
+  /** Accepts the node through its kind, then completes the monitor or continues to the next node. */
+  private async settleAcceptedNode(
+    effect: TaskMonitorSupervisionEffect,
+    auth: PlatformAuth,
+    kind: TaskMonitorKind,
+    nodeId: string,
+    completeAgentSession: boolean,
+    publishDecision: (() => Promise<void>) | null,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const acceptance = await kind.acceptSettled(
+      auth,
+      { nodeId, agentSessionId: effect.agentSessionId },
+      completeAgentSession
+        ? () => this.owners.completeAgentSession(auth, effect.agentSessionId)
+        : null,
+    );
+    if (!acceptance.accepted) {
+      return this.failed(effect, acceptance.reason);
+    }
+    const latestMonitor = await this.dependencies.taskMonitorStartRuntime.readMonitor({
+      monitorId: effect.taskMonitorId,
+      organizationId: effect.organizationId,
+      projectId: effect.projectId,
+    });
+    const remaining = latestMonitor.definition.executionPlan.slice(
+      latestMonitor.definition.cursor + 1,
+    );
+    const remainingDone = await Promise.all(
+      remaining.map((entry) =>
+        kind.readDone(auth, { nodeId: entry.taskId, agentSessionId: entry.agentSessionId ?? null }),
+      ),
+    );
+    const allDone = remainingDone.every(Boolean);
+    if (allDone) {
+      await this.dependencies.taskMonitorStartRuntime.completeMonitor({
+        monitorId: effect.taskMonitorId,
+        organizationId: effect.organizationId,
+        projectId: effect.projectId,
+      });
+    }
+    await publishDecision?.();
+    return {
+      status: 'succeeded',
+      outcome: {
+        type: allDone ? 'SUPERVISION_COMPLETED' : 'COORDINATION_CONTINUES',
+        taskMonitorId: effect.taskMonitorId,
+        runId: effect.runId,
+        agentSessionId: effect.agentSessionId,
+      },
+    };
   }
 
   private continues(

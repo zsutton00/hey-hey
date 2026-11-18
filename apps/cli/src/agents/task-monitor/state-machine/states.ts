@@ -487,10 +487,13 @@ export const taskMonitorWorkStates = {
         TASK_MONITOR_LAUNCH_PERSISTED: {
           guard: 'matchesSelectedLaunch',
           target: 'STARTING_RUN',
-          actions: {
-            type: 'startTaskMonitorRun',
-            params: startRunFromContextParameters,
-          },
+          actions: [
+            'storePersistedLaunch',
+            {
+              type: 'startTaskMonitorRun',
+              params: startRunFromContextParameters,
+            },
+          ],
         },
         TASK_MONITOR_LAUNCH_PERSISTENCE_FAILED: {
           guard: 'matchesSelectedLaunch',

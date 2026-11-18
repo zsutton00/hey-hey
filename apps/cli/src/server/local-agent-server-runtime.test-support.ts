@@ -252,6 +252,7 @@ export const createTestLocalAgentServerRuntimeOwners = (
     machineRegistry,
     monitorRuntime,
     infrastructure,
+    taskMonitorDecisionStore: agentRuntime.taskMonitorDecisionStore,
     agentService: runRuntime.agentService,
     messagePoster: runRuntime.messagePoster,
     localAgentEndpoint: runRuntime.localAgentEndpoint,

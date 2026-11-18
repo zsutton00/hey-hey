@@ -45,6 +45,7 @@ export const ReportType = {
     FeatureTreeAnalysis: 'FEATURE_TREE_ANALYSIS',
     CompetitiveAnalysis: 'COMPETITIVE_ANALYSIS',
     SessionMonitorDeferral: 'SESSION_MONITOR_DEFERRAL',
+    MonitorNodeResult: 'MONITOR_NODE_RESULT',
     EvalRun: 'EVAL_RUN',
     EvalAttempt: 'EVAL_ATTEMPT',
     EvalHumanReview: 'EVAL_HUMAN_REVIEW',
@@ -71,6 +72,7 @@ export const ReportType = {
     "FEATURE_TREE_ANALYSIS": "FEATURE_TREE_ANALYSIS",
     "COMPETITIVE_ANALYSIS": "COMPETITIVE_ANALYSIS",
     "SESSION_MONITOR_DEFERRAL": "SESSION_MONITOR_DEFERRAL",
+    "MONITOR_NODE_RESULT": "MONITOR_NODE_RESULT",
     "EVAL_RUN": "EVAL_RUN",
     "EVAL_ATTEMPT": "EVAL_ATTEMPT",
     "EVAL_HUMAN_REVIEW": "EVAL_HUMAN_REVIEW",
@@ -98,6 +100,7 @@ Object.defineProperty(ReportType, "VALIDATION_WALKTHROUGH", { enumerable: false,
 Object.defineProperty(ReportType, "FEATURE_TREE_ANALYSIS", { enumerable: false, value: ReportType["FeatureTreeAnalysis"] });
 Object.defineProperty(ReportType, "COMPETITIVE_ANALYSIS", { enumerable: false, value: ReportType["CompetitiveAnalysis"] });
 Object.defineProperty(ReportType, "SESSION_MONITOR_DEFERRAL", { enumerable: false, value: ReportType["SessionMonitorDeferral"] });
+Object.defineProperty(ReportType, "MONITOR_NODE_RESULT", { enumerable: false, value: ReportType["MonitorNodeResult"] });
 Object.defineProperty(ReportType, "EVAL_RUN", { enumerable: false, value: ReportType["EvalRun"] });
 Object.defineProperty(ReportType, "EVAL_ATTEMPT", { enumerable: false, value: ReportType["EvalAttempt"] });
 Object.defineProperty(ReportType, "EVAL_HUMAN_REVIEW", { enumerable: false, value: ReportType["EvalHumanReview"] });

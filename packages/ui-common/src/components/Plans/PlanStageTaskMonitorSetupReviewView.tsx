@@ -37,6 +37,7 @@ import { PlanStageTaskMonitorExecutionVisualization } from "./PlanStageTaskMonit
 export interface PlanStageTaskMonitorSetupReviewViewProps {
   /** The machine whose CLI offers the model choices; null until one is picked. */
   catalogSource: RuntimeModelCatalogSource | null;
+  allowedLaunchMethods: readonly TaskMonitorLaunchMethod[];
   definition: TaskMonitorExecutionDefinition;
   executableTasks: readonly PlanStageTaskMonitorExecutableTask[];
   taskSelection: PlanStageTaskMonitorTaskSelection;
@@ -70,6 +71,7 @@ export interface PlanStageTaskMonitorSetupReviewViewProps {
 
 export const PlanStageTaskMonitorSetupReviewView = ({
   catalogSource,
+  allowedLaunchMethods,
   definition,
   executableTasks,
   taskSelection,
@@ -137,6 +139,7 @@ export const PlanStageTaskMonitorSetupReviewView = ({
         }}
         launchConfigurationEditing={{
           catalogSource,
+          allowedLaunchMethods,
           onChangeMethod,
           onChangeProvider,
           onChangeModel,

@@ -1,3 +1,8 @@
+import {
+  TaskMonitorKind,
+  resolveTaskMonitorKindConfiguration,
+  type TaskMonitorKindConfiguration,
+} from './kinds/task-monitor-kind';
 import Ajv, { type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
@@ -9,66 +14,25 @@ import {
   TaskMonitorReviewMode,
   type ReportPayload,
   type TaskMonitorExecutionDefinition,
+  type TaskMonitorOperationEvidence,
 } from '@hey-hey/contracts/api/models';
 import type {
   SessionMonitorSettledTurnEvidence,
   TaskMonitorPlanGuidance,
 } from '@hey-hey/contracts/agent-bridge';
-import { TaskMonitorPlanContext } from '../../server/task-monitor-plan-context';
+import {
+  assertOwnedWorkItem,
+  encode,
+  itemEnvelopeSchema,
+  readValidated,
+  workItemSchema,
+  type TaskMonitorContractEvidence,
+  type TaskMonitorFeatureEvidence,
+  type TaskMonitorRemainingWorkEvidence,
+  type TaskMonitorSelectedTaskEvidence,
+} from './kinds/task-monitor-task-coordinator-inputs';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { TaskMonitorCoordinationLocalState } from './task-monitor-coordination';
-
-const sectionSchema = z.object({
-  key: z.string(),
-  materializedMarkdown: z.string(),
-});
-
-const workItemSchema = z
-  .object({
-    id: z.string().uuid(),
-    name: z.string().min(1),
-    type: z.string().min(1),
-    organizationId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    status: z.string().min(1),
-    sections: z.array(sectionSchema).optional(),
-  })
-  .passthrough();
-
-const relatedEntitySchema = z
-  .object({
-    entityId: z.string().uuid(),
-    entityType: z.string().min(1),
-    displayName: z.string().min(1),
-    status: z.string().optional(),
-    relationship: z.string().min(1),
-    reasoning: z.string().optional(),
-    taskType: z.string().optional(),
-  })
-  .passthrough();
-
-const featureHierarchySchema = z
-  .object({
-    id: z.string().uuid(),
-    name: z.string().min(1),
-    tag: z.string().optional(),
-    relationshipType: z.string().min(1),
-    relationship: z.string().optional(),
-    direction: z.string().optional(),
-    distance: z.number().int().positive().optional(),
-    reasoning: z.string().optional(),
-  })
-  .passthrough();
-
-const entityContextSchema = z
-  .object({
-    entityId: z.string().uuid(),
-    entityType: z.string().min(1),
-    displayName: z.string().min(1),
-    relatedEntities: z.array(relatedEntitySchema).optional(),
-    featureHierarchy: z.array(featureHierarchySchema).optional(),
-  })
-  .passthrough();
 
 const agentSessionSchema = z
   .object({
@@ -108,8 +72,6 @@ const reportSchema = z
   })
   .passthrough();
 
-const itemEnvelopeSchema = <T extends z.ZodTypeAny>(schema: T) =>
-  z.object({ data: schema }).passthrough();
 const listEnvelopeSchema = <T extends z.ZodTypeAny>(schema: T) =>
   z.object({ data: z.array(schema).optional() }).passthrough();
 
@@ -125,43 +87,6 @@ const validateDefinition: ValidateFunction<TaskMonitorExecutionDefinition> = ajv
   taskMonitorExecutionDefinitionJsonSchema,
 );
 const knownReportTypes: ReadonlySet<string> = new Set(Object.values(ReportType));
-
-export interface TaskMonitorFeatureEvidence {
-  id: string;
-  title: string;
-  tag?: string;
-  relationship: string;
-  direction?: string;
-  distance?: number;
-  reasoning?: string;
-}
-
-export interface TaskMonitorContractEvidence {
-  id: string;
-  title: string;
-  relationship: string;
-  reasoning?: string;
-}
-
-export interface TaskMonitorSelectedTaskEvidence {
-  executionIndex: number;
-  id: string;
-  title: string;
-  type: string;
-  status: string;
-  sections: ReadonlyArray<{ key: string; materializedMarkdown: string }>;
-  featureHierarchy: ReadonlyArray<TaskMonitorFeatureEvidence>;
-  contracts: ReadonlyArray<TaskMonitorContractEvidence>;
-}
-
-export interface TaskMonitorRemainingWorkEvidence {
-  executionIndex: number;
-  taskId: string;
-  title: string;
-  status: string;
-  dependsOnTaskIds: readonly string[];
-  agentSessionId: string | null;
-}
 
 export interface TaskMonitorSessionEvidence {
   id: string;
@@ -194,6 +119,8 @@ export interface TaskMonitorCanonicalEvidence {
       fastMode?: boolean;
     };
   };
+  operationPolicy?: TaskMonitorKindConfiguration;
+  operationEvidence?: TaskMonitorOperationEvidence | null;
   planGuidance: TaskMonitorPlanGuidance | null;
   selectedTask: TaskMonitorSelectedTaskEvidence;
   remainingWork: ReadonlyArray<TaskMonitorRemainingWorkEvidence>;
@@ -212,45 +139,6 @@ export interface LoadTaskMonitorEvidenceInput {
   settledTurn?: SessionMonitorSettledTurnEvidence;
   coordination?: TaskMonitorCoordinationLocalState;
 }
-
-const encode = (value: string): string => encodeURIComponent(value);
-
-const readValidated = async <T>(
-  deps: Pick<PromptTypeHandlerDeps, 'apiBaseUrl' | 'fetchImpl' | 'logger'>,
-  url: string,
-  action: string,
-  schema: z.ZodType<T>,
-  accessToken: string,
-): Promise<T> => {
-  deps.logger.debug('task_monitor.coordinator.evidence.read_started', { action, url });
-  const response = await deps.fetchImpl(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    deps.logger.warn('task_monitor.coordinator.evidence.read_http_failed', {
-      action,
-      url,
-      status: response.status,
-    });
-    throw new Error(`${action} failed (${String(response.status)}): ${text.slice(0, 500)}`);
-  }
-
-  let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    throw new Error(`${action} returned malformed JSON.`);
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map(({ code, path }) => `${path.join('.')} ${code}`);
-    throw new Error(`${action} failed boundary validation: ${issues.join('; ')}`);
-  }
-  deps.logger.debug('task_monitor.coordinator.evidence.read_completed', { action, url });
-  return parsed.data;
-};
 
 const parseExecutionDefinition = (
   monitor: z.infer<typeof workItemSchema>,
@@ -290,31 +178,6 @@ const toReportPayload = (
   throw new Error('Canonical Report payload discriminator did not match reportType.');
 };
 
-const uniqueById = <T extends { id: string }>(items: readonly T[]): T[] => {
-  const seen = new Set<string>();
-  return items.filter(({ id }) => {
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-};
-
-const assertOwnedWorkItem = (
-  item: z.infer<typeof workItemSchema>,
-  expectedId: string,
-  label: string,
-  organizationId: string,
-  projectId: string,
-): void => {
-  if (
-    item.id !== expectedId ||
-    item.organizationId !== organizationId ||
-    item.projectId !== projectId
-  ) {
-    throw new Error(`${label} identity or ownership did not match the requested scope.`);
-  }
-};
-
 export const loadTaskMonitorCanonicalEvidence = async (
   deps: Pick<PromptTypeHandlerDeps, 'apiBaseUrl' | 'fetchImpl' | 'logger'>,
   input: LoadTaskMonitorEvidenceInput,
@@ -330,13 +193,7 @@ export const loadTaskMonitorCanonicalEvidence = async (
     input.accessToken,
   );
   const monitor = monitorEnvelope.data;
-  assertOwnedWorkItem(
-    monitor,
-    input.monitorId,
-    'Task Monitor',
-    input.organizationId,
-    input.projectId,
-  );
+  assertOwnedWorkItem(monitor, input.monitorId, 'Task Monitor', input);
   if (monitor.type !== 'TASK_MONITOR') {
     throw new Error('Task Monitor read returned a different work-item type.');
   }
@@ -346,61 +203,18 @@ export const loadTaskMonitorCanonicalEvidence = async (
     throw new Error('Task Monitor cursor does not identify an execution node.');
   }
 
-  const [selectedTaskEnvelope, selectedContextEnvelope, remainingTaskEnvelopes] = await Promise.all(
-    [
-      readValidated(
-        deps,
-        `${projectBase}/work-items/${encode(currentNode.taskId)}?includeEdges=true`,
-        'Selected Task read',
-        itemEnvelopeSchema(workItemSchema),
-        input.accessToken,
-      ),
-      readValidated(
-        deps,
-        `${projectBase}/entities/TASK/${encode(currentNode.taskId)}/context`,
-        'Selected Task context read',
-        itemEnvelopeSchema(entityContextSchema),
-        input.accessToken,
-      ),
-      Promise.all(
-        executionDefinition.executionPlan
-          .map((node, executionIndex) => ({ node, executionIndex }))
-          .filter(({ executionIndex }) => executionIndex > executionDefinition.cursor)
-          .map(async ({ node, executionIndex }) => ({
-            node,
-            executionIndex,
-            envelope: await readValidated(
-              deps,
-              `${projectBase}/work-items/${encode(node.taskId)}`,
-              `Remaining Task ${String(executionIndex)} read`,
-              itemEnvelopeSchema(workItemSchema),
-              input.accessToken,
-            ),
-          })),
-      ),
-    ],
-  );
-  const selectedTask = selectedTaskEnvelope.data;
-  const selectedContext = selectedContextEnvelope.data;
-  assertOwnedWorkItem(
-    selectedTask,
-    currentNode.taskId,
-    'Selected Task',
-    input.organizationId,
-    input.projectId,
-  );
-  if (selectedContext.entityId !== currentNode.taskId || selectedContext.entityType !== 'TASK') {
-    throw new Error('Selected Task context identity did not match the execution cursor.');
-  }
-  for (const { node, envelope } of remainingTaskEnvelopes) {
-    assertOwnedWorkItem(
-      envelope.data,
-      node.taskId,
-      'Remaining Task',
-      input.organizationId,
-      input.projectId,
-    );
-  }
+  const policy = await resolveTaskMonitorKindConfiguration(deps, {
+    ...input,
+    kindKey: executionDefinition.kind,
+  });
+  const coordinatorInputs = TaskMonitorKind.inputsFor(deps, policy);
+  const nodeReads = await coordinatorInputs.readNodes({
+    organizationId: input.organizationId,
+    projectId: input.projectId,
+    accessToken: input.accessToken,
+    cursor: executionDefinition.cursor,
+    executionPlan: executionDefinition.executionPlan,
+  });
   const session = currentNode.agentSessionId
     ? (
         await readValidated(
@@ -439,16 +253,7 @@ export const loadTaskMonitorCanonicalEvidence = async (
     };
   })();
 
-  const planGuidance = await new TaskMonitorPlanContext({
-    apiBaseUrl: deps.apiBaseUrl,
-    fetchImpl: deps.fetchImpl,
-    logger: deps.logger,
-  }).resolve({
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    taskId: currentNode.taskId,
-    accessToken: input.accessToken,
-  });
+  const planGuidance = await coordinatorInputs.resolveGuidance(input, currentNode.taskId);
 
   const reports = session
     ? await (async (): Promise<TaskMonitorReportEvidence[]> => {
@@ -478,33 +283,14 @@ export const loadTaskMonitorCanonicalEvidence = async (
       })()
     : [];
 
-  const featureHierarchy = uniqueById(
-    (selectedContext.featureHierarchy ?? []).map(
-      (feature): TaskMonitorFeatureEvidence => ({
-        id: feature.id,
-        title: feature.name,
-        ...(feature.tag ? { tag: feature.tag } : {}),
-        relationship: feature.relationship ?? feature.relationshipType,
-        ...(feature.direction ? { direction: feature.direction } : {}),
-        ...(feature.distance ? { distance: feature.distance } : {}),
-        ...(feature.reasoning ? { reasoning: feature.reasoning } : {}),
-      }),
-    ),
-  );
-  const contracts = uniqueById(
-    (selectedContext.relatedEntities ?? [])
-      .filter(({ entityType, taskType }) => entityType === 'CONTRACT' || taskType === 'CONTRACT')
-      .map(
-        (contract): TaskMonitorContractEvidence => ({
-          id: contract.entityId,
-          title: contract.displayName,
-          relationship: contract.relationship,
-          ...(contract.reasoning ? { reasoning: contract.reasoning } : {}),
-        }),
-      ),
+  const { selectedTask, remainingWork } = coordinatorInputs.project(
+    nodeReads,
+    executionDefinition.cursor,
   );
 
   const result: TaskMonitorCanonicalEvidence = {
+    operationPolicy: policy,
+    operationEvidence: currentNode.operationEvidence ?? null,
     monitor: {
       id: monitor.id,
       status: monitor.status,
@@ -522,24 +308,8 @@ export const loadTaskMonitorCanonicalEvidence = async (
       },
     },
     planGuidance,
-    selectedTask: {
-      executionIndex: executionDefinition.cursor,
-      id: selectedTask.id,
-      title: selectedTask.name,
-      type: selectedTask.type,
-      status: selectedTask.status,
-      sections: selectedTask.sections ?? [],
-      featureHierarchy,
-      contracts,
-    },
-    remainingWork: remainingTaskEnvelopes.map(({ node, executionIndex, envelope }) => ({
-      executionIndex,
-      taskId: node.taskId,
-      title: envelope.data.name,
-      status: envelope.data.status,
-      dependsOnTaskIds: node.dependsOnTaskIds,
-      agentSessionId: node.agentSessionId ?? null,
-    })),
+    selectedTask,
+    remainingWork,
     selectedSession,
     releasedTurn: input.settledTurn ?? null,
     reports,
@@ -555,4 +325,11 @@ export const loadTaskMonitorCanonicalEvidence = async (
     turnId: result.releasedTurn?.turnId,
   });
   return result;
+};
+
+export type {
+  TaskMonitorContractEvidence,
+  TaskMonitorFeatureEvidence,
+  TaskMonitorRemainingWorkEvidence,
+  TaskMonitorSelectedTaskEvidence,
 };

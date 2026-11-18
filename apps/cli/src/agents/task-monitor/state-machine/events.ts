@@ -375,6 +375,8 @@ export interface TaskMonitorLoadedEvent {
   readonly cursor: number;
   readonly worktree: TaskMonitorWorktree | null;
   readonly terminalPolicy: TaskMonitorTerminalPolicy;
+  /** The monitor's recorded kind key; null only in an outcome persisted before keys existed. */
+  readonly kindKey: string | null;
 }
 
 interface TaskMonitorLoadFailedEvent {

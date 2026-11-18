@@ -232,6 +232,7 @@ export class ReportService {
     FEATURE_TREE_ANALYSIS: 'Feature Tree Analysis',
     COMPETITIVE_ANALYSIS: 'Competitive Analysis',
     SESSION_MONITOR_DEFERRAL: 'Session Monitor Deferral',
+    MONITOR_NODE_RESULT: 'Monitor Node Result',
     PROJECT_REPORT: 'Project Report',
     EVAL_RUN: 'Eval Run',
     EVAL_ATTEMPT: 'Eval Attempt',

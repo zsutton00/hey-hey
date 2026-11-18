@@ -33,6 +33,7 @@ import {
   type RiskAlertReportPayload,
   type RollupProposalReportPayload,
   type SessionMonitorDeferralReportPayload,
+  type MonitorNodeResultReportPayload,
   type SessionSummaryReportPayload,
   type SnapshotReportPayload,
   type ValidationWalkthroughReportPayload,
@@ -433,6 +434,20 @@ const sessionMonitorDeferralReport: ReportDto = {
     reasoning:
       "The report leaves the canonical next step ambiguous, so user review is required.",
   } satisfies SessionMonitorDeferralReportPayload,
+} as ReportDto;
+
+const monitorNodeResultReport: ReportDto = {
+  ...baseFixture,
+  id: "dispatch-monitor-node-result",
+  reportType: ReportType.MonitorNodeResult,
+  title: "Monitor Node Result",
+  payload: {
+    reportType: "MONITOR_NODE_RESULT",
+    summary: "Requirement checks ran for the node.",
+    nodeId: "4c150e0c-25d3-45c9-9f24-b410eb4a5e45",
+    outcome: "FAILED",
+    reason: "Requirement check 3 failed.",
+  } satisfies MonitorNodeResultReportPayload,
 } as ReportDto;
 
 const rollupProposalReport: ReportDto = {
@@ -1199,6 +1214,21 @@ describe("ReportViewer dispatcher", () => {
         "report-viewer-dispatch-session-summary-session-summary-summary",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("routes MONITOR_NODE_RESULT reports to the typed renderer with outcome and reason", () => {
+    render(<ReportViewer report={monitorNodeResultReport} />);
+
+    expect(
+      screen.getByTestId(
+        "report-viewer-dispatch-monitor-node-result-monitor-node-result-outcome",
+      ),
+    ).toHaveTextContent("Failed");
+    expect(
+      screen.getByTestId(
+        "report-viewer-dispatch-monitor-node-result-monitor-node-result-reason",
+      ),
+    ).toHaveTextContent("Requirement check 3 failed.");
   });
 
   it("routes SESSION_MONITOR_DEFERRAL reports to the typed deferral renderer with review context and reasoning", () => {

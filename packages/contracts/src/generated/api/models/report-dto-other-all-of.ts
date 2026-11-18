@@ -69,6 +69,7 @@ export const ReportDtoOtherAllOfReportTypeEnum = {
     FeatureTreeAnalysis: 'FEATURE_TREE_ANALYSIS',
     CompetitiveAnalysis: 'COMPETITIVE_ANALYSIS',
     SessionMonitorDeferral: 'SESSION_MONITOR_DEFERRAL',
+    MonitorNodeResult: 'MONITOR_NODE_RESULT',
     EvalRun: 'EVAL_RUN',
     EvalAttempt: 'EVAL_ATTEMPT',
     EvalHumanReview: 'EVAL_HUMAN_REVIEW',
@@ -94,6 +95,7 @@ export const ReportDtoOtherAllOfReportTypeEnum = {
     "FEATURE_TREE_ANALYSIS": "FEATURE_TREE_ANALYSIS",
     "COMPETITIVE_ANALYSIS": "COMPETITIVE_ANALYSIS",
     "SESSION_MONITOR_DEFERRAL": "SESSION_MONITOR_DEFERRAL",
+    "MONITOR_NODE_RESULT": "MONITOR_NODE_RESULT",
     "EVAL_RUN": "EVAL_RUN",
     "EVAL_ATTEMPT": "EVAL_ATTEMPT",
     "EVAL_HUMAN_REVIEW": "EVAL_HUMAN_REVIEW",
@@ -120,6 +122,7 @@ Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "VALIDATION_WALKTHROUGH
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "FEATURE_TREE_ANALYSIS", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["FeatureTreeAnalysis"] });
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "COMPETITIVE_ANALYSIS", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["CompetitiveAnalysis"] });
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "SESSION_MONITOR_DEFERRAL", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["SessionMonitorDeferral"] });
+Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "MONITOR_NODE_RESULT", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["MonitorNodeResult"] });
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "EVAL_RUN", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["EvalRun"] });
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "EVAL_ATTEMPT", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["EvalAttempt"] });
 Object.defineProperty(ReportDtoOtherAllOfReportTypeEnum, "EVAL_HUMAN_REVIEW", { enumerable: false, value: ReportDtoOtherAllOfReportTypeEnum["EvalHumanReview"] });

@@ -228,6 +228,7 @@ const launchDeclarationSchema = z
     executionOrder: z.array(z.string()),
     dependsOnTaskIds: z.array(z.string()),
     terminalPolicy: terminalPolicySchema,
+    kindKey: z.string().min(1).nullable().optional(),
   })
   .strict() satisfies z.ZodType<TaskMonitorLaunchDeclaration>;
 
@@ -534,6 +535,7 @@ const taskMonitorContextSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string().nullable(),
     projectId: z.string().nullable(),
+    kindKey: z.string().min(1).nullable().optional(),
     authorityCommandId: z.string().nullable().optional(),
     coordinationCause: z
       .enum(['START', 'RESUME', 'CONTINUE', 'JUDGMENT_RESOLVED'])
@@ -610,6 +612,7 @@ const coordinateEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     executionPlan: z.array(executionNodeSchema),
     cursor: z.number().int().nonnegative(),
     cause: z.enum(['START', 'RESUME', 'CONTINUE', 'JUDGMENT_RESOLVED']).optional(),
@@ -643,6 +646,7 @@ const validateEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     authorityCommandId: z.string().optional(),
     requestedLaunchConfig: launchConfigSchema,
     executionPlan: z.array(executionNodeSchema),
@@ -659,6 +663,7 @@ const reconcileEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     taskId: z.string(),
     cursor: z.number().int().nonnegative(),
     operation: z.enum([
@@ -808,6 +813,7 @@ const settledRunEvaluationEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     authorityCommandId: z.string().optional(),
     runId: z.string(),
     agentSessionId: z.string(),
@@ -896,6 +902,7 @@ const loadedOutcomeSchema = z
     cursor: z.number().int().nonnegative(),
     worktree: worktreeSchema.nullable(),
     terminalPolicy: terminalPolicySchema,
+    kindKey: z.string().min(1).nullable().default(null),
   })
   .strict();
 const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
@@ -1690,6 +1697,8 @@ const taskMonitorMachine = setup({
         event.type === 'MONITOR_LOADED' ? event.worktree : context.worktree,
       terminalPolicy: ({ context, event }) =>
         event.type === 'MONITOR_LOADED' ? event.terminalPolicy : context.terminalPolicy,
+      kindKey: ({ context, event }) =>
+        event.type === 'MONITOR_LOADED' ? event.kindKey : (context.kindKey ?? null),
       failureReason: null,
     }),
     storeSelectedWork: assign({
@@ -1716,6 +1725,19 @@ const taskMonitorMachine = setup({
       launch: ({ context, event }) =>
         event.type === 'LAUNCH_VALIDATED' ? event.launch : context.launch,
       failureReason: null,
+    }),
+    storePersistedLaunch: assign({
+      executionPlan: ({ context, event }) => {
+        if (event.type !== 'TASK_MONITOR_LAUNCH_PERSISTED') {
+          return context.executionPlan;
+        }
+
+        return context.executionPlan.map((entry) =>
+          entry.taskId === event.taskId
+            ? { ...entry, agentSessionId: event.agentSessionId }
+            : entry,
+        );
+      },
     }),
     storeAgentSession: assign({
       agentSessionId: ({ context, event }) =>
@@ -1916,6 +1938,7 @@ const taskMonitorMachine = setup({
     taskMonitorId: input.instanceId,
     organizationId: null,
     projectId: null,
+    kindKey: null,
     authorityCommandId: null,
     requestedLaunchConfig: null,
     executionPlan: [],

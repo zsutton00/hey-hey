@@ -758,6 +758,7 @@ export * from './task-monitor-launch-method.js';
 export * from './task-monitor-launch-policy.js';
 export * from './task-monitor-launch-provider.js';
 export * from './task-monitor-lifecycle-cause.js';
+export * from './task-monitor-operation-evidence.js';
 export * from './task-monitor-pause-command.js';
 export * from './task-monitor-plan-guidance.js';
 export * from './task-monitor-plan-guidance-design-doc.js';

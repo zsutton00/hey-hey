@@ -65,6 +65,10 @@ import {
   workItemTypeGraphCapabilitySchema,
 } from './work-item-type-capabilities.schema';
 import {
+  monitorKindPolicyIssues,
+  resolveMonitorKindsCompatibility,
+} from './task-monitor-kind';
+import {
   WORK_ITEM_CAPABILITY_KEYS as CAP,
   readCapability,
 } from './work-item-type-capabilities';
@@ -608,13 +612,18 @@ export class WorkItemTypeRegistryService
         nextProjectSummaries.set(project.id, summaries);
       }
       for (const row of rowsByProject.get(project.id) ?? []) {
-        const definition = this.rowToDefinition(row);
-        if (!definition) {
+        const stored = this.rowToDefinition(row);
+        if (!stored) {
           throw new Error(
             `Cannot load work-item type '${row.typeKey}' for project ${row.projectId}: ` +
               'the persisted override is not a complete definition.',
           );
         }
+        const definition = this.withMonitorKindCompatibility(
+          stored,
+          nextCanonicalDefinitions.get(row.typeKey),
+          row.projectId,
+        );
         const activity =
           nextProjectActivity.get(row.projectId) ?? new Map<string, string>();
         activity.set(row.typeKey, row.lifecycleStatus);
@@ -1301,6 +1310,51 @@ export class WorkItemTypeRegistryService
         row.capabilities,
         row.graphConfiguration,
       ),
+    };
+  }
+
+  /**
+   * The effective TASK_MONITOR definition of a project override: kinds the
+   * override omits come from the canonical TASK_MONITOR definition, and any
+   * policy a declared kind omits comes from the canonical `task` kind. This
+   * interprets omissions once, centrally, for every declared kind, so consumers
+   * receive complete kinds and never merge definitions locally. Explicit
+   * declarations are kept, and a kind that cannot run is logged here and
+   * rejected by the consumers that would run it.
+   */
+  private withMonitorKindCompatibility(
+    definition: WorkItemTypeDefinitionDto,
+    canonical: WorkItemTypeDefinitionDto | undefined,
+    projectId: string,
+  ): WorkItemTypeDefinitionDto {
+    if (definition.key !== WORK_ITEM_TYPE_KEYS.TaskMonitor) {
+      return definition;
+    }
+
+    const monitorKinds = resolveMonitorKindsCompatibility(
+      definition.capabilities?.monitorKinds,
+      canonical?.capabilities?.monitorKinds,
+    );
+    if (monitorKinds === undefined) {
+      this.logger.error(
+        `Project ${projectId} TASK_MONITOR override declares no monitor kinds and the canonical TASK_MONITOR definition publishes none`,
+        { projectId },
+      );
+      return definition;
+    }
+
+    for (const kind of monitorKinds) {
+      const issues = monitorKindPolicyIssues(kind);
+      if (issues.length > 0) {
+        this.logger.error(
+          `Project ${projectId} TASK_MONITOR override has an unsupported "${kind.key}" monitor kind: ${issues.join('; ')}`,
+          { projectId, kind: kind.key },
+        );
+      }
+    }
+    return {
+      ...definition,
+      capabilities: { ...definition.capabilities, monitorKinds },
     };
   }
 

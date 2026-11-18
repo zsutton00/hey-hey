@@ -9,6 +9,8 @@ import {
   withDiagramDefaults,
   validateDiagramSections,
 } from './diagram-metadata';
+import { assertTaskMonitorMatchesKind } from './task-monitor-kind';
+import { TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY } from './task-monitor-execution-definition.validator';
 import {
   diagramGroupMemberKey,
   formatDiagramGroupsIssues,
@@ -1358,6 +1360,22 @@ export class TaskService {
     const sectionMap = new Map(
       sections.map((section) => [section.key, section]),
     );
+    await this.assertMonitorNodesMatchKind(tx, {
+      organizationId,
+      projectId,
+      monitorId: taskId,
+      type: effectiveTaskType,
+      // The entry persisted for a key is the last one written.
+      executionDefinitionContent: updates
+        .filter(
+          (update) =>
+            update.key === TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY,
+        )
+        .at(-1)?.content,
+      storedExecutionDefinitionContent: sectionMap.get(
+        TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY,
+      )?.materializedMarkdown,
+    });
     const sectionDefinitions = this.workItemTypeRegistry.getSectionDefinitions(
       effectiveTaskType,
       projectId,
@@ -3165,6 +3183,16 @@ export class TaskService {
       createSections,
       taskType,
     );
+    // Check the value that will be persisted, which for a repeated key is the
+    // last entry.
+    await this.assertMonitorNodesMatchKind(tx, {
+      organizationId,
+      projectId,
+      monitorId: explicitTaskId,
+      type: taskType,
+      executionDefinitionContent:
+        sectionValues[TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY],
+    });
     if (
       taskType === WORK_ITEM_TYPE_KEYS.Feature &&
       this.workItemTypeRegistry.isSectionAllowed(
@@ -5355,6 +5383,43 @@ export class TaskService {
    * removed groups through the previously persisted value. Saved positions
    * are untouched.
    */
+  /**
+   * A monitor must select a kind its project-effective type declares, keep
+   * that kind, and use only nodes and launch settings the kind allows.
+   */
+  private async assertMonitorNodesMatchKind(
+    tx: Prisma.TransactionClient,
+    params: {
+      organizationId: OrganizationId;
+      projectId: ProjectId;
+      monitorId: string | undefined;
+      type: string;
+      executionDefinitionContent: unknown;
+      storedExecutionDefinitionContent?: unknown;
+    },
+  ): Promise<void> {
+    if (
+      params.type !== WORK_ITEM_TYPE_KEYS.TaskMonitor ||
+      params.executionDefinitionContent === undefined
+    ) {
+      return;
+    }
+
+    const effectiveKinds = this.workItemTypeRegistry.getDefinition(
+      params.projectId,
+      params.type,
+    )?.definition.capabilities?.monitorKinds;
+    await assertTaskMonitorMatchesKind({
+      db: tx,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      monitorId: params.monitorId,
+      kinds: effectiveKinds,
+      executionDefinitionContent: params.executionDefinitionContent,
+      storedExecutionDefinitionContent: params.storedExecutionDefinitionContent,
+    });
+  }
+
   private async reconcileDiagramGroupsUpdate(
     tx: Prisma.TransactionClient,
     organizationId: OrganizationId,

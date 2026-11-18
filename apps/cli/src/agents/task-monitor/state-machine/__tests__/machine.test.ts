@@ -643,6 +643,7 @@ describe('Task Monitor machine definition', () => {
       taskMonitorId: command.target.workItemId,
       organizationId: command.organizationId,
       projectId: command.projectId,
+      kindKey: 'task',
       authorityCommandId: command.commandId,
       requestedLaunchConfig:
         command.command.cause === 'START' ? command.command.launchConfig : null,
@@ -704,6 +705,7 @@ describe('Task Monitor machine definition', () => {
         taskMonitorId: context.taskMonitorId,
         organizationId: context.organizationId,
         projectId: context.projectId,
+        kindKey: 'task',
         taskId: FIRST_TASK_ID,
         cursor: 0,
         operation: 'RUN_START',
@@ -1011,6 +1013,7 @@ describe('Task Monitor machine definition', () => {
           taskMonitorId: command.target.workItemId,
           organizationId: command.organizationId,
           projectId: command.projectId,
+          kindKey: null,
           authorityCommandId: command.commandId,
           requestedLaunchConfig:
             command.command.cause === 'START' ? command.command.launchConfig : null,
@@ -1071,6 +1074,7 @@ describe('Task Monitor machine definition', () => {
       ingressId: 'effect-outcome:MONITOR_LOADED',
       event: {
         type: 'MONITOR_LOADED',
+        kindKey: 'task',
         taskMonitorId: command.target.workItemId,
         organizationId: command.organizationId,
         projectId: command.projectId,
@@ -1157,6 +1161,7 @@ describe('Task Monitor machine definition', () => {
       });
     await admit('loaded', {
       type: 'MONITOR_LOADED',
+      kindKey: 'task',
       taskMonitorId: command.target.workItemId,
       organizationId: command.organizationId,
       projectId: command.projectId,
@@ -1481,6 +1486,7 @@ describe('Task Monitor machine definition', () => {
     await registry.admit(identity, command.commandId, command);
     await admit('loaded', {
       type: 'MONITOR_LOADED',
+      kindKey: 'task',
       taskMonitorId: command.target.workItemId,
       organizationId: command.organizationId,
       projectId: command.projectId,
@@ -1576,6 +1582,7 @@ describe('Task Monitor machine definition', () => {
     await registry.admit(identity, command.commandId, command);
     await admit('loaded', {
       type: 'MONITOR_LOADED',
+      kindKey: 'task',
       taskMonitorId: command.target.workItemId,
       organizationId: command.organizationId,
       projectId: command.projectId,
@@ -1680,6 +1687,7 @@ describe('Task Monitor machine definition', () => {
       });
     await admit('loaded', {
       type: 'MONITOR_LOADED',
+      kindKey: 'task',
       taskMonitorId: command.target.workItemId,
       organizationId: command.organizationId,
       projectId: command.projectId,
@@ -1748,6 +1756,7 @@ describe('Task Monitor machine definition', () => {
         ingressId: 'effect-outcome:wrong-instance',
         event: {
           type: 'MONITOR_LOADED',
+          kindKey: 'task',
           taskMonitorId: '50000000-0000-4000-8000-000000000005',
           organizationId: command.organizationId,
           projectId: command.projectId,
