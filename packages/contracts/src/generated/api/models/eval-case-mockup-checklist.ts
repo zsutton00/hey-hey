@@ -19,7 +19,7 @@
 import type { EvalCaseMockupChecklistItem } from './eval-case-mockup-checklist-item.js';
 
 /**
- * What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.
+ * What a coding case built from a Mockup is judged against. Whether the Mockup is new or a change to an existing interface comes from the Coding section\'s `target`, which is required when a checklist is present. For a new interface the items cover every control; for an existing one only the parts that changed.
  * @export
  * @interface EvalCaseMockupChecklist
  */
@@ -32,32 +32,8 @@ export interface EvalCaseMockupChecklist {
     'mockupId': string;
     /**
      *
-     * @type {string}
-     * @memberof EvalCaseMockupChecklist
-     */
-    'kind': EvalCaseMockupChecklistKindEnum;
-    /**
-     *
      * @type {Array<EvalCaseMockupChecklistItem>}
      * @memberof EvalCaseMockupChecklist
      */
     'items': Array<EvalCaseMockupChecklistItem>;
-}
-
-
-
-export const EvalCaseMockupChecklistKindEnum = {
-    New: 'NEW',
-    Update: 'UPDATE',
-    "NEW": "NEW",
-    "UPDATE": "UPDATE",
-} as const;
-Object.defineProperty(EvalCaseMockupChecklistKindEnum, "NEW", { enumerable: false, value: EvalCaseMockupChecklistKindEnum["New"] });
-Object.defineProperty(EvalCaseMockupChecklistKindEnum, "UPDATE", { enumerable: false, value: EvalCaseMockupChecklistKindEnum["Update"] });
-
-export type EvalCaseMockupChecklistKindEnum = typeof EvalCaseMockupChecklistKindEnum[keyof typeof EvalCaseMockupChecklistKindEnum];
-
-export namespace EvalCaseMockupChecklist {
-    export const KindEnum = EvalCaseMockupChecklistKindEnum;
-    export type KindEnum = EvalCaseMockupChecklistKindEnum;
 }

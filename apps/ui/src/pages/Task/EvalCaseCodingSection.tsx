@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   EvalCaseCoding,
+  EvalCaseCodingTarget,
   EvalCaseMockupChecklist,
 } from "@hey-hey/contracts/api/models";
 import { EvalTargetHandlerKey } from "@hey-hey/contracts/api";
@@ -29,7 +30,6 @@ function isMockupChecklist(value: unknown): value is EvalCaseMockupChecklist {
   return (
     isRecord(value) &&
     typeof value.mockupId === "string" &&
-    (value.kind === "NEW" || value.kind === "UPDATE") &&
     Array.isArray(value.items) &&
     value.items.every(
       (item: unknown) =>
@@ -37,6 +37,14 @@ function isMockupChecklist(value: unknown): value is EvalCaseMockupChecklist {
         typeof item.id === "string" &&
         typeof item.description === "string",
     )
+  );
+}
+
+function isCodingTarget(value: unknown): value is EvalCaseCodingTarget {
+  return (
+    isRecord(value) &&
+    (value.kind === "NEW" || value.kind === "EXISTING") &&
+    (value.path === undefined || typeof value.path === "string")
   );
 }
 
@@ -52,6 +60,10 @@ export function isEvalCaseCoding(value: unknown): value is EvalCaseCoding {
     value.mockupChecklist !== undefined &&
     !isMockupChecklist(value.mockupChecklist)
   ) {
+    return false;
+  }
+
+  if (value.target !== undefined && !isCodingTarget(value.target)) {
     return false;
   }
 
@@ -290,6 +302,39 @@ const DiffField: React.FC<{
   );
 };
 
+/**
+ * Whether the case is about a new or an existing screen or component, and
+ * where it lives. With a Mockup checklist, it also says what the checklist
+ * covers.
+ */
+const TargetField: React.FC<{
+  target: EvalCaseCodingTarget;
+  hasChecklist: boolean;
+}> = ({ target, hasChecklist }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Field id="coding-target" label={t("eval.case.coding.target")}>
+      <Typography variant="body2">
+        <b data-testid="coding-target-kind">
+          {t(`eval.case.coding.target.kind.${target.kind}`)}
+        </b>
+        {target.path ? (
+          <>
+            {" · "}
+            <code data-testid="coding-target-path">{target.path}</code>
+          </>
+        ) : null}
+      </Typography>
+      {hasChecklist ? (
+        <Typography variant="caption" color="text.secondary" component="div">
+          {t(`eval.case.coding.target.checklistNote.${target.kind}`)}
+        </Typography>
+      ) : null}
+    </Field>
+  );
+};
+
 const MockupChecklistBlock: React.FC<{
   checklist: EvalCaseMockupChecklist;
   projectId: string;
@@ -318,12 +363,6 @@ const MockupChecklistBlock: React.FC<{
         >
           {t("eval.case.coding.checklist.openMockup")}
         </SpaLink>
-        {" · "}
-        <b data-testid="coding-mockup-kind">
-          {t(`eval.case.coding.checklist.kind.${checklist.kind}`)}
-        </b>
-        {": "}
-        {t(`eval.case.coding.checklist.note.${checklist.kind}`)}
       </Typography>
       <Box
         component="ul"
@@ -343,7 +382,7 @@ const MockupChecklistBlock: React.FC<{
 
 /**
  * The Coding section of a free-form coding Eval Case: where the attempt
- * starts and the reference changes. Reviewer
+ * starts, what it is about, and the reference changes. Reviewer
  * and judge context only; the evaluated agent never sees it.
  */
 export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
@@ -375,22 +414,33 @@ export const EvalCaseCodingSection: React.FC<EvalCaseCodingSectionProps> = ({
         {t("eval.case.coding.hiddenNote")}
       </Typography>
       <Stack spacing={1.5}>
-        <Field id="coding-service" label={t("eval.case.coding.service")}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="body2">
-              {service?.name ?? coding.serviceId}
-            </Typography>
-            <SpaLink
-              testId="coding-open-service"
-              href={WebPathService.service({
-                projectId,
-                serviceId: coding.serviceId,
-              })}
-            >
-              {t("eval.case.coding.openService")}
-            </SpaLink>
-          </Stack>
-        </Field>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={{ xs: 1.5, sm: 4 }}
+        >
+          <Field id="coding-service" label={t("eval.case.coding.service")}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="body2">
+                {service?.name ?? coding.serviceId}
+              </Typography>
+              <SpaLink
+                testId="coding-open-service"
+                href={WebPathService.service({
+                  projectId,
+                  serviceId: coding.serviceId,
+                })}
+              >
+                {t("eval.case.coding.openService")}
+              </SpaLink>
+            </Stack>
+          </Field>
+          {coding.target ? (
+            <TargetField
+              target={coding.target}
+              hasChecklist={coding.mockupChecklist !== undefined}
+            />
+          ) : null}
+        </Stack>
         <Field id="coding-commit" label={t("eval.case.coding.commit")}>
           <Typography variant="body2">
             <code>{shortSha(coding.pinnedCommit.sha)}</code>{" "}

@@ -6628,7 +6628,7 @@ export const controllerActionRuntimeSchema = {
                 type: 'object',
                 additionalProperties: false,
                 description:
-                  "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                  "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run. A section with a `mockupChecklist` must also have a `target`.\n",
                 required: ['serviceId', 'pinnedCommit'],
                 properties: {
                   serviceId: {
@@ -6665,22 +6665,39 @@ export const controllerActionRuntimeSchema = {
                     description:
                       'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
                   },
+                  target: {
+                    type: 'object',
+                    additionalProperties: false,
+                    description:
+                      "What a coding case is about: whether the work is a new screen or component or a change to an existing one, and optionally where it lives in the case's Service. For the judge and results viewer only; never passed to the evaluated attempt.\n",
+                    required: ['kind'],
+                    properties: {
+                      kind: {
+                        type: 'string',
+                        enum: ['NEW', 'EXISTING'],
+                        description:
+                          'NEW for a new screen or component; EXISTING for a change to one.',
+                      },
+                      path: {
+                        type: 'string',
+                        minLength: 1,
+                        description:
+                          "Path of the screen or component within the case's Service.",
+                      },
+                    },
+                  },
                   mockupChecklist: {
                     type: 'object',
                     additionalProperties: false,
                     description:
-                      'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
-                    required: ['mockupId', 'kind', 'items'],
+                      "What a coding case built from a Mockup is judged against. Whether the Mockup is new or a change to an existing interface comes from the Coding section's `target`, which is required when a checklist is present. For a new interface the items cover every control; for an existing one only the parts that changed.\n",
+                    required: ['mockupId', 'items'],
                     properties: {
                       mockupId: {
                         type: 'string',
                         format: 'uuid',
                         description:
                           "The source Mockup, which must be in the case's project.",
-                      },
-                      kind: {
-                        type: 'string',
-                        enum: ['NEW', 'UPDATE'],
                       },
                       items: {
                         type: 'array',

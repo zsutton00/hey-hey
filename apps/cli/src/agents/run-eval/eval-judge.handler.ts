@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
-  EvalCaseMockupChecklistKindEnum,
+  EvalCaseCodingTargetKindEnum,
   ReadRestriction,
   type EvalAttemptTurn,
   type EvalAutomatedAssessment,
@@ -51,6 +51,10 @@ const judgeOutputSchema = z.object({
   regressions: z.array(z.string()).optional(),
 });
 
+/** Whether the case changes an existing screen or component, so regressions are judged. */
+const changesExisting = (caseInput: EvalRunCaseInput): boolean =>
+  caseInput.coding?.target?.kind === EvalCaseCodingTargetKindEnum.Existing;
+
 const sameIds = (expected: readonly string[], answered: readonly string[]): boolean =>
   [...expected].sort().join('\n') === [...answered].sort().join('\n');
 
@@ -93,9 +97,7 @@ export const parseEvalJudgeOutput = (
   return {
     ...assessed,
     checklistResults,
-    ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
-      ? { regressions: regressions ?? [] }
-      : {}),
+    ...(changesExisting(caseInput) ? { regressions: regressions ?? [] } : {}),
     createdAt,
   };
 };
@@ -124,11 +126,31 @@ const buildReferenceExamplesSection = (coding: EvalCaseCoding): string[] => {
   ];
 };
 
+/** What the case is about, for the judge only. */
+const buildTargetSection = (coding: EvalCaseCoding): string[] => {
+  if (!coding.target) {
+    return [];
+  }
+
+  const kind =
+    coding.target.kind === EvalCaseCodingTargetKindEnum.New
+      ? 'a new screen or component'
+      : 'a change to an existing screen or component';
+  return [
+    '',
+    '## Target',
+    `- Kind: ${kind}`,
+    ...(coding.target.path ? [`- Path: ${coding.target.path}`] : []),
+  ];
+};
+
 const buildCodingJudgeSections = (caseInput: EvalRunCaseInput): string[] => {
   const checklist = caseInput.coding?.mockupChecklist;
   if (!caseInput.coding) {
     return [];
   }
+
+  const existing = changesExisting(caseInput);
 
   return [
     '',
@@ -139,16 +161,17 @@ const buildCodingJudgeSections = (caseInput: EvalRunCaseInput): string[] => {
     ...(checklist
       ? [
           '- A checklist item is a hit only if the changes implement it. Judge from the changes, not from appearance or intent.',
-          ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
+          ...(existing
             ? [
                 '- Regressions: list anything that worked before and the changes now break. Use an empty list if none.',
               ]
             : []),
           '',
-          `## Mockup checklist (${checklist.kind === EvalCaseMockupChecklistKindEnum.New ? 'new Mockup' : 'updated Mockup'})`,
+          `## Mockup checklist (${existing ? 'updated Mockup' : 'new Mockup'})`,
           ...checklist.items.map((item) => `- ${item.id}: ${item.description}`),
         ]
       : []),
+    ...buildTargetSection(caseInput.coding),
     ...buildReferenceExamplesSection(caseInput.coding),
   ];
 };
@@ -159,8 +182,7 @@ const checklistShape = (caseInput: EvalRunCaseInput): string => {
     return '';
   }
 
-  const regressions =
-    checklist.kind === EvalCaseMockupChecklistKindEnum.Update ? ',"regressions":[""]' : '';
+  const regressions = changesExisting(caseInput) ? ',"regressions":[""]' : '';
 
   return `,"checklistResults":[{"itemId":"","hit":true,"explanation":""}]${regressions}`;
 };

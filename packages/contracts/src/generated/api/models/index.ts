@@ -1097,6 +1097,7 @@ export * from './eval-attempt-updated-event-payload-all-of.js';
 export * from './eval-automated-assessment.js';
 export * from './eval-case-coding.js';
 export * from './eval-case-coding-commit.js';
+export * from './eval-case-coding-target.js';
 export * from './eval-case-grading.js';
 export * from './eval-case-inputs.js';
 export * from './eval-case-mockup-checklist.js';
