@@ -104,6 +104,48 @@ export class DockerProcess {
     });
   }
 
+  /**
+   * Splits streamed output into complete lines and redacts each one before it
+   * leaves this class. The partial trailing line stays buffered until its
+   * newline (or the process exit) arrives, so a secret split across chunks
+   * is never emitted in pieces. `onLine` returns true for lines it consumed as
+   * progress; every other line is offered to `keep` as potential failure cause.
+   */
+  private lineStream(
+    onLine: (line: string) => boolean,
+    keep: (line: string) => void,
+  ): {
+    write: (chunk: Buffer) => void;
+    end: () => void;
+  } {
+    const decoder = new StringDecoder('utf8');
+    let pending = '';
+    const emit = (line: string) => {
+      if (line.trim()) {
+        const redacted = this.safe(line);
+        if (!onLine(redacted)) {
+          keep(redacted);
+        }
+      }
+    };
+    return {
+      write: (chunk) => {
+        pending += decoder.write(chunk);
+        const parts = pending.split(/\r\n|\n|\r/u);
+        pending = parts.pop() ?? '';
+        // A single unterminated line must not grow without bound.
+        if (pending.length > 65536) {
+          pending = '';
+        }
+        parts.forEach(emit);
+      },
+      end: () => {
+        emit(pending + decoder.end());
+        pending = '';
+      },
+    };
+  }
+
   async run(
     binary: string,
     args: string[],
@@ -111,6 +153,7 @@ export class DockerProcess {
     input?: string,
     service?: string,
     timeoutMs = this.timeoutMs,
+    onLine?: (line: string) => boolean,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(binary, args, { env: this.env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -120,6 +163,22 @@ export class DockerProcess {
       let errBytes = 0;
       let truncated = false;
       let settled = false;
+      // Progress output must not push the real failure cause out of the bounded detail,
+      // so lines the caller did not consume are kept separately, newest last.
+      const cause: string[] = [];
+      let causeChars = 0;
+      let causeTruncated = false;
+      const keepCause = (line: string) => {
+        cause.push(line);
+        causeChars += line.length + 1;
+        while (causeChars > 8192 && cause.length > 1) {
+          causeChars -= (cause.shift()?.length ?? 0) + 1;
+          causeTruncated = true;
+        }
+      };
+      const lines = onLine
+        ? [this.lineStream(onLine, keepCause), this.lineStream(onLine, keepCause)]
+        : [];
       const finish = (
         outcome: DockerFailureRecord['outcome'],
         code: string,
@@ -138,11 +197,14 @@ export class DockerProcess {
         if (truncated) {
           raw = raw.slice(0, Math.max(0, raw.lastIndexOf('\n')));
         }
-        const detail = this.safe(
-          raw.trim() ||
-            (truncated ? '' : Buffer.concat(stdout).toString('utf8').trim()) ||
-            fallback,
-        ).slice(0, 8192);
+        const streamedCause = cause.join('\n').trim();
+        const detail = onLine
+          ? (streamedCause || this.safe(fallback)).slice(-8192)
+          : this.safe(
+              raw.trim() ||
+                (truncated ? '' : Buffer.concat(stdout).toString('utf8').trim()) ||
+                fallback,
+            ).slice(0, 8192);
         reject(
           new DockerProcessError({
             operation,
@@ -152,7 +214,7 @@ export class DockerProcess {
             exitCode,
             signal,
             detail,
-            truncated: truncated || raw.length > 8192,
+            truncated: onLine ? causeTruncated : truncated || raw.length > 8192,
           }),
         );
       };
@@ -175,6 +237,7 @@ export class DockerProcess {
           return;
         }
         stdout.push(chunk);
+        lines[0]?.write(chunk);
       });
       child.stderr.on('data', (chunk: Buffer) => {
         const remaining = 32768 - errBytes;
@@ -183,6 +246,7 @@ export class DockerProcess {
           errBytes += Math.min(chunk.length, remaining);
         }
         truncated ||= chunk.length > remaining;
+        lines[1]?.write(chunk);
       });
       child.on('error', (error: NodeJS.ErrnoException) => {
         finish(
@@ -194,6 +258,9 @@ export class DockerProcess {
         );
       });
       child.on('close', (code, signal) => {
+        for (const stream of lines) {
+          stream.end();
+        }
         if (settled) {
           return;
         }

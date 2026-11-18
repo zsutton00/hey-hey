@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { version } from '../../package.json';
 import { loadInk } from '../tui/ink';
 import { LocalScreen } from '../local-app/LocalScreen';
+import { startPlainProgress } from '../local-app/plain-progress';
 import { LocalApplication, type LocalApplicationNavigation } from '../local-app/local-application';
 import { ReleaseSource } from '../local-app/release-source';
 import { InstallationStore } from '../local-app/installation-store';
@@ -541,7 +542,15 @@ async function runLocalAttempt(
     troubleshooting,
   );
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    await (stopping ? application.requestStop() : application.run());
+    const stopPrinting = startPlainProgress(
+      () => application.state,
+      (line) => console.log(line),
+    );
+    try {
+      await (stopping ? application.requestStop() : application.run());
+    } finally {
+      stopPrinting();
+    }
     const state = application.state;
     console.log(
       state.kind === 'ready'

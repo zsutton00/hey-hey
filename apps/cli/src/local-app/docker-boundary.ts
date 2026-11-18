@@ -3,6 +3,11 @@ import { DockerRuntimeRecovery } from './docker-runtime-recovery';
 import { StructuredServerLogger } from '../server/logger';
 import { z } from 'zod/v4';
 import { LOCAL_PROJECT, SERVICE_IMAGES } from './compose';
+import {
+  PullProgressAggregator,
+  type DownloadDetail,
+  type PullProgressMode,
+} from './pull-progress';
 
 const contextEndpointSchema = z
   .array(z.object({ Endpoints: z.object({ docker: z.object({ Host: z.string() }) }) }))
@@ -108,7 +113,14 @@ export class DockerBoundary {
     return new DockerRuntimeRecovery(this);
   }
 
-  async command(args: string[], input?: string, service?: string): Promise<string> {
+  async command(
+    args: string[],
+    input?: string,
+    service?: string,
+    onLine?: (line: string) => boolean,
+    /** A refusal is an expected answer (a capability probe), not a failure to report. */
+    expectFailure = false,
+  ): Promise<string> {
     this.endpointSelection ??= this.selectEndpoint();
     await this.endpointSelection;
     const operation = args[0] ?? 'docker';
@@ -145,6 +157,8 @@ export class DockerBoundary {
         processOperation,
         input,
         service,
+        undefined,
+        onLine,
       );
     } catch (error) {
       const failure =
@@ -153,6 +167,13 @@ export class DockerBoundary {
           : this.process.inspectionError(
               new Error('Docker endpoint inspection returned invalid data'),
             );
+      if (expectFailure) {
+        this.logger.debug('local.docker.probe_refused', {
+          operation,
+          diagnostic: failure.diagnostic,
+        });
+        throw failure;
+      }
       this.logger.error('local.docker.command_failed', {
         operation,
         error: failure,
@@ -216,11 +237,18 @@ export class DockerBoundary {
     return volumes.trim().length > 0;
   }
 
-  async compose(path: string, args: string[], input?: string, service?: string): Promise<void> {
+  async compose(
+    path: string,
+    args: string[],
+    input?: string,
+    service?: string,
+    onLine?: (line: string) => boolean,
+  ): Promise<void> {
     await this.command(
       ['compose', '--project-name', LOCAL_PROJECT, '--file', path, ...args],
       input,
       service,
+      onLine,
     );
   }
 
@@ -228,9 +256,74 @@ export class DockerBoundary {
     await this.compose(path, ['stop']);
   }
 
-  async pull(path: string): Promise<void> {
-    await this.compose(path, ['pull']);
+  /** Pulls every image, reporting combined progress across all of them while it runs. */
+  async pull(path: string, onProgress?: (detail: DownloadDetail) => void): Promise<void> {
+    const mode = await this.progressMode(path);
+    const aggregator = new PullProgressAggregator(mode);
+    const started = Date.now();
+    let outcome: 'finished' | 'failed' = 'failed';
+    try {
+      await this.compose(
+        path,
+        [...(mode === 'json' ? ['--progress', 'json'] : []), 'pull'],
+        undefined,
+        undefined,
+        (line) => {
+          const consumed = aggregator.feed(line);
+          if (consumed) {
+            onProgress?.(aggregator.detail());
+          }
+          return consumed;
+        },
+      );
+      outcome = 'finished';
+    } finally {
+      const detail = aggregator.detail();
+      // One bounded summary per pull; individual progress lines are never persisted.
+      this.logger.info('local.docker.pull_summary', {
+        outcome,
+        mode,
+        layersDone: detail.layersDone ?? 0,
+        layersTotal: detail.layersTotal ?? 0,
+        bytesDone: detail.bytesDone,
+        bytesTotal: detail.bytesTotal,
+        unrecognizedLines: aggregator.unrecognizedLines,
+        elapsedMs: Date.now() - started,
+      });
+    }
   }
+
+  /**
+   * Compose releases differ in which `--progress` writers they accept, and some reject
+   * `json` before running anything. Ask the installed Compose directly instead of guessing
+   * from its version; any refusal selects the plain text reader.
+   */
+  private async progressMode(path: string): Promise<PullProgressMode> {
+    try {
+      await this.command(
+        [
+          'compose',
+          '--project-name',
+          LOCAL_PROJECT,
+          '--file',
+          path,
+          '--progress',
+          'json',
+          'version',
+          '--short',
+        ],
+        undefined,
+        undefined,
+        undefined,
+        true,
+      );
+      return 'json';
+    } catch {
+      // The probe's refusal is already logged by command(); the text reader is the fallback.
+      return 'text';
+    }
+  }
+
   private async startService(path: string, service: string, wait: boolean): Promise<void> {
     try {
       await this.compose(

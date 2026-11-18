@@ -156,6 +156,16 @@ const schemas: Record<string, z.ZodType<Record<string, unknown>>> = {
     action: z.enum(startupStages).optional().catch(undefined),
     error: z.unknown(),
   }),
+  'local.docker.pull_summary': z.object({
+    outcome: z.enum(['finished', 'failed']),
+    mode: z.enum(['json', 'text']),
+    layersDone: z.number().int().nonnegative(),
+    layersTotal: z.number().int().nonnegative(),
+    bytesDone: z.number().nonnegative(),
+    bytesTotal: z.number().nonnegative().nullable(),
+    unrecognizedLines: z.number().int().nonnegative(),
+    elapsedMs: z.number().nonnegative(),
+  }),
   'local.docker.inspection_failed': z.object({ error: z.unknown() }),
   'local.docker.repair_failed': z.object({ error: z.unknown() }),
   'local.docker.repair_decision': z.object({

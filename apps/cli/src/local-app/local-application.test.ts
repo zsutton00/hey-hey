@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalApplication } from './local-application';
+import { LocalApplication, type LocalState } from './local-application';
 import { ReleaseSource } from './release-source';
 import { ReleasePackage } from './release-package';
 import { InstallationStore } from './installation-store';
@@ -229,6 +229,36 @@ describe('local application installation and return visits', () => {
       expect((await stat(join(storage.directory, name))).mode & 0o777).toBe(0o600);
     }
     expect((await stat(storage.directory)).mode & 0o777).toBe(0o700);
+  });
+
+  it('shows combined image download status while installing, without persisting each update', async () => {
+    docker.pull = (_path, onProgress) => {
+      for (const bytesDone of [10, 50, 100]) {
+        onProgress?.({
+          kind: 'images',
+          bytesDone,
+          bytesTotal: 100,
+          percent: bytesDone,
+          layersDone: 1,
+          layersTotal: 4,
+        });
+      }
+      return Promise.resolve();
+    };
+    const app = application();
+    const downloading: unknown[] = [];
+    app.on('change', (state: LocalState) => {
+      if (state.kind === 'progress' && state.detail) {
+        downloading.push(state.detail);
+      }
+    });
+    await app.run();
+    await app.install();
+
+    expect(app.state.kind).toBe('ready');
+    expect(downloading[0]).toMatchObject({ kind: 'images', layersTotal: 4 });
+    // Three updates arrived at once; the screen is not redrawn for each of them.
+    expect(downloading.length).toBeLessThan(3);
   });
 
   it('starts a stopped installation without reinstalling images or replacing secrets', async () => {

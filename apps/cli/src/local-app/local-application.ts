@@ -6,6 +6,7 @@ import { StructuredServerLogger } from '../server/logger';
 import { ReleaseSource, sameRelease } from './release-source';
 import { InstallationStore } from './installation-store';
 import { ModelDownloader } from './model-downloader';
+import type { DownloadDetail } from './pull-progress';
 import { DockerProcessError } from './docker-process';
 import type { ColimaMountRepair } from './docker-runtime-recovery';
 import { TroubleshootingPrompt, type PreparedPrompt } from './troubleshooting-prompt-owner';
@@ -67,7 +68,15 @@ export type LocalState =
   | { kind: 'update-restart'; version: string }
   | { kind: 'installation' }
   | { kind: 'prerequisite'; message: string }
-  | { kind: 'progress'; steps: string[]; current: string }
+  | {
+      kind: 'progress';
+      steps: string[];
+      current: string;
+      /** Live download status for the current step, when it can be measured. */
+      detail?: DownloadDetail | undefined;
+      /** Time spent in the current step, so unmeasurable steps still show activity. */
+      elapsedMs?: number | undefined;
+    }
   | { kind: 'recovery'; message: string }
   | { kind: 'docker-repair'; message: string; profile: string }
   | {
@@ -121,6 +130,9 @@ function assertObservedReleases(
     seen.add(service);
   }
 }
+
+/** Live download status reaches the screen about four times a second. */
+const PROGRESS_INTERVAL_MS = 250;
 
 export class LocalApplication extends EventEmitter {
   state: LocalState = { kind: 'progress', steps: [], current: 'Checking local installation' };
@@ -409,10 +421,38 @@ export class LocalApplication extends EventEmitter {
     this.busy = true;
     let action = 'Checking local installation';
     const steps: string[] = [];
+    let detail: DownloadDetail | undefined;
+    let stepStartedAt = Date.now();
     const progress = (next: string) => {
       action = next;
-      this.show({ kind: 'progress', steps: [...steps], current: next });
+      detail = undefined;
+      stepStartedAt = Date.now();
+      this.show({ kind: 'progress', steps: [...steps], current: next, elapsedMs: 0 });
     };
+    // Live status refreshes the screen without going through show(), so redraws never reach diagnostics.
+    const refresh = () => {
+      if (this.state.kind !== 'progress') {
+        return;
+      }
+      const now = Date.now();
+      this.state = {
+        kind: 'progress',
+        steps: [...steps],
+        current: action,
+        detail,
+        elapsedMs: now - stepStartedAt,
+      };
+      this.emit('change', this.state);
+    };
+    const onDetail = (next: DownloadDetail | undefined) => {
+      const first = detail === undefined;
+      detail = next;
+      // Later updates are picked up by the ticker, which caps redraws at about four a second.
+      if (!next || first) {
+        refresh();
+      }
+    };
+    const ticker = setInterval(refresh, PROGRESS_INTERVAL_MS);
     try {
       const prerequisite = await this.docker.prerequisite();
       if (prerequisite !== 'ready') {
@@ -487,6 +527,7 @@ export class LocalApplication extends EventEmitter {
       await this.models.ensure(
         installation?.modelDirectory ?? this.storage.modelDirectory,
         progress,
+        onDetail,
       );
       installation ??= await this.storage.prepare(release);
       // Recheck the persisted winner if another terminal prepared installation concurrently.
@@ -525,7 +566,7 @@ export class LocalApplication extends EventEmitter {
         }
         if (updating || observed.length < Object.keys(SERVICE_IMAGES).length) {
           progress('Downloading matching application images');
-          await this.docker.pull(this.storage.composePath);
+          await this.docker.pull(this.storage.composePath, onDetail);
           steps.push('Application images downloaded');
         }
         progress('Starting PostgreSQL and Redis');
@@ -584,6 +625,7 @@ export class LocalApplication extends EventEmitter {
       }
       this.show({ kind: 'recovery', message: recoveryMessage });
     } finally {
+      clearInterval(ticker);
       this.busy = false;
     }
   }
