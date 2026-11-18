@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { recordBrowserSessionDiagnostic } from "@hey-hey/ui-common/services";
+import { useEffect, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useAuth } from "@hey-hey/ui-common/context";
@@ -18,6 +19,14 @@ export interface AppProtectedRouteProps {
 export const AppProtectedRoute = ({ children }: AppProtectedRouteProps) => {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  useEffect(() => {
+    if (!loading && !isAuthenticated && !hasDemoSandboxSession()) {
+      recordBrowserSessionDiagnostic("setup_redirect", {
+        destination: "login",
+        reason: "unauthenticated",
+      });
+    }
+  }, [loading, isAuthenticated]);
 
   if (loading) {
     return (

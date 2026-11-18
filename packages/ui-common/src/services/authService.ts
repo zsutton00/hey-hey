@@ -1,3 +1,7 @@
+import {
+  recordBrowserSessionDiagnostic,
+  diagnosticFailureFacts,
+} from "./browserSessionDiagnostics";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import { browserSessionSchema } from "../generated/browser-session-contract";
@@ -289,6 +293,7 @@ export const getBrowserSessionContinuityDecision =
   (): BrowserSessionContinuityDecision => browserSessionContinuityDecision;
 
 export const setAuthToken = (token: string) => {
+  recordBrowserSessionDiagnostic("auth_state", { authenticated: true });
   const previousToken = authToken;
   authToken = token;
   browserSessionContinuityDecision =
@@ -390,6 +395,9 @@ const getBrowserRenewalChannel = (): BroadcastChannel | null => {
 
 export const clearAuthToken = () => {
   const wasAuthenticated = !!authToken || !!browserAuthUser;
+  recordBrowserSessionDiagnostic("auth_cleared", {
+    authenticated: wasAuthenticated,
+  });
   authToken = null;
   browserAuthUser = null;
   browserSelection = null;
@@ -513,6 +521,8 @@ const renewBrowserAccessFromServer = async (
   client?: UnifiedApiClient,
   requestedOrganizationId?: string,
 ): Promise<BrowserSessionResponseDto> => {
+  const startedAt = performance.now();
+  recordBrowserSessionDiagnostic("auth_renewal_started");
   try {
     const resolvedClient = resolveClient(client);
     const response = await resolvedClient.refreshToken({
@@ -526,8 +536,15 @@ const renewBrowserAccessFromServer = async (
     });
     const browserAuthResponse = parseBrowserAuthResponse(response.data?.data);
     setBrowserAuthState(browserAuthResponse);
+    recordBrowserSessionDiagnostic("auth_renewal_succeeded", {
+      elapsedMs: performance.now() - startedAt,
+    });
     return browserAuthResponse;
   } catch (error) {
+    recordBrowserSessionDiagnostic("auth_renewal_failed", {
+      ...diagnosticFailureFacts(error),
+      elapsedMs: performance.now() - startedAt,
+    });
     const rejectedOrganizationSwitch =
       requestedOrganizationId !== undefined &&
       axios.isAxiosError(error) &&

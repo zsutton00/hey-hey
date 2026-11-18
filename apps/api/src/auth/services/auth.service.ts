@@ -420,6 +420,10 @@ export class AuthService {
       });
 
       if (result.status !== 'rotated') {
+        this.logger.warn('Browser session renewal refused', {
+          event: 'browser_session.refresh_refused',
+          reasonCode: result.status,
+        });
         throw new UnauthorizedException('Browser session is not authenticated');
       }
 

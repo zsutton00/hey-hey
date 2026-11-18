@@ -24,6 +24,8 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base.js';
 // @ts-ignore
 import type { LocalStartupBrowserEvent } from '../models.js';
+// @ts-ignore
+import type { LocalStartupBrowserRecord } from '../models.js';
 /**
  * LocalStartupApi - axios parameter creator
  * @export
@@ -31,17 +33,17 @@ import type { LocalStartupBrowserEvent } from '../models.js';
 export const LocalStartupApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 128 bytes per request. It grants no controller or account authority.
+         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
          * @param {string} xHeyHeyDiagnostic
-         * @param {string} body
+         * @param {LocalStartupBrowserRecord} localStartupBrowserRecord
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        recordLocalStartupEvent: async (xHeyHeyDiagnostic: string, body: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        recordLocalStartupEvent: async (xHeyHeyDiagnostic: string, localStartupBrowserRecord: LocalStartupBrowserRecord, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'xHeyHeyDiagnostic' is not null or undefined
             assertParamExists('recordLocalStartupEvent', 'xHeyHeyDiagnostic', xHeyHeyDiagnostic)
-            // verify required parameter 'body' is not null or undefined
-            assertParamExists('recordLocalStartupEvent', 'body', body)
+            // verify required parameter 'localStartupBrowserRecord' is not null or undefined
+            assertParamExists('recordLocalStartupEvent', 'localStartupBrowserRecord', localStartupBrowserRecord)
             const localVarPath = `/local-startup/events`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -56,7 +58,7 @@ export const LocalStartupApiAxiosParamCreator = function (configuration?: Config
 
 
 
-            localVarHeaderParameter['Content-Type'] = 'text/plain';
+            localVarHeaderParameter['Content-Type'] = 'application/json';
 
             if (xHeyHeyDiagnostic != null) {
                 localVarHeaderParameter['X-HeyHey-Diagnostic'] = String(xHeyHeyDiagnostic);
@@ -64,7 +66,7 @@ export const LocalStartupApiAxiosParamCreator = function (configuration?: Config
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(body, localVarRequestOptions, configuration)
+            localVarRequestOptions.data = serializeDataIfNeeded(localStartupBrowserRecord, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -82,14 +84,14 @@ export const LocalStartupApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = LocalStartupApiAxiosParamCreator(configuration)
     return {
         /**
-         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 128 bytes per request. It grants no controller or account authority.
+         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
          * @param {string} xHeyHeyDiagnostic
-         * @param {string} body
+         * @param {LocalStartupBrowserRecord} localStartupBrowserRecord
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async recordLocalStartupEvent(xHeyHeyDiagnostic: string, body: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.recordLocalStartupEvent(xHeyHeyDiagnostic, body, options);
+        async recordLocalStartupEvent(xHeyHeyDiagnostic: string, localStartupBrowserRecord: LocalStartupBrowserRecord, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.recordLocalStartupEvent(xHeyHeyDiagnostic, localStartupBrowserRecord, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['LocalStartupApi.recordLocalStartupEvent']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -105,13 +107,13 @@ export const LocalStartupApiFactory = function (configuration?: Configuration, b
     const localVarFp = LocalStartupApiFp(configuration)
     return {
         /**
-         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 128 bytes per request. It grants no controller or account authority.
+         * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
          * @param {LocalStartupApiRecordLocalStartupEventRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         recordLocalStartupEvent(requestParameters: LocalStartupApiRecordLocalStartupEventRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
-            return localVarFp.recordLocalStartupEvent(requestParameters.xHeyHeyDiagnostic, requestParameters.body, options).then((request) => request(axios, basePath));
+            return localVarFp.recordLocalStartupEvent(requestParameters.xHeyHeyDiagnostic, requestParameters.localStartupBrowserRecord, options).then((request) => request(axios, basePath));
         },
     };
 };
@@ -123,7 +125,7 @@ export const LocalStartupApiFactory = function (configuration?: Configuration, b
  */
 export interface LocalStartupApiInterface {
     /**
-     * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 128 bytes per request. It grants no controller or account authority.
+     * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
      * @param {LocalStartupApiRecordLocalStartupEventRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -148,10 +150,10 @@ export interface LocalStartupApiRecordLocalStartupEventRequest {
 
     /**
      *
-     * @type {string}
+     * @type {LocalStartupBrowserRecord}
      * @memberof LocalStartupApiRecordLocalStartupEvent
      */
-    readonly body: string
+    readonly localStartupBrowserRecord: LocalStartupBrowserRecord
 }
 
 /**
@@ -162,13 +164,13 @@ export interface LocalStartupApiRecordLocalStartupEventRequest {
  */
 export class LocalStartupApi extends BaseAPI implements LocalStartupApiInterface {
     /**
-     * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 128 bytes per request. It grants no controller or account authority.
+     * An ephemeral loopback-only diagnostic listener, available only while heyhey local runs. The CLI-opened fragment carries a fresh capability for this invocation. The listener requires that capability and the exact local web Origin, accepts at most 120 events per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
      * @param {LocalStartupApiRecordLocalStartupEventRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof LocalStartupApi
      */
     public recordLocalStartupEvent(requestParameters: LocalStartupApiRecordLocalStartupEventRequest, options?: RawAxiosRequestConfig) {
-        return LocalStartupApiFp(this.configuration).recordLocalStartupEvent(requestParameters.xHeyHeyDiagnostic, requestParameters.body, options).then((request) => request(this.axios, this.basePath));
+        return LocalStartupApiFp(this.configuration).recordLocalStartupEvent(requestParameters.xHeyHeyDiagnostic, requestParameters.localStartupBrowserRecord, options).then((request) => request(this.axios, this.basePath));
     }
 }

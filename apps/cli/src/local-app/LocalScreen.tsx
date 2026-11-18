@@ -189,9 +189,11 @@ export function LocalScreen({
       const rows = promptRows(state.prompt.text);
       const start = Math.min(state.offset, Math.max(0, rows.length - PROMPT_WINDOW_LINES));
       const end = start + PROMPT_WINDOW_LINES;
-      title = 'Troubleshooting prompt';
+      title = '!! Hey Hey could not start';
       lines = [
-        'Paste this to your own coding agent. Nothing is sent anywhere by Hey Hey.',
+        state.prompt.headline,
+        '',
+        'Want help? Copy this into your coding agent and it will try to help you fix it. Hey Hey sends nothing anywhere.',
         'It contains local paths, which include your account name; check it before pasting it into a remote chat.',
         '',
         start > 0 ? `↑ ${start} more line(s) above` : '',

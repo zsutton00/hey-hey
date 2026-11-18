@@ -1,4 +1,5 @@
 import {
+  Logger,
   BadRequestException,
   Body,
   Controller,
@@ -300,6 +301,13 @@ export function replaceBrowserSession(
   );
   response.clearCookie(REFRESH_COOKIE_NAME, cookieAttributes('/'));
   setBrowserSessionCookies(response, session);
+  new Logger('BrowserSessionReplacement').log(
+    'Replacement browser cookies set',
+    {
+      event: 'browser_session.replacement_cookies_set',
+      sessionId: session.sessionId,
+    },
+  );
   clearDemoBindingCookie(response);
   return session.response;
 }

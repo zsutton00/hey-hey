@@ -1,7 +1,11 @@
+import { recordBrowserSessionDiagnostic } from '../../../../packages/ui-common/src/services/browserSessionDiagnostics';
 import {
+  recordLocalStartupDiagnostic,
   holdStartupDiagnosticTransport,
   sendStartupBrowserEvent,
-} from '../../../ui/src/pages/LocalSetup/localStartupDiagnosticTransport';
+} from '../../../../packages/ui-common/src/services/localStartupDiagnostics';
+import { readCurrentAttemptEvidence } from './troubleshooting-evidence';
+import { buildTroubleshootingPrompt } from './troubleshooting-prompt';
 import { LocalKeyPairStore } from './local-key-pair-store';
 import { afterEach, expect, it, vi } from 'vitest';
 import { fsyncSync } from 'node:fs';
@@ -240,6 +244,7 @@ if (args[0] === 'ps') {
 } else if (args[0] === 'logs') {
   if (args.at(-1) === 'bbbbbb222222') process.exit(1);
   process.stdout.write(JSON.stringify({ level: 'error', timestamp: '2026-11-17T07:00:00.000Z', event: 'api.startup_failed', message: ${JSON.stringify(secret)}, error: { code: 'EACCES', message: ${JSON.stringify(secret)}, stack: ${JSON.stringify(secret)} } }) + '\\n' + JSON.stringify({ level: 'info', message: ${JSON.stringify(secret)} }) + '\\n');
+  process.stdout.write(JSON.stringify({ level: 'error', timestamp: '2026-11-18T06:02:04.775Z', component: 'Error', errorCode: 'MACHINE_ENROLLMENT_INVALID_TRANSITION', statusCode: 409, message: ${JSON.stringify(secret)} }) + '\\n');
   process.stderr.write('Error: connect ECONNREFUSED ' + ${JSON.stringify(secret)} + '\\n');
 }`,
   );
@@ -258,6 +263,10 @@ if (args[0] === 'ps') {
       event: 'api.startup_failed',
       cause: { code: 'EACCES' },
       count: 1,
+    }),
+    expect.objectContaining({
+      event: 'Error',
+      cause: { code: 'MACHINE_ENROLLMENT_INVALID_TRANSITION', status: 409 },
     }),
   ]);
   expect(api.unstructuredCauseCodes).toEqual({ ECONNREFUSED: 1 });
@@ -457,4 +466,89 @@ it('captures the native credential boundary without altering populated keyring e
   expect(contents).toContain('EACCES');
   expect(contents).not.toContain(secret);
   expect(entries).toEqual(before);
+});
+
+it('carries the local setup failure timeline through the real browser listener into the offline agent prompt', async () => {
+  const owner = journal(await directory());
+  const origin = 'http://localhost:3850';
+  const listener = new StartupBrowserDiagnostics(owner, origin);
+  await listener.start();
+  const storage = new Map<string, string>();
+  vi.stubGlobal('sessionStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
+  const nativeFetch = globalThis.fetch;
+  try {
+    const target = new URL(listener.decorate(`${origin}/local?pairing=started`));
+    holdStartupDiagnosticTransport(target.hash);
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) =>
+      nativeFetch(url, { ...init, headers: { ...init.headers, Origin: origin } }),
+    );
+    recordLocalStartupDiagnostic('setup_view', { view: 'name' });
+    recordLocalStartupDiagnostic('passkey_inventory', { passkeyCount: 0 });
+    recordLocalStartupDiagnostic('setup_status', {
+      nameSaved: true,
+      machineConnected: false,
+      hasProjects: true,
+      setupUnfinished: true,
+    });
+    recordLocalStartupDiagnostic('passkey_registration_started');
+    recordBrowserSessionDiagnostic('socket_renewal_started', { reason: 'terminal_socket_auth' });
+    recordBrowserSessionDiagnostic('auth_renewal_failed', {
+      status: 401,
+      reason: 'request_failed',
+    });
+    recordBrowserSessionDiagnostic('auth_cleared', { authenticated: true });
+    recordLocalStartupDiagnostic('setup_redirect', {
+      destination: 'login',
+      reason: 'unauthenticated',
+    });
+    await vi.waitFor(async () => {
+      expect(
+        (await records(owner)).filter((entry) => entry.event === 'browser.setup'),
+      ).toHaveLength(8);
+    });
+    expect(owner.hasFailed).toBe(false);
+    const evidence = await readCurrentAttemptEvidence(owner);
+    expect(evidence.browserTimeline?.map((entry) => entry.state)).toEqual([
+      'setup_view',
+      'passkey_inventory',
+      'setup_status',
+      'passkey_registration_started',
+      'socket_renewal_started',
+      'auth_renewal_failed',
+      'auth_cleared',
+      'setup_redirect',
+    ]);
+    const sequences = evidence.browserTimeline!.map((entry) => entry.browserSequence!);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    const prompt = buildTroubleshootingPrompt({
+      evidence,
+      docs: { found: false, reason: 'not installed in this fixture' },
+      runningCliVersion: version,
+    });
+    expect(prompt).toContain('"passkeyCount":0');
+    expect(prompt).toContain('"machineConnected":false');
+    expect(prompt).toContain('"status":401');
+    expect(prompt).toContain('"destination":"login"');
+    const token = new URLSearchParams(target.hash.slice(1)).get('diagnosticToken')!;
+    expect(prompt).not.toContain(token);
+    const endpoint = `http://127.0.0.1:${new URLSearchParams(target.hash.slice(1)).get('diagnosticPort')}/local-startup/events`;
+    const rejected = await nativeFetch(endpoint, {
+      method: 'POST',
+      headers: { Origin: origin, 'X-HeyHey-Diagnostic': token },
+      body: JSON.stringify({
+        event: 'auth_state',
+        sequence: 99,
+        observedAt: new Date().toISOString(),
+        facts: { token: secret },
+      }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(await readFile(owner.path, 'utf8')).not.toContain(secret);
+  } finally {
+    vi.stubGlobal('fetch', nativeFetch);
+    listener.close();
+  }
 });
