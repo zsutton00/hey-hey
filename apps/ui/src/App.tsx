@@ -47,6 +47,7 @@ import { OpenItemsPreviewHost } from "./components/OpenItemsPreviewHost";
 import { usePageMetadata } from "./hooks/usePageMetadata";
 import { useTabLocationRegistry } from "./hooks/useTabLocationRegistry";
 import { LEGAL_ROUTES } from "./pages/Legal/legalContent";
+import { LocalSetupRoute } from "./localSetup/LocalSetupRoute";
 import {
   OpenItemsProvider,
   useOpenItemLocatorHandler,
@@ -75,10 +76,6 @@ const ActionsCapsule = lazy(() =>
 );
 
 const HomeRoute = lazy(() => import("./pages/HomeRoute"));
-const LocalSetupPage = lazyNamed(
-  () => import("./pages/LocalSetup/LocalSetupPage"),
-  "LocalSetupPage",
-);
 const OrganizationHomePage = lazyNamed(
   () => import("./pages/OrganizationHome/OrganizationHomePage"),
   "OrganizationHomePage",
@@ -471,7 +468,7 @@ export const router = createBrowserRouter(
     <>
       <Route
         path="/local"
-        element={withRouteSuspense(<LocalSetupPage />)}
+        element={withRouteSuspense(<LocalSetupRoute />)}
         errorElement={<RouteErrorBoundary />}
       />
       <Route
