@@ -113,10 +113,6 @@ export { useAgentSession } from "./useAgentSession";
 export { useAgentSessions } from "./useAgentSessions";
 export { useAgentSessionRouting } from "./useAgentSessionRouting";
 export { usePaginatedAgentSessions } from "./usePaginatedAgentSessions";
-export {
-  useAgentSessionTitleOptions,
-  AGENT_SESSION_TITLE_OPTIONS_PAGE_SIZE,
-} from "./useAgentSessionTitleOptions";
 export { useCreateAgentSession } from "./useCreateAgentSession";
 export { useCreateAgentSessionConversation } from "./useCreateAgentSessionConversation";
 export { useResolveWorkItemCoordinator } from "./useResolveWorkItemCoordinator";

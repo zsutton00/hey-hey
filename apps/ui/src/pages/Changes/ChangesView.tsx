@@ -20,7 +20,6 @@ import {
   Typography,
 } from "@mui/material";
 import { ChangeRecordRow } from "./ChangeRecordRow";
-import { SessionFilter } from "./SessionFilter";
 import { RecordedEditModal } from "./RecordedEditModal";
 
 const PAGE_SIZE = 50;
@@ -83,12 +82,6 @@ export function ChangesView({
         </Typography>
       </Stack>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-        <SessionFilter
-          organizationId={organizationId}
-          projectId={projectId}
-          value={filters.agentSessionId}
-          onChange={(value) => handleFilter("agentSessionId", value)}
-        />
         <ServiceSelector
           organizationId={organizationId}
           projectId={projectId}
@@ -112,9 +105,14 @@ export function ChangesView({
         />
         <TextField
           select
+          size="small"
           label={t("changes.commitStatus")}
           value={filters.committed ?? ""}
           sx={{ minWidth: 160 }}
+          slotProps={{
+            inputLabel: { shrink: true },
+            select: { displayEmpty: true },
+          }}
           data-testid="changes-commit-filter"
           onChange={(event) =>
             handleFilter("committed", event.target.value || null)

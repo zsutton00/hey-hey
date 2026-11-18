@@ -17,16 +17,6 @@ const { read, changes } = vi.hoisted(() => ({
 vi.mock("@hey-hey/ui-common/data", () => ({
   useRecordedEdit: read,
   useProjectChanges: changes,
-  useAgentSessionTitleOptions: () => ({
-    options: [{ id: "session", title: "History session" }],
-    hasNextPage: false,
-    isLoading: false,
-    isFetchingNextPage: false,
-    initialError: null,
-    nextPageError: null,
-    loadNextPage: () => {},
-    retry: () => {},
-  }),
   useAgentSession: () => ({
     agentSession: { id: "session", title: "History session" },
   }),
