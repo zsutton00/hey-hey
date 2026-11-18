@@ -2,8 +2,28 @@ import { Frame } from '../tui/components/frame';
 import { ink } from '../tui/ink';
 import { row, sanitize, wrapText } from '../tui/text';
 import type { LocalState } from './local-application';
+import { describeDownload, type DownloadDetail } from './pull-progress';
 import { PROMPT_WINDOW_LINES, promptRows } from './troubleshooting-prompt';
 import { TROUBLESHOOT_COMMAND } from './troubleshooting-prompt-owner';
+
+/** The active step's label, with live download status or elapsed time when there is any. */
+export function progressLabel(
+  current: string,
+  detail: DownloadDetail | undefined,
+  elapsedMs: number | undefined,
+): string {
+  if (detail?.kind === 'model') {
+    return describeDownload(
+      `Downloading ${detail.label ?? 'search model'}`,
+      detail,
+      elapsedMs ?? 0,
+    );
+  }
+  if (detail) {
+    return describeDownload('Downloading application images', detail, elapsedMs ?? 0);
+  }
+  return elapsedMs && elapsedMs >= 2000 ? describeDownload(current, undefined, elapsedMs) : current;
+}
 
 export function LocalScreen({
   state,
@@ -145,7 +165,10 @@ export function LocalScreen({
       choices = ['Retry', 'Cancel', ...(offersPrompt ? ['Get troubleshooting prompt'] : [])];
       break;
     case 'progress':
-      lines = [...state.steps.map((step) => `✓ ${step}`), `⋯ ${state.current}`];
+      lines = [
+        ...state.steps.map((step) => `✓ ${step}`),
+        `⋯ ${progressLabel(state.current, state.detail, state.elapsedMs)}`,
+      ];
       break;
     case 'docker-repair':
       title = 'Share the managed model with Docker?';

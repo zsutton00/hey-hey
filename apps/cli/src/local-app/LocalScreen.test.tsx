@@ -11,6 +11,36 @@ beforeAll(async () => {
 afterEach(cleanup);
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 30));
 
+describe('setup progress detail', () => {
+  it('shows combined image download status under the active step', () => {
+    const { lastFrame } = render(
+      <LocalScreen
+        state={{
+          kind: 'progress',
+          steps: ['Local storage created'],
+          current: 'Downloading matching application images',
+          detail: {
+            kind: 'images',
+            bytesDone: 412_000_000,
+            bytesTotal: 1_100_000_000,
+            percent: 37,
+            layersDone: 14,
+            layersTotal: 41,
+          },
+          elapsedMs: 5000,
+        }}
+        selected={0}
+        onSelect={vi.fn()}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(lastFrame()).toContain('412 MB of 1.1 GB (37%) · 14 of 41 layers done');
+    expect(lastFrame()).toContain('✓ Local storage created');
+  });
+});
+
 describe('local terminal states', () => {
   it.each([
     [{ kind: 'installation' }, 'Install and start', 'Cancel'],
