@@ -185,7 +185,11 @@ describe("change records", () => {
     const select = vi.fn();
     render(
       <MemoryRouter>
-        <ChangeRecordRow record={record} onSelect={select} />
+        <ChangeRecordRow
+          projectId="project"
+          record={record}
+          onSelect={select}
+        />
       </MemoryRouter>,
     );
     expect(screen.getByTestId("change-focal")).toHaveTextContent(
@@ -225,7 +229,11 @@ describe("change records", () => {
     } satisfies ProjectChangeRecord;
     render(
       <MemoryRouter>
-        <ChangeRecordRow record={noTask} onSelect={() => {}} />
+        <ChangeRecordRow
+          projectId="project"
+          record={noTask}
+          onSelect={() => {}}
+        />
       </MemoryRouter>,
     );
     expect(screen.queryByTestId("change-focal")).not.toBeInTheDocument();
@@ -256,7 +264,7 @@ describe("change records", () => {
     } satisfies ProjectChangeRecord;
     render(
       <MemoryRouter>
-        <ChangeRecordRow record={mixed} onSelect={select} />
+        <ChangeRecordRow projectId="project" record={mixed} onSelect={select} />
       </MemoryRouter>,
     );
     expect(screen.getByText("changes.uncommitted")).toBeInTheDocument();
@@ -282,7 +290,11 @@ describe("change records", () => {
     render(
       <>
         <MemoryRouter>
-          <ChangeRecordRow record={record} onSelect={() => {}} />
+          <ChangeRecordRow
+            projectId="project"
+            record={record}
+            onSelect={() => {}}
+          />
         </MemoryRouter>
         <RecordedEditModal
           organizationId="org"

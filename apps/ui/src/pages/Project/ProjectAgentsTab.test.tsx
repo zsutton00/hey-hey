@@ -115,6 +115,7 @@ describe("ProjectAgentsTab", () => {
         .segments.map((s: { value: string }) => s.value),
     ).toEqual([
       "agent-sessions",
+      "changes",
       "conversations",
       "automation",
       "evals",
@@ -170,6 +171,7 @@ describe("ProjectAgentsTab", () => {
         mobileDropdown: true,
         segments: [
           { value: "agent-sessions", label: "Agent Sessions" },
+          { value: "changes", label: "Changes" },
           { value: "conversations", label: "Conversations" },
           { value: "automation", label: "Automation" },
           { value: "costs", label: "Costs" },

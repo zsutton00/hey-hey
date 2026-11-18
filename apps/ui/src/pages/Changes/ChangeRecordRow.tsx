@@ -24,9 +24,11 @@ const FILE_LIST_MAX_HEIGHT = 360;
 const NON_FOCAL_ENTITY_TYPES = new Set(["AGENT_SESSION", "SERVICE"]);
 
 export const ChangeRecordRow = memo(function ChangeRecordRow({
+  projectId,
   record,
   onSelect,
 }: {
+  projectId: string;
   record: ProjectChangeRecord;
   onSelect: (record: ProjectChangeRecord, edit: ImplementReportEdit) => void;
 }) {
@@ -39,7 +41,6 @@ export const ChangeRecordRow = memo(function ChangeRecordRow({
     return null;
   }
 
-  const projectId = report.projectId;
   const session = report.entities.find(
     (entity) => entity.entityType === "AGENT_SESSION",
   );

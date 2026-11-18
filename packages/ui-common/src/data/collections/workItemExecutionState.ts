@@ -297,8 +297,10 @@ export async function refreshLoadedWorkItemExecutionStates(
     .findAll({ queryKey })
     .filter((query) => query.state.status === "error");
   if (failed.length > 0) {
-    throw new Error(
-      `Work item execution-state refresh failed for ${failed.length} item(s); delivery stays interrupted`,
+    throw Object.assign(
+      new Error(
+        `Work item execution-state refresh failed for ${failed.length} item(s); delivery stays interrupted`,
+      ),
       { cause: failed[0].state.error },
     );
   }

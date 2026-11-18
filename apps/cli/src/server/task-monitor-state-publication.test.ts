@@ -15,7 +15,10 @@ import { NOOP_LOGGER, type ServerLogger } from './logger';
 import type { PlatformWebSocketManager, WorkItemExecutionStateReport } from './platform-ws';
 import type { KeyPairStore } from '../credentials';
 import { MachineRegistry, MachineRuntime, MachineStateStore } from '../state-machine';
-import type { MonitorCommandBody1 as MonitorCommandBody } from '@hey-hey/contracts/agent-bridge';
+import type {
+  MonitorCommandBody1 as MonitorCommandBody,
+  TaskMonitorLaunchConfig,
+} from '@hey-hey/contracts/agent-bridge';
 import { RunWorktreeCollisionError } from '../agents/run-scope';
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
 import {
@@ -31,6 +34,14 @@ const TASK_ID = '60000000-0000-4000-8000-000000000006';
 const SESSION_ID = '70000000-0000-4000-8000-000000000007';
 const CONVERSATION_ID = '80000000-0000-4000-8000-000000000008';
 const MACHINE_ID = '20000000-0000-4000-8000-0000000000aa';
+const launchConfig = {
+  taskId: TASK_ID,
+  method: 'quick',
+  provider: 'codex',
+  model: 'gpt-5.6',
+  reasoningEffort: 'high',
+  fastMode: true,
+} satisfies TaskMonitorLaunchConfig;
 
 /** A populated monitor two selected tasks into a run, on its first task. */
 const context: TaskMonitorMachineContext = {
@@ -117,7 +128,7 @@ const startCommand: MonitorCommandBody = {
   target: { workItemType: 'TASK_MONITOR', workItemId: MONITOR_ID },
   command: {
     cause: 'START',
-    launchConfig: { ...context.requestedLaunchConfig!, fastMode: true },
+    launchConfig,
     userMessage: 'Begin selected work.',
   },
 };
@@ -148,7 +159,7 @@ const commandEvent = (command: 'START' | 'RESUME' | 'PAUSE' | 'STOP') =>
         taskMonitorId: MONITOR_ID,
         organizationId: context.organizationId!,
         projectId: context.projectId!,
-        launchConfig: context.requestedLaunchConfig!,
+        launchConfig,
       }
     : { type: command, taskMonitorId: MONITOR_ID };
 
@@ -207,6 +218,8 @@ describe('committed Task Monitor state projection', () => {
       taskMonitorId: MONITOR_ID,
       taskId: TASK_ID,
       cursor: 0,
+      agentSessionId: SESSION_ID,
+      conversationId: CONVERSATION_ID,
     });
     expect(project(retrying)).toMatchObject({
       execution: { work: 'STARTING_RUN' },

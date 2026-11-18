@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.3.3
+
+### Agent sessions and change history
+
+- Added a Changes view under Agents to browse recorded file edits across sessions, filter them, and inspect recorded before-and-after versions.
+- Added links between commits and the agent change records they include, making committed and uncommitted work easier to distinguish.
+- Added optional precise file change tracking for coding sessions, with bounded capture to prevent shell commands from stalling.
+- Added support for continuing eligible agent sessions on another paired computer, including checking the destination before continuing.
+- Added live Task Monitor execution state with an indication when the displayed state may be out of date.
+- Added a Commit action to entity conversations when they have reported file changes.
+- Updated the Changes page to load session filters on demand and stay responsive in larger projects.
+- Fixed a committed file reappearing as another session's uncommitted change when a different session edits it.
+- Fixed coding plan sessions resuming across replies and file links opening in the session's worktree.
+
+### Coding evaluations
+
+- Added optional targets to coding Eval Cases to identify a path and whether the output is new or changes existing work.
+- Added downloadable patches and checkout instructions to reproduce a coding attempt's saved output locally; binary changes are not included in the patch.
+- Fixed coding evaluation diff cards overlapping in results.
+
+### Local setup
+
+- Added download progress during local setup and troubleshooting guidance when startup fails.
+- Added persistent startup diagnostics and bounded container evidence to help diagnose local setup failures.
+- Added diagnosis and recovery for inaccessible Docker model mounts.
+- Added a way for developers to run and repeat first-time local setup from source without a prior installation.
+- Fixed first-time local setup so it opens separately from the main application.
+- Fixed local credential checks when the D-Bus client is unavailable.
+
+### Interface and agent improvements
+
+- Updated the home, sign-in, onboarding, and review surfaces with a more consistent layout.
+- Updated project navigation and clarified proposal conflict resolution choices.
+- Fixed research uncertainties appearing in the wrong place, future-revision proposal links, and navigation after archiving work items.
+- Fixed agent sessions without a bound computer being rejected during start authorization.
+- Fixed prompt templates using outdated stored revisions and improved Project Assistant uncertainty reporting.
+
+### Upgrade and release artifacts
+
+- Updated the API database schema for change-record indexing, work-item execution state, agent session continuation, and coding Eval Case targets. Apply the release's Flyway migrations before starting the updated API; the Eval migration preserves existing checklist kinds as targets.
+- Updated the CLI source to version 4.4.2. After publication, install it with `npm install -g @hey-hey/cli@4.4.2`; its release manifest pins the selected container images.
+- Source and artifact publication do not establish that the hosted application has been upgraded.
+
 ## v1.3.2
 
 ### Open Items and evaluations
