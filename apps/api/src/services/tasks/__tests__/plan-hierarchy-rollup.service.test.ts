@@ -33,6 +33,36 @@ describe('PlanHierarchyRollupService', () => {
       ).toBe(WorkStatus.COMPLETED);
     });
 
+    it('keeps a stage open while a Bug is unfinished or verifying, and completes when Tasks and Bugs are finished', () => {
+      for (const bugStatus of [
+        WorkStatus.ACTIVE,
+        WorkStatus.VERIFYING,
+        WorkStatus.GENERATING_DETAILS,
+      ]) {
+        expect(
+          service.computeStageStatus(WorkStatus.COMPLETED, [
+            WorkStatus.COMPLETED,
+            bugStatus,
+          ]),
+        ).toBe(WorkStatus.ACTIVE);
+      }
+      expect(
+        service.computeStageStatus(WorkStatus.ACTIVE, [
+          WorkStatus.COMPLETED,
+          WorkStatus.COMPLETED,
+        ]),
+      ).toBe(WorkStatus.COMPLETED);
+    });
+
+    it('treats a freshly generated Bug as not started', () => {
+      expect(
+        service.computeStageStatus(WorkStatus.BACKLOG, [
+          WorkStatus.BACKLOG,
+          WorkStatus.GENERATED,
+        ]),
+      ).toBe(WorkStatus.BACKLOG);
+    });
+
     it('keeps a stage open while a non-terminal child remains beside superseded work', () => {
       expect(
         service.computeStageStatus(WorkStatus.ACTIVE, [

@@ -21,6 +21,7 @@ import {
 } from "../../api";
 import { usePathService } from "../../contexts";
 import {
+  isPlanStageWorkFinished,
   useCanonicalPlanAggregate,
   useWorkItems,
   type CanonicalPlanAggregateStage,
@@ -41,10 +42,7 @@ interface PlanViewerBaseProps {
   disablePreview?: boolean;
   readOnly?: boolean;
   selectedStageId?: string | null;
-  onStageChange?: (
-    stageId: string,
-    options?: { replace?: boolean }
-  ) => void;
+  onStageChange?: (stageId: string, options?: { replace?: boolean }) => void;
   onNavigateToTask?: (task: PlanStageStandardTask, stageId: string) => void;
 }
 
@@ -63,13 +61,13 @@ export type PlanViewerProps = PlanViewerBaseProps & PlanViewerAutomationProps;
 const isComplete = (stage: CanonicalPlanAggregateStage): boolean =>
   stage.stage.status === WorkStatus.Completed ||
   (stage.orderedTasks.length > 0 &&
-    stage.orderedTasks.every((task) => task.status === WorkStatus.Completed));
+    stage.orderedTasks.every((task) => isPlanStageWorkFinished(task.status)));
 
 const isSelectableStage = (stage: CanonicalPlanAggregateStage): boolean =>
   stage.stage.status !== WorkStatus.Archived;
 
 const findDefaultStage = (
-  stages: readonly CanonicalPlanAggregateStage[]
+  stages: readonly CanonicalPlanAggregateStage[],
 ): CanonicalPlanAggregateStage | undefined =>
   stages.find((stage) => isSelectableStage(stage) && !isComplete(stage)) ??
   stages.find(isSelectableStage);
@@ -91,7 +89,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
   const planResult = useCanonicalPlanAggregate(
     organizationId,
     projectId,
-    planId
+    planId,
   );
   const [internalStageId, setInternalStageId] = useState<string | null>(null);
   const [automationChoice, setAutomationChoice] = useState<{
@@ -109,7 +107,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
   const isControlled = selectedStageId !== undefined;
   const resolvedStageId = isControlled ? selectedStageId : internalStageId;
   const selectedStage = stages.find(
-    ({ stage }) => stage.id === resolvedStageId
+    ({ stage }) => stage.id === resolvedStageId,
   );
   const defaultStage = findDefaultStage(stages);
   const defaultStageId = defaultStage?.stage.id;
@@ -122,7 +120,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
       if (onStageChange) onStageChange(stageId);
       else setInternalStageId(stageId);
     },
-    [onStageChange]
+    [onStageChange],
   );
 
   useEffect(() => {
@@ -147,7 +145,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
       relatedEntityId: planId,
       relatedEntityType: AgentEdgeEndpointEntityType.Task,
       edgeTypes: [AgentEdgeType.RelatedTo],
-    }
+    },
   );
 
   const canAutomateStage =
@@ -173,7 +171,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
     void refetchPlanAutomation()
       .then((refreshedMonitors) => {
         const relatedMonitors = (refreshedMonitors ?? []).filter(
-          isRelatedNonTerminalTaskMonitor
+          isRelatedNonTerminalTaskMonitor,
         );
         if (relatedMonitors.length === 0) onAutomateStage(stageId);
         else {
@@ -187,7 +185,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
         setAutomationLaunchError(
           error instanceof Error
             ? error.message
-            : "Unable to check this Plan’s existing automation."
+            : "Unable to check this Plan’s existing automation.",
         );
       })
       .finally(() => setIsResolvingAutomation(false));
@@ -208,17 +206,17 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
       }
       navigate(pathService.planTask({ projectId, planId, taskId: task.id }));
     },
-    [navigate, onNavigateToTask, pathService, planId, projectId, selectedStage]
+    [navigate, onNavigateToTask, pathService, planId, projectId, selectedStage],
   );
 
   const handleGraphNodeClick = useCallback(
     (taskId: string) => {
       const task = selectedStage?.orderedTasks.find(
-        (candidate) => candidate.id === taskId
+        (candidate) => candidate.id === taskId,
       );
       if (task) handleTaskClick(task);
     },
-    [handleTaskClick, selectedStage]
+    [handleTaskClick, selectedStage],
   );
 
   if (planResult.status === "loading") {
@@ -270,7 +268,7 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
           <Stepper nonLinear activeStep={selectedIndex} alternativeLabel>
             {stages.map((aggregateStage) => {
               const completedTasks = aggregateStage.orderedTasks.filter(
-                (task) => task.status === WorkStatus.Completed
+                (task) => isPlanStageWorkFinished(task.status),
               ).length;
               return (
                 <Step
@@ -309,7 +307,8 @@ export const PlanViewer: React.FC<PlanViewerProps> = ({
                       initialFocusNodeId={
                         graphViewModel.nodes.find(
                           (node) =>
-                            node.state === "active" || node.state === "eligible"
+                            node.state === "active" ||
+                            node.state === "eligible",
                         )?.id
                       }
                       selectable={false}

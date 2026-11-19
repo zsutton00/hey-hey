@@ -295,7 +295,7 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     sectionKeys: [TaskSectionKey.Description],
     requiredScalars: [],
     forbiddenScalars: ['tag'],
-    allowedParentTypes: ['FEATURE'],
+    allowedParentTypes: ['FEATURE', 'PLAN_STAGE'],
     allowedChildTypes: ['STANDARD', 'BUG', 'FEATURE', 'workflow'],
     tracking: {
       allowedSourceEntityTypes: [EntityType.Task],

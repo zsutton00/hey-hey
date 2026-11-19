@@ -82,11 +82,12 @@ const task = (
     status?: WorkStatus;
     createdAt?: string;
     dependencies?: string[];
+    type?: "STANDARD" | "BUG";
   } = {},
 ): PlanStageStandardTask => ({
   id,
   name,
-  type: "STANDARD",
+  type: options.type ?? "STANDARD",
   parentTaskId: stageId,
   organizationId,
   projectId,
@@ -239,6 +240,27 @@ describe("composePlanStageTaskMonitorSetup", () => {
     ]);
   });
 
+  it("selects an unfinished Bug with its Task and leaves finished Bugs out", () => {
+    const active = task("task-active", "Active", { status: WorkStatus.Active });
+    const verifying = task("bug-verifying", "Verifying Bug", {
+      type: "BUG",
+      status: WorkStatus.Verifying,
+      dependencies: [active.id],
+    });
+    const superseded = task("bug-superseded", "Superseded Bug", {
+      type: "BUG",
+      status: WorkStatus.Superseded,
+    });
+
+    const result = compose([superseded, verifying, active]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.draft.definition.executionPlan.map(({ taskId }) => taskId),
+    ).toEqual([active.id, verifying.id]);
+  });
+
   it("rejects a cyclic dependency graph", () => {
     const first = task("task-1", "First", { dependencies: ["task-2"] });
     const second = task("task-2", "Second", { dependencies: ["task-1"] });
@@ -277,7 +299,7 @@ describe("composePlanStageTaskMonitorSetup", () => {
       ok: false,
       error: {
         code: "no-executable-work",
-        messages: ["This Plan Stage has no executable STANDARD Tasks."],
+        messages: ["This Plan Stage has no executable Tasks or Bugs."],
       },
     });
   });

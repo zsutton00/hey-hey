@@ -66,7 +66,7 @@ export const PlanStageTaskMonitorLaunchView = ({
         severity="warning"
         data-testid="plan-stage-task-monitor-no-executable-work"
       >
-        {state.messages[0] ?? "This stage has no executable STANDARD Tasks."}
+        {state.messages[0] ?? "This stage has no executable Tasks or Bugs."}
       </Alert>
     );
   }

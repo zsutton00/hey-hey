@@ -8,7 +8,10 @@ import type {
   CanonicalPlanStageSource,
   PlanStageStandardTask,
 } from "../../data/plans/canonicalPlan";
-import { buildCanonicalPlanTaskGraph } from "../../data/plans/canonicalPlan";
+import {
+  buildCanonicalPlanTaskGraph,
+  isPlanStageWorkFinished,
+} from "../../data/plans/canonicalPlan";
 
 export {
   parseCanonicalPlanStageSource,
@@ -88,9 +91,7 @@ const isArchived = (task: PlanStageStandardTask): boolean =>
   task.status === WorkStatus.Archived || isNonEmpty(task.archivedAt);
 
 const isExecutable = (task: PlanStageStandardTask): boolean =>
-  task.status !== WorkStatus.Completed &&
-  task.status !== WorkStatus.Cancelled &&
-  !isArchived(task);
+  !isPlanStageWorkFinished(task.status) && !isArchived(task);
 
 const validateSource = (
   input: PlanStageTaskMonitorSetupInput,
@@ -188,7 +189,7 @@ export const composePlanStageTaskMonitorSetup = (
       ok: false,
       error: {
         code: "no-executable-work",
-        messages: ["This Plan Stage has no executable STANDARD Tasks."],
+        messages: ["This Plan Stage has no executable Tasks or Bugs."],
       },
     };
   }

@@ -2,6 +2,7 @@ import { AgentEdgeType, type ProposalValidationIssue } from "../../api";
 import {
   composeCanonicalPlanAggregate,
   PLAN_STAGE_WORK_ITEM_TYPE,
+  BUG_WORK_ITEM_TYPE,
   STANDARD_WORK_ITEM_TYPE,
   validateCanonicalPlanRegistry,
   type CanonicalPlanAggregate,
@@ -29,7 +30,7 @@ export type UseCanonicalPlanAggregateReturn =
 
 const sectionKeysFor = (
   workItemTypes: ReturnType<typeof useWorkItemTypes>["workItemTypes"],
-  typeKey: string
+  typeKey: string,
 ): string[] =>
   workItemTypes
     .find((item) => item.definition.key === typeKey)
@@ -46,7 +47,7 @@ const errorResult = (message: string): UseCanonicalPlanAggregateReturn => ({
 export const useCanonicalPlanAggregate = (
   organizationId: string,
   projectId: string,
-  planId: string
+  planId: string,
 ): UseCanonicalPlanAggregateReturn => {
   const hasScope = Boolean(organizationId && projectId && planId);
   const registryQuery = useWorkItemTypes(organizationId || undefined, {
@@ -67,7 +68,7 @@ export const useCanonicalPlanAggregate = (
       projectId: projectId || undefined,
       includeEdges: true,
       enabled: hasScope,
-    }
+    },
   );
 
   const stageQuery = useWorkItems(
@@ -81,12 +82,12 @@ export const useCanonicalPlanAggregate = (
       taskType: PLAN_STAGE_WORK_ITEM_TYPE,
       includeSectionKeys: sectionKeysFor(
         registryQuery.workItemTypes,
-        PLAN_STAGE_WORK_ITEM_TYPE
+        PLAN_STAGE_WORK_ITEM_TYPE,
       ),
       includeEdges: true,
       edgeTypes: [AgentEdgeType.DependsOn],
       limit: MAX_PARENT_TASK_IDS + 1,
-    }
+    },
   );
 
   const stageIds = stageQuery.workItems.map((stage) => stage.id);
@@ -95,31 +96,40 @@ export const useCanonicalPlanAggregate = (
     stageQuery.isFetched &&
     stageIds.length > 0 &&
     stageIds.length <= MAX_PARENT_TASK_IDS;
+  // Query each supported stage-work type by itself so a custom type that is
+  // allowed under a stage neither invalidates the Plan nor consumes the limit.
+  const stageWorkQueryOptions = (typeKey: string) => ({
+    enabled: canLoadTasks,
+    parentTaskIds: stageIds,
+    taskType: typeKey,
+    includeSectionKeys: sectionKeysFor(registryQuery.workItemTypes, typeKey),
+    includeServiceRelations: true,
+    includeEdges: true,
+    edgeTypes: [AgentEdgeType.DependsOn],
+    limit: MAX_TASK_RESULTS,
+  });
   const taskQuery = useWorkItems(
     organizationId || "__noop__",
     "task",
     projectId || "__noop__",
     undefined,
-    {
-      enabled: canLoadTasks,
-      parentTaskIds: stageIds,
-      taskType: STANDARD_WORK_ITEM_TYPE,
-      includeSectionKeys: sectionKeysFor(
-        registryQuery.workItemTypes,
-        STANDARD_WORK_ITEM_TYPE
-      ),
-      includeServiceRelations: true,
-      includeEdges: true,
-      edgeTypes: [AgentEdgeType.DependsOn],
-      limit: MAX_TASK_RESULTS,
-    }
+    stageWorkQueryOptions(STANDARD_WORK_ITEM_TYPE),
   );
+  const bugQuery = useWorkItems(
+    organizationId || "__noop__",
+    "task",
+    projectId || "__noop__",
+    undefined,
+    stageWorkQueryOptions(BUG_WORK_ITEM_TYPE),
+  );
+  const stageWorkQueries = [taskQuery, bugQuery];
 
   if (!hasScope) return errorResult("Plan scope identifiers are required.");
   if (registryQuery.error) return errorResult(registryQuery.error.message);
   if (planQuery.error) return errorResult(planQuery.error.message);
   if (stageQuery.error) return errorResult(stageQuery.error.message);
-  if (taskQuery.error) return errorResult(taskQuery.error.message);
+  const failedQuery = stageWorkQueries.find((query) => query.error);
+  if (failedQuery?.error) return errorResult(failedQuery.error.message);
   if (!registryQuery.isReady || !planQuery.isFetched) {
     return { status: "loading", aggregate: null, error: null };
   }
@@ -133,21 +143,29 @@ export const useCanonicalPlanAggregate = (
   }
   if (stageIds.length > MAX_PARENT_TASK_IDS) {
     return errorResult(
-      `A Plan may contain at most ${MAX_PARENT_TASK_IDS} Stages for one aggregate read.`
+      `A Plan may contain at most ${MAX_PARENT_TASK_IDS} Stages for one aggregate read.`,
     );
   }
-  if (stageIds.length > 0 && !taskQuery.isFetched) {
+  if (
+    stageIds.length > 0 &&
+    !stageWorkQueries.every((query) => query.isFetched)
+  ) {
     return { status: "loading", aggregate: null, error: null };
   }
-  if (taskQuery.workItems.length >= MAX_TASK_RESULTS) {
+  if (
+    stageWorkQueries.some((query) => query.workItems.length >= MAX_TASK_RESULTS)
+  ) {
     return errorResult(
-      `The Plan Task batch reached the ${MAX_TASK_RESULTS}-item response limit, so aggregate completeness cannot be verified.`
+      `The Plan Task batch reached the ${MAX_TASK_RESULTS}-item response limit, so aggregate completeness cannot be verified.`,
     );
   }
 
   const result = composeCanonicalPlanAggregate({
     plan: planQuery.workItem,
-    descendants: [...stageQuery.workItems, ...taskQuery.workItems],
+    descendants: [
+      ...stageQuery.workItems,
+      ...stageWorkQueries.flatMap((query) => query.workItems),
+    ],
   });
   return result.ok
     ? { status: "ready", aggregate: result.aggregate, error: null }

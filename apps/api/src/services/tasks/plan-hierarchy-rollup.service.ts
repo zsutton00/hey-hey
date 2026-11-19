@@ -18,11 +18,20 @@ const TERMINAL_STATUSES = new Set<WorkStatus>([
   WorkStatus.CANCELLED,
 ]);
 
-/** Direct Task statuses that leave no actionable work in a stage. */
-const TERMINAL_TASK_STATUSES = new Set<WorkStatus>([
+/**
+ * How direct stage work (Standard Tasks and Bugs) counts toward its stage.
+ * Finished work leaves nothing actionable; not-started work does not make a
+ * stage active; every other status (ACTIVE, ON_HOLD, REFINING*, GENERATING_*,
+ * VERIFYING) is in progress, so an unverified Bug keeps its stage open.
+ */
+const FINISHED_WORK_STATUSES = new Set<WorkStatus>([
   WorkStatus.COMPLETED,
   WorkStatus.CANCELLED,
   WorkStatus.SUPERSEDED,
+]);
+const NOT_STARTED_WORK_STATUSES = new Set<WorkStatus>([
+  WorkStatus.BACKLOG,
+  WorkStatus.GENERATED,
 ]);
 
 /**
@@ -271,11 +280,13 @@ export class PlanHierarchyRollupService {
   ): WorkStatus {
     if (currentStatus === WorkStatus.REFINING) return currentStatus;
     if (childStatuses.length === 0) return WorkStatus.BACKLOG;
-    if (childStatuses.every((status) => TERMINAL_TASK_STATUSES.has(status))) {
+    if (childStatuses.every((status) => FINISHED_WORK_STATUSES.has(status))) {
       return WorkStatus.COMPLETED;
     }
     if (childStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
-    if (childStatuses.every((status) => status === WorkStatus.BACKLOG)) {
+    if (
+      childStatuses.every((status) => NOT_STARTED_WORK_STATUSES.has(status))
+    ) {
       return currentStatus === WorkStatus.COMPLETED
         ? WorkStatus.ACTIVE
         : WorkStatus.BACKLOG;

@@ -90,6 +90,7 @@ import {
   isAgentEdgeRelationshipType,
   isFlowAgentEdgeRelationshipType,
 } from './relationship-mapping';
+import { isPlanStageWorkType } from '../tasks/work-item-type-keys';
 import { projectContextProposalSummaries } from './proposal-history-projection';
 
 export type {
@@ -2417,7 +2418,8 @@ export class EntityContextService {
       },
     });
     if (
-      task?.type === 'STANDARD' &&
+      task?.type != null &&
+      isPlanStageWorkType(task.type) &&
       task.parentTask?.type === 'PLAN_STAGE' &&
       task.parentTask.parentTask?.type === 'PLAN'
     ) {
@@ -2520,7 +2522,7 @@ export class EntityContextService {
     }
 
     if (
-      task.type === 'STANDARD' &&
+      isPlanStageWorkType(task.type) &&
       task.parentTask?.type === 'PLAN_STAGE' &&
       task.parentTask.parentTask?.type === 'PLAN'
     ) {
@@ -2676,7 +2678,8 @@ export class EntityContextService {
       }
 
       if (
-        task?.type === 'STANDARD' &&
+        task?.type != null &&
+        isPlanStageWorkType(task.type) &&
         task.parentTask?.type === 'PLAN_STAGE' &&
         task.parentTask.parentTask?.type === 'PLAN'
       ) {

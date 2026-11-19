@@ -97,4 +97,25 @@ describe("buildCanonicalPlanExecutionGraphViewModel", () => {
       "Waiting on dependencies",
     );
   });
+
+  it("shows every started Bug status as in progress, not eligible", () => {
+    const bugs = [
+      WorkStatus.Verifying,
+      WorkStatus.OnHold,
+      WorkStatus.Refining,
+    ].map((status) => ({
+      ...task(`bug-${status}`, status),
+      type: "BUG" as const,
+    }));
+    const viewModel = buildCanonicalPlanExecutionGraphViewModel({
+      orderedTasks: bugs,
+      dependenciesByTaskId: new Map(bugs.map((bug) => [bug.id, []])),
+    } as unknown as CanonicalPlanAggregateStage);
+
+    expect(viewModel.nodes.map((node) => node.state)).toEqual([
+      "active",
+      "active",
+      "active",
+    ]);
+  });
 });

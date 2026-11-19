@@ -18,7 +18,7 @@ import {
 
 const edge = (
   sourceNodeId: string,
-  targetNodeId: string
+  targetNodeId: string,
 ): AgentEdgeResponseDto => ({
   id: `${sourceNodeId}-${targetNodeId}`,
   sourceNodeId,
@@ -64,7 +64,7 @@ const stage = (id: string, dependencies: string[] = []): PlanStageWorkItem => ({
 const task = (
   id: string,
   parentTaskId: string,
-  dependencies: string[] = []
+  dependencies: string[] = [],
 ): PlanStageStandardTask => ({
   id,
   name: id,
@@ -108,7 +108,7 @@ describe("composeCanonicalPlanAggregate", () => {
       expect(result.ok).toBe(true);
       if (result.ok)
         expect(result.aggregate.plan.parentTaskId).toBe(parentTaskId);
-    }
+    },
   );
 
   it("orders the Stage chain and preserves parallel Task eligibility", () => {
@@ -139,11 +139,43 @@ describe("composeCanonicalPlanAggregate", () => {
       secondStage.id,
     ]);
     expect(result.aggregate.stages[0].orderedTasks.map(({ id }) => id)).toEqual(
-      [firstTask.id, parallelTask.id, dependentTask.id]
+      [firstTask.id, parallelTask.id, dependentTask.id],
     );
     expect(
-      result.aggregate.stages[0].dependenciesByTaskId.get(dependentTask.id)
+      result.aggregate.stages[0].dependenciesByTaskId.get(dependentTask.id),
     ).toEqual([firstTask.id, parallelTask.id]);
+  });
+
+  it("lists a stage's Bugs with its Tasks and orders them by dependency", () => {
+    const firstStage = stage("stage-1");
+    const firstTask = task("task-1", firstStage.id);
+    const bug: PlanStageStandardTask = {
+      ...task("bug-1", firstStage.id, [firstTask.id]),
+      type: "BUG",
+    };
+
+    const result = composeCanonicalPlanAggregate({
+      plan,
+      descendants: [bug, firstStage, firstTask],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.aggregate.stages[0].orderedTasks.map(({ id }) => id)).toEqual(
+      [firstTask.id, bug.id],
+    );
+  });
+
+  it("rejects a stage child that is neither a Task nor a Bug", () => {
+    const firstStage = stage("stage-1");
+    const feature = { ...task("odd-1", firstStage.id), type: "FEATURE" };
+
+    const result = composeCanonicalPlanAggregate({
+      plan,
+      descendants: [firstStage, feature as never],
+    });
+
+    expect(result.ok).toBe(false);
   });
 
   it("rejects a branching Stage graph because Stage order must be linear", () => {
@@ -174,7 +206,7 @@ describe("composeCanonicalPlanAggregate", () => {
           reason: "Plan Stage dependencies must form one linear chain.",
           layer: "structural",
         }),
-      ])
+      ]),
     );
     expect(result.error.recovery).toEqual({
       plan,
@@ -199,7 +231,7 @@ describe("composeCanonicalPlanAggregate", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.messages).toContain(
-      "Plan Stage Task dependencies must be acyclic."
+      "Plan Stage Task dependencies must be acyclic.",
     );
   });
 });
