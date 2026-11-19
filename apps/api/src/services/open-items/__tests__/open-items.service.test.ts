@@ -8,6 +8,7 @@ import type {
 } from '../open-items.domain';
 import {
   OpenItemsConflictException,
+  OpenItemsIdempotencyKeyReusedException,
   OpenItemsValidationException,
 } from '../open-items.errors';
 import type {
@@ -452,7 +453,7 @@ describe('OpenItemsService', () => {
         idempotencyKey: key(92),
         note: 'different',
       }),
-    ).rejects.toBeInstanceOf(OpenItemsConflictException);
+    ).rejects.toBeInstanceOf(OpenItemsIdempotencyKeyReusedException);
     expect(publish).toHaveBeenCalledTimes(3);
     await service.resetOpenItems(scope(), { idempotencyKey: key(94) });
     await service.migrateOpenItems(scope('user-1', 'new-project'), {
@@ -790,10 +791,9 @@ describe('OpenItemsService', () => {
 
   it('rejects an idempotency key reused for a different request', async () => {
     await activate(1);
-    const body = await conflictOf(activate(2, key(1)));
-    expect(body).toMatchObject({
-      code: 'IDEMPOTENCY_KEY_REUSED',
-      currentCollectionRevision: 1,
+    await expect(activate(2, key(1))).rejects.toMatchObject({
+      status: 422,
+      body: { code: 'IDEMPOTENCY_KEY_REUSED', currentCollectionRevision: 1 },
     });
   });
 

@@ -523,4 +523,39 @@ describe('Task Monitor launch effect handlers', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(request).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { status: 422, settlement: 'failed', outcome: 'LAUNCH_OPERATION_FAILED' },
+    { status: 409, settlement: 'uncertain', outcome: 'LAUNCH_OPERATION_UNCERTAIN' },
+  ])(
+    'settles a run-effect $status response as $settlement',
+    async ({ status, settlement, outcome }) => {
+      const fetchImpl = vi.fn(
+        async () => new Response('refused', { status }),
+      ) as unknown as typeof fetch;
+      const apiRuntime = {
+        baseUrl: 'http://localhost/api/v1',
+        transport: { request: vi.fn() },
+      } as never as ApiRuntime;
+      const handler = new TaskMonitorRunEffectHandler(
+        apiRuntime,
+        fetchImpl,
+        await createMachineKeyPairStore(),
+        new RunStore(),
+        NOOP_LOGGER,
+      );
+
+      await expect(
+        handler.execute(
+          {
+            type: 'START_TASK_MONITOR_RUN',
+            launch,
+            agentSessionId: AGENT_SESSION_ID,
+            conversationId: CONVERSATION_ID,
+          },
+          execution,
+        ),
+      ).resolves.toMatchObject({ status: settlement, outcome: { type: outcome } });
+    },
+  );
 });

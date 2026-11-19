@@ -27,7 +27,9 @@ import type { UserSettingsRevisionConflictResponseAllOf } from './user-settings-
  * Explicit stale-writer conflict for a User Settings replacement.
  * @export
  */
-export interface UserSettingsRevisionConflictResponse extends ApiErrorResponse, UserSettingsRevisionConflictResponseAllOf {}
+export interface UserSettingsRevisionConflictResponse extends ApiErrorResponse, UserSettingsRevisionConflictResponseAllOf {
+    'code': Exclude<UserSettingsRevisionConflictResponseAllOf['code'], undefined>;
+}
 
 export namespace UserSettingsRevisionConflictResponse {
     export const CodeEnum = UserSettingsRevisionConflictResponseAllOfCodeEnum;

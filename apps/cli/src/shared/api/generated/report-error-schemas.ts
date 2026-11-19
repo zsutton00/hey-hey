@@ -389,6 +389,12 @@ export const reportErrorSchemas = {
         description: 'Request path',
         example: '/api/v1/projects/123',
       },
+      code: {
+        type: 'string',
+        description:
+          'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+        example: 'ORGANIZATION_NOT_FOUND',
+      },
     },
   },
   CreateReportCompletedAttemptError: {
@@ -425,6 +431,12 @@ export const reportErrorSchemas = {
             type: 'string',
             description: 'Request path',
             example: '/api/v1/projects/123',
+          },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
           },
         },
       },
@@ -496,6 +508,12 @@ export const reportErrorSchemas = {
             type: 'string',
             description: 'Request path',
             example: '/api/v1/projects/123',
+          },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
           },
         },
       },

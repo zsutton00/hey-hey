@@ -8,6 +8,7 @@ import {
 import type { Response } from 'express';
 import type {
   OpenItemsConflictError,
+  OpenItemsIdempotencyKeyReusedError,
   OpenItemsValidationError,
 } from '@hey-hey/contracts/api/models';
 
@@ -58,14 +59,40 @@ export class OpenItemsConflictException extends HttpException {
   }
 }
 
+/** 422 whose body is exactly the generated OpenItemsIdempotencyKeyReusedError. */
+export class OpenItemsIdempotencyKeyReusedException extends HttpException {
+  constructor(readonly body: OpenItemsIdempotencyKeyReusedError) {
+    super(body, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+
+  static of(
+    message: string,
+    currentCollectionRevision: number | null,
+  ): OpenItemsIdempotencyKeyReusedException {
+    return new OpenItemsIdempotencyKeyReusedException({
+      success: false,
+      code: 'IDEMPOTENCY_KEY_REUSED',
+      message,
+      currentCollectionRevision,
+    });
+  }
+}
+
 /**
  * The global HttpExceptionFilter decorates error bodies with extra keys; the
- * Open Items error schemas are closed, so these two errors are written as-is.
+ * Open Items error schemas are closed, so these errors are written as-is.
  */
-@Catch(OpenItemsValidationException, OpenItemsConflictException)
+@Catch(
+  OpenItemsValidationException,
+  OpenItemsConflictException,
+  OpenItemsIdempotencyKeyReusedException,
+)
 export class OpenItemsExceptionFilter implements ExceptionFilter {
   catch(
-    exception: OpenItemsValidationException | OpenItemsConflictException,
+    exception:
+      | OpenItemsValidationException
+      | OpenItemsConflictException
+      | OpenItemsIdempotencyKeyReusedException,
     host: ArgumentsHost,
   ) {
     host

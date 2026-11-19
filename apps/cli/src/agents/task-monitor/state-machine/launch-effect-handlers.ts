@@ -136,10 +136,9 @@ const failedSettlement = (
 });
 
 /** Owns the platform Agent Session create and exact-id reconciliation boundary. */
-export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
-  CreateTaskMonitorAgentSessionEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorAgentSessionEffectHandler
+  implements EffectHandler<CreateTaskMonitorAgentSessionEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorAgentSessionEffect, execution: EffectExecutionIdentity) =>
@@ -272,10 +271,9 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
 }
 
 /** Owns canonical Conversation discovery and creation on the Agent Session owner. */
-export class TaskMonitorConversationEffectHandler implements EffectHandler<
-  CreateTaskMonitorConversationEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorConversationEffectHandler
+  implements EffectHandler<CreateTaskMonitorConversationEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorConversationEffect) => this.reconcile(effect),
@@ -404,10 +402,9 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
 }
 
 /** Owns start-run dispatch and reconciles against the host-owned Run index. */
-export class TaskMonitorRunEffectHandler implements EffectHandler<
-  StartTaskMonitorRunEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorRunEffectHandler
+  implements EffectHandler<StartTaskMonitorRunEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: StartTaskMonitorRunEffect) => this.reconcile(effect),
@@ -480,7 +477,16 @@ export class TaskMonitorRunEffectHandler implements EffectHandler<
         },
       );
       if (!response.ok) {
-        throw new Error(`Task Monitor run effect failed with status ${String(response.status)}.`);
+        const failure = new Error(
+          `Task Monitor run effect failed with status ${String(response.status)}.`,
+        );
+        // A 422 means the request does not match the admitted effect; resending
+        // it cannot succeed, so surface it to failedSettlement as terminal.
+        // Other statuses stay retryable here, as before.
+        if (response.status === 422) {
+          throw Object.assign(failure, { response: { status: response.status } });
+        }
+        throw failure;
       }
       const responseBody: unknown = await response.json();
       const responseData = runEffectResponseSchema.parse(responseBody);

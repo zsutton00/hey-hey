@@ -57,4 +57,10 @@ export interface ApiErrorResponse {
      * @memberof ApiErrorResponse
      */
     'path'?: string;
+    /**
+     * Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.
+     * @type {string}
+     * @memberof ApiErrorResponse
+     */
+    'code'?: string;
 }

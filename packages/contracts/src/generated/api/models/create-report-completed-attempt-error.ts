@@ -30,6 +30,7 @@ import type { CreateReportCompletedAttemptErrorAllOf } from './create-report-com
  * @export
  */
 export interface CreateReportCompletedAttemptError extends ApiErrorResponse, CreateReportCompletedAttemptErrorAllOf {
+    'code': Exclude<CreateReportCompletedAttemptErrorAllOf['code'], undefined>;
     'data': Exclude<CreateReportCompletedAttemptErrorAllOf['data'], undefined>;
 }
 

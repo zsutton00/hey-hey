@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { UserId } from '../../types';
 import { PrivateBetaAccessProgramService } from '../private-beta-access-program.service';
@@ -121,7 +121,10 @@ describe('PrivateBetaAccessProgramService', () => {
 
     await expect(
       harness.service.assertOpenInTransaction(harness.tx as never),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'PRIVATE_BETA_ACCESS_CLOSED' },
+    });
   });
 
   it('reads the durable self-service admission mode', async () => {

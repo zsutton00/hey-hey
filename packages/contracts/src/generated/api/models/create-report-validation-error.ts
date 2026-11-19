@@ -30,6 +30,7 @@ import type { CreateReportValidationFailure } from './create-report-validation-f
  * @export
  */
 export interface CreateReportValidationError extends ApiErrorResponse, CreateReportValidationErrorAllOf {
+    'code': Exclude<CreateReportValidationErrorAllOf['code'], undefined>;
     'data': Exclude<CreateReportValidationErrorAllOf['data'], undefined>;
 }
 

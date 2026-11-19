@@ -1,8 +1,10 @@
 import * as crypto from 'node:crypto';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   AgentOperation,
@@ -47,6 +49,7 @@ import {
   ProjectId,
   UserId,
 } from '../../types';
+import { MissingRecordException } from '../../common/exceptions/missing-record.exceptions';
 import { isExternalAgentNode } from '../../types/flow-internal.types';
 import { AgentOperationRegistryService } from '../agent-operation/agent-operation-registry.service';
 import {
@@ -200,7 +203,9 @@ export class SessionMonitorDecisionService {
       await this.operationRegistry.fail(
         params.input.decisionId,
         begun.executionOwner,
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+          error instanceof UnprocessableEntityException ||
+          error instanceof MissingRecordException
           ? 'SESSION_MONITOR_BINDING_MISMATCH'
           : 'SESSION_MONITOR_DECISION_FAILED',
         error instanceof Error ? error.message : 'Decision admission failed',
@@ -431,7 +436,10 @@ export class SessionMonitorDecisionService {
       select: { id: true },
     });
     if (!parentSession) {
-      throw new ConflictException('The parent Agent Session no longer exists.');
+      throw new MissingRecordException(
+        'AGENT_SESSION_NOT_FOUND',
+        'The parent Agent Session no longer exists.',
+      );
     }
     const trigger = {
       operationId: params.input.decisionId,
@@ -542,7 +550,10 @@ export class SessionMonitorDecisionService {
     }
     const result = operation.result;
     if (!result || typeof result !== 'object' || Array.isArray(result)) {
-      throw new ConflictException('Session Monitor decision result is missing');
+      throw new ServerStateException(
+        'SESSION_MONITOR_DECISION_RESULT_INVALID',
+        'Session Monitor decision result is missing',
+      );
     }
     const consequenceMessageId = result['consequenceMessageId'];
     if (
@@ -554,7 +565,10 @@ export class SessionMonitorDecisionService {
         typeof consequenceMessageId === 'string'
       )
     ) {
-      throw new ConflictException('Session Monitor decision result is invalid');
+      throw new ServerStateException(
+        'SESSION_MONITOR_DECISION_RESULT_INVALID',
+        'Session Monitor decision result is invalid',
+      );
     }
     return {
       decisionId: result['decisionId'],
@@ -710,8 +724,8 @@ export class SessionMonitorDecisionService {
     }
   }
 
-  private bindingMismatch(binding: string): ConflictException {
-    return new ConflictException({
+  private bindingMismatch(binding: string): UnprocessableEntityException {
+    return new UnprocessableEntityException({
       code: 'SESSION_MONITOR_DECISION_BINDING_MISMATCH',
       message: `Session Monitor decision does not match ${binding}.`,
     });

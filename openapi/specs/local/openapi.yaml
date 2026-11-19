@@ -177,9 +177,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
         "403":
-          $ref: "#/components/responses/OriginNotAllowed"
-        "409":
-          description: The requested machine does not match the CLI's paired machine.
+          description: >-
+            The browser origin is not approved (ORIGIN_NOT_ALLOWED), or the
+            requested machine does not match the CLI's paired machine
+            (MACHINE_MISMATCH).
           content:
             application/json:
               schema:
@@ -229,9 +230,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
         "403":
-          $ref: "#/components/responses/OriginNotAllowed"
-        "409":
-          description: The requested machine does not match the CLI's paired machine.
+          description: >-
+            The browser origin is not approved (ORIGIN_NOT_ALLOWED), or the
+            requested machine does not match the CLI's paired machine
+            (MACHINE_MISMATCH).
           content:
             application/json:
               schema:

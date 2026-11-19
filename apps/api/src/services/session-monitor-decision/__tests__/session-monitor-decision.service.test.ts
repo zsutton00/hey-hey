@@ -330,7 +330,7 @@ describe(SessionMonitorDecisionService.name, () => {
       flowId: 'agent-session',
       currentNode: 'review',
     });
-    await expect(submit()).rejects.toMatchObject({ status: 409 });
+    await expect(submit()).rejects.toMatchObject({ status: 422 });
     expect(messageService.addMessageInTransaction).not.toHaveBeenCalled();
     expect(operationRegistry.fail).toHaveBeenCalled();
   });
@@ -338,7 +338,7 @@ describe(SessionMonitorDecisionService.name, () => {
   it('rejects a monitor session not bound to the authenticated machine before claiming the decision', async () => {
     (prisma.db.agentSession.findFirst as jest.Mock).mockReset();
     (prisma.db.agentSession.findFirst as jest.Mock).mockResolvedValue(null);
-    await expect(submit()).rejects.toMatchObject({ status: 409 });
+    await expect(submit()).rejects.toMatchObject({ status: 422 });
     expect(operationRegistry.begin).not.toHaveBeenCalled();
     expect(messageService.addMessageInTransaction).not.toHaveBeenCalled();
   });

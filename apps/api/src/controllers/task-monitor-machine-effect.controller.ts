@@ -3,11 +3,13 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Logger,
   Param,
   ParseUUIDPipe,
   Post,
   Req,
+  UnprocessableEntityException,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -274,7 +276,7 @@ export class TaskMonitorMachineEffectController {
           deliveryMachineId,
         },
       );
-      throw new ConflictException({
+      throw new ForbiddenException({
         code: 'TASK_MONITOR_MACHINE_MISMATCH',
         message: 'Authenticated, addressed, and delivery machines must match.',
       });
@@ -295,7 +297,7 @@ export class TaskMonitorMachineEffectController {
       input.run.contextMetadata.taskMonitorId !== taskMonitorId ||
       input.run.contextMetadata.agentSessionId !== input.run.agentSessionId
     ) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'TASK_MONITOR_RUN_CONTEXT_MISMATCH',
         message: 'Run context does not match the admitted Task Monitor effect.',
       });

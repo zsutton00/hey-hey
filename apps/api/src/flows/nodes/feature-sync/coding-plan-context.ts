@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { ConflictException, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 import {
   CodingPlanVersionSchema,
@@ -131,7 +135,7 @@ export function resolveReviewedCodingPlan(
       versionMessageId,
       problems,
     });
-    throw new ConflictException({
+    throw new UnprocessableEntityException({
       code: 'CODING_PLAN_REVIEW_CONTEXT_INVALID',
       message: `The reviewed planning context is invalid and must be corrected before approval. Problems: ${problems}`,
     });

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { SubagentInteractionController } from '../../../controllers/agent-interaction.controller';
 import {
   AgentInteractionKind,
@@ -1482,9 +1483,63 @@ describe('AgentInteractionAdmissionService boundary', () => {
         id: request().id,
         requestFingerprint: 'a'.repeat(64),
       });
-      await expect(submit()).rejects.toBeInstanceOf(ConflictException);
+      await expect(submit()).rejects.toMatchObject({
+        status: 422,
+        response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+      });
       expect(assertAgentSessionAuthorized).not.toHaveBeenCalled();
       expect(transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a different request that commits the same key inside the admission transaction', async () => {
+      assertAgentSessionAuthorized.mockResolvedValue({
+        authorizationId: AUTHORIZATION,
+        envelopeAuthorization: grantReference,
+      });
+      const { tx, submit } = harness();
+      tx.agentInteraction.findFirst.mockResolvedValue({
+        id: request().id,
+        requestFingerprint: 'b'.repeat(64),
+      });
+
+      await expect(submit()).rejects.toMatchObject({
+        status: 422,
+        response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+      });
+      expect(tx.agentInteraction.create).not.toHaveBeenCalled();
+    });
+
+    it('answers 422 when concurrent admission finds the key committed for different input', async () => {
+      assertAgentSessionAuthorized.mockResolvedValue({
+        authorizationId: AUTHORIZATION,
+        envelopeAuthorization: grantReference,
+      });
+      const { admission, submit } = harness();
+      const prisma = (
+        admission as unknown as {
+          prisma: {
+            $transaction: jest.Mock;
+            agentInteraction: { findFirst: jest.Mock };
+          };
+        }
+      ).prisma;
+      prisma.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('unique', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+      prisma.agentInteraction.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: request().id,
+          requestFingerprint: 'c'.repeat(64),
+        });
+
+      await expect(submit()).rejects.toMatchObject({
+        status: 422,
+        response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+      });
     });
   });
 

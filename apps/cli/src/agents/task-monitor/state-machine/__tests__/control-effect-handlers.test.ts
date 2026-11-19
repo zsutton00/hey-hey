@@ -154,6 +154,18 @@ describe('TaskMonitorControlEffectHandler', () => {
       outcomeType: 'TASK_MONITOR_STOP_FAILED',
     },
     {
+      name: 'request mismatch (422) as terminal',
+      error: Object.assign(new Error('binding mismatch'), { response: { status: 422 } }),
+      status: 'failed',
+      outcomeType: 'TASK_MONITOR_STOP_FAILED',
+    },
+    {
+      name: 'state conflict (409) as retryable',
+      error: Object.assign(new Error('state conflict'), { response: { status: 409 } }),
+      status: 'uncertain',
+      outcomeType: 'TASK_MONITOR_STOP_UNCERTAIN',
+    },
+    {
       name: 'cancellation',
       error: Object.assign(new Error('cancelled'), { name: 'AbortError' }),
       status: 'cancelled',

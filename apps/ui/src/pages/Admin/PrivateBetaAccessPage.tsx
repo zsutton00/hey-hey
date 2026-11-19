@@ -17,6 +17,9 @@ const safeDecisionError = (error: unknown): string => {
       case 401:
         return "Your session is no longer authorized. Sign in again and retry.";
       case 403:
+        if (error.response?.data?.code === "PRIVATE_BETA_ACCESS_CLOSED") {
+          return "Private-beta access is closed, so this request can no longer be approved.";
+        }
         return "You are not authorized to manage beta access requests.";
       case 404:
         return "This access request is no longer available. Refresh the list.";
