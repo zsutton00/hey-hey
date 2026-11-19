@@ -201,6 +201,80 @@ describe("work-item events over GraphQL", () => {
     });
   });
 
+  it("adds a created work item to an open graph of its parent", async () => {
+    const views = await mountViews();
+
+    server.add({
+      id: "t2",
+      name: "Second task",
+      type: "STANDARD",
+      status: WorkStatus.Backlog,
+      parentTaskId: "p1",
+    });
+    act(() =>
+      handler.handleEvent({ type: "task.created", ...scope, taskId: "t2" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        views.result.current.graph.data?.children.map((c) => c.id),
+      ).toContain("t2"),
+    );
+  });
+
+  it("moves a work item between two open graphs", async () => {
+    server.add({
+      id: "p2",
+      name: "Other parent",
+      type: "FEATURE",
+      status: "ACTIVE",
+    });
+    const graphs = renderHook(
+      () => ({
+        from: useWorkItemGraph(ORG, PROJECT, "p1"),
+        to: useWorkItemGraph(ORG, PROJECT, "p2"),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => {
+      expect(graphs.result.current.from.isReady).toBe(true);
+      expect(graphs.result.current.to.isReady).toBe(true);
+    });
+
+    server.update("t1", { parentTaskId: "p2" });
+    act(() =>
+      handler.handleEvent({ type: "task.updated", ...scope, taskId: "t1" }),
+    );
+
+    await waitFor(() => {
+      const { from, to } = graphs.result.current;
+      expect(to.data?.children.map((c) => c.id)).toContain("t1");
+      expect(from.data?.children.map((c) => c.id)).not.toContain("t1");
+    });
+  });
+
+  it("shows a change made while a view was not mounted when it mounts again", async () => {
+    const first = renderHook(
+      () => useWorkItem(ORG, "task", "t1", { projectId: PROJECT }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(first.result.current.isReady).toBe(true));
+    first.unmount();
+
+    server.update("t1", { name: "Renamed while away" });
+    act(() =>
+      handler.handleEvent({ type: "task.updated", ...scope, taskId: "t1" }),
+    );
+
+    const second = renderHook(
+      () => useWorkItem(ORG, "task", "t1", { projectId: PROJECT }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() =>
+      expect(second.result.current.workItem?.name).toBe("Renamed while away"),
+    );
+  });
+
   it("never writes a record the server did not return", async () => {
     await mountViews();
 

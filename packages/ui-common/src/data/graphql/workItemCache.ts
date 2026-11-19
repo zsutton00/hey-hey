@@ -4,7 +4,7 @@ import {
   type WorkItemFieldsFragment,
 } from "../../graphql/generated/graphql";
 import type { WorkItemResponseDto } from "../collections/workItems";
-import { activeReads, holdsEntity, variableOf } from "./activeReads";
+import { activeReads, isObject, variableOf } from "./activeReads";
 import {
   getGraphQLClients,
   getProjectGraphQLClient,
@@ -20,10 +20,10 @@ import { toWorkItemResponse } from "./records";
  */
 
 /** Reads of one work item, by id. */
-const ITEM_READS: ReadonlySet<string> = new Set([
-  "GetWorkItem",
-  "GetWorkItemGraph",
-]);
+const DETAIL_READS: ReadonlySet<string> = new Set(["GetWorkItem"]);
+
+/** Reads of the work items under one root; their members change with the tree. */
+const GRAPH_READS: ReadonlySet<string> = new Set(["GetWorkItemGraph"]);
 
 /** Reads whose membership a change to any work item can alter. */
 const MEMBERSHIP_READS: ReadonlySet<string> = new Set([
@@ -34,27 +34,67 @@ const MEMBERSHIP_READS: ReadonlySet<string> = new Set([
 ]);
 
 const ALL_WORK_ITEM_READS: ReadonlySet<string> = new Set([
-  ...ITEM_READS,
+  ...DETAIL_READS,
+  ...GRAPH_READS,
   ...MEMBERSHIP_READS,
 ]);
+
+/** Root fields behind the membership reads. */
+const MEMBERSHIP_FIELDS = [
+  "workItems",
+  "workItemHierarchy",
+  "allWorkItemReferences",
+  "workItemReferences",
+] as const;
 
 const refetch = (query: ObservableQuery) => query.refetch().catch(() => null);
 
 const clientFor = (client: ApolloClient, scope?: GraphQLProjectScope) =>
   scope ? getProjectGraphQLClient(client, scope) : client;
 
-/** A list that names its members cannot gain an item it does not name. */
-const mayAdmit = (query: ObservableQuery, taskId: string): boolean => {
-  const ids = variableOf(query, "ids");
-
-  return !Array.isArray(ids) || ids.includes(taskId);
-};
+const projectsOf = (client: ApolloClient, scope?: GraphQLProjectScope) =>
+  scope ? [clientFor(client, scope)] : [...getGraphQLClients(client)];
 
 /**
- * A work item changed. Its own reads ask the server again, and so do the
- * lists, hierarchies and reference lists that may now include or omit it:
- * a status or parent change can move it between them. Without a scope, every
- * project the client holds is refreshed.
+ * Drops the cached answers that a change to work items makes stale, without
+ * telling mounted views: they ask the server again right after, so they never
+ * show a gap. Reads no view is showing keep nothing to go stale, and the next
+ * view that mounts asks the server instead of the cache.
+ *
+ * A graph is the answer to "which items sit under this root", which no single
+ * work-item record holds, so graphs are dropped with the membership reads
+ * rather than found by the items they already contain.
+ */
+function dropStaleAnswers(
+  projects: readonly ApolloClient[],
+  taskId?: string,
+): void {
+  for (const { cache } of projects) {
+    for (const fieldName of MEMBERSHIP_FIELDS) {
+      cache.evict({ id: "ROOT_QUERY", fieldName, broadcast: false });
+    }
+    if (taskId) {
+      cache.evict({
+        id: "ROOT_QUERY",
+        fieldName: "workItem",
+        args: { id: taskId },
+        broadcast: false,
+      });
+    }
+    const stored = cache.extract();
+    for (const key of isObject(stored) ? Object.keys(stored) : []) {
+      if (key.startsWith("WorkItem:")) {
+        cache.evict({ id: key, fieldName: "graph", broadcast: false });
+      }
+    }
+  }
+}
+
+/**
+ * A work item changed. Its own reads ask the server again, and so do every
+ * list, hierarchy, graph and reference list: a status or parent change can
+ * move it between them, and the event does not say which. Without a scope,
+ * every project the client holds is refreshed.
  */
 export async function refreshWorkItem(
   client: ApolloClient,
@@ -62,16 +102,16 @@ export async function refreshWorkItem(
   scope?: GraphQLProjectScope,
 ): Promise<void> {
   const project = clientFor(client, scope);
-  const itemReads = activeReads(project, ITEM_READS).filter(
-    (query) =>
-      variableOf(query, "id") === taskId ||
-      holdsEntity(query.getCurrentResult().data, taskId),
+  const detailReads = activeReads(project, DETAIL_READS).filter(
+    (query) => variableOf(query, "id") === taskId,
   );
-  const membershipReads = activeReads(project, MEMBERSHIP_READS).filter(
-    (query) => mayAdmit(query, taskId),
+  const sharedReads = activeReads(
+    project,
+    new Set([...GRAPH_READS, ...MEMBERSHIP_READS]),
   );
 
-  await Promise.all([...itemReads, ...membershipReads].map(refetch));
+  dropStaleAnswers(projectsOf(client, scope), taskId);
+  await Promise.all([...detailReads, ...sharedReads].map(refetch));
 }
 
 /** A work item was created, or its membership in project lists changed. */
@@ -79,8 +119,12 @@ export async function refreshWorkItemLists(
   client: ApolloClient,
   scope?: GraphQLProjectScope,
 ): Promise<void> {
-  const reads = activeReads(clientFor(client, scope), MEMBERSHIP_READS);
+  const reads = activeReads(
+    clientFor(client, scope),
+    new Set([...GRAPH_READS, ...MEMBERSHIP_READS]),
+  );
 
+  dropStaleAnswers(projectsOf(client, scope));
   await Promise.all(reads.map(refetch));
 }
 
@@ -93,15 +137,14 @@ export async function evictWorkItem(
   taskId: string,
   scope?: GraphQLProjectScope,
 ): Promise<void> {
-  const project = clientFor(client, scope);
-  const holders = scope ? [project] : [...getGraphQLClients(client)];
-
-  for (const { cache } of holders) {
-    const id = cache.identify({ __typename: "WorkItem", id: taskId });
-    if (id) {
-      cache.evict({ id });
-      cache.gc();
+  for (const { cache } of projectsOf(client, scope)) {
+    for (const __typename of ["WorkItem", "WorkItemReference"]) {
+      const id = cache.identify({ __typename, id: taskId });
+      if (id) {
+        cache.evict({ id });
+      }
     }
+    cache.gc();
   }
 
   await refreshWorkItemLists(client, scope);
@@ -114,6 +157,7 @@ export async function refreshShownWorkItemReads(
 ): Promise<void> {
   const reads = activeReads(clientFor(client, scope), ALL_WORK_ITEM_READS);
 
+  dropStaleAnswers(projectsOf(client, scope));
   await Promise.all(reads.map(refetch));
 }
 

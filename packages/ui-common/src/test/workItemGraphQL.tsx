@@ -21,6 +21,8 @@ export type { FakeWorkItem } from "./workItemGraphQLAnswers";
 export class FakeWorkItemServer {
   items: FakeWorkItem[];
   readonly requests: GraphQLRequest[] = [];
+  /** When set, only this project holds the items; others answer not found. */
+  onlyProject: string | null = null;
   /** Operations the server refuses with a 403. */
   readonly refused = new Set<string>();
   readonly graphql: WebUiGraphQLClient;
@@ -73,12 +75,19 @@ export class FakeWorkItemServer {
   private async respond(config: InternalAxiosRequestConfig) {
     const { operationName, variables = {} } = JSON.parse(String(config.data));
     this.requests.push({ operationName, variables });
-    const { status, body } = this.refused.has(operationName)
-      ? {
-          status: 403,
-          body: { errors: [{ message: "Forbidden" }] },
-        }
-      : answerWorkItemOperation(this.items, operationName, variables);
+    const projectId = String(config.url).split("/projects/")[1]?.split("/")[0];
+    const heldElsewhere =
+      operationName === "GetWorkItem" &&
+      this.onlyProject !== null &&
+      projectId !== this.onlyProject;
+    const { status, body } = heldElsewhere
+      ? answerWorkItemOperation([], operationName, variables)
+      : this.refused.has(operationName)
+        ? {
+            status: 403,
+            body: { errors: [{ message: "Forbidden" }] },
+          }
+        : answerWorkItemOperation(this.items, operationName, variables);
     const response = {
       data: JSON.stringify(body),
       status,
