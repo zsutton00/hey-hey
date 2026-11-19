@@ -112,7 +112,8 @@
     tags:
       - Debug/Admin
     summary: Get messages for project
-    description: Get detailed message list for a specific project
+    description: "Deprecated: use the conversation messages endpoint. Only messages from conversations the caller can read are returned."
+    deprecated: true
     parameters:
       - name: projectId
         in: query

@@ -901,7 +901,9 @@ export class DebugController {
   @Get('projects/messages')
   @ApiOperation({
     summary: 'Get messages for project',
-    description: 'Get detailed message list for a specific project',
+    description:
+      'Deprecated: use the conversation messages endpoint. Only messages from conversations the caller can read are returned.',
+    deprecated: true,
   })
   @ApiQuery({
     name: 'projectId',
@@ -958,6 +960,10 @@ export class DebugController {
         limit,
       },
       organizationId,
+      true,
+      true,
+      false,
+      user.userId,
     );
   }
 
