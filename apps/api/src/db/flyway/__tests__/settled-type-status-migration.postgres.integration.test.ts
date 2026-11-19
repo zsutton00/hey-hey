@@ -7,13 +7,24 @@ import { workItemTypeStatusesSchema } from '../../../services/tasks/work-item-ty
 // Run through worktree:exec against its isolated local database.
 const databaseTests =
   process.env.RUN_STATUS_MIGRATION_DB_TESTS === '1' ? describe : describe.skip;
-const sql = readFileSync(
+const migration = readFileSync(
   resolve(
     process.cwd(),
-    'db/flyway/V2026.10.30.075431__upgrade_settled_type_proposal_statuses.sql',
+    'db/flyway/V2026.10.29.232600__store_custom_status_definitions.sql',
   ),
   'utf8',
 );
+
+function section(name: string): string {
+  const begin = `-- BEGIN ${name}\n`;
+  const start = migration.indexOf(begin) + begin.length;
+  return migration.slice(start, migration.indexOf(`-- END ${name}`));
+}
+
+// The shipped lookup, conversion function and settled-proposal upgrade, run
+// against a shadow proposals table so live history is untouched.
+const sql =
+  section('legacy status lookup') + section('settled proposal upgrade');
 
 databaseTests('historical type proposal status migration', () => {
   it('upgrades flat and nested approved/rejected payloads without changing decisions or other fields', async () => {
