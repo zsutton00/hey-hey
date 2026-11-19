@@ -182,6 +182,7 @@ export const TaskMonitorWorkspaceView = ({
     executionState.freshness.status === "CURRENT";
   const advertisedActions =
     current && snapshot ? snapshot.availableActions : [];
+  const committedActions = snapshot?.availableActions ?? [];
   const availability = {
     setup: phase === "setup",
     start:
@@ -195,11 +196,13 @@ export const TaskMonitorWorkspaceView = ({
           )
         : phase === "setup"),
     pause: advertisedActions.some((action) => action.command === "PAUSE"),
-    // The label follows the last committed snapshot; freshness only gates submission.
+    // The label follows the last committed snapshot; freshness only gates
+    // submission. Start (including retry) wins when both are advertised.
     showsPause:
       phase !== "setup" &&
-      (snapshot?.availableActions ?? []).some(
-        (action) => action.command === "PAUSE",
+      committedActions.some((action) => action.command === "PAUSE") &&
+      !committedActions.some(
+        (action) => action.command === "START" || action.command === "RESUME",
       ),
   };
   const panes = presentation.panes;

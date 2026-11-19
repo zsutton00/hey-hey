@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useCapsuleScreenButton } from "../ActionsCapsule/useCapsuleScreenButton";
 import { useOptionalActionsCapsule } from "../ActionsCapsule/ActionsCapsuleContext";
 import type { CapsuleScreenButton } from "../ActionsCapsule/types";
+import { TaskMonitorIcon } from "../../utils/icons/TaskMonitor";
 import type { MonitorPhase } from "./useTaskMonitorPresentation";
 
 interface Props {
@@ -12,6 +13,13 @@ interface Props {
   freshness: string;
   onOpen: () => void;
 }
+
+const STATE_WORDS = {
+  running: "running",
+  paused: "paused",
+  "needs-you": "needs you",
+  done: "done",
+} as const;
 
 function RegisteredMonitorButton({
   monitorId,
@@ -35,7 +43,9 @@ function RegisteredMonitorButton({
           : "running";
   useCapsuleScreenButton({
     key: `task-monitor:${monitorId}`,
-    label: freshness ? "Stale" : "TM",
+    label: "Monitor",
+    icon: TaskMonitorIcon,
+    tooltip: `${name}: ${STATE_WORDS[state]}. ${progress.replace("/", " of ")} tasks${freshness ? `. ${freshness}` : ""}. Click to open.`,
     accessibleName: `${name}: ${phase}, ${progress}${freshness ? `, ${freshness}` : ""}. Open Task Monitor`,
     status: { state, text: progress },
     onClick: handleClick,
