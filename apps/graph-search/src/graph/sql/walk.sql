@@ -59,6 +59,8 @@ walk AS (
    AND n.id=CASE WHEN e.source_id=w.id THEN e.target_id ELSE e.source_id END
  WHERE w.depth<w.max_depth AND (w.depth=0 OR w.entity_type<>'USER') AND NOT n.deleted
  AND NOT e.id=ANY(w.edge_ids)
+ -- Hints are private to hint reads: never walk their links or reach hint nodes.
+ AND e.relationship_type<>'CONNECTED_TO' AND n.entity_type<>'HINT'
  AND (w.chain IS NOT NULL AND e.relationship_type=w.chain->w.depth->>'type'
       OR w.chain IS NULL
          AND (COALESCE(s.request->'traversal'->'relationshipTypes','[]')='[]'
