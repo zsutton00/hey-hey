@@ -290,19 +290,25 @@ describe("feature-owned triage results", () => {
     >;
     render(<OpenItemsTriageResults {...props} collection={collection} />);
     const summary = screen.getByTestId("triage-preview-summary");
-    expect(summary).toHaveTextContent("3 now, 3 after");
+    expect(summary).toHaveTextContent("3 → 3 open items");
+    // Nothing accepted yet: suggested items show as dashed, uncounted rows.
+    const pending = screen
+      .getAllByTestId("triage-preview-row")
+      .filter((row) => row.getAttribute("data-change") === "pending");
+    expect(pending.length).toBeGreaterThan(0);
+    expect(pending[0]).toHaveTextContent("not accepted");
     const [removeBox, groupBox] = screen.getAllByRole("checkbox", {
       name: "Select suggestion",
     });
     await userEvent.click(removeBox);
-    expect(summary).toHaveTextContent("3 now, 2 after");
+    expect(summary).toHaveTextContent("3 → 2 open items");
     expect(summary).toHaveTextContent("1 removed");
     expect(screen.getByTestId("triage-unavailable")).toHaveTextContent(
       "Task a",
     );
     expect(groupBox).toBeDisabled();
     await userEvent.click(removeBox);
-    expect(summary).toHaveTextContent("3 now, 3 after");
+    expect(summary).toHaveTextContent("3 → 3 open items");
     expect(screen.queryByTestId("triage-unavailable")).toBeNull();
     expect(groupBox).toBeEnabled();
     expect(ports.remove).not.toHaveBeenCalled();

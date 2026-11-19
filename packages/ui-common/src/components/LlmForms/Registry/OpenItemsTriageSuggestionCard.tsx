@@ -20,6 +20,8 @@ export interface OpenItemsTriageSuggestionCardProps {
   outcome: TriageOutcome;
   selected: boolean;
   disabled: boolean;
+  /** Dense rail presentation beside the before/after comparison. */
+  compact?: boolean;
   /** Why this card cannot be accepted or applied right now. */
   unavailableReason?: string;
   onSelect: () => void;
@@ -33,6 +35,30 @@ const operationLabels = {
   trackOnGoal: "Track on Goal",
   promoteGroupToGoal: "Promote group to Goal",
 };
+const plural = (count: number) => `${count} ${count === 1 ? "item" : "items"}`;
+/** Rail title: the action and its size, e.g. "Group 5 items". */
+export function compactTitle(suggestion: OpenItemsTriageSuggestion) {
+  switch (suggestion.kind) {
+    case "removeOpenItems":
+      return `Remove ${plural(suggestion.items.length)}`;
+    case "reopenItems":
+      return `Reopen ${plural(suggestion.items.length)}`;
+    case "groupOpenItems":
+      return `Group ${plural(suggestion.items.length)} · ${
+        suggestion.group.kind === "existingGroup"
+          ? suggestion.group.name
+          : suggestion.group.newGroupName
+      }`;
+    case "trackOnGoal":
+      return `Track ${plural(suggestion.items.length)} on ${
+        suggestion.goal.kind === "existingGoal"
+          ? suggestion.goal.title
+          : suggestion.goal.newGoal.name
+      }`;
+    case "promoteGroupToGoal":
+      return `Promote ${suggestion.groupName} to Goal`;
+  }
+}
 const outcomeLabels = {
   idle: "Ready",
   pending: "Applying…",
@@ -47,6 +73,7 @@ export function OpenItemsTriageSuggestionCard({
   selected,
   disabled: disabledProp,
   unavailableReason,
+  compact = false,
   onSelect,
   onApply,
   itemHref,
@@ -61,13 +88,20 @@ export function OpenItemsTriageSuggestionCard({
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2 }}
+      sx={{
+        p: compact ? 1.25 : 2,
+        ...(compact && selected && { borderColor: "success.main" }),
+        ...(compact &&
+          unavailableReason && { opacity: 0.7, borderStyle: "dashed" }),
+      }}
       data-testid="triage-suggestion"
       data-suggestion-id={suggestion.suggestionId}
     >
-      <Stack spacing={1}>
-        <Stack direction="row" alignItems="center">
+      <Stack spacing={compact ? 0.75 : 1}>
+        <Stack direction="row" alignItems="center" spacing={compact ? 0.5 : 0}>
           <Checkbox
+            size={compact ? "small" : "medium"}
+            sx={compact ? { p: 0.25 } : undefined}
             checked={selected}
             disabled={disabled || busy || outcome.state === "success"}
             onChange={onSelect}
@@ -75,21 +109,26 @@ export function OpenItemsTriageSuggestionCard({
               "aria-label": t("triage.select", "Select suggestion"),
             }}
           />
-          <Typography fontWeight={600}>
-            {t(
-              `triage.kind.${suggestion.kind}`,
-              operationLabels[suggestion.kind],
-            )}
+          <Typography
+            fontWeight={600}
+            sx={compact ? { fontSize: 13 } : undefined}
+          >
+            {compact
+              ? compactTitle(suggestion)
+              : t(
+                  `triage.kind.${suggestion.kind}`,
+                  operationLabels[suggestion.kind],
+                )}
           </Typography>
         </Stack>
-        {suggestion.kind === "groupOpenItems" && (
+        {!compact && suggestion.kind === "groupOpenItems" && (
           <Typography>
             {suggestion.group.kind === "existingGroup"
               ? suggestion.group.name
               : suggestion.group.newGroupName}
           </Typography>
         )}
-        {suggestion.kind === "trackOnGoal" && (
+        {!compact && suggestion.kind === "trackOnGoal" && (
           <Typography>
             {suggestion.goal.kind === "existingGoal"
               ? suggestion.goal.title
@@ -102,26 +141,65 @@ export function OpenItemsTriageSuggestionCard({
           </Typography>
         )}
         {unavailableReason && (
-          <Alert severity="info" data-testid="triage-unavailable">
+          <Alert
+            severity="info"
+            data-testid="triage-unavailable"
+            sx={compact ? { py: 0, fontSize: 12 } : undefined}
+          >
             {unavailableReason}
           </Alert>
         )}
-        {items.map((item) => (
-          <Link
-            key={`${item.entityType}:${item.entityId}`}
-            href={itemHref(item)}
+        <Box
+          sx={
+            compact
+              ? {
+                  display: "flex",
+                  flexWrap: "wrap",
+                  columnGap: 1,
+                  rowGap: 0.25,
+                }
+              : { display: "contents" }
+          }
+        >
+          {items.map((item) => (
+            <Link
+              key={`${item.entityType}:${item.entityId}`}
+              href={itemHref(item)}
+              sx={compact ? { fontSize: 12 } : undefined}
+            >
+              {item.title}
+            </Link>
+          ))}
+        </Box>
+        <Typography variant="body2" sx={compact ? { fontSize: 12 } : undefined}>
+          {suggestion.rationale}
+        </Typography>
+        {compact && selected && !unavailableReason && (
+          <Typography
+            variant="caption"
+            color="success.main"
+            fontWeight={600}
+            data-testid="triage-accepted-label"
           >
-            {item.title}
-          </Link>
-        ))}
-        <Typography variant="body2">{suggestion.rationale}</Typography>
+            {t("triage.accepted", "Accepted")}
+          </Typography>
+        )}
         {suggestion.evidence.length > 0 && (
           <Box
             data-testid="triage-evidence"
-            sx={{ bgcolor: "action.hover", p: 1, borderRadius: 1 }}
+            sx={{
+              bgcolor: "action.hover",
+              p: compact ? 0.75 : 1,
+              borderRadius: 1,
+            }}
           >
             {suggestion.evidence.map((evidence, index) => (
-              <Typography key={index} variant="body2" color="text.secondary">
+              <Typography
+                key={index}
+                variant="body2"
+                color="text.secondary"
+                sx={compact ? { fontSize: 11 } : undefined}
+              >
                 {t(`triage.evidence.${evidence.kind}`, evidence.kind)}:{" "}
                 {evidence.summary}
               </Typography>

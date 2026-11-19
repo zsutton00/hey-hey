@@ -119,7 +119,8 @@ export type RowChange =
   | "reopened"
   | "tracked"
   | "promoted"
-  | "goal";
+  | "goal"
+  | "pending";
 
 export interface PreviewRow {
   key: string;
@@ -132,6 +133,8 @@ export interface PreviewRow {
   provisional?: boolean;
   isGroup?: boolean;
   trackedOn?: string;
+  /** For a not-accepted suggestion, e.g. "Remove? not accepted". */
+  note?: string;
 }
 
 export interface PreviewRibbon {
@@ -189,6 +192,8 @@ export interface ReplayInput {
     suggestion: OpenItemsTriageSuggestion,
     item: OpenItemsTriageItem,
   ) => TriageTarget | undefined;
+  /** Suggestions that must not appear as pending notes (applied or blocked). */
+  hidePending?: ReadonlySet<string>;
   /** Items whose work Apply already finished. */
   isCompleted?: (
     suggestion: OpenItemsTriageSuggestion,
@@ -444,9 +449,55 @@ function buildPreview(args: {
     return "unchanged";
   };
 
-  const changedKeys = order.filter((key) => changeOf(key) !== "unchanged");
   const reopened = [...scratch.keys()].filter((key) => !original.has(key));
-  const unchangedCount = order.length - changedKeys.length;
+
+  // Not-accepted suggestions appear only as dashed rows; they never change
+  // the projected right column or the totals.
+  const acceptedSet = new Set(input.accepted);
+  const pendingVerbs: Record<OpenItemsTriageSuggestion["kind"], string> = {
+    removeOpenItems: "Remove",
+    reopenItems: "Reopen",
+    groupOpenItems: "Group",
+    trackOnGoal: "Track on Goal",
+    promoteGroupToGoal: "Promote",
+  };
+  const pendingNote = new Map<string, string>();
+  const ghosts = new Map<
+    string,
+    { title: string; entityType: string; note: string }
+  >();
+  for (const suggestion of input.suggestions) {
+    if (
+      acceptedSet.has(suggestion.suggestionId) ||
+      input.hidePending?.has(suggestion.suggestionId)
+    ) {
+      continue;
+    }
+    const note = `${pendingVerbs[suggestion.kind]}? not accepted`;
+    for (const item of suggestionItems(suggestion)) {
+      const key = itemKey(item);
+      if (suggestion.kind === "reopenItems") {
+        if (!scratch.has(key) && !ghosts.has(key)) {
+          ghosts.set(key, {
+            title: item.title,
+            entityType: item.entityType,
+            note,
+          });
+        }
+      } else if (
+        original.has(key) &&
+        changeOf(key) === "unchanged" &&
+        !pendingNote.has(key)
+      ) {
+        pendingNote.set(key, note);
+      }
+    }
+  }
+
+  const visibleKeys = order.filter(
+    (key) => changeOf(key) !== "unchanged" || pendingNote.has(key),
+  );
+  const unchangedCount = order.length - visibleKeys.length;
 
   const toRow = (
     row: ScratchRow,
@@ -462,16 +513,21 @@ function buildPreview(args: {
     trackedOn: row.trackedOn,
   });
 
-  const before: PreviewRow[] = changedKeys.map((key) =>
-    toRow(
-      original.get(key)!,
-      originalGroupName.get(original.get(key)!.groupId ?? "") ?? null,
-      changeOf(key),
-    ),
-  );
+  const before: PreviewRow[] = visibleKeys.map((key) => {
+    const row = original.get(key)!;
+    const change = changeOf(key);
+    return {
+      ...toRow(
+        row,
+        originalGroupName.get(row.groupId ?? "") ?? null,
+        change === "unchanged" ? "pending" : change,
+      ),
+      note: pendingNote.get(key),
+    };
+  });
 
   // Right column: new/changed group headers with their moved members beneath,
-  // then other changed rows, then reopened rows and provisional Goals.
+  // then other visible rows, then reopened rows, ghosts and provisional Goals.
   const after: PreviewRow[] = [];
   const afterIndex = new Map<string, number>();
   const groupsShown = new Set<string>();
@@ -491,7 +547,7 @@ function buildPreview(args: {
       provisional: args.createdGroups.has(groupId),
     });
   };
-  for (const key of changedKeys) {
+  for (const key of visibleKeys) {
     const row = scratch.get(key);
     if (row?.groupId && changeOf(key) === "grouped") {
       pushGroup(row.groupId);
@@ -499,22 +555,34 @@ function buildPreview(args: {
       after.push(toRow(row, nameOf(row.groupId), "grouped"));
     }
   }
-  for (const key of [...changedKeys, ...reopened]) {
+  for (const key of [...visibleKeys, ...reopened]) {
     const row = scratch.get(key);
     if (row && !afterIndex.has(key)) {
       afterIndex.set(key, after.length);
       after.push(toRow(row, nameOf(row.groupId), changeOf(key)));
     }
   }
+  for (const [key, ghost] of ghosts) {
+    afterIndex.set(`ghost:${key}`, after.length);
+    after.push({
+      key: `ghost:${key}`,
+      title: ghost.title,
+      entityType: ghost.entityType,
+      pinned: false,
+      groupName: null,
+      change: "pending",
+      note: ghost.note,
+    });
+  }
   for (const goal of args.addedGoals) {
     afterIndex.set(goal.key, after.length);
     after.push({ ...toRow(goal, null, "goal"), provisional: true });
   }
 
-  const ribbons: PreviewRibbon[] = changedKeys.map((key, from) => ({
+  const ribbons: PreviewRibbon[] = visibleKeys.map((key, from) => ({
     from,
     to: afterIndex.get(key) ?? null,
-    change: changeOf(key),
+    change: pendingNote.has(key) ? "pending" : changeOf(key),
   }));
   for (const key of reopened) {
     ribbons.push({
@@ -531,9 +599,12 @@ function buildPreview(args: {
     });
   }
 
-  const acceptedSet = new Set(input.accepted);
   const pendingNotes = input.suggestions
-    .filter((s) => !acceptedSet.has(s.suggestionId))
+    .filter(
+      (s) =>
+        !acceptedSet.has(s.suggestionId) &&
+        !input.hidePending?.has(s.suggestionId),
+    )
     .map((s) => ({
       suggestionId: s.suggestionId,
       itemKeys: suggestionItems(s).map(itemKey),

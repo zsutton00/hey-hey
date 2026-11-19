@@ -264,4 +264,35 @@ describe("triage replay", () => {
     expect(preview.before).toHaveLength(100);
     expect(preview.totals).toMatchObject({ after: 0, removed: 100 });
   });
+
+  it("shows not-accepted suggestions as dashed rows without counting them", () => {
+    const items = [row("a"), row("b"), row("c")];
+    const suggestions = [remove("r", ["a"]), reopen("o", ["x"])];
+    const preview = replayTriage({
+      items,
+      groups: [],
+      suggestions,
+      accepted: [],
+    });
+    expect(preview.totals).toMatchObject({ before: 3, after: 3, removed: 0 });
+    expect(preview.before).toHaveLength(1);
+    expect(preview.before[0]).toMatchObject({
+      change: "pending",
+      note: "Remove? not accepted",
+    });
+    expect(preview.after.map((r) => r.change)).toEqual([
+      "unchanged",
+      "pending",
+    ]);
+    expect(preview.ribbons[0].change).toBe("pending");
+    expect(preview.unchangedCount).toBe(2);
+    const hidden = replayTriage({
+      items,
+      groups: [],
+      suggestions,
+      accepted: [],
+      hidePending: new Set(["r", "o"]),
+    });
+    expect(hidden.before).toEqual([]);
+  });
 });

@@ -9,7 +9,10 @@ import type {
 } from "../../api";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import { replayTriage, resolveSelection } from "../../data/triage/replay";
-import { OpenItemsTriageSuggestionCard } from "../LlmForms/Registry/OpenItemsTriageSuggestionCard";
+import {
+  OpenItemsTriageSuggestionCard,
+  compactTitle,
+} from "../LlmForms/Registry/OpenItemsTriageSuggestionCard";
 import { OpenItemsTriagePreview } from "./OpenItemsTriagePreview";
 
 const noSubscription = () => () => {};
@@ -75,11 +78,18 @@ export function OpenItemsTriageReview({
   const remaining = selection.accepted.filter(
     (id) => outcomeOf(id).state !== "success",
   );
+  const hidePending = new Set([
+    ...selection.blocked.keys(),
+    ...suggestions
+      .filter((s) => outcomeOf(s.suggestionId).state === "success")
+      .map((s) => s.suggestionId),
+  ]);
   const preview = replayTriage({
     items,
     groups: groups ?? [],
     suggestions,
     accepted: remaining,
+    hidePending,
     baselineFor: (suggestion, item) =>
       application?.baselineFor(scope, suggestion, item),
     isCompleted: (suggestion, item) =>
@@ -105,28 +115,65 @@ export function OpenItemsTriageReview({
       return undefined;
     }
     const holder = suggestions.find((s) => s.suggestionId === block.blockedBy);
-    const holderName = holder ? holder.rationale.slice(0, 60) : block.blockedBy;
+    const holderName = holder ? compactTitle(holder) : block.blockedBy;
     return t(
       "triage.blocked",
-      `Unavailable: "${block.itemTitle}" is already part of the accepted suggestion "${holderName}". Un-accept it to restore this one.`,
+      `Unavailable: "${block.itemTitle}" is already in the accepted suggestion "${holderName}".`,
     );
   };
 
+  const { totals } = preview;
+  const acceptedCount = selection.accepted.length;
   return (
-    <Stack spacing={2} data-testid="open-items-triage-field">
+    <Stack
+      spacing={1.5}
+      data-testid="open-items-triage-field"
+      sx={{ containerType: "inline-size" }}
+    >
       <Typography>{payload.summary}</Typography>
+      <Box
+        data-testid="triage-preview-summary"
+        aria-live="polite"
+        sx={{
+          px: 1.25,
+          py: 1,
+          bgcolor: "action.hover",
+          borderRadius: 1,
+          fontSize: 13,
+        }}
+      >
+        <b>
+          {t(
+            "triage.preview.summaryLead",
+            "If you apply your accepted suggestions:",
+          )}
+        </b>{" "}
+        {t(
+          "triage.preview.summary",
+          `${totals.before} → ${totals.after} open items · ${totals.groupsCreated} new ${totals.groupsCreated === 1 ? "group" : "groups"} · ${totals.removed} removed`,
+        )}
+      </Box>
       <Box
         sx={{
           display: "grid",
           gap: 2,
-          gridTemplateColumns: { xs: "1fr", lg: "minmax(300px, 2fr) 3fr" },
+          gridTemplateColumns: "260px minmax(0, 1fr)",
           alignItems: "start",
+          "@container (max-width: 800px)": { gridTemplateColumns: "1fr" },
         }}
       >
-        <Stack spacing={2} data-testid="triage-suggestion-rail">
+        <Stack
+          spacing={1}
+          data-testid="triage-suggestion-rail"
+          aria-label={t("triage.suggestions", "Suggestions")}
+        >
+          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+            {t("triage.suggestions", "Suggestions")}
+          </Typography>
           {suggestions.map((suggestion) => (
             <OpenItemsTriageSuggestionCard
               key={suggestion.suggestionId}
+              compact
               suggestion={suggestion}
               outcome={outcomeOf(suggestion.suggestionId)}
               selected={selection.accepted.includes(suggestion.suggestionId)}
@@ -144,9 +191,7 @@ export function OpenItemsTriageReview({
               data-testid="triage-apply-all"
               variant="contained"
               size="small"
-              disabled={
-                unavailable || selection.accepted.length === 0 || anyPending
-              }
+              disabled={unavailable || acceptedCount === 0 || anyPending}
               onClick={() => {
                 void application?.applyAll(
                   scope,
@@ -156,11 +201,11 @@ export function OpenItemsTriageReview({
                 );
               }}
             >
-              {t("triage.applyAll", "Apply all selected")}
+              {t("triage.applyAccepted", `Apply ${acceptedCount} accepted`)}
             </Button>
           </Stack>
           <Typography
-            variant="body2"
+            variant="caption"
             color="text.secondary"
             data-testid="triage-apply-note"
           >
