@@ -30,6 +30,15 @@ const envelope = (data: object | object[]): Response =>
     headers: { 'content-type': 'application/json' },
   });
 
+const standardType = {
+  definition: {
+    statuses: [
+      { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+      { name: 'COMPLETED', meaning: 'FINISHED', completionBehavior: 'COMPLETED' },
+    ],
+  },
+};
+
 const workItem = (id: string, name: string) => ({
   id,
   name,
@@ -194,6 +203,10 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       const url = new URL(rawUrl);
       const path = url.pathname;
+
+      if (path.endsWith('/work-item-types/STANDARD')) {
+        return envelope(standardType);
+      }
 
       if (path.endsWith(`/work-items/${MONITOR_ID}`)) {
         return envelope({
@@ -421,7 +434,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       sourceExecutionId: SESSION_ID,
       payload: { summary: 'SESSION_SUMMARY evidence' },
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(12);
+    expect(fetchImpl).toHaveBeenCalledTimes(13);
     const reportListSources = fetchImpl.mock.calls
       .map(([input]) => new URL(String(input)))
       .filter(({ pathname }) => pathname.endsWith('/reports'))
@@ -434,6 +447,9 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       const rawUrl =
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       const path = new URL(rawUrl).pathname;
+      if (path.endsWith('/work-item-types/STANDARD')) {
+        return envelope(standardType);
+      }
       if (path.endsWith(`/work-items/${MONITOR_ID}`)) {
         return envelope({
           ...workItem(MONITOR_ID, 'Release monitor'),
@@ -514,7 +530,7 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
         },
       }),
     ).resolves.toMatchObject({ reports: [] });
-    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(fetchImpl).toHaveBeenCalledTimes(7);
   });
 
   it('keeps canonical work evidence usable before a session is selected', async () => {
@@ -522,6 +538,9 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       const path = new URL(
         typeof input === 'string' ? input : input instanceof URL ? input : input.url,
       ).pathname;
+      if (path.endsWith('/work-item-types/STANDARD')) {
+        return envelope(standardType);
+      }
       if (path.endsWith(`/work-items/${MONITOR_ID}`)) {
         return envelope({
           ...workItem(MONITOR_ID, 'Release monitor'),
@@ -577,12 +596,15 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       reports: [],
       releasedTurn: null,
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(fetchImpl).toHaveBeenCalledTimes(5);
   });
 
   it('rejects a selected session whose launch service is outside its service scope', async () => {
     const fetchImpl = vi.fn(async (input: string | URL | Request): Promise<Response> => {
       const path = new URL(String(input)).pathname;
+      if (path.endsWith('/work-item-types/STANDARD')) {
+        return envelope(standardType);
+      }
       if (path.endsWith(`/work-items/${MONITOR_ID}`)) {
         return envelope({
           ...workItem(MONITOR_ID, 'Release monitor'),
@@ -656,6 +678,9 @@ describe('loadTaskMonitorCanonicalEvidence', () => {
       const path = new URL(
         typeof input === 'string' ? input : input instanceof URL ? input : input.url,
       ).pathname;
+      if (path.endsWith('/work-item-types/STANDARD')) {
+        return envelope(standardType);
+      }
       if (path.endsWith(`/work-items/${MONITOR_ID}`)) {
         return envelope({
           ...workItem('88888888-8888-4888-8888-888888888888', 'Different monitor'),

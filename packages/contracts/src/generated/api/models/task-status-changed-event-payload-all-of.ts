@@ -1,6 +1,5 @@
 // @ts-nocheck
 import type { InitiativeId, ProjectId } from '../../../brands.js';
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -16,9 +15,6 @@ import { WorkStatus } from './work-status.js';
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  *
@@ -27,17 +23,17 @@ import type { WorkStatus } from './work-status.js';
  */
 export interface TaskStatusChangedEventPayloadAllOf {
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TaskStatusChangedEventPayloadAllOf
      */
-    'previousStatus': WorkStatus;
+    'previousStatus': string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TaskStatusChangedEventPayloadAllOf
      */
-    'newStatus': WorkStatus;
+    'newStatus': string;
     /**
      * Unique identifier for an initiative (branded type)
      * @type {string}
@@ -50,11 +46,4 @@ export interface TaskStatusChangedEventPayloadAllOf {
      * @memberof TaskStatusChangedEventPayloadAllOf
      */
     'originatingProjectId'?: ProjectId;
-}
-
-export namespace TaskStatusChangedEventPayloadAllOf {
-    export const PreviousStatusEnum = WorkStatus;
-    export type PreviousStatusEnum = WorkStatus;
-    export const NewStatusEnum = WorkStatus;
-    export type NewStatusEnum = WorkStatus;
 }

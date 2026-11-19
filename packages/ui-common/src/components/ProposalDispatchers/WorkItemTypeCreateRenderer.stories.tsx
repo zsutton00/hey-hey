@@ -16,7 +16,7 @@ import { WorkItemTypeCreateRenderer } from "./WorkItemTypeCreateRenderer";
 import { PLACEHOLDER_ENTITY_ID } from "./types";
 
 const buildProposal = (
-  updates: WorkItemTypeDefinitionDto
+  updates: WorkItemTypeDefinitionDto,
 ): ProposalResponseDto & { updates: WorkItemTypeDefinitionDto } =>
   ({
     id: "story-work-item-type-create",
@@ -31,9 +31,9 @@ const buildProposal = (
     requestorId: "user-1",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
-  } as unknown as ProposalResponseDto & {
+  }) as unknown as ProposalResponseDto & {
     updates: WorkItemTypeDefinitionDto;
-  });
+  };
 
 const fullDefinition: WorkItemTypeDefinitionDto = {
   key: "MARKETING",
@@ -53,10 +53,15 @@ const fullDefinition: WorkItemTypeDefinitionDto = {
   ],
   requiredScalars: [WorkItemTypeScalarField.DueDate],
   forbiddenScalars: [WorkItemTypeScalarField.Tag],
-  allowedStatuses: [
-    WorkStatus.Backlog,
-    WorkStatus.Active,
-    WorkStatus.Completed,
+  statuses: [
+    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+    { name: WorkStatus.Active, label: "In progress", meaning: "IN_PROGRESS" },
+    {
+      name: WorkStatus.Completed,
+      label: "Completed",
+      meaning: "FINISHED",
+      completionBehavior: "COMPLETED",
+    },
   ],
   agentSettableStatuses: [WorkStatus.Backlog, WorkStatus.Active],
   allowedParentTypes: ["FEATURE"],
@@ -85,7 +90,9 @@ const minimalDefinition: WorkItemTypeDefinitionDto = {
   key: "MINIMAL",
   name: "Minimal Type",
   sections: [],
-  allowedStatuses: [],
+  statuses: [
+    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+  ],
 };
 
 const meta: Meta<typeof WorkItemTypeCreateRenderer> = {

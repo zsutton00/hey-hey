@@ -40,11 +40,11 @@ export interface WorkItemTypeCapabilities {
      */
     'planEligible'?: boolean;
     /**
-     * Whether this type\'s first allowed status is an explicit initial-status policy.
+     * Whether items of this type are eligible for the protected SUPERSEDED status. SUPERSEDED is set only by successor proposal approval, never through the ordinary status list or ordinary status edits.
      * @type {boolean}
      * @memberof WorkItemTypeCapabilities
      */
-    'hasSetInitialStatus'?: boolean;
+    'supportsSupersession'?: boolean;
     /**
      * Whether mentions of this type may render as an inline rich surface instead of a badge.
      * @type {boolean}

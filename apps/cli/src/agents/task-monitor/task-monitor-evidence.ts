@@ -33,6 +33,7 @@ import {
 } from './kinds/task-monitor-task-coordinator-inputs';
 import type { PromptTypeHandlerDeps } from '../prompt-type-handler';
 import type { TaskMonitorCoordinationLocalState } from './task-monitor-coordination';
+import { workItemTypeStatusesEnvelopeSchema, type TaskTypeStatus } from './task-finished-status';
 
 const agentSessionSchema = z
   .object({
@@ -122,7 +123,7 @@ export interface TaskMonitorCanonicalEvidence {
   operationPolicy?: TaskMonitorKindConfiguration;
   operationEvidence?: TaskMonitorOperationEvidence | null;
   planGuidance: TaskMonitorPlanGuidance | null;
-  selectedTask: TaskMonitorSelectedTaskEvidence;
+  selectedTask: TaskMonitorSelectedTaskEvidence & { typeStatuses: readonly TaskTypeStatus[] };
   remainingWork: ReadonlyArray<TaskMonitorRemainingWorkEvidence>;
   selectedSession: TaskMonitorSessionEvidence | null;
   releasedTurn: SessionMonitorSettledTurnEvidence | null;
@@ -288,6 +289,19 @@ export const loadTaskMonitorCanonicalEvidence = async (
     executionDefinition.cursor,
   );
 
+  const typeStatuses =
+    policy.acceptance.type === 'COMPLETE_ITEM'
+      ? (
+          await readValidated(
+            deps,
+            `${projectBase}/work-item-types/${encode(selectedTask.type)}`,
+            'Selected Task type read',
+            workItemTypeStatusesEnvelopeSchema,
+            input.accessToken,
+          )
+        ).data.definition.statuses
+      : [];
+
   const result: TaskMonitorCanonicalEvidence = {
     operationPolicy: policy,
     operationEvidence: currentNode.operationEvidence ?? null,
@@ -308,7 +322,7 @@ export const loadTaskMonitorCanonicalEvidence = async (
       },
     },
     planGuidance,
-    selectedTask,
+    selectedTask: { ...selectedTask, typeStatuses },
     remainingWork,
     selectedSession,
     releasedTurn: input.settledTurn ?? null,

@@ -1,4 +1,4 @@
-import type { WorkItemTypeStatus } from '../../src/generated/model/workItemTypeStatus';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
 import { legacyStatuses } from './legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -238,7 +238,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -266,7 +265,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -285,7 +283,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: true,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -307,7 +304,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -339,7 +335,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -371,7 +366,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -397,7 +391,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -420,7 +413,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: true,
       showsInExplorerSidebar: false,
     },
@@ -445,7 +437,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -468,7 +459,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: true,
       showsInExplorerSidebar: false,
     },
@@ -493,7 +483,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -525,7 +514,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
       monitorKinds: shippedTaskMonitorKinds(),
@@ -736,7 +724,6 @@ export interface CustomTypeRowSpec {
 const DEFAULT_CUSTOM_CAPABILITIES: Record<string, boolean> = {
   requiresParent: false,
   planEligible: true,
-  hasSetInitialStatus: false,
   rendersInline: false,
   showsInExplorerSidebar: false,
 };

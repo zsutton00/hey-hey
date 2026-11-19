@@ -85,7 +85,10 @@ import type { WorkItemTypeMaintenanceGuidanceDto } from '@hey-hey/contracts/api/
 import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
-import type { WorkItemStatusAuthoringRequest, WorkItemStatusAuthoringResponse } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemStatusAuthoringRequest,
+  WorkItemStatusAuthoringResponse,
+} from '@hey-hey/contracts/api/models';
 import { resolveWorkItemStatusAuthoring } from '../services/tasks/work-item-status-inference';
 
 export class WorkItemTypeGuidanceQueryDto {

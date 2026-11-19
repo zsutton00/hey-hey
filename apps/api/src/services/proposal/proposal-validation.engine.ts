@@ -83,7 +83,10 @@ import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 import { WorkflowName } from '@hey-hey/contracts/api/models';
-import { undeclaredAgentSettableStatuses, WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
+import {
+  undeclaredAgentSettableStatuses,
+  WorkItemTypeRegistryService,
+} from '../tasks/work-item-type-registry.service';
 import {
   isWorkItemServiceScopeEligible,
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,

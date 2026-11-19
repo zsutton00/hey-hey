@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 import { TaskSource } from './task-source.js';
 import { TaskPriority } from './task-priority.js';
 import { FeatureTag } from './feature-tag.js';
@@ -48,9 +47,6 @@ import type { TrackedEntitySnapshot } from './tracked-entity-snapshot.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemConfigV1 } from './work-item-config-v1.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * A task within an organization. Polymorphic over TaskType; the same shape represents STANDARD, BUG, FEATURE, GOAL, DIAGRAM, DIAGRAM_ELEMENT, and TASK_MONITOR work items. GOAL tasks are top-level by definition (parentTaskId is always null) and may have no target date. GOAL tasks additionally carry `trackedEntities` — outgoing TRACKS-edge snapshots for the work the goal is tracking. Non-GOAL tasks omit the field or return an empty array. When requested, GOAL tasks also carry `trackedWorkSummary`, a compact count aggregate that is independent of the `trackedEntities` projection. FEATURE tasks carry `tag` (FeatureTag) classifying the feature; the field is absent on all non-FEATURE work-item types.
@@ -107,11 +103,11 @@ export interface TaskResponseDto {
      */
     'initiativeId'?: string | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TaskResponseDto
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      *
      * @type {TaskSource}
@@ -229,8 +225,6 @@ export interface TaskResponseDto {
 }
 
 export namespace TaskResponseDto {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const SourceEnum = TaskSource;
     export type SourceEnum = TaskSource;
     export const PriorityEnum = TaskPriority;

@@ -162,4 +162,3 @@ SET retained_original_target_content = jsonb_set(retained_original_target_conten
     END)
 WHERE target_entity_type = 'WORK_ITEM_TYPE'
   AND jsonb_typeof(retained_original_target_content #> '{definition,allowedStatuses}') = 'array';
-

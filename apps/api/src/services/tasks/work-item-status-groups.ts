@@ -1,4 +1,4 @@
-import type { WorkItemTypeStatus } from '../../generated/model/workItemTypeStatus';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
 
 export const MCP_STATUS_GROUPS = [
   'BACKLOG',

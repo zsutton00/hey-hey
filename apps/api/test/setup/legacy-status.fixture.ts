@@ -1,4 +1,4 @@
-import type { WorkItemTypeStatus } from '../../src/generated/model/workItemTypeStatus';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
 
 const legacyStatusDefinitions = [
   {

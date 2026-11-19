@@ -1109,7 +1109,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Goal",
       role: "project-info",
       sections: [{ key: "description", label: "Description" }],
-      allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+      statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
       sessionRoleGuidance: { planning: "Plan goals with owners." },
     };
 
@@ -1135,11 +1135,11 @@ describe("WorkItemTypeFormPage", () => {
     it("shows changed and missing parts and collapses unchanged groups", () => {
       openOverrideComparison({
         ...overrideDefinition,
-        allowedStatuses: [
+        statuses: legacyStatuses([
           WorkStatus.Backlog,
           WorkStatus.Active,
           WorkStatus.Completed,
-        ],
+        ]),
         sessionRoleGuidance: {
           planning: "Plan goals with owners.",
           review: "Check due dates.",

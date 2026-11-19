@@ -85,7 +85,6 @@ export type TaskScalarField = 'dueDate' | 'tag';
 
 export interface InitialStatusPolicy {
   readonly initialStatus: string;
-  readonly hasSetInitialStatus: boolean;
 }
 
 export type {
@@ -178,8 +177,7 @@ function resolveGraphCapability(
  * {@link WorkItemTypeRules}; every axis traces to a definition field or the
  * capability map, with two derivations the DTO does not store directly:
  *   - `initialStatus` is the FIRST allowed status (the reseed orders the list so
- *     the intended initial status leads), and `hasSetInitialStatus` is a
- *     capability flag.
+ *     the intended initial status leads).
  *   - `allowedEdgeTargetEntityTypes` is the uniform {@link ALL_ENTITY_TYPES}; no
  *     definition field narrows it.
  * Pure and exported so the parity guard can exercise it against the built-ins.
@@ -215,7 +213,6 @@ export function deriveRules(
     allowedStatuses,
     initialStatusPolicy: {
       initialStatus: firstStatus.name,
-      hasSetInitialStatus: readCapability(caps, CAP.hasSetInitialStatus),
     },
     sections: definition.sections.map((section) => section.key),
     sectionDefinitions: definition.sections,

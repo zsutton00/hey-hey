@@ -29,6 +29,7 @@ const workItemTypeDefinitions: Record<string, WorkItemTypeDefinitionDto> = {
   FEATURE: {
     key: "FEATURE",
     label: "Feature",
+    statuses: [],
     sections: [
       { key: "description", label: "Description", writingStandard: "" },
       { key: "requirements", label: "Requirements", writingStandard: "" },
@@ -37,6 +38,7 @@ const workItemTypeDefinitions: Record<string, WorkItemTypeDefinitionDto> = {
   STANDARD: {
     key: "STANDARD",
     label: "Task",
+    statuses: [],
     sections: [
       { key: "description", label: "Description", writingStandard: "" },
       {
@@ -49,6 +51,7 @@ const workItemTypeDefinitions: Record<string, WorkItemTypeDefinitionDto> = {
   BUG: {
     key: "BUG",
     label: "Bug",
+    statuses: [],
     sections: [
       { key: "description", label: "Description", writingStandard: "" },
     ],
@@ -293,7 +296,7 @@ const renderEditor = (): void => {
       organizationId="org-1"
       projectId="project-1"
       title="Realtime Sync"
-    />
+    />,
   );
 };
 
@@ -313,7 +316,7 @@ describe("WorkItemEditor — Submit and Create Task", () => {
     await screen.findByTestId("save-reason-modal");
 
     expect(screen.getByTestId("save-reason-secondary")).toHaveTextContent(
-      "Submit and Create Task"
+      "Submit and Create Task",
     );
   });
 
@@ -325,7 +328,7 @@ describe("WorkItemEditor — Submit and Create Task", () => {
     await screen.findByTestId("save-reason-modal");
 
     expect(
-      screen.queryByTestId("save-reason-secondary")
+      screen.queryByTestId("save-reason-secondary"),
     ).not.toBeInTheDocument();
   });
 
@@ -337,7 +340,7 @@ describe("WorkItemEditor — Submit and Create Task", () => {
     await screen.findByTestId("save-reason-modal");
 
     expect(
-      screen.queryByTestId("save-reason-secondary")
+      screen.queryByTestId("save-reason-secondary"),
     ).not.toBeInTheDocument();
   });
 
@@ -348,7 +351,7 @@ describe("WorkItemEditor — Submit and Create Task", () => {
     await screen.findByTestId("save-reason-modal");
     await userEvent.type(
       screen.getByTestId("save-reason-input"),
-      "  Sharpening the spec  "
+      "  Sharpening the spec  ",
     );
     await userEvent.click(screen.getByTestId("save-reason-secondary"));
 
@@ -365,7 +368,7 @@ describe("WorkItemEditor — Submit and Create Task", () => {
     expect(launchInput.prompt).toContain("I just updated this feature.");
     expect(launchInput.prompt).toContain("Updated feature description");
     expect(launchInput.prompt).toContain(
-      "Please draft a task to implement these changes."
+      "Please draft a task to implement these changes.",
     );
     expect(launchInput.context).toEqual({
       entityId: "task-1",

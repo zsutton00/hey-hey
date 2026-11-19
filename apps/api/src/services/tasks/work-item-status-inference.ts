@@ -1,9 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-import type { WorkItemTypeStatus } from '../../generated/model/workItemTypeStatus';
-import type { WorkItemStatusAuthoringRequest } from '../../generated/model/workItemStatusAuthoringRequest';
-import type { WorkItemStatusAuthoringResponse } from '../../generated/model/workItemStatusAuthoringResponse';
-import { WorkItemStatusMeaning } from '../../generated/model/workItemStatusMeaning';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
+import type { WorkItemStatusAuthoringRequest } from '@hey-hey/contracts/api/models';
+import type { WorkItemStatusAuthoringResponse } from '@hey-hey/contracts/api/models';
+import { WorkItemStatusMeaning } from '@hey-hey/contracts/api/models';
 import {
   workItemTypeStatusSchema,
   workItemTypeStatusesSchema,

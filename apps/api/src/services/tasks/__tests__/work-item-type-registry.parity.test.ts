@@ -1,5 +1,5 @@
 import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
-import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,

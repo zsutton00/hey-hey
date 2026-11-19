@@ -1,4 +1,4 @@
-import { WorkStatus } from '../../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { EntityType, SummaryCategory } from '@prisma/client';
 import { EntityLifecycleProcessor } from '../../../core/processing/entity-lifecycle-processor.service';
 

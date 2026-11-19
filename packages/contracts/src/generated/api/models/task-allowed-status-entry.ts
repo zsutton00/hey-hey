@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -15,9 +14,6 @@ import { WorkStatus } from './work-status.js';
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * The complete set of work statuses a single task type permits.
@@ -32,14 +28,9 @@ export interface TaskAllowedStatusEntry {
      */
     'taskType': string;
     /**
-     * Every WorkStatus value valid for this task type.
-     * @type {Array<WorkStatus>}
+     * Every status value an item of this task type may hold — its ordinary statuses, ARCHIVED, and SUPERSEDED when eligible.
+     * @type {Array<string>}
      * @memberof TaskAllowedStatusEntry
      */
-    'allowedStatuses': Array<WorkStatus>;
-}
-
-export namespace TaskAllowedStatusEntry {
-    export const AllowedStatusesEnum = WorkStatus;
-    export type AllowedStatusesEnum = WorkStatus;
+    'allowedStatuses': Array<string>;
 }

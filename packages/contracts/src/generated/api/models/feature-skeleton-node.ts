@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { FeatureTag } from './feature-tag.js';
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -19,9 +18,6 @@ import { WorkStatus } from './work-status.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { FeatureTag } from './feature-tag.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * Compact, full-tree skeleton entry for a single FEATURE-typed task, consumed by the Feature Tree Conversation CLI at session init. Carries just enough shape (id, name, tag, status, parentId, depth, taskCount) to let the agent reason over the whole feature tree from its system prompt without round-tripping for detail. Direct (non-recursive) `taskCount` only — descendant rollups are derived agent-side from the flat array.
@@ -48,11 +44,11 @@ export interface FeatureSkeletonNode {
      */
     'tag': FeatureTag | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof FeatureSkeletonNode
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      * Parent FEATURE task ID, or null when this feature is a root in the project\'s feature hierarchy.
      * @type {string}
@@ -76,6 +72,4 @@ export interface FeatureSkeletonNode {
 export namespace FeatureSkeletonNode {
     export const TagEnum = FeatureTag;
     export type TagEnum = FeatureTag;
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
 }

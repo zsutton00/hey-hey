@@ -15,9 +15,9 @@ describe('feature-requirement-authoring.schemas', () => {
   });
 
   it('uses the contract-aligned group shape', () => {
-    expect(featureRequirementGroupSchema.safeParse('Access control').success).toBe(
-      true,
-    );
+    expect(
+      featureRequirementGroupSchema.safeParse('Access control').success,
+    ).toBe(true);
     expect(featureRequirementGroupSchema.safeParse('UI/UX').success).toBe(
       false,
     );

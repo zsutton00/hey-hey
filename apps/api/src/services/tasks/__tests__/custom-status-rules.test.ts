@@ -4,7 +4,7 @@ import {
   undeclaredAgentSettableStatuses,
   writtenAgentSettableStatuses,
 } from '../work-item-type-registry.service';
-import type { WorkItemTypeDefinitionDto } from '../../../generated/model/workItemTypeDefinitionDto';
+import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
 import { resolveWorkItemStatusAuthoring } from '../work-item-status-inference';
 
 const recipe = {

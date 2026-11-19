@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from '../../../generated/model/taskResponseDto';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 
 /* eslint-disable @typescript-eslint/unbound-method */
 /**

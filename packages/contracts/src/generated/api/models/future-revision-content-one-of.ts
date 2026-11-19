@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 import { TaskSource } from './task-source.js';
 import { TaskPriority } from './task-priority.js';
 import { FeatureTag } from './feature-tag.js';
@@ -57,9 +56,6 @@ import type { TrackedEntitySnapshot } from './tracked-entity-snapshot.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemConfigV1 } from './work-item-config-v1.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * @type FutureRevisionContentOneOf
@@ -70,8 +66,6 @@ export interface FutureRevisionContentOneOf extends FutureRevisionContentOneOfAl
 }
 
 export namespace FutureRevisionContentOneOf {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const SourceEnum = TaskSource;
     export type SourceEnum = TaskSource;
     export const PriorityEnum = TaskPriority;

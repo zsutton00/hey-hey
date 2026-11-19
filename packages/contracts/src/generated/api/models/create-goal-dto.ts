@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 import { TaskSource } from './task-source.js';
 import { TaskPriority } from './task-priority.js';
 /* tslint:disable */
@@ -26,9 +25,6 @@ import type { TaskSectionInput } from './task-section-input.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskSource } from './task-source.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * Type-specific helper for creating a `GOAL` task. Submit via the polymorphic `POST /tasks` endpoint with `type: GOAL`. Goals are top-level by definition: `parentTaskId` is intentionally omitted from this shape and the service rejects creating a GOAL with a non-null `parentTaskId`. A `dueDate` is optional; omission creates an undated Goal unless project-effective rules require a date. Goals carry a single `description` section.
@@ -55,11 +51,11 @@ export interface CreateGoalDto {
      */
     'initiativeId'?: string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof CreateGoalDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      *
      * @type {TaskSource}
@@ -87,8 +83,6 @@ export interface CreateGoalDto {
 }
 
 export namespace CreateGoalDto {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const SourceEnum = TaskSource;
     export type SourceEnum = TaskSource;
     export const PriorityEnum = TaskPriority;

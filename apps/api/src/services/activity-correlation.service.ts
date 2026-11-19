@@ -1,5 +1,5 @@
-import type { TaskResponseDto } from '../generated/model/taskResponseDto';
-import { WorkStatus } from '../generated/model/workStatus';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { hydrateActivityHistoryMetadata } from './activity-correlation/activity-history-metadata';
 import {
   BadRequestException,

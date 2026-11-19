@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
@@ -57,7 +58,7 @@ export const taskMonitorTypeBody = (projectId: string, kinds: readonly object[] 
       name: 'Task Monitor',
       role: 'monitor',
       sections: [],
-      allowedStatuses: ['BACKLOG', 'READY', 'ACTIVE', 'ON_HOLD', 'VERIFYING', 'COMPLETED'],
+      statuses: legacyStatuses(['BACKLOG', 'READY', 'ACTIVE', 'ON_HOLD', 'VERIFYING', 'COMPLETED']),
       capabilities: {
         requiresParent: true,
         planEligible: false,
@@ -71,6 +72,7 @@ export const taskMonitorTypeBody = (projectId: string, kinds: readonly object[] 
 });
 
 const TYPE_PATH = /\/projects\/([^/]+)\/work-item-types\/TASK_MONITOR$/u;
+const TASK_TYPE_PATH = /\/projects\/[^/]+\/work-item-types\/(?:STANDARD|BUG)$/u;
 const REPORTS_PATH = /\/organizations\/[^/]+\/reports\?/u;
 
 /** A MONITOR_NODE_RESULT report a node's session has recorded, as the API lists it. */
@@ -131,6 +133,17 @@ export const fetchServingMonitorKinds = (
           result.agentSessionId === query.get('entityId'),
       );
       return Promise.resolve(Response.json(reportListBody(sessionResults)));
+    }
+    if (TASK_TYPE_PATH.test(url)) {
+      return Promise.resolve(
+        Response.json({
+          data: {
+            definition: {
+              statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'COMPLETED', 'CANCELLED']),
+            },
+          },
+        }),
+      );
     }
     const projectId = TYPE_PATH.exec(url)?.[1];
     if (projectId === undefined) return fallback(input, init);

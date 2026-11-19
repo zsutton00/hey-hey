@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { WorkItemTypeStatus } from '../../generated/model/workItemTypeStatus';
-import { WorkItemStatusMeaning } from '../../generated/model/workItemStatusMeaning';
-import { WorkItemStatusCompletionBehavior } from '../../generated/model/workItemStatusCompletionBehavior';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
+import { WorkItemStatusMeaning } from '@hey-hey/contracts/api/models';
+import { WorkItemStatusCompletionBehavior } from '@hey-hey/contracts/api/models';
 
 export const workItemTypeStatusSchema = z
   .object({

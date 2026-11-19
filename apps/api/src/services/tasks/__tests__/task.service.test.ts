@@ -4782,7 +4782,7 @@ describe('TaskService', () => {
     it('hydrates archived mutation results within the organization', async () => {
       const archivedTask = {
         ...mockTaskData,
-        status: WorkStatus.ARCHIVED,
+        status: WorkStatus.Archived,
         archivedAt: new Date(),
       };
       (mockPrismaService.db.task.findFirst as jest.Mock).mockImplementation(
@@ -4866,7 +4866,7 @@ describe('TaskService', () => {
               id: testIds.task,
               organizationId: testIds.organization,
               archivedAt: null,
-              status: { not: WorkStatus.ARCHIVED },
+              status: { not: WorkStatus.Archived },
             },
             protectedTypes,
           ],
@@ -4908,7 +4908,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
     });

@@ -1,4 +1,4 @@
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 

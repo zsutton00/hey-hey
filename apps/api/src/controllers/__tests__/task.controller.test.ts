@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { ProjectResourceAccessService } from '../../auth/services/project-resource-access.service';
 import {

@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from "../../../../../packages/ui-common/src/api/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";

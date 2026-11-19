@@ -665,7 +665,7 @@ describe("TaskPage data debug tab", () => {
       mockWorkItemTypeDefinition = createDefinition({
         key: "MARKETING",
         name: "Marketing",
-        allowedStatuses: [WorkStatus.Backlog, WorkStatus.Archived],
+        statuses: legacyStatuses([WorkStatus.Backlog]),
       });
       if (outcome === "failed") {
         mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));

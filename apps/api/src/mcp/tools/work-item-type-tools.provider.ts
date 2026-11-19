@@ -26,7 +26,7 @@ import {
   statusAuthoringRequestSchema,
 } from '../../services/tasks/work-item-status-inference';
 import { workItemTypeStatusSchema } from '../../services/tasks/work-item-type-status.schema';
-import type { WorkItemStatusAuthoringResponse } from '../../generated/model/workItemStatusAuthoringResponse';
+import type { WorkItemStatusAuthoringResponse } from '@hey-hey/contracts/api/models';
 
 // MCP schema generation requires a plain ZodObject; the handler enforces
 // the conditional sessionRole requirement instead of a top-level refinement.

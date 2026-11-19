@@ -20,6 +20,7 @@ import { TERMS } from "@hey-hey/ui-common/i18n";
 import {
   EntityType,
   TaskPriority as Priority,
+  WorkStatus,
   type ContextRelatedEntityDto,
   type EntityContextDtoProposalsInner,
   type PlanContextEntryDto,

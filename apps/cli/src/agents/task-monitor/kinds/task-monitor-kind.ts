@@ -2,7 +2,6 @@ import { parseEffectiveWorkItemTypeDefinition } from '../../prompts/work-item-ty
 import { monitorOperationPolicyIssues } from '@hey-hey/contracts/monitor-kind-policy';
 import { z } from 'zod';
 import {
-  WorkStatus,
   type TaskMonitorLaunchConfig,
   type TaskMonitorOperationEvidence,
   type WorkItemTypeMonitorKind,
@@ -10,19 +9,26 @@ import {
 } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import { taskMonitorConversationWorkflow } from '../../../commands/agent-session-starter';
+import {
+  isDeliveredStatus,
+  resolveCompletionStatus,
+  workItemTypeStatusesEnvelopeSchema,
+} from '../task-finished-status';
 import { TaskMonitorTaskCoordinatorInputs } from './task-monitor-task-coordinator-inputs';
 import type {
   TaskMonitorNodeResultReader,
   TaskMonitorNodeResultScope,
 } from './task-monitor-node-result-reader';
-import type { PlatformAuth } from '../../../server/platform-auth-context';
+import type { PlatformAuth, PlatformAuthContext } from '../../../server/platform-auth-context';
 import type { ServerLogger } from '../../../server/logger';
 import type {
   TaskMonitorStartRuntime,
   TaskMonitorStartTask,
 } from '../../../server/task-monitor-start';
 
-const workItemStatusSchema = z.object({ status: z.nativeEnum(WorkStatus) }).passthrough();
+const workItemStatusSchema = z
+  .object({ type: z.string().min(1), status: z.string().min(1) })
+  .passthrough();
 const workItemStatusEnvelopeSchema = z.object({ data: workItemStatusSchema }).passthrough();
 
 export interface TaskMonitorNodeScope {
@@ -42,6 +48,7 @@ export interface TaskMonitorKindDependencies {
   readonly runtime: TaskMonitorStartRuntime;
   readonly apiBaseUrl: string;
   readonly fetchImpl: typeof fetch;
+  readonly authContext: Pick<PlatformAuthContext, 'getAccessToken'>;
   readonly logger: ServerLogger;
   readonly results: TaskMonitorNodeResultReader;
 }
@@ -233,11 +240,16 @@ export class TaskMonitorKind {
    */
   public async isDone(
     scope: Omit<TaskMonitorNodeScope, 'nodeId'>,
-    node: Pick<TaskMonitorStartTask, 'id' | 'status'>,
+    node: Pick<TaskMonitorStartTask, 'id' | 'status' | 'type'>,
     agentSessionId: string | null,
   ): Promise<boolean> {
     const { done } = this.configuration;
     if (done.type === 'ITEM_STATUS') {
+      if (this.configuration.acceptance.type === 'COMPLETE_ITEM' && node.status !== undefined) {
+        const accessToken = await this.dependencies.authContext.getAccessToken();
+        const statuses = await this.readTypeStatuses({ ...scope, accessToken }, node.type);
+        return isDeliveredStatus(statuses, node.status);
+      }
       return node.status === done.status;
     }
     return this.hasAcceptedResult({ ...scope, nodeId: node.id }, agentSessionId);
@@ -247,7 +259,11 @@ export class TaskMonitorKind {
   public async readDone(auth: PlatformAuth, recorded: TaskMonitorRecordedNode): Promise<boolean> {
     const { done } = this.configuration;
     if (done.type === 'ITEM_STATUS') {
-      return (await this.readStatus(auth, recorded.nodeId)) === done.status;
+      const item = await this.readItemStatus(auth, recorded.nodeId);
+      if (this.configuration.acceptance.type === 'COMPLETE_ITEM') {
+        return isDeliveredStatus(await this.readTypeStatuses(auth, item.type), item.status);
+      }
+      return item.status === done.status;
     }
     return this.hasAcceptedResult(
       { organizationId: auth.organizationId, projectId: auth.projectId, nodeId: recorded.nodeId },
@@ -288,20 +304,30 @@ export class TaskMonitorKind {
         : { accepted: false, reason: 'Selected node has no accepted normalized result.' };
     }
 
-    if ((await this.readStatus(auth, recorded.nodeId)) !== WorkStatus.Completed) {
-      await this.patchStatus(auth, recorded.nodeId, WorkStatus.Completed);
+    const item = await this.readItemStatus(auth, recorded.nodeId);
+    const statuses = await this.readTypeStatuses(auth, item.type);
+    if (!isDeliveredStatus(statuses, item.status)) {
+      const target = resolveCompletionStatus(statuses, { id: recorded.nodeId, type: item.type });
+      if (!target.ok) {
+        this.dependencies.logger.error('task_monitor.kind.accept.completion_status_unresolved', {
+          kind: this.key,
+          nodeId: recorded.nodeId,
+          reason: target.reason,
+        });
+        return { accepted: false, reason: target.reason };
+      }
+      await this.patchStatus(auth, recorded.nodeId, target.status);
     }
-    const settled = await this.readStatus(auth, recorded.nodeId);
-    if (settled !== WorkStatus.Completed) {
+    const settled = await this.readItemStatus(auth, recorded.nodeId);
+    if (!isDeliveredStatus(statuses, settled.status)) {
       this.dependencies.logger.warn('task_monitor.kind.accept.not_settled', {
         kind: this.key,
         nodeId: recorded.nodeId,
-        status: settled,
-        expected: WorkStatus.Completed,
+        status: settled.status,
       });
       return {
         accepted: false,
-        reason: `Selected Task did not settle ${WorkStatus.Completed.toLowerCase()} (${settled}).`,
+        reason: `Selected Task did not settle finished (${settled.status}).`,
       };
     }
     return { accepted: true };
@@ -424,7 +450,7 @@ export class TaskMonitorKind {
     );
   }
 
-  private async patchStatus(auth: PlatformAuth, nodeId: string, status: WorkStatus): Promise<void> {
+  private async patchStatus(auth: PlatformAuth, nodeId: string, status: string): Promise<void> {
     const response = await this.dependencies.fetchImpl(this.urlFor(auth, nodeId), {
       method: 'PATCH',
       headers: {
@@ -449,7 +475,24 @@ export class TaskMonitorKind {
     }
   }
 
-  private async readStatus(auth: PlatformAuth, nodeId: string): Promise<WorkStatus> {
+  private async readTypeStatuses(
+    auth: Pick<PlatformAuth, 'organizationId' | 'projectId' | 'accessToken'>,
+    type: string,
+  ) {
+    const url =
+      `${this.baseUrl}/organizations/${encodeURIComponent(auth.organizationId)}` +
+      `/projects/${encodeURIComponent(auth.projectId)}/work-item-types/${encodeURIComponent(type)}`;
+    const response = await this.dependencies.fetchImpl(url, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Selected Task type read failed with status ${response.status}.`);
+    }
+    const result = workItemTypeStatusesEnvelopeSchema.parse(await response.json());
+    return result.data.definition.statuses;
+  }
+
+  private async readItemStatus(auth: PlatformAuth, nodeId: string) {
     const response = await this.dependencies.fetchImpl(this.urlFor(auth, nodeId), {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     });
@@ -464,11 +507,11 @@ export class TaskMonitorKind {
     const payload: unknown = await response.json();
     const envelope = workItemStatusEnvelopeSchema.safeParse(payload);
     if (envelope.success) {
-      return envelope.data.data.status;
+      return envelope.data.data;
     }
     const direct = workItemStatusSchema.safeParse(payload);
     if (direct.success) {
-      return direct.data.status;
+      return direct.data;
     }
     this.dependencies.logger.error('task_monitor.kind.read.invalid_response', {
       kind: this.key,

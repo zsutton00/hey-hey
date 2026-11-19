@@ -55,10 +55,10 @@ describe('Contract writing-standards migration', () => {
     expect(sql).toContain(
       'each evidenced authoring or enforcement participant with `workflow_step DEPENDS_ON Contract`',
     );
+    expect(sql).toContain('let the known boundary determine participant count');
     expect(sql).toContain(
-      'let the known boundary determine participant count',
+      'exclude steps that merely consume output or occur downstream',
     );
-    expect(sql).toContain('exclude steps that merely consume output or occur downstream');
     expect(sql).toContain('Keep flow and `FULFILLED_BY` links separate');
   });
 });

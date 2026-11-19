@@ -1,4 +1,4 @@
-import { WorkStatus } from '../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {

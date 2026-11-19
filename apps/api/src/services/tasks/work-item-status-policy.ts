@@ -5,7 +5,7 @@ export function formatWorkItemStatusNotAllowedMessage(
 ): string {
   return `Status ${status} is not allowed for ${typeKey} (allowed: ${allowedStatuses.join(', ')}).`;
 }
-import { WorkStatus } from '../../generated/model/workStatus';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 
 export function isOrdinaryStatusAssignmentAllowed(
   status: string,

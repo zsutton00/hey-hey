@@ -1508,7 +1508,7 @@ WorkItemCreateOperation:
     parent:
       $ref: "#/WorkItemChangeSetIdentity"
     status:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     priority:
       $ref: "./tasks.yaml#/TaskPriority"
     dueDate:
@@ -1558,7 +1558,7 @@ WorkItemUpdateOperation:
       allOf:
         - $ref: "#/WorkItemChangeSetIdentity"
     status:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     priority:
       $ref: "./tasks.yaml#/TaskPriority"
     dueDate:
@@ -2182,7 +2182,7 @@ ProjectedWorkItem:
       nullable: true
       $ref: "#/WorkItemChangeSetIdentity"
     status:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     priority:
       $ref: "./tasks.yaml#/TaskPriority"
     dueDate:

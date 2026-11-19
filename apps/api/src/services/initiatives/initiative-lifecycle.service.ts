@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from '../../generated/model/taskResponseDto';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 
 import { Injectable, Logger } from '@nestjs/common';
 

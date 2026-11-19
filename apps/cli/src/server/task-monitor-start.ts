@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from '../shared/api/generated/api';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
@@ -265,6 +265,7 @@ export class TaskMonitorStartRuntime {
       return new TaskMonitorKind(
         {
           runtime: this,
+          authContext: this.dependencies.authContext,
           apiBaseUrl: this.dependencies.apiBaseUrl,
           fetchImpl: this.dependencies.fetchImpl,
           logger: this.dependencies.logger,
