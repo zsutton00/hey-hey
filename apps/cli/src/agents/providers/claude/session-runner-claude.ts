@@ -601,11 +601,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const sessionPreApproved =
         this.activeAllowedToolNames.has(toolName) ||
         isMintedUserMcpTool(toolName, this.mintedUserMcpConfig?.serverNames ?? []);
-      if (
-        this.alwaysAllowedTools.has(baseToolName) ||
-        sessionPreApproved ||
-        this.skipAllPermissions
-      ) {
+      const alwaysAllowed = this.alwaysAllowedTools.has(baseToolName);
+      if (alwaysAllowed || sessionPreApproved || this.skipAllPermissions) {
         requestContext.log(
           this.logger,
           'info',
@@ -665,6 +662,12 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         {
           toolName,
           agenticSessionId: this.activeAgenticSessionId,
+          approvalReason: 'skip_permissions_off_and_tool_not_allowlisted',
+          skipPermissions: this.skipAllPermissions,
+          alwaysAllowed,
+          sessionPreApproved,
+          providerPermissionMode: this.providerPermissionMode ?? 'default',
+          taskMonitorId: this.agentOutputOwner?.taskMonitorId ?? null,
           inputSummary: permissionInputSummary,
           sameToolPendingCount: sameToolPending.length,
           sameToolPendingInputs: sameToolPending.map((p) =>
@@ -2050,7 +2053,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
               hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
                 ...this.activeAllowedToolNames,
               ]),
-              hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
+              productDevelopment: sessionStartContext.productDevelopment,
             },
           )
         : null;
@@ -2912,7 +2915,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
               ...this.activeAllowedToolNames,
             ]),
-            hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
+            productDevelopment: sessionStartContext.productDevelopment,
           },
         );
       } catch (err: unknown) {
