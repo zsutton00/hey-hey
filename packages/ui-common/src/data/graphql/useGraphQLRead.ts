@@ -12,6 +12,7 @@ export interface GraphQLReadSpec<
   TData,
 > {
   document: TypedDocumentNode<TQuery, TVariables>;
+  fetchPolicy?: "network-only";
   variables: TVariables;
   scope: GraphQLProjectScope;
   /** `null` is a valid answer: the read succeeded and found nothing. */
@@ -48,6 +49,8 @@ export function useGraphQLRead<
     refetch,
   } = useQuery(spec.document, {
     client,
+    fetchPolicy: spec.fetchPolicy,
+    refetchWritePolicy: "merge",
     variables: spec.variables,
     context: spec.scope,
     skip: !enabled,

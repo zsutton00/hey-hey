@@ -26,6 +26,7 @@ export {
   invalidateAllDataLayerQueries,
   invalidateProjectWorkItemQueries,
 } from "./query/dataLayerInvalidation";
+export { GraphQLProvider } from "./graphql/GraphQLProvider";
 export { DataHooksProvider } from "./DataHooksProvider";
 export {
   buildCrossProjectActivityRequest,

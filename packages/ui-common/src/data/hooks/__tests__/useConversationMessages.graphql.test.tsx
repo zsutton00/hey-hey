@@ -1,4 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { createStore } from "jotai/vanilla";
+import { WebSocketHandler } from "../../websockets/handler";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { projectsClient } from "../../../clients/serviceClients";
 import {
@@ -160,6 +162,47 @@ describe("useConversationMessages over GraphQL", () => {
       "m21",
     ]);
     expect(result.current.hasOlder).toBe(true);
+  });
+
+  it("recovers backward across disjoint pages after the delta cursor is rejected", async () => {
+    const server = new FakeConversationServer(threadOf(8));
+    const { result } = mountThread(server);
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+
+    server.remove("m7");
+    server.append(...threadOf(25).slice(8));
+    await act(() => result.current.refetch());
+
+    expect(result.current.error).toBeNull();
+    expect(ids(result.current.orderedData)).toEqual(ids(server.thread));
+    expect(result.current.hasOlder).toBe(false);
+    expect(server.received("GetConversationMessages")).toEqual([
+      { id: "conv-1", after: "m7" },
+    ]);
+    expect(server.received("GetConversationMessageHistory")).toEqual([
+      { id: "conv-1", last: 8 },
+      { id: "conv-1", last: 8 },
+      { id: "conv-1", last: 8, before: "m18" },
+      { id: "conv-1", last: 8, before: "m10" },
+    ]);
+  });
+
+  it("clears the thread on reconnect when all messages were deleted while disconnected", async () => {
+    const server = new FakeConversationServer(threadOf(8));
+    const { result } = mountThread(server);
+    await waitFor(() => expect(result.current.orderedData).toHaveLength(8));
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      server.queryClient,
+      server.graphql.apollo,
+    );
+
+    server.thread = [];
+    act(() => handler.markAllStale());
+
+    await waitFor(() => expect(result.current.orderedData).toEqual([]));
+    expect(result.current.hasOlder).toBe(false);
   });
 
   it("shows the same thread to every view of the conversation", async () => {

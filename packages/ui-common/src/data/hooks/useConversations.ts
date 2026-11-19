@@ -89,6 +89,7 @@ export function useConversations(
 
   useWebsocketSubscriptions(
     {
+      projectIds: projectId ? [projectId] : [],
       conversationIds: Array.isArray(data) ? data.map((conv) => conv.id) : [],
     },
     {

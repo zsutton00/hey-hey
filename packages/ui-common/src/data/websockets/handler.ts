@@ -50,6 +50,7 @@ import {
   refreshConversationThread,
   refreshLatestMessage,
   refreshMessage,
+  refreshMessageReplies,
   refreshShownConversationReads,
 } from "../graphql/conversationCache";
 import { getGraphQLClients, getProjectGraphQLClient } from "../graphql/client";
@@ -533,6 +534,16 @@ export class WebSocketHandler {
           break;
         case "message.created":
           this.refreshConversationMessages(event);
+          if (event.projectId && event.conversationId) {
+            void refreshMessageReplies(
+              this.graphqlClient,
+              {
+                organizationId: event.organizationId,
+                projectId: event.projectId,
+              },
+              event.conversationId,
+            );
+          }
           break;
         case "message.deleted":
           this.removeDeletedMessage(event);
@@ -1127,7 +1138,16 @@ export class WebSocketHandler {
       },
       {
         invalidateWorkItem: this.invalidateWorkItem,
-        invalidateConversation: this.invalidateConversation,
+        invalidateConversation: (conversationId) => {
+          if (event.type === "conversation.status_changed" && event.projectId) {
+            void refreshConversation(this.graphqlClient, conversationId, {
+              organizationId: event.organizationId,
+              projectId: event.projectId,
+            });
+          } else {
+            this.invalidateConversation(conversationId);
+          }
+        },
       },
     );
 

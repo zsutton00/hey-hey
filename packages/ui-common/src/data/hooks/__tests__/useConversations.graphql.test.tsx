@@ -53,6 +53,10 @@ describe("conversation reads over GraphQL", () => {
   });
 
   it("lists the conversations matching the requested statuses", async () => {
+    server.conversations = server.conversations.map((conversation) => ({
+      ...conversation,
+      status: "COMPLETED",
+    }));
     const { result } = renderHook(
       () =>
         useConversations("org-1", "project-1", {

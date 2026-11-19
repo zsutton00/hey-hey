@@ -174,10 +174,15 @@ export function answerConversationOperation(
       return ok({ conversation: conversationNode });
     case "GetConversations":
     case "GetActiveConversations":
-    case "GetWorkflowConversations":
-      return ok({
-        page: { __typename: "ConversationPage", nodes: conversations },
-      });
+    case "GetWorkflowConversations": {
+      const statuses = variables.statuses;
+      const nodes = conversations.filter((conversation) =>
+        operationName === "GetActiveConversations"
+          ? conversation.status !== "COMPLETED"
+          : !Array.isArray(statuses) || statuses.includes(conversation.status),
+      );
+      return ok({ page: { __typename: "ConversationPage", nodes } });
+    }
     default:
       return {
         status: 400,

@@ -1,13 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore } from "jotai/vanilla";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ConversationStatus } from "../../../api";
 import { projectsClient } from "../../../clients/serviceClients";
 import {
+  conversationNode,
   FakeConversationServer,
   threadOf,
 } from "../../../test/conversationGraphQL";
 import { resetConversationMessageHistoryStateForTests } from "../../collections/conversationMessageHistoryState";
 import { useConversation } from "../../hooks/useConversation";
+import { useConversations } from "../../hooks/useConversations";
 import { useConversationMessages } from "../../hooks/useConversationMessages";
 import { useLatestMessage } from "../../hooks/useLatestMessage";
 import { useMessage } from "../../hooks/useMessage";
@@ -173,22 +176,89 @@ describe("conversation and message events over GraphQL", () => {
     });
   });
 
-  it("refetches a conversation shown in a view when it is updated", async () => {
-    const views = await mountViews();
-    const before = server.received("GetConversation").length;
+  it("moves a conversation between mounted status lists in its project", async () => {
+    server.conversationsByPath.set(
+      "/organizations/org-1/projects/other-project/graphql",
+      [
+        {
+          ...conversationNode,
+          id: "other-conversation",
+          projectId: "other-project",
+        },
+      ],
+    );
+    const { result } = renderHook(
+      () => ({
+        active: useConversations("org-1", "project-1"),
+        completed: useConversations("org-1", "project-1", {
+          statuses: [ConversationStatus.Completed],
+        }),
+        unrelated: useConversations("org-1", "other-project"),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.active.data?.map((item) => item.id)).toEqual([
+        "conv-1",
+      ]);
+      expect(result.current.completed.data).toEqual([]);
+      expect(result.current.unrelated.data?.map((item) => item.id)).toEqual([
+        "other-conversation",
+      ]);
+    });
 
+    server.conversations = [
+      { ...conversationNode, status: ConversationStatus.Completed },
+    ];
     act(() =>
       handler.handleEvent({
         type: "conversation.status_changed",
         ...scope,
-        previousStatus: "ACTIVE",
-        newStatus: "COMPLETED",
-      } as never),
+        previousStatus: ConversationStatus.InProgress,
+        newStatus: ConversationStatus.Completed,
+      }),
     );
 
-    await waitFor(() =>
-      expect(server.received("GetConversation").length).toBeGreaterThan(before),
+    await waitFor(() => {
+      expect(result.current.active.data).toEqual([]);
+      expect(result.current.completed.data?.map((item) => item.id)).toEqual([
+        "conv-1",
+      ]);
+    });
+    expect(server.received("GetActiveConversations")).toHaveLength(3);
+  });
+
+  it("shows a new reply and edits to it with only the parent detail mounted", async () => {
+    const { result } = renderHook(
+      () => useMessage("org-1", "project-1", "m10"),
+      { wrapper: server.wrapper },
     );
-    expect(views.result.current.conversation.data?.id).toBe("conv-1");
+    await waitFor(() => expect(result.current.data?.responses).toEqual([]));
+
+    server.append({ ...threadOf(11)[10], parentMessageId: "m10" });
+    act(() =>
+      handler.handleEvent({
+        type: "message.created",
+        ...scope,
+        messageId: "m11",
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.data?.responses?.[0]?.id).toBe("m11"),
+    );
+
+    server.rename("m11", { response: "edited reply" });
+    act(() =>
+      handler.handleEvent({
+        type: "message.updated",
+        ...scope,
+        messageId: "m11",
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.data?.responses?.[0]?.data).toEqual({
+        response: "edited reply",
+      }),
+    );
   });
 });

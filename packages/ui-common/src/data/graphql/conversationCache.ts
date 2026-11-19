@@ -67,15 +67,21 @@ const activeReads = (client: ApolloClient, names: ReadonlySet<string>) =>
       (query) => query.queryName !== undefined && names.has(query.queryName),
     );
 
-/** Refetches the active reads of one conversation, and every list holding it. */
+/** Refetches the detail and the lists affected by a conversation change. */
 export async function refreshConversation(
   client: ApolloClient,
   conversationId: string,
+  membershipScope?: GraphQLProjectScope,
 ): Promise<void> {
-  const lists = activeReads(client, CONVERSATION_LIST_READS).filter((query) =>
-    holdsEntity(query.getCurrentResult().data, conversationId),
+  const listClient = membershipScope
+    ? getProjectGraphQLClient(client, membershipScope)
+    : client;
+  const lists = activeReads(listClient, CONVERSATION_LIST_READS).filter(
+    (query) =>
+      membershipScope ||
+      holdsEntity(query.getCurrentResult().data, conversationId),
   );
-  const details = activeReads(client, CONVERSATION_READS).filter(
+  const details = activeReads(listClient, CONVERSATION_READS).filter(
     (query) => variableOf(query, "id") === conversationId,
   );
 
@@ -102,6 +108,17 @@ export async function refreshConversationThread(
   conversationId: string,
 ): Promise<void> {
   client = getProjectGraphQLClient(client, scope);
+  const fullThreadReads = activeReads(
+    client,
+    new Set(["GetConversationMessages"]),
+  ).filter((query) => variableOf(query, "id") === conversationId);
+  if (fullThreadReads.length) {
+    await Promise.all(
+      fullThreadReads.map((query) => query.refetch().catch(() => null)),
+    );
+    return;
+  }
+
   const isShown = [...client.getObservableQueries("active")].some(
     (query) =>
       query.queryName === "GetConversationMessageHistory" &&
@@ -126,6 +143,28 @@ export async function refreshLatestMessage(
   );
 }
 
+/** A created event has no parent ID, so refetch details in its conversation. */
+export async function refreshMessageReplies(
+  client: ApolloClient,
+  scope: GraphQLProjectScope,
+  conversationId: string,
+): Promise<void> {
+  const project = getProjectGraphQLClient(client, scope);
+  const details = activeReads(project, new Set(["GetMessage"])).filter(
+    (query) => {
+      const id = variableOf(query, "id");
+      if (typeof id !== "string") {
+        return false;
+      }
+      return (
+        project.readQuery({ query: GetMessageDocument, variables: { id } })
+          ?.message.conversationId === conversationId
+      );
+    },
+  );
+  await Promise.all(details.map((query) => query.refetch().catch(() => null)));
+}
+
 /** Updates a message shown in a thread or in an active detail read. */
 export async function refreshMessage(
   client: ApolloClient,
@@ -134,35 +173,39 @@ export async function refreshMessage(
   messageId: string,
 ): Promise<void> {
   const project = getProjectGraphQLClient(client, scope);
-  const details = activeReads(project, new Set(["GetMessage"])).filter(
-    (query) => variableOf(query, "id") === messageId,
+  const details = activeReads(project, new Set(["GetMessage"]));
+  const matchingDetails = details.filter(
+    (query) =>
+      variableOf(query, "id") === messageId ||
+      holdsEntity(query.getCurrentResult().data, messageId),
   );
-  if (details.length) {
-    await Promise.all(
-      details.map((query) => query.refetch().catch(() => null)),
-    );
-    return;
-  }
+  const refreshes = matchingDetails.map((query) =>
+    query.refetch().catch(() => null),
+  );
 
   const threadIsShown = activeReads(
     project,
     new Set(["GetConversationMessageHistory"]),
   ).some((query) => variableOf(query, "id") === conversationId);
   if (
+    !matchingDetails.some((query) => variableOf(query, "id") === messageId) &&
     threadIsShown &&
     readLoadedThread(project, conversationId)?.nodes.some(
       (message) => message.id === messageId,
     )
   ) {
-    await project
-      .query({
-        query: GetMessageDocument,
-        variables: { id: messageId },
-        context: scope,
-        fetchPolicy: "network-only",
-      })
-      .catch(() => null);
+    refreshes.push(
+      project
+        .query({
+          query: GetMessageDocument,
+          variables: { id: messageId },
+          context: scope,
+          fetchPolicy: "network-only",
+        })
+        .catch(() => null),
+    );
   }
+  await Promise.all(refreshes);
 }
 
 /** The proposals a cached message carries or suggests, for review refreshes. */
@@ -266,6 +309,7 @@ export async function refreshShownConversationReads(
     ...CONVERSATION_LIST_READS,
     "GetLatestMessage",
     "GetMessage",
+    "GetConversationMessages",
   ]);
   const shown = [...getGraphQLClients(client)].flatMap((project) =>
     [...project.getObservableQueries("active")].map((query) => ({

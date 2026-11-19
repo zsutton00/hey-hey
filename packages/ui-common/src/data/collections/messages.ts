@@ -12,7 +12,7 @@ import {
   GetConversationMessagesDocument,
   GetLatestMessageDocument,
   GetMessageDocument,
-  ReadConversationThreadDocument,
+  type GetConversationMessageHistoryQuery,
   type GetLatestMessageQuery,
   type GetLatestMessageQueryVariables,
   type GetMessageQuery,
@@ -265,8 +265,8 @@ export const latestMessageRead = (
 /** The thread as the cache holds it right now; never reads the network. */
 export function readLoadedThread(client: ApolloClient, conversationId: string) {
   const loaded = client.readQuery({
-    query: ReadConversationThreadDocument,
-    variables: { id: conversationId },
+    query: GetConversationMessageHistoryDocument,
+    variables: { id: conversationId, last: MESSAGE_PAGE_SIZE },
   });
 
   return loaded?.conversation.messages ?? null;
@@ -289,39 +289,84 @@ const isRejectedCursor = (error: unknown): boolean =>
   extractErrorCode(error) ===
   MessageCursorNotFoundErrorDto.CodeEnum.MessageCursorNotFound;
 
-async function readRecentPage(
+type HistoryPage =
+  GetConversationMessageHistoryQuery["conversation"]["messages"];
+
+async function recoverRecentHistory(
   client: ApolloClient,
   scope: GraphQLProjectScope,
   conversationId: string,
+  retained: readonly ThreadPosition[],
 ): Promise<void> {
-  await client.query({
-    query: GetConversationMessageHistoryDocument,
-    variables: { id: conversationId, last: MESSAGE_PAGE_SIZE },
-    context: scope,
-    fetchPolicy: "network-only",
-  });
+  const query = GetConversationMessageHistoryDocument;
+  const variables = { id: conversationId, last: MESSAGE_PAGE_SIZE };
+  const retainedIds = new Set(retained.map(({ id }) => id));
+  const pages: HistoryPage[] = [];
+  let before: string | null = null;
+
+  // Keep the previous timeline visible until the entire gap has been read.
+  while (true) {
+    const { data } = await client.query({
+      query,
+      variables: { ...variables, ...(before && { before }) },
+      context: scope,
+      fetchPolicy: "no-cache",
+    });
+    if (!data) {
+      throw new Error("Message history read returned no data");
+    }
+
+    const page: HistoryPage = data.conversation.messages;
+    pages.push(page);
+    if (
+      !retainedIds.size ||
+      page.nodes.some(({ id }) => retainedIds.has(id)) ||
+      !page.hasOlder
+    ) {
+      client.writeQuery({
+        query,
+        variables,
+        data: {
+          conversation: {
+            ...data.conversation,
+            messages: {
+              ...page,
+              endCursor: pages[0].endCursor,
+              nodes: pages.reverse().flatMap(({ nodes }) => nodes),
+            },
+          },
+        },
+      });
+
+      return;
+    }
+
+    before = page.startCursor;
+    if (!before) {
+      throw new Error("Message history read did not return an older cursor");
+    }
+  }
 }
 
 /**
  * Brings the conversation's loaded thread up to date. With nothing loaded it
  * reads the newest page. With a thread loaded it reads only the messages
  * after the delta cursor, and falls back to the newest page when the server
- * rejects that cursor. Every read lands in the one list the cache keeps, so
- * older pages already loaded are never dropped.
+ * rejects that cursor. Recovery reads backward until it reaches the loaded
+ * history or the start of the thread.
  */
 async function refreshThread(
   client: ApolloClient,
   scope: GraphQLProjectScope,
   conversationId: string,
 ): Promise<void> {
-  const cursor = getDeltaFetchCursorId(
-    readLoadedThread(client, conversationId)?.nodes,
-  );
+  const retained = readLoadedThread(client, conversationId)?.nodes ?? [];
+  const cursor = getDeltaFetchCursorId(retained);
   if (!cursor) {
     logger.info("data_collections", "[messages] recent page", {
       cid: conversationId,
     });
-    await readRecentPage(client, scope, conversationId);
+    await recoverRecentHistory(client, scope, conversationId, retained);
 
     return;
   }
@@ -341,7 +386,7 @@ async function refreshThread(
       cid: conversationId,
       since: cursor,
     });
-    await readRecentPage(client, scope, conversationId);
+    await recoverRecentHistory(client, scope, conversationId, retained);
   }
 }
 

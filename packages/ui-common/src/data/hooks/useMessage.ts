@@ -4,6 +4,8 @@ import type { CollectionHookOptions, DataHookReturn } from "../core/types";
 import { messageRead } from "../collections/messages";
 import { useGraphQLRead } from "../graphql/useGraphQLRead";
 
+import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
+
 export type UseMessageReturn = DataHookReturn<MessageRecordDto>;
 
 export function useMessage(
@@ -24,7 +26,7 @@ export function useMessage(
     [organizationId, projectId, messageId],
   );
 
-  return useGraphQLRead(spec, {
+  const message = useGraphQLRead(spec, {
     enabled:
       (options.enabled ?? true) &&
       !!organizationId &&
@@ -34,4 +36,10 @@ export function useMessage(
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
   });
+  const conversationId = message.data?.conversationId;
+  useWebsocketSubscriptions(
+    { conversationIds: conversationId ? [conversationId] : [] },
+    { enabled: options.enabled !== false && !!messageId },
+  );
+  return message;
 }
