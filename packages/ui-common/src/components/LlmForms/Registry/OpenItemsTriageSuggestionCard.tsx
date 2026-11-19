@@ -20,6 +20,8 @@ export interface OpenItemsTriageSuggestionCardProps {
   outcome: TriageOutcome;
   selected: boolean;
   disabled: boolean;
+  /** Why this card cannot be accepted or applied right now. */
+  unavailableReason?: string;
   onSelect: () => void;
   onApply: () => void;
   itemHref: (item: OpenItemsTriageItem) => string;
@@ -43,7 +45,8 @@ export function OpenItemsTriageSuggestionCard({
   suggestion,
   outcome,
   selected,
-  disabled,
+  disabled: disabledProp,
+  unavailableReason,
   onSelect,
   onApply,
   itemHref,
@@ -53,6 +56,7 @@ export function OpenItemsTriageSuggestionCard({
     suggestion.kind === "promoteGroupToGoal"
       ? suggestion.affectedMembers
       : suggestion.items;
+  const disabled = disabledProp || !!unavailableReason;
   const busy = outcome.state === "pending";
   return (
     <Paper
@@ -74,7 +78,7 @@ export function OpenItemsTriageSuggestionCard({
           <Typography fontWeight={600}>
             {t(
               `triage.kind.${suggestion.kind}`,
-              operationLabels[suggestion.kind]
+              operationLabels[suggestion.kind],
             )}
           </Typography>
         </Stack>
@@ -96,6 +100,11 @@ export function OpenItemsTriageSuggestionCard({
           <Typography>
             {suggestion.groupName} → {suggestion.goalName}
           </Typography>
+        )}
+        {unavailableReason && (
+          <Alert severity="info" data-testid="triage-unavailable">
+            {unavailableReason}
+          </Alert>
         )}
         {items.map((item) => (
           <Link
@@ -125,8 +134,8 @@ export function OpenItemsTriageSuggestionCard({
               outcome.state === "failure"
                 ? "warning"
                 : outcome.state === "success"
-                ? "success"
-                : "info"
+                  ? "success"
+                  : "info"
             }
             data-testid="triage-outcome"
           >
@@ -170,8 +179,8 @@ export function OpenItemsTriageSuggestionCard({
             {outcome.state === "failure"
               ? t("triage.retry", "Retry unfinished work")
               : suggestion.kind === "promoteGroupToGoal"
-              ? t("triage.applyWithConfirmation", "Apply…")
-              : t("triage.apply", "Apply")}
+                ? t("triage.applyWithConfirmation", "Apply…")
+                : t("triage.apply", "Apply")}
           </Button>
         </Stack>
       </Stack>

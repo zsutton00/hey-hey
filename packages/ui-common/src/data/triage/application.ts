@@ -4,6 +4,15 @@ import type {
   OpenItemsTriageNewGoalDraft,
   PromoteGroupToGoalRequest,
 } from "../../api";
+import {
+  GROUP_CHANGED_MESSAGE,
+  GROUP_MISSING_MESSAGE,
+  decideGroup,
+  decideRemove,
+  decideReopen,
+  type ItemSuggestion,
+  type TriageItemDecision,
+} from "./decisions";
 
 type TriageItemOutcome = {
   item: OpenItemsTriageItem;
@@ -29,8 +38,17 @@ export interface TriageApplicationPorts {
   refresh: () => Promise<void>;
   target: (item: OpenItemsTriageItem) => TriageTarget;
   groupExists: (groupId: string) => boolean;
+  /** Number of entries currently in the collection, as last read. */
+  openCount: () => number;
   remove: (item: OpenItemsTriageItem, key: string) => Promise<void>;
-  reopen: (item: OpenItemsTriageItem, key: string) => Promise<void>;
+  /** `recheck` runs after the target is resolved and before activation is
+   * sent; it throws when the reopen must not go ahead, and returns false when
+   * nothing is left to do. */
+  reopen: (
+    item: OpenItemsTriageItem,
+    key: string,
+    recheck: () => Promise<boolean>,
+  ) => Promise<void>;
   createGroup: (name: string, key: string) => Promise<string>;
   group: (
     item: OpenItemsTriageItem,
@@ -103,6 +121,28 @@ export class TriageApplicationCoordinator {
     }
     return id;
   }
+  /** The per-reply baseline Apply compares against, shared with the preview. */
+  baselineFor(
+    scope: string,
+    suggestion: OpenItemsTriageSuggestion,
+    item: OpenItemsTriageItem,
+  ): TriageTarget | undefined {
+    return this.progress
+      .get(`${scope}:${suggestion.suggestionId}`)
+      ?.baseline.get(keyFor(item));
+  }
+  /** Whether this item's work already finished, so projection skips it. */
+  isCompleted(
+    scope: string,
+    suggestion: OpenItemsTriageSuggestion,
+    item: OpenItemsTriageItem,
+  ): boolean {
+    return (
+      this.progress
+        .get(`${scope}:${suggestion.suggestionId}`)
+        ?.completed.has(keyFor(item)) ?? false
+    );
+  }
   outcome(scope: string, suggestion: OpenItemsTriageSuggestion): TriageOutcome {
     return (
       this.progress.get(`${scope}:${suggestion.suggestionId}`)?.outcome ?? {
@@ -140,7 +180,7 @@ export class TriageApplicationCoordinator {
           !this.ports.groupExists(suggestion.groupId) &&
           !progress.promotionIntent.current
         )
-          throw new Error("This group is no longer available.");
+          throw new Error(GROUP_MISSING_MESSAGE);
         progress.outcome = {
           state: await this.ports.promote(suggestion, progress.promotionIntent),
           items: [],
@@ -217,29 +257,40 @@ export class TriageApplicationCoordinator {
   }
   private async applyItem(
     progress: Progress,
-    suggestion: Exclude<
-      OpenItemsTriageSuggestion,
-      { kind: "promoteGroupToGoal" }
-    >,
+    suggestion: ItemSuggestion,
     item: OpenItemsTriageItem,
   ) {
+    const settle = (decision: TriageItemDecision) => {
+      if (decision.kind === "conflict") {
+        throw new Error(decision.reason);
+      }
+    };
     const current = this.ports.target(item);
     const baseline = progress.baseline.get(keyFor(item))!;
     const operationKey = this.operationKey(progress, keyFor(item));
     switch (suggestion.kind) {
-      case "removeOpenItems":
-        if (!current.open) return;
-        if (
-          current.groupId !== baseline.groupId ||
-          current.pinned !== baseline.pinned
-        )
-          throw new Error(
-            "This item's placement or pin changed. Review it before removing.",
-          );
-        return this.ports.remove(item, operationKey);
-      case "reopenItems":
-        if (!current.open) await this.ports.reopen(item, operationKey);
-        return;
+      case "removeOpenItems": {
+        const decision = decideRemove(current, baseline);
+        if (decision.kind === "proceed") {
+          await this.ports.remove(item, operationKey);
+        }
+        return settle(decision);
+      }
+      case "reopenItems": {
+        const decision = decideReopen(current, this.ports.openCount());
+        if (decision.kind === "proceed") {
+          await this.ports.reopen(item, operationKey, async () => {
+            await this.ports.refresh();
+            const latest = decideReopen(
+              this.ports.target(item),
+              this.ports.openCount(),
+            );
+            settle(latest);
+            return latest.kind === "proceed";
+          });
+        }
+        return settle(decision);
+      }
       case "groupOpenItems":
         return this.groupItem(
           progress,
@@ -269,12 +320,21 @@ export class TriageApplicationCoordinator {
       suggestion.group.kind === "existingGroup"
         ? suggestion.group.groupId
         : progress.groupId;
-    if (current.open && targetId && current.groupId === targetId) return;
-    if (!current.open || current.groupId !== baseline.groupId)
-      throw new Error("This item's group changed. Review it before moving.");
+    const decision = decideGroup({
+      current,
+      baseline,
+      targetId,
+      destinationMissing:
+        suggestion.group.kind === "existingGroup" &&
+        !this.ports.groupExists(suggestion.group.groupId),
+    });
+    if (decision.kind === "noop") {
+      return;
+    }
+    if (decision.kind === "conflict") {
+      throw new Error(decision.reason);
+    }
     if (suggestion.group.kind === "existingGroup") {
-      if (!this.ports.groupExists(suggestion.group.groupId))
-        throw new Error("This group is no longer available.");
       progress.groupId = suggestion.group.groupId;
     } else if (!progress.groupId) {
       progress.groupId = await this.ports.createGroup(
@@ -293,7 +353,7 @@ export class TriageApplicationCoordinator {
     await this.ports.refresh();
     const assigned = this.ports.target(item);
     if (!assigned.open || assigned.groupId !== progress.groupId)
-      throw new Error("This item's group changed. Review it before moving.");
+      throw new Error(GROUP_CHANGED_MESSAGE);
   }
 
   private async resolveGoal(

@@ -62,6 +62,7 @@ function setup() {
     refresh: vi.fn().mockResolvedValue(undefined),
     target: () => ({ open: true, groupId: null, pinned: false }),
     groupExists: () => true,
+    openCount: () => 1,
     remove: vi.fn().mockResolvedValue(undefined),
     reopen: vi.fn(),
     createGroup: vi.fn(),
@@ -77,6 +78,7 @@ function setup() {
     projectId: "project",
     conversationId: "conversation",
     application: new TriageApplicationCoordinator(ports),
+    collection: undefined,
     itemHref: () => "/work/item",
     pending: false,
     disabled: false,
@@ -103,6 +105,11 @@ describe("feature-owned triage results", () => {
     expect(
       screen.getByRole("link", { name: "Delivered work" }),
     ).toHaveAttribute("href", "/work/item");
+    expect(ports.remove).not.toHaveBeenCalled();
+    // Accepting only changes the preview; nothing is written.
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: "Select suggestion" }),
+    );
     expect(ports.remove).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(ports.remove).toHaveBeenCalledOnce());
@@ -235,5 +242,69 @@ describe("feature-owned triage results", () => {
         transcript,
       ])?.payload,
     ).toEqual(newer);
+  });
+
+  it("updates the comparison on accept, blocks overlapping suggestions with a reason, and restores them", async () => {
+    const { props, ports } = setup();
+    const item = (id: string) => ({
+      entityType: "TASK" as const,
+      entityId: id,
+      title: `Task ${id}`,
+    });
+    const overlapping: OpenItemsTriagePayload = {
+      summary: "Overlap",
+      suggestions: [
+        {
+          suggestionId: "remove",
+          kind: "removeOpenItems",
+          items: [item("a")],
+          rationale: "Done",
+          evidence: [],
+        },
+        {
+          suggestionId: "group",
+          kind: "groupOpenItems",
+          items: [item("a"), item("b")],
+          group: { kind: "newGroup", newGroupName: "Cleanup" },
+          rationale: "Related",
+          evidence: [],
+        },
+      ],
+    };
+    mocks.messages = [reply("output", overlapping)];
+    const rows = ["a", "b", "c"].map((id) => ({
+      entityType: "TASK",
+      entityId: id,
+      groupId: null,
+      pinned: false,
+      lineage: [],
+      presentation: { label: `Task ${id}` },
+    }));
+    const collection = {
+      state: "PRESENT",
+      revision: 1,
+      items: rows,
+      groups: [],
+    } as unknown as NonNullable<
+      Parameters<typeof OpenItemsTriageResults>[0]["collection"]
+    >;
+    render(<OpenItemsTriageResults {...props} collection={collection} />);
+    const summary = screen.getByTestId("triage-preview-summary");
+    expect(summary).toHaveTextContent("3 now, 3 after");
+    const [removeBox, groupBox] = screen.getAllByRole("checkbox", {
+      name: "Select suggestion",
+    });
+    await userEvent.click(removeBox);
+    expect(summary).toHaveTextContent("3 now, 2 after");
+    expect(summary).toHaveTextContent("1 removed");
+    expect(screen.getByTestId("triage-unavailable")).toHaveTextContent(
+      "Task a",
+    );
+    expect(groupBox).toBeDisabled();
+    await userEvent.click(removeBox);
+    expect(summary).toHaveTextContent("3 now, 3 after");
+    expect(screen.queryByTestId("triage-unavailable")).toBeNull();
+    expect(groupBox).toBeEnabled();
+    expect(ports.remove).not.toHaveBeenCalled();
   });
 });
