@@ -1,4 +1,5 @@
 import { ProposalReconciliationService } from './proposal/proposal-reconciliation.service';
+import { canReadConversationTranscript } from './conversation-transcript-access';
 import {
   TIMELINE_MESSAGE_WHERE,
   timelineCreatedAt,
@@ -1011,7 +1012,7 @@ export class MessageService {
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
     }
-    if (!conversation.restricted || conversation.createdBy === readerUserId) {
+    if (canReadConversationTranscript(conversation, readerUserId)) {
       return;
     }
 
@@ -1048,7 +1049,7 @@ export class MessageService {
 
     const readable = new Set<ConversationId>();
     for (const conversation of conversations) {
-      if (!conversation.restricted || conversation.createdBy === readerUserId) {
+      if (canReadConversationTranscript(conversation, readerUserId)) {
         readable.add(conversation.id as ConversationId);
         continue;
       }

@@ -989,6 +989,7 @@ describe('EntityContextService', () => {
           'TASK',
           entityId,
           'test-token',
+          testIds.user,
         );
         for (const spy of [
           contentSpy,
@@ -1053,6 +1054,7 @@ describe('EntityContextService', () => {
         'TASK',
         entityId,
         null,
+        testIds.user,
         {
           includeRelatedEntities: false,
           includeFeatureHierarchy: false,
@@ -1105,6 +1107,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           ),
         ).rejects.toThrow(`TASK with id ${entityId} not found`);
 
@@ -1173,6 +1176,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         trackedTaskId,
         'test-token',
+        testIds.user,
         {
           includeRelatedEntities: false,
           includeFeatureHierarchy: false,
@@ -1197,6 +1201,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         trackedTaskId,
         'test-token',
+        testIds.user,
         {
           includeRelatedEntities: false,
           includeFeatureHierarchy: false,
@@ -1248,6 +1253,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         trackedTaskId,
         'test-token',
+        testIds.user,
         { includePlan: false },
       );
 
@@ -1295,6 +1301,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
         {
           includePlan: false,
           includeRelatedEntities: false,
@@ -1319,6 +1326,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.entityId).toBe(entityId);
@@ -1365,6 +1373,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         goalId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.taskType).toBe('GOAL');
@@ -1407,6 +1416,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         trackedTaskId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.taskType).toBe('STANDARD');
@@ -1441,6 +1451,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.relatedEntities).toHaveLength(1);
@@ -1482,6 +1493,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const byEntity = new Map(
@@ -1505,6 +1517,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const ids = (result.relatedEntities ?? []).map((e) => e.entityId);
@@ -1523,6 +1536,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const planEntry = result.relatedEntities!.find(
@@ -1585,6 +1599,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const featureEntry = result.relatedEntities!.find(
@@ -1647,6 +1662,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const byEntity = new Map(
@@ -1668,6 +1684,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.entityId).toBe(entityId);
@@ -1683,6 +1700,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         null,
+        testIds.user,
       );
 
       expect(result.relatedEntities).toEqual([]);
@@ -1718,6 +1736,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       const sessionIds = (result.agentSessions ?? []).map((e) => e.entityId);
@@ -1755,6 +1774,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.agentSessions?.map((entry) => entry.entityId)).toEqual([
@@ -1785,6 +1805,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         ),
       ).rejects.toThrow('DB connection lost');
     });
@@ -1800,6 +1821,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(mockGraphsClient.getEntityNeighborhood).toHaveBeenCalledWith(
@@ -1826,6 +1848,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
         { relatedEntityDepth: 2 },
       );
 
@@ -1904,6 +1927,7 @@ describe('EntityContextService', () => {
         'TASK',
         entityId,
         'test-token',
+        testIds.user,
         { relatedEntityDepth: 2 },
       );
       expect(result.relatedEntities).toEqual(
@@ -1973,6 +1997,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.featureHierarchy).toEqual([]);
@@ -1989,6 +2014,7 @@ describe('EntityContextService', () => {
           'DESIGN_DOC' as EntityType,
           entityId,
           null,
+          testIds.user,
         );
 
         expect(result.featureHierarchy).toEqual([]);
@@ -2024,6 +2050,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const ancestors = result.featureHierarchy!.filter(
@@ -2072,6 +2099,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const ancestors = result.featureHierarchy!.filter(
@@ -2104,6 +2132,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const siblings = result.featureHierarchy!.filter(
@@ -2140,6 +2169,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const ancestorIds = (result.featureHierarchy ?? [])
@@ -2167,6 +2197,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(findManyMock).toHaveBeenCalledWith(
@@ -2206,6 +2237,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const descendantIds = (result.featureHierarchy ?? [])
@@ -2243,6 +2275,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const descendants = result.featureHierarchy!.filter(
@@ -2282,6 +2315,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.featureHierarchy).toHaveLength(1);
@@ -2312,6 +2346,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.featureHierarchy).toHaveLength(1);
@@ -2337,6 +2372,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.featureHierarchy).toHaveLength(1);
@@ -2373,6 +2409,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(
@@ -2414,6 +2451,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           expect(result.featureHierarchy).toHaveLength(1);
@@ -2464,6 +2502,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           const typed = result.featureHierarchy!.filter(
@@ -2534,6 +2573,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           const typed = result.featureHierarchy!.filter(
@@ -2610,6 +2650,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           const featureHierarchyIds = (result.featureHierarchy ?? []).map(
@@ -2760,6 +2801,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             planResidentTaskId,
             'test-token',
+            testIds.user,
           );
 
           const ancestors = (result.featureHierarchy ?? []).filter(
@@ -2804,6 +2846,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           // Snapshot today's behaviour: one ancestor CTE + one descendant CTE.
@@ -2837,6 +2880,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             entityId,
             'test-token',
+            testIds.user,
           );
 
           expect(
@@ -2857,6 +2901,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
         { includeRelatedEntities: false },
       );
 
@@ -2878,6 +2923,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
         { includeFeatureHierarchy: false },
       );
 
@@ -2903,6 +2949,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
         { includeRelatedEntities: false, includeFeatureHierarchy: true },
       );
 
@@ -2923,6 +2970,7 @@ describe('EntityContextService', () => {
         'TASK' as EntityType,
         entityId,
         'test-token',
+        testIds.user,
       );
 
       expect(result.displayName).toBe('Test Task');
@@ -2972,6 +3020,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const agentEntry = (result.relatedEntities ?? []).find(
@@ -3065,6 +3114,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const byEntity = new Map(
@@ -3127,6 +3177,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const byEntity = new Map(
@@ -3191,6 +3242,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const byEntity = new Map(
@@ -3255,6 +3307,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const byEntity = new Map(
@@ -3319,6 +3372,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const byEntity = new Map(
@@ -3419,6 +3473,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.relatedEntities).toEqual([
@@ -3442,6 +3497,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(mockGraphsClient.readIncidentEdges).toHaveBeenCalledTimes(1);
@@ -3521,6 +3577,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const sibling = (result.relatedEntities ?? []).find(
@@ -3633,6 +3690,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         const parent = (result.relatedEntities ?? []).find(
@@ -3980,6 +4038,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           entityId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.planContext).toBeUndefined();
@@ -4108,6 +4167,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           featureId,
           'test-token',
+          testIds.user,
           flags,
         );
 
@@ -4276,6 +4336,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           directTaskId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.content).toEqual({
@@ -4304,6 +4365,7 @@ describe('EntityContextService', () => {
           'DESIGN_DOC' as EntityType,
           directDocId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.content?.sections).toEqual({
@@ -4341,6 +4403,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           directTaskId,
           'test-token',
+          testIds.user,
         );
 
         // Sections are retained for a feature; the four task-shaped
@@ -4380,6 +4443,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           directTaskId,
           'test-token',
+          testIds.user,
         );
 
         expect(result.content).toEqual({
@@ -4404,6 +4468,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             directTaskId,
             'test-token',
+            testIds.user,
           );
 
           expect(result.content).toEqual({
@@ -4429,6 +4494,7 @@ describe('EntityContextService', () => {
           'TASK' as EntityType,
           directTaskId,
           'test-token',
+          testIds.user,
           {
             includePlan: false,
             includeRelatedEntities: false,
@@ -4503,6 +4569,7 @@ describe('EntityContextService', () => {
             'TASK' as EntityType,
             directTaskId,
             'test-token',
+            testIds.user,
             {
               includePlan: false,
               includeRelatedEntities: false,
@@ -4529,6 +4596,7 @@ describe('EntityContextService', () => {
           'DESIGN_DOC' as EntityType,
           directDocId,
           'test-token',
+          testIds.user,
           {
             includePlan: false,
             includeRelatedEntities: false,

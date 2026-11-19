@@ -22,6 +22,7 @@ import { ProposalType } from '@hey-hey/contracts/api/models';
 import { TargetEntityType } from '@hey-hey/contracts/api/models';
 import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { validateFeatureRequirementsSection } from '../../services/tasks/feature-requirements-section.validator';
+import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { AgentEdgeClientService } from '../../services/agent-edge-client.service';
 import { ProposalApprovalService } from '../../services/proposal/proposal-approval.service';
 import type { OrganizationId, ProjectId } from '../../types';
@@ -660,6 +661,7 @@ export class GetContextToolsProvider {
     private readonly agentEdgeClient: AgentEdgeClientService,
     private readonly proposalApprovalService: ProposalApprovalService,
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
+    private readonly projectAccess: ProjectAccessService,
     @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
@@ -949,12 +951,23 @@ export class GetContextToolsProvider {
 
     let fullContext: FullEntityContextDto;
     try {
+      if (
+        entityType === EntityTypeEnum.Message ||
+        entityType === EntityTypeEnum.Conversation
+      ) {
+        await this.projectAccess.assertProject(
+          auth.user.userId,
+          organizationId,
+          projectId,
+        );
+      }
       fullContext = await this.entityContextService.getFullEntityContext(
         organizationId as OrganizationId,
         projectId as ProjectId,
         entityType,
         entityId,
         token ?? null,
+        auth.user.userId,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: MCP_RELATED_ENTITY_SELECTION,

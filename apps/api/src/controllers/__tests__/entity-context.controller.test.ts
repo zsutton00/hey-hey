@@ -24,6 +24,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
     );
 
     expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
@@ -32,6 +33,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       expect.objectContaining({ relatedEntityDepth: 1 }),
     );
   });
@@ -68,6 +70,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
     );
     expect(result).toEqual(projection);
     expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
@@ -76,6 +79,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       expect.objectContaining({ relatedEntityDepth: 1 }),
     );
   });
@@ -93,6 +97,7 @@ describe('EntityContextController', () => {
         'TASK',
         entityId,
         'test-token',
+        testIds.user,
         undefined,
         undefined,
         undefined,
@@ -108,6 +113,7 @@ describe('EntityContextController', () => {
         'TASK',
         entityId,
         'test-token',
+        testIds.user,
         expect.objectContaining({ includePlan: expected }),
       );
     },
@@ -120,6 +126,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       undefined,
       '2',
     );
@@ -130,6 +137,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       expect.objectContaining({ relatedEntityDepth: 2 }),
     );
   });
@@ -144,6 +152,7 @@ describe('EntityContextController', () => {
           'TASK',
           entityId,
           'test-token',
+          testIds.user,
           undefined,
           relatedEntityDepth,
         ),
@@ -160,6 +169,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
     );
     expect(entityContextService.getFullEntityContext).toHaveBeenLastCalledWith(
       testIds.organization,
@@ -167,6 +177,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       expect.objectContaining({ proposalDetail: 'summary' }),
     );
 
@@ -176,6 +187,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       undefined,
       undefined,
       undefined,
@@ -189,6 +201,7 @@ describe('EntityContextController', () => {
       'TASK',
       entityId,
       'test-token',
+      testIds.user,
       expect.objectContaining({ proposalDetail: 'full' }),
     );
   });
@@ -201,6 +214,7 @@ describe('EntityContextController', () => {
         'TASK',
         entityId,
         'test-token',
+        testIds.user,
         undefined,
         undefined,
         undefined,

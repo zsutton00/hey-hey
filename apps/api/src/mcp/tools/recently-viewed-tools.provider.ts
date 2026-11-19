@@ -165,6 +165,7 @@ export class RecentlyViewedToolsProvider {
             event.entityType as EntityTypeEnum,
             event.entityId,
             auth.token ?? null,
+            auth.user.userId,
           );
         featurePath = buildFeaturePath(fullContext);
       } catch (error) {

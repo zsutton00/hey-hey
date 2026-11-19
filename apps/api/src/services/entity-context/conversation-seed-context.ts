@@ -1,8 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import type { ExtendedPrismaClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
 import type { ConversationContextDto } from '@hey-hey/contracts/api/models';
 import { ORDINARY_PROPOSAL_VISIBILITY_WHERE } from 'src/services/proposal/proposal-visibility';
+import { canReadConversationTranscript } from 'src/services/conversation-transcript-access';
 import {
   getContentFromMessageData,
   type MessageDataForContent,
@@ -12,6 +13,8 @@ import {
 export const MESSAGE_EXCERPT_CHARACTERS = 1_000;
 export const CONVERSATION_CONTEXT_LIST_LIMIT = 10;
 const CONVERSATION_CONTEXT_SESSION_LIMIT = 5;
+
+const logger = new Logger('ConversationSeedContext');
 
 export type ConversationSeedKind = 'CONVERSATION' | 'MESSAGE';
 
@@ -42,6 +45,7 @@ export async function loadAuthorizedConversationSeed(
   projectId: ProjectId,
   kind: ConversationSeedKind,
   entityId: string,
+  readerUserId: string | null,
 ): Promise<AuthorizedConversationSeed> {
   const notFound = () =>
     new NotFoundException(`${kind} with id ${entityId} not found`);
@@ -59,7 +63,6 @@ export async function loadAuthorizedConversationSeed(
             id: true,
             conversationId: true,
             type: true,
-            data: true,
             createdAt: true,
           },
         })
@@ -73,11 +76,41 @@ export async function loadAuthorizedConversationSeed(
       id: true,
       title: true,
       createdAt: true,
+      restricted: true,
+      createdBy: true,
       workflowAboutType: true,
       workflowAboutId: true,
     },
   });
   if (!conversation) throw notFound();
+
+  // Message body data is only read once transcript access is established.
+  const transcriptReadable = canReadConversationTranscript(
+    conversation,
+    readerUserId,
+  );
+  if (message && !transcriptReadable) {
+    logger.warn('Withheld message excerpt of restricted conversation', {
+      organizationId,
+      projectId,
+      conversationId,
+      messageId: message.id,
+      readerUserId,
+      creatorRecorded: conversation.createdBy !== null,
+    });
+  }
+  const excerptMessage =
+    message && transcriptReadable
+      ? {
+          ...message,
+          data: (
+            await db.message.findFirst({
+              where: { id: message.id, projectId },
+              select: { data: true },
+            })
+          )?.data,
+        }
+      : null;
 
   const sessions = await db.agentSession.findMany({
     where: { conversationId, ...conversationScope },
@@ -140,10 +173,10 @@ export async function loadAuthorizedConversationSeed(
           }
         : undefined;
 
-  const text = message
+  const text = excerptMessage
     ? (getContentFromMessageData(
-        message.type,
-        (message.data as MessageDataForContent | null) ?? undefined,
+        excerptMessage.type,
+        (excerptMessage.data as MessageDataForContent | null) ?? undefined,
       ) ?? '')
     : '';
   const conversationContext: ConversationContextDto = {
@@ -169,12 +202,12 @@ export async function loadAuthorizedConversationSeed(
       reportType: r.reportType,
       createdAt: r.createdAt.toISOString(),
     })),
-    ...(message
+    ...(excerptMessage
       ? {
           message: {
-            messageId: message.id,
-            type: message.type,
-            createdAt: message.createdAt?.toISOString() ?? null,
+            messageId: excerptMessage.id,
+            type: excerptMessage.type,
+            createdAt: excerptMessage.createdAt?.toISOString() ?? null,
             ...excerpt(text),
             length: Array.from(text).length,
           },

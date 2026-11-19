@@ -588,6 +588,7 @@ export class EntityContextService {
     entityType: EntityType,
     entityId: string,
     userToken: string | null,
+    readerUserId: string | null,
     includeFlags?: EntityContextIncludeFlags,
   ): Promise<FullEntityContextDto> {
     return withApiSpan('entity_context.assemble_full', () =>
@@ -597,6 +598,7 @@ export class EntityContextService {
         entityType,
         entityId,
         userToken,
+        readerUserId,
         includeFlags,
       ),
     );
@@ -608,6 +610,7 @@ export class EntityContextService {
     entityType: EntityType,
     entityId: string,
     userToken: string | null,
+    readerUserId: string | null,
     includeFlags?: EntityContextIncludeFlags,
   ): Promise<FullEntityContextDto> {
     this.logger.log('getFullEntityContext called', {
@@ -642,6 +645,7 @@ export class EntityContextService {
         projectId,
         entityType as ConversationSeedKind,
         entityId,
+        readerUserId,
       );
     }
 

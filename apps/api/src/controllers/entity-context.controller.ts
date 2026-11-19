@@ -19,6 +19,7 @@ import {
 import {
   AuthToken,
   CurrentOrganization,
+  CurrentUser,
 } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from '../auth/guards/organization.guard';
@@ -149,6 +150,7 @@ export class EntityContextController {
     @Param('entityType') entityTypeRaw: string,
     @Param('entityId', ParseUUIDPipe) entityId: string,
     @AuthToken() userToken: string | null,
+    @CurrentUser('userId') readerUserId: string,
     @Query('includeRelatedEntities') includeRelatedEntities?: string,
     @Query('relatedEntityDepth') relatedEntityDepth?: string,
     @Query('includeFeatureHierarchy') includeFeatureHierarchy?: string,
@@ -179,6 +181,7 @@ export class EntityContextController {
       entityType,
       entityId,
       userToken,
+      readerUserId,
       includeFlags,
     );
   }
