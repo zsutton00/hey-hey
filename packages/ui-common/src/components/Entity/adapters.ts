@@ -19,7 +19,11 @@ import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { getPathService, type PathService } from "../../services";
 import { formatStatus } from "../../utils/statusUtils";
 import { getWorkItemSectionContent } from "../../utils/workItemSections";
-import { getWorkItemCounts, type CountGroup } from "../WorkItem/utils";
+import {
+  getWorkItemCounts,
+  type CountGroup,
+  type WorkItemChildCounts,
+} from "../WorkItem/utils";
 import type { EntityDependency, EntityListItemProps } from "./EntityListItem";
 import type { MetadataDisclosureRow } from "../shared/MetadataDisclosure";
 import type {
@@ -178,7 +182,7 @@ const hasWorkItemTypeDefinitionOption = (options: AdapterOptions): boolean =>
   Object.prototype.hasOwnProperty.call(options, "workItemTypeDefinition");
 
 const resolveTaskStatus = (
-  task: WorkItemResponseDto,
+  task: Pick<TaskListItem, "status">,
   options: AdapterOptions,
 ): string | undefined => {
   const isRegistryAware =
@@ -271,7 +275,7 @@ const getConnectedNodeType = (
     : edge.sourceEntityType;
 
 const buildTaskDependencies = (
-  task: WorkItemResponseDto,
+  task: Pick<TaskListItem, "id" | "edges">,
   options: AdapterOptions,
   pathService: PathService,
 ): EntityDependency[] | undefined => {
@@ -344,7 +348,32 @@ const buildTaskDependencies = (
  * });
  * ```
  */
-export const taskAdapter: EntityListItemAdapter<WorkItemResponseDto> = {
+export type TaskListItem = Pick<
+  WorkItemResponseDto,
+  | "id"
+  | "name"
+  | "type"
+  | "dueDate"
+  | "assigneeId"
+  | "edges"
+  | "trackedEntities"
+> & {
+  status: string;
+  initiativeId?: string | null;
+  hasProposalSupport?: boolean | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  childCounts?: Partial<WorkItemChildCounts> | null;
+  designDocCount?: number | null;
+  agentSessionCount?: number | null;
+  trackedWorkSummary?: Pick<
+    NonNullable<WorkItemResponseDto["trackedWorkSummary"]>,
+    "totalCount"
+  > | null;
+  sections?: Parameters<typeof getWorkItemSectionContent>[0];
+};
+
+export const taskAdapter: EntityListItemAdapter<TaskListItem> = {
   toEntityListItemProps: (task, options = {}) => {
     const pathService = resolvePathService(options);
     const metadata: MetadataItem[] = [];
@@ -454,8 +483,8 @@ export const taskAdapter: EntityListItemAdapter<WorkItemResponseDto> = {
       href,
       onClick: options.onClick,
       onDelete: options.onDelete,
-      createdAt: task.createdAt,
-      updatedAt: task.updatedAt,
+      createdAt: task.createdAt ?? undefined,
+      updatedAt: task.updatedAt ?? undefined,
       dependencies,
     };
   },

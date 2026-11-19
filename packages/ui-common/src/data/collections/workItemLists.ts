@@ -260,8 +260,9 @@ export async function fetchWorkItem(
   client: ApolloClient,
   scope: GraphQLProjectScope,
   taskId: string,
+  variant: WorkItemDetailVariant = {},
 ): Promise<WorkItemResponseDto> {
-  const read = workItemDetailRead(scope, taskId);
+  const read = workItemDetailRead(scope, taskId, variant);
   const { data } = await getProjectGraphQLClient(client, scope).query({
     query: read.document,
     variables: read.variables,

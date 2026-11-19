@@ -1,3 +1,5 @@
+import { useApolloClient } from "@apollo/client/react";
+import { fetchTaskPickerAncestor } from "../../data/graphql/workItemLookups";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ClearIcon from "@mui/icons-material/Clear";
 import {
@@ -13,7 +15,8 @@ import {
 } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { TaskResponseDto } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
+import type { ApolloClient } from "@apollo/client";
+import { fetchWorkItemList } from "../../data/collections/workItemLists";
 import {
   useFeatureHierarchy,
   useFeatureLookup,
@@ -50,18 +53,21 @@ function isFeatureFirst(taskType?: string): boolean {
 }
 
 async function fetchChildren(
+  graphqlClient: ApolloClient,
   organizationId: string,
   projectId: string,
   parentTaskId: string | null,
-  taskType?: string
+  taskType?: string,
 ): Promise<TaskResponseDto[]> {
-  const res = await unifiedApiClient.getTasks({
-    organizationId,
-    projectId,
-    parentTaskId,
-    type: taskType,
-  });
-  const items = res.data.data ?? [];
+  const items = await fetchWorkItemList(
+    graphqlClient,
+    { organizationId, projectId },
+    {
+      parentTaskId,
+      taskType,
+      includeTrackedEntities: false,
+    },
+  );
   return items.slice().sort((a, b) => {
     const aIsFeature = a.type === "FEATURE" ? 0 : 1;
     const bIsFeature = b.type === "FEATURE" ? 0 : 1;
@@ -71,12 +77,13 @@ async function fetchChildren(
 }
 
 async function loadAncestorChain(
+  graphqlClient: ApolloClient,
   organizationId: string,
   projectId: string,
   taskId: string,
   taskType: string | undefined,
   getFeature: (id: string) => FeatureLookupEntry | undefined,
-  nodes: ReadonlyMap<string, FeatureHierarchyNode>
+  nodes: ReadonlyMap<string, FeatureHierarchyNode>,
 ): Promise<{
   chain: string[];
   childrenByParent: Map<string | "root", PickerTask[]>;
@@ -91,15 +98,13 @@ async function loadAncestorChain(
     visited.add(currentId);
     try {
       const cached = getFeature(currentId);
-      const task: FeatureLookupEntry | TaskResponseDto | undefined =
+      const task: { parentTaskId?: string | null } | undefined =
         cached ??
-        (
-          await unifiedApiClient.getTask({
-            organizationId,
-            projectId,
-            taskId: currentId,
-          })
-        ).data.data;
+        (await fetchTaskPickerAncestor(
+          graphqlClient,
+          { organizationId, projectId },
+          currentId,
+        ));
       if (!task) break;
       chain.unshift(currentId);
       currentId = task.parentTaskId ?? undefined;
@@ -120,23 +125,24 @@ async function loadAncestorChain(
       if (parentId && taskType === "FEATURE" && nodes.has(parentId)) {
         childrenByParent.set(
           key,
-          nodes.get(parentId)!.children.map((node) => node.feature)
+          nodes.get(parentId)!.children.map((node) => node.feature),
         );
         return;
       }
       const fetchType = taskType;
       try {
         const children = await fetchChildren(
+          graphqlClient,
           organizationId,
           projectId,
           parentId ?? null,
-          fetchType
+          fetchType,
         );
         childrenByParent.set(key, children);
       } catch {
         // non-critical: tree will lazy-load on expand
       }
-    })
+    }),
   );
 
   return { chain, childrenByParent };
@@ -163,6 +169,7 @@ const TreeNode: React.FC<{
   ancestorExpandedIds,
   preloadedChildren,
 }) => {
+  const graphqlClient = useApolloClient();
   const isAncestor = ancestorExpandedIds.has(task.id);
   const cachedChildren = preloadedChildren.get(task.id);
 
@@ -170,7 +177,7 @@ const TreeNode: React.FC<{
   const [childState, setChildState] = useState<NodeChildrenState>(
     cachedChildren
       ? { status: "loaded", children: cachedChildren }
-      : { status: "idle" }
+      : { status: "idle" },
   );
 
   const hierarchy = useFeatureHierarchy(organizationId, projectId);
@@ -180,7 +187,7 @@ const TreeNode: React.FC<{
     projectId,
     node ? [task.id] : [],
     undefined,
-    "metadata"
+    "metadata",
   );
   const metadata = entries.get(task.id)?.data;
   const hasChildren =
@@ -209,10 +216,11 @@ const TreeNode: React.FC<{
         setChildState({ status: "loading" });
         try {
           const children = await fetchChildren(
+            graphqlClient,
             organizationId,
             projectId,
             task.id,
-            taskType
+            taskType,
           );
           setChildState({ status: "loaded", children });
         } catch {
@@ -223,13 +231,14 @@ const TreeNode: React.FC<{
     [
       expanded,
       childState.status,
+      graphqlClient,
       organizationId,
       projectId,
       task.id,
       taskType,
       hasChildren,
       node,
-    ]
+    ],
   );
 
   const isLoading = childState.status === "loading";
@@ -287,8 +296,8 @@ const TreeNode: React.FC<{
             task.type === "FEATURE"
               ? "Feature"
               : task.type === "BUG"
-              ? "Bug"
-              : "Task"
+                ? "Bug"
+                : "Task"
           }
           primaryTypographyProps={{ variant: "body2" }}
           secondaryTypographyProps={{ variant: "caption" }}
@@ -350,14 +359,15 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
   includeNone = false,
   taskType,
 }) => {
+  const graphqlClient = useApolloClient();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [rootTasks, setRootTasks] = useState<PickerTask[] | null>(null);
   const [isLoadingNonFeatureRoot, setIsLoadingRoot] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskResponseDto | null>(
-    null
+    null,
   );
   const [ancestorExpandedIds, setAncestorExpandedIds] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [preloadedChildren, setPreloadedChildren] = useState<
     Map<string | "root", PickerTask[]>
@@ -389,12 +399,13 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
 
     let cancelled = false;
     loadAncestorChain(
+      graphqlClient,
       organizationId,
       projectId,
       value,
       taskType,
       lookup.get,
-      hierarchy.nodes
+      hierarchy.nodes,
     )
       .then(({ chain, childrenByParent }) => {
         if (cancelled) return;
@@ -414,6 +425,7 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
     };
   }, [
     value,
+    graphqlClient,
     organizationId,
     projectId,
     taskType,
@@ -427,10 +439,11 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
     setIsLoadingRoot(true);
     try {
       const children = await fetchChildren(
+        graphqlClient,
         organizationId,
         projectId,
         null,
-        taskType
+        taskType,
       );
       setRootTasks(children);
     } catch {
@@ -438,14 +451,21 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
     } finally {
       setIsLoadingRoot(false);
     }
-  }, [rootTasks, organizationId, projectId, taskType, featureFirst]);
+  }, [
+    rootTasks,
+    graphqlClient,
+    organizationId,
+    projectId,
+    taskType,
+    featureFirst,
+  ]);
 
   const handleOpen = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
       setAnchorEl(e.currentTarget);
       loadRoot();
     },
-    [loadRoot]
+    [loadRoot],
   );
 
   const handleClose = useCallback(() => setAnchorEl(null), []);
@@ -456,7 +476,7 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
       onChange(task.id, task);
       handleClose();
     },
-    [onChange, handleClose]
+    [onChange, handleClose],
   );
 
   const handleNone = useCallback(() => {
@@ -471,7 +491,7 @@ export const TaskTreePicker: React.FC<TaskTreePickerProps> = ({
       setSelectedTask(null);
       onChange(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const open = Boolean(anchorEl);

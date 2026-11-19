@@ -1,3 +1,5 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import type { ReactElement, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as testingLibraryRender, screen } from "@testing-library/react";
@@ -261,6 +263,11 @@ function makeApprovedProposal(
 }
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   vi.clearAllMocks();
   vi.mocked(unifiedApiClient.getTask).mockResolvedValue({
     data: { data: existingWorkflow },
@@ -344,11 +351,14 @@ describe("UpdateProposal — workflow routing", () => {
     expect(screen.getByText("Shopping workflow")).toBeInTheDocument();
     expect(screen.queryByText("Task Update")).not.toBeInTheDocument();
     expect(unifiedApiClient.getTask).toHaveBeenCalledTimes(1);
-    expect(unifiedApiClient.getTask).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      projectId: PROJ_ID,
-      taskId: "continuation-bug",
-    });
+    expect(unifiedApiClient.getTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG_ID,
+        projectId: PROJ_ID,
+        taskId: "continuation-bug",
+      }),
+      expect.anything(),
+    );
     expect(mockValidate).toHaveBeenCalledWith(
       expect.objectContaining({
         proposalId: "proposal-workflow-graph-update",

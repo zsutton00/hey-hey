@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   params: vi.fn(),
   planPage: vi.fn(),
   taskMonitor: vi.fn(),
-  useWorkItem: vi.fn(),
+  usePlanTaskMonitorPageItem: vi.fn(),
 }));
 
 vi.mock("./PlanPage", () => ({
@@ -49,7 +49,7 @@ vi.mock("@hey-hey/ui-common/context", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
-  useWorkItem: mocks.useWorkItem,
+  usePlanTaskMonitorPageItem: mocks.usePlanTaskMonitorPageItem,
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -77,8 +77,8 @@ describe("PlanTaskMonitorPage", () => {
       stageId: "stage-1",
       monitorId: "monitor-1",
     });
-    mocks.useWorkItem.mockReturnValue({
-      workItem: {
+    mocks.usePlanTaskMonitorPageItem.mockReturnValue({
+      data: {
         id: "monitor-1",
         name: "Release monitor",
         type: "TASK_MONITOR",
@@ -120,11 +120,9 @@ describe("PlanTaskMonitorPage", () => {
       projectId: "project-1",
       monitorId: "monitor-1",
     });
-    expect(mocks.useWorkItem).toHaveBeenCalledWith(
-      "org-1",
-      "task",
+    expect(mocks.usePlanTaskMonitorPageItem).toHaveBeenCalledWith(
+      { organizationId: "org-1", projectId: "project-1" },
       "monitor-1",
-      { projectId: "project-1", enabled: true },
     );
     expect(mocks.canonicalDescriptor).toHaveBeenCalledWith(
       "task",
@@ -169,21 +167,21 @@ describe("PlanTaskMonitorPage", () => {
   });
 
   it.each([
-    ["loading", { workItem: null, isLoading: true, error: null }],
-    ["error", { workItem: null, isLoading: false, error: new Error("boom") }],
+    ["loading", { data: null, isLoading: true, error: null }],
+    ["error", { data: null, isLoading: false, error: new Error("boom") }],
     [
       "wrong type",
       {
-        workItem: { id: "monitor-1", name: "Not a monitor", type: "STANDARD" },
+        data: { id: "monitor-1", name: "Not a monitor", type: "STANDARD" },
         isLoading: false,
         error: null,
       },
     ],
-    ["missing", { workItem: null, isLoading: false, error: null }],
+    ["missing", { data: null, isLoading: false, error: null }],
   ])(
     "does not compose the Plan shell when monitor context is %s",
     (_label, query) => {
-      mocks.useWorkItem.mockReturnValue(query);
+      mocks.usePlanTaskMonitorPageItem.mockReturnValue(query);
 
       render(<PlanTaskMonitorPage />);
 

@@ -8,7 +8,7 @@ import {
 /**
  * Get user-friendly label for work status
  */
-export const getStatusLabel = (status: WorkStatus): string => {
+export const getStatusLabel = (status: string): string => {
   switch (status) {
     case "REFINING_DESCRIPTION":
       return "Needs review";

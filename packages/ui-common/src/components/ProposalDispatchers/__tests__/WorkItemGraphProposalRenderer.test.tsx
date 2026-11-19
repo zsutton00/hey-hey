@@ -1575,11 +1575,14 @@ describe("WorkItemGraphProposalRenderer", () => {
         },
       ]),
     );
-    expect(mockGetTask).toHaveBeenCalledWith({
-      organizationId: "organization-id",
-      projectId: "project-id",
-      taskId: "contract-target",
-    });
+    expect(mockGetTask).toHaveBeenCalledWith(
+      {
+        organizationId: "organization-id",
+        projectId: "project-id",
+        taskId: "contract-target",
+      },
+      expect.anything(),
+    );
     expect(screen.getByTestId("confirm-graph")).not.toBeDisabled();
   });
   it("resolves external feature targets from the hierarchy without fetching task names", async () => {

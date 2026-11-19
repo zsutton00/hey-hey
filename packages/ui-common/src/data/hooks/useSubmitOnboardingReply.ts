@@ -1,3 +1,5 @@
+import { useApolloClient } from "@apollo/client/react";
+import { fetchOnboardingReplyVersion } from "../graphql/conversationLookups";
 import type {
   MessageResponseDto,
   OnboardingReplyAnswers,
@@ -23,6 +25,7 @@ export type UseSubmitOnboardingReplyOptions =
 export function useSubmitOnboardingReply(
   options: UseSubmitOnboardingReplyOptions = {},
 ) {
+  const graphqlClient = useApolloClient();
   const mutationFn = useCallback(
     async ({
       organizationId,
@@ -33,12 +36,11 @@ export function useSubmitOnboardingReply(
     }: SubmitOnboardingReplyVariables): Promise<MessageResponseDto> => {
       // Message updates intentionally do not refresh the conversation envelope.
       // Read the admission version at the user's gesture, not from that envelope.
-      const versionResponse = await unifiedApiClient.getConversationVersion({
-        organizationId,
-        projectId,
+      const expectedConversationVersion = await fetchOnboardingReplyVersion(
+        graphqlClient,
+        { organizationId, projectId },
         conversationId,
-      });
-      const expectedConversationVersion = versionResponse.data.data?.version;
+      );
       if (
         expectedConversationVersion === undefined ||
         !Number.isFinite(expectedConversationVersion)
@@ -64,7 +66,7 @@ export function useSubmitOnboardingReply(
 
       return message;
     },
-    [],
+    [graphqlClient],
   );
 
   return useMutation(mutationFn, options);

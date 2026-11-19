@@ -1,3 +1,7 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
+import { stripIgnoredCharacters } from "graphql";
+import { http } from "msw";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -78,7 +82,7 @@ vi.mock("../../SmarterTextAreaCard/EntityHoverCard", () => ({
 
 const modeId = "mode-1";
 const makeGraphEdge = (
-  overrides: Partial<AgentEdgeResponseDto>
+  overrides: Partial<AgentEdgeResponseDto>,
 ): AgentEdgeResponseDto =>
   ({
     id: "edge-1",
@@ -93,7 +97,7 @@ const makeGraphEdge = (
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
-  } as AgentEdgeResponseDto);
+  }) as AgentEdgeResponseDto;
 
 const existing: TaskResponseDto = {
   id: modeId,
@@ -158,7 +162,7 @@ const makeProposal = (): ProposalResponseDto =>
     approvals: [],
     createdAt: "2026-09-01T00:00:00Z",
     updatedAt: "2026-09-01T00:00:00Z",
-  } as unknown as ProposalResponseDto);
+  }) as unknown as ProposalResponseDto;
 
 const featureNames: Record<string, string> = {
   "feature-existing": "Existing Feature",
@@ -195,18 +199,32 @@ beforeEach(() => {
               ],
             }
           : taskId === "task-existing" || taskId === "task-proposed"
-          ? { id: taskId, name: "Ordinary task", type: "STANDARD" }
-          : {
-              id: taskId,
-              name: featureNames[taskId] ?? "Feature name unavailable",
-              type: "FEATURE",
-            },
+            ? { id: taskId, name: "Ordinary task", type: "STANDARD" }
+            : {
+                id: taskId,
+                name: featureNames[taskId] ?? "Feature name unavailable",
+                type: "FEATURE",
+              },
     },
   }));
 });
 
 describe("TaskUpdateRenderer Agent Mode availability", () => {
   it("shows the resulting persisted and proposed Feature scope while preserving relationship details", async () => {
+    const modeQueries: string[] = [];
+    const fixtureHandlers = workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    );
+    globalThis.mswServer.use(
+      http.post("*/graphql", async ({ request }) => {
+        const body = await request.clone().json();
+        if (body.operationName === "GetModeAvailability") {
+          modeQueries.push(body.query);
+        }
+      }),
+      ...fixtureHandlers,
+    );
+
     render(
       <MemoryRouter>
         <TaskUpdateRenderer
@@ -221,49 +239,81 @@ describe("TaskUpdateRenderer Agent Mode availability", () => {
           siblingProposals={new Map()}
           workItemTypeDefinition={workItemTypeDefinition}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const featureLinks = await screen.findAllByTestId(
-      "mode-availability-feature-link"
+      "mode-availability-feature-link",
     );
     expect(featureLinks).toHaveLength(2);
     const availability = screen.getByTestId("mode-availability-summary");
     expect(
-      within(availability).getByRole("link", { name: "Existing Feature" })
+      within(availability).getByRole("link", { name: "Existing Feature" }),
     ).toHaveAttribute("href", "/features/feature-existing");
     expect(
-      within(availability).getByRole("link", { name: "New Feature" })
+      within(availability).getByRole("link", { name: "New Feature" }),
     ).toHaveAttribute("href", "/features/feature-new");
     expect(
-      screen.queryByRole("link", { name: "Related Feature" })
+      screen.queryByRole("link", { name: "Related Feature" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
     expect(screen.getByTestId("diff-renderer")).toHaveTextContent(
-      "Updated mode guidance"
+      "Updated mode guidance",
     );
 
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: modeId,
-      includeEdges: true,
-      edgeTypes: [AgentEdgeType.DependsOn],
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "feature-existing",
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "feature-new",
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "task-proposed",
-    });
+    expect(
+      modeQueries.map((query) =>
+        stripIgnoredCharacters(query.replace(/\b__typename\b/g, "")),
+      ),
+    ).toEqual([
+      stripIgnoredCharacters(`
+        query GetModeAvailability($id: ID!, $edgeTypes: [EdgeType!]!) {
+          workItem(id: $id) {
+            id
+            type
+            edges(types: $edgeTypes) {
+              type
+              targetNodeType
+              source { entityId }
+              target { entityId name }
+            }
+          }
+        }
+      `),
+    ]);
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: modeId,
+        includeEdges: true,
+        edgeTypes: [AgentEdgeType.DependsOn],
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "feature-existing",
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "feature-new",
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "task-proposed",
+      }),
+      expect.anything(),
+    );
   });
 });

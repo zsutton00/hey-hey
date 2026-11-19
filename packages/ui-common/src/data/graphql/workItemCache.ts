@@ -20,7 +20,10 @@ import { toWorkItemResponse } from "./records";
  */
 
 /** Reads of one work item, by id. */
-const DETAIL_READS: ReadonlySet<string> = new Set(["GetWorkItem"]);
+const DETAIL_READS: ReadonlySet<string> = new Set([
+  "GetWorkItem",
+  "GetPlanTaskMonitorPage",
+]);
 
 /** Reads of the work items under one root; their members change with the tree. */
 const GRAPH_READS: ReadonlySet<string> = new Set(["GetWorkItemGraph"]);
@@ -28,6 +31,8 @@ const GRAPH_READS: ReadonlySet<string> = new Set(["GetWorkItemGraph"]);
 /** Reads whose membership a change to any work item can alter. */
 const MEMBERSHIP_READS: ReadonlySet<string> = new Set([
   "GetWorkItems",
+  "GetTasksPage",
+  "GetActivityWorkItems",
   "GetWorkItemHierarchy",
   "GetAllWorkItemReferences",
   "GetWorkItemReferencePage",

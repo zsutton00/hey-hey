@@ -8,7 +8,8 @@ import {
 import { ErrorLink } from "@apollo/client/link/error";
 import { HttpLink } from "@apollo/client/link/http";
 import { ServerError } from "@apollo/client/errors";
-import { Observable } from "rxjs";
+import chunk from "lodash/chunk.js";
+import { forkJoin, map, Observable } from "rxjs";
 import { conversationMessagesFieldPolicy } from "./conversationMessagesPolicy";
 import axios, { type AxiosInstance, type AxiosResponse } from "axios";
 
@@ -59,8 +60,8 @@ const typePolicies: TypePolicies = {
       edges: replacedByRead,
       serviceRelations: replacedByRead,
       trackedEntities: replacedByRead,
-      trackedWorkSummary: replacedByRead,
-      childCounts: replacedByRead,
+      trackedWorkSummary: { merge: true },
+      childCounts: { merge: true },
       graph: replacedByRead,
     },
   },
@@ -187,6 +188,45 @@ const keepStableErrorCode = new ErrorLink(({ error }) => {
   });
 });
 
+// The workItems filter accepts at most 200 IDs per request. Activity can link
+// more items, so split the network reads while retaining one watched result.
+const ACTIVITY_WORK_ITEM_BATCH_SIZE = 200;
+
+const batchActivityWorkItemReads = new ApolloLink((operation, forward) => {
+  const { ids } = operation.variables;
+  if (
+    operation.operationName !== "GetActivityWorkItems" ||
+    !Array.isArray(ids) ||
+    ids.length <= ACTIVITY_WORK_ITEM_BATCH_SIZE
+  ) {
+    return forward(operation);
+  }
+
+  const reads = chunk(ids, ACTIVITY_WORK_ITEM_BATCH_SIZE).map((batch) =>
+    forward({
+      ...operation,
+      variables: { ids: batch },
+      client: operation.client,
+      getContext: operation.getContext,
+      setContext: operation.setContext,
+    }),
+  );
+  return forkJoin(reads).pipe(
+    map((results) => {
+      const errors = results.flatMap((result) => result.errors ?? []);
+      if (errors.length) {
+        return { errors };
+      }
+
+      return {
+        data: {
+          workItems: results.flatMap((result) => result.data?.workItems ?? []),
+        },
+      };
+    }),
+  );
+});
+
 const projectClients = new WeakMap<ApolloClient, WebUiGraphQLClient>();
 
 export function getProjectGraphQLClient(
@@ -237,6 +277,7 @@ export class WebUiGraphQLClient {
       cache: new InMemoryCache({ typePolicies }),
       link: ApolloLink.from([
         keepStableErrorCode,
+        batchActivityWorkItemReads,
         new HttpLink({
           uri: projectGraphQLPath,
           fetch: createAxiosFetch(this.getAxios),

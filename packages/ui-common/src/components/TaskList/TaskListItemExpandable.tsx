@@ -2,12 +2,12 @@ import { useApolloClient } from "@apollo/client/react";
 import React, { useCallback } from "react";
 import { fetchTaskHierarchy } from "../../data/api/fetchTaskHierarchy";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
-import { taskAdapter } from "../Entity/adapters";
+import { taskAdapter, type TaskListItem } from "../Entity/adapters";
 import { EntityListItemExpandable } from "../Entity/EntityListItemExpandable";
 import { usePathService } from "../../contexts";
 
 export interface TaskListItemExpandableProps {
-  task: WorkItemResponseDto;
+  task: TaskListItem;
   projectId: string;
   organizationId: string;
   initiativeId?: string;
@@ -60,7 +60,7 @@ export const TaskListItemExpandable: React.FC<TaskListItemExpandableProps> = ({
     <EntityListItemExpandable<WorkItemResponseDto>
       {...adapterProps}
       hasChildren={hasChildren}
-      childrenCount={task.childCounts?.total}
+      childrenCount={task.childCounts?.total ?? undefined}
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       fetchChildren={fetchChildren}

@@ -32,10 +32,7 @@ import { KEYS, TERMS } from "@hey-hey/ui-common/i18n";
 
 import { apiClient } from "@hey-hey/ui-common/clients";
 import { TaskList } from "@hey-hey/ui-common/components";
-import {
-  useWorkItems,
-  type WorkItemResponseDto,
-} from "@hey-hey/ui-common/data";
+import { useWorkItems, useTasksPageItems } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
 interface TaskFormData {
@@ -69,8 +66,14 @@ export const TasksPage: React.FC = () => {
   const [initiative, setInitiative] = useState<InitiativeResponseDto | null>(
     null,
   );
-  const [tasks, setTasks] = useState<TaskResponseDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: tasks,
+    isLoading: loading,
+    error: tasksError,
+  } = useTasksPageItems(
+    { organizationId: currentOrgId ?? "", projectId: projectId ?? "" },
+    !!initiativeId,
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Dialog states
@@ -81,9 +84,10 @@ export const TasksPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen, deleteDialogOpenOwnerKey] =
     useModalState(false);
   const [editingTask, setEditingTask] = useState<TaskResponseDto | null>(null);
-  const [deletingTask, setDeletingTask] = useState<WorkItemResponseDto | null>(
-    null,
-  );
+  const [deletingTask, setDeletingTask] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Form states
   const [formData, setFormData] = useState<TaskFormData>({
@@ -116,35 +120,9 @@ export const TasksPage: React.FC = () => {
     }
   }, [currentOrgId, projectId, initiativeId]);
 
-  const loadTasks = useCallback(async () => {
-    if (!currentOrgId || !projectId || !initiativeId) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiClient.getTasks({
-        organizationId: currentOrgId,
-        projectId,
-      });
-      setTasks(response.data.data || []);
-    } catch (err: unknown) {
-      console.error("Failed to load tasks:", err);
-      setError(
-        (err as { response?: { data?: { message: string } } })?.response?.data
-          ?.message || `Failed to load ${TERMS.tasks}`,
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [currentOrgId, projectId, initiativeId]);
-
   useEffect(() => {
-    if (initiativeId) {
-      loadInitiative();
-      loadTasks();
-    }
-  }, [loadInitiative, loadTasks, initiativeId]);
+    void loadInitiative();
+  }, [loadInitiative]);
 
   const handleCreateTask = async () => {
     if (!currentOrgId || !projectId || !initiativeId) return;
@@ -175,7 +153,6 @@ export const TasksPage: React.FC = () => {
 
       setCreateDialogOpen(false);
       resetForm();
-      loadTasks();
     } catch (err: unknown) {
       console.error("Failed to create task:", err);
       setError(
@@ -209,7 +186,6 @@ export const TasksPage: React.FC = () => {
       setEditDialogOpen(false);
       setEditingTask(null);
       resetForm();
-      loadTasks();
     } catch (err: unknown) {
       console.error("Failed to update task:", err);
       setError(
@@ -231,7 +207,6 @@ export const TasksPage: React.FC = () => {
 
       setDeleteDialogOpen(false);
       setDeletingTask(null);
-      loadTasks();
     } catch (err: unknown) {
       console.error("Failed to delete task:", err);
       setError(
@@ -241,7 +216,7 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  const handleDeleteClick = (task: WorkItemResponseDto) => {
+  const handleDeleteClick = (task: { id: string; name: string }) => {
     setDeletingTask(task);
     setDeleteDialogOpen(true);
   };
@@ -334,14 +309,14 @@ export const TasksPage: React.FC = () => {
           </Box>
         </Paper>
 
-        {error && (
+        {(error || tasksError) && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
+            {error ?? tasksError?.message}
           </Alert>
         )}
 
         <TaskList
-          tasks={tasks}
+          tasks={tasks ?? []}
           loading={loading}
           onDelete={handleDeleteClick}
           projectId={projectId as string}

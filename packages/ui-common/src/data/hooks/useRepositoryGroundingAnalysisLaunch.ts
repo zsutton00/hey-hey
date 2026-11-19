@@ -1,3 +1,5 @@
+import { useApolloClient } from "@apollo/client/react";
+import { fetchRepositoryImportConversation } from "../graphql/conversationLookups";
 import { useCallback } from "react";
 import type {
   AgentSessionConfigV2,
@@ -12,7 +14,7 @@ import {
   RepositoryGroundingAction,
   WorkflowName,
 } from "../../api";
-import { conversationsClient } from "../../clients/serviceClients";
+import type { ApolloClient } from "@apollo/client";
 import {
   toOpenApiConversationId,
   toOpenApiProjectId,
@@ -45,18 +47,21 @@ const projectLaunchAnswers = (
 const workflowOperationIds = new Map<string, string>();
 const activeLaunches = new Map<string, Promise<AgentSessionDto>>();
 
-const requireSameRepositoryImportConversation = async (input: {
-  organizationId: string;
-  projectId: string;
-  expectedConversationId: string;
-  conversation: {
-    id: string;
-    workflowId?: string;
-    workflowName: WorkflowName;
-    workflowAboutType?: string;
-    workflowAboutId?: string;
-  };
-}): Promise<void> => {
+const requireSameRepositoryImportConversation = async (
+  graphqlClient: ApolloClient,
+  input: {
+    organizationId: string;
+    projectId: string;
+    expectedConversationId: string;
+    conversation: {
+      id: string;
+      workflowId?: string;
+      workflowName: WorkflowName;
+      workflowAboutType?: string;
+      workflowAboutId?: string;
+    };
+  },
+): Promise<void> => {
   const { conversation } = input;
   const isDedicatedImport =
     conversation.workflowName === WorkflowName.RepositoryImport;
@@ -71,21 +76,17 @@ const requireSameRepositoryImportConversation = async (input: {
       "The Agent Session did not return the active repository import Conversation.",
     );
   }
-  const response = await conversationsClient.getWorkflowConversations({
-    organizationId: input.organizationId,
-    projectId: input.projectId,
-    workflowName: conversation.workflowAboutType,
-    workflowAboutId: conversation.workflowAboutId,
-    workflowName2: conversation.workflowName,
-  });
-  const conversations = response.data?.data?.data ?? [];
-  const resolved = conversations.find(
-    (candidate) => candidate.id === input.expectedConversationId,
+  const resolved = await fetchRepositoryImportConversation(
+    graphqlClient,
+    { organizationId: input.organizationId, projectId: input.projectId },
+    input.expectedConversationId,
   );
   if (
     !resolved ||
     resolved.workflowId !== conversation.workflowId ||
-    resolved.workflowName !== conversation.workflowName
+    resolved.workflowName !== conversation.workflowName ||
+    resolved.workflowAboutId !== conversation.workflowAboutId ||
+    resolved.workflowAboutType !== conversation.workflowAboutType
   ) {
     throw new Error(
       "The active repository import Conversation could not be verified for this Agent Session.",
@@ -94,6 +95,7 @@ const requireSameRepositoryImportConversation = async (input: {
 };
 
 export function useRepositoryGroundingAnalysisLaunch() {
+  const graphqlClient = useApolloClient();
   const { mutate: createAgentSession } = useCreateAgentSession();
   const { mutate: createAgentSessionConversation } =
     useCreateAgentSessionConversation();
@@ -189,7 +191,7 @@ export function useRepositoryGroundingAnalysisLaunch() {
             "The Agent Session launch bindings did not match the saved repository import selection.",
           );
         }
-        await requireSameRepositoryImportConversation({
+        await requireSameRepositoryImportConversation(graphqlClient, {
           organizationId: input.organizationId,
           projectId: input.projectId,
           expectedConversationId: input.conversationId,
@@ -261,6 +263,7 @@ export function useRepositoryGroundingAnalysisLaunch() {
       createAgentSession,
       createAgentSessionConversation,
       interactionAccessResolver,
+      graphqlClient,
     ],
   );
 

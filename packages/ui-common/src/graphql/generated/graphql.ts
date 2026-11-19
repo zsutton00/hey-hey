@@ -56,6 +56,36 @@ export type WorkItemSort = {
 export type WorkItemSortField =
   "createdAt" | "priority" | "status" | "title" | "updatedAt";
 
+export type GetTriageConversationTitleQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetTriageConversationTitleQuery = {
+  conversation: { id: string; title: string | null };
+};
+
+export type GetOnboardingReplyVersionQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetOnboardingReplyVersionQuery = {
+  conversation: { id: string; version: number };
+};
+
+export type VerifyRepositoryImportConversationQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type VerifyRepositoryImportConversationQuery = {
+  conversation: {
+    id: string;
+    workflowId: string | null;
+    workflowName: string;
+    workflowAboutId: string | null;
+    workflowAboutType: string | null;
+  };
+};
+
 export type ConversationFieldsFragment = {
   id: string;
   organizationId: string;
@@ -537,6 +567,96 @@ export type ProjectScopeQueryVariables = Exact<{ [key: string]: never }>;
 
 export type ProjectScopeQuery = {
   projectScope: { organizationId: string; projectId: string };
+};
+
+export type GetTasksPageQueryVariables = Exact<{ [key: string]: never }>;
+
+export type GetTasksPageQuery = {
+  workItems: Array<{
+    id: string;
+    name: string;
+    type: string;
+    status: string;
+    initiativeId: string | null;
+    dueDate: string | null;
+    hasProposalSupport: boolean | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+    childCounts: {
+      total: number | null;
+      done: number | null;
+      inProgress: number | null;
+      backlog: number | null;
+    } | null;
+    sections: Array<{ key: string; materializedMarkdown: string }> | null;
+    trackedWorkSummary: { totalCount: number } | null;
+  }>;
+};
+
+export type GetPlanTaskMonitorPageQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetPlanTaskMonitorPageQuery = {
+  workItem: { id: string; name: string; type: string };
+};
+
+export type GetActivityWorkItemsQueryVariables = Exact<{
+  ids: Array<string | number> | string | number;
+}>;
+
+export type GetActivityWorkItemsQuery = {
+  workItems: Array<{
+    id: string;
+    name: string;
+    type: string;
+    status: string;
+    dueDate: string | null;
+    childCounts: { total: number | null } | null;
+    sections: Array<{ key: string; materializedMarkdown: string }> | null;
+  }>;
+};
+
+export type GetProposalGraphTargetQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetProposalGraphTargetQuery = {
+  workItem: { id: string; name: string; type: string };
+};
+
+export type GetModeAvailabilityQueryVariables = Exact<{
+  id: string | number;
+  edgeTypes: Array<EdgeType> | EdgeType;
+}>;
+
+export type GetModeAvailabilityQuery = {
+  workItem: {
+    id: string;
+    type: string;
+    edges: Array<{
+      type: EdgeType;
+      targetNodeType: string | null;
+      source: { entityId: string };
+      target: { entityId: string; name: string | null };
+    }> | null;
+  };
+};
+
+export type GetTaskPickerAncestorQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetTaskPickerAncestorQuery = {
+  workItem: { id: string; parentTaskId: string | null };
+};
+
+export type GetWorkItemParentQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+export type GetWorkItemParentQuery = {
+  workItem: { id: string; type: string; parentTaskId: string | null };
 };
 
 export type WorkItemFieldsFragment = {
@@ -2348,6 +2468,165 @@ export const WorkItemReferenceFieldsFragmentDoc = {
     },
   ],
 } as unknown as DocumentNode<WorkItemReferenceFieldsFragment, unknown>;
+export const GetTriageConversationTitleDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetTriageConversationTitle" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "conversation" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "title" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetTriageConversationTitleQuery,
+  GetTriageConversationTitleQueryVariables
+>;
+export const GetOnboardingReplyVersionDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetOnboardingReplyVersion" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "conversation" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "version" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetOnboardingReplyVersionQuery,
+  GetOnboardingReplyVersionQueryVariables
+>;
+export const VerifyRepositoryImportConversationDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "VerifyRepositoryImportConversation" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "conversation" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "workflowId" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "workflowName" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "workflowAboutId" },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "workflowAboutType" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  VerifyRepositoryImportConversationQuery,
+  VerifyRepositoryImportConversationQueryVariables
+>;
 export const GetConversationDocument = {
   kind: "Document",
   definitions: [
@@ -4200,6 +4479,546 @@ export const ProjectScopeDocument = {
     },
   ],
 } as unknown as DocumentNode<ProjectScopeQuery, ProjectScopeQueryVariables>;
+export const GetTasksPageDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetTasksPage" },
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItems" },
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+                { kind: "Field", name: { kind: "Name", value: "status" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "initiativeId" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "dueDate" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "hasProposalSupport" },
+                },
+                { kind: "Field", name: { kind: "Name", value: "createdAt" } },
+                { kind: "Field", name: { kind: "Name", value: "updatedAt" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "childCounts" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "total" } },
+                      { kind: "Field", name: { kind: "Name", value: "done" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "inProgress" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "backlog" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "sections" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "keys" },
+                      value: {
+                        kind: "ListValue",
+                        values: [
+                          {
+                            kind: "StringValue",
+                            value: "description",
+                            block: false,
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "key" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "materializedMarkdown" },
+                      },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "trackedWorkSummary" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "totalCount" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<GetTasksPageQuery, GetTasksPageQueryVariables>;
+export const GetPlanTaskMonitorPageDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetPlanTaskMonitorPage" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItem" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetPlanTaskMonitorPageQuery,
+  GetPlanTaskMonitorPageQueryVariables
+>;
+export const GetActivityWorkItemsDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetActivityWorkItems" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "ids" } },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "ListType",
+              type: {
+                kind: "NonNullType",
+                type: {
+                  kind: "NamedType",
+                  name: { kind: "Name", value: "ID" },
+                },
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItems" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "ids" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "ids" },
+                },
+              },
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "limit" },
+                value: { kind: "IntValue", value: "500" },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+                { kind: "Field", name: { kind: "Name", value: "status" } },
+                { kind: "Field", name: { kind: "Name", value: "dueDate" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "childCounts" },
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "total" } },
+                    ],
+                  },
+                },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "sections" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "keys" },
+                      value: {
+                        kind: "ListValue",
+                        values: [
+                          {
+                            kind: "StringValue",
+                            value: "description",
+                            block: false,
+                          },
+                          {
+                            kind: "StringValue",
+                            value: "acceptanceCriteria",
+                            block: false,
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "key" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "materializedMarkdown" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetActivityWorkItemsQuery,
+  GetActivityWorkItemsQueryVariables
+>;
+export const GetProposalGraphTargetDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetProposalGraphTarget" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItem" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "name" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetProposalGraphTargetQuery,
+  GetProposalGraphTargetQueryVariables
+>;
+export const GetModeAvailabilityDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetModeAvailability" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+        {
+          kind: "VariableDefinition",
+          variable: {
+            kind: "Variable",
+            name: { kind: "Name", value: "edgeTypes" },
+          },
+          type: {
+            kind: "NonNullType",
+            type: {
+              kind: "ListType",
+              type: {
+                kind: "NonNullType",
+                type: {
+                  kind: "NamedType",
+                  name: { kind: "Name", value: "EdgeType" },
+                },
+              },
+            },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItem" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "edges" },
+                  arguments: [
+                    {
+                      kind: "Argument",
+                      name: { kind: "Name", value: "types" },
+                      value: {
+                        kind: "Variable",
+                        name: { kind: "Name", value: "edgeTypes" },
+                      },
+                    },
+                  ],
+                  selectionSet: {
+                    kind: "SelectionSet",
+                    selections: [
+                      { kind: "Field", name: { kind: "Name", value: "type" } },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "targetNodeType" },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "source" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "entityId" },
+                            },
+                          ],
+                        },
+                      },
+                      {
+                        kind: "Field",
+                        name: { kind: "Name", value: "target" },
+                        selectionSet: {
+                          kind: "SelectionSet",
+                          selections: [
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "entityId" },
+                            },
+                            {
+                              kind: "Field",
+                              name: { kind: "Name", value: "name" },
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetModeAvailabilityQuery,
+  GetModeAvailabilityQueryVariables
+>;
+export const GetTaskPickerAncestorDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetTaskPickerAncestor" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItem" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "parentTaskId" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetTaskPickerAncestorQuery,
+  GetTaskPickerAncestorQueryVariables
+>;
+export const GetWorkItemParentDocument = {
+  kind: "Document",
+  definitions: [
+    {
+      kind: "OperationDefinition",
+      operation: "query",
+      name: { kind: "Name", value: "GetWorkItemParent" },
+      variableDefinitions: [
+        {
+          kind: "VariableDefinition",
+          variable: { kind: "Variable", name: { kind: "Name", value: "id" } },
+          type: {
+            kind: "NonNullType",
+            type: { kind: "NamedType", name: { kind: "Name", value: "ID" } },
+          },
+        },
+      ],
+      selectionSet: {
+        kind: "SelectionSet",
+        selections: [
+          {
+            kind: "Field",
+            name: { kind: "Name", value: "workItem" },
+            arguments: [
+              {
+                kind: "Argument",
+                name: { kind: "Name", value: "id" },
+                value: {
+                  kind: "Variable",
+                  name: { kind: "Name", value: "id" },
+                },
+              },
+            ],
+            selectionSet: {
+              kind: "SelectionSet",
+              selections: [
+                { kind: "Field", name: { kind: "Name", value: "id" } },
+                { kind: "Field", name: { kind: "Name", value: "type" } },
+                {
+                  kind: "Field",
+                  name: { kind: "Name", value: "parentTaskId" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
+} as unknown as DocumentNode<
+  GetWorkItemParentQuery,
+  GetWorkItemParentQueryVariables
+>;
 export const GetWorkItemsDocument = {
   kind: "Document",
   definitions: [

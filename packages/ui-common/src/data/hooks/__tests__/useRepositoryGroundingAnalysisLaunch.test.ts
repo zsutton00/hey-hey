@@ -1,3 +1,4 @@
+import { graphql, HttpResponse } from "msw";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RepositoryGroundingSubmission } from "../../../components/LlmForms/Registry/repositoryGroundingUtils";
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   createAgentSession: vi.fn(),
   bindMachine: vi.fn(),
   createConversation: vi.fn(),
-  getWorkflowConversations: vi.fn(),
+  verifyRepositoryConversation: vi.fn(),
   getAccess: vi.fn(),
   startSession: vi.fn(),
   submitWorkflowAnswer: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock("../useCreateAgentSessionConversation", () => ({
 }));
 vi.mock(
   "../../../components/InteractionComponent/bindGraphConversationAgentSessionMachine",
-  () => ({ bindGraphConversationAgentSessionMachine: mocks.bindMachine })
+  () => ({ bindGraphConversationAgentSessionMachine: mocks.bindMachine }),
 );
 vi.mock(
   "../../../components/AgentSession/operations/useAgentSessionInteractionAccess",
@@ -32,13 +33,8 @@ vi.mock(
     useAgentSessionInteractionAccessResolver: () => ({
       getAccess: mocks.getAccess,
     }),
-  })
+  }),
 );
-vi.mock("../../../clients/serviceClients", () => ({
-  conversationsClient: {
-    getWorkflowConversations: mocks.getWorkflowConversations,
-  },
-}));
 vi.mock("../submitControllerAuthorizedWorkflowAnswer", () => ({
   submitControllerAuthorizedWorkflowAnswer: mocks.submitWorkflowAnswer,
 }));
@@ -102,19 +98,23 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
         workflowAboutId: "project-1",
       },
     });
-    mocks.getWorkflowConversations.mockResolvedValue({
-      data: {
-        data: {
-          data: [
-            {
+    globalThis.mswServer.use(
+      graphql.query("VerifyRepositoryImportConversation", ({ variables }) => {
+        mocks.verifyRepositoryConversation(variables);
+        return HttpResponse.json({
+          data: {
+            conversation: {
+              __typename: "Conversation",
               id: "conversation-1",
               workflowId: "workflow-1",
               workflowName: "repository-import",
+              workflowAboutType: "project",
+              workflowAboutId: "project-1",
             },
-          ],
-        },
-      },
-    });
+          },
+        });
+      }),
+    );
     mocks.getAccess.mockReturnValue({
       isDeviceEnabled: true,
       unavailable: null,
@@ -171,12 +171,8 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
         workflowAboutId: "project-1",
       },
     });
-    expect(mocks.getWorkflowConversations).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      workflowName: "project",
-      workflowAboutId: "project-1",
-      workflowName2: "repository-import",
+    expect(mocks.verifyRepositoryConversation).toHaveBeenCalledWith({
+      id: "conversation-1",
     });
     expect(mocks.startSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -192,7 +188,7 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
           provider: "codex",
           reasoningEffort: "high",
         }),
-      })
+      }),
     );
     expect(mocks.submitWorkflowAnswer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -200,10 +196,10 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
         conversationId: "conversation-1",
         workflowName: "repository-import",
         action: "START_ANALYSIS",
-      })
+      }),
     );
     expect(mocks.startSession.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.submitWorkflowAnswer.mock.invocationCallOrder[0]!
+      mocks.submitWorkflowAnswer.mock.invocationCallOrder[0]!,
     );
   });
 
@@ -223,7 +219,7 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
     const { result } = renderHook(() => useRepositoryGroundingAnalysisLaunch());
 
     await expect(
-      result.current.launchRepositoryGroundingAnalysis(launchInput)
+      result.current.launchRepositoryGroundingAnalysis(launchInput),
     ).rejects.toThrow(readiness.message);
     expect(mocks.submitWorkflowAnswer).not.toHaveBeenCalled();
   });
@@ -235,7 +231,7 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
     mocks.startSession.mockReturnValue(
       new Promise((resolve) => {
         resolveStart = resolve;
-      })
+      }),
     );
     const { result } = renderHook(() => useRepositoryGroundingAnalysisLaunch());
 
@@ -245,7 +241,7 @@ describe("useRepositoryGroundingAnalysisLaunch", () => {
       first = result.current.launchRepositoryGroundingAnalysis(launchInput);
       second = result.current.launchRepositoryGroundingAnalysis(launchInput);
       await vi.waitFor(() =>
-        expect(mocks.startSession).toHaveBeenCalledTimes(1)
+        expect(mocks.startSession).toHaveBeenCalledTimes(1),
       );
       resolveStart?.({ state: "succeeded", triggerMessageId: "trigger-1" });
       await Promise.all([first, second]);

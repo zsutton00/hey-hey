@@ -99,8 +99,10 @@ describe("TaskTreePicker cached feature levels", () => {
     await user.click(await screen.findByLabelText("Expand Root"));
     expect(await screen.findByText("Parent")).toBeVisible();
     expect(screen.getByRole("progressbar")).toBeVisible();
+    await waitFor(() => expect(rejectRead).toBeDefined());
     expect(unifiedApiClient.getTasks).toHaveBeenCalledWith(
       expect.objectContaining({ parentTaskId: "root" }),
+      expect.anything(),
     );
     await act(async () => rejectRead(new Error("Unavailable")));
     expect(await screen.findByText("Failed to load")).toBeVisible();

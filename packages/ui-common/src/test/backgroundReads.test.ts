@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
-  platformClient,
-  projectsClient,
-  unifiedApiClient,
-} from "../clients/serviceClients";
-import { MessageReadMode } from "../api";
+  GetConversationMessageHistoryDocument,
+  GetConversationMessagesDocument,
+} from "../graphql/generated/graphql";
+import { queryProject } from "../data/graphql/queryProject";
+import { describe, expect, it } from "vitest";
+import { projectsClient, unifiedApiClient } from "../clients/serviceClients";
 import { fetchEntityStars } from "../data/collections/entityStars";
 import axios from "axios";
 import { workItemReferencesRead } from "../data/collections/workItemReferences";
@@ -37,13 +37,23 @@ describe("shared fixture background reads", () => {
       projectId: "another-project",
       conversationId: "another-conversation",
     };
-    const history = await platformClient.getMessages({
-      ...scope,
-      mode: MessageReadMode.ReverseHistory,
-    });
-    expect(history.data.data).toEqual({ messages: [] });
-    const messages = await platformClient.getMessages(scope);
-    expect(messages.data.data).toEqual([]);
+    const graphql = new WebUiGraphQLClient(() =>
+      axios.create({ baseURL: "http://localhost:3000/api/v1" }),
+    );
+    const history = await queryProject(
+      graphql.apollo,
+      scope,
+      GetConversationMessageHistoryDocument,
+      { id: scope.conversationId, last: 8 },
+    );
+    expect(history?.conversation.messages.nodes).toEqual([]);
+    const messages = await queryProject(
+      graphql.apollo,
+      scope,
+      GetConversationMessagesDocument,
+      { id: scope.conversationId },
+    );
+    expect(messages?.conversation.messages.nodes).toEqual([]);
     const presence = await unifiedApiClient.getConversationCliStatus(scope);
     expect(presence.data.data).toEqual({
       connected: false,

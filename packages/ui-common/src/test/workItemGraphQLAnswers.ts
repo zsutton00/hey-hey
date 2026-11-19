@@ -50,6 +50,14 @@ export const nodeOf = (
   ...(Array.isArray(item.sections)
     ? { sections: item.sections.map(sectionNode) }
     : {}),
+  ...(Array.isArray(item.serviceRelations)
+    ? {
+        serviceRelations: item.serviceRelations.map((relation) => ({
+          __typename: "ServiceRelation",
+          ...relation,
+        })),
+      }
+    : {}),
   ...(Array.isArray(item.edges) && variables.withEdges
     ? { edges: item.edges.map(edgeNodeOf) }
     : {}),
@@ -102,16 +110,35 @@ export function answerWorkItemOperation(
   const find = (id: unknown) => items.find((item) => item.id === id);
 
   switch (operationName) {
+    case "GetTasksPage":
+    case "GetActivityWorkItems":
     case "GetWorkItems":
       return ok({
         workItems: selected(items, variables).map((item) =>
-          nodeOf(item, variables),
+          nodeOf(
+            item,
+            operationName === "GetWorkItems"
+              ? variables
+              : {
+                  withSections: true,
+                  withTrackedWorkSummary: operationName === "GetTasksPage",
+                },
+          ),
         ),
       });
+    case "GetProposalGraphTarget":
+    case "GetModeAvailability":
+    case "GetTaskPickerAncestor":
+    case "GetWorkItemParent":
+    case "GetPlanTaskMonitorPage":
     case "GetWorkItem": {
       const item = find(variables.id);
 
-      return item ? ok({ workItem: nodeOf(item, variables) }) : notFound;
+      const parts =
+        operationName === "GetModeAvailability"
+          ? { ...variables, withEdges: true }
+          : variables;
+      return item ? ok({ workItem: nodeOf(item, parts) }) : notFound;
     }
     case "GetWorkItemHierarchy": {
       const task = find(variables.id);
@@ -197,6 +224,13 @@ export function answerWorkItemOperation(
 /** The operations the work-item reads make. */
 export const WORK_ITEM_OPERATIONS: ReadonlySet<string> = new Set([
   "GetWorkItems",
+  "GetTasksPage",
+  "GetActivityWorkItems",
+  "GetProposalGraphTarget",
+  "GetModeAvailability",
+  "GetTaskPickerAncestor",
+  "GetWorkItemParent",
+  "GetPlanTaskMonitorPage",
   "GetWorkItem",
   "GetWorkItemHierarchy",
   "GetWorkItemGraph",

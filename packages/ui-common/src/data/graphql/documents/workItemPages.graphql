@@ -1,0 +1,92 @@
+query GetTasksPage {
+  workItems {
+    id
+    name
+    type
+    status
+    initiativeId
+    dueDate
+    hasProposalSupport
+    createdAt
+    updatedAt
+    childCounts {
+      total
+      done
+      inProgress
+      backlog
+    }
+    sections(keys: ["description"]) {
+      key
+      materializedMarkdown
+    }
+    trackedWorkSummary {
+      totalCount
+    }
+  }
+}
+
+query GetPlanTaskMonitorPage($id: ID!) {
+  workItem(id: $id) {
+    id
+    name
+    type
+  }
+}
+
+query GetActivityWorkItems($ids: [ID!]!) {
+  workItems(ids: $ids, limit: 500) {
+    id
+    name
+    type
+    status
+    dueDate
+    childCounts {
+      total
+    }
+    sections(keys: ["description", "acceptanceCriteria"]) {
+      key
+      materializedMarkdown
+    }
+  }
+}
+
+query GetProposalGraphTarget($id: ID!) {
+  workItem(id: $id) {
+    id
+    name
+    type
+  }
+}
+
+query GetModeAvailability($id: ID!, $edgeTypes: [EdgeType!]!) {
+  workItem(id: $id) {
+    id
+    type
+    edges(types: $edgeTypes) {
+      type
+      targetNodeType
+      source {
+        entityId
+      }
+      target {
+        entityId
+        name
+      }
+    }
+  }
+}
+
+query GetTaskPickerAncestor($id: ID!) {
+  workItem(id: $id) {
+    id
+    parentTaskId
+  }
+}
+
+query GetWorkItemParent($id: ID!) {
+  workItem(id: $id) {
+    id
+    type
+    parentTaskId
+  }
+}

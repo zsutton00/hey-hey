@@ -26,7 +26,6 @@ vi.mock("@hey-hey/ui-common/clients", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/clients")>()),
   unifiedApiClient: {
     getReport: vi.fn(),
-    getTask: vi.fn(),
   },
 }));
 
@@ -131,6 +130,11 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     hasNext: false,
   })),
   useProjects: vi.fn(() => ({ create: vi.fn() })),
+  useActivityWorkItems: vi.fn(() => ({
+    data: [],
+    error: null,
+    isFetching: false,
+  })),
   useAgentSessions: vi.fn(),
   useCorrelatedActivity: vi.fn(),
   useProject: vi.fn(),

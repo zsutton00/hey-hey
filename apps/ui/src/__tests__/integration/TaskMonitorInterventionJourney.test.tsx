@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   params: vi.fn(),
   useFullEntityContext: vi.fn(),
   useProject: vi.fn(),
-  useWorkItem: vi.fn(),
+  usePlanTaskMonitorPageItem: vi.fn(),
 }));
 
 const ORGANIZATION_ID = "10000000-0000-4000-8000-000000000001";
@@ -30,9 +30,11 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     get: () => undefined,
     resolveAncestry: () => ({ ancestors: [], complete: false }),
   }),
-  useFullEntityContext: (...args: unknown[]) => mocks.useFullEntityContext(...args),
+  useFullEntityContext: (...args: unknown[]) =>
+    mocks.useFullEntityContext(...args),
   useProject: (...args: unknown[]) => mocks.useProject(...args),
-  useWorkItem: (...args: unknown[]) => mocks.useWorkItem(...args),
+  usePlanTaskMonitorPageItem: (...args: unknown[]) =>
+    mocks.usePlanTaskMonitorPageItem(...args),
 }));
 
 vi.mock("@hey-hey/ui-common/components", async () => {
@@ -69,10 +71,17 @@ vi.mock("@hey-hey/ui-common/components", async () => {
       };
 
       return (
-        <div data-monitor-id={monitorId} data-testid="task-monitor-intervention-message">
+        <div
+          data-monitor-id={monitorId}
+          data-testid="task-monitor-intervention-message"
+        >
           <div data-testid="task-monitor-intervention-action">exec</div>
-          <div data-testid="task-monitor-intervention-target">pnpm test:run</div>
-          <button onClick={submit}>{attempts === 0 ? "Approve" : "Retry approve"}</button>
+          <div data-testid="task-monitor-intervention-target">
+            pnpm test:run
+          </div>
+          <button onClick={submit}>
+            {attempts === 0 ? "Approve" : "Retry approve"}
+          </button>
           <button>Deny</button>
         </div>
       );
@@ -85,7 +94,10 @@ vi.mock("../../components/Layout/LayoutMainBottomSpacingContext", () => ({
   useSuppressLayoutMainBottomSpacing: () => undefined,
 }));
 vi.mock("../../hooks/useRemainingViewportHeight", () => ({
-  useRemainingViewportHeight: () => ({ containerRef: () => undefined, height: 640 }),
+  useRemainingViewportHeight: () => ({
+    containerRef: () => undefined,
+    height: 640,
+  }),
 }));
 vi.mock("../../pages/Plan/PlanPage", () => ({
   PlanPage: (props: { automationContent: ReactNode }) => (
@@ -102,7 +114,10 @@ vi.mock("@hey-hey/ui-common", () => ({
   }),
 }));
 vi.mock("@hey-hey/ui-common/context", () => ({
-  CanonicalPageBoundary: (props: { children: ReactNode; composition: unknown }) => {
+  CanonicalPageBoundary: (props: {
+    children: ReactNode;
+    composition: unknown;
+  }) => {
     mocks.canonicalBoundary(props);
     return <>{props.children}</>;
   },
@@ -123,9 +138,11 @@ describe("Task Monitor intervention workspace seam", () => {
       monitorId: MONITOR_ID,
     });
     mocks.useProject.mockReturnValue({ data: { name: "Hey Hey" } });
-    mocks.useFullEntityContext.mockReturnValue({ data: { featureHierarchy: [] } });
-    mocks.useWorkItem.mockReturnValue({
-      workItem: { id: MONITOR_ID, name: "Release monitor", type: "TASK_MONITOR" },
+    mocks.useFullEntityContext.mockReturnValue({
+      data: { featureHierarchy: [] },
+    });
+    mocks.usePlanTaskMonitorPageItem.mockReturnValue({
+      data: { id: MONITOR_ID, name: "Release monitor", type: "TASK_MONITOR" },
       isLoading: false,
       error: null,
     });
@@ -141,23 +158,35 @@ describe("Task Monitor intervention workspace seam", () => {
             organizationId={ORGANIZATION_ID}
             projectId={PROJECT_ID}
             monitorId={MONITOR_ID}
-            task={{ id: MONITOR_ID, name: "Release monitor", type: "TASK_MONITOR" } as never}
+            task={
+              {
+                id: MONITOR_ID,
+                name: "Release monitor",
+                type: "TASK_MONITOR",
+              } as never
+            }
           />
         ) : (
           <PlanTaskMonitorPage />
         ),
       );
 
-      expect(screen.getAllByTestId("task-monitor-intervention-message")).toHaveLength(1);
-      expect(screen.getByTestId("task-monitor-intervention-action")).toHaveTextContent("exec");
-      expect(screen.getByTestId("task-monitor-intervention-target")).toHaveTextContent(
-        "pnpm test:run",
-      );
+      expect(
+        screen.getAllByTestId("task-monitor-intervention-message"),
+      ).toHaveLength(1);
+      expect(
+        screen.getByTestId("task-monitor-intervention-action"),
+      ).toHaveTextContent("exec");
+      expect(
+        screen.getByTestId("task-monitor-intervention-target"),
+      ).toHaveTextContent("pnpm test:run");
       expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
 
       await user.click(screen.getByRole("button", { name: "Approve" }));
-      expect(screen.getByRole("button", { name: "Retry approve" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Retry approve" }),
+      ).toBeEnabled();
       await user.click(screen.getByRole("button", { name: "Retry approve" }));
 
       expect(mocks.commandRequests).toHaveLength(2);
@@ -174,7 +203,9 @@ describe("Task Monitor intervention workspace seam", () => {
         },
       });
       await waitFor(() =>
-        expect(screen.queryByTestId("task-monitor-intervention-message")).not.toBeInTheDocument(),
+        expect(
+          screen.queryByTestId("task-monitor-intervention-message"),
+        ).not.toBeInTheDocument(),
       );
     },
   );

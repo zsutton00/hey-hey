@@ -1,4 +1,6 @@
 import { http, HttpResponse } from "msw";
+import { AgentEdgeType } from "../api";
+import type { EdgeType } from "../graphql/generated/graphql";
 import {
   answerWorkItemOperation,
   edgeNodeOf,
@@ -87,10 +89,11 @@ async function answerFromRead(
     );
   };
 
+  const { getTask, getTasks, listWorkItemReferences, getWorkItemGraph } = reads;
   switch (operationName) {
     case "GetWorkItems": {
       const items = payload(
-        await call(reads.getTasks, {
+        await call(getTasks, {
           taskIds: variables.ids,
           parentTaskId: variables.parentTaskId,
           parentTaskIds: variables.parentTaskIds,
@@ -100,6 +103,9 @@ async function answerFromRead(
           status: variables.statuses,
           includeSectionKeys: variables.sectionKeys,
           includeEdges: variables.withEdges || undefined,
+          edgeTypes: (variables.edgeTypes as EdgeType[] | undefined)?.map(
+            (type) => AgentEdgeType[type],
+          ),
           includeServiceRelations: variables.withServiceRelations || undefined,
           page: variables.page,
           limit: variables.limit,
@@ -110,19 +116,28 @@ async function answerFromRead(
         workItems: items.map((item) => nodeOf(item, variables)),
       };
     }
+    case "GetProposalGraphTarget":
+    case "GetTaskPickerAncestor":
+    case "GetWorkItemParent":
+    case "GetModeAvailability":
     case "GetWorkItem": {
+      const withEdges =
+        operationName === "GetModeAvailability" ? true : variables.withEdges;
       const item = payload(
-        await call(reads.getTask, {
+        await call(getTask, {
           taskId: variables.id,
           includeServiceRelations: variables.withServiceRelations,
-          includeEdges: variables.withEdges,
+          includeEdges: withEdges,
+          edgeTypes: (variables.edgeTypes as EdgeType[] | undefined)?.map(
+            (type) => AgentEdgeType[type],
+          ),
         }),
       ) as FakeWorkItem | null;
       if (!item) {
         throw Object.assign(new Error("Task not found"), { status: 404 });
       }
 
-      return { workItem: nodeOf(item, variables) };
+      return { workItem: nodeOf(item, { ...variables, withEdges }) };
     }
     case "GetWorkItemHierarchy": {
       const hierarchy = payload(
@@ -148,7 +163,7 @@ async function answerFromRead(
     }
     case "GetWorkItemGraph": {
       const graph = payload(
-        await call(reads.getWorkItemGraph, { workItemId: variables.id }),
+        await call(getWorkItemGraph, { workItemId: variables.id }),
       ) as Record<string, unknown> & {
         root: FakeWorkItem;
         children: FakeWorkItem[];
@@ -176,7 +191,7 @@ async function answerFromRead(
       const references: unknown[] = [];
       for (let page = 1; ; page += 1) {
         const result = payload(
-          await call(reads.listWorkItemReferences, {
+          await call(listWorkItemReferences, {
             type: variables.type,
             page,
             limit: 500,
@@ -193,7 +208,7 @@ async function answerFromRead(
     }
     case "GetWorkItemReferencePage": {
       const result = payload(
-        await call(reads.listWorkItemReferences, {
+        await call(listWorkItemReferences, {
           type: variables.type,
           page: variables.page,
           limit: variables.limit,

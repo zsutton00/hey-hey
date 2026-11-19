@@ -107,12 +107,12 @@ const addMessage = (messages: string[], message: string): void => {
 
 const addValidationIssue = (
   issues: ProposalValidationIssue[],
-  issue: ProposalValidationIssue
+  issue: ProposalValidationIssue,
 ): void => {
   if (
     !issues.some(
       (existing) =>
-        existing.field === issue.field && existing.code === issue.code
+        existing.field === issue.field && existing.code === issue.code,
     )
   ) {
     issues.push(issue);
@@ -121,10 +121,10 @@ const addValidationIssue = (
 
 const compareWorkItems = (
   first: WorkItemResponseDto,
-  second: WorkItemResponseDto
+  second: WorkItemResponseDto,
 ): number => {
   const createdAtComparison = (first.createdAt ?? "").localeCompare(
-    second.createdAt ?? ""
+    second.createdAt ?? "",
   );
   return createdAtComparison !== 0
     ? createdAtComparison
@@ -133,7 +133,7 @@ const compareWorkItems = (
 
 const dependencyIdsFor = (
   item: WorkItemResponseDto,
-  allowedTargetIds: ReadonlySet<string>
+  allowedTargetIds: ReadonlySet<string>,
 ): string[] => [
   ...new Set(
     (item.edges ?? []).flatMap((edge) =>
@@ -141,8 +141,8 @@ const dependencyIdsFor = (
       edge.sourceNodeId === item.id &&
       allowedTargetIds.has(edge.targetNodeId)
         ? [edge.targetNodeId]
-        : []
-    )
+        : [],
+    ),
   ),
 ];
 
@@ -156,7 +156,7 @@ const topologicallyOrder = <T extends WorkItemResponseDto>(input: {
   if (itemsById.size !== input.items.length) {
     addMessage(
       input.messages,
-      "Canonical Plan Work Item identities must be unique."
+      "Canonical Plan Work Item identities must be unique.",
     );
     return null;
   }
@@ -204,11 +204,11 @@ const topologicallyOrder = <T extends WorkItemResponseDto>(input: {
 
 export const buildCanonicalPlanTaskGraph = (
   tasks: readonly PlanStageStandardTask[],
-  messages: string[] = []
+  messages: string[] = [],
 ): CanonicalPlanTaskGraph | null => {
   const taskIds = new Set(tasks.map((task) => task.id));
   const dependenciesByTaskId = new Map(
-    tasks.map((task) => [task.id, dependencyIdsFor(task, taskIds)])
+    tasks.map((task) => [task.id, dependencyIdsFor(task, taskIds)]),
   );
   const orderedTasks = topologicallyOrder({
     items: tasks,
@@ -221,30 +221,30 @@ export const buildCanonicalPlanTaskGraph = (
 
 const supportsDependencyTarget = (
   definition: WorkItemTypeDefinitionDto,
-  targetType: string
+  targetType: string,
 ): boolean =>
   definition.edgeTargets?.some(
     (target) =>
       target.edgeType === AgentEdgeType.DependsOn &&
       (target.targetTypeKeys.length === 0 ||
-        target.targetTypeKeys.includes(targetType))
+        target.targetTypeKeys.includes(targetType)),
   ) ?? false;
 
 export const validateCanonicalPlanRegistry = (
-  snapshot: readonly WorkItemTypeSummaryDto[]
+  snapshot: readonly WorkItemTypeSummaryDto[],
 ): string[] => {
   const definitionsByKey = new Map(
-    snapshot.map((item) => [item.definition.key, item.definition])
+    snapshot.map((item) => [item.definition.key, item.definition]),
   );
   const messages: string[] = [];
   const missingKeys = REQUIRED_PLAN_TYPE_CONTRACTS.map(
-    (contract) => contract.key
+    (contract) => contract.key,
   ).filter((key) => !definitionsByKey.has(key));
   if (missingKeys.length > 0) {
     messages.push(
       `The effective Work Item type registry is missing ${missingKeys.join(
-        ", "
-      )}.`
+        ", ",
+      )}.`,
     );
   }
   for (const contract of REQUIRED_PLAN_TYPE_CONTRACTS) {
@@ -256,17 +256,17 @@ export const validateCanonicalPlanRegistry = (
       !definition.allowedParentTypes?.includes(contract.parentType)
     ) {
       messages.push(
-        `${contract.key} must require a ${contract.parentType} parent in the effective Work Item type registry.`
+        `${contract.key} must require a ${contract.parentType} parent in the effective Work Item type registry.`,
       );
     }
     if (
       contract.requiredSectionKey &&
       !definition.sections.some(
-        (section) => section.key === contract.requiredSectionKey
+        (section) => section.key === contract.requiredSectionKey,
       )
     ) {
       messages.push(
-        `${contract.key} is missing its ${contract.requiredSectionKey} section in the effective Work Item type registry.`
+        `${contract.key} is missing its ${contract.requiredSectionKey} section in the effective Work Item type registry.`,
       );
     }
     if (
@@ -274,25 +274,27 @@ export const validateCanonicalPlanRegistry = (
       !supportsDependencyTarget(definition, contract.dependencyTargetType)
     ) {
       messages.push(
-        `${contract.key} cannot create DEPENDS_ON edges to ${contract.dependencyTargetType} in the effective Work Item type registry.`
+        `${contract.key} cannot create DEPENDS_ON edges to ${contract.dependencyTargetType} in the effective Work Item type registry.`,
       );
     }
   }
   return messages;
 };
 
-export const isPlanWorkItem = (
-  item: WorkItemResponseDto
-): item is PlanWorkItem => item.type === PLAN_WORK_ITEM_TYPE;
+type WorkItemParent = Pick<WorkItemResponseDto, "type" | "parentTaskId">;
 
-export const isPlanStageWorkItem = (
-  item: WorkItemResponseDto
-): item is PlanStageWorkItem =>
+export const isPlanWorkItem = <T extends Pick<WorkItemResponseDto, "type">>(
+  item: T,
+): item is T & Pick<PlanWorkItem, "type"> => item.type === PLAN_WORK_ITEM_TYPE;
+
+export const isPlanStageWorkItem = <T extends WorkItemParent>(
+  item: T,
+): item is T & Pick<PlanStageWorkItem, "type" | "parentTaskId"> =>
   item.type === PLAN_STAGE_WORK_ITEM_TYPE && isNonEmpty(item.parentTaskId);
 
-export const isPlanStageStandardTask = (
-  item: WorkItemResponseDto
-): item is PlanStageStandardTask =>
+export const isPlanStageStandardTask = <T extends WorkItemParent>(
+  item: T,
+): item is T & Pick<PlanStageStandardTask, "type" | "parentTaskId"> =>
   item.type === STANDARD_WORK_ITEM_TYPE && isNonEmpty(item.parentTaskId);
 
 const isPlanType = (value: unknown): value is PlanType =>
@@ -309,16 +311,16 @@ const isPlanConfiguration = (value: unknown): value is PlanConfigurationV1 => {
       isNonEmpty(
         typeof configuration.worktreeBranch === "string"
           ? configuration.worktreeBranch
-          : undefined
+          : undefined,
       ))
   );
 };
 
 const readPlanConfiguration = (
-  plan: WorkItemResponseDto
+  plan: WorkItemResponseDto,
 ): PlanConfigurationV1 | null => {
   const serialized = plan.sections?.find(
-    (section) => section.key === PLAN_CONFIGURATION_SECTION_KEY
+    (section) => section.key === PLAN_CONFIGURATION_SECTION_KEY,
   )?.materializedMarkdown;
   if (!isNonEmpty(serialized)) return null;
   try {
@@ -348,21 +350,21 @@ export const parseCanonicalPlanStageSource = (input: {
     addMessage(messages, "The selected item must be a PLAN.");
   }
   const stageCandidate = input.descendants.find(
-    (item) => item.id === input.stageId
+    (item) => item.id === input.stageId,
   );
   if (!stageCandidate || !isPlanStageWorkItem(stageCandidate)) {
     addMessage(messages, "The selected Plan Stage is unavailable.");
   } else if (stageCandidate.parentTaskId !== input.plan.id) {
     addMessage(
       messages,
-      "The selected Plan Stage is not a direct child of the selected Plan."
+      "The selected Plan Stage is not a direct child of the selected Plan.",
     );
   }
   const configuration = readPlanConfiguration(input.plan);
   if (!configuration) {
     addMessage(
       messages,
-      "The Plan is missing a valid planConfiguration section."
+      "The Plan is missing a valid planConfiguration section.",
     );
   }
   if (messages.length > 0 || !isPlanWorkItem(input.plan) || !stageCandidate) {
@@ -377,7 +379,7 @@ export const parseCanonicalPlanStageSource = (input: {
     if (!isPlanStageStandardTask(descendant)) {
       addMessage(
         messages,
-        "Every direct Plan Stage child must be a STANDARD Task."
+        "Every direct Plan Stage child must be a STANDARD Task.",
       );
       continue;
     }
@@ -417,11 +419,11 @@ export const composeCanonicalPlanAggregate = (input: {
   if (!configuration) {
     addMessage(
       messages,
-      "The Plan is missing a valid planConfiguration section."
+      "The Plan is missing a valid planConfiguration section.",
     );
   }
   const stageCandidates = input.descendants.filter(
-    (item) => item.parentTaskId === input.plan?.id
+    (item) => item.parentTaskId === input.plan?.id,
   );
   const stages: PlanStageWorkItem[] = [];
   for (const candidate of stageCandidates) {
@@ -436,31 +438,31 @@ export const composeCanonicalPlanAggregate = (input: {
     allItems.some(
       (item) =>
         item.organizationId !== input.plan?.organizationId ||
-        item.projectId !== input.plan?.projectId
+        item.projectId !== input.plan?.projectId,
     )
   ) {
     addMessage(
       messages,
-      "Every canonical Plan Work Item must share organization and project scope."
+      "Every canonical Plan Work Item must share organization and project scope.",
     );
   }
 
   const stageIds = new Set(stages.map((stage) => stage.id));
   const stageDependencies = new Map(
-    stages.map((stage) => [stage.id, dependencyIdsFor(stage, stageIds)])
+    stages.map((stage) => [stage.id, dependencyIdsFor(stage, stageIds)]),
   );
   const externalStageDependency = stages.some((stage) =>
     (stage.edges ?? []).some(
       (edge) =>
         edge.type === AgentEdgeType.DependsOn &&
         edge.sourceNodeId === stage.id &&
-        !stageIds.has(edge.targetNodeId)
-    )
+        !stageIds.has(edge.targetNodeId),
+    ),
   );
   if (externalStageDependency) {
     addMessage(
       messages,
-      "Plan Stages may depend only on Stages in the same Plan."
+      "Plan Stages may depend only on Stages in the same Plan.",
     );
     for (const stage of stages) {
       for (const edge of stage.edges ?? []) {
@@ -483,17 +485,17 @@ export const composeCanonicalPlanAggregate = (input: {
   }
   if (stages.length > 0) {
     const rootCount = stages.filter(
-      (stage) => (stageDependencies.get(stage.id) ?? []).length === 0
+      (stage) => (stageDependencies.get(stage.id) ?? []).length === 0,
     ).length;
     const hasInvalidPredecessorCount = stages.some(
-      (stage) => (stageDependencies.get(stage.id) ?? []).length > 1
+      (stage) => (stageDependencies.get(stage.id) ?? []).length > 1,
     );
     const dependentCounts = new Map<string, number>();
     for (const dependencies of stageDependencies.values()) {
       for (const dependencyId of dependencies) {
         dependentCounts.set(
           dependencyId,
-          (dependentCounts.get(dependencyId) ?? 0) + 1
+          (dependentCounts.get(dependencyId) ?? 0) + 1,
         );
       }
     }
@@ -504,7 +506,7 @@ export const composeCanonicalPlanAggregate = (input: {
     ) {
       addMessage(
         messages,
-        "Plan Stage dependencies must form one linear chain."
+        "Plan Stage dependencies must form one linear chain.",
       );
 
       const addLinearChainIssue = (field: string): void => {
@@ -520,7 +522,7 @@ export const composeCanonicalPlanAggregate = (input: {
 
       if (rootCount !== 1) {
         const rootStages = stages.filter(
-          (stage) => (stageDependencies.get(stage.id) ?? []).length === 0
+          (stage) => (stageDependencies.get(stage.id) ?? []).length === 0,
         );
         for (const stage of rootStages) {
           addLinearChainIssue(`stages.${stage.id}.dependencies`);
@@ -533,7 +535,7 @@ export const composeCanonicalPlanAggregate = (input: {
         if (dependencies.length > 1) {
           for (const dependencyId of dependencies) {
             addLinearChainIssue(
-              `stages.${stage.id}.dependencies.${dependencyId}`
+              `stages.${stage.id}.dependencies.${dependencyId}`,
             );
           }
         }
@@ -544,7 +546,7 @@ export const composeCanonicalPlanAggregate = (input: {
         for (const stage of stages) {
           if ((stageDependencies.get(stage.id) ?? []).includes(dependencyId)) {
             addLinearChainIssue(
-              `stages.${stage.id}.dependencies.${dependencyId}`
+              `stages.${stage.id}.dependencies.${dependencyId}`,
             );
           }
         }
@@ -560,14 +562,14 @@ export const composeCanonicalPlanAggregate = (input: {
   const aggregateStages: CanonicalPlanAggregateStage[] = [];
   for (const stage of orderedStages ?? []) {
     const directChildren = input.descendants.filter(
-      (item) => item.parentTaskId === stage.id
+      (item) => item.parentTaskId === stage.id,
     );
     const tasks: PlanStageStandardTask[] = [];
     for (const child of directChildren) {
       if (!isPlanStageStandardTask(child)) {
         addMessage(
           messages,
-          "Every direct Plan Stage child must be a STANDARD Task."
+          "Every direct Plan Stage child must be a STANDARD Task.",
         );
       } else {
         tasks.push(child);

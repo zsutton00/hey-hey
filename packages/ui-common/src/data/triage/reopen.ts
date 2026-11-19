@@ -1,3 +1,4 @@
+import { fetchTriageConversationTitle } from "../graphql/conversationLookups";
 import type { ApolloClient } from "@apollo/client";
 import {
   EntityType,
@@ -7,7 +8,6 @@ import {
 } from "../../api";
 import {
   agentSessionsClient,
-  conversationsClient,
   designDocsClient,
   entityContextClient,
   proposalsClient,
@@ -82,16 +82,15 @@ export async function triageReopenRequest(
         };
       }
       case EntityType.Conversation: {
-        const conversation = (
-          await conversationsClient.getConversation({
-            ...scope,
-            conversationId: item.entityId,
-          })
-        ).data.data;
-        if (!conversation?.title)
+        const title = await fetchTriageConversationTitle(
+          graphqlClient,
+          scope,
+          item.entityId,
+        );
+        if (!title)
           throw new Error("This conversation's presentation is unavailable.");
         return {
-          label: conversation.title,
+          label: title,
           workItemTypeKey: null,
           agentSessionType: null,
           routeParams: {},
