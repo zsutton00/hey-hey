@@ -12,7 +12,7 @@
     "baseUrl": ".",
     "paths": {
       "@hey-hey/contracts/monitor-kind-policy": [
-        "../../packages/contracts/dist/cjs/monitor-kind-policy.d.ts"
+        "../../packages/contracts/dist/cjs/monitor-kind-policy"
       ],
       "@hey-hey/contracts/api": ["../../packages/contracts/dist/cjs/generated/api/index"],
       "@hey-hey/contracts/api/models": [
