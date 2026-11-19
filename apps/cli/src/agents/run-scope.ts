@@ -197,6 +197,13 @@ export type RunWorkspaceResolution =
       allowedRepositoryRoots: string[];
       bindingRepositoryPath: string;
       workspaceRoot: string | null;
+      /**
+       * Repository folder each session Service resolved to, legacy entries with
+       * an empty stored path included. Always set by `resolveRunWorkspace`, so
+       * later steps use the folder this resolution chose instead of looking the
+       * mutable repository binding up again.
+       */
+      servicePaths?: Readonly<Record<string, string>>;
       worktree?: LocalWorktreeStateByService;
     }
   | {
@@ -712,6 +719,9 @@ export const resolveRunWorkspace = async (input: {
     repositoryPath: toCanonicalPath(entry.repositoryPath),
   }));
   const serviceRepositoryPaths = servicePaths.map((entry) => entry.repositoryPath);
+  const servicePathsByServiceId = Object.fromEntries(
+    servicePaths.map((entry) => [entry.serviceId, entry.repositoryPath]),
+  );
 
   if (!input.session.scope) {
     const worktreeState = await resolveWorktreesForSession(input.session, servicePaths, logger);
@@ -742,6 +752,7 @@ export const resolveRunWorkspace = async (input: {
       allowedRepositoryRoots: allowedRoots,
       bindingRepositoryPath,
       workspaceRoot: null,
+      servicePaths: servicePathsByServiceId,
       ...(worktreeState ? { worktree: worktreeState } : {}),
     };
   }
@@ -805,6 +816,7 @@ export const resolveRunWorkspace = async (input: {
       allowedRepositoryRoots: rootsWithWorktree,
       bindingRepositoryPath,
       workspaceRoot: null,
+      servicePaths: servicePathsByServiceId,
       ...(worktreeState ? { worktree: worktreeState } : {}),
     };
   }
@@ -856,5 +868,6 @@ export const resolveRunWorkspace = async (input: {
     allowedRepositoryRoots,
     bindingRepositoryPath,
     workspaceRoot,
+    servicePaths: servicePathsByServiceId,
   };
 };

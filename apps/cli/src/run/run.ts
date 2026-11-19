@@ -207,6 +207,7 @@ import {
   type HeldAdmission,
   type InputSettlementEvidence,
 } from './run-service-scope';
+import { ServicePlaceReporter } from './service-place-reporter';
 import { ReviewFileScopeCoordinator } from '../agents/review-file-scope-request/review-file-scope-coordinator';
 import type { ReviewFileScopeDecisionInput } from '../agents/review-file-scope-request/review-file-scope-types';
 import {
@@ -736,6 +737,7 @@ export class Run {
   >();
   readonly serviceScope: RunServiceScope;
   readonly serviceScopeCoordinator: AgentSessionServiceScopeCoordinator;
+  private readonly servicePlaceReporter: ServicePlaceReporter;
   private readonly reviewFileScopeCoordinator: ReviewFileScopeCoordinator;
   private activeTurnInput: InternalRunPromptRequest | null = null;
   triggerContext: { externalAgentNodeId: string; triggerMessageId: string } | null = null;
@@ -1162,6 +1164,19 @@ export class Run {
       agentSessionId: () => this.agentSessionId,
       taskMonitorAdmission: () => collaborators.taskMonitorServiceScopeAdmission?.() ?? null,
       applyApprovedServiceScope: (input) => this.applyApprovedServiceScope(input),
+    });
+    this.servicePlaceReporter = new ServicePlaceReporter({
+      runId: this.runId,
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      apiBaseUrl: this.handlerDeps.apiBaseUrl,
+      auth: this.handlerDeps.auth,
+      fetchImpl: this.handlerDeps.fetchImpl,
+      keyPairStore: collaborators.keyPairStore ?? new KeyPairStore(),
+      runStore: this.runStore,
+      logger: this.logger,
+      session: () => this.session,
+      patchSession: (patch) => this.refreshSessionFields(patch),
     });
     // Seed Run-lifetime state from values a prior process stamped on the
     // store. The Run is constructed once per agentic session; each seed runs
@@ -1685,6 +1700,7 @@ export class Run {
       launchServiceId,
       worktreeServiceIds: workspace.worktree ? Object.keys(workspace.worktree) : [],
     });
+    await this.servicePlaceReporter.report(workspace);
     return { services: resolution.services, launchServiceId, workspaceBoundaryChanged };
   }
 
@@ -2854,6 +2870,7 @@ export class Run {
     ) {
       await this.resetWorkspaceWriteBoundaryForScopeChange();
     }
+    await this.servicePlaceReporter.report(input.workspace);
   }
 
   private async reconcileAdmittedServiceScope(
@@ -6362,6 +6379,8 @@ export class Run {
         });
       }
     }
+
+    await this.servicePlaceReporter.report(workspace);
 
     this.logger.debug('local.run.turn_workspace.selected', {
       runId: this.runId,
