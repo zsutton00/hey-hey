@@ -41,6 +41,8 @@ export const ENTITY_CONVERSATION_ALLOWED_TOOLS: readonly string[] = [
   'propose_future_revision',
   'create_design_doc',
   'edit_design_doc',
+  // Lets the agent look up the Service ID that `report_changed_files` and scope requests need.
+  'list_services',
   ...ENTITY_CONVERSATION_HELP_TOOLS,
 ];
 

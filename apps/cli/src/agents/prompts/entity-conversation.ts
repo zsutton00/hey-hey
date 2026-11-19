@@ -98,7 +98,9 @@ Before drafting a feature, task, or design-doc create or edit, apply the recogni
   stableSections.push(
     `${codingServiceScopeGuidance}
 
-Request missing Service access for requested repository work; approval supplies access, not edit intent, and preserves existing consent. On denial, explain the blocker and offer a work item.`,
+Request missing Service access for requested repository work; approval supplies access, not edit intent, and preserves existing consent. On denial, explain the blocker and offer a work item.
+
+You are not given a list of Services up front. Call \`list_services\` whenever you need a Service ID, for example to name the Service in \`report_changed_files\` or to request Service access; never ask the user for one.`,
   );
 
   stableSections.push(lifecycleAwareTaskEditSafety);
