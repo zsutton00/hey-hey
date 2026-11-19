@@ -20,8 +20,8 @@ export interface SessionStartContext {
   maturity: ProjectMaturity;
   /** Whether the platform offers the hint tools (the API's deployment-wide switch). */
   hintsEnabled: boolean;
-  /** Whether the API is a staging or local deployment, where hint guidance adds the product-defect rule. */
-  hintsProductDevelopment: boolean;
+  /** Whether the API is a staging or local deployment, where the prompt adds environment-gated rules. */
+  productDevelopment: boolean;
 }
 
 /**
@@ -62,6 +62,6 @@ export const readSessionStartContext = async (input: {
     intentFirst,
     maturity,
     hintsEnabled: hintAvailability.enabled,
-    hintsProductDevelopment: hintAvailability.productDevelopment,
+    productDevelopment: hintAvailability.productDevelopment,
   };
 };

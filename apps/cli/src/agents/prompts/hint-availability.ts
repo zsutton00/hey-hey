@@ -12,18 +12,19 @@ const toolsListResponseSchema = z.object({
 export interface HintAvailability {
   /** The platform offers the hint tools. */
   enabled: boolean;
-  /** The API is a staging or local deployment, where product defects can be fixed. */
+  /** The API is a staging or local deployment, where Hey Hey itself is developed. */
   productDevelopment: boolean;
 }
 
 const PRODUCT_DEVELOPMENT_META_KEY = 'heyhey/productDevelopment';
 
 /**
- * Reads hint availability from the platform tool list. Hints are offered when
- * `create_hint` is listed; the API marks that tool with
- * `_meta['heyhey/productDevelopment']: true` on staging and local deployments.
- * Anything other than an explicit `true` is not product development, so
- * production never receives the extra rule. Throws on any failed or malformed
+ * Reads hint availability and the deployment environment from the platform tool
+ * list. Hints are offered when `create_hint` is listed. The API marks its
+ * always-listed tools with `_meta['heyhey/productDevelopment']: true` on staging
+ * and local deployments; any listed tool carrying it counts, so the signal does
+ * not depend on hint tools. Anything other than an explicit `true` is not
+ * product development, so production never receives the extra rules. Throws on any failed or malformed
  * read so session start aborts loudly.
  */
 export const readHintAvailability = async (
@@ -55,8 +56,9 @@ export const readHintAvailability = async (
     (tool) => tool.name === 'create_hint' || tool.name === qualifyMcpToolName('create_hint'),
   );
 
-  return {
-    enabled: createHint !== undefined,
-    productDevelopment: createHint?._meta?.[PRODUCT_DEVELOPMENT_META_KEY] === true,
-  };
+  const productDevelopment = parsed.data.result.tools.some(
+    (tool) => tool._meta?.[PRODUCT_DEVELOPMENT_META_KEY] === true,
+  );
+
+  return { enabled: createHint !== undefined, productDevelopment };
 };

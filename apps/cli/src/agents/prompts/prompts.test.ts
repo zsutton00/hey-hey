@@ -307,12 +307,12 @@ describe('buildPlatformSystemPrompt', () => {
   it('tells every hint-capable session once, in every environment, not to surface hints to users', () => {
     const rule = 'never mention them to the user unless asked';
     const substance = 'state its substance plainly and say who decides';
-    const promptFor = (hints: 'write' | 'read' | 'none', hintsProductDevelopment: boolean) =>
+    const promptFor = (hints: 'write' | 'read' | 'none', productDevelopment: boolean) =>
       buildPlatformSystemPrompt(sampleDefs, undefined, {
         intentFirst: false,
         maturity: ProjectMaturity.Established,
         hints,
-        hintsProductDevelopment,
+        productDevelopment,
       });
     const occurrences = (text: string, part: string) => text.split(part).length - 1;
 

@@ -486,6 +486,15 @@ const hintDefinition =
 
 const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
 
+/**
+ * Composed into the shared prompt only where Hey Hey itself is developed
+ * (staging and local), where the project's graph also holds Hey Hey's own
+ * tooling. Guidance only; nothing enforces it at runtime.
+ */
+export const productDevelopmentBoundaryRule = `## Hey Hey's own code is not this project's knowledge
+
+Here the project is Hey Hey itself, but what it specifies is a product other people use. Hey Hey's own repository, code, test harness and delivery tooling are how that product is built, not part of it. Don't cite, link or depend on them from features, requirements, tasks or design docs unless the item is genuinely about them. If a capability could serve either purpose, describe it for the product's users and leave out how Hey Hey builds or tests itself. Ask the user only if you still can't tell.`;
+
 /** Added to the hint-writing guidance only where Hey Hey itself is developed (staging and local). */
 const productDefectRule = `
 - A hint records direction or a gotcha for this project's work. Never write one to correct how Hey Hey itself behaves, such as its prompts, tool wording, or defaults that would also affect other projects: a hint is seen only in this project, so the defect would stay for everyone else. When you find such behavior wrong, say so and propose a task or change to the product instead.`;
@@ -536,8 +545,11 @@ export interface PlatformPromptOptions {
   maturity: ProjectMaturity;
   /** Which hint guidance the session carries, from the hints switch and the session's tools. */
   hints: HintPromptAccess;
-  /** The API is a staging or local deployment; the hint-writing guidance then adds the product-defect rule. */
-  hintsProductDevelopment?: boolean;
+  /**
+   * The API is a staging or local deployment: the prompt then adds the
+   * own-code boundary rule and the hint-writing guidance its product-defect rule.
+   */
+  productDevelopment?: boolean;
 }
 
 /**
@@ -573,8 +585,9 @@ export function buildPlatformSystemPrompt(
     edgeDiscoveryInstruction,
     contractDiscoveryRecognition,
     topologyAuthoringRecognition,
+    options?.productDevelopment ? productDevelopmentBoundaryRule : null,
     options?.hints === 'write'
-      ? buildHintWritingGuidance(options.hintsProductDevelopment ?? false)
+      ? buildHintWritingGuidance(options.productDevelopment ?? false)
       : options?.hints === 'read'
         ? hintReadingGuidance
         : null,

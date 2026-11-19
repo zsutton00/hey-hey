@@ -574,7 +574,7 @@ describe('readSessionStartContext hints switch', () => {
       const context = await readSessionStartContext({ oauthClient, projectId: PROJECT_ID });
 
       expect(context.hintsEnabled).toBe(enabled);
-      expect(context.hintsProductDevelopment).toBe(enabled);
+      expect(context.productDevelopment).toBe(enabled);
       expect(hintsEnabledMock).toHaveBeenCalledWith(TOKEN, PROJECT_ID);
     },
   );
