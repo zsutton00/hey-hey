@@ -36,9 +36,9 @@ import { bindGraphConversationAgentSessionMachine } from "../InteractionComponen
 import { submitStopRunViaPlatform } from "../AgentSession/runtime/hooks/submitStopRunViaPlatform";
 import { MachinePicker } from "../AgentSession/MachinePicker";
 import { TaskMonitorCommandOutcomeAlert } from "./TaskMonitorCommandOutcomeAlert";
-import { TaskMonitorControlDock } from "./TaskMonitorControlDock";
 import { TaskMonitorLaunchConfigurationEditor } from "./TaskMonitorLaunchConfigurationEditor";
 import { TaskMonitorCapsuleButton } from "./TaskMonitorCapsuleButton";
+import { TaskMonitorLifecycleCapsuleButton } from "./TaskMonitorLifecycleCapsuleButton";
 import {
   monitorPhase,
   useTaskMonitorPresentation,
@@ -195,6 +195,12 @@ export const TaskMonitorWorkspaceView = ({
           )
         : phase === "setup"),
     pause: advertisedActions.some((action) => action.command === "PAUSE"),
+    // The label follows the last committed snapshot; freshness only gates submission.
+    showsPause:
+      phase !== "setup" &&
+      (snapshot?.availableActions ?? []).some(
+        (action) => action.command === "PAUSE",
+      ),
   };
   const panes = presentation.panes;
   const freshness =
@@ -358,6 +364,18 @@ export const TaskMonitorWorkspaceView = ({
         data-testid="task-monitor-workspace"
         sx={{ height: "100%", minHeight: 0 }}
       >
+        <TaskMonitorLifecycleCapsuleButton
+          monitorId={monitorId}
+          availability={availability}
+          pendingLifecycleAction={pendingLifecycleAction}
+          startPresentation={startPresentation}
+          binding={isBindingCoordinator}
+          controlsDisabled={
+            selectedMachineId === null || (setup && nodes.length === 0)
+          }
+          onStart={startCoordinator}
+          onPause={onPause}
+        />
         {phase !== "setup" && snapshot ? (
           <TaskMonitorCapsuleButton
             monitorId={monitorId}
@@ -545,19 +563,14 @@ export const TaskMonitorWorkspaceView = ({
             </Stack>
             <Box sx={{ px: 1, py: 1 }}>
               <Stack spacing={1} alignItems="center">
-                <TaskMonitorControlDock
-                  monitorStatus={monitorStatus}
-                  availability={availability}
-                  presentation={startPresentation}
-                  pendingAction={pendingLifecycleAction}
-                  controlsDisabled={
-                    selectedMachineId === null ||
-                    isBindingCoordinator ||
-                    (setup && nodes.length === 0)
-                  }
-                  onStart={startCoordinator}
-                  onPause={onPause}
-                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  data-testid="task-monitor-automation-note"
+                >
+                  Automation uses the coding provider&apos;s auto mode when
+                  available.
+                </Typography>
                 <Box sx={{ width: "100%" }}>
                   {machines.length > 0 ? (
                     <MachinePicker

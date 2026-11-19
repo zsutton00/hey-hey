@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -14,6 +15,9 @@ import {
   type CreateUserMessage,
 } from "../../../api";
 import { TaskMonitorWorkspaceView } from "../TaskMonitorWorkspaceView";
+import { CapsuleScreenButtonControl } from "../../ActionsCapsule/CapsuleScreenButtonControl";
+import { useActionsCapsule } from "../../ActionsCapsule/ActionsCapsuleContext";
+import { ActionsCapsuleProvider } from "../../ActionsCapsule/ActionsCapsuleProvider";
 import {
   AuthorizationProtocolVersion,
   CurrentControllerMachineEligibilityState,
@@ -221,37 +225,54 @@ const retainedState = (
   },
 });
 
+const CapsuleScreenButtons = () => {
+  const { screenButtons } = useActionsCapsule();
+  return screenButtons.map((button) => (
+    <CapsuleScreenButtonControl
+      key={button.key}
+      button={button}
+      onClick={button.onClick}
+    />
+  ));
+};
+
 const workspaceElement = (
   overrides: Partial<
     React.ComponentProps<typeof TaskMonitorWorkspaceView>
   > = {},
 ) => (
-  <TaskMonitorWorkspaceView
-    organizationId="org-1"
-    projectId="project-1"
-    monitorId="66666666-6666-4666-8666-666666666666"
-    monitorSessionDate="2026-07-20T00:00:00.000Z"
-    monitorName="Release monitor"
-    monitorStatus={WorkStatus.Active}
-    definition={createTaskMonitorDefinition()}
-    nodes={[selectedNode]}
-    isLoading={false}
-    startPresentation={{ status: "ready" }}
-    isSavingLaunchConfiguration={false}
-    onSaveLaunchConfiguration={vi.fn()}
-    pendingLifecycleAction={null}
-    errorMessage={null}
-    operationalErrorMessage={null}
-    commandOutcome={null}
-    machines={[readyMachine]}
-    selectedMachineId={readyMachine.machineId}
-    onSelectMachine={vi.fn()}
-    onStart={vi.fn()}
-    onPause={vi.fn()}
-    activePane="monitor"
-    {...overrides}
-  />
+  <ActionsCapsuleProvider>
+    <CapsuleScreenButtons />
+    <TaskMonitorWorkspaceView
+      organizationId="org-1"
+      projectId="project-1"
+      monitorId="66666666-6666-4666-8666-666666666666"
+      monitorSessionDate="2026-07-20T00:00:00.000Z"
+      monitorName="Release monitor"
+      monitorStatus={WorkStatus.Active}
+      definition={createTaskMonitorDefinition()}
+      nodes={[selectedNode]}
+      isLoading={false}
+      startPresentation={{ status: "ready" }}
+      isSavingLaunchConfiguration={false}
+      onSaveLaunchConfiguration={vi.fn()}
+      pendingLifecycleAction={null}
+      errorMessage={null}
+      operationalErrorMessage={null}
+      commandOutcome={null}
+      machines={[readyMachine]}
+      selectedMachineId={readyMachine.machineId}
+      onSelectMachine={vi.fn()}
+      onStart={vi.fn()}
+      onPause={vi.fn()}
+      activePane="monitor"
+      {...overrides}
+    />
+  </ActionsCapsuleProvider>
 );
+
+const lifecycleButton = (label: "Start" | "Pause") =>
+  screen.getByRole("button", { name: label });
 
 const renderWorkspace = (
   overrides: Partial<
@@ -325,7 +346,9 @@ describe("TaskMonitorWorkspaceView", () => {
 
     expect(screen.queryByTestId("task-monitor-name")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-monitor-status")).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-monitor-control-dock")).toBeVisible();
+    expect(
+      screen.queryByTestId("task-monitor-control-dock"),
+    ).not.toBeInTheDocument();
   });
 
   it("orders Steps, Task Monitor, and Active Session for responsive layout", () => {
@@ -376,19 +399,20 @@ describe("TaskMonitorWorkspaceView", () => {
     },
   );
 
-  it("places the machine picker with monitor setup and Start", () => {
+  it("shows Start in the Action Capsule, not in the workspace body", () => {
     renderWorkspace({ monitorStatus: WorkStatus.Backlog });
 
-    const stepsPane = screen.getByTestId("task-monitor-coordinator-pane");
-    const start = screen.getByTestId("task-monitor-start");
-    const machinePicker = screen.getByTestId("machine-picker");
+    const start = lifecycleButton("Start");
 
-    expect(stepsPane).toContainElement(start);
-    expect(stepsPane).toContainElement(machinePicker);
-    expect(
-      start.compareDocumentPosition(machinePicker) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(start).toBeEnabled();
+    expect(start).toHaveAttribute(
+      "data-screen-key",
+      expect.stringMatching(/^task-monitor-lifecycle:/),
+    );
+    expect(screen.getByTestId("task-monitor-workspace")).not.toContainElement(
+      start,
+    );
+    expect(screen.getByTestId("machine-picker")).toBeVisible();
   });
 
   it("binds the coordinator session to the selected machine before Start", async () => {
@@ -403,7 +427,7 @@ describe("TaskMonitorWorkspaceView", () => {
     });
     renderWorkspace({ monitorStatus: WorkStatus.Backlog, onStart });
 
-    fireEvent.click(screen.getByTestId("task-monitor-start"));
+    fireEvent.click(lifecycleButton("Start"));
 
     await waitFor(() =>
       expect(bindGraphConversationAgentSessionMachineMock).toHaveBeenCalledWith(
@@ -436,7 +460,7 @@ describe("TaskMonitorWorkspaceView", () => {
     });
     renderWorkspace({ monitorStatus: WorkStatus.Backlog, onStart });
 
-    fireEvent.click(screen.getByTestId("task-monitor-start"));
+    fireEvent.click(lifecycleButton("Start"));
 
     expect(
       await screen.findByTestId("task-monitor-start-error"),
@@ -623,19 +647,33 @@ describe("TaskMonitorWorkspaceView", () => {
       startPresentation: { status: "starting" },
     });
 
-    expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
-    expect(screen.getByTestId("task-monitor-start-progress")).toBeVisible();
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(
+      within(lifecycleButton("Start")).getByTestId(
+        "capsule-screen-button-pending",
+      ),
+    ).toBeVisible();
+  });
+
+  it("removes the lifecycle button when the workspace unmounts", () => {
+    const { unmount } = renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+    expect(lifecycleButton("Start")).toBeVisible();
+    unmount();
+    expect(
+      screen.queryByRole("button", { name: "Start" }),
+    ).not.toBeInTheDocument();
   });
 
   it("passes canonical Pause presentation and callback through the workspace", () => {
     const onPause = vi.fn();
     renderWorkspace({ onPause, executionState: retainedState("running") });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
 
-    fireEvent.click(screen.getByTestId("task-monitor-pause"));
+    fireEvent.click(lifecycleButton("Pause"));
 
     expect(onPause).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Start" }),
+    ).not.toBeInTheDocument();
   });
 
   it("passes pending Resume presentation through Start without changing canonical status", () => {
@@ -644,8 +682,12 @@ describe("TaskMonitorWorkspaceView", () => {
       pendingLifecycleAction: "RESUME",
     });
 
-    expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
-    expect(screen.getByTestId("task-monitor-start-progress")).toBeVisible();
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(
+      within(lifecycleButton("Start")).getByTestId(
+        "capsule-screen-button-pending",
+      ),
+    ).toBeVisible();
     expect(screen.queryByTestId("task-monitor-resume")).not.toBeInTheDocument();
   });
 
@@ -673,7 +715,7 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(screen.getByTestId("task-monitor-start-error")).toHaveTextContent(
       "Canonical monitor refresh failed.",
     );
-    expect(screen.getByTestId("task-monitor-start")).toBeEnabled();
+    expect(lifecycleButton("Start")).toBeEnabled();
   });
   it("moves from setup to running, signals attention without opening, and exposes completion evidence", async () => {
     const { rerender } = renderWorkspace({
@@ -683,7 +725,9 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(
       screen.queryByTestId("task-monitor-open-session"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByTestId("task-monitor-pause")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Pause" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -703,7 +747,7 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(
       screen.queryByTestId("task-monitor-open-session"),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
+    expect(lifecycleButton("Start")).toBeDisabled();
 
     rerender(workspaceElement({ executionState: retainedState("running") }));
     await waitFor(() =>
@@ -833,8 +877,26 @@ describe("TaskMonitorWorkspaceView", () => {
     renderWorkspace({ executionState: { ...state, delivery: "INTERRUPTED" } });
     fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
     expect(screen.getByTestId("task-monitor-state-stale")).toBeVisible();
-    expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
-    expect(screen.getByTestId("task-monitor-pause")).toBeDisabled();
+    expect(lifecycleButton("Start")).toBeDisabled();
+  });
+  it("keeps Pause, disabled with a spinner, when live updates drop during a pending Pause", () => {
+    const state = retainedState("running");
+    if (state.status !== "retained") {
+      throw new Error("Expected retained fixture");
+    }
+    renderWorkspace({
+      executionState: { ...state, delivery: "INTERRUPTED" },
+      pendingLifecycleAction: "PAUSE",
+    });
+
+    const pause = lifecycleButton("Pause");
+    expect(pause).toBeDisabled();
+    expect(
+      within(pause).getByTestId("capsule-screen-button-pending"),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Start" }),
+    ).not.toBeInTheDocument();
   });
   it("redocks only after an accepted guidance response and preserves rejected drafts", async () => {
     const submit = vi
