@@ -208,6 +208,7 @@ export class MessageController {
     @Query('workflowAboutId') workflowAboutId: string,
     @Query('workflowAboutType') workflowAboutType: string,
     @Query('query') query: string,
+    @CurrentUser('userId') userId: UserId,
     @Query('limit') limit?: string,
   ): Promise<SearchConversationMessagesResponseDto[]> {
     if (!workflowAboutId) {
@@ -227,6 +228,7 @@ export class MessageController {
       workflowAboutId,
       workflowAboutType,
       query,
+      readerUserId: userId,
       limit: parsedLimit,
     });
   }

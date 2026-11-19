@@ -1580,6 +1580,7 @@ export class MessageService {
     workflowAboutId: string;
     workflowAboutType: string;
     query: string;
+    readerUserId: UserId;
     limit?: number;
   }): Promise<SearchConversationMessagesResponseDto[]> {
     const {
@@ -1588,6 +1589,7 @@ export class MessageService {
       workflowAboutId,
       workflowAboutType,
       query,
+      readerUserId,
     } = params;
 
     const trimmedQuery = (query ?? '').trim();
@@ -1651,6 +1653,7 @@ export class MessageService {
         AND c.project_id = ${projectId}
         AND c.workflow_about_id = ${workflowAboutId}
         AND c.workflow_about_type = ${workflowAboutType}
+        AND (c.restricted = false OR c.created_by = ${readerUserId})
         AND m.data::text ILIKE ${pattern}
         AND m.created_at IS NOT NULL
       ORDER BY m.created_at DESC

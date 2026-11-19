@@ -731,6 +731,7 @@ describe('MessageController', () => {
         opts.workflowAboutId ?? ANCHOR_ID,
         opts.workflowAboutType ?? ANCHOR_TYPE,
         query,
+        testIds.user as UserId,
         opts.limit,
       );
 
@@ -766,6 +767,7 @@ describe('MessageController', () => {
         workflowAboutId: ANCHOR_ID,
         workflowAboutType: ANCHOR_TYPE,
         query: 'matching',
+        readerUserId: testIds.user,
         limit: undefined,
       });
       const distinctConversations = new Set(

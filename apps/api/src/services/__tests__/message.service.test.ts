@@ -18,7 +18,7 @@ import {
   SystemMessageData,
 } from '@hey-hey/contracts/api/models';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConversationId, MessageId, OrganizationId } from '../../types';
+import { ConversationId, MessageId, OrganizationId, UserId } from '../../types';
 import * as TestUtils from '../../utils/testUtils';
 import { EntityRegistryService } from '../entity-registry/entity-registry.service';
 import { MentionProcessingService } from '../mentions/mention-processing.service';
@@ -3555,10 +3555,31 @@ describe('MessageService', () => {
         workflowAboutId: 'task-id',
         workflowAboutType: 'TASK',
         query: 'follow-up',
+        readerUserId: testIds.user as UserId,
       });
       expect(queryRaw.mock.calls[0][0].sql).toContain(
         'm.created_at IS NOT NULL',
       );
+    });
+
+    it('searches only conversations the reader may read', async () => {
+      jest
+        .spyOn(prismaService.db.conversation, 'findFirst')
+        .mockResolvedValue({ id: mockConversationId } as never);
+      const queryRaw = jest.fn().mockResolvedValue([]);
+      (prismaService.db as unknown as { $queryRaw: jest.Mock }).$queryRaw =
+        queryRaw;
+      await service.searchByWorkflowAbout({
+        organizationId: mockOrganizationId,
+        projectId: mockProjectId,
+        workflowAboutId: 'task-id',
+        workflowAboutType: 'TASK',
+        query: 'follow-up',
+        readerUserId: testIds.user as UserId,
+      });
+      const { sql, values } = queryRaw.mock.calls[0][0];
+      expect(sql).toContain('c.restricted = false OR c.created_by =');
+      expect(values).toContain(testIds.user);
     });
   });
 });
