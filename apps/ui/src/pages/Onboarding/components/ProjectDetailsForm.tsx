@@ -174,6 +174,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
             <Box
               component="span"
               sx={{
+                color: "text.secondary",
                 fontStyle: description ? "normal" : "italic",
                 whiteSpace: "pre-wrap",
               }}
@@ -192,7 +193,7 @@ export const ProjectDetailsForm: React.FC<ProjectDetailsFormProps> = ({
               aria-label="Edit project details"
               onClick={handleEdit}
               data-testid="project-details-edit-button"
-              sx={{ ml: 1, color: "rgb(255 255 255 / 70%)" }}
+              sx={{ ml: 1, color: "text.secondary" }}
             >
               <EditIcon fontSize="small" />
             </IconButton>

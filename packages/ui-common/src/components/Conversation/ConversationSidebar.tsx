@@ -1,4 +1,11 @@
-import { Box, Paper, Typography, Divider, ButtonBase } from "@mui/material";
+import {
+  Box,
+  Paper,
+  Typography,
+  Divider,
+  ButtonBase,
+  useTheme,
+} from "@mui/material";
 import { useMemo } from "react";
 import CheckCircle from "@mui/icons-material/CheckCircle";
 import Circle from "@mui/icons-material/Circle";
@@ -8,9 +15,6 @@ import { type ConversationStepData } from "./ConversationStep";
 import { ConversationStep } from "./ConversationStep";
 import { type MessageResponseDto } from "../../api";
 import {
-  BRANDED_CARD_FILL,
-  BRANDED_NESTED_HEADER_FILL,
-  BRANDED_RULE_COLOR,
   BRANDED_TEAL,
   BrandedCardTitle,
   useBrandedAppearance,
@@ -50,6 +54,8 @@ export const ConversationSidebar = ({
   };
 
   const isBranded = useBrandedAppearance();
+  const { palette } = useTheme();
+  const ink = palette.text.primary;
   const isIndeterminate = stepCount === -1;
   const completedSteps = stepsToRender.filter(
     (step) => step.isCompleted,
@@ -67,9 +73,9 @@ export const ConversationSidebar = ({
           boxSizing: "border-box",
           width: "100%",
           p: "1.5rem",
-          border: `1px solid ${BRANDED_RULE_COLOR}`,
+          border: `1px solid ${palette.divider}`,
           borderRadius: "10px",
-          bgcolor: BRANDED_CARD_FILL,
+          bgcolor: "background.paper",
         }}
       >
         <BrandedCardTitle id="conversation-progress-title">
@@ -102,15 +108,13 @@ export const ConversationSidebar = ({
                   px: "0.8rem",
                   py: "0.6rem",
                   borderRadius: "8px",
-                  border: `1px solid ${step.isActive ? "#fff" : BRANDED_RULE_COLOR}`,
-                  bgcolor: step.isActive
-                    ? BRANDED_NESTED_HEADER_FILL
-                    : "transparent",
+                  border: `1px solid ${step.isActive ? ink : palette.divider}`,
+                  bgcolor: "transparent",
                   fontWeight: 700,
                   fontSize: "0.9rem",
-                  color: "#fff",
+                  color: ink,
                   "&.Mui-disabled": {
-                    color: "#fff",
+                    color: ink,
                     opacity: step.isActive ? 1 : 0.6,
                   },
                 }}

@@ -5,6 +5,7 @@ import {
   Typography,
   Button,
   CircularProgress,
+  alpha,
   useTheme,
   type SxProps,
   type Theme,
@@ -23,12 +24,7 @@ import {
 import { useProjectIds } from "../../hooks/useEditorContext";
 import type { FileReferenceScope } from "../../data/hooks/useFileReferenceCandidates";
 import { SmarterTextAreaEditor } from "./SmarterTextAreaEditor";
-import {
-  BRANDED_NESTED_FILL,
-  BRANDED_NESTED_HEADER_FILL,
-  BRANDED_NESTED_RULE_COLOR,
-  useBrandedAppearance,
-} from "../BrandedFrame";
+import { useBrandedAppearance } from "../BrandedFrame";
 
 type SaveStatus =
   "draft" | "saving" | "saved" | "submitting" | "sent" | "complete";
@@ -246,9 +242,9 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
         containerSx: isBranded
           ? {
               position: "relative",
-              border: "1px solid rgb(255 255 255 / 35%)",
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.35)}`,
               borderRadius: "6px",
-              bgcolor: BRANDED_NESTED_FILL,
+              bgcolor: "background.paper",
             }
           : {
               bgcolor: transparent ? "transparent" : "background.paper",
@@ -275,7 +271,7 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
         placeholder,
         placeholderStyle: {
           color: isBranded
-            ? "rgb(255 255 255 / 55%)"
+            ? alpha(theme.palette.text.primary, 0.55)
             : theme.palette.text.secondary,
         },
       }}
@@ -291,9 +287,9 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
         border: "none",
         ...(isBranded
           ? {
-              border: `1px solid ${BRANDED_NESTED_RULE_COLOR}`,
+              border: `1px solid ${theme.palette.divider}`,
               borderRadius: "10px",
-              bgcolor: BRANDED_NESTED_FILL,
+              bgcolor: "background.paper",
               backgroundImage: "none",
               mb: 2,
             }
@@ -315,8 +311,8 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
             ...(headerSx || {}),
             ...(isBranded
               ? {
-                  bgcolor: BRANDED_NESTED_HEADER_FILL,
-                  borderBottom: `1px solid ${BRANDED_NESTED_RULE_COLOR}`,
+                  bgcolor: "background.paper",
+                  borderBottom: `1px solid ${theme.palette.divider}`,
                 }
               : {}),
           }}

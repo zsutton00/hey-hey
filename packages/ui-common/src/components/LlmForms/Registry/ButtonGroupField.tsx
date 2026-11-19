@@ -1,12 +1,20 @@
 import React from "react";
-import { Box, Button, Typography, useTheme, Chip } from "@mui/material";
+import {
+  Box,
+  Button,
+  Typography,
+  useTheme,
+  Chip,
+  alpha,
+  type Theme,
+} from "@mui/material";
 import { useBrandedAppearance } from "../../BrandedFrame";
 import type { FieldComponentProps } from "./types";
 
 export type ButtonGroupFieldProps = FieldComponentProps<string>;
 
-/** White-outlined pill; the selected one is filled white so it reads without colour. */
-const brandedChipSx = (isSelected: boolean) =>
+/** Ink-outlined pill; the selected one is filled with the ink so it reads without colour. */
+const brandedChipSx = (theme: Theme, isSelected: boolean) =>
   ({
     flex: "0 1 auto",
     minWidth: 0,
@@ -15,12 +23,18 @@ const brandedChipSx = (isSelected: boolean) =>
     py: "0.35rem",
     fontSize: "0.85rem",
     fontWeight: 700,
-    borderColor: isSelected ? "#fff" : "rgb(255 255 255 / 45%)",
-    backgroundColor: isSelected ? "#fff" : "transparent",
-    color: isSelected ? "#333" : "#fff",
+    borderColor: isSelected
+      ? theme.palette.text.primary
+      : alpha(theme.palette.text.primary, 0.45),
+    backgroundColor: isSelected ? theme.palette.text.primary : "transparent",
+    color: isSelected
+      ? theme.palette.background.default
+      : theme.palette.text.primary,
     "&:hover": {
-      borderColor: "#fff",
-      backgroundColor: isSelected ? "#fff" : "rgb(255 255 255 / 10%)",
+      borderColor: theme.palette.text.primary,
+      backgroundColor: isSelected
+        ? theme.palette.text.primary
+        : alpha(theme.palette.text.primary, 0.1),
     },
   }) as const;
 
@@ -117,7 +131,7 @@ export const ButtonGroupField: React.FC<ButtonGroupFieldProps> = ({
                     duration: theme.transitions.duration.short,
                   },
                 ),
-                ...(isBranded ? brandedChipSx(isSelected) : {}),
+                ...(isBranded ? brandedChipSx(theme, isSelected) : {}),
               }}
             >
               {option}
