@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 /**
  * WebSocket handler conversation invalidation against the TanStack Query
  * cache: conversation events invalidate by conversation id, so every cached
@@ -73,7 +74,12 @@ describe("WebSocket handler with queryKeys", () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
-    handler = new WebSocketHandler(store, mockDebugger, queryClient);
+    handler = new WebSocketHandler(
+      store,
+      mockDebugger,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
 
     // Clear mock calls
     logEventSpy.mockClear();

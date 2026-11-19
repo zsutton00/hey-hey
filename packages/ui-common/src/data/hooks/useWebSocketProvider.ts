@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useEffect } from "react";
 import { useStore } from "jotai";
@@ -10,18 +11,19 @@ export function useWebSocketProvider(): WebSocketService {
   const store = useStore(); // Get current Jotai store from React context
   // Realtime events reach the data layer only through this client.
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   // Create handler with React store (no userId needed - handler manages its own auth)
   const webSocketHandler = useMemo(() => {
     logger.info("data_hooks", "[WebSocket] Creating handler with React store");
-    return new WebSocketHandler(store, undefined, queryClient);
-  }, [store, queryClient]);
+    return new WebSocketHandler(store, undefined, queryClient, graphqlClient);
+  }, [store, queryClient, graphqlClient]);
 
   // Create service with handler
   const webSocketService = useMemo(() => {
     logger.info(
       "data_hooks",
-      "[WebSocket] Creating service with custom handler"
+      "[WebSocket] Creating service with custom handler",
     );
     return new WebSocketService(webSocketHandler);
   }, [webSocketHandler]);

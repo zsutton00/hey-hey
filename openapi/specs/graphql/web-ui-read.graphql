@@ -1,6 +1,7 @@
 type Conversation {
   createdAt: String!
   createdBy: String
+  goalPmRoutingDecisions: [JSON!]
   id: ID!
   initiatedBy: String!
   lastModifiedBy: String
@@ -19,6 +20,7 @@ type Conversation {
   projectId: String!
   restricted: Boolean!
   status: String!
+  suggestionDecisions: [JSON!]
   title: String
   triggerEvent: String
   updatedAt: String!
@@ -79,16 +81,26 @@ enum EntityType {
 scalar JSON
 
 type Message {
+  awaitingResponse: Boolean
   conversationId: String!
-  createdAt: String!
+  createdAt: String
   data: JSON!
+  executionAdmissionDisposition: String
+  executionCancellationRequested: Boolean
+  executionOperationId: String
+  executionQueueConfirmed: Boolean
+  executionStatus: String
+  handler: String
   id: ID!
+  parentMessage: Message
   parentMessageId: String
   projectId: String!
   proposals: [JSON!]
   reports: [JSON!]
+  responses: [Message!]
   status: String!
   type: String!
+  user: JSON
   userId: String
 }
 
@@ -120,11 +132,35 @@ type ProjectScope {
 }
 
 type Query {
+  activeConversations(
+    limit: Int
+    page: Int
+    search: String
+
+    """Only for `conversations`; `activeConversations` has no status filter."""
+    statuses: [String!]
+    workflowAboutId: String
+    workflowAboutType: String
+    workflowNames: [String!]
+  ): ConversationPage!
   conversation(id: ID!): Conversation!
-  conversations(limit: Int, page: Int): ConversationPage!
+  conversations(
+    limit: Int
+    page: Int
+    search: String
+
+    """Only for `conversations`; `activeConversations` has no status filter."""
+    statuses: [String!]
+    workflowAboutId: String
+    workflowAboutType: String
+    workflowNames: [String!]
+  ): ConversationPage!
+  latestMessage(conversationId: ID!): Message
+  message(id: ID!): Message!
   projectScope: ProjectScope!
   workItem(id: ID!): WorkItem!
   workItems(ids: [ID!], includeDescendants: Boolean, initiativeId: ID, limit: Int, page: Int, parentTaskId: ID, parentTaskIds: [ID!], relatedTo: RelatedEntityFilter, sort: WorkItemSort, statuses: [String!], type: String): [WorkItem!]!
+  workflowConversations(limit: Int, page: Int, sortBy: String, sortOrder: String, statuses: [String!], workflowAboutId: String!, workflowName: String!): ConversationPage!
 }
 
 input RelatedEntityFilter {

@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createStore } from "jotai";
@@ -445,6 +446,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     const event: EvalRunUpdatedEvent = {
       id: "event-1",
@@ -472,6 +474,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     const event: EvalAttemptUpdatedEvent = {
       id: "event-2",
@@ -501,6 +504,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     handler.handleEvent({
       id: "event-3",

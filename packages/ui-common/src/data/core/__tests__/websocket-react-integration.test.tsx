@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 /**
  * Phase 6.2: Integration Test Suite
  * Comprehensive tests for WebSocket React Integration
@@ -67,9 +68,8 @@ vi.mock("../../websockets/debugger", () => ({
 
 // Mock API calls
 vi.mock("../../../api", async () => {
-  const actual = await vi.importActual<typeof import("../../../api")>(
-    "../../../api"
-  );
+  const actual =
+    await vi.importActual<typeof import("../../../api")>("../../../api");
 
   const createMockStagedContentApi = () => ({
     autosaveStagedContent: vi.fn(),
@@ -149,18 +149,18 @@ describe("WebSocket React Integration", () => {
       () => useWebSocketService(),
       {
         wrapper: TestWrapper,
-      }
+      },
     );
 
     // Simulate conversations being loaded by hooks
     const { result: conv1Result } = renderHook(
       () => useConversation("org-1", "proj-1", { conversationId: "conv-1" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     const { result: conv2Result } = renderHook(
       () => useConversation("org-1", "proj-2", { conversationId: "conv-2" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     // Wait for hooks to initialize
@@ -180,12 +180,12 @@ describe("WebSocket React Integration", () => {
       () => useWebSocketService(),
       {
         wrapper: TestWrapper,
-      }
+      },
     );
 
     const { result: conversationResult } = renderHook(
       () => useConversation("org-1", "proj-1", { conversationId: "conv-1" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     // Wait for initialization
@@ -248,7 +248,12 @@ describe("WebSocket React Integration", () => {
       logEvent: vi.fn(),
       logQueryInvalidation: vi.fn(),
     };
-    const handler = new WebSocketHandler(store, mockDebugger, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      mockDebugger,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
 
     // Create multiple rapid events
     const events = Array.from({ length: 100 }, (_, i) => ({
@@ -283,9 +288,9 @@ describe("WebSocket React Integration", () => {
         conversationKeys.envelope(
           event.organizationId,
           event.projectId,
-          event.conversationId
+          event.conversationId,
         ),
-        mockConversation
+        mockConversation,
       );
     });
 
@@ -304,7 +309,7 @@ describe("WebSocket React Integration", () => {
           previousStatus: event.previousStatus,
           newStatus: event.newStatus,
         });
-      })
+      }),
     );
 
     const endTime = performance.now();
@@ -321,7 +326,7 @@ describe("WebSocket React Integration", () => {
     expect(envelopes).toHaveLength(100);
     expect(envelopes.every((query) => query.state.isInvalidated)).toBe(true);
     expect(envelopes.every((query) => query.state.data !== undefined)).toBe(
-      true
+      true,
     );
   });
 
@@ -377,7 +382,7 @@ describe("WebSocket React Integration", () => {
         // The conversation might become stale due to WebSocket event
         expect(staleElement).toBeInTheDocument();
       },
-      { timeout: 1000 }
+      { timeout: 1000 },
     );
   });
 
@@ -442,7 +447,7 @@ describe("WebSocket React Integration", () => {
         useConversationByWorkflow("org-1", "project-1", "onboarding", {
           workflowAboutId: "project-about-1",
         }),
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -455,7 +460,8 @@ describe("WebSocket React Integration", () => {
         logEvent: vi.fn(),
         logQueryInvalidation: vi.fn(),
       },
-      queryClient
+      queryClient,
+      createUnreachableGraphQLClient(),
     );
     const event = {
       type: "conversation.updated" as const,
@@ -483,7 +489,7 @@ describe("WebSocket React Integration", () => {
     // post-event read completes un-aborted.
     const postEventReads = getMessagesMock.mock.calls.slice(1);
     const completedReads = postEventReads.filter(
-      ([, options]) => !(options as { signal?: AbortSignal })?.signal?.aborted
+      ([, options]) => !(options as { signal?: AbortSignal })?.signal?.aborted,
     );
     expect(postEventReads.length).toBeGreaterThanOrEqual(1);
     expect(postEventReads.length).toBeLessThanOrEqual(2);

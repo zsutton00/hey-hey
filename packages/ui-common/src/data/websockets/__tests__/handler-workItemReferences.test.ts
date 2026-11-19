@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { createStore } from "jotai/vanilla";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +57,12 @@ describe("WebSocketHandler work-item reference invalidation", () => {
   beforeEach(() => {
     queryClient = new QueryClient();
     unsubscribers = [];
-    handler = new WebSocketHandler(createStore(), undefined, queryClient);
+    handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
   });
 
   afterEach(() => {
@@ -101,5 +107,4 @@ describe("WebSocketHandler work-item reference invalidation", () => {
     expect(feature).toHaveBeenCalledTimes(2);
     expect(otherProject).toHaveBeenCalledTimes(2);
   });
-
 });

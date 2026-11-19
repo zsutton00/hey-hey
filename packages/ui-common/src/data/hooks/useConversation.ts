@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ConversationResponseDto, ConversationStatus } from "../../api";
 import {
-  conversationQueryOptions,
-  workflowConversationListQueryOptions,
+  conversationRead,
+  workflowConversationListRead,
 } from "../collections/conversations";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 export type ConversationQueryOptions =
@@ -17,8 +17,7 @@ export type ConversationQueryOptions =
     }
   | { workflowName: string };
 
-export interface UseConversationOptions
-  extends CollectionHookOptions<ConversationResponseDto> {
+export interface UseConversationOptions extends CollectionHookOptions<ConversationResponseDto> {
   /** Custom polling interval in ms when no conversation found (default: 2000) */
   pollingInterval?: number;
   /** Maximum retry attempts (default: 10) */
@@ -29,8 +28,7 @@ export interface UseConversationOptions
   includeSuggestionDecisions?: boolean;
 }
 
-export interface UseConversationReturn
-  extends DataHookReturn<ConversationResponseDto> {
+export interface UseConversationReturn extends DataHookReturn<ConversationResponseDto> {
   // Additional data for workflow-based fetching
   workflowId?: string | null;
   isReady: boolean;
@@ -38,19 +36,19 @@ export interface UseConversationReturn
 }
 
 const newestConversation = (
-  conversations: readonly ConversationResponseDto[]
+  conversations: readonly ConversationResponseDto[],
 ): ConversationResponseDto | null =>
   conversations.reduce<ConversationResponseDto | null>(
     (latest, current) =>
       !latest || current.createdAt > latest.createdAt ? current : latest,
-    null
+    null,
   );
 
 export function useConversation(
   organizationId: string | undefined,
   projectId: string | undefined,
   queryOptions: ConversationQueryOptions,
-  options: UseConversationOptions = {}
+  options: UseConversationOptions = {},
 ): UseConversationReturn {
   const {
     pollingInterval = 2000,
@@ -89,18 +87,20 @@ export function useConversation(
   const shouldUseWorkflowFetch =
     !conversationId && !!workflowName && !!workflowAboutId;
 
-  const workflowQueryOptions = useMemo(
+  const workflowSpec = useMemo(
     () =>
-      workflowConversationListQueryOptions(
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
+      workflowConversationListRead(
+        {
+          organizationId: organizationId ?? "__noop__",
+          projectId: projectId ?? "__noop__",
+        },
         {
           workflowName: workflowName ?? "__noop__",
           workflowAboutId: workflowAboutId ?? "__noop__",
           status: workflowStatus,
-        }
+        },
       ),
-    [organizationId, projectId, workflowName, workflowAboutId, workflowStatus]
+    [organizationId, projectId, workflowName, workflowAboutId, workflowStatus],
   );
 
   const workflowQueryEnabled =
@@ -111,16 +111,15 @@ export function useConversation(
     !!workflowName &&
     !!workflowAboutId;
 
-  const { result: workflowResult, state: workflowConversationsQuery } =
-    useDataLayerQuery(workflowQueryOptions, {
-      enabled: workflowQueryEnabled,
-    });
+  const workflowConversationsQuery = useGraphQLRead(workflowSpec, {
+    enabled: workflowQueryEnabled,
+  });
 
   // Find active conversation from workflow results
   const findActiveWorkflowConversation = useCallback(() => {
     if (!shouldUseWorkflowFetch) return null;
 
-    const data = workflowResult.data;
+    const data = workflowConversationsQuery.data;
 
     // Handle the case where data could be array or unknown
     let conversations: ConversationResponseDto[];
@@ -134,22 +133,29 @@ export function useConversation(
 
     // Select metadata independently of Message readiness.
     return newestConversation(conversations);
-  }, [shouldUseWorkflowFetch, workflowResult.data]);
+  }, [shouldUseWorkflowFetch, workflowConversationsQuery.data]);
 
   const workflowActiveConversation = findActiveWorkflowConversation();
   const effectiveConversationId =
     conversationId || workflowActiveConversation?.id;
 
   // Direct conversation fetching (when conversationId is known)
-  const directQueryOptions = useMemo(
+  const directSpec = useMemo(
     () =>
-      conversationQueryOptions(
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
+      conversationRead(
+        {
+          organizationId: organizationId ?? "__noop__",
+          projectId: projectId ?? "__noop__",
+        },
         effectiveConversationId ?? "__noop__",
-        includeSuggestionDecisions ?? false
+        includeSuggestionDecisions ?? false,
       ),
-    [organizationId, projectId, effectiveConversationId, includeSuggestionDecisions]
+    [
+      organizationId,
+      projectId,
+      effectiveConversationId,
+      includeSuggestionDecisions,
+    ],
   );
 
   const directQueryEnabled =
@@ -158,16 +164,12 @@ export function useConversation(
     !!projectId &&
     !!effectiveConversationId;
 
-  const { result: directResult, state: directQuery } = useDataLayerQuery(
-    directQueryOptions,
-    {
-      enabled: directQueryEnabled,
-      refetchOnMount: baseOptions.refetchOnMount,
-      refetchOnWindowFocus: baseOptions.refetchOnWindowFocus,
-      staleTimeMs: baseOptions.staleTimeMs,
-      maxCacheAgeMs: baseOptions.maxCacheAgeMs,
-    }
-  );
+  const directQuery = useGraphQLRead(directSpec, {
+    enabled: directQueryEnabled,
+    refetchOnMount: baseOptions.refetchOnMount,
+    refetchOnWindowFocus: baseOptions.refetchOnWindowFocus,
+    staleTimeMs: baseOptions.staleTimeMs,
+  });
 
   // Update refs with current values to avoid stale closures
   useEffect(() => {
@@ -300,16 +302,12 @@ export function useConversation(
       }
 
       return directQuery.refetch();
-    }, [
-      shouldUseWorkflowFetch,
-      workflowConversationsQuery,
-      directQuery,
-    ]);
+    }, [shouldUseWorkflowFetch, workflowConversationsQuery, directQuery]);
 
   // Determine the final data and loading states
-  const directConversation = directResult.data ?? null;
+  const directConversation = directQuery.data;
   const finalData = shouldUseWorkflowFetch
-    ? directConversation ?? workflowActiveConversation
+    ? (directConversation ?? workflowActiveConversation)
     : directConversation;
 
   const finalIsLoading = shouldUseWorkflowFetch
@@ -350,7 +348,7 @@ export function useConversation(
     },
     {
       enabled: baseOptions.enabled !== false,
-    }
+    },
   );
 
   return {

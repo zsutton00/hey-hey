@@ -33,7 +33,6 @@ import { proposalKeys } from "../collections/proposals";
 import { agentSessionKeys } from "../collections/agentSessions";
 import { attentionEventKeys } from "../collections/attentionEvents";
 import { conversationCliStatusKeys } from "../collections/conversationCliStatus";
-import { conversationKeys } from "../collections/conversations";
 import { entityStarKeys } from "../collections/entityStars";
 import { featureContentKeys } from "../collections/featureDocumentContent";
 import { machineKeys } from "../collections/machines";
@@ -91,7 +90,6 @@ export const dataLayerQueryRoots = () => [
   entityStarKeys.root(),
   machineKeys.root(),
   privateBetaDisclosureKeys.root(),
-  conversationKeys.root(),
   messageKeys.root(),
   agentSessionKeys.root(),
   attentionEventKeys.root(),

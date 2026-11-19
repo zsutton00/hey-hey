@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { clearAuthToken, setAuthToken } from "../../../services/authService";
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -111,7 +112,12 @@ function setup() {
   return {
     client,
     wrapper,
-    handler: new WebSocketHandler(createStore(), undefined, client),
+    handler: new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    ),
   };
 }
 function deferred<T>() {
@@ -166,7 +172,7 @@ describe("runtime and admin query integration", () => {
     const first = renderHook(read, { wrapper });
     const second = renderHook(read, { wrapper });
     await waitFor(() =>
-      expect(first.result.current.every((value) => value.isFetched)).toBe(true)
+      expect(first.result.current.every((value) => value.isFetched)).toBe(true),
     );
     for (const mock of [
       mocks.workflows,
@@ -202,7 +208,7 @@ describe("runtime and admin query integration", () => {
     });
     expect(
       client.getQueryState(controllerInventoryKeys.detail("inactive"))
-        ?.isInvalidated
+        ?.isInvalidated,
     ).toBe(true);
     for (const root of [
       "userWorkflows",
@@ -234,12 +240,12 @@ describe("runtime and admin query integration", () => {
           nextPageToken: "next",
         }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
-        view.result.current.page.isReady && view.result.current.first.isReady
-      ).toBe(true)
+        view.result.current.page.isReady && view.result.current.first.isReady,
+      ).toBe(true),
     );
     expect(mocks.workflows).toHaveBeenCalledTimes(2);
     expect(mocks.workflows).toHaveBeenCalledWith(
@@ -251,7 +257,7 @@ describe("runtime and admin query integration", () => {
           workflowType: "coding",
           nextPageToken: "next",
         }),
-      })
+      }),
     );
     view.unmount();
     client.clear();
@@ -276,31 +282,31 @@ describe("runtime and admin query integration", () => {
         }),
         detail: useAdminOrganizationDetail({ organizationId: "org" }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
-        view.result.current.detail.isReady && view.result.current.page.isReady
-      ).toBe(true)
+        view.result.current.detail.isReady && view.result.current.page.isReady,
+      ).toBe(true),
     );
     expect(mocks.members).toHaveBeenCalledTimes(2);
     expect(view.result.current.first.members).toEqual(members.members);
     mocks.members.mockRejectedValue(
-      Object.assign(new Error("forbidden"), { status: 403 })
+      Object.assign(new Error("forbidden"), { status: 403 }),
     );
     mocks.detail.mockRejectedValue(
-      Object.assign(new Error("forbidden"), { status: 403 })
+      Object.assign(new Error("forbidden"), { status: 403 }),
     );
     await act(async () => {
       await expect(view.result.current.first.refetch()).rejects.toThrow(
-        "forbidden"
+        "forbidden",
       );
       await expect(view.result.current.detail.refetch()).rejects.toThrow(
-        "forbidden"
+        "forbidden",
       );
     });
     await waitFor(() =>
-      expect(view.result.current.second.isForbidden).toBe(true)
+      expect(view.result.current.second.isForbidden).toBe(true),
     );
     expect(view.result.current.first.page).toBeNull();
     expect(view.result.current.first.members).toEqual([]);
@@ -318,15 +324,15 @@ describe("runtime and admin query integration", () => {
     const two = setup();
     const first = renderHook(
       () => useAdminOrganizationDetail({ organizationId: "org" }),
-      { wrapper: one.wrapper }
+      { wrapper: one.wrapper },
     );
     await waitFor(() => expect(first.result.current.isReady).toBe(true));
     mocks.detail.mockRejectedValue(
-      Object.assign(new Error("forbidden"), { status: 403 })
+      Object.assign(new Error("forbidden"), { status: 403 }),
     );
     const second = renderHook(
       () => useAdminOrganizationDetail({ organizationId: "org" }),
-      { wrapper: two.wrapper }
+      { wrapper: two.wrapper },
     );
     expect(second.result.current.data).toBeNull();
     await waitFor(() => expect(second.result.current.isForbidden).toBe(true));
@@ -347,8 +353,8 @@ describe("runtime and admin query integration", () => {
     await waitFor(() =>
       expect(
         first.result.current.detail.isReady &&
-          first.result.current.members.isReady
-      ).toBe(true)
+          first.result.current.members.isReady,
+      ).toBe(true),
     );
     const pending = deferred<{ data: { data: AdminOrganizationDetailDto } }>();
     mocks.detail.mockReturnValueOnce(pending.promise);
@@ -363,8 +369,8 @@ describe("runtime and admin query integration", () => {
     await waitFor(() =>
       expect(
         next.result.current.detail.isReady &&
-          next.result.current.members.isReady
-      ).toBe(true)
+          next.result.current.members.isReady,
+      ).toBe(true),
     );
     expect(mocks.detail).toHaveBeenCalledTimes(3);
     expect(mocks.members).toHaveBeenCalledTimes(3);
@@ -382,13 +388,13 @@ describe("runtime and admin query integration", () => {
           enabled,
         }),
       }),
-      { wrapper, initialProps: { enabled: true } }
+      { wrapper, initialProps: { enabled: true } },
     );
     await waitFor(() =>
       expect(
         view.result.current.detail.isReady &&
-          view.result.current.members.isReady
-      ).toBe(true)
+          view.result.current.members.isReady,
+      ).toBe(true),
     );
     view.rerender({ enabled: false });
     expect(view.result.current.detail.data).toBeNull();
@@ -427,7 +433,7 @@ describe("runtime and admin query integration", () => {
             executionReadiness: "CONTROLLER_ENROLLMENT_REQUIRED",
           },
         },
-      })
+      }),
     );
     expect(first.result.current.data).toEqual(inventory);
     first.unmount();
@@ -444,12 +450,12 @@ describe("runtime and admin query integration", () => {
         other: useControllerInventory("other"),
         revoke: useRevokeController(),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
-        view.result.current.other.isReady && view.result.current.first.isReady
-      ).toBe(true)
+        view.result.current.other.isReady && view.result.current.first.isReady,
+      ).toBe(true),
     );
     const pending = deferred<{
       data: { data: ControllerInventoryResponseDto };
@@ -462,7 +468,7 @@ describe("runtime and admin query integration", () => {
       });
     });
     await waitFor(() =>
-      expect(view.result.current.second.isFetching).toBe(true)
+      expect(view.result.current.second.isFetching).toBe(true),
     );
     expect(view.result.current.second.data).toEqual(inventory);
     expect(view.result.current.second.error).toBeNull();
@@ -473,7 +479,7 @@ describe("runtime and admin query integration", () => {
     };
     await act(async () => pending.resolve({ data: { data: updated } }));
     await waitFor(() =>
-      expect(view.result.current.second.data).toEqual(updated)
+      expect(view.result.current.second.data).toEqual(updated),
     );
     expect(view.result.current.other.data).toEqual(inventory);
     view.unmount();
@@ -482,14 +488,14 @@ describe("runtime and admin query integration", () => {
 
   it("caches 4xx failures across fresh remounts and exposes a failed lifecycle", async () => {
     mocks.llm.mockRejectedValue(
-      Object.assign(new Error("not found"), { status: 404 })
+      Object.assign(new Error("not found"), { status: 404 }),
     );
     const { client, wrapper } = setup();
     const first = renderHook(() => useLlmRequestStatus("missing"), { wrapper });
     expect(first.result.current.error).toBeNull();
     expect(first.result.current.isReady).toBe(false);
     await waitFor(() =>
-      expect(first.result.current.error?.message).toBe("not found")
+      expect(first.result.current.error?.message).toBe("not found"),
     );
     expect(first.result.current.isFetched).toBe(true);
     expect(first.result.current.isReady).toBe(false);
@@ -512,11 +518,11 @@ describe("runtime and admin query integration", () => {
     mocks.inventory.mockReturnValue(pending.promise);
     const view = renderHook(
       () => useControllerInventory("machine", { maxCacheAgeMs: 1000 }),
-      { wrapper }
+      { wrapper },
     );
     const second = renderHook(
       () => useControllerInventory("machine", { maxCacheAgeMs: 1000 }),
-      { wrapper }
+      { wrapper },
     );
     expect(view.result.current.data).toEqual(inventory);
     expect(view.result.current.isFetching).toBe(true);

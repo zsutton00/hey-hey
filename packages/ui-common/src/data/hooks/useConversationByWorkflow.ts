@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import type {
   ConversationResponseDto,
   ConversationStatus,
   MessageResponseDto,
 } from "../../api";
 import {
-  conversationMessagesQueryOptions,
   isTimelineMessage,
+  readLoadedMessages,
+  refreshConversationMessages,
 } from "../collections/messages";
+import { getProjectGraphQLClient } from "../graphql/client";
 import { useConversations } from "./useConversations";
 import { useConversationMessages } from "./useConversationMessages";
 import { areConversationMessagesReady } from "./conversationMessageReadiness";
@@ -41,21 +43,21 @@ export interface UseConversationByCategoryReturn {
 }
 
 const newestConversation = (
-  conversations: readonly ConversationResponseDto[]
+  conversations: readonly ConversationResponseDto[],
 ) =>
   conversations.reduce<ConversationResponseDto | null>(
     (latest, current) =>
       !latest || Date.parse(current.createdAt) > Date.parse(latest.createdAt)
         ? current
         : latest,
-    null
+    null,
   );
 
 export function useConversationByWorkflow(
   organizationId: string | undefined,
   projectId: string | undefined,
   workflowName: string,
-  options: UseConversationByCategoryOptions = {}
+  options: UseConversationByCategoryOptions = {},
 ): UseConversationByCategoryReturn {
   const {
     conversationId,
@@ -73,16 +75,17 @@ export function useConversationByWorkflow(
   const scopedConversations = (conversations.data ?? []).filter(
     (conversation) =>
       (conversationId === undefined || conversation.id === conversationId) &&
-      (triggerEvent === undefined || conversation.triggerEvent === triggerEvent)
+      (triggerEvent === undefined ||
+        conversation.triggerEvent === triggerEvent),
   );
   const candidate = newestConversation(scopedConversations);
   const messageQuery = useConversationMessages(
     organizationId,
     projectId,
     candidate?.id,
-    { enabled }
+    { enabled },
   );
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const ready =
     !!candidate &&
     messageQuery.isReady &&
@@ -113,25 +116,15 @@ export function useConversationByWorkflow(
           (conversationId === undefined ||
             conversation.id === conversationId) &&
           (triggerEvent === undefined ||
-            conversation.triggerEvent === triggerEvent)
-      )
+            conversation.triggerEvent === triggerEvent),
+      ),
     );
     if (!refreshed) return null;
-    const messageOptions = conversationMessagesQueryOptions(
-      queryClient,
-      organizationId,
-      projectId,
-      refreshed.id
-    );
     // An explicit refresh needs a read that starts now, not one in flight.
-    await queryClient.cancelQueries({
-      queryKey: messageOptions.queryKey,
-      exact: true,
-    });
-    const messages = await queryClient.fetchQuery({
-      ...messageOptions,
-      staleTime: 0,
-    });
+    const projectScope = { organizationId, projectId };
+    const client = getProjectGraphQLClient(graphqlClient, projectScope);
+    await refreshConversationMessages(client, projectScope, refreshed.id);
+    const messages = readLoadedMessages(client, refreshed.id) ?? [];
     if (scopeRef.current !== scope) return null;
     return areConversationMessagesReady(messages.filter(isTimelineMessage), {
       requireFirstMessage,
@@ -145,7 +138,7 @@ export function useConversationByWorkflow(
     projectId,
     conversations.refetch,
     scope,
-    queryClient,
+    graphqlClient,
     requireFirstMessage,
     requireUiElements,
     conversationId,
@@ -183,7 +176,7 @@ export function useConversationByWorkflow(
 function usePendingConversationRecovery(
   scope: string,
   waiting: boolean,
-  recover: () => Promise<void>
+  recover: () => Promise<void>,
 ) {
   const recoveryRef = useRef(recover);
   recoveryRef.current = recover;

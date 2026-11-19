@@ -1,11 +1,16 @@
+import type { ApolloClient } from "@apollo/client";
 import type { QueryClient } from "@tanstack/react-query";
 import type { CreateUserMessage } from "../../../api";
-import { invalidateConversationMessages } from "../../../data/collections/messages";
+import {
+  messageKeys,
+  refreshConversationMessages,
+} from "../../../data/collections/messages";
 import type { AgentSessionInteractionAccess } from "./AgentOperationCoordinator";
 
 export interface SubmitConversationMessageInput {
   interactionAccess: AgentSessionInteractionAccess;
   queryClient: QueryClient;
+  graphqlClient: ApolloClient;
   organizationId: string;
   projectId: string;
   agentSessionId: string;
@@ -17,6 +22,7 @@ export interface SubmitConversationMessageInput {
 export const submitConversationMessage = async ({
   interactionAccess,
   queryClient,
+  graphqlClient,
   organizationId,
   projectId,
   agentSessionId,
@@ -54,10 +60,16 @@ export const submitConversationMessage = async ({
     );
   }
 
-  void invalidateConversationMessages(
-    queryClient,
-    organizationId,
-    projectId,
+  void refreshConversationMessages(
+    graphqlClient,
+    { organizationId, projectId },
     conversationId,
   );
+  void queryClient.invalidateQueries({
+    queryKey: messageKeys.queuedInputs(
+      organizationId,
+      projectId,
+      conversationId,
+    ),
+  });
 };

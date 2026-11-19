@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { createElement, type PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -165,7 +166,7 @@ describe.each(datasets)("$name", (dataset) => {
       () =>
         new Promise((done) => {
           resolve = done;
-        }) as never
+        }) as never,
     );
     const { client, wrapper } = harness();
     const first = renderHook(() => dataset.use(), { wrapper });
@@ -178,7 +179,7 @@ describe.each(datasets)("$name", (dataset) => {
     });
     await act(async () => resolve({ data: { data: dataset.data } }));
     await waitFor(() =>
-      expect(second.result.current.data).toEqual(dataset.data)
+      expect(second.result.current.data).toEqual(dataset.data),
     );
     const third = renderHook(() => dataset.use(), { wrapper });
     expect(third.result.current.data).toEqual(dataset.data);
@@ -187,7 +188,12 @@ describe.each(datasets)("$name", (dataset) => {
       data: { data: dataset.data },
     } as never);
     await act(async () => {
-      new WebSocketHandler(createStore(), undefined, client).markAllStale();
+      new WebSocketHandler(
+        createStore(),
+        undefined,
+        client,
+        createUnreachableGraphQLClient(),
+      ).markAllStale();
     });
     await waitFor(() => expect(dataset.api).toHaveBeenCalledTimes(2));
     first.unmount();
@@ -207,7 +213,7 @@ describe.each(datasets)("$name", (dataset) => {
     const { wrapper } = harness();
     const { result, rerender } = renderHook(
       ({ enabled }) => dataset.use(enabled),
-      { wrapper, initialProps: { enabled: false } }
+      { wrapper, initialProps: { enabled: false } },
     );
     expect(result.current).toMatchObject({
       isLoading: false,
@@ -228,8 +234,8 @@ describe.each(datasets)("$name", (dataset) => {
     const { result } = renderHook(() => dataset.use(), { wrapper });
     await waitFor(() =>
       expect(result.current.error).toEqual(
-        dataset.name === "context" ? error.message : error
-      )
+        dataset.name === "context" ? error.message : error,
+      ),
     );
     expect(result.current.isLoading).toBe(false);
     expect(dataset.api).toHaveBeenCalledTimes(1);
@@ -262,23 +268,29 @@ it("normalizes set filters without collapsing genuinely different variants", () 
   expect(
     topologyKeys.entitySummaries("org", "project", {
       subfacetId: ["b", "a", "a"],
-    })
+    }),
   ).toEqual(
-    topologyKeys.entitySummaries("org", "project", { subfacetId: ["a", "b"] })
+    topologyKeys.entitySummaries("org", "project", { subfacetId: ["a", "b"] }),
   );
   expect(
-    workItemGraphKeys.byId("org", "project", "root", ["CONSUMES", "IMPLEMENTS"])
+    workItemGraphKeys.byId("org", "project", "root", [
+      "CONSUMES",
+      "IMPLEMENTS",
+    ]),
   ).toEqual(
-    workItemGraphKeys.byId("org", "project", "root", ["IMPLEMENTS", "CONSUMES"])
+    workItemGraphKeys.byId("org", "project", "root", [
+      "IMPLEMENTS",
+      "CONSUMES",
+    ]),
   );
   expect(entityContextKeys.context(contextParams)).not.toEqual(
     entityContextKeys.context({
       ...contextParams,
       includeRelatedEntities: false,
-    })
+    }),
   );
   expect(
-    topologyKeys.entitySummaries("org", "project", { since: timestamp })
+    topologyKeys.entitySummaries("org", "project", { since: timestamp }),
   ).not.toEqual(topologyKeys.entitySummaries("org", "project"));
 });
 
@@ -296,19 +308,19 @@ it("invalidating one topology key refreshes its consumers without waking other d
   renderHook(() => useTopologyEntitySummaries("org", "project"), { wrapper });
   const other = renderHook(
     () => useTopologyCategorySummaries("org", "project"),
-    { wrapper }
+    { wrapper },
   );
   await waitFor(() =>
     expect(first.result.current.isReady && other.result.current.isReady).toBe(
-      true
-    )
+      true,
+    ),
   );
   let resolve!: (value: unknown) => void;
   vi.mocked(platformClient.listTopologyEntitySummaries).mockImplementationOnce(
     () =>
       new Promise((done) => {
         resolve = done;
-      }) as never
+      }) as never,
   );
   act(() => first.result.current.markStale());
   await waitFor(() => expect(first.result.current.isFetching).toBe(true));
@@ -357,7 +369,7 @@ it("passes canonical filters, graph participation and context flags through to t
         includeAvailableMcpTools: true,
       }),
     }),
-    { wrapper }
+    { wrapper },
   );
   await waitFor(() => expect(read.result.current.context.isFetched).toBe(true));
   const requestOptions = expect.objectContaining({
@@ -372,7 +384,7 @@ it("passes canonical filters, graph participation and context flags through to t
       since: timestamp,
       limitPerSubfacet: 7,
     },
-    requestOptions
+    requestOptions,
   );
   expect(platformClient.listTopologySubfacets).toHaveBeenCalledWith(
     {
@@ -381,7 +393,7 @@ it("passes canonical filters, graph participation and context flags through to t
       category: "technology",
       status: "ACTIVE",
     },
-    requestOptions
+    requestOptions,
   );
   expect(unifiedApiClient.getWorkItemGraph).toHaveBeenCalledWith(
     {
@@ -390,7 +402,7 @@ it("passes canonical filters, graph participation and context flags through to t
       workItemId: "root",
       incidentRelationshipTypes: new Set(["CONSUMES", "IMPLEMENTS"]),
     },
-    requestOptions
+    requestOptions,
   );
   expect(entityContextClient.getEntityContext).toHaveBeenCalledWith(
     {
@@ -400,7 +412,7 @@ it("passes canonical filters, graph participation and context flags through to t
       includeAvailableMcpTools: true,
       relatedEntityDepth: 1,
     },
-    requestOptions
+    requestOptions,
   );
 });
 
@@ -411,7 +423,7 @@ it("markStale during an initial read requires a read starting after the invalida
   const { wrapper } = harness();
   const { result } = renderHook(
     () => useTopologyEntitySummaries("org", "project"),
-    { wrapper }
+    { wrapper },
   );
   expect(platformClient.listTopologyEntitySummaries).toHaveBeenCalledTimes(1);
   act(() => result.current.markStale());

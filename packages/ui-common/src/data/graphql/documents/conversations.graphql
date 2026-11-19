@@ -1,0 +1,254 @@
+fragment ConversationFields on Conversation {
+  id
+  organizationId
+  projectId
+  title
+  status
+  workflowName
+  workflowId
+  workflowAboutType
+  workflowAboutId
+  initiatedBy
+  triggerEvent
+  createdBy
+  lastModifiedBy
+  restricted
+  version
+  createdAt
+  updatedAt
+}
+
+fragment ConversationWithDecisionsFields on Conversation {
+  ...ConversationFields
+  suggestionDecisions
+  goalPmRoutingDecisions
+}
+
+fragment MessageFields on Message {
+  id
+  conversationId
+  projectId
+  type
+  status
+  userId
+  parentMessageId
+  createdAt
+  executionStatus
+  executionQueueConfirmed
+  executionAdmissionDisposition
+  executionCancellationRequested
+  executionOperationId
+  awaitingResponse
+  handler
+  user
+  data
+}
+
+query GetConversation($id: ID!) {
+  conversation(id: $id) {
+    ...ConversationFields
+  }
+}
+
+query GetConversationWithDecisions($id: ID!) {
+  conversation(id: $id) {
+    ...ConversationWithDecisionsFields
+  }
+}
+
+query GetConversations(
+  $statuses: [String!]
+  $workflowNames: [String!]
+  $workflowAboutId: String
+  $workflowAboutType: String
+  $search: String
+  $page: Int
+  $limit: Int
+) {
+  page: conversations(
+    statuses: $statuses
+    workflowNames: $workflowNames
+    workflowAboutId: $workflowAboutId
+    workflowAboutType: $workflowAboutType
+    search: $search
+    page: $page
+    limit: $limit
+  ) {
+    nodes {
+      ...ConversationFields
+    }
+  }
+}
+
+query GetConversationsWithDecisions(
+  $statuses: [String!]
+  $workflowNames: [String!]
+  $workflowAboutId: String
+  $workflowAboutType: String
+  $search: String
+  $page: Int
+  $limit: Int
+) {
+  page: conversations(
+    statuses: $statuses
+    workflowNames: $workflowNames
+    workflowAboutId: $workflowAboutId
+    workflowAboutType: $workflowAboutType
+    search: $search
+    page: $page
+    limit: $limit
+  ) {
+    nodes {
+      ...ConversationWithDecisionsFields
+    }
+  }
+}
+
+query GetActiveConversations(
+  $workflowNames: [String!]
+  $workflowAboutId: String
+  $workflowAboutType: String
+  $search: String
+  $page: Int
+  $limit: Int
+) {
+  page: activeConversations(
+    workflowNames: $workflowNames
+    workflowAboutId: $workflowAboutId
+    workflowAboutType: $workflowAboutType
+    search: $search
+    page: $page
+    limit: $limit
+  ) {
+    nodes {
+      ...ConversationFields
+    }
+  }
+}
+
+query GetActiveConversationsWithDecisions(
+  $workflowNames: [String!]
+  $workflowAboutId: String
+  $workflowAboutType: String
+  $search: String
+  $page: Int
+  $limit: Int
+) {
+  page: activeConversations(
+    workflowNames: $workflowNames
+    workflowAboutId: $workflowAboutId
+    workflowAboutType: $workflowAboutType
+    search: $search
+    page: $page
+    limit: $limit
+  ) {
+    nodes {
+      ...ConversationWithDecisionsFields
+    }
+  }
+}
+
+query GetWorkflowConversations(
+  $workflowName: String!
+  $workflowAboutId: String!
+  $statuses: [String!]
+  $sortBy: String
+  $sortOrder: String
+  $page: Int
+  $limit: Int
+) {
+  page: workflowConversations(
+    workflowName: $workflowName
+    workflowAboutId: $workflowAboutId
+    statuses: $statuses
+    sortBy: $sortBy
+    sortOrder: $sortOrder
+    page: $page
+    limit: $limit
+  ) {
+    nodes {
+      ...ConversationFields
+    }
+  }
+}
+
+# The whole thread, or only messages after `after`. Proposals and reports are
+# selected because the Conversation Viewer asks for both.
+query GetConversationMessages($id: ID!, $after: ID) {
+  conversation(id: $id) {
+    id
+    messages(after: $after) {
+      endCursor
+      nodes {
+        ...MessageFields
+        proposals
+        reports
+      }
+    }
+  }
+}
+
+# The newest page of the thread, or the page before `before`.
+query GetConversationMessageHistory($id: ID!, $last: Int!, $before: ID) {
+  conversation(id: $id) {
+    id
+    messages(last: $last, before: $before) {
+      endCursor
+      startCursor
+      hasOlder
+      nodes {
+        ...MessageFields
+        proposals
+        reports
+      }
+    }
+  }
+}
+
+# The detail read REST serves: the message with its parent and replies.
+query GetMessage($id: ID!) {
+  message(id: $id) {
+    ...MessageFields
+    proposals
+    reports
+    parentMessage {
+      ...MessageFields
+    }
+    responses {
+      ...MessageFields
+    }
+  }
+}
+
+query GetLatestMessage($conversationId: ID!) {
+  latestMessage(conversationId: $conversationId) {
+    ...MessageFields
+    proposals
+    reports
+  }
+}
+
+# Cache-only read of the loaded thread. Never sent to the server: it names the
+# fields the delta cursor and the continuation state are computed from.
+query ReadConversationThread($id: ID!) {
+  conversation(id: $id) {
+    id
+    messages {
+      endCursor
+      startCursor
+      hasOlder
+      nodes {
+        id
+        status
+        createdAt
+      }
+    }
+  }
+}
+
+# Read from the cache when a message changes, to find the proposals it carries.
+fragment MessageProposalLinks on Message {
+  type
+  data
+  proposals
+}

@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -273,15 +274,15 @@ describe.each(readers)("$name query", (reader) => {
     await act(async () => pending.resolve(reader.response));
     await waitFor(() =>
       expect(
-        first.result.current.isFetched && second.result.current.isFetched
-      ).toBe(true)
+        first.result.current.isFetched && second.result.current.isFetched,
+      ).toBe(true),
     );
     second.unmount();
     const remount = renderHook(() => reader.useRead(), { wrapper });
     await waitFor(() => expect(remount.result.current.isFetched).toBe(true));
     expect(reader.mock).toHaveBeenCalledTimes(1);
     expect(reader.mock.mock.calls[0].at(-1)).toEqual(
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
   it("keeps a disabled read unstarted and non-error", () => {
@@ -292,7 +293,7 @@ describe.each(readers)("$name query", (reader) => {
   });
   it("reports a settled failure and caches a 404 across new observers", async () => {
     reader.mock.mockRejectedValue(
-      Object.assign(new Error("Missing"), { status: 404 })
+      Object.assign(new Error("Missing"), { status: 404 }),
     );
     const first = renderHook(() => reader.useRead(), { wrapper });
     await waitFor(() => expect(first.result.current.error).toBeTruthy());
@@ -324,7 +325,7 @@ describe("composer file references", () => {
       wrapper,
     });
     await act(async () =>
-      pending.resolve(envelope({ candidates: [candidate] }))
+      pending.resolve(envelope({ candidates: [candidate] })),
     );
     await waitFor(() => expect(second.result.current.status).toBe("ready"));
     expect(first.result.current).toEqual(second.result.current);
@@ -334,7 +335,7 @@ describe("composer file references", () => {
   it("has defined disabled, empty, updating and failed states", async () => {
     const { result, rerender } = renderHook(
       ({ active }) => useFileReferenceCandidates({ ...fileInput, active }),
-      { wrapper, initialProps: { active: false } }
+      { wrapper, initialProps: { active: false } },
     );
     expect(result.current.status).toBe("disabled");
     expect(mocks.files).not.toHaveBeenCalled();
@@ -342,7 +343,7 @@ describe("composer file references", () => {
     rerender({ active: true });
     await waitFor(() => expect(result.current.status).toBe("empty"));
     await act(async () =>
-      client.invalidateQueries({ queryKey: ["fileReferenceCandidates"] })
+      client.invalidateQueries({ queryKey: ["fileReferenceCandidates"] }),
     );
     await waitFor(() => expect(result.current.status).toBe("ready"));
     const pending = deferred<unknown>();
@@ -353,13 +354,13 @@ describe("composer file references", () => {
     await waitFor(() => expect(result.current.status).toBe("updating"));
     expect(result.current.candidates).toEqual([candidate]);
     await act(async () =>
-      pending.resolve(envelope({ candidates: [candidate] }))
+      pending.resolve(envelope({ candidates: [candidate] })),
     );
     mocks.files.mockRejectedValueOnce(
-      Object.assign(new Error("Missing"), { status: 404 })
+      Object.assign(new Error("Missing"), { status: 404 }),
     );
     await act(async () =>
-      client.invalidateQueries({ queryKey: ["fileReferenceCandidates"] })
+      client.invalidateQueries({ queryKey: ["fileReferenceCandidates"] }),
     );
     await waitFor(() => expect(result.current.status).toBe("error"));
   });
@@ -378,7 +379,7 @@ describe("composer file references", () => {
           scope: { kind: "task", taskId: "other" },
         }),
       ],
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(mocks.files).toHaveBeenCalledTimes(5));
   });
@@ -398,7 +399,7 @@ describe("initiative invalidation", () => {
         }),
         otherProject: useInitiatives("org", "other"),
       }),
-      { wrapper }
+      { wrapper },
     );
   }
   const event = {
@@ -423,8 +424,8 @@ describe("initiative invalidation", () => {
           mounted.result.current.sections.isReady &&
             mounted.result.current.conversation.isReady &&
             mounted.result.current.detail.isFetched &&
-            mounted.result.current.unrelated.isFetched
-        ).toBe(true)
+            mounted.result.current.unrelated.isFetched,
+        ).toBe(true),
       );
       const beforeLists = mocks.initiatives.mock.calls.length;
       if (source === "realtime") {
@@ -443,7 +444,12 @@ describe("initiative invalidation", () => {
             },
           ],
         });
-        const handler = new WebSocketHandler(createStore(), undefined, client);
+        const handler = new WebSocketHandler(
+          createStore(),
+          undefined,
+          client,
+          createUnreachableGraphQLClient(),
+        );
         act(() => handler.handleEvent(event));
       } else {
         const invalidate = createRelationshipMutationInvalidator({
@@ -462,32 +468,37 @@ describe("initiative invalidation", () => {
             entityType: "Initiative",
             operation: "update",
             sourceEntity: initiative,
-          })
+          }),
         );
       }
       await waitFor(() =>
-        expect(mocks.initiatives).toHaveBeenCalledTimes(beforeLists + 3)
+        expect(mocks.initiatives).toHaveBeenCalledTimes(beforeLists + 3),
       );
       await waitFor(() => expect(mocks.conversation).toHaveBeenCalledTimes(2));
       expect(mocks.initiative).toHaveBeenCalledTimes(3); // 2 distinct initial reads, one refreshed
       expect(
         client.getQueryState(initiativeKeys.detail("org", "other"))
-          ?.isInvalidated
+          ?.isInvalidated,
       ).toBe(false);
-    }
+    },
   );
   it("starts a causal follow-up when the first read is still pending", async () => {
     const pending = deferred<unknown>();
     mocks.initiative.mockReturnValueOnce(pending.promise);
     const mounted = renderHook(() => useInitiative("org", "item"), { wrapper });
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => handler.handleEvent(event));
     await waitFor(() => expect(mocks.initiative).toHaveBeenCalledTimes(2));
     await waitFor(() =>
-      expect(mounted.result.current.data?.name).toBe("Original")
+      expect(mounted.result.current.data?.name).toBe("Original"),
     );
     await act(async () =>
-      pending.resolve(envelope({ ...initiative, name: "Obsolete" }))
+      pending.resolve(envelope({ ...initiative, name: "Obsolete" })),
     );
     expect(mounted.result.current.data?.name).toBe("Original");
   });
@@ -496,10 +507,15 @@ describe("initiative invalidation", () => {
     await waitFor(() =>
       expect(
         mounted.result.current.sections.isReady &&
-          mounted.result.current.conversation.isReady
-      ).toBe(true)
+          mounted.result.current.conversation.isReady,
+      ).toBe(true),
     );
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     const before = mocks.initiatives.mock.calls.length;
     act(() =>
       handler.handleEvent({
@@ -508,10 +524,10 @@ describe("initiative invalidation", () => {
         projectId: "project",
         initiativeId: "created",
         timestamp: event.timestamp,
-      })
+      }),
     );
     await waitFor(() =>
-      expect(mocks.initiatives).toHaveBeenCalledTimes(before + 3)
+      expect(mocks.initiatives).toHaveBeenCalledTimes(before + 3),
     );
     mocks.initiative.mockResolvedValue(envelope(null));
     mocks.initiatives.mockResolvedValue(envelope([]));
@@ -522,11 +538,11 @@ describe("initiative invalidation", () => {
         projectId: "project",
         id: "item",
         timestamp: event.timestamp,
-      })
+      }),
     );
     await waitFor(() => expect(mounted.result.current.detail.data).toBeNull());
     await waitFor(() =>
-      expect(mounted.result.current.list.initiatives).toEqual([])
+      expect(mounted.result.current.list.initiatives).toEqual([]),
     );
   });
   it("keeps real section projections distinct but shares unused count and order options", async () => {
@@ -540,7 +556,7 @@ describe("initiative invalidation", () => {
           status: [WorkStatus.Completed, WorkStatus.Backlog],
         }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(mocks.initiatives).toHaveBeenCalledTimes(1));
   });
@@ -552,7 +568,7 @@ describe("mutation cache continuity", () => {
         detail: useInitiative("org", "item"),
         list: useInitiatives("org", "project"),
       }),
-      { wrapper }
+      { wrapper },
     );
   }
   it.each(["success", "failure"] as const)(
@@ -562,8 +578,8 @@ describe("mutation cache continuity", () => {
       await waitFor(() =>
         expect(
           mounted.result.current.detail.isFetched &&
-            mounted.result.current.list.isReady
-        ).toBe(true)
+            mounted.result.current.list.isReady,
+        ).toBe(true),
       );
       const pending = deferred<unknown>();
       mocks.updateInitiative.mockReturnValueOnce(pending.promise);
@@ -575,15 +591,15 @@ describe("mutation cache continuity", () => {
         operation = mounted.result.current.list.update(
           "item",
           { assigneeId: "person" },
-          { onSuccess: success, onError: failure, onSettled: settled }
+          { onSuccess: success, onError: failure, onSettled: settled },
         );
         void operation.catch(() => {});
       });
       await waitFor(() =>
-        expect(mounted.result.current.detail.data?.assigneeId).toBe("person")
+        expect(mounted.result.current.detail.data?.assigneeId).toBe("person"),
       );
       expect(mounted.result.current.list.initiatives[0].assigneeId).toBe(
-        "person"
+        "person",
       );
       if (outcome === "success") {
         const updated = { ...initiative, assigneeId: "person", name: "Server" };
@@ -594,7 +610,7 @@ describe("mutation cache continuity", () => {
           await operation;
         });
         await waitFor(() =>
-          expect(mounted.result.current.detail.data?.name).toBe("Server")
+          expect(mounted.result.current.detail.data?.name).toBe("Server"),
         );
         expect(success).toHaveBeenCalledWith(updated);
       } else {
@@ -603,10 +619,12 @@ describe("mutation cache continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.detail.data?.assigneeId).toBeUndefined()
+          expect(
+            mounted.result.current.detail.data?.assigneeId,
+          ).toBeUndefined(),
         );
         expect(
-          mounted.result.current.list.initiatives[0].assigneeId
+          mounted.result.current.list.initiatives[0].assigneeId,
         ).toBeUndefined();
         expect(failure).toHaveBeenCalledWith(expect.any(Error));
       }
@@ -615,16 +633,16 @@ describe("mutation cache continuity", () => {
         expect.objectContaining({
           initiativeId: "item",
           updateInitiativeDto: { assigneeId: "person" },
-        })
+        }),
       );
-    }
+    },
   );
   it.each(["success", "failure"] as const)(
     "creates an initiative optimistically with %s cleanup",
     async (outcome) => {
       const mounted = mount();
       await waitFor(() =>
-        expect(mounted.result.current.list.isReady).toBe(true)
+        expect(mounted.result.current.list.isReady).toBe(true),
       );
       const pending = deferred<unknown>();
       mocks.createInitiative.mockReturnValueOnce(pending.promise);
@@ -637,7 +655,7 @@ describe("mutation cache continuity", () => {
         void operation.catch(() => {});
       });
       await waitFor(() =>
-        expect(mounted.result.current.list.initiatives).toHaveLength(2)
+        expect(mounted.result.current.list.initiatives).toHaveLength(2),
       );
       if (outcome === "success") {
         const created = { ...initiative, id: "created", name: "New" };
@@ -648,8 +666,8 @@ describe("mutation cache continuity", () => {
         });
         await waitFor(() =>
           expect(
-            mounted.result.current.list.initiatives.map((item) => item.id)
-          ).toEqual(["item", "created"])
+            mounted.result.current.list.initiatives.map((item) => item.id),
+          ).toEqual(["item", "created"]),
         );
       } else {
         await act(async () => {
@@ -657,10 +675,10 @@ describe("mutation cache continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.list.initiatives).toEqual([initiative])
+          expect(mounted.result.current.list.initiatives).toEqual([initiative]),
         );
       }
-    }
+    },
   );
   it.each(["success", "failure"] as const)(
     "removes an initiative from list/detail with %s cleanup",
@@ -669,8 +687,8 @@ describe("mutation cache continuity", () => {
       await waitFor(() =>
         expect(
           mounted.result.current.list.isReady &&
-            mounted.result.current.detail.isFetched
-        ).toBe(true)
+            mounted.result.current.detail.isFetched,
+        ).toBe(true),
       );
       const pending = deferred<unknown>();
       mocks.removeInitiative.mockReturnValueOnce(pending.promise);
@@ -680,7 +698,7 @@ describe("mutation cache continuity", () => {
         void operation.catch(() => {});
       });
       await waitFor(() =>
-        expect(mounted.result.current.list.initiatives).toEqual([])
+        expect(mounted.result.current.list.initiatives).toEqual([]),
       );
       expect(mounted.result.current.detail.data).toBeNull();
       if (outcome === "success") {
@@ -696,13 +714,13 @@ describe("mutation cache continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.detail.data).toEqual(initiative)
+          expect(mounted.result.current.detail.data).toEqual(initiative),
         );
         await waitFor(() =>
-          expect(mounted.result.current.list.initiatives).toEqual([initiative])
+          expect(mounted.result.current.list.initiatives).toEqual([initiative]),
         );
       }
-    }
+    },
   );
   it.each(["success", "failure"] as const)(
     "updates hint list/detail with %s cleanup",
@@ -712,13 +730,13 @@ describe("mutation cache continuity", () => {
           detail: useImplementationHint("org", "service", "hint"),
           list: useImplementationHints("org", "service"),
         }),
-        { wrapper }
+        { wrapper },
       );
       await waitFor(() =>
         expect(
           mounted.result.current.list.isReady &&
-            mounted.result.current.detail.isReady
-        ).toBe(true)
+            mounted.result.current.detail.isReady,
+        ).toBe(true),
       );
       const pending = deferred<unknown>();
       mocks.updateHint.mockReturnValueOnce(pending.promise);
@@ -731,7 +749,7 @@ describe("mutation cache continuity", () => {
         void operation.catch(() => {});
       });
       await waitFor(() =>
-        expect(mounted.result.current.detail.data?.featureName).toBe("New")
+        expect(mounted.result.current.detail.data?.featureName).toBe("New"),
       );
       if (outcome === "success") {
         const updated = { ...hint, featureName: "Server" };
@@ -742,8 +760,8 @@ describe("mutation cache continuity", () => {
         });
         await waitFor(() =>
           expect(mounted.result.current.list.hints[0].featureName).toBe(
-            "Server"
-          )
+            "Server",
+          ),
         );
         expect(mounted.result.current.detail.data?.featureName).toBe("Server");
       } else {
@@ -752,11 +770,11 @@ describe("mutation cache continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.detail.data).toEqual(hint)
+          expect(mounted.result.current.detail.data).toEqual(hint),
         );
         expect(mounted.result.current.list.hints).toEqual([hint]);
       }
-    }
+    },
   );
 });
 describe("lifecycle refresh and reconnect", () => {
@@ -771,14 +789,14 @@ describe("lifecycle refresh and reconnect", () => {
         first: useHelpNode("guide", { maxCacheAgeMs: 5000 }),
         second: useHelpNode("guide", { maxCacheAgeMs: 5000 }),
       }),
-      { wrapper }
+      { wrapper },
     );
     expect(mounted.result.current.first.data).toEqual(help);
     expect(mounted.result.current.first.isFetching).toBe(true);
     await waitFor(() => expect(mocks.help).toHaveBeenCalledTimes(1));
     await act(async () => pending.resolve(envelope(help)));
     await waitFor(() =>
-      expect(mounted.result.current.first.isFetching).toBe(false)
+      expect(mounted.result.current.first.isFetching).toBe(false),
     );
   });
   it("refreshes every mounted dataset once on reconnect while leaving inactive keys unread", async () => {
@@ -801,13 +819,18 @@ describe("lifecycle refresh and reconnect", () => {
           files.status === "ready",
         ];
       },
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
-      expect(mounted.result.current.every(Boolean)).toBe(true)
+      expect(mounted.result.current.every(Boolean)).toBe(true),
     );
     client.setQueryData(initiativeKeys.detail("org", "inactive"), initiative);
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     act(() => handler.markAllStale());
     for (const mock of [
       mocks.catalog,
@@ -832,7 +855,7 @@ describe("lifecycle refresh and reconnect", () => {
       expect(dataLayerQueryRoots()).toContainEqual([root]);
     expect(
       client.getQueryState(initiativeKeys.detail("org", "inactive"))
-        ?.isInvalidated
+        ?.isInvalidated,
     ).toBe(true);
   });
 });
@@ -843,7 +866,7 @@ describe("hint create and remove continuity", () => {
     async (outcome) => {
       const mounted = renderHook(
         () => useImplementationHints("org", "service"),
-        { wrapper }
+        { wrapper },
       );
       await waitFor(() => expect(mounted.result.current.isReady).toBe(true));
       const pending = deferred<unknown>();
@@ -859,7 +882,7 @@ describe("hint create and remove continuity", () => {
             agentSessionId: "session",
             sourceType: "USER",
           },
-          { onSettled }
+          { onSettled },
         );
         void operation.catch(() => {});
       });
@@ -873,13 +896,13 @@ describe("hint create and remove continuity", () => {
         });
         await waitFor(() =>
           expect(
-            mounted.result.current.hints.map((item) => item.id).sort()
-          ).toEqual(["hint", "new"])
+            mounted.result.current.hints.map((item) => item.id).sort(),
+          ).toEqual(["hint", "new"]),
         );
         expect(
           client.getQueryData(
-            implementationHintKeys.detail("org", "service", "new")
-          )
+            implementationHintKeys.detail("org", "service", "new"),
+          ),
         ).toEqual(created);
       } else {
         await act(async () => {
@@ -887,11 +910,11 @@ describe("hint create and remove continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.hints).toEqual([hint])
+          expect(mounted.result.current.hints).toEqual([hint]),
         );
       }
       expect(onSettled).toHaveBeenCalledTimes(1);
-    }
+    },
   );
   it.each(["success", "failure"] as const)(
     "removes a hint from list/detail with %s cleanup",
@@ -901,13 +924,13 @@ describe("hint create and remove continuity", () => {
           list: useImplementationHints("org", "service"),
           detail: useImplementationHint("org", "service", "hint"),
         }),
-        { wrapper }
+        { wrapper },
       );
       await waitFor(() =>
         expect(
           mounted.result.current.list.isReady &&
-            mounted.result.current.detail.isReady
-        ).toBe(true)
+            mounted.result.current.detail.isReady,
+        ).toBe(true),
       );
       const pending = deferred<unknown>();
       mocks.removeHint.mockReturnValueOnce(pending.promise);
@@ -917,7 +940,7 @@ describe("hint create and remove continuity", () => {
         void operation.catch(() => {});
       });
       await waitFor(() =>
-        expect(mounted.result.current.list.hints).toEqual([])
+        expect(mounted.result.current.list.hints).toEqual([]),
       );
       expect(mounted.result.current.detail.data).toBeNull();
       if (outcome === "success") {
@@ -928,8 +951,8 @@ describe("hint create and remove continuity", () => {
         });
         expect(
           client.getQueryData(
-            implementationHintKeys.detail("org", "service", "hint")
-          )
+            implementationHintKeys.detail("org", "service", "hint"),
+          ),
         ).toBeNull();
       } else {
         await act(async () => {
@@ -937,11 +960,11 @@ describe("hint create and remove continuity", () => {
           await operation.catch(() => {});
         });
         await waitFor(() =>
-          expect(mounted.result.current.detail.data).toEqual(hint)
+          expect(mounted.result.current.detail.data).toEqual(hint),
         );
         expect(mounted.result.current.list.hints).toEqual([hint]);
       }
-    }
+    },
   );
 });
 describe("authoring read wiring", () => {
@@ -979,27 +1002,27 @@ describe("authoring read wiring", () => {
         effective: useEffectiveEntityPromptTemplate(identity),
         proposal: useEntityPromptTemplateProposal(proposal, identity),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
         mounted.result.current.catalog.isReady &&
           mounted.result.current.effective.isReady &&
-          mounted.result.current.proposal.isReady
-      ).toBe(true)
+          mounted.result.current.proposal.isReady,
+      ).toBe(true),
     );
     mocks.effective.mockResolvedValue(
-      envelope({ ...effective, content: "New" })
+      envelope({ ...effective, content: "New" }),
     );
     act(() =>
       client.setQueryData(proposalKeys.detail("org", "project", "proposal"), {
         ...proposal,
         status: "APPROVED",
         updatedAt: "2026-10-01T00:01:00Z",
-      })
+      }),
     );
     await waitFor(() =>
-      expect(mounted.result.current.effective.effective?.content).toBe("New")
+      expect(mounted.result.current.effective.effective?.content).toBe("New"),
     );
     expect(mocks.catalog).toHaveBeenCalledTimes(2);
     expect(mocks.effective).toHaveBeenCalledTimes(2);
@@ -1020,13 +1043,13 @@ describe("authoring read wiring", () => {
           includeSectionKeys: ["description"],
         }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
         mounted.result.current.artifacts.isReady &&
-          mounted.result.current.initiatives.isReady
-      ).toBe(true)
+          mounted.result.current.initiatives.isReady,
+      ).toBe(true),
     );
     expect(mocks.artifacts).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1041,14 +1064,14 @@ describe("authoring read wiring", () => {
         page: 1,
         limit: 100,
       }),
-      expect.any(Object)
+      expect.any(Object),
     );
     expect(mocks.initiatives).toHaveBeenCalledWith(
       expect.objectContaining({
         status: [WorkStatus.Backlog],
         includeSectionKeys: ["description"],
       }),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
   it("shares a conversation read despite non-server status and section options", async () => {
@@ -1061,13 +1084,13 @@ describe("authoring read wiring", () => {
           includeSectionKeys: ["description"],
         }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
         mounted.result.current.first.isReady &&
-          mounted.result.current.second.isReady
-      ).toBe(true)
+          mounted.result.current.second.isReady,
+      ).toBe(true),
     );
     expect(mocks.conversation).toHaveBeenCalledTimes(1);
   });
@@ -1077,28 +1100,28 @@ describe("authoring read wiring", () => {
     });
     await waitFor(() => expect(mounted.result.current.isReady).toBe(true));
     mocks.artifact.mockRejectedValueOnce(
-      Object.assign(new Error("Denied"), { status: 403 })
+      Object.assign(new Error("Denied"), { status: 403 }),
     );
     await act(async () =>
-      expect(await mounted.result.current.refetch()).toBeNull()
+      expect(await mounted.result.current.refetch()).toBeNull(),
     );
     await waitFor(() => expect(mounted.result.current.error).toBeTruthy());
   });
   it("explicit markStale refreshes help without waking another key", async () => {
     const mounted = renderHook(
       () => ({ first: useHelpNode("guide"), second: useHelpNode("other") }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
         mounted.result.current.first.isReady &&
-          mounted.result.current.second.isReady
-      ).toBe(true)
+          mounted.result.current.second.isReady,
+      ).toBe(true),
     );
     act(() => mounted.result.current.first.markStale());
     await waitFor(() => expect(mocks.help).toHaveBeenCalledTimes(3));
     expect(
-      mocks.help.mock.calls.filter(([input]) => input.idOrSlugPath === "other")
+      mocks.help.mock.calls.filter(([input]) => input.idOrSlugPath === "other"),
     ).toHaveLength(1);
   });
 });
@@ -1112,7 +1135,7 @@ describe("hint error dismissal", () => {
     const key = implementationHintKeys.list("org", { serviceId: "service" });
     const fetchedAt = client.getQueryState(key)?.dataUpdatedAt;
     mocks.hints.mockRejectedValueOnce(
-      Object.assign(new Error("Denied"), { status: 403 })
+      Object.assign(new Error("Denied"), { status: 403 }),
     );
     await act(async () => {
       await mounted.result.current.refetch().catch(() => {});

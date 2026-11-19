@@ -64,6 +64,14 @@ export class ConversationNode {
 
   @Field()
   updatedAt!: string;
+
+  /** Present only when selected; maps to the REST `includeSuggestionDecisions` flag. */
+  @Field(() => [JSONScalar], { nullable: true })
+  suggestionDecisions?: unknown[];
+
+  /** Present only when selected; maps to the REST `includeSuggestionDecisions` flag. */
+  @Field(() => [JSONScalar], { nullable: true })
+  goalPmRoutingDecisions?: unknown[];
 }
 
 @ObjectType()
@@ -113,8 +121,33 @@ export class MessageNode {
   @Field({ nullable: true })
   parentMessageId?: string;
 
-  @Field()
-  createdAt!: string;
+  /** Null while a queued input has not started; such a record is not on the timeline. */
+  @Field(() => String, { nullable: true })
+  createdAt!: string | null;
+
+  @Field({ nullable: true })
+  executionStatus?: string;
+
+  @Field({ nullable: true })
+  executionQueueConfirmed?: boolean;
+
+  @Field({ nullable: true })
+  executionAdmissionDisposition?: string;
+
+  @Field({ nullable: true })
+  executionCancellationRequested?: boolean;
+
+  @Field({ nullable: true })
+  executionOperationId?: string;
+
+  @Field({ nullable: true })
+  awaitingResponse?: boolean;
+
+  @Field({ nullable: true })
+  handler?: string;
+
+  @Field(() => JSONScalar, { nullable: true })
+  user?: unknown;
 
   @Field(() => JSONScalar)
   data!: unknown;
@@ -126,6 +159,14 @@ export class MessageNode {
   /** Present only when selected; maps to the REST `includeReports` flag. */
   @Field(() => [JSONScalar], { nullable: true })
   reports?: unknown[];
+
+  /** Single-message reads only; the replies REST returns with a message. */
+  @Field(() => [MessageNode], { nullable: true })
+  responses?: MessageNode[];
+
+  /** Single-message reads only; the parent REST returns with a message. */
+  @Field(() => MessageNode, { nullable: true })
+  parentMessage?: MessageNode;
 }
 
 /**

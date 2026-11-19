@@ -11,6 +11,7 @@ import {
   ResolveField,
   Resolver,
 } from '@nestjs/graphql';
+import type { ConversationStatus } from '@hey-hey/contracts/api/models';
 import type {
   ConversationId,
   MessageId,
@@ -27,7 +28,14 @@ import {
   ConversationNode,
   ConversationPage,
   MessageConnection,
+  MessageNode,
 } from './conversation.types';
+import {
+  ConversationListArgs,
+  WorkflowConversationArgs,
+  conversationFilters,
+  wantsSuggestionDecisions,
+} from './conversation.args';
 
 /** The scope WebUiReadAccessMiddleware has already authorized. */
 function authorizedScope({ req }: GraphQLRequestContext): {
@@ -53,6 +61,7 @@ export class ConversationResolver {
   async conversation(
     @Args('id', { type: () => ID }) id: ConversationId,
     @Context() context: GraphQLRequestContext,
+    @Info() info: GraphQLResolveInfo,
   ): Promise<ConversationNode> {
     const { organizationId, projectId } = authorizedScope(context);
 
@@ -61,6 +70,7 @@ export class ConversationResolver {
         projectId,
         id,
         organizationId,
+        { includeSuggestionDecisions: wantsSuggestionDecisions(info) },
       );
     if (!conversation) {
       throw new NotFoundException('Conversation not found');
@@ -73,8 +83,8 @@ export class ConversationResolver {
   @Query(() => ConversationPage)
   async conversations(
     @Context() context: GraphQLRequestContext,
-    @Args('page', { type: () => Int, nullable: true }) page?: number,
-    @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+    @Info() info: GraphQLResolveInfo,
+    @Args() filters: ConversationListArgs,
   ): Promise<ConversationPage> {
     const { organizationId, projectId } = authorizedScope(context);
 
@@ -82,10 +92,116 @@ export class ConversationResolver {
       await this.conversationService.getAllConversationsFromAdapter(
         projectId,
         organizationId,
-        { page, limit },
+        {
+          ...conversationFilters(filters),
+          status: (filters.statuses ?? undefined) as
+            | ConversationStatus[]
+            | undefined,
+          includeSuggestionDecisions: wantsSuggestionDecisions(info, ['nodes']),
+        },
       );
 
     return { nodes: data, pageInfo: pagination };
+  }
+
+  /** Same read as GET /conversations/active. */
+  @Query(() => ConversationPage)
+  async activeConversations(
+    @Context() context: GraphQLRequestContext,
+    @Info() info: GraphQLResolveInfo,
+    @Args() filters: ConversationListArgs,
+  ): Promise<ConversationPage> {
+    const { organizationId, projectId } = authorizedScope(context);
+
+    const { data, pagination } =
+      await this.conversationService.getActiveConversationsFromAdapter(
+        projectId,
+        organizationId,
+        {
+          ...conversationFilters(filters),
+          includeSuggestionDecisions: wantsSuggestionDecisions(info, ['nodes']),
+        },
+      );
+
+    return { nodes: data, pageInfo: pagination };
+  }
+
+  /** Same read as GET /workflows/:workflowName/:workflowAboutId/conversations. */
+  @Query(() => ConversationPage)
+  async workflowConversations(
+    @Context() context: GraphQLRequestContext,
+    @Args('workflowName') workflowName: string,
+    @Args('workflowAboutId') workflowAboutId: string,
+    @Args() paging: WorkflowConversationArgs,
+  ): Promise<ConversationPage> {
+    const { organizationId, projectId } = authorizedScope(context);
+
+    const { data, pagination } =
+      await this.conversationService.getConversationsByWorkflowEntityFromAdapter(
+        organizationId,
+        projectId,
+        workflowAboutId,
+        workflowName,
+        {
+          page: paging.page ?? undefined,
+          limit: paging.limit ?? undefined,
+          sortBy: paging.sortBy as
+            | 'createdAt'
+            | 'updatedAt'
+            | 'title'
+            | undefined,
+          sortOrder: paging.sortOrder as 'asc' | 'desc' | undefined,
+          status: (paging.statuses ?? undefined) as
+            | ConversationStatus[]
+            | undefined,
+        },
+      );
+
+    return { nodes: data, pageInfo: pagination };
+  }
+
+  /** Same read as GET /messages/:id; a message of another project is not found. */
+  @Query(() => MessageNode)
+  async message(
+    @Args('id', { type: () => ID }) id: MessageId,
+    @Context() context: GraphQLRequestContext,
+    @Info() info: GraphQLResolveInfo,
+  ): Promise<MessageNode> {
+    const { organizationId, projectId } = authorizedScope(context);
+
+    // REST returns replies with a message by default; load them when selected.
+    const selected = selectedFieldNames(info);
+    const message = await this.messageService.getMessageForAdapter(
+      id,
+      organizationId,
+      selected.has('responses') || selected.has('parentMessage'),
+    );
+    if (!message || message.projectId !== projectId) {
+      throw new NotFoundException('Message not found');
+    }
+
+    return message;
+  }
+
+  /** Same read as GET /conversations/:id/messages/latest. */
+  @Query(() => MessageNode, { nullable: true })
+  async latestMessage(
+    @Args('conversationId', { type: () => ID }) conversationId: ConversationId,
+    @Context() context: GraphQLRequestContext,
+  ): Promise<MessageNode | null> {
+    const { organizationId, projectId } = authorizedScope(context);
+
+    const conversation =
+      await this.conversationService.getConversationFromAdapter(
+        projectId,
+        conversationId,
+        organizationId,
+      );
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    return this.messageService.getLatestMessage(conversationId, organizationId);
   }
 
   /**

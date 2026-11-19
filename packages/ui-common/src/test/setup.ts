@@ -6,6 +6,7 @@ import {
   takeUnexpectedRequests,
   unexpectedRequestHandler,
 } from "./networkGuard";
+import { conversationThreadHandlers } from "./conversationGraphQLHandlers";
 import type {
   ConversationCliStatusResponseDto,
   GetMessages200ResponseAllOfData,
@@ -28,6 +29,9 @@ vi.mock("@testing-library/react", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@testing-library/react")>();
   const { createElement } = await import("react");
+  const { ApolloProvider } = await import("@apollo/client/react");
+  const { default: axios } = await import("axios");
+  const { WebUiGraphQLClient } = await import("../data/graphql/client");
   // importActual: suites that mock TanStack still get a real provider here.
   const { QueryClient, QueryClientProvider } = await vi.importActual<
     typeof import("@tanstack/react-query")
@@ -40,6 +44,10 @@ vi.mock("@testing-library/react", async (importOriginal) => {
       defaultOptions: { queries: { retryDelay: 0 } },
     });
     testQueryClients.add(client);
+    // Conversation and message reads go through GraphQL; the network is MSW.
+    const graphql = new WebUiGraphQLClient(() =>
+      axios.create({ baseURL: "http://localhost:3000/api/v1" }),
+    );
     return function QueryClientTestWrapper({
       children,
     }: {
@@ -48,7 +56,10 @@ vi.mock("@testing-library/react", async (importOriginal) => {
       return createElement(
         QueryClientProvider,
         { client },
-        Inner ? createElement(Inner, null, children) : children,
+        createElement(ApolloProvider, {
+          client: graphql.apollo,
+          children: Inner ? createElement(Inner, null, children) : children,
+        }),
       );
     };
   };
@@ -143,6 +154,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // down a Vitest worker while the test is finishing.
 // Keep the launch fixture read available during teardown, when runtime handlers reset.
 const server = setupServer(
+  ...conversationThreadHandlers([]),
   http.get(
     "*/api/v1/organizations/:organizationId/projects/:projectId/messages",
     ({ request }) => {

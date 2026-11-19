@@ -1,45 +1,43 @@
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { AxiosRequestConfig } from "axios";
-import axios from "axios";
+import type { ApolloClient } from "@apollo/client";
+import { queryOptions } from "@tanstack/react-query";
 import {
   MessageCursorNotFoundErrorDto,
-  MessageReadMode,
   MessageStatus,
-  type ConversationMessageHistoryPageDto,
   type MessageRecordDto,
   type MessageResponseDto,
 } from "../../api";
-import { platformClient, projectsClient } from "../../clients/serviceClients";
+import { projectsClient } from "../../clients/serviceClients";
+import {
+  GetConversationMessageHistoryDocument,
+  GetConversationMessagesDocument,
+  GetLatestMessageDocument,
+  GetMessageDocument,
+  ReadConversationThreadDocument,
+  type GetLatestMessageQuery,
+  type GetLatestMessageQueryVariables,
+  type GetMessageQuery,
+  type GetMessageQueryVariables,
+} from "../../graphql/generated/graphql";
 import { extractErrorCode } from "../../utils/errorUtils";
 import logger from "../../utils/logger";
+import { captureRequestOptions } from "../core/requestInitiator";
 import {
-  captureRequestOptions,
-  initiatorRequestOptions,
-} from "../core/requestInitiator";
+  getProjectGraphQLClient,
+  type GraphQLProjectScope,
+} from "../graphql/client";
+import { toMessageDetail, toMessageResponse } from "../graphql/records";
+import type { GraphQLReadSpec } from "../graphql/useGraphQLRead";
 import { dataLayerQueryPolicy } from "../query/queryPolicy";
-import {
-  buildConversationMessageHistoryKey,
-  preserveConversationMessageHistoryOnRefresh,
-  recordInitialConversationMessageHistoryPage,
-} from "./conversationMessageHistoryState";
 
-export class ConversationMessagesNotFoundError extends Error {
-  /** The server's answer for this key; the query policy does not retry it. */
-  readonly status = 404;
-
-  constructor(conversationId: string) {
-    super(`Conversation messages not found: ${conversationId}`);
-    this.name = "ConversationMessagesNotFoundError";
-  }
-}
+/** How many of a conversation's newest messages it opens with, and each older page. */
+export const MESSAGE_PAGE_SIZE = 8;
 
 /**
- * Prefix tree for message reads. A conversation's message list and its
- * latest-message read share the `conversation` prefix, so one invalidation
- * covers both; the latest read only runs when the list is not loaded.
+ * Queued inputs are the one conversation read that stays on REST. They are
+ * the undated inputs waiting to enter the thread, so they have no
+ * counterpart in the message list the GraphQL client holds.
  *
- * Keys: [root, org, project, "conversation", conversationId, "list" | "latest"]
- *       [root, org, project, "byId", messageId]
+ * Keys: [root, org, project, "conversation", conversationId, "queued"]
  */
 export const messageKeys = {
   root: () => ["messages"] as const,
@@ -57,23 +55,39 @@ export const messageKeys = {
       "conversation",
       conversationId,
     ] as const,
-  list: (organizationId: string, projectId: string, conversationId: string) =>
+  queuedInputs: (
+    organizationId: string,
+    projectId: string,
+    conversationId: string,
+  ) =>
     [
       ...messageKeys.conversation(organizationId, projectId, conversationId),
-      "list",
-    ] as const,
-  latest: (organizationId: string, projectId: string, conversationId: string) =>
-    [
-      ...messageKeys.conversation(organizationId, projectId, conversationId),
-      "latest",
-    ] as const,
-  byId: (organizationId: string, projectId: string, messageId: string) =>
-    [
-      ...messageKeys.project(organizationId, projectId),
-      "byId",
-      messageId,
+      "queued",
     ] as const,
 };
+
+export function queuedInputsQueryOptions(
+  organizationId: string,
+  projectId: string,
+  conversationId: string,
+) {
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: messageKeys.queuedInputs(
+      organizationId,
+      projectId,
+      conversationId,
+    ),
+    queryFn: async ({ signal }): Promise<MessageRecordDto[]> => {
+      const response = await projectsClient.getQueuedConversationInputs(
+        { organizationId, projectId, conversationId },
+        { ...captureRequestOptions(), signal },
+      );
+
+      return response.data.data ?? [];
+    },
+  });
+}
 
 /**
  * A message in the conversation timeline. A queued input has no `createdAt`
@@ -83,102 +97,95 @@ export const isTimelineMessage = (
   message: MessageRecordDto,
 ): message is MessageResponseDto => message.createdAt !== null;
 
-// Timeline order. Only dated messages are ever ordered.
-const compareMessageOrder = (
-  a: MessageResponseDto,
-  b: MessageResponseDto,
+/** What the delta cursor needs to know about a loaded message. */
+export interface ThreadPosition {
+  id: string;
+  status?: string;
+  createdAt: string | null;
+}
+
+const compareThreadPosition = (
+  a: ThreadPosition,
+  b: ThreadPosition,
 ): number => {
-  const aMs = Date.parse(a.createdAt);
-  const bMs = Date.parse(b.createdAt);
-  if (aMs !== bMs) return aMs - bMs;
-  if (a.id < b.id) return -1;
-  if (a.id > b.id) return 1;
-  return 0;
+  const aMs = Date.parse(a.createdAt ?? "");
+  const bMs = Date.parse(b.createdAt ?? "");
+  if (aMs !== bMs) {
+    return aMs - bMs;
+  }
+
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 };
 
-const TERMINAL_MESSAGE_STATUSES: ReadonlySet<MessageStatus> = new Set([
+const TERMINAL_MESSAGE_STATUSES: ReadonlySet<string> = new Set([
   MessageStatus.Completed,
   MessageStatus.Failed,
 ]);
 
-const isTerminalMessage = (message: MessageResponseDto): boolean =>
+const isTerminal = (message: ThreadPosition): boolean =>
   !!message.status && TERMINAL_MESSAGE_STATUSES.has(message.status);
 
-/** The newest timeline message in a loaded list. Undated inputs never count. */
-export const selectLatestTimelineMessage = (
-  messages: readonly MessageRecordDto[],
-): MessageResponseDto | null => {
-  let latest: MessageResponseDto | null = null;
-  for (const message of messages) {
-    if (!isTimelineMessage(message)) continue;
-    if (!latest || compareMessageOrder(latest, message) < 0) latest = message;
-  }
-  return latest;
-};
-
 /**
- * Computes the `since=` cursor for an incremental conversation-messages
- * refetch, backed up by one terminal message to give a one-message overlap.
+ * Computes the `after` cursor for an incremental refresh, backed up by one
+ * terminal message to give a one-message overlap.
  *
- * Without the overlap the cursor would sit exactly on the most recent
- * eligible terminal message, and because `since=<cursor>` is exclusive that
- * message would never be re-fetched — so a server-side update to an
- * already-terminal message (e.g. a coalesced interstitial body finalised
- * after completion, the missing-last-message case) is invisible. Returning
- * the terminal message one position *earlier* means the boundary message is
- * always pulled back in and merged.
+ * The cursor is exclusive, so a cursor sitting exactly on the newest settled
+ * message would never re-fetch it, and a late edit to that message (for
+ * example a coalesced interstitial finalised after completion) would stay
+ * invisible. Returning the terminal message one position earlier pulls the
+ * boundary message back in, together with every cached non-terminal message.
  *
- * Concretely: of the terminal cached messages strictly older than the oldest
- * non-terminal message (or all terminal messages, when every cached message
- * is terminal), this returns the id of the one immediately preceding the most
- * recent. Returns `null` when no such earlier cursor exists (no cache, fewer
- * than two eligible terminal messages, or the anchor is stuck non-terminal at
- * the head), signalling the read must fall back to a full fetch.
- *
- * Picking the cursor this way means a `since=<cursor>` query always returns
- * every cached non-terminal message *plus* the most recent terminal one, so
- * both in-flight status transitions and late edits to the boundary message
- * are picked up without needing a side-channel single-message refetch.
+ * Of the terminal messages strictly older than the oldest non-terminal one
+ * (or all of them, when every message is terminal) this returns the one just
+ * before the newest. `null` means there is no such cursor and the caller
+ * reads the recent page instead.
  */
 export function getDeltaFetchCursorId(
-  cached: readonly MessageRecordDto[] | undefined,
+  loaded: readonly ThreadPosition[] | undefined,
 ): string | null {
-  if (!cached || cached.length === 0) return null;
+  if (!loaded || loaded.length === 0) {
+    return null;
+  }
 
   // Undated queued inputs are not in the timeline and never anchor a cursor.
-  const sorted = cached.filter(isTimelineMessage).sort(compareMessageOrder);
-  const oldestNonTerminal =
-    sorted.find((message) => !isTerminalMessage(message)) ?? null;
+  const sorted = loaded
+    .filter((message) => message.createdAt !== null)
+    .sort(compareThreadPosition);
+  const oldestNonTerminal = sorted.find((message) => !isTerminal(message));
 
-  let cursor: MessageResponseDto | null = null;
-  let prevCursor: MessageResponseDto | null = null;
+  let cursor: ThreadPosition | null = null;
+  let previous: ThreadPosition | null = null;
   for (const message of sorted) {
-    if (!isTerminalMessage(message)) continue;
+    if (!isTerminal(message)) {
+      continue;
+    }
     if (
       oldestNonTerminal &&
-      compareMessageOrder(message, oldestNonTerminal) >= 0
+      compareThreadPosition(message, oldestNonTerminal) >= 0
     ) {
       break;
     }
-    prevCursor = cursor;
+    previous = cursor;
     cursor = message;
   }
-  return prevCursor?.id ?? null;
+
+  return previous?.id ?? null;
 }
+
+const compareMessageOrder = (
+  a: MessageResponseDto,
+  b: MessageResponseDto,
+): number => compareThreadPosition(a, b);
 
 function mergeAndSortConversationMessages(
   cached: readonly MessageResponseDto[],
   delta: readonly MessageResponseDto[],
 ): MessageResponseDto[] {
   const byId = new Map<string, MessageResponseDto>();
-  for (const message of cached) {
+  for (const message of [...cached, ...delta]) {
     byId.set(message.id, message);
   }
-  // Delta wins on collision so status updates from the server replace the
-  // cached copy when an in-flight message transitions.
-  for (const message of delta) {
-    byId.set(message.id, message);
-  }
+
   return [...byId.values()].sort(compareMessageOrder);
 }
 
@@ -188,7 +195,7 @@ function mergeAndSortConversationMessages(
  * dated record always wins over an undated snapshot of the same id, because
  * createdAt is written once at execution start and never cleared.
  */
-function mergeQueueIntoTimeline(
+export function mergeQueueIntoTimeline(
   timeline: readonly MessageRecordDto[],
   queueUpdates: readonly MessageRecordDto[],
 ): MessageRecordDto[] {
@@ -199,387 +206,227 @@ function mergeQueueIntoTimeline(
   const seen = new Set(dated.map((message) => message.id));
   const waiting: MessageRecordDto[] = [];
   for (const message of queueUpdates) {
-    if (isTimelineMessage(message) || seen.has(message.id)) continue;
+    if (isTimelineMessage(message) || seen.has(message.id)) {
+      continue;
+    }
     seen.add(message.id);
     waiting.push(message);
   }
+
   return [...dated, ...waiting];
 }
 
-const requestOptionsWith = (signal: AbortSignal): AxiosRequestConfig => ({
-  ...captureRequestOptions(),
-  signal,
+/** The newest timeline message in a loaded list. Undated inputs never count. */
+export const selectLatestTimelineMessage = (
+  messages: readonly MessageRecordDto[],
+): MessageResponseDto | null => {
+  let latest: MessageResponseDto | null = null;
+  for (const message of messages) {
+    if (!isTimelineMessage(message)) {
+      continue;
+    }
+    if (!latest || compareMessageOrder(latest, message) < 0) {
+      latest = message;
+    }
+  }
+
+  return latest;
+};
+
+export const messageRead = (
+  scope: GraphQLProjectScope,
+  messageId: string,
+): GraphQLReadSpec<
+  GetMessageQuery,
+  GetMessageQueryVariables,
+  MessageRecordDto
+> => ({
+  document: GetMessageDocument,
+  variables: { id: messageId },
+  scope,
+  select: (data) => toMessageDetail(data.message),
 });
 
-async function fetchMessage(
-  organizationId: string,
-  projectId: string,
-  messageId: string,
-  requestOptions: AxiosRequestConfig = captureRequestOptions(),
-): Promise<MessageRecordDto | null> {
-  const response = await platformClient.getMessage(
-    { id: messageId, projectId, organizationId },
-    requestOptions,
-  );
-  return response.data?.data ?? null;
-}
-
-async function fetchLatestMessage(
-  organizationId: string,
-  projectId: string,
+export const latestMessageRead = (
+  scope: GraphQLProjectScope,
   conversationId: string,
-  requestOptions: AxiosRequestConfig,
-): Promise<MessageResponseDto | null> {
-  const response = await platformClient.getLatestMessage(
-    { organizationId, projectId, conversationId },
-    requestOptions,
-  );
-  return response.data?.data ?? null;
-}
+): GraphQLReadSpec<
+  GetLatestMessageQuery,
+  GetLatestMessageQueryVariables,
+  MessageResponseDto
+> => ({
+  document: GetLatestMessageDocument,
+  variables: { conversationId },
+  scope,
+  select: (data) =>
+    data.latestMessage ? toMessageResponse(data.latestMessage) : null,
+});
 
-async function fetchConversationMessageHistoryPage(
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-  historyCursor?: string,
-  requestOptions: AxiosRequestConfig = captureRequestOptions(),
-): Promise<ConversationMessageHistoryPageDto> {
-  try {
-    const response = await platformClient.getMessages(
-      {
-        organizationId,
-        projectId,
-        conversationId,
-        mode: MessageReadMode.ReverseHistory,
-        limit: 8,
-        historyCursor,
-        includeProposals: true,
-        includeReports: true,
-      },
-      requestOptions,
-    );
-    const data = response.data?.data;
-    if (!data || Array.isArray(data)) {
-      throw new Error(
-        "Reverse conversation Message history returned an invalid response",
-      );
-    }
-    return data;
-  } catch (error) {
-    // A 404 carrying the cursor code means the history cursor was rejected,
-    // not that the conversation is gone.
-    const isRejectedCursor =
-      extractErrorCode(error) ===
-      MessageCursorNotFoundErrorDto.CodeEnum.MessageCursorNotFound;
-    if (
-      axios.isAxiosError(error) &&
-      error.response?.status === 404 &&
-      !isRejectedCursor
-    ) {
-      throw new ConversationMessagesNotFoundError(conversationId);
-    }
-    throw error;
-  }
-}
-
-/**
- * Issues `GET /conversations/:id/messages?since=<cursor>` and returns the
- * delta, or `cursorInvalid` when the server rejected the cursor (cursor
- * message gone or no longer in the conversation) so the caller can fall back
- * to one full read instead of surfacing the 404.
- */
-async function fetchConversationMessageDelta(
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-  since: string,
-  requestOptions: AxiosRequestConfig,
-): Promise<
-  { kind: "delta"; messages: MessageResponseDto[] } | { kind: "cursorInvalid" }
-> {
-  try {
-    const response = await platformClient.getMessages(
-      {
-        organizationId,
-        projectId,
-        conversationId,
-        since,
-        includeProposals: true,
-        includeReports: true,
-      },
-      requestOptions,
-    );
-    const data = response.data?.data;
-    if (data !== undefined && !Array.isArray(data)) {
-      throw new Error("Forward Message delta returned an invalid response");
-    }
-    return { kind: "delta", messages: data ?? [] };
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return { kind: "cursorInvalid" };
-    }
-    throw error;
-  }
-}
-
-/**
- * Reads the timeline for one conversation. With no cached list it reads the
- * most recent history page. With a cached list it reads only `since=<cursor>`
- * (cursor from `getDeltaFetchCursorId`), falling back to the recent page when
- * there is no usable cursor or the server rejects it with 404.
- *
- * The cursor is computed from the cache when this read starts, so a read
- * restarted by an invalidation uses the cache as it is at restart. The result
- * is merged into the cache as it is when the read finishes, so older pages
- * loaded in the meantime are kept.
- */
-async function fetchConversationMessageList(
-  queryClient: QueryClient,
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-  signal: AbortSignal,
-): Promise<MessageRecordDto[]> {
-  const queryKey = messageKeys.list(organizationId, projectId, conversationId);
-  const historyKey = buildConversationMessageHistoryKey({
-    organizationId,
-    projectId,
-    conversationId,
+/** The thread as the cache holds it right now; never reads the network. */
+export function readLoadedThread(client: ApolloClient, conversationId: string) {
+  const loaded = client.readQuery({
+    query: ReadConversationThreadDocument,
+    variables: { id: conversationId },
   });
-  const requestOptions = requestOptionsWith(signal);
-  const cached = queryClient.getQueryData<MessageRecordDto[]>(queryKey);
 
-  // Queue membership is independent of the reverse-history window.
-  const pendingResponse = await projectsClient.getQueuedConversationInputs(
-    { organizationId, projectId, conversationId },
-    requestOptions,
+  return loaded?.conversation.messages ?? null;
+}
+
+/** Every loaded message in thread order, or null while no thread is loaded. */
+export function readLoadedMessages(
+  client: ApolloClient,
+  conversationId: string,
+): MessageResponseDto[] | null {
+  const loaded = client.readQuery({
+    query: GetConversationMessageHistoryDocument,
+    variables: { id: conversationId, last: MESSAGE_PAGE_SIZE },
+  });
+
+  return loaded?.conversation.messages.nodes.map(toMessageResponse) ?? null;
+}
+
+const isRejectedCursor = (error: unknown): boolean =>
+  extractErrorCode(error) ===
+  MessageCursorNotFoundErrorDto.CodeEnum.MessageCursorNotFound;
+
+async function readRecentPage(
+  client: ApolloClient,
+  scope: GraphQLProjectScope,
+  conversationId: string,
+): Promise<void> {
+  await client.query({
+    query: GetConversationMessageHistoryDocument,
+    variables: { id: conversationId, last: MESSAGE_PAGE_SIZE },
+    context: scope,
+    fetchPolicy: "network-only",
+  });
+}
+
+/**
+ * Brings the conversation's loaded thread up to date. With nothing loaded it
+ * reads the newest page. With a thread loaded it reads only the messages
+ * after the delta cursor, and falls back to the newest page when the server
+ * rejects that cursor. Every read lands in the one list the cache keeps, so
+ * older pages already loaded are never dropped.
+ */
+async function refreshThread(
+  client: ApolloClient,
+  scope: GraphQLProjectScope,
+  conversationId: string,
+): Promise<void> {
+  const cursor = getDeltaFetchCursorId(
+    readLoadedThread(client, conversationId)?.nodes,
   );
-  const pending = pendingResponse.data.data ?? [];
-
-  const readRecentPage = async (): Promise<MessageResponseDto[]> => {
-    const page = await fetchConversationMessageHistoryPage(
-      organizationId,
-      projectId,
-      conversationId,
-      undefined,
-      requestOptions,
-    );
-    if (cached) {
-      preserveConversationMessageHistoryOnRefresh(historyKey, page.nextCursor);
-    } else {
-      recordInitialConversationMessageHistoryPage(historyKey, page.nextCursor);
-    }
-    return page.messages;
-  };
-
-  let fetched: MessageResponseDto[];
-  const cursor = getDeltaFetchCursorId(cached);
-  if (!cached || !cursor) {
-    logger.info("data_collections", "[messages] GET /messages (recent page)", {
+  if (!cursor) {
+    logger.info("data_collections", "[messages] recent page", {
       cid: conversationId,
-      cached: !!cached,
     });
-    fetched = await readRecentPage();
-  } else {
-    logger.info("data_collections", "[messages] GET /messages (delta)", {
+    await readRecentPage(client, scope, conversationId);
+
+    return;
+  }
+
+  try {
+    await client.query({
+      query: GetConversationMessagesDocument,
+      variables: { id: conversationId, after: cursor },
+      context: scope,
+      fetchPolicy: "network-only",
+    });
+  } catch (error) {
+    if (!isRejectedCursor(error)) {
+      throw error;
+    }
+    logger.info("data_collections", "[messages] recent page after cursor", {
       cid: conversationId,
       since: cursor,
     });
-    const result = await fetchConversationMessageDelta(
-      organizationId,
-      projectId,
-      conversationId,
-      cursor,
-      requestOptions,
-    );
-    if (result.kind === "cursorInvalid") {
-      logger.info(
-        "data_collections",
-        "[messages] GET /messages (recent page after cursor 404)",
-        { cid: conversationId, since: cursor },
-      );
-      fetched = await readRecentPage();
-    } else {
-      fetched = result.messages;
-    }
+    await readRecentPage(client, scope, conversationId);
   }
-
-  // Queue was read before the timeline; reconcile once the timeline is known
-  // so an earlier undated snapshot never regresses a started input.
-  const knownIds = new Set([
-    ...pending.map((message) => message.id),
-    ...fetched.map((message) => message.id),
-  ]);
-  const unresolved = (cached ?? []).filter(
-    (message) =>
-      message.executionStatus === "queued" && !knownIds.has(message.id),
-  );
-  const completed = await Promise.all(
-    unresolved.map((message) =>
-      fetchMessage(organizationId, projectId, message.id, requestOptions),
-    ),
-  );
-
-  const current = queryClient.getQueryData<MessageRecordDto[]>(queryKey) ?? [];
-  const timeline = mergeAndSortConversationMessages(
-    current.filter(isTimelineMessage),
-    fetched,
-  );
-  return mergeQueueIntoTimeline(timeline, [
-    ...pending,
-    ...completed.filter(
-      (message): message is MessageRecordDto => message !== null,
-    ),
-  ]);
 }
+
+interface ThreadRefresh {
+  running: Promise<void>;
+  /** Starts when `running` ends; covers every request made meanwhile. */
+  waiting: Promise<void> | null;
+}
+
+const clientRefreshes = new WeakMap<ApolloClient, Map<string, ThreadRefresh>>();
+const ignore = () => undefined;
 
 /**
- * Loads one older history page and merges it into the cached list. Used by
- * `loadOlder`; it does not re-read the recent window.
+ * One refresh at a time per conversation. A request made while a refresh runs
+ * waits for one more run that starts after it, so a read that began before an
+ * event never stands in for the read that event asked for.
  */
-export async function loadOlderConversationMessages(
-  queryClient: QueryClient,
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-  historyCursor: string,
-): Promise<string | undefined> {
-  const page = await fetchConversationMessageHistoryPage(
-    organizationId,
-    projectId,
-    conversationId,
-    historyCursor,
-    initiatorRequestOptions("conversation-load-older"),
-  );
-  queryClient.setQueryData<MessageRecordDto[]>(
-    messageKeys.list(organizationId, projectId, conversationId),
-    (current = []) =>
-      mergeQueueIntoTimeline(
-        mergeAndSortConversationMessages(
-          current.filter(isTimelineMessage),
-          page.messages,
-        ),
-        current.filter((message) => !isTimelineMessage(message)),
-      ),
-  );
-  return page.nextCursor;
-}
-
-export function conversationMessagesQueryOptions(
-  queryClient: QueryClient,
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-) {
-  return queryOptions({
-    ...dataLayerQueryPolicy,
-    queryKey: messageKeys.list(organizationId, projectId, conversationId),
-    queryFn: ({ signal }) =>
-      fetchConversationMessageList(
-        queryClient,
-        organizationId,
-        projectId,
-        conversationId,
-        signal,
-      ),
-  });
-}
-
-/**
- * The latest-message read for a conversation whose list is not loaded. If a
- * list read for the same conversation has data or is in flight when this read
- * runs, the latest message is taken from it instead of a second request. The
- * read yields once first so list reads mounted in the same render start first.
- */
-export function latestMessageQueryOptions(
-  queryClient: QueryClient,
-  organizationId: string,
-  projectId: string,
-  conversationId: string,
-) {
-  return queryOptions({
-    ...dataLayerQueryPolicy,
-    queryKey: messageKeys.latest(organizationId, projectId, conversationId),
-    queryFn: async ({ signal }) => {
-      await Promise.resolve();
-      const listOptions = conversationMessagesQueryOptions(
-        queryClient,
-        organizationId,
-        projectId,
-        conversationId,
-      );
-      const listState = queryClient.getQueryState(listOptions.queryKey);
-      if (listState?.data || listState?.fetchStatus === "fetching") {
-        return selectLatestTimelineMessage(
-          await queryClient.ensureQueryData(listOptions),
-        );
-      }
-      return fetchLatestMessage(
-        organizationId,
-        projectId,
-        conversationId,
-        requestOptionsWith(signal),
-      );
-    },
-  });
-}
-
-export function messageQueryOptions(
-  organizationId: string,
-  projectId: string,
-  messageId: string,
-) {
-  return queryOptions({
-    ...dataLayerQueryPolicy,
-    queryKey: messageKeys.byId(organizationId, projectId, messageId),
-    queryFn: async ({ signal }) => {
-      const message = await fetchMessage(
-        organizationId,
-        projectId,
-        messageId,
-        requestOptionsWith(signal),
-      );
-      if (!message) throw new Error(`Message not found: ${messageId}`);
-      return message;
-    },
-  });
-}
-
-/**
- * A conversation's messages changed: its list and latest-message reads are
- * invalidated. Only mounted reads re-run, and the latest read is disabled
- * while the list is loaded, so a mounted conversation costs one list read.
- */
-export function invalidateConversationMessages(
-  queryClient: QueryClient,
-  organizationId: string,
-  projectId: string,
+export function refreshConversationMessages(
+  client: ApolloClient,
+  scope: GraphQLProjectScope,
   conversationId: string,
 ): Promise<void> {
-  return queryClient.invalidateQueries({
-    queryKey: messageKeys.conversation(
-      organizationId,
-      projectId,
-      conversationId,
-    ),
+  client = getProjectGraphQLClient(client, scope);
+  let refreshes = clientRefreshes.get(client);
+  if (!refreshes) {
+    refreshes = new Map();
+    clientRefreshes.set(client, refreshes);
+  }
+  const entries = refreshes;
+  const key = JSON.stringify([
+    scope.organizationId,
+    scope.projectId,
+    conversationId,
+  ]);
+  const start = () => refreshThread(client, scope, conversationId);
+  const retire = (finished: Promise<void>) => () => {
+    const entry = entries.get(key);
+    if (entry?.running === finished && !entry.waiting) {
+      entries.delete(key);
+    }
+  };
+  const run = (): Promise<void> => {
+    const running = start();
+    void running.then(retire(running), retire(running));
+
+    return running;
+  };
+
+  const entry = entries.get(key);
+  if (!entry) {
+    const running = run();
+    entries.set(key, { running, waiting: null });
+
+    return running;
+  }
+  if (entry.waiting) {
+    return entry.waiting;
+  }
+
+  const waiting = entry.running.then(ignore, ignore).then(() => {
+    entry.waiting = null;
+    entry.running = run();
+
+    return entry.running;
   });
+  entry.waiting = waiting;
+
+  return waiting;
 }
 
-/** Every cached message for one conversation, across list, latest and by-id reads. */
-export function getCachedMessagesForConversation(
-  queryClient: QueryClient,
+/** Loads the page before the oldest loaded message into the same list. */
+export async function loadOlderConversationMessages(
+  client: ApolloClient,
+  scope: GraphQLProjectScope,
   conversationId: string,
-): MessageRecordDto[] {
-  const byId = new Map<string, MessageRecordDto>();
-  for (const [, data] of queryClient.getQueriesData<
-    MessageRecordDto[] | MessageRecordDto | null
-  >({ queryKey: messageKeys.root() })) {
-    const records = Array.isArray(data) ? data : data ? [data] : [];
-    for (const message of records) {
-      if (message.conversationId === conversationId) {
-        byId.set(message.id, message);
-      }
-    }
+): Promise<void> {
+  const before = readLoadedThread(client, conversationId)?.startCursor;
+  if (!before) {
+    return;
   }
-  return [...byId.values()];
+
+  await client.query({
+    query: GetConversationMessageHistoryDocument,
+    variables: { id: conversationId, last: MESSAGE_PAGE_SIZE, before },
+    context: scope,
+    fetchPolicy: "network-only",
+  });
 }

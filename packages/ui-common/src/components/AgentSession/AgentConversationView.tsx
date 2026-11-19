@@ -25,6 +25,7 @@ import {
   MessageType,
 } from "../../api";
 import { useConversation } from "../../data/hooks/useConversation";
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { submitConversationMessage } from "./operations/submitConversationMessage";
 import { useAgentSessionCurrentState } from "../../data/hooks/useAgentSessionCurrentState";
@@ -266,6 +267,7 @@ const AgentConversationViewInner = ({
     { organizationId, projectId, agentSessionId, conversationId },
   );
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const conversationEnvelope = conversationQuery.data ?? null;
   const displayConversation = conversationEnvelope;
   const cliRequired = useCliRequired(
@@ -380,6 +382,7 @@ const AgentConversationViewInner = ({
       await submitConversationMessage({
         interactionAccess,
         queryClient,
+        graphqlClient,
         organizationId,
         projectId,
         agentSessionId,
@@ -392,6 +395,7 @@ const AgentConversationViewInner = ({
       agentSessionId,
       displayConversation,
       queryClient,
+      graphqlClient,
       organizationId,
       projectId,
     ],

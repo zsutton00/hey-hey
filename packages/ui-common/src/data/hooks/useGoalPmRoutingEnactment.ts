@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   GoalPmRoutingEnactmentRequest,
@@ -9,7 +10,8 @@ import {
   toOpenApiConversationId,
   toOpenApiProjectId,
 } from "../../clients/contractIdentifierAdapters";
-import { invalidateConversationMessages } from "../collections/messages";
+import { messageKeys } from "../collections/messages";
+import { refreshConversationMessages } from "../collections/messages";
 import { useAgentSessionInteractionAccessResolver } from "../../components/AgentSession/operations/useAgentSessionInteractionAccess";
 import { useMutation } from "../core/useMutation";
 
@@ -23,6 +25,7 @@ export interface GoalPmRoutingEnactmentVariables {
 
 export function useGoalPmRoutingEnactment() {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const accessResolver = useAgentSessionInteractionAccessResolver();
   return useMutation(
     async ({
@@ -32,13 +35,20 @@ export function useGoalPmRoutingEnactment() {
       sourceConversationId,
       input,
     }: GoalPmRoutingEnactmentVariables): Promise<GoalPmRoutingEnactmentResponse> => {
-      const refresh = () =>
-        void invalidateConversationMessages(
-          queryClient,
-          organizationId,
-          projectId,
+      const refresh = () => {
+        void refreshConversationMessages(
+          graphqlClient,
+          { organizationId, projectId },
           sourceConversationId,
         );
+        void queryClient.invalidateQueries({
+          queryKey: messageKeys.queuedInputs(
+            organizationId,
+            projectId,
+            sourceConversationId,
+          ),
+        });
+      };
       try {
         const response = await suggestionsClient.enactGoalPmRoutingChoice({
           organizationId,

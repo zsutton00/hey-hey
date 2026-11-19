@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../test/graphqlTestClient";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createStore } from "jotai";
 import { WebSocketService } from "../webSocketService";
@@ -83,6 +84,7 @@ describe("WebSocketService", () => {
       mockStore,
       mockDebugger,
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
     vi.clearAllMocks();
 
@@ -537,7 +539,12 @@ describe("WebSocketService", () => {
 
   it("applies complete current-state events without invalidating Agent Session collections", () => {
     const queryClient = new QueryClient();
-    mockHandler = new WebSocketHandler(mockStore, mockDebugger, queryClient);
+    mockHandler = new WebSocketHandler(
+      mockStore,
+      mockDebugger,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     const service = new WebSocketService(mockHandler);
     const markAllStaleSpy = vi.spyOn(mockHandler, "markAllStale");
     const batchRequestSpy = vi.spyOn(dataClient, "request");
@@ -1134,11 +1141,13 @@ describe("WebSocketService", () => {
       store1,
       createMockDebugger(),
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
     const handler2 = new WebSocketHandler(
       store2,
       createMockDebugger(),
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
 
     const service1 = new WebSocketService(handler1);
@@ -1198,6 +1207,7 @@ describe("WebSocketService", () => {
       sharedStore,
       createMockDebugger(),
       sharedQueryClient,
+      createUnreachableGraphQLClient(),
     );
     const service = new WebSocketService(sharedHandler);
     service.initialize({ userId: "test-user" });

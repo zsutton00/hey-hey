@@ -46,8 +46,14 @@ describe('ConversationResolver', () => {
   const conversationService = {
     getConversationFromAdapter: jest.fn(),
     getAllConversationsFromAdapter: jest.fn(),
+    getActiveConversationsFromAdapter: jest.fn(),
+    getConversationsByWorkflowEntityFromAdapter: jest.fn(),
   };
-  const messageService = { getMessagesForAdapter: jest.fn() };
+  const messageService = {
+    getMessagesForAdapter: jest.fn(),
+    getMessageForAdapter: jest.fn(),
+    getLatestMessage: jest.fn(),
+  };
 
   const query = async (body: string) => {
     const response = await request(app.getHttpServer())
@@ -113,6 +119,7 @@ describe('ConversationResolver', () => {
       PROJECT,
       CONVERSATION,
       ORG,
+      { includeSuggestionDecisions: false },
     );
     expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
       { conversationId: CONVERSATION, projectId: PROJECT, since: undefined },
@@ -324,6 +331,139 @@ describe('ConversationResolver', () => {
     });
     expect(
       conversationService.getAllConversationsFromAdapter,
-    ).toHaveBeenCalledWith(PROJECT, ORG, { page: 2, limit: 1 });
+    ).toHaveBeenCalledWith(
+      PROJECT,
+      ORG,
+      expect.objectContaining({
+        page: 2,
+        limit: 1,
+        includeSuggestionDecisions: false,
+      }),
+    );
+  });
+
+  it('filters the conversation lists and asks for suggestion decisions only when selected', async () => {
+    conversationService.getAllConversationsFromAdapter.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
+    conversationService.getActiveConversationsFromAdapter.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
+
+    await query(
+      '{ conversations(statuses: ["ACTIVE"], workflowNames: ["A", "B"], search: "x") { nodes { id suggestionDecisions } } }',
+    );
+    await query('{ activeConversations(limit: 100) { nodes { id } } }');
+
+    expect(
+      conversationService.getAllConversationsFromAdapter,
+    ).toHaveBeenCalledWith(
+      PROJECT,
+      ORG,
+      expect.objectContaining({
+        status: ['ACTIVE'],
+        workflowName: ['A', 'B'],
+        search: 'x',
+        includeSuggestionDecisions: true,
+      }),
+    );
+    expect(
+      conversationService.getActiveConversationsFromAdapter,
+    ).toHaveBeenCalledWith(
+      PROJECT,
+      ORG,
+      expect.objectContaining({ includeSuggestionDecisions: false }),
+    );
+  });
+
+  it('reads workflow conversations through the REST read', async () => {
+    conversationService.getConversationsByWorkflowEntityFromAdapter.mockResolvedValue(
+      {
+        data: [conversation],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
+    );
+
+    const body = await query(
+      '{ workflowConversations(workflowName: "W", workflowAboutId: "a1", statuses: ["ACTIVE"]) { nodes { id } } }',
+    );
+
+    expect(body.data.workflowConversations.nodes).toEqual([
+      { id: CONVERSATION },
+    ]);
+    expect(
+      conversationService.getConversationsByWorkflowEntityFromAdapter,
+    ).toHaveBeenCalledWith(
+      ORG,
+      PROJECT,
+      'a1',
+      'W',
+      expect.objectContaining({ status: ['ACTIVE'] }),
+    );
+  });
+
+  it('reads one message with its execution fields and hides other projects', async () => {
+    messageService.getMessageForAdapter.mockResolvedValueOnce(
+      message('m1', { executionStatus: 'queued', createdAt: null }),
+    );
+    const found = await query(
+      '{ message(id: "m1") { id createdAt executionStatus } }',
+    );
+    expect(found.data.message).toEqual({
+      id: 'm1',
+      createdAt: null,
+      executionStatus: 'queued',
+    });
+
+    messageService.getMessageForAdapter.mockResolvedValueOnce(
+      message('m2', { projectId: 'other-project' }),
+    );
+    const hidden = await query('{ message(id: "m2") { id } }');
+    expect(hidden.errors).toHaveLength(1);
+  });
+
+  it('returns a message with its parent and replies as REST does', async () => {
+    messageService.getMessageForAdapter.mockResolvedValueOnce(
+      message('m2', {
+        parentMessageId: 'm1',
+        parentMessage: message('m1', { data: { content: 'question' } }),
+        responses: [message('m3', { parentMessageId: 'm2' })],
+      }),
+    );
+
+    const found = await query(
+      `{ message(id: "m2") {
+        id
+        parentMessage { id data }
+        responses { id parentMessageId }
+      } }`,
+    );
+
+    expect(messageService.getMessageForAdapter).toHaveBeenLastCalledWith(
+      'm2',
+      expect.anything(),
+      true,
+    );
+    expect(found.data.message).toEqual({
+      id: 'm2',
+      parentMessage: { id: 'm1', data: { content: 'question' } },
+      responses: [{ id: 'm3', parentMessageId: 'm2' }],
+    });
+  });
+
+  it('reads the latest message, or null for an empty conversation', async () => {
+    messageService.getLatestMessage.mockResolvedValueOnce(message('m9'));
+    const latest = await query(
+      `{ latestMessage(conversationId: "${CONVERSATION}") { id } }`,
+    );
+    expect(latest.data.latestMessage).toEqual({ id: 'm9' });
+
+    messageService.getLatestMessage.mockResolvedValueOnce(null);
+    const empty = await query(
+      `{ latestMessage(conversationId: "${CONVERSATION}") { id } }`,
+    );
+    expect(empty.data.latestMessage).toBeNull();
   });
 });

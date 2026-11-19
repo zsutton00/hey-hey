@@ -1,14 +1,14 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import { useCallback } from "react";
-import { invalidateConversation } from "../collections/conversations";
+import { refreshConversation } from "../graphql/conversationCache";
 
 export function useInvalidateConversation(): (conversationId: string) => void {
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   return useCallback(
     (conversationId: string) => {
-      void invalidateConversation(queryClient, conversationId);
+      void refreshConversation(graphqlClient, conversationId);
     },
-    [queryClient]
+    [graphqlClient],
   );
 }

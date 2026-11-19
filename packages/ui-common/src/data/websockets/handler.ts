@@ -1,3 +1,4 @@
+import type { ApolloClient } from "@apollo/client";
 import { invalidateProposalReconciliation } from "../../components/ProposalReconciliation/reconciliationInvalidation";
 import { invalidateProjectQueries } from "../query/projectOrganizationInvalidation";
 import type {
@@ -24,7 +25,6 @@ import {
   type WebSocketMessageDeletedEvent,
   type WebSocketMessageRealtimeEvent,
   type WebSocketMessageUpdatedEvent,
-  type MessageRecordDto,
   type ProposalResponseDto,
   type WebSocketProjectCreatedEvent,
   type WebSocketProjectStatusChangedEvent,
@@ -41,14 +41,18 @@ import {
 } from "../../api";
 import { getCurrentUser } from "../../services/authService";
 import logger from "../../utils/logger";
+import { messageKeys } from "../collections/messages";
 import {
-  invalidateConversation,
-  invalidateConversationLists,
-} from "../collections/conversations";
-import {
-  invalidateConversationMessages,
-  messageKeys,
-} from "../collections/messages";
+  cachedMessageProposalIds,
+  evictMessage,
+  refreshConversation,
+  refreshConversationLists,
+  refreshConversationThread,
+  refreshLatestMessage,
+  refreshMessage,
+  refreshShownConversationReads,
+} from "../graphql/conversationCache";
+import { getGraphQLClients, getProjectGraphQLClient } from "../graphql/client";
 import {
   agentSessionKeys,
   invalidateAgentSessionDetail,
@@ -224,12 +228,14 @@ export class WebSocketHandler {
   private store: Store;
   private debuggerInstance?: typeof webSocketDebugger;
   private queryClient: QueryClient;
+  private graphqlClient: ApolloClient;
   private authUnsubscribe?: () => void;
 
   constructor(
     store: Store, // REQUIRED - no default
     debuggerInstance: typeof webSocketDebugger | undefined,
     queryClient: QueryClient,
+    graphqlClient: ApolloClient,
   ) {
     if (!store) {
       throw new Error("WebSocketHandler requires a store instance");
@@ -237,6 +243,7 @@ export class WebSocketHandler {
     this.store = store;
     this.debuggerInstance = debuggerInstance;
     this.queryClient = queryClient;
+    this.graphqlClient = graphqlClient;
   }
 
   private get debugger() {
@@ -290,9 +297,9 @@ export class WebSocketHandler {
     });
   }
 
-  /** Conversation envelopes and the lists holding the conversation. */
+  /** Active conversation reads, and the lists holding the conversation. */
   private invalidateConversation = (conversationId: string): void => {
-    void invalidateConversation(this.queryClient, conversationId);
+    void refreshConversation(this.graphqlClient, conversationId);
   };
 
   /** Invalidates a TanStack key prefix; only mounted queries re-read. */
@@ -520,12 +527,15 @@ export class WebSocketHandler {
           this.handleConversationUpdated(event);
           break;
         case "message.updated":
-          this.markConversationMessagesStale(event);
+          this.refreshConversationMessages(event);
+          this.refreshMessageDetail(event);
           this.invalidateMessageProposals(event);
           break;
         case "message.created":
+          this.refreshConversationMessages(event);
+          break;
         case "message.deleted":
-          this.markLatestMessageStale(event);
+          this.removeDeletedMessage(event);
           break;
         case "message.realtime":
           this.handleMessageRealtime(event);
@@ -884,10 +894,11 @@ export class WebSocketHandler {
       { conversationId: event.conversationId },
     );
 
-    void invalidateConversationLists(
-      this.queryClient,
-      event.organizationId,
-      event.projectId,
+    void refreshConversationLists(
+      getProjectGraphQLClient(this.graphqlClient, {
+        organizationId: event.organizationId,
+        projectId: event.projectId,
+      }),
     );
 
     this.debugger.logQueryInvalidation("conversations", "new-item", {
@@ -1106,8 +1117,7 @@ export class WebSocketHandler {
     );
 
     if (event.type === "conversation.updated") {
-      this.markConversationMessagesStale(event);
-      return;
+      this.refreshConversationMessages(event);
     }
 
     emitDataEvent(
@@ -1142,34 +1152,18 @@ export class WebSocketHandler {
    * restarts it, so the read that lands starts after the event.
    */
   private invalidateMessageProposals(event: WebSocketMessageUpdatedEvent) {
-    const { organizationId, projectId, conversationId, messageId } = event;
+    const { organizationId, projectId, messageId } = event;
     if (!projectId) return;
     // Notifications carry message identity, not proposal identity. Use only
     // known attachments; an unrelated or uncached message is not a broadcast.
-    const messages: MessageRecordDto[] = [];
-    const direct = this.queryClient.getQueryData<MessageRecordDto>(
-      messageKeys.byId(organizationId, projectId, messageId),
-    );
-    if (direct) messages.push(direct);
-    if (conversationId) {
-      const list = this.queryClient.getQueryData<MessageRecordDto[]>(
-        messageKeys.list(organizationId, projectId, conversationId),
-      );
-      messages.push(
-        ...(list ?? []).filter((message) => message.id === messageId),
-      );
-      const latest = this.queryClient.getQueryData<MessageRecordDto | null>(
-        messageKeys.latest(organizationId, projectId, conversationId),
-      );
-      if (latest?.id === messageId) messages.push(latest);
-    }
     const proposalIds = new Set(
-      messages.flatMap((message) => [
-        ...(message.proposals ?? []).map((proposal) => proposal.id),
-        ...(message.type === "SYSTEM" && message.data?.proposalSuggestion
-          ? [message.data.proposalSuggestion.proposalId]
-          : []),
-      ]),
+      cachedMessageProposalIds(
+        getProjectGraphQLClient(this.graphqlClient, {
+          organizationId,
+          projectId,
+        }),
+        messageId,
+      ),
     );
     // A standalone review can be mounted without its conversation being loaded.
     for (const [
@@ -1204,37 +1198,80 @@ export class WebSocketHandler {
     }
   }
 
-  private markConversationMessagesStale(
-    event: WebSocketConversationUpdatedEvent | WebSocketMessageUpdatedEvent,
+  /**
+   * A conversation's messages changed. The thread other views hold is brought
+   * up to date through the one list the cache keeps for it, the latest-message
+   * reads ask again, and the queued inputs waiting to enter it are re-read.
+   */
+  private refreshConversationMessages(
+    event:
+      | WebSocketConversationUpdatedEvent
+      | WebSocketMessageCreatedEvent
+      | WebSocketMessageUpdatedEvent,
   ) {
     const { conversationId, organizationId, projectId } = event;
     if (!conversationId || !organizationId || !projectId) return;
 
     logger.info(
       "data_websockets",
-      "[message notification] invalidating conversation messages",
+      "[message notification] refreshing conversation messages",
       { cid: conversationId, eventType: event.type },
     );
-    void invalidateConversationMessages(
-      this.queryClient,
-      organizationId,
-      projectId,
+    void refreshConversationThread(
+      this.graphqlClient,
+      { organizationId, projectId },
       conversationId,
+    );
+    void refreshLatestMessage(
+      getProjectGraphQLClient(this.graphqlClient, {
+        organizationId,
+        projectId,
+      }),
+      conversationId,
+    );
+    this.invalidateQueryKey(
+      messageKeys.queuedInputs(organizationId, projectId, conversationId),
     );
   }
 
-  /**
-   * A message was created or deleted. The loaded message list follows
-   * `conversation.updated`; only the standalone latest-message read (used
-   * when the list is not loaded) is invalidated here.
-   */
-  private markLatestMessageStale(
-    event: WebSocketMessageCreatedEvent | WebSocketMessageDeletedEvent,
-  ) {
-    const { conversationId, organizationId, projectId } = event;
+  private refreshMessageDetail(event: WebSocketMessageUpdatedEvent) {
+    const { organizationId, projectId, conversationId, messageId } = event;
+    if (!organizationId || !projectId || !conversationId) return;
+
+    void refreshMessage(
+      this.graphqlClient,
+      { organizationId, projectId },
+      conversationId,
+      messageId,
+    );
+  }
+
+  /** The deleted message leaves every thread and detail view that shows it. */
+  private removeDeletedMessage(event: WebSocketMessageDeletedEvent) {
+    const { conversationId, organizationId, projectId, messageId } = event;
+    const clients =
+      organizationId && projectId
+        ? [
+            getProjectGraphQLClient(this.graphqlClient, {
+              organizationId,
+              projectId,
+            }),
+          ]
+        : getGraphQLClients(this.graphqlClient);
+    for (const client of clients) {
+      evictMessage(client, conversationId, messageId);
+    }
     if (!conversationId || !organizationId || !projectId) return;
+
+    void refreshLatestMessage(
+      getProjectGraphQLClient(this.graphqlClient, {
+        organizationId,
+        projectId,
+      }),
+      conversationId,
+    );
     this.invalidateQueryKey(
-      messageKeys.latest(organizationId, projectId, conversationId),
+      messageKeys.queuedInputs(organizationId, projectId, conversationId),
     );
   }
 
@@ -1260,6 +1297,16 @@ export class WebSocketHandler {
     }
 
     if (result.shouldRefetchConversation && event.conversationId) {
+      if (event.organizationId && event.projectId) {
+        void refreshConversationThread(
+          this.graphqlClient,
+          {
+            organizationId: event.organizationId,
+            projectId: event.projectId,
+          },
+          event.conversationId,
+        );
+      }
       emitDataEvent(
         {
           type: DataEventType.ConversationUpdated,
@@ -1413,6 +1460,7 @@ export class WebSocketHandler {
   /** Reconnects and forced refreshes: only mounted queries re-read. */
   markAllStale() {
     void invalidateAllDataLayerQueries(this.queryClient);
+    void refreshShownConversationReads(this.graphqlClient);
 
     this.debugger.logQueryInvalidation("all", "all-queries", {
       reason: "WebSocket reconnected or forced refresh",

@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../test/graphqlTestClient";
 import { vi } from "vitest";
 import { createStore } from "jotai";
 import { platformClient } from "../../clients/serviceClients";
@@ -31,7 +32,12 @@ describe("WebSocketHandler conversation.updated boundary", () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Infinity } },
     });
-    websocketHandler = new WebSocketHandler(store, undefined, queryClient);
+    websocketHandler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
   });
 
   afterEach(() => {
@@ -71,12 +77,12 @@ describe("WebSocketHandler conversation.updated boundary", () => {
     const matchingEnvelopeQueryKey = conversationKeys.workflowList(
       "org-1",
       "proj-1",
-      { workflowName: "onboarding", workflowAboutId: "project-about-1" }
+      { workflowName: "onboarding", workflowAboutId: "project-about-1" },
     );
     const unrelatedEnvelopeQueryKey = conversationKeys.workflowList(
       "org-1",
       "proj-2",
-      { workflowName: "onboarding", workflowAboutId: "project-about-2" }
+      { workflowName: "onboarding", workflowAboutId: "project-about-2" },
     );
     queryClient.setQueryData(matchingEnvelopeQueryKey, [{ id: "conv-1" }]);
     queryClient.setQueryData(unrelatedEnvelopeQueryKey, [{ id: "conv-2" }]);
@@ -85,7 +91,7 @@ describe("WebSocketHandler conversation.updated boundary", () => {
     const otherConversationQueryKey = messageKeys.list(
       "org-1",
       "proj-1",
-      "conv-2"
+      "conv-2",
     );
     const otherProjectQueryKey = messageKeys.list("org-1", "proj-2", "conv-1");
     for (const key of [
@@ -156,12 +162,17 @@ describe("WebSocketHandler relationship-config invalidations", () => {
     queryClient = new QueryClient({
       defaultOptions: { queries: { gcTime: Infinity } },
     });
-    websocketHandler = new WebSocketHandler(store, undefined, queryClient);
+    websocketHandler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
 
     queryClient.setQueryData(initiativeKeys.list("org-1"), []);
     queryClient.setQueryData(
       initiativeKeys.list("org-1", { projectId: "proj-1" }),
-      []
+      [],
     );
 
     loggerWarnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
@@ -278,7 +289,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
     });
 
     expect(
-      isInvalidated(initiativeKeys.list("org-1", { projectId: "proj-1" }))
+      isInvalidated(initiativeKeys.list("org-1", { projectId: "proj-1" })),
     ).toBe(true);
 
     await Promise.resolve();
@@ -340,7 +351,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       expect.objectContaining({
         entityType: "Initiative",
         operation: "update",
-      })
+      }),
     );
   });
 
@@ -374,7 +385,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
 
     // No design-doc stale entries: the missing-id guard fired.
     expect(
-      queryClient.getQueryCache().findAll({ queryKey: designDocKeys.root() })
+      queryClient.getQueryCache().findAll({ queryKey: designDocKeys.root() }),
     ).toHaveLength(0);
     // The handler's own early-return on missing taskId fires before our
     // helper, so no work-item dispatches either.

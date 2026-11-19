@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { FutureOfferContext } from "../../futureOffers/FutureOfferContext";
 import React, { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -298,7 +299,12 @@ describe("per-query mount reads", () => {
 
 describe("realtime work-item events", () => {
   const handlerFor = (client: QueryClient) =>
-    new WebSocketHandler(createStore(), undefined, client);
+    new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
   const updated = (taskId: string) =>
     ({
       type: "task.updated",

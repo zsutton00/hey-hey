@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../test/graphqlTestClient";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -24,7 +25,7 @@ vi.mock("./useWebsocketSubscriptions", () => ({
 
 const conversation = (
   id: string,
-  createdAt = "2026-09-01T00:00:00Z"
+  createdAt = "2026-09-01T00:00:00Z",
 ): ConversationResponseDto => ({
   id,
   organizationId: "org",
@@ -59,7 +60,13 @@ let store: ReturnType<typeof createStore>;
 let queryClient: QueryClient;
 const wrapper = ({ children }: { children: React.ReactNode }) =>
   React.createElement(QueryClientProvider, { client: queryClient }, children);
-const createHandler = () => new WebSocketHandler(store, undefined, queryClient);
+const createHandler = () =>
+  new WebSocketHandler(
+    store,
+    undefined,
+    queryClient,
+    createUnreachableGraphQLClient(),
+  );
 /**
  * Message reads that were not abandoned. A notification arriving mid-read
  * cancels and restarts it; axios never sends a request whose signal is
@@ -69,7 +76,7 @@ const liveMessageReads = () =>
   vi
     .mocked(platformClient.getMessages)
     .mock.calls.filter(
-      ([, options]) => !(options as { signal?: AbortSignal })?.signal?.aborted
+      ([, options]) => !(options as { signal?: AbortSignal })?.signal?.aborted,
     ).length;
 const requestOptions = expect.objectContaining({
   signal: expect.any(AbortSignal),
@@ -87,10 +94,10 @@ beforeEach(() => {
     defaultOptions: { queries: { retryDelay: 0 } },
   });
   vi.mocked(platformClient.getActiveConversations).mockResolvedValue(
-    listResponse([conversation("new")])
+    listResponse([conversation("new")]),
   );
   vi.mocked(platformClient.getMessages).mockResolvedValue(
-    historyResponse([message("new")])
+    historyResponse([message("new")]),
   );
 });
 afterEach(() => {
@@ -102,7 +109,7 @@ describe("canonical workflow conversation readiness", () => {
   it("reads metadata and canonical Messages separately", async () => {
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     expect(result.current.error).toBeNull();
     expect(result.current.isLoading).toBe(true);
@@ -115,7 +122,7 @@ describe("canonical workflow conversation readiness", () => {
         includeProposals: true,
         includeReports: true,
       }),
-      requestOptions
+      requestOptions,
     );
   });
   it("keeps the newer unready candidate instead of displaying an older ready conversation", async () => {
@@ -123,12 +130,14 @@ describe("canonical workflow conversation readiness", () => {
       listResponse([
         conversation("old"),
         conversation("new", "2026-09-02T00:00:00Z"),
-      ])
+      ]),
     );
-    vi.mocked(platformClient.getMessages).mockResolvedValue(historyResponse([]));
+    vi.mocked(platformClient.getMessages).mockResolvedValue(
+      historyResponse([]),
+    );
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isFetched).toBe(true));
     expect(result.current.data).toBeNull();
@@ -136,18 +145,18 @@ describe("canonical workflow conversation readiness", () => {
     expect(platformClient.getMessages).toHaveBeenCalledTimes(1);
     expect(platformClient.getMessages).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: "new" }),
-      requestOptions
+      requestOptions,
     );
   });
   it("does not expose previous Messages when scope changes", async () => {
     const { result, rerender } = renderHook(
       ({ project }) =>
         useConversationByWorkflow("org", project, "onboarding", options),
-      { wrapper, initialProps: { project: "project" } }
+      { wrapper, initialProps: { project: "project" } },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     vi.mocked(platformClient.getActiveConversations).mockResolvedValue(
-      listResponse([])
+      listResponse([]),
     );
     rerender({ project: "other" });
     expect(result.current.data).toBeNull();
@@ -155,14 +164,14 @@ describe("canonical workflow conversation readiness", () => {
   });
   it("surfaces Message failures as errors", async () => {
     vi.mocked(platformClient.getMessages).mockRejectedValue(
-      new Error("Message read failed")
+      new Error("Message read failed"),
     );
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
-      expect(result.current.error?.message).toBe("Message read failed")
+      expect(result.current.error?.message).toBe("Message read failed"),
     );
     expect(result.current.isLoading).toBe(false);
     expect(result.current.data).toBeNull();
@@ -170,14 +179,14 @@ describe("canonical workflow conversation readiness", () => {
   it("refetch checks Messages belonging to the newly selected candidate", async () => {
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     vi.mocked(platformClient.getActiveConversations).mockResolvedValue(
-      listResponse([conversation("replacement")])
+      listResponse([conversation("replacement")]),
     );
     vi.mocked(platformClient.getMessages).mockResolvedValue(
-      historyResponse([message("replacement")])
+      historyResponse([message("replacement")]),
     );
     let refreshed: ConversationResponseDto | null = null;
     await act(async () => {
@@ -186,22 +195,22 @@ describe("canonical workflow conversation readiness", () => {
     expect(refreshed?.id).toBe("replacement");
     expect(platformClient.getMessages).toHaveBeenLastCalledWith(
       expect.objectContaining({ conversationId: "replacement" }),
-      requestOptions
+      requestOptions,
     );
   });
   it("discovers an absent conversation after a missed notification", async () => {
     vi.useFakeTimers();
     vi.mocked(platformClient.getActiveConversations).mockResolvedValue(
-      listResponse([])
+      listResponse([]),
     );
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await advance(100);
     expect(result.current.data).toBeNull();
     vi.mocked(platformClient.getActiveConversations).mockResolvedValue(
-      listResponse([conversation("new")])
+      listResponse([conversation("new")]),
     );
     await advance(3000);
     await advance(100);
@@ -209,15 +218,17 @@ describe("canonical workflow conversation readiness", () => {
   });
   it("recovers pending Messages on a fixed deadline without an envelope refresh", async () => {
     vi.useFakeTimers();
-    vi.mocked(platformClient.getMessages).mockResolvedValue(historyResponse([]));
+    vi.mocked(platformClient.getMessages).mockResolvedValue(
+      historyResponse([]),
+    );
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await advance(100);
     await advance(100);
     vi.mocked(platformClient.getMessages).mockResolvedValue(
-      historyResponse([message("new")])
+      historyResponse([message("new")]),
     );
     await advance(3000);
     await advance(100);
@@ -227,7 +238,7 @@ describe("canonical workflow conversation readiness", () => {
   it("coalesces duplicate completion frames into one Message read and no envelope reads", async () => {
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     vi.mocked(platformClient.getMessages).mockResolvedValue(
@@ -236,7 +247,7 @@ describe("canonical workflow conversation readiness", () => {
           ...message("new"),
           data: { ...message("new").data, response: "Completed update" },
         },
-      ])
+      ]),
     );
     const handler = createHandler();
     act(() => {
@@ -253,7 +264,7 @@ describe("canonical workflow conversation readiness", () => {
         });
     });
     await waitFor(() =>
-      expect(result.current.messages[0].data.response).toBe("Completed update")
+      expect(result.current.messages[0].data.response).toBe("Completed update"),
     );
     await waitFor(() => expect(result.current.isFetching).toBe(false));
     expect(liveMessageReads()).toBe(2);
@@ -262,11 +273,11 @@ describe("canonical workflow conversation readiness", () => {
   it("applies an authoritative follow-up after invalidation during an in-flight read", async () => {
     const { result } = renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     let resolveFirst: (
-      value: ReturnType<typeof historyResponse>
+      value: ReturnType<typeof historyResponse>,
     ) => void = () => {};
     const first = new Promise<ReturnType<typeof historyResponse>>((resolve) => {
       resolveFirst = resolve;
@@ -283,7 +294,7 @@ describe("canonical workflow conversation readiness", () => {
               response: "Authoritative completion",
             },
           },
-        ])
+        ]),
       );
     const handler = createHandler();
     const notify = () =>
@@ -299,7 +310,7 @@ describe("canonical workflow conversation readiness", () => {
       });
     act(notify);
     await waitFor(() =>
-      expect(platformClient.getMessages).toHaveBeenCalledTimes(2)
+      expect(platformClient.getMessages).toHaveBeenCalledTimes(2),
     );
     act(() => {
       notify();
@@ -310,15 +321,15 @@ describe("canonical workflow conversation readiness", () => {
     });
     await waitFor(() =>
       expect(result.current.messages[0].data.response).toBe(
-        "Authoritative completion"
-      )
+        "Authoritative completion",
+      ),
     );
     // The stale in-flight read resolving late never overwrites the follow-up.
     await act(async () => {
       await Promise.resolve();
     });
     expect(result.current.messages[0].data.response).toBe(
-      "Authoritative completion"
+      "Authoritative completion",
     );
     await waitFor(() => expect(result.current.isFetching).toBe(false));
     // Initial read plus one live follow-up; the in-flight read was abandoned.
@@ -328,10 +339,12 @@ describe("canonical workflow conversation readiness", () => {
 
   it("does not postpone pending-content recovery during continuous notifications", async () => {
     vi.useFakeTimers();
-    vi.mocked(platformClient.getMessages).mockResolvedValue(historyResponse([]));
+    vi.mocked(platformClient.getMessages).mockResolvedValue(
+      historyResponse([]),
+    );
     renderHook(
       () => useConversationByWorkflow("org", "project", "onboarding", options),
-      { wrapper }
+      { wrapper },
     );
     await advance(100);
     await advance(100);
@@ -348,7 +361,7 @@ describe("canonical workflow conversation readiness", () => {
           previousVersion: 1,
           newVersion: 2,
           changeType: "message_updated",
-        })
+        }),
       );
       await advance(100);
     }
@@ -356,7 +369,7 @@ describe("canonical workflow conversation readiness", () => {
       .length;
     await advance(200);
     expect(
-      vi.mocked(platformClient.getMessages).mock.calls.length
+      vi.mocked(platformClient.getMessages).mock.calls.length,
     ).toBeGreaterThan(readsAtDeadline);
     expect(platformClient.getActiveConversations).toHaveBeenCalledTimes(1);
   });

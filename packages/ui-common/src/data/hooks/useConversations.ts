@@ -1,17 +1,16 @@
 import { useCallback, useMemo } from "react";
 import type { ConversationResponseDto, ConversationStatus } from "../../api";
-import { conversationListQueryOptions } from "../collections/conversations";
+import { conversationListRead } from "../collections/conversations";
 import type {
   CollectionHookOptions,
   DataCollectionHookReturn,
 } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 export const ENTITY_TYPE = "Conversation";
 
-export interface UseConversationsOptions
-  extends CollectionHookOptions<ConversationResponseDto> {
+export interface UseConversationsOptions extends CollectionHookOptions<ConversationResponseDto> {
   workflowName?: string | string[];
   workflowAboutId?: string;
   workflowAboutType?: string;
@@ -20,15 +19,17 @@ export interface UseConversationsOptions
   includeSuggestionDecisions?: boolean;
 }
 
-export interface UseConversationsReturn
-  extends Omit<DataCollectionHookReturn<ConversationResponseDto>, "data"> {
+export interface UseConversationsReturn extends Omit<
+  DataCollectionHookReturn<ConversationResponseDto>,
+  "data"
+> {
   data: ConversationResponseDto[] | null; // Allow null for backwards compatibility
 }
 
 export function useConversations(
   organizationId: string | undefined,
   projectId: string | undefined,
-  options: UseConversationsOptions = {}
+  options: UseConversationsOptions = {},
 ): UseConversationsReturn {
   const {
     workflowName,
@@ -49,11 +50,13 @@ export function useConversations(
 
   // Callers often rebuild the statuses array each render; key by content.
   const statusesKey = statuses?.join(",");
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      conversationListQueryOptions(
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
+      conversationListRead(
+        {
+          organizationId: organizationId ?? "__noop__",
+          projectId: projectId ?? "__noop__",
+        },
         {
           workflowName: workflowNameFilter,
           search,
@@ -63,7 +66,7 @@ export function useConversations(
             ? (statusesKey.split(",") as ConversationStatus[])
             : undefined,
           includeSuggestionDecisions,
-        }
+        },
       ),
     [
       organizationId,
@@ -74,16 +77,15 @@ export function useConversations(
       workflowAboutType,
       statusesKey,
       includeSuggestionDecisions,
-    ]
+    ],
   );
-  const { result, state: query } = useDataLayerQuery(queryOptions, {
+  const query = useGraphQLRead(spec, {
     enabled: isEnabled,
     refetchOnMount: baseOptions.refetchOnMount,
     refetchOnWindowFocus: baseOptions.refetchOnWindowFocus,
     staleTimeMs: baseOptions.staleTimeMs,
-    maxCacheAgeMs: baseOptions.maxCacheAgeMs,
   });
-  const data = result.data ?? null;
+  const data = query.data;
 
   useWebsocketSubscriptions(
     {
@@ -91,13 +93,13 @@ export function useConversations(
     },
     {
       enabled: isEnabled,
-    }
+    },
   );
 
   const { refetch: refetchList } = query;
   const refetch = useCallback(
     (): Promise<ConversationResponseDto[] | null> => refetchList(),
-    [refetchList]
+    [refetchList],
   );
 
   return { ...query, data, refetch };

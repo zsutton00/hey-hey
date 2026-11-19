@@ -1,4 +1,5 @@
 import { WebSocketHandler } from "../../../../../../packages/ui-common/src/data/websockets/handler";
+import { createUnreachableGraphQLClient } from "../../../../../../packages/ui-common/src/test/graphqlTestClient";
 import { useConversationMessages } from "@hey-hey/ui-common/data";
 import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -840,7 +841,12 @@ describe("Onboarding Page Integration Tests", () => {
       ...message,
       awaitingResponse: false,
     }));
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     const completion = {
       type: "conversation.updated" as const,
       conversationId: mockConversation.id,

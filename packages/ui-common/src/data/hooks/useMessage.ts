@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { MessageRecordDto } from "../../api";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { messageQueryOptions } from "../collections/messages";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { messageRead } from "../collections/messages";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 
 export type UseMessageReturn = DataHookReturn<MessageRecordDto>;
 
@@ -10,18 +10,21 @@ export function useMessage(
   organizationId: string | undefined,
   projectId: string | undefined,
   messageId: string | undefined,
-  options: CollectionHookOptions<MessageRecordDto> = {}
+  options: CollectionHookOptions<MessageRecordDto> = {},
 ): UseMessageReturn {
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      messageQueryOptions(
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
-        messageId ?? "__noop__"
+      messageRead(
+        {
+          organizationId: organizationId ?? "__noop__",
+          projectId: projectId ?? "__noop__",
+        },
+        messageId ?? "__noop__",
       ),
-    [organizationId, projectId, messageId]
+    [organizationId, projectId, messageId],
   );
-  const { result, state } = useDataLayerQuery(queryOptions, {
+
+  return useGraphQLRead(spec, {
     enabled:
       (options.enabled ?? true) &&
       !!organizationId &&
@@ -30,8 +33,5 @@ export function useMessage(
     refetchOnMount: options.refetchOnMount,
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
-    maxCacheAgeMs: options.maxCacheAgeMs,
   });
-
-  return { ...state, data: result.data ?? null };
 }

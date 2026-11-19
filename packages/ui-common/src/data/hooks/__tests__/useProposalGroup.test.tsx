@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -166,7 +167,12 @@ describe("TanStack proposal reads", () => {
 
   it("a central lifecycle event refreshes exactly the matching group once for all observers", async () => {
     const { client, wrapper } = setup();
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     const { result } = renderHook(
       () => ({
         group: useProposalGroup("org-1", "project-1", "group-1"),
@@ -349,7 +355,12 @@ describe("TanStack proposal reads", () => {
     expect(result.current.isLoading).toBe(true);
     const changed = { ...group, currentRevision: 4 };
     mocks.getProposalGroup.mockResolvedValue(ok(changed));
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => handler.handleEvent(event));
     await waitFor(() =>
       expect(result.current.proposalGroup?.currentRevision).toBe(4),

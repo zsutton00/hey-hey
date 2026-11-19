@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -56,7 +57,7 @@ const dto = (overrides: Partial<NotificationDto> = {}): NotificationDto =>
     createdAt: "2026-03-03T10:00:00.000Z",
     status: "unread",
     ...overrides,
-  } as NotificationDto);
+  }) as NotificationDto;
 
 const listResponse = (items: NotificationDto[]) => ({
   data: { data: items },
@@ -72,7 +73,7 @@ const preferences = (updatedAt: string) => ({
 
 const pushEvent = (
   notification: NotificationDto,
-  userId = "user-1"
+  userId = "user-1",
 ): WebSocketSystemNotificationEvent =>
   ({
     type: "system.notification",
@@ -82,7 +83,7 @@ const pushEvent = (
     notification,
     delivery: { channel: "in-app" },
     clientHints: {},
-  } as unknown as WebSocketSystemNotificationEvent);
+  }) as unknown as WebSocketSystemNotificationEvent;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -101,7 +102,12 @@ function setup() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  const handler = new WebSocketHandler(createStore(), undefined, client);
+  const handler = new WebSocketHandler(
+    createStore(),
+    undefined,
+    client,
+    createUnreachableGraphQLClient(),
+  );
   return { client, wrapper, handler };
 }
 
@@ -167,7 +173,7 @@ describe("useNotifications", () => {
   it("surfaces an error only after the read fails", async () => {
     const { wrapper } = setup();
     mocks.list.mockRejectedValue(
-      Object.assign(new Error("forbidden"), { status: 403 })
+      Object.assign(new Error("forbidden"), { status: 403 }),
     );
     const { result } = renderHook(() => useNotifications("org-1"), {
       wrapper,
@@ -182,7 +188,7 @@ describe("useNotifications", () => {
     const service = mocks.webSocketService();
     const { result } = renderHook(
       () => useNotifications("org-1", { userId: "user-1" }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -192,8 +198,8 @@ describe("useNotifications", () => {
     act(() => handler.handleEvent(pushEvent(pushed)));
     await waitFor(() =>
       expect(result.current.notifications.map((n) => n.notificationId)).toEqual(
-        ["n-2", "n-1"]
-      )
+        ["n-2", "n-1"],
+      ),
     );
     await act(async () => {
       refresh.resolve(listResponse([pushed, dto()]));
@@ -209,9 +215,9 @@ describe("useNotifications", () => {
       client.getQueryData<{ records: unknown[] }>(
         notificationKeys.list(
           "org-1",
-          toNotificationListParams({ userId: "user-1" })
-        )
-      )?.records
+          toNotificationListParams({ userId: "user-1" }),
+        ),
+      )?.records,
     ).toHaveLength(2);
     await waitFor(() => expect(result.current.isFetching).toBe(false));
     expect(result.current.notifications).toHaveLength(2);
@@ -223,7 +229,7 @@ describe("useNotifications", () => {
     const { wrapper, handler } = setup();
     const { result } = renderHook(
       () => useNotifications("org-1", { userId: "user-1" }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -239,7 +245,7 @@ describe("useNotifications", () => {
         all: useNotifications("org-1"),
         unread: useNotifications("org-1", { status: "unread" }),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.unread.isReady).toBe(true));
 
@@ -262,8 +268,8 @@ describe("useNotifications", () => {
     });
     await waitFor(() =>
       expect(result.current.all.notifications[0]?.readAt).toBe(
-        "2026-03-03T10:06:00.000Z"
-      )
+        "2026-03-03T10:06:00.000Z",
+      ),
     );
     expect(result.current.all.unreadCount).toBe(0);
   });
@@ -282,7 +288,7 @@ describe("useNotifications", () => {
       done = result.current.markRead("n-1").catch((error) => error);
     });
     await waitFor(() =>
-      expect(result.current.notifications[0]?.isRead).toBe(true)
+      expect(result.current.notifications[0]?.isRead).toBe(true),
     );
 
     await act(async () => {
@@ -290,7 +296,7 @@ describe("useNotifications", () => {
       expect(await done).toBeInstanceOf(Error);
     });
     await waitFor(() =>
-      expect(result.current.notifications[0]?.isRead).toBe(false)
+      expect(result.current.notifications[0]?.isRead).toBe(false),
     );
     expect(mocks.list).toHaveBeenCalledTimes(1);
   });
@@ -300,7 +306,7 @@ describe("useNotifications", () => {
     mocks.list.mockResolvedValueOnce(
       listResponse([
         dto({ status: "read", readAt: "2026-03-03T10:30:00.000Z" }),
-      ])
+      ]),
     );
     mocks.markUnread.mockResolvedValueOnce({ data: dto() });
     const { result } = renderHook(() => useNotifications("org-1"), {
@@ -312,7 +318,7 @@ describe("useNotifications", () => {
       await result.current.markUnread("n-1");
     });
     await waitFor(() =>
-      expect(result.current.notifications[0]?.isRead).toBe(false)
+      expect(result.current.notifications[0]?.isRead).toBe(false),
     );
   });
 
@@ -326,7 +332,7 @@ describe("useNotificationPreferences", () => {
     const { wrapper } = setup();
     const { result } = renderHook(
       () => useNotificationPreferences("org-1", "user-1"),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -338,7 +344,7 @@ describe("useNotificationPreferences", () => {
       done = result.current.update({ subscriptions });
     });
     await waitFor(() =>
-      expect(result.current.data?.subscriptions).toEqual(subscriptions)
+      expect(result.current.data?.subscriptions).toEqual(subscriptions),
     );
 
     await act(async () => {
@@ -353,7 +359,7 @@ describe("useNotificationPreferences", () => {
       await done;
     });
     await waitFor(() =>
-      expect(result.current.data?.updatedAt).toBe("2026-03-03T11:00:00.000Z")
+      expect(result.current.data?.updatedAt).toBe("2026-03-03T11:00:00.000Z"),
     );
     expect(mocks.getPreferences).toHaveBeenCalledTimes(1);
   });
@@ -362,14 +368,14 @@ describe("useNotificationPreferences", () => {
     const { wrapper } = setup();
     const { result } = renderHook(
       () => useNotificationPreferences("org-1", "user-1"),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
     mocks.updatePreferences.mockRejectedValueOnce(new Error("boom"));
     await act(async () => {
       await expect(
-        result.current.update({ subscriptions: [{}] as never })
+        result.current.update({ subscriptions: [{}] as never }),
       ).rejects.toThrow("boom");
     });
     await waitFor(() => expect(result.current.data?.subscriptions).toEqual([]));
@@ -379,7 +385,7 @@ describe("useNotificationPreferences", () => {
     const { wrapper } = setup();
     const { result } = renderHook(
       () => useNotificationPreferences(undefined, "user-1"),
-      { wrapper }
+      { wrapper },
     );
     await expect(result.current.refetch()).resolves.toBeNull();
     expect(mocks.getPreferences).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { QueryClient } from "@tanstack/react-query";
 import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
@@ -8,7 +9,12 @@ import { conversationPhaseByIdAtom } from "../conversationPhase";
 describe("WebSocketHandler conversation phases", () => {
   it("caches the latest phase observation for room joins and live events", () => {
     const store = createStore();
-    const handler = new WebSocketHandler(store, undefined, new QueryClient());
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      new QueryClient(),
+      createUnreachableGraphQLClient(),
+    );
 
     handler.handleEvent({
       type: "conversation.phase_changed",

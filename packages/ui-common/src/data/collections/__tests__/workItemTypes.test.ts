@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -89,7 +90,12 @@ describe("work-item type keys", () => {
       "org-1",
       "project-1",
     ]);
-    expect(catalogKey).toEqual(["workItemTypes", "org-1", "project-1", "catalog"]);
+    expect(catalogKey).toEqual([
+      "workItemTypes",
+      "org-1",
+      "project-1",
+      "catalog",
+    ]);
     expect(byKeyKey("MARKETING")).toEqual([
       "workItemTypes",
       "org-1",
@@ -113,11 +119,11 @@ describe("one shared catalog read", () => {
         }),
         index: useWorkItemTypeRelationshipIndex("org-1", "project-1"),
       }),
-      { wrapper }
+      { wrapper },
     );
     const second = renderHook(
       () => useWorkItemTypes("org-1", { projectId: "project-1" }),
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() => expect(first.result.current.all.isReady).toBe(true));
@@ -137,11 +143,11 @@ describe("one shared catalog read", () => {
         useWorkItemTypes("org-1", { projectId: "project-2" }),
         useWorkItemTypes("org-2", { projectId: "project-1" }),
       ],
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() =>
-      expect(result.current.every((query) => query.isReady)).toBe(true)
+      expect(result.current.every((query) => query.isReady)).toBe(true),
     );
     expect(catalogRead.mock.calls.map(([request]) => request.url)).toEqual([
       "/organizations/org-1/projects/project-1/work-item-types",
@@ -156,20 +162,20 @@ describe("by-key reuse of the catalog", () => {
     const { queryClient, wrapper } = createHarness();
     const catalog = renderHook(
       () => useWorkItemTypes("org-1", { projectId: "project-1" }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(catalog.result.current.isReady).toBe(true));
 
     const { result } = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", "STANDARD"),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.workItemTypeSummary).toEqual(standard);
     expect(result.current.isReady).toBe(true);
     expect(byKeyRead).not.toHaveBeenCalled();
     expect(queryClient.getQueryState(byKeyKey("STANDARD"))?.dataUpdatedAt).toBe(
-      queryClient.getQueryState(catalogKey)?.dataUpdatedAt
+      queryClient.getQueryState(catalogKey)?.dataUpdatedAt,
     );
 
     await act(() => result.current.refetch());
@@ -197,7 +203,12 @@ describe("by-key reuse of the catalog", () => {
       await queryClient.invalidateQueries({ queryKey: catalogKey });
     }
     if (reason === "reconnect") {
-      new WebSocketHandler(createStore(), undefined, queryClient).markAllStale();
+      new WebSocketHandler(
+        createStore(),
+        undefined,
+        queryClient,
+        createUnreachableGraphQLClient(),
+      ).markAllStale();
     }
 
     renderHook(
@@ -205,9 +216,9 @@ describe("by-key reuse of the catalog", () => {
         useWorkItemTypeByKey(
           reason === "organization" ? "other-org" : "org-1",
           reason === "project" ? "other-project" : "project-1",
-          "STANDARD"
+          "STANDARD",
         ),
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() => expect(byKeyRead).toHaveBeenCalledTimes(1));
@@ -227,7 +238,7 @@ describe("invalidation", () => {
         type: useWorkItemTypeByKey("org-1", "project-1", "MARKETING"),
         invalidate: useMarkWorkItemTypeDataStale(),
       }),
-      { wrapper: harness.wrapper }
+      { wrapper: harness.wrapper },
     );
     await waitFor(() => {
       expect(view.result.current.catalog.isReady).toBe(true);
@@ -242,12 +253,12 @@ describe("invalidation", () => {
     const { queryClient, view } = await mountConsumers();
 
     act(() =>
-      view.result.current.invalidate("org-1", "project-1", "MARKETING")
+      view.result.current.invalidate("org-1", "project-1", "MARKETING"),
     );
 
     await waitFor(() => expect(byKeyRead).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(queryClient.isFetching({ queryKey: catalogKey })).toBe(0)
+      expect(queryClient.isFetching({ queryKey: catalogKey })).toBe(0),
     );
     expect(catalogRead).toHaveBeenCalledTimes(1);
   });
@@ -255,7 +266,12 @@ describe("invalidation", () => {
   it("re-reads the catalog exactly once after a WebSocket reconnect", async () => {
     const { queryClient } = await mountConsumers();
 
-    new WebSocketHandler(createStore(), undefined, queryClient).markAllStale();
+    new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    ).markAllStale();
 
     await waitFor(() => expect(catalogRead).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
@@ -267,7 +283,12 @@ describe("invalidation", () => {
     const { queryClient } = createHarness();
     queryClient.setQueryData(catalogKey, [standard]);
 
-    new WebSocketHandler(createStore(), undefined, queryClient).markAllStale();
+    new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    ).markAllStale();
 
     expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true);
     expect(catalogRead).not.toHaveBeenCalled();
@@ -281,7 +302,7 @@ describe("client errors", () => {
 
     const first = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", "GHOST"),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(first.result.current.error).not.toBeNull());
     expect(first.result.current.isFetched).toBe(true);
@@ -290,13 +311,13 @@ describe("client errors", () => {
 
     const second = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", "GHOST"),
-      { wrapper }
+      { wrapper },
     );
     expect(second.result.current.error).not.toBeNull();
     expect(byKeyRead).toHaveBeenCalledTimes(1);
 
     await act(() =>
-      queryClient.invalidateQueries({ queryKey: byKeyKey("GHOST") })
+      queryClient.invalidateQueries({ queryKey: byKeyKey("GHOST") }),
     );
     expect(byKeyRead).toHaveBeenCalledTimes(2);
   });
@@ -316,10 +337,14 @@ describe("registered mention type lookups", () => {
     return renderHook(
       () => {
         const mention = useMentionWorkItemTypeKey("org-1", "project-1", kind);
-        const type = useWorkItemTypeByKey("org-1", "project-1", mention.typeKey);
+        const type = useWorkItemTypeByKey(
+          "org-1",
+          "project-1",
+          mention.typeKey,
+        );
         return { mention, type };
       },
-      { wrapper }
+      { wrapper },
     );
   }
 
@@ -340,7 +365,7 @@ describe("registered mention type lookups", () => {
 
     expect(result.current.mention.isResolved).toBe(false);
     await waitFor(() =>
-      expect(result.current.mention.typeKey).toBe("mockups_v3")
+      expect(result.current.mention.typeKey).toBe("mockups_v3"),
     );
   });
 

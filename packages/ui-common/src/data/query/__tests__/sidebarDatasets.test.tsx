@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -79,11 +80,11 @@ describe("goal and plan lists", () => {
     const client = createClient();
     const { result } = renderHook(
       () => ({ sidebar: useGoals(), picker: useGoals() }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.sidebar.isReady).toBe(true));
     expect(result.current.picker.workItems).toEqual(
-      result.current.sidebar.workItems
+      result.current.sidebar.workItems,
     );
     expect(mocks.getTasks).toHaveBeenCalledTimes(1);
     // The status filter is a select over the complete list.
@@ -94,7 +95,7 @@ describe("goal and plan lists", () => {
       status: undefined,
     });
     expect(
-      client.getQueryCache().findAll({ queryKey: workItemKeys.root() })
+      client.getQueryCache().findAll({ queryKey: workItemKeys.root() }),
     ).toHaveLength(1);
 
     await act(async () => {
@@ -115,7 +116,7 @@ describe("goal and plan lists", () => {
         useWorkItems("org", "task", "project", undefined, {
           taskType: "FEATURE",
         }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     expect(result.current.workItems.map((item) => item.id)).toEqual(["f1"]);
@@ -135,7 +136,7 @@ describe("goal and plan lists", () => {
           taskType: "FEATURE",
           parentTaskId: "parent",
         }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     expect(mocks.getTasks).toHaveBeenCalledTimes(1);
@@ -158,7 +159,7 @@ describe("goal and plan lists", () => {
         useWorkItems("org", "task", "project", undefined, {
           taskType: "FEATURE",
         }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
 
@@ -168,7 +169,7 @@ describe("goal and plan lists", () => {
       update.catch(() => undefined);
     });
     await waitFor(() =>
-      expect(result.current.workItems[0]?.name).toBe("Renamed")
+      expect(result.current.workItems[0]?.name).toBe("Renamed"),
     );
 
     await act(async () => {
@@ -188,7 +189,7 @@ describe("work-item change invalidation", () => {
       "org",
       "project",
       "metadata",
-      "root"
+      "root",
     );
     for (const queryKey of [changed, other, subtree]) {
       client.setQueryData(queryKey, feature("x"));
@@ -219,14 +220,19 @@ describe("reconnect", () => {
         services: useServices("org", { projectId: "project" }),
         disclosure: usePrivateBetaDisclosure(),
       }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => {
       expect(result.current.goals.isReady).toBe(true);
       expect(result.current.services.isReady).toBe(true);
       expect(result.current.disclosure.isReady).toBe(true);
     });
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
 
     await act(async () => {
       handler.markAllStale();
@@ -256,7 +262,7 @@ describe("max cache age", () => {
     const client = createClient();
     const { result } = renderHook(
       () => usePrivateBetaDisclosure({ maxCacheAgeMs: 60_000 }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
     expect(result.current.isFetching).toBe(false);
@@ -266,7 +272,7 @@ describe("max cache age", () => {
       vi.advanceTimersByTime(60_001);
     });
     await waitFor(() =>
-      expect(mocks.getPrivateBetaDisclosureStatus).toHaveBeenCalledTimes(2)
+      expect(mocks.getPrivateBetaDisclosureStatus).toHaveBeenCalledTimes(2),
     );
     expect(result.current.data).toMatchObject({ version: "old" });
     expect(result.current.isFetching).toBe(true);
@@ -280,7 +286,7 @@ describe("max cache age", () => {
       await fresh.promise;
     });
     await waitFor(() =>
-      expect(result.current.data).toMatchObject({ version: "new" })
+      expect(result.current.data).toMatchObject({ version: "new" }),
     );
     expect(result.current.isFetching).toBe(false);
     expect(result.current.isStale).toBe(false);
@@ -294,7 +300,7 @@ describe("max cache age", () => {
     client.setQueryData(
       ["privateBetaDisclosure", "current"],
       { recordedAcceptances: [], version: "cached" },
-      { updatedAt: Date.now() - 120_000 }
+      { updatedAt: Date.now() - 120_000 },
     );
     const { result } = renderHook(
       () =>
@@ -302,13 +308,13 @@ describe("max cache age", () => {
           maxCacheAgeMs: 60_000,
           staleTimeMs: 10 * 60_000,
         }),
-      { wrapper: clientWrapper(client) }
+      { wrapper: clientWrapper(client) },
     );
     expect(result.current.data).toMatchObject({ version: "cached" });
     expect(result.current.isFetching).toBe(true);
     expect(result.current.isStale).toBe(true);
     await waitFor(() =>
-      expect(mocks.getPrivateBetaDisclosureStatus).toHaveBeenCalledTimes(1)
+      expect(mocks.getPrivateBetaDisclosureStatus).toHaveBeenCalledTimes(1),
     );
   });
 });
