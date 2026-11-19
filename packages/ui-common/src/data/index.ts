@@ -8,14 +8,8 @@ export { isInitiative, isTask } from "./collections/workItems";
 export type { WorkItemResponseDto } from "./collections/workItems";
 export * from "./featureReferenceIndex";
 export {
-  fetchAllWorkItemReferences,
-  fetchWorkItemReferencePage,
-  isWorkItemReference,
-  parseWorkItemReferencePage,
-  workItemReferenceKeys,
-  workItemReferencesQueryOptions,
+  workItemReferencesRead,
   WORK_ITEM_REFERENCE_CACHE_AGE_MS,
-  WORK_ITEM_REFERENCE_PAGE_LIMIT,
 } from "./collections/workItemReferences";
 export type {
   WorkItemReferenceDto,

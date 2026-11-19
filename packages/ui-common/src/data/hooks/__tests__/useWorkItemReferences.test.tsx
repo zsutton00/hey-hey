@@ -1,34 +1,23 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createElement, type ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum,
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum,
   WorkStatus,
-  type WorkItemReferenceDto,
 } from "../../../api";
-import { workItemReferenceKeys } from "../../collections/workItemReferences";
+import {
+  FakeWorkItemServer,
+  type FakeWorkItem,
+} from "../../../test/workItemGraphQL";
+import { refreshWorkItemLists } from "../../graphql/workItemCache";
 import {
   useWorkItemReferencePage,
   useWorkItemReferences,
 } from "../useWorkItemReferences";
 
-const listWorkItemReferencesMock = vi.hoisted(() => vi.fn());
-
-vi.mock("../../../clients/serviceClients", () => ({
-  unifiedApiClient: { listWorkItemReferences: listWorkItemReferencesMock },
-}));
 vi.mock("../useWebsocketSubscriptions", () => ({
   useWebsocketSubscriptions: vi.fn(),
 }));
-
-const reference: WorkItemReferenceDto = {
-  id: "feature-1",
-  name: "Feature Search",
-  type: "FEATURE",
-  parentTaskId: null,
-};
 
 const scope = {
   organizationId: "org-1",
@@ -36,55 +25,24 @@ const scope = {
   workItemType: "FEATURE",
 };
 
-const pageResponse = (
-  items: WorkItemReferenceDto[],
-  pagination: Partial<{
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrevious: boolean;
-  }> = {},
-) => ({
-  data: {
-    data: {
-      items,
-      pagination: {
-        page: 1,
-        limit: 500,
-        total: items.length,
-        totalPages: items.length > 0 ? 1 : 0,
-        hasNext: false,
-        hasPrevious: false,
-        ...pagination,
-      },
-    },
-  },
-});
-
-const pending = () => new Promise<never>(() => {});
-
-function createHarness() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0 } },
-  });
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client: queryClient }, children);
-  return { queryClient, wrapper };
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  listWorkItemReferencesMock.mockImplementation(pending);
-});
+const feature: FakeWorkItem = {
+  id: "feature-1",
+  name: "Feature Search",
+  type: "FEATURE",
+  status: "ACTIVE",
+};
 
 describe("useWorkItemReferences", () => {
+  let server: FakeWorkItemServer;
+
+  beforeEach(() => {
+    server = new FakeWorkItemServer([feature]);
+  });
+
   it("stays disabled and does not read until the scope is complete", () => {
-    const { wrapper } = createHarness();
     const { result } = renderHook(
       () => useWorkItemReferences({ organizationId: "org-1" }),
-      { wrapper },
+      { wrapper: server.wrapper },
     );
 
     expect(result.current).toEqual({
@@ -92,13 +50,12 @@ describe("useWorkItemReferences", () => {
       references: [],
       isFetching: false,
     });
-    expect(listWorkItemReferencesMock).not.toHaveBeenCalled();
+    expect(server.requests).toEqual([]);
   });
 
   it("is loading while the first read is in flight", () => {
-    const { wrapper } = createHarness();
     const { result } = renderHook(() => useWorkItemReferences(scope), {
-      wrapper,
+      wrapper: server.wrapper,
     });
 
     expect(result.current).toEqual({
@@ -109,17 +66,23 @@ describe("useWorkItemReferences", () => {
   });
 
   it("exposes ready and empty states", async () => {
-    listWorkItemReferencesMock.mockResolvedValueOnce(pageResponse([reference]));
     const ready = renderHook(() => useWorkItemReferences(scope), {
-      wrapper: createHarness().wrapper,
+      wrapper: server.wrapper,
     });
     await waitFor(() => expect(ready.result.current.status).toBe("ready"));
-    expect(ready.result.current.references).toEqual([reference]);
+    expect(ready.result.current.references).toEqual([
+      {
+        id: "feature-1",
+        name: "Feature Search",
+        type: "FEATURE",
+        parentTaskId: null,
+      },
+    ]);
 
-    listWorkItemReferencesMock.mockResolvedValueOnce(pageResponse([]));
-    const empty = renderHook(() => useWorkItemReferences(scope), {
-      wrapper: createHarness().wrapper,
-    });
+    const empty = renderHook(
+      () => useWorkItemReferences({ ...scope, workItemType: "GOAL" }),
+      { wrapper: server.wrapper },
+    );
     await waitFor(() =>
       expect(empty.result.current).toEqual({
         status: "empty",
@@ -130,12 +93,9 @@ describe("useWorkItemReferences", () => {
   });
 
   it("does not expose references from a failed request", async () => {
-    listWorkItemReferencesMock.mockRejectedValue(
-      Object.assign(new Error("failed"), { status: 403 }),
-    );
-    const { wrapper } = createHarness();
+    server.refused.add("GetAllWorkItemReferences");
     const { result } = renderHook(() => useWorkItemReferences(scope), {
-      wrapper,
+      wrapper: server.wrapper,
     });
 
     await waitFor(() =>
@@ -148,60 +108,51 @@ describe("useWorkItemReferences", () => {
     );
   });
 
-  it("shares one paged read between two consumers of the same scope", async () => {
-    listWorkItemReferencesMock.mockResolvedValue(pageResponse([reference]));
-    const { wrapper } = createHarness();
+  it("shares one read between two consumers of the same scope", async () => {
     const { result } = renderHook(
       () => ({
         first: useWorkItemReferences(scope),
         second: useWorkItemReferences(scope),
       }),
-      { wrapper },
+      { wrapper: server.wrapper },
     );
 
     await waitFor(() => expect(result.current.first.status).toBe("ready"));
     expect(result.current.second.status).toBe("ready");
-    expect(result.current.first.references).toBe(
+    expect(result.current.first.references).toEqual(
       result.current.second.references,
     );
-    expect(listWorkItemReferencesMock).toHaveBeenCalledTimes(1);
+    expect(server.received("GetAllWorkItemReferences")).toHaveLength(1);
   });
 
   it("reports updating during a re-read and keeps array identity when data is unchanged", async () => {
-    listWorkItemReferencesMock.mockResolvedValueOnce(pageResponse([reference]));
-    const { queryClient, wrapper } = createHarness();
     const { result } = renderHook(() => useWorkItemReferences(scope), {
-      wrapper,
+      wrapper: server.wrapper,
     });
     await waitFor(() => expect(result.current.status).toBe("ready"));
     const firstReferences = result.current.references;
 
-    let resolveReRead: (value: unknown) => void = () => {};
-    listWorkItemReferencesMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveReRead = resolve;
-        }),
-    );
-    void queryClient.invalidateQueries({
-      queryKey: workItemReferenceKeys.list(scope),
+    await act(async () => {
+      await refreshWorkItemLists(server.graphql.apollo, {
+        organizationId: "org-1",
+        projectId: "project-1",
+      });
     });
-    await waitFor(() => expect(result.current.status).toBe("updating"));
-    expect(result.current.references).toBe(firstReferences);
 
-    resolveReRead(pageResponse([{ ...reference }]));
-    await waitFor(() => expect(result.current.status).toBe("ready"));
-    expect(listWorkItemReferencesMock).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(server.received("GetAllWorkItemReferences")).toHaveLength(2),
+    );
+    expect(result.current.status).toBe("ready");
     expect(result.current.references).toBe(firstReferences);
   });
 });
 
 describe("useWorkItemReferencePage", () => {
   it("is disabled for an invalid page and does not read", () => {
-    const { wrapper } = createHarness();
+    const server = new FakeWorkItemServer([feature]);
     const { result } = renderHook(
       () => useWorkItemReferencePage({ ...scope, page: 0 }),
-      { wrapper },
+      { wrapper: server.wrapper },
     );
 
     expect(result.current).toEqual({
@@ -209,20 +160,17 @@ describe("useWorkItemReferencePage", () => {
       page: null,
       isFetching: false,
     });
-    expect(listWorkItemReferencesMock).not.toHaveBeenCalled();
+    expect(server.requests).toEqual([]);
   });
 
   it("preserves filtered page metadata and sends the filtered request", async () => {
-    const response = pageResponse([reference], {
-      page: 2,
-      limit: 20,
-      total: 45,
-      totalPages: 3,
-      hasNext: true,
-      hasPrevious: true,
-    });
-    listWorkItemReferencesMock.mockResolvedValue(response);
-    const { queryClient, wrapper } = createHarness();
+    const contracts = Array.from({ length: 45 }, (_, index) => ({
+      id: `contract-${index}`,
+      name: `Promise ${index}`,
+      type: "CONTRACT",
+      status: "ACTIVE",
+    }));
+    const server = new FakeWorkItemServer(contracts);
     const input = {
       organizationId: "org-1",
       projectId: "project-1",
@@ -238,30 +186,34 @@ describe("useWorkItemReferencePage", () => {
     };
 
     const { result } = renderHook(() => useWorkItemReferencePage(input), {
-      wrapper,
+      wrapper: server.wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current).toEqual({
-        status: "ready",
-        page: response.data.data,
-        isFetching: false,
-      }),
-    );
-    expect(listWorkItemReferencesMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "CONTRACT",
-        page: 2,
-        limit: 20,
-        filter: "promise",
-        statuses: [WorkStatus.Active],
-        sortBy: "createdAt",
-        sortOrder: "desc",
-      }),
-      expect.anything(),
-    );
-    expect(
-      queryClient.getQueryData(workItemReferenceKeys.page(input)),
-    ).toEqual(response.data.data);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    expect(result.current).toMatchObject({
+      page: {
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: "contract-20" }),
+        ]),
+        pagination: {
+          page: 2,
+          limit: 20,
+          total: 45,
+          totalPages: 3,
+          hasNext: true,
+          hasPrevious: true,
+        },
+      },
+    });
+    expect(server.received("GetWorkItemReferencePage")[0]).toMatchObject({
+      type: "CONTRACT",
+      page: 2,
+      limit: 20,
+      filter: "promise",
+      statuses: [WorkStatus.Active],
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
   });
 });

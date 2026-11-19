@@ -1,51 +1,29 @@
-import { QueryClient } from "@tanstack/react-query";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-  AgentEdgeCategory,
   AgentEdgeEndpointEntityType,
   AgentEdgeType,
+  TaskSortBy,
+  TaskSortDir,
   TaskSource,
   WorkStatus,
   type TaskResponseDto,
 } from "../../../api";
-import { isPlanWorkItem } from "../workItems";
 import {
-  workItemDetailQueryOptions,
-  workItemHierarchyQueryOptions,
-  workItemKeys,
-  workItemListQueryOptions,
-} from "../workItemLists";
-
-vi.mock("../../../clients/serviceClients", () => ({
-  unifiedApiClient: {
-    getTask: vi.fn(),
-    getTasks: vi.fn(),
-  },
-  tasksClient: {
-    organizationsOrganizationIdProjectsProjectIdTasksTaskIdHierarchyGet:
-      vi.fn(),
-  },
-}));
-
-vi.mock("../../../utils/logger", () => ({
-  default: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
-import {
-  tasksClient,
-  unifiedApiClient,
-} from "../../../clients/serviceClients";
+  FakeWorkItemServer,
+  type FakeWorkItem,
+} from "../../../test/workItemGraphQL";
 import {
   applyTaskSectionInputsToMaterialized,
   selectWorkItemSections,
 } from "../../../utils/workItemSections";
+import {
+  fetchWorkItem,
+  fetchWorkItemHierarchy,
+  fetchWorkItemList,
+} from "../workItemLists";
+import { isPlanWorkItem } from "../workItems";
 
-const mockedUnifiedApiClient = vi.mocked(unifiedApiClient);
-const mockedTasksClient = vi.mocked(tasksClient);
+const scope = { organizationId: "org-1", projectId: "project-1" };
 
 const makeTask = (
   overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">,
@@ -58,11 +36,9 @@ const makeTask = (
   projectId: overrides.projectId ?? "project-1",
   status: overrides.status ?? WorkStatus.Backlog,
   source: overrides.source ?? TaskSource.System,
-  ...(overrides.config !== undefined ? { config: overrides.config } : {}),
   ...(overrides.parentTaskId !== undefined
     ? { parentTaskId: overrides.parentTaskId }
     : {}),
-  edges: overrides.edges,
 });
 
 describe("plan work-item guard", () => {
@@ -88,345 +64,129 @@ describe("plan work-item guard", () => {
   });
 });
 
-const createClient = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false } } });
-
-/** Request options carry the abort signal and request initiator. */
-const anyRequestOptions = expect.objectContaining({
-  signal: expect.any(AbortSignal),
-});
-
-describe("work-item list keys", () => {
-  it("normalizes id sets and keeps hydration variants in the key", () => {
-    const first = workItemKeys.list("org-1", "project-1", {
-      taskIds: ["task-b", "task-a", "task-b"],
-      includeServiceRelations: true,
-      includeEdges: true,
-    });
-    const second = workItemKeys.list("org-1", "project-1", {
-      taskIds: ["task-a", "task-b"],
-      includeServiceRelations: true,
-      includeEdges: true,
-    });
-
-    expect(first).toEqual(second);
-    expect(first[4]).toMatchObject({
-      taskIds: ["task-a", "task-b"],
-      includeServiceRelations: true,
-      includeEdges: true,
-    });
-    expect(first[4]).not.toEqual(
-      workItemKeys.list("org-1", "project-1", { taskIds: ["task-a", "task-b"] })[4]
-    );
-  });
-
-  it("distinguishes no parent filter from root items only", () => {
-    const unfiltered = workItemKeys.list("org-1", "project-1", {});
-    const rootOnly = workItemKeys.list("org-1", "project-1", {
-      parentTaskId: null,
-    });
-    expect(unfiltered[4].parentTaskId).toBeNull();
-    expect(rootOnly[4].parentTaskId).toBe("null");
-  });
-
-  it("keeps initiativeId '' and null as today's distinct keys", () => {
-    expect(
-      workItemKeys.list("org-1", "project-1", { initiativeId: "" })[4]
-        .initiativeId
-    ).toBe("");
-    expect(
-      workItemKeys.list("org-1", "project-1", {})[4].initiativeId
-    ).toBeNull();
-  });
-
-  it("serves a status filter over a complete list from the unfiltered entry", () => {
-    const active = workItemKeys.list("org-1", "project-1", {
-      taskType: "GOAL",
-      status: [WorkStatus.Active],
-    });
-    const all = workItemKeys.list("org-1", "project-1", { taskType: "GOAL" });
-    expect(active).toEqual(all);
-  });
-
-  it("keeps the status filter server-side for paged, limited or archived reads", () => {
-    const all = workItemKeys.list("org-1", "project-1", { taskType: "GOAL" });
-    for (const params of [
-      { status: [WorkStatus.Active], page: 1 },
-      { status: [WorkStatus.Active], limit: 5 },
-      { status: [WorkStatus.Archived] },
-      { status: [WorkStatus.Superseded, WorkStatus.Active] },
-    ]) {
-      const key = workItemKeys.list("org-1", "project-1", {
-        taskType: "GOAL",
-        ...params,
-      });
-      expect(key).not.toEqual(all);
-      expect(key[4].status).not.toBeNull();
-    }
-  });
-
-  it("sits every work-item read under one project prefix", () => {
-    const project = workItemKeys.project("org-1", "project-1");
-    for (const key of [
-      workItemKeys.list("org-1", "project-1", {}),
-      workItemKeys.detail("org-1", "project-1", "task-1"),
-      workItemKeys.hierarchy("org-1", "project-1", "task-1"),
-    ]) {
-      expect(key.slice(0, project.length)).toEqual(project);
-    }
-  });
-});
+const items: FakeWorkItem[] = [
+  { id: "a", name: "A", type: "STANDARD", status: "BACKLOG" },
+  { id: "b", name: "B", type: "STANDARD", status: "ACTIVE", parentTaskId: "a" },
+];
 
 describe("work-item list reads", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("forwards connected-entity filters without edge hydration", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({
-      data: {
-        data: [
-          makeTask({ id: "monitor-1", name: "Monitor one", type: "TASK_MONITOR" }),
-        ],
-      },
-    } as any);
-
-    await createClient().fetchQuery(
-      workItemListQueryOptions("org-1", "project-1", {
-        taskType: "TASK_MONITOR",
-        relatedEntityId: "plan-1",
-        relatedEntityType: AgentEdgeEndpointEntityType.Task,
-        edgeTypes: [AgentEdgeType.RelatedTo],
-      })
+  const read = async (params: Parameters<typeof fetchWorkItemList>[2]) => {
+    const server = new FakeWorkItemServer(items);
+    const result = await fetchWorkItemList(
+      server.graphql.apollo,
+      scope,
+      params,
     );
 
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "TASK_MONITOR",
-        relatedEntityId: "plan-1",
-        relatedEntityType: AgentEdgeEndpointEntityType.Task,
-        edgeTypes: [AgentEdgeType.RelatedTo],
-      }),
-      anyRequestOptions
-    );
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.not.objectContaining({ includeEdges: true }),
-      anyRequestOptions
-    );
-  });
+    return { result, variables: server.received("GetWorkItems")[0] };
+  };
 
-  it("defaults the tracked-entity projection on and forwards an opt-out", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({ data: { data: [] } } as any);
-    const client = createClient();
-
-    await client.fetchQuery(
-      workItemListQueryOptions("org-1", "project-1", { taskType: "GOAL" })
-    );
-    await client.fetchQuery(
-      workItemListQueryOptions("org-1", "project-1", {
-        taskType: "GOAL",
-        includeTrackedEntities: false,
-      })
-    );
-
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ includeTrackedEntities: true }),
-      anyRequestOptions
-    );
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ includeTrackedEntities: false }),
-      anyRequestOptions
-    );
-  });
-
-  it("normalizes parent ids and forwards one batch read", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({ data: { data: [] } } as any);
-
-    await createClient().fetchQuery(
-      workItemListQueryOptions("org-1", "project-1", {
-        parentTaskIds: ["stage-2", "stage-1", "stage-1"],
-        taskType: "STANDARD",
-      })
-    );
-
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledTimes(1);
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({
-        parentTaskIds: ["stage-1", "stage-2"],
-        type: "STANDARD",
-      }),
-      anyRequestOptions
-    );
-  });
-
-  it("requests the tracked-work summary independently of snapshots", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({ data: { data: [] } } as any);
-    const summary = workItemListQueryOptions("org-1", "project-1", {
-      taskType: "GOAL",
-      includeTrackedEntities: false,
-      includeTrackedWorkSummary: true,
-    });
-    const plain = workItemListQueryOptions("org-1", "project-1", {
-      taskType: "GOAL",
-      includeTrackedEntities: false,
+  it("sends every REST list filter as a query variable", async () => {
+    const { variables } = await read({
+      taskType: "STANDARD",
+      parentTaskIds: ["b", "a", "a"],
+      status: [WorkStatus.Backlog, WorkStatus.Active],
+      taskIds: ["b", "a"],
+      includeDescendants: true,
+      page: 2,
+      limit: 10,
+      sortBy: TaskSortBy.Title,
+      sortDir: TaskSortDir.Asc,
     });
 
-    await createClient().fetchQuery(summary);
-
-    expect(summary.queryKey).not.toEqual(plain.queryKey);
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({
-        includeTrackedEntities: false,
-        includeTrackedWorkSummary: true,
-      }),
-      anyRequestOptions
-    );
+    expect(variables).toMatchObject({
+      type: "STANDARD",
+      parentTaskIds: ["a", "b"],
+      statuses: ["ACTIVE", "BACKLOG"],
+      ids: ["a", "b"],
+      includeDescendants: true,
+      page: 2,
+      limit: 10,
+      sort: { field: "title", direction: "asc" },
+    });
   });
 
-  it("forwards a root-only parent filter as null", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({ data: { data: [] } } as any);
+  it("tells no parent filter apart from root items only", async () => {
+    const unfiltered = await read({});
+    const rootsOnly = await read({ parentTaskId: null });
 
-    await createClient().fetchQuery(
-      workItemListQueryOptions("org-1", "project-1", { parentTaskId: null })
-    );
-
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ parentTaskId: null }),
-      anyRequestOptions
-    );
+    expect(unfiltered.variables).not.toHaveProperty("parentTaskId");
+    expect(rootsOnly.variables).toHaveProperty("parentTaskId", null);
+    expect(rootsOnly.result.map((item) => item.id)).toEqual(["a"]);
   });
 
-  it("filters a selected status locally from one unfiltered read", async () => {
-    mockedUnifiedApiClient.getTasks.mockResolvedValue({
-      data: {
-        data: [
-          makeTask({ id: "a", name: "A", status: WorkStatus.Active }),
-          makeTask({ id: "b", name: "B", status: WorkStatus.Completed }),
-        ],
-      },
-    } as any);
-    const options = workItemListQueryOptions("org-1", "project-1", {
-      status: [WorkStatus.Active],
+  it("names a related-entity filter's types by the schema's enum names", async () => {
+    const { variables } = await read({
+      relatedEntityId: "goal-1",
+      relatedEntityType: AgentEdgeEndpointEntityType.Task,
+      edgeTypes: [AgentEdgeType.DependsOn],
     });
 
-    const raw = await createClient().fetchQuery(options);
+    expect(variables.relatedTo).toEqual({
+      entityId: "goal-1",
+      entityType: "Task",
+      edgeTypes: ["DependsOn"],
+    });
+  });
 
-    expect(mockedUnifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ status: undefined }),
-      anyRequestOptions
-    );
-    expect(raw).toHaveLength(2);
-    expect(options.select?.(raw).map((item) => item.id)).toEqual(["a"]);
+  it("includes tracked entities by default and accepts an opt-out", async () => {
+    const byDefault = await read({});
+    const optedOut = await read({ includeTrackedEntities: false });
+    const summary = await read({ includeTrackedWorkSummary: true });
+
+    expect(byDefault.variables.withTrackedEntities).toBe(true);
+    expect(optedOut.variables.withTrackedEntities).toBe(false);
+    expect(summary.variables.withTrackedWorkSummary).toBe(true);
+    expect(optedOut.variables.withTrackedWorkSummary).toBe(false);
+  });
+
+  it("reads sections only for the keys it asks for", async () => {
+    const none = await read({});
+    const some = await read({
+      includeSectionKeys: ["requirements", "description"],
+    });
+
+    expect(none.variables.withSections).toBe(false);
+    expect(some.variables).toMatchObject({
+      withSections: true,
+      sectionKeys: ["description", "requirements"],
+    });
   });
 });
 
 describe("single work-item reads", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("fetches without edge hydration by default", async () => {
-    mockedUnifiedApiClient.getTask.mockResolvedValue({
-      data: { data: makeTask({ id: "task-1", name: "Task one" }) },
-    } as any);
-
-    await createClient().fetchQuery(
-      workItemDetailQueryOptions("org-1", "project-1", "task-1")
-    );
-
-    expect(mockedUnifiedApiClient.getTask).toHaveBeenCalledWith(
-      {
-        organizationId: "org-1",
-        projectId: "project-1",
-        taskId: "task-1",
-        includeServiceRelations: false,
-        includeEdges: false,
-      },
-      anyRequestOptions
-    );
-  });
-
-  it("caches hydrated edge payloads under their own variant key", async () => {
-    const workflow = makeTask({
-      id: "workflow-1",
-      name: "Launch workflow",
-      type: "workflow",
-      edges: [
-        {
-          id: "edge-1",
-          sourceNodeId: "step-1",
-          targetNodeId: "step-2",
-          type: AgentEdgeType.Standard,
-          category: AgentEdgeCategory.Flow,
-          reasoning: "",
-          createdAt: "2026-07-01T00:00:00.000Z",
-          updatedAt: "2026-07-01T00:00:00.000Z",
-        },
-      ],
-    });
-    mockedUnifiedApiClient.getTask.mockResolvedValue({
-      data: { data: workflow },
-    } as any);
-    const client = createClient();
-    const options = workItemDetailQueryOptions(
-      "org-1",
-      "project-1",
-      "workflow-1",
-      {
-        includeEdges: true,
-        edgeTypes: [AgentEdgeType.Standard, AgentEdgeType.FulfilledBy],
-      }
-    );
-
-    await client.fetchQuery(options);
-
-    expect(mockedUnifiedApiClient.getTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        taskId: "workflow-1",
-        includeEdges: true,
-        edgeTypes: expect.arrayContaining([
-          AgentEdgeType.Standard,
-          AgentEdgeType.FulfilledBy,
-        ]),
-      }),
-      anyRequestOptions
-    );
-    expect(client.getQueryData(options.queryKey)?.edges).toEqual(
-      workflow.edges
-    );
-    expect(
-      client.getQueryData(
-        workItemKeys.detail("org-1", "project-1", "workflow-1")
-      )
-    ).toBeUndefined();
-  });
-
-  it("keeps launch config from a single work-item read", async () => {
+  it("returns the item with the launch config it carries", async () => {
     const config = {
-      kind: "INITIAL_WORKTREE" as const,
-      version: "v1" as const,
+      kind: "INITIAL_WORKTREE",
+      version: "v1",
       initialWorktreeBranch: "feature/launch-default",
     };
-    mockedUnifiedApiClient.getTask.mockResolvedValue({
-      data: { data: makeTask({ id: "task-1", name: "Configured task", config }) },
-    } as any);
+    const server = new FakeWorkItemServer([
+      {
+        id: "task-1",
+        name: "Configured",
+        type: "STANDARD",
+        status: "BACKLOG",
+        config,
+      },
+    ]);
 
-    const item = await createClient().fetchQuery(
-      workItemDetailQueryOptions("org-1", "project-1", "task-1")
-    );
+    const item = await fetchWorkItem(server.graphql.apollo, scope, "task-1");
 
-    expect(item?.config).toEqual(config);
+    expect(item.config).toEqual(config);
+  });
+
+  it("rejects an item the project does not hold", async () => {
+    const server = new FakeWorkItemServer([]);
+
+    await expect(
+      fetchWorkItem(server.graphql.apollo, scope, "missing"),
+    ).rejects.toBeDefined();
   });
 });
 
 describe("task hierarchy reads", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("caches a MODE hierarchy as returned, with type and sections unchanged", async () => {
+  it("returns a MODE hierarchy as the server sent it, with type and sections unchanged", async () => {
     const sections = [
       {
         id: "mode-description",
@@ -439,46 +199,42 @@ describe("task hierarchy reads", () => {
         id: "mode-files",
         key: "files",
         order: 1,
-        materializedMarkdown: JSON.stringify({
-          schemaVersion: "project-mode-files.v1",
-          files: {
-            "MODE.md": "Read this first.",
-            "references/checklist.md": "Check the list.",
-          },
-        }),
+        materializedMarkdown: "{}",
         materializedProposalId: "proposal-mode",
       },
     ];
-    const mode = makeTask({
-      id: "mode-1",
-      name: "Review discipline",
-      type: "MODE",
-      sections: sections as any,
-    });
-    mockedTasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdHierarchyGet.mockResolvedValue(
-      { data: { data: { parent: undefined, task: mode, children: [] } } } as any
-    );
-
-    const hierarchy = await createClient().fetchQuery(
-      workItemHierarchyQueryOptions("org-1", "project-1", "mode-1", {
-        includeDesignDocCounts: true,
-      })
-    );
-
-    expect(
-      mockedTasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdHierarchyGet
-    ).toHaveBeenCalledWith(
+    const server = new FakeWorkItemServer([
       {
-        organizationId: "org-1",
-        projectId: "project-1",
-        taskId: "mode-1",
-        includeDesignDocCounts: true,
-        includeAgentSessionCounts: false,
+        id: "mode-1",
+        name: "Review discipline",
+        type: "MODE",
+        status: "BACKLOG",
+        sections: sections.map((section) => ({
+          ...section,
+          __typename: "WorkItemSection",
+          crdtSnapshotSeq: null,
+        })),
       },
-      anyRequestOptions
+    ]);
+
+    const hierarchy = await fetchWorkItemHierarchy(
+      server.graphql.apollo,
+      scope,
+      "mode-1",
+      { includeDesignDocCounts: true },
     );
-    expect(hierarchy?.task).toEqual(mode);
-    expect(hierarchy?.task.sections).toEqual(sections);
+
+    expect(server.received("GetWorkItemHierarchy")[0]).toMatchObject({
+      id: "mode-1",
+      includeDesignDocCounts: true,
+      includeAgentSessionCounts: false,
+    });
+    expect(hierarchy.task.type).toBe("MODE");
+    expect(hierarchy.task.sections).toEqual(
+      sections.map((section) => ({ ...section, crdtSnapshotSeq: null })),
+    );
+    expect(hierarchy.parent).toBeUndefined();
+    expect(hierarchy.children).toEqual([]);
   });
 });
 
@@ -516,4 +272,3 @@ describe("optimistic registry section materialization", () => {
     ]);
   });
 });
-

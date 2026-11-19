@@ -1,4 +1,12 @@
 import { normalizeStatusFilter } from '../utils/work-item.util';
+import {
+  normalizeReferenceSortField,
+  normalizeReferenceSortOrder,
+  normalizeReferenceStatuses,
+  parseReferencePaginationValue,
+  REFERENCE_SORT_FIELDS,
+  REFERENCE_SORT_ORDERS,
+} from '../utils/work-item-reference-query.util';
 import { normalizeEdgeTypeFilter } from '../utils/edge-type-filter.util';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { withApiSpan } from 'src/telemetry/api-tracing';
@@ -82,11 +90,6 @@ import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 const openApiDateTimeSchema = z.string().datetime({ offset: true });
-const REFERENCE_SORT_FIELDS = ['name', 'createdAt'] as const;
-const REFERENCE_SORT_ORDERS = ['asc', 'desc'] as const;
-
-type ReferenceSortField = (typeof REFERENCE_SORT_FIELDS)[number];
-type ReferenceSortOrder = (typeof REFERENCE_SORT_ORDERS)[number];
 
 const assertDueDateMatchesContract = (
   dueDate: string | null | undefined,
@@ -509,13 +512,8 @@ export class TaskController {
       throw new BadRequestException('type is required');
     }
 
-    const parsedPage = this.parseReferencePaginationValue(page, 'page', 1);
-    const parsedLimit = this.parseReferencePaginationValue(
-      limit,
-      'limit',
-      1,
-      500,
-    );
+    const parsedPage = parseReferencePaginationValue(page, 'page', 1);
+    const parsedLimit = parseReferencePaginationValue(limit, 'limit', 1, 500);
 
     return this.taskService.findReferences(
       organizationId,
@@ -524,9 +522,9 @@ export class TaskController {
       parsedPage,
       parsedLimit,
       filter?.trim() || undefined,
-      this.normalizeReferenceStatuses(statuses),
-      this.normalizeReferenceSortField(sortBy),
-      this.normalizeReferenceSortOrder(sortOrder),
+      normalizeReferenceStatuses(statuses),
+      normalizeReferenceSortField(sortBy),
+      normalizeReferenceSortOrder(sortOrder),
     );
   }
 
@@ -1055,79 +1053,6 @@ export class TaskController {
     @CurrentOrganization() organizationId: OrganizationId,
   ): Promise<TaskResponseDto> {
     return this.taskService.removeByOrganization(organizationId, taskId);
-  }
-
-  private parseReferencePaginationValue(
-    raw: string | undefined,
-    field: string,
-    minimum: number,
-    maximum?: number,
-  ): number {
-    if (raw === undefined || raw.trim().length === 0) {
-      throw new BadRequestException(`${field} is required`);
-    }
-
-    const parsed = Number(raw);
-    const isOutOfRange =
-      !Number.isFinite(parsed) ||
-      !Number.isInteger(parsed) ||
-      parsed < minimum ||
-      (maximum !== undefined && parsed > maximum);
-    if (isOutOfRange) {
-      const range =
-        maximum === undefined
-          ? `at least ${minimum}`
-          : `between ${minimum} and ${maximum}`;
-      throw new BadRequestException(`${field} must be an integer ${range}`);
-    }
-
-    return parsed;
-  }
-
-  private normalizeReferenceStatuses(
-    statuses?: string | string[],
-  ): WorkStatus[] | undefined {
-    if (statuses === undefined) return undefined;
-
-    const values = (Array.isArray(statuses) ? statuses : [statuses])
-      .flatMap((value) => value.split(','))
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-    if (values.length === 0) return undefined;
-
-    const statusByValue = new Map<string, WorkStatus>(
-      Object.values(WorkStatus).map((status) => [status, status]),
-    );
-    const normalized = values.map((value) => statusByValue.get(value));
-    if (normalized.some((status) => status === undefined)) {
-      throw new BadRequestException(
-        `statuses must contain only WorkStatus values`,
-      );
-    }
-
-    return [...new Set(normalized.filter((status) => status !== undefined))];
-  }
-
-  private normalizeReferenceSortField(sortBy?: string): ReferenceSortField {
-    if (sortBy === undefined || sortBy.length === 0) return 'name';
-    const match = REFERENCE_SORT_FIELDS.find((field) => field === sortBy);
-    if (!match) {
-      throw new BadRequestException(
-        `sortBy must be one of: ${REFERENCE_SORT_FIELDS.join(', ')}`,
-      );
-    }
-    return match;
-  }
-
-  private normalizeReferenceSortOrder(sortOrder?: string): ReferenceSortOrder {
-    if (sortOrder === undefined || sortOrder.length === 0) return 'asc';
-    const match = REFERENCE_SORT_ORDERS.find((order) => order === sortOrder);
-    if (!match) {
-      throw new BadRequestException(
-        `sortOrder must be one of: ${REFERENCE_SORT_ORDERS.join(', ')}`,
-      );
-    }
-    return match;
   }
 
   private normalizeSectionKeys(

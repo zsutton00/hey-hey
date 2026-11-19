@@ -143,6 +143,7 @@ type Query {
     workflowAboutType: String
     workflowNames: [String!]
   ): ConversationPage!
+  allWorkItemReferences(type: String!): [WorkItemReference!]!
   conversation(id: ID!): Conversation!
   conversations(
     limit: Int
@@ -159,6 +160,8 @@ type Query {
   message(id: ID!): Message!
   projectScope: ProjectScope!
   workItem(id: ID!): WorkItem!
+  workItemHierarchy(id: ID!, includeAgentSessionCounts: Boolean, includeDesignDocCounts: Boolean): WorkItemHierarchy!
+  workItemReferences(filter: String, limit: Int!, page: Int!, sortBy: String, sortOrder: String, statuses: [String!], type: String!): WorkItemReferencePage!
   workItems(ids: [ID!], includeDescendants: Boolean, initiativeId: ID, limit: Int, page: Int, parentTaskId: ID, parentTaskIds: [ID!], relatedTo: RelatedEntityFilter, sort: WorkItemSort, statuses: [String!], type: String): [WorkItem!]!
   workflowConversations(limit: Int, page: Int, sortBy: String, sortOrder: String, statuses: [String!], workflowAboutId: String!, workflowName: String!): ConversationPage!
 }
@@ -174,6 +177,7 @@ type ServiceRelation {
   id: ID!
   relationType: String
   serviceId: ID!
+  taskId: ID!
 }
 
 enum SortDirection {
@@ -204,11 +208,13 @@ type WorkItem {
   assigneeId: String
   childCounts: WorkItemChildCounts
   codingSessionCount: Int
+  config: JSON
   createdAt: String
   designDocCount: Int
   dueDate: String
   edges(types: [EdgeType!]): [WorkItemEdge!]
   graph(incidentRelationshipTypes: [String!]): WorkItemGraph!
+  hasProposalSupport: Boolean
   id: ID!
   initiativeId: String
   name: String!
@@ -249,6 +255,7 @@ type WorkItemEdge {
   reasoning: String!
   source: EntityRef!
   target: EntityRef!
+  targetNodeType: String
   transitionRole: String
   type: EdgeType!
   updatedAt: String!
@@ -268,15 +275,45 @@ type WorkItemGraphReference {
   entityType: String
   expansionKey: String!
   name: String
+  projectionKind: String!
   viaEntityIds: [ID!]!
   workItem: WorkItem
   workItemTypeKey: String
 }
 
+type WorkItemHierarchy {
+  children: [WorkItem!]!
+  parent: WorkItem
+  task: WorkItem!
+}
+
+type WorkItemReference {
+  id: ID!
+  name: String!
+  parentTaskId: String
+  type: String!
+}
+
+type WorkItemReferencePage {
+  items: [WorkItemReference!]!
+  pagination: WorkItemReferencePagination!
+}
+
+type WorkItemReferencePagination {
+  hasNext: Boolean!
+  hasPrevious: Boolean!
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
 type WorkItemSection {
+  crdtSnapshotSeq: Int
   id: ID!
   key: String!
   materializedMarkdown: String!
+  materializedProposalId: ID!
   order: Int!
 }
 

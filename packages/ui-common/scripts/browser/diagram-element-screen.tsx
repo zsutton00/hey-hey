@@ -1,4 +1,6 @@
+import { ApolloProvider } from "@apollo/client/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import axios from "axios";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
@@ -7,7 +9,9 @@ import type {
   WorkItemChangeSetIdentity,
   WorkItemTypeSummaryDto,
 } from "../../src/api";
-import { workItemKeys } from "../../src/data/collections/workItemLists";
+import { workItemDetailRead } from "../../src/data/collections/workItemLists";
+import { WebUiGraphQLClient } from "../../src/data/graphql/client";
+import { nodeOf } from "../../src/test/workItemGraphQLAnswers";
 import { workItemTypeKeys } from "../../src/data/collections/workItemTypes";
 import {
   WorkflowGraphSurface,
@@ -55,22 +59,42 @@ queryClient.setQueryData(
   mockupType,
 );
 
-// The Mockup is read through the real work-item detail cache entry.
-queryClient.setQueryData(workItemKeys.detail(ORG, PROJECT, MOCKUP_ID), {
-  id: MOCKUP_ID,
-  name: "Cart screen",
-  type: "mockup",
-  organizationId: ORG,
-  projectId: PROJECT,
-  sections: [
-    {
-      id: "mockup-section",
-      key: "mockup",
-      order: 0,
-      materializedMarkdown: JSON.stringify(mockupContent()),
-    },
-  ],
-});
+// The Mockup is read through the real work-item detail read, from its cache.
+const graphql = new WebUiGraphQLClient(() => axios.create());
+const mockupRead = workItemDetailRead(
+  { organizationId: ORG, projectId: PROJECT },
+  MOCKUP_ID,
+);
+graphql
+  .forProject({ organizationId: ORG, projectId: PROJECT })
+  .cache.writeQuery({
+    query: mockupRead.document,
+    variables: mockupRead.variables,
+    data: {
+      workItem: nodeOf(
+        {
+          id: MOCKUP_ID,
+          name: "Cart screen",
+          type: "mockup",
+          status: "ACTIVE",
+          organizationId: ORG,
+          projectId: PROJECT,
+          sections: [
+            {
+              __typename: "WorkItemSection",
+              id: "mockup-section",
+              key: "mockup",
+              order: 0,
+              materializedMarkdown: JSON.stringify(mockupContent()),
+              materializedProposalId: "mockup-proposal",
+              crdtSnapshotSeq: null,
+            },
+          ],
+        },
+        mockupRead.variables,
+      ),
+    } as never,
+  });
 
 const rootIdentity: WorkItemChangeSetIdentity = {
   refType: "existing",
@@ -145,27 +169,29 @@ const projection: WorkItemGraphProjectionData = {
 };
 
 createRoot(document.getElementById("root")!).render(
-  <QueryClientProvider client={queryClient}>
-    <MemoryRouter>
-      <ThemeProvider theme={createTheme()}>
-        <div style={{ width: 760 }}>
-          <WorkflowGraphSurface
-            mode="view"
-            projection={projection}
-            organizationId={ORG}
-            projectId={PROJECT}
-            directEntityLinks={[
-              {
-                sourceNodeId: "cart",
-                targetEntityId: "22222222-2222-4222-8222-222222222222",
-                targetEntityType: "SERVICE",
-                targetTitle: "Checkout API",
-                relationshipType: "RELATED_TO",
-              },
-            ]}
-          />
-        </div>
-      </ThemeProvider>
-    </MemoryRouter>
-  </QueryClientProvider>,
+  <ApolloProvider client={graphql.apollo}>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <ThemeProvider theme={createTheme()}>
+          <div style={{ width: 760 }}>
+            <WorkflowGraphSurface
+              mode="view"
+              projection={projection}
+              organizationId={ORG}
+              projectId={PROJECT}
+              directEntityLinks={[
+                {
+                  sourceNodeId: "cart",
+                  targetEntityId: "22222222-2222-4222-8222-222222222222",
+                  targetEntityType: "SERVICE",
+                  targetTitle: "Checkout API",
+                  relationshipType: "RELATED_TO",
+                },
+              ]}
+            />
+          </div>
+        </ThemeProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  </ApolloProvider>,
 );

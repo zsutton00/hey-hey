@@ -6,26 +6,20 @@ import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EntityType,
-  TaskSource,
-  WorkStatus,
   type FullEntityContextDto,
   type TopologyEntitySummaryDto,
   type TopologyCategorySummaryDto,
   type TopologySubfacetDto,
-  type WorkItemGraphAggregateResponseDto,
 } from "../../../api";
 import {
   platformClient,
-  unifiedApiClient,
   entityContextClient,
 } from "../../../clients/serviceClients";
 import { useTopologyEntitySummaries } from "../../hooks/useTopologyEntitySummaries";
 import { useTopologyCategorySummaries } from "../../hooks/useTopologyCategorySummaries";
 import { useTopologySubfacets } from "../../hooks/useTopologySubfacets";
-import { useWorkItemGraph } from "../../hooks/useWorkItemGraph";
 import { useFullEntityContext } from "../../hooks/useFullEntityContext";
 import { topologyKeys } from "../../collections/topologyKeys";
-import { workItemGraphKeys } from "../../collections/workItemGraphs";
 import { entityContextKeys } from "../../collections/entityContext";
 import { WebSocketHandler } from "../../websockets/handler";
 import { invalidateAllDataLayerQueries } from "../dataLayerInvalidation";
@@ -36,7 +30,6 @@ vi.mock("../../../clients/serviceClients", () => ({
     listTopologyCategorySummaries: vi.fn(),
     listTopologySubfacets: vi.fn(),
   },
-  unifiedApiClient: { getWorkItemGraph: vi.fn() },
   entityContextClient: { getEntityContext: vi.fn() },
 }));
 
@@ -65,24 +58,6 @@ const subfacets: TopologySubfacetDto[] = [
     updatedAt: timestamp,
   },
 ];
-const graph: WorkItemGraphAggregateResponseDto = {
-  root: {
-    id: "root",
-    name: "Workflow",
-    type: "workflow",
-    sections: [],
-    organizationId: "org",
-    projectId: "project",
-    status: WorkStatus.Backlog,
-    source: TaskSource.System,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  },
-  children: [],
-  relationships: [],
-  layout: null,
-  derivedReferences: [],
-};
 const context: FullEntityContextDto = {
   entityId: "root",
   entityType: EntityType.Task,
@@ -124,15 +99,6 @@ const datasets = [
     data: subfacets,
     empty: [],
     key: topologyKeys.subfacets("org", "project"),
-  },
-  {
-    name: "graph",
-    use: (enabled = true) =>
-      useWorkItemGraph("org", "project", "root", { enabled }),
-    api: unifiedApiClient.getWorkItemGraph,
-    data: graph,
-    empty: null,
-    key: workItemGraphKeys.byId("org", "project", "root"),
   },
   {
     name: "context",
@@ -272,17 +238,6 @@ it("normalizes set filters without collapsing genuinely different variants", () 
   ).toEqual(
     topologyKeys.entitySummaries("org", "project", { subfacetId: ["a", "b"] }),
   );
-  expect(
-    workItemGraphKeys.byId("org", "project", "root", [
-      "CONSUMES",
-      "IMPLEMENTS",
-    ]),
-  ).toEqual(
-    workItemGraphKeys.byId("org", "project", "root", [
-      "IMPLEMENTS",
-      "CONSUMES",
-    ]),
-  );
   expect(entityContextKeys.context(contextParams)).not.toEqual(
     entityContextKeys.context({
       ...contextParams,
@@ -333,15 +288,12 @@ it("invalidating one topology key refreshes its consumers without waking other d
   expect(first.result.current.isReady).toBe(true);
 });
 
-it("passes canonical filters, graph participation and context flags through to their providers", async () => {
+it("passes canonical filters and context flags through to their providers", async () => {
   vi.mocked(platformClient.listTopologyEntitySummaries).mockResolvedValue({
     data: { data: summaries },
   } as never);
   vi.mocked(platformClient.listTopologySubfacets).mockResolvedValue({
     data: { data: subfacets },
-  } as never);
-  vi.mocked(unifiedApiClient.getWorkItemGraph).mockResolvedValue({
-    data: { data: graph },
   } as never);
   vi.mocked(entityContextClient.getEntityContext).mockResolvedValue({
     data: { data: context },
@@ -358,9 +310,6 @@ it("passes canonical filters, graph participation and context flags through to t
       subfacets: useTopologySubfacets("org", "project", {
         category: "technology",
         status: "ACTIVE",
-      }),
-      graph: useWorkItemGraph("org", "project", "root", {
-        incidentRelationshipTypes: ["IMPLEMENTS", "CONSUMES", "CONSUMES"],
       }),
       context: useFullEntityContext({
         ...contextParams,
@@ -392,15 +341,6 @@ it("passes canonical filters, graph participation and context flags through to t
       projectId: "project",
       category: "technology",
       status: "ACTIVE",
-    },
-    requestOptions,
-  );
-  expect(unifiedApiClient.getWorkItemGraph).toHaveBeenCalledWith(
-    {
-      organizationId: "org",
-      projectId: "project",
-      workItemId: "root",
-      incidentRelationshipTypes: new Set(["CONSUMES", "IMPLEMENTS"]),
     },
     requestOptions,
   );

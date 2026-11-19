@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { Provider } from "jotai";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -30,7 +33,7 @@ const feature: TaskResponseDto = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-    referencesResponse([feature]) as never
+    referencesResponse([feature]) as never,
   );
 });
 
@@ -40,7 +43,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
     () =>
       new Promise((done) => {
         resolve = done;
-      }) as never
+      }) as never,
   );
   const onChange = vi.fn();
   const user = userEvent.setup();
@@ -52,7 +55,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
         value={feature.id}
         onChange={onChange}
       />
-    </Provider>
+    </Provider>,
   );
   expect(await screen.findByText(feature.name)).toBeVisible();
   expect(unifiedApiClient.getTasks).not.toHaveBeenCalled();
@@ -64,7 +67,7 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
         value={null}
         onChange={onChange}
       />
-    </Provider>
+    </Provider>,
   );
   await user.click(screen.getByRole("combobox"));
   expect(await screen.findByText("Status: Loading…")).toBeVisible();
@@ -72,11 +75,24 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
   resolve({ data: { data: [feature] } });
   expect(await screen.findByText("Status: ACTIVE")).toBeVisible();
   await user.click(screen.getByRole("option", { name: /Live Updates/ }));
-  expect(onChange).toHaveBeenCalledWith(feature.id, feature);
+  expect(onChange).toHaveBeenCalledWith(
+    feature.id,
+    expect.objectContaining(feature),
+  );
   expect(unifiedApiClient.getTasks).toHaveBeenCalledWith(
     expect.objectContaining({
       taskIds: [feature.id],
       includeSectionKeys: undefined,
-    })
+    }),
+    expect.anything(),
+  );
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
   );
 });

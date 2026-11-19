@@ -34,6 +34,7 @@ function makeDispatches(): RelationshipMutationInvalidationDispatches {
     invalidateInitiativeChange: vi.fn(),
     invalidateQueryKey: vi.fn(),
     invalidateQueries: vi.fn(),
+    workItemRefresh: { lists: vi.fn(), item: vi.fn() },
     invalidateWorkItemChange: vi.fn(),
   };
 }
@@ -65,8 +66,58 @@ describe("createRelationshipMutationInvalidator", () => {
     expect(dispatches.invalidateWorkItemChange).toHaveBeenCalledWith(
       "org-1",
       "project-1",
-      "task-1"
+      "task-1",
     );
+  });
+
+  it("refreshes the shown work-item reads when another entity's change targets Tasks", () => {
+    loadConfig({
+      version: "test",
+      generatedAt: "2026-10-01T00:00:00Z",
+      rules: [
+        {
+          sourceEntity: "DesignDoc",
+          sourceFields: ["projectId"],
+          targetCollections: ["Task"],
+          relationshipPath: "DesignDoc.project.tasks",
+          cardinality: "1:1",
+          lookupField: "projectId",
+          invalidationMode: "invalidate",
+        },
+        {
+          sourceEntity: "DesignDoc",
+          sourceFields: ["taskId"],
+          targetCollections: ["Task"],
+          relationshipPath: "DesignDoc.task",
+          cardinality: "1:1",
+          lookupField: "id",
+          invalidationMode: "cascade",
+        },
+      ],
+    });
+    const dispatches = makeDispatches();
+
+    createRelationshipMutationInvalidator(dispatches)({
+      entityType: "DesignDoc",
+      operation: "update",
+      sourceEntity: {
+        id: "doc-1",
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "task-1",
+      },
+    });
+
+    expect(dispatches.workItemRefresh.lists).toHaveBeenCalledWith(
+      "org-1",
+      "project-1",
+    );
+    expect(dispatches.workItemRefresh.item).toHaveBeenCalledWith(
+      "org-1",
+      "project-1",
+      "task-1",
+    );
+    expect(dispatches.invalidateQueries).not.toHaveBeenCalled();
   });
 
   it("retains related initiative cascades while skipping the change's own refresh", () => {
@@ -99,7 +150,7 @@ describe("createRelationshipMutationInvalidator", () => {
     expect(dispatches.invalidateInitiativeChange).toHaveBeenCalledWith(
       "org",
       "project",
-      "changed"
+      "changed",
     );
     expect(dispatches.invalidateQueries).toHaveBeenCalledWith({
       queryKey: initiativeKeys.detail("org", "related"),
@@ -119,14 +170,14 @@ describe("createRelationshipMutationInvalidator", () => {
           organizationId: "org-1",
           projectId: "project-1",
         },
-      })
+      }),
     ).not.toThrow();
     expect(dispatches.invalidateQueries).not.toHaveBeenCalled();
     // The task's own work-item reads are refreshed without relationship config.
     expect(dispatches.invalidateWorkItemChange).toHaveBeenCalledWith(
       "org-1",
       "project-1",
-      "task-1"
+      "task-1",
     );
   });
 });

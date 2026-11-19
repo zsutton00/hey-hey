@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,8 +17,7 @@ import {
   getWorkItemTypesApi,
   workItemTypeKeys,
 } from "../collections/workItemTypes";
-import { workItemKeys } from "../collections/workItemLists";
-import type { WorkItemResponseDto } from "../collections/workItems";
+import { refreshShownWorkItemReads } from "../graphql/workItemCache";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
 import type { MutationOptions } from "../core/useMutation";
 import { useMutation } from "../core/useMutation";
@@ -353,35 +353,23 @@ export function useMarkWorkItemTypeDataStale() {
 }
 
 /**
- * Marks registry and cached work-item reads stale after cascade deletion:
- * every work-item list and hierarchy in the project, and single-item reads
- * whose cached item is in the project with the removed type (or, not yet
- * loaded, are keyed to the project). Other projects are untouched.
+ * Marks registry and shown work-item reads stale after cascade deletion:
+ * every list, hierarchy, item and reference read the project's views are
+ * showing asks the server again. Other projects are untouched.
  */
 export function useMarkHardDeletedWorkItemTypeDataStale() {
   const markWorkItemTypeDataStale = useMarkWorkItemTypeDataStale();
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   return useCallback(
     (organizationId: string, projectId: string, typeKey: string): void => {
       markWorkItemTypeDataStale(organizationId, projectId, typeKey);
-
-      // Keys are [root, org, project, kind, ...]; single-item reads made
-      // without a project are keyed under "" and matched by their item.
-      void queryClient.invalidateQueries({
-        queryKey: workItemKeys.all(organizationId),
-        predicate: (query) => {
-          const [, , keyProjectId, kind] = query.queryKey;
-          if (kind !== "detail") return keyProjectId === projectId;
-          const item = query.state.data as
-            WorkItemResponseDto | null | undefined;
-          return item
-            ? item.projectId === projectId && item.type === typeKey
-            : keyProjectId === projectId;
-        },
+      void refreshShownWorkItemReads(graphqlClient, {
+        organizationId,
+        projectId,
       });
     },
-    [markWorkItemTypeDataStale, queryClient],
+    [markWorkItemTypeDataStale, graphqlClient],
   );
 }
 

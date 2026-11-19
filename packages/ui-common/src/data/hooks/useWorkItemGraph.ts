@@ -1,10 +1,11 @@
+import { useMemo } from "react";
 import type {
   WorkItemGraphAggregateResponseDto,
   WorkItemGraphParticipationType,
 } from "../../api";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { workItemGraphQueryOptions } from "../collections/workItemGraphs";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { workItemGraphRead } from "../collections/workItemGraphs";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 
 export type UseWorkItemGraphReturn =
   DataHookReturn<WorkItemGraphAggregateResponseDto>;
@@ -15,21 +16,29 @@ export function useWorkItemGraph(
   workItemId: string | undefined,
   options: CollectionHookOptions<WorkItemGraphAggregateResponseDto> & {
     incidentRelationshipTypes?: readonly WorkItemGraphParticipationType[];
-  } = {}
+  } = {},
 ): UseWorkItemGraphReturn {
-  const { result, state } = useDataLayerQuery(
-    workItemGraphQueryOptions(
-      organizationId ?? "",
-      projectId ?? "",
-      workItemId ?? "",
-      options.incidentRelationshipTypes
-    ),
-    {
-      ...options,
-      enabled:
-        (options.enabled ?? true) &&
-        Boolean(organizationId && projectId && workItemId),
-    }
+  const typesKey = [...new Set(options.incidentRelationshipTypes)]
+    .sort()
+    .join(",");
+  const spec = useMemo(
+    () =>
+      workItemGraphRead(
+        { organizationId: organizationId ?? "", projectId: projectId ?? "" },
+        workItemId ?? "",
+        typesKey
+          ? (typesKey.split(",") as WorkItemGraphParticipationType[])
+          : [],
+      ),
+    [organizationId, projectId, workItemId, typesKey],
   );
-  return { ...state, data: result.data ?? null };
+
+  return useGraphQLRead(spec, {
+    enabled:
+      (options.enabled ?? true) &&
+      Boolean(organizationId && projectId && workItemId),
+    refetchOnMount: options.refetchOnMount,
+    refetchOnWindowFocus: options.refetchOnWindowFocus,
+    staleTimeMs: options.staleTimeMs,
+  });
 }

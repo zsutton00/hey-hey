@@ -1,79 +1,48 @@
-import { QueryClient } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  TaskSource,
-  WorkStatus,
-  type WorkItemGraphAggregateResponseDto,
-} from "../../../api";
-import { unifiedApiClient } from "../../../clients/serviceClients";
-import {
-  workItemGraphKeys,
-  workItemGraphQueryOptions,
-} from "../workItemGraphs";
+import { describe, expect, it } from "vitest";
+import { FakeWorkItemServer } from "../../../test/workItemGraphQL";
+import { workItemGraphRead } from "../workItemGraphs";
 
-vi.mock("../../../clients/serviceClients", () => ({
-  unifiedApiClient: { getWorkItemGraph: vi.fn() },
-}));
-
-const aggregate: WorkItemGraphAggregateResponseDto = {
-  root: {
-    id: "workflow-1",
-    name: "Workflow",
-    type: "workflow",
-    sections: [],
-    organizationId: "org-1",
-    projectId: "project-1",
-    status: WorkStatus.Backlog,
-    source: TaskSource.System,
-    createdAt: "2026-08-18T00:00:00.000Z",
-    updatedAt: "2026-08-18T00:00:00.000Z",
-  },
-  children: [],
-  relationships: [],
-  layout: null,
-  derivedReferences: [],
-};
+const scope = { organizationId: "org-1", projectId: "project-1" };
 
 describe("workItemGraphs collection", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("keys aggregate reads by organization, project, and root identity", () => {
-    expect(
-      workItemGraphKeys.byId("org-1", "project-1", "workflow-1")
-    ).toContain("workflow-1");
-  });
-
-  it("preserves the complete graph aggregate response", async () => {
-    vi.mocked(unifiedApiClient.getWorkItemGraph).mockResolvedValue({
-      data: {
-        success: true,
-        message: "ok",
-        data: aggregate,
-        timestamp: "2026-08-18T00:00:00.000Z",
-        statusCode: 200,
-      },
-      status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {},
-    });
-
-    const options = workItemGraphQueryOptions(
-      "org-1",
-      "project-1",
-      "workflow-1"
-    );
-    const result = await new QueryClient().fetchQuery(options);
-
-    expect(unifiedApiClient.getWorkItemGraph).toHaveBeenCalledWith(
+  it("keeps the complete graph aggregate: root, children, relationships, layout, references and participation", async () => {
+    const server = new FakeWorkItemServer([
       {
-        organizationId: "org-1",
-        projectId: "project-1",
-        workItemId: "workflow-1",
-        incidentRelationshipTypes: undefined,
+        id: "workflow-1",
+        name: "Workflow",
+        type: "workflow",
+        status: "BACKLOG",
       },
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    );
-    expect(result).toEqual(aggregate);
+      {
+        id: "step-1",
+        name: "Step",
+        type: "workflow-step",
+        status: "BACKLOG",
+        parentTaskId: "workflow-1",
+      },
+    ]);
+    const read = workItemGraphRead(scope, "workflow-1", [
+      "GUARANTEES" as never,
+    ]);
+
+    const { data } = await server.graphql.forProject(scope).query({
+      query: read.document,
+      variables: read.variables,
+      context: scope,
+    });
+    const aggregate = read.select(data!);
+
+    expect(server.received("GetWorkItemGraph")[0]).toEqual({
+      id: "workflow-1",
+      incidentRelationshipTypes: ["GUARANTEES"],
+    });
+    expect(aggregate).toMatchObject({
+      root: { id: "workflow-1", type: "workflow", sections: [] },
+      children: [{ id: "step-1", type: "workflow-step" }],
+      relationships: [],
+      layout: null,
+      derivedReferences: [],
+      participation: { entries: [], summary: {} },
+    });
   });
 });

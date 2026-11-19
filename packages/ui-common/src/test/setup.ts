@@ -7,12 +7,12 @@ import {
   unexpectedRequestHandler,
 } from "./networkGuard";
 import { conversationThreadHandlers } from "./conversationGraphQLHandlers";
+import { workItemHandlers } from "./workItemGraphQLHandlers";
 import type {
   ConversationCliStatusResponseDto,
   GetMessages200ResponseAllOfData,
   GetQueuedConversationInputs200Response,
   ListStars200Response,
-  PaginatedWorkItemReferenceResponseDto,
 } from "../api";
 import WS from "jest-websocket-mock";
 import type { RenderHookOptions, RenderOptions } from "@testing-library/react";
@@ -154,6 +154,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // down a Vitest worker while the test is finishing.
 // Keep the launch fixture read available during teardown, when runtime handlers reset.
 const server = setupServer(
+  ...workItemHandlers([]),
   ...conversationThreadHandlers([]),
   http.get(
     "*/api/v1/organizations/:organizationId/projects/:projectId/messages",
@@ -199,23 +200,6 @@ const server = setupServer(
         statusCode: 200,
       };
       return HttpResponse.json(response);
-    },
-  ),
-  http.get(
-    "*/api/v1/organizations/:organizationId/projects/:projectId/work-items/references",
-    () => {
-      const data: PaginatedWorkItemReferenceResponseDto = {
-        items: [],
-        pagination: {
-          page: 1,
-          limit: 500,
-          total: 0,
-          totalPages: 0,
-          hasNext: false,
-          hasPrevious: false,
-        },
-      };
-      return HttpResponse.json({ data });
     },
   ),
   http.get("*/api/v1/machines", () =>

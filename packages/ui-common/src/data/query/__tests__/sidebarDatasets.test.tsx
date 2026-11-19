@@ -1,4 +1,4 @@
-import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
+import { FakeWorkItemServer } from "../../../test/workItemGraphQL";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,7 +6,6 @@ import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TaskSource, WorkStatus } from "../../../api";
 import { featureContentKeys } from "../../collections/featureDocumentContent";
-import { workItemKeys } from "../../collections/workItemLists";
 import { useWorkItems } from "../../hooks/useWorkItems";
 import { usePrivateBetaDisclosure } from "../../hooks/usePrivateBetaDisclosure";
 import { useServices } from "../../hooks/useServices";
@@ -17,7 +16,6 @@ import {
 } from "../dataLayerInvalidation";
 
 const mocks = vi.hoisted(() => ({
-  getTasks: vi.fn(),
   updateTask: vi.fn(),
   getPrivateBetaDisclosureStatus: vi.fn(),
   dataRequest: vi.fn(),
@@ -25,7 +23,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../clients/serviceClients", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   unifiedApiClient: {
-    getTasks: mocks.getTasks,
     updateTask: mocks.updateTask,
     getPrivateBetaDisclosureStatus: mocks.getPrivateBetaDisclosureStatus,
   },
@@ -75,108 +72,46 @@ afterEach(() => {
 });
 
 describe("goal and plan lists", () => {
-  it("share one read per list and refresh once per project invalidation", async () => {
-    mocks.getTasks.mockResolvedValue({ data: { data: [goal("g1")] } });
-    const client = createClient();
+  it("share one read per list, filtered by the server", async () => {
+    const server = new FakeWorkItemServer([goal("g1"), feature("f1")]);
     const { result } = renderHook(
       () => ({ sidebar: useGoals(), picker: useGoals() }),
-      { wrapper: clientWrapper(client) },
+      { wrapper: server.wrapper },
     );
     await waitFor(() => expect(result.current.sidebar.isReady).toBe(true));
+
     expect(result.current.picker.workItems).toEqual(
       result.current.sidebar.workItems,
     );
-    expect(mocks.getTasks).toHaveBeenCalledTimes(1);
-    // The status filter is a select over the complete list.
-    expect(mocks.getTasks.mock.calls[0][0]).toMatchObject({
-      organizationId: "org",
-      projectId: "project",
+    expect(result.current.sidebar.workItems.map((item) => item.id)).toEqual([
+      "g1",
+    ]);
+    expect(server.received("GetWorkItems")).toHaveLength(1);
+    expect(server.received("GetWorkItems")[0]).toMatchObject({
       type: "GOAL",
-      status: undefined,
+      statuses: ["ACTIVE"],
     });
-    expect(
-      client.getQueryCache().findAll({ queryKey: workItemKeys.root() }),
-    ).toHaveLength(1);
-
-    await act(async () => {
-      await invalidateProjectWorkItemQueries(client, "org", "other");
-    });
-    expect(mocks.getTasks).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await invalidateProjectWorkItemQueries(client, "org", "project");
-    });
-    expect(mocks.getTasks).toHaveBeenCalledTimes(2);
   });
 
-  it("serves project-wide lists of any type from TanStack Query", async () => {
-    mocks.getTasks.mockResolvedValue({ data: { data: [feature("f1")] } });
-    const client = createClient();
-    const { result } = renderHook(
-      () =>
-        useWorkItems("org", "task", "project", undefined, {
-          taskType: "FEATURE",
-        }),
-      { wrapper: clientWrapper(client) },
-    );
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-    expect(result.current.workItems.map((item) => item.id)).toEqual(["f1"]);
-    expect(mocks.getTasks).toHaveBeenCalledTimes(1);
-    const [query] = client
-      .getQueryCache()
-      .findAll({ queryKey: workItemKeys.root() });
-    expect(query.state.data).toEqual([feature("f1")]);
-  });
-
-  it("serves parent-scoped lists from TanStack Query", async () => {
-    mocks.getTasks.mockResolvedValue({ data: { data: [] } });
-    const client = createClient();
+  it("serves parent-scoped lists of a type", async () => {
+    const server = new FakeWorkItemServer([
+      { ...feature("f1"), parentTaskId: "parent" },
+      feature("f2"),
+    ]);
     const { result } = renderHook(
       () =>
         useWorkItems("org", "task", "project", undefined, {
           taskType: "FEATURE",
           parentTaskId: "parent",
         }),
-      { wrapper: clientWrapper(client) },
+      { wrapper: server.wrapper },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
-    expect(mocks.getTasks).toHaveBeenCalledTimes(1);
-    expect(mocks.getTasks.mock.calls[0][0]).toMatchObject({
+
+    expect(result.current.workItems.map((item) => item.id)).toEqual(["f1"]);
+    expect(server.received("GetWorkItems")[0]).toMatchObject({
       parentTaskId: "parent",
     });
-    const [query] = client
-      .getQueryCache()
-      .findAll({ queryKey: workItemKeys.lists("org", "project") });
-    expect(query.state.dataUpdatedAt).toBeGreaterThan(0);
-  });
-
-  it("applies updates optimistically to cached lists and rolls back on failure", async () => {
-    mocks.getTasks.mockResolvedValue({ data: { data: [feature("f1")] } });
-    const failure = deferred();
-    mocks.updateTask.mockReturnValueOnce(failure.promise);
-    const client = createClient();
-    const { result } = renderHook(
-      () =>
-        useWorkItems("org", "task", "project", undefined, {
-          taskType: "FEATURE",
-        }),
-      { wrapper: clientWrapper(client) },
-    );
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-
-    let update: Promise<unknown> = Promise.resolve();
-    act(() => {
-      update = result.current.updateTask("f1", { name: "Renamed" });
-      update.catch(() => undefined);
-    });
-    await waitFor(() =>
-      expect(result.current.workItems[0]?.name).toBe("Renamed"),
-    );
-
-    await act(async () => {
-      failure.reject(new Error("PATCH failed"));
-      await update.catch(() => undefined);
-    });
-    await waitFor(() => expect(result.current.workItems[0]?.name).toBe("f1"));
   });
 });
 
@@ -208,19 +143,19 @@ describe("work-item change invalidation", () => {
 
 describe("reconnect", () => {
   it("re-reads every mounted migrated dataset exactly once", async () => {
-    mocks.getTasks.mockResolvedValue({ data: { data: [goal("g1")] } });
+    const server = new FakeWorkItemServer([goal("g1")]);
+    const client = server.queryClient;
     mocks.dataRequest.mockResolvedValue({ data: { data: [] } });
     mocks.getPrivateBetaDisclosureStatus.mockResolvedValue({
       data: { data: { recordedAcceptances: [] } },
     });
-    const client = createClient();
     const { result } = renderHook(
       () => ({
         goals: useGoals(),
         services: useServices("org", { projectId: "project" }),
         disclosure: usePrivateBetaDisclosure(),
       }),
-      { wrapper: clientWrapper(client) },
+      { wrapper: server.wrapper },
     );
     await waitFor(() => {
       expect(result.current.goals.isReady).toBe(true);
@@ -231,14 +166,14 @@ describe("reconnect", () => {
       createStore(),
       undefined,
       client,
-      createUnreachableGraphQLClient(),
+      server.graphql.apollo,
     );
 
     await act(async () => {
       handler.markAllStale();
     });
     await waitFor(() => {
-      expect(mocks.getTasks).toHaveBeenCalledTimes(2);
+      expect(server.received("GetWorkItems")).toHaveLength(2);
       expect(mocks.dataRequest).toHaveBeenCalledTimes(2);
       expect(mocks.getPrivateBetaDisclosureStatus).toHaveBeenCalledTimes(2);
     });

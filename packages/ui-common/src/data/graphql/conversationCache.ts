@@ -12,6 +12,7 @@ import {
   readLoadedThread,
   refreshConversationMessages,
 } from "../collections/messages";
+import { activeReads, holdsEntity, isObject, variableOf } from "./activeReads";
 import {
   getGraphQLClients,
   getProjectGraphQLClient,
@@ -38,34 +39,6 @@ const CONVERSATION_LIST_READS: ReadonlySet<string> = new Set([
   "GetActiveConversationsWithDecisions",
   "GetWorkflowConversations",
 ]);
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-/** Whether an entity with this id appears anywhere in a read's result. */
-const holdsEntity = (value: unknown, id: string): boolean => {
-  if (Array.isArray(value)) {
-    return value.some((item) => holdsEntity(item, id));
-  }
-  if (!isObject(value)) {
-    return false;
-  }
-
-  return (
-    value.id === id ||
-    Object.values(value).some((field) => holdsEntity(field, id))
-  );
-};
-
-const variableOf = (query: ObservableQuery, name: string): unknown =>
-  isObject(query.variables) ? query.variables[name] : undefined;
-
-const activeReads = (client: ApolloClient, names: ReadonlySet<string>) =>
-  [...getGraphQLClients(client)]
-    .flatMap((project) => [...project.getObservableQueries("active")])
-    .filter(
-      (query) => query.queryName !== undefined && names.has(query.queryName),
-    );
 
 /** Refetches the detail and the lists affected by a conversation change. */
 export async function refreshConversation(

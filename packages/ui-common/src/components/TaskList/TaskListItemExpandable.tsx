@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import React, { useCallback } from "react";
 import { fetchTaskHierarchy } from "../../data/api/fetchTaskHierarchy";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
@@ -31,17 +32,19 @@ export const TaskListItemExpandable: React.FC<TaskListItemExpandableProps> = ({
   relatedTasks,
 }) => {
   const pathService = usePathService();
+  const graphqlClient = useApolloClient();
 
   const fetchChildren = useCallback(async (): Promise<
     WorkItemResponseDto[]
   > => {
     const hierarchy = await fetchTaskHierarchy(
+      graphqlClient,
       organizationId,
       projectId,
       task.id,
     );
     return hierarchy.children;
-  }, [organizationId, projectId, task.id]);
+  }, [graphqlClient, organizationId, projectId, task.id]);
 
   const hasChildren = (task.childCounts?.total ?? 0) > 0;
 

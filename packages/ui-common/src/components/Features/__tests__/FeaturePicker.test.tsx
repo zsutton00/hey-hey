@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import {
   render as testingRender,
@@ -32,7 +35,7 @@ function makeFeature(
     name?: string;
     parentTaskId?: string;
     totalChildren?: number;
-  } = {}
+  } = {},
 ): TaskResponseDto {
   return {
     id,
@@ -80,7 +83,7 @@ const mockedUnified = vi.mocked(unifiedApiClient);
 
 function configureGetTasks(): void {
   mockedUnified.listWorkItemReferences.mockResolvedValue(
-    referencesResponse(ALL_FEATURES) as never
+    referencesResponse(ALL_FEATURES) as never,
   );
   mockedUnified.getTasks.mockImplementation(async (params) => {
     expect(params.taskIds).toBeDefined();
@@ -88,7 +91,7 @@ function configureGetTasks(): void {
     return {
       data: {
         data: ALL_FEATURES.filter((feature) =>
-          params.taskIds?.includes(feature.id)
+          params.taskIds?.includes(feature.id),
         ),
       },
     } as never;
@@ -101,7 +104,7 @@ beforeEach(() => {
 });
 
 async function renderAndOpen(
-  props: Partial<React.ComponentProps<typeof FeaturePicker>> = {}
+  props: Partial<React.ComponentProps<typeof FeaturePicker>> = {},
 ) {
   const user = userEvent.setup();
   const onChange = vi.fn();
@@ -112,11 +115,11 @@ async function renderAndOpen(
       value={null}
       onChange={onChange}
       {...props}
-    />
+    />,
   );
 
   await waitFor(() =>
-    expect(mockedUnified.listWorkItemReferences).toHaveBeenCalled()
+    expect(mockedUnified.listWorkItemReferences).toHaveBeenCalled(),
   );
 
   const trigger = props.searchable
@@ -132,13 +135,13 @@ describe("FeaturePicker tree navigator", () => {
     mockedUnified.getTasks.mockRejectedValue(new Error("Metadata unavailable"));
     const { user, onChange } = await renderAndOpen();
     await user.click(
-      await screen.findByRole("button", { name: "Drill into Alpha" })
+      await screen.findByRole("button", { name: "Drill into Alpha" }),
     );
     expect(await screen.findByText("Alpha One")).toBeVisible();
     await waitFor(() =>
       expect(screen.getAllByText("Feature unavailable").length).toBeGreaterThan(
-        0
-      )
+        0,
+      ),
     );
     await user.click(screen.getByText("Alpha One"));
     expect(onChange).not.toHaveBeenCalled();
@@ -151,7 +154,7 @@ describe("FeaturePicker tree navigator", () => {
         projectId={PROJ_ID}
         value="alpha-1-1"
         onChange={vi.fn()}
-      />
+      />,
     );
     expect(await screen.findByText("Alpha One Deep")).toBeInTheDocument();
     expect(mockedUnified.getTasks).not.toHaveBeenCalled();
@@ -176,7 +179,7 @@ describe("FeaturePicker tree navigator", () => {
         value={null}
         onChange={vi.fn()}
         openOnMount
-      />
+      />,
     );
 
     const listbox = await screen.findByRole("listbox");
@@ -191,10 +194,10 @@ describe("FeaturePicker tree navigator", () => {
     await screen.findByRole("listbox");
 
     expect(
-      await screen.findByRole("button", { name: /Drill into Alpha/i })
+      await screen.findByRole("button", { name: /Drill into Alpha/i }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Drill into Bravo/i })
+      screen.queryByRole("button", { name: /Drill into Bravo/i }),
     ).toBeNull();
   });
 
@@ -202,13 +205,13 @@ describe("FeaturePicker tree navigator", () => {
     const { user } = await renderAndOpen();
 
     await user.click(
-      await screen.findByRole("button", { name: /Drill into Alpha/i })
+      await screen.findByRole("button", { name: /Drill into Alpha/i }),
     );
 
     expect(
       mockedUnified.getTasks.mock.calls.every(
-        ([params]) => params.taskIds && params.parentTaskId === undefined
-      )
+        ([params]) => params.taskIds && params.parentTaskId === undefined,
+      ),
     ).toBe(true);
 
     const listbox = await screen.findByRole("listbox");
@@ -221,7 +224,7 @@ describe("FeaturePicker tree navigator", () => {
         expect.stringContaining("Alpha Two"),
         expect.stringContaining("Bravo"),
         expect.stringContaining("Charlie"),
-      ])
+      ]),
     );
   });
 
@@ -229,17 +232,17 @@ describe("FeaturePicker tree navigator", () => {
     const { user } = await renderAndOpen();
 
     await user.click(
-      await screen.findByRole("button", { name: /Drill into Alpha/i })
+      await screen.findByRole("button", { name: /Drill into Alpha/i }),
     );
     await waitFor(() =>
-      expect(screen.getByText("Alpha One")).toBeInTheDocument()
+      expect(screen.getByText("Alpha One")).toBeInTheDocument(),
     );
 
     await user.click(
-      await screen.findByRole("button", { name: /Drill into Alpha One/i })
+      await screen.findByRole("button", { name: /Drill into Alpha One/i }),
     );
     await waitFor(() =>
-      expect(screen.getByText("Alpha One Deep")).toBeInTheDocument()
+      expect(screen.getByText("Alpha One Deep")).toBeInTheDocument(),
     );
   });
 
@@ -254,7 +257,7 @@ describe("FeaturePicker tree navigator", () => {
 
     expect(onChange).toHaveBeenCalledWith(
       "root-a",
-      expect.objectContaining({ id: "root-a" })
+      expect.objectContaining({ id: "root-a" }),
     );
   });
 
@@ -281,10 +284,10 @@ describe("FeaturePicker tree navigator", () => {
       expect.arrayContaining([
         expect.stringContaining("Alpha"),
         expect.stringContaining("Charlie"),
-      ])
+      ]),
     );
     expect(
-      rootOptions.find((o) => o.textContent?.includes("Bravo"))
+      rootOptions.find((o) => o.textContent?.includes("Bravo")),
     ).toBeUndefined();
 
     await user.click(screen.getByRole("button", { name: /Drill into Alpha/i }));
@@ -306,7 +309,7 @@ describe("FeaturePicker project title search", () => {
         onChange={vi.fn()}
         searchable
         openOnMount
-      />
+      />,
     );
 
     const typeahead = screen.getByRole("combobox", {
@@ -314,7 +317,7 @@ describe("FeaturePicker project title search", () => {
     });
     await waitFor(() => expect(typeahead).toHaveFocus());
     await waitFor(() =>
-      expect(typeahead).toHaveAttribute("aria-expanded", "true")
+      expect(typeahead).toHaveAttribute("aria-expanded", "true"),
     );
     expect(typeahead).toHaveAttribute("placeholder", "Search feature titles");
     expect(screen.getAllByRole("combobox")).toHaveLength(1);
@@ -326,8 +329,8 @@ describe("FeaturePicker project title search", () => {
     expect(await screen.findByText("Alpha One Deep")).toBeInTheDocument();
     expect(
       mockedUnified.getTasks.mock.calls.every(
-        ([params]) => params.taskIds?.length
-      )
+        ([params]) => params.taskIds?.length,
+      ),
     ).toBe(true);
   });
 
@@ -336,7 +339,7 @@ describe("FeaturePicker project title search", () => {
 
     await user.type(
       screen.getByRole("combobox", { name: "Search feature titles" }),
-      "one deep"
+      "one deep",
     );
     await user.click(await screen.findByText("Alpha One Deep"));
 
@@ -348,7 +351,7 @@ describe("FeaturePicker project title search", () => {
         type: "FEATURE",
         organizationId: ORG_ID,
         projectId: PROJ_ID,
-      })
+      }),
     );
   });
 
@@ -376,10 +379,19 @@ describe("FeaturePicker project title search", () => {
 
     await user.type(
       screen.getByRole("combobox", { name: "Search feature titles" }),
-      "alpha"
+      "alpha",
     );
 
     expect(await screen.findByText("Alpha One")).toBeInTheDocument();
     expect(screen.queryByText("Alpha Two")).toBeNull();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

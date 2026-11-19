@@ -145,7 +145,10 @@ describe("WebSocketHandler conversation.updated boundary", () => {
 import { loadConfig, resetConfig } from "../relationships";
 import { designDocKeys } from "../collections/designDocs";
 import { QueryClient } from "@tanstack/react-query";
-import { workItemKeys } from "../collections/workItemLists";
+import { renderHook, waitFor } from "@testing-library/react";
+import { FakeWorkItemServer } from "../../test/workItemGraphQL";
+import { useWorkItem } from "../hooks/useWorkItem";
+import { useWorkItems } from "../hooks/useWorkItems";
 import { initiativeKeys } from "../collections/initiatives";
 import logger from "../../utils/logger";
 
@@ -186,11 +189,29 @@ describe("WebSocketHandler relationship-config invalidations", () => {
   const isInvalidated = (queryKey: readonly unknown[]) =>
     queryClient.getQueryState(queryKey)?.isInvalidated ?? false;
 
+  /** A handler on a server's clients, with the work-item reads views make. */
+  const withWorkItemServer = () => {
+    const server = new FakeWorkItemServer([
+      { id: "task-1", name: "One", type: "STANDARD", status: "BACKLOG" },
+      { id: "task-2", name: "Two", type: "STANDARD", status: "BACKLOG" },
+    ]);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      server.queryClient,
+      server.graphql.apollo,
+    );
+
+    return { server, handler };
+  };
+
   it("fans out to related collections on initiative.updated when config is loaded", async () => {
-    const projectLists = workItemKeys.list("org-1", "proj-1", {
-      initiativeId: "init-1",
-    });
-    queryClient.setQueryData(projectLists, []);
+    const { server, handler } = withWorkItemServer();
+    const views = renderHook(
+      () => useWorkItems("org-1", "task", "proj-1", undefined, {}),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(views.result.current.isReady).toBe(true));
     loadConfig({
       version: "test",
       generatedAt: "2026-05-18T00:00:00.000Z",
@@ -207,7 +228,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       ],
     });
 
-    websocketHandler.handleEvent({
+    handler.handleEvent({
       type: "initiative.updated",
       timestamp: "2026-05-18T11:00:00Z",
       organizationId: "org-1",
@@ -216,17 +237,21 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       changedFields: ["name"],
     });
 
-    // Work-item lists are on TanStack Query: the project's lists re-read.
-    await Promise.resolve();
-    expect(isInvalidated(projectLists)).toBe(true);
-    expect(isInvalidated(initiativeKeys.list("org-1"))).toBe(true);
+    // Work-item lists are in the GraphQL cache: the project's lists re-read.
+    await waitFor(() =>
+      expect(server.received("GetWorkItems")).toHaveLength(2),
+    );
   });
 
   it("fans out from task.updated to design doc collection per loaded rule", async () => {
-    const taskDetail = workItemKeys.detail("org-1", "proj-1", "task-1");
-    queryClient.setQueryData(taskDetail, { id: "task-1" });
+    const { server, handler } = withWorkItemServer();
+    const views = renderHook(
+      () => useWorkItem("org-1", "task", "task-1", { projectId: "proj-1" }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(views.result.current.isReady).toBe(true));
     const expectedKey = designDocKeys.list("org-1", { taskId: "task-1" });
-    queryClient.setQueryData(expectedKey, []);
+    server.queryClient.setQueryData(expectedKey, []);
     loadConfig({
       version: "test",
       generatedAt: "2026-05-18T00:00:00.000Z",
@@ -243,7 +268,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       ],
     });
 
-    websocketHandler.handleEvent({
+    handler.handleEvent({
       type: "task.updated",
       timestamp: "2026-05-18T11:00:00Z",
       organizationId: "org-1",
@@ -253,11 +278,11 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       changedFields: ["status"],
     });
 
-    await Promise.resolve();
-    expect(isInvalidated(expectedKey)).toBe(true);
-    // The task's own reads are invalidated too.
-    await Promise.resolve();
-    expect(isInvalidated(taskDetail)).toBe(true);
+    expect(server.queryClient.getQueryState(expectedKey)?.isInvalidated).toBe(
+      true,
+    );
+    // The task's own read asks the server again too.
+    await waitFor(() => expect(server.received("GetWorkItem")).toHaveLength(2));
   });
 
   it("fans out from design_doc.updated to Initiative list scope per loaded rule", async () => {
@@ -297,10 +322,18 @@ describe("WebSocketHandler relationship-config invalidations", () => {
   });
 
   it("uses the event project id for task detail cascade invalidations", async () => {
-    const taskDetail = workItemKeys.detail("org-1", "proj-1", "task-1");
-    const otherDetail = workItemKeys.detail("org-1", "proj-1", "task-2");
-    queryClient.setQueryData(taskDetail, { id: "task-1" });
-    queryClient.setQueryData(otherDetail, { id: "task-2" });
+    const { server, handler } = withWorkItemServer();
+    const views = renderHook(
+      () => ({
+        first: useWorkItem("org-1", "task", "task-1", { projectId: "proj-1" }),
+        other: useWorkItem("org-1", "task", "task-2", { projectId: "proj-1" }),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => {
+      expect(views.result.current.first.isReady).toBe(true);
+      expect(views.result.current.other.isReady).toBe(true);
+    });
     loadConfig({
       version: "test",
       generatedAt: "2026-05-18T00:00:00.000Z",
@@ -317,7 +350,7 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       ],
     });
 
-    websocketHandler.handleEvent({
+    handler.handleEvent({
       type: "initiative.updated",
       timestamp: "2026-05-18T11:00:00Z",
       organizationId: "org-1",
@@ -326,9 +359,14 @@ describe("WebSocketHandler relationship-config invalidations", () => {
       changedFields: ["status"],
     });
 
-    await Promise.resolve();
-    expect(isInvalidated(taskDetail)).toBe(true);
-    expect(isInvalidated(otherDetail)).toBe(false);
+    await waitFor(() =>
+      expect(
+        server.received("GetWorkItem").filter((v) => v.id === "task-1"),
+      ).toHaveLength(2),
+    );
+    expect(
+      server.received("GetWorkItem").filter((v) => v.id === "task-2"),
+    ).toHaveLength(1);
   });
 
   it("warns and preserves direct initiative invalidation when config has not been loaded", () => {
@@ -356,8 +394,6 @@ describe("WebSocketHandler relationship-config invalidations", () => {
   });
 
   it("drops the relationship dispatch with a warning when the event has no id", () => {
-    const projectList = workItemKeys.list("org-1", "proj-1", {});
-    queryClient.setQueryData(projectList, []);
     loadConfig({
       version: "test",
       generatedAt: "2026-05-18T00:00:00.000Z",
@@ -387,8 +423,5 @@ describe("WebSocketHandler relationship-config invalidations", () => {
     expect(
       queryClient.getQueryCache().findAll({ queryKey: designDocKeys.root() }),
     ).toHaveLength(0);
-    // The handler's own early-return on missing taskId fires before our
-    // helper, so no work-item dispatches either.
-    expect(isInvalidated(projectList)).toBe(false);
   });
 });

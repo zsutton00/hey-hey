@@ -8,17 +8,12 @@ import {
 } from "lexical";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DataHooksProvider } from "../../../data/DataHooksProvider";
+import { FakeWorkItemServer } from "../../../test/workItemGraphQL";
 import { SmarterTextAreaEditor } from "../SmarterTextAreaEditor";
 
-const editorRef = vi.hoisted(
-  (): { current: LexicalEditor | null } => ({ current: null }),
-);
-const listWorkItemReferences = vi.hoisted(() => vi.fn());
-
-vi.mock("../../../clients/serviceClients", () => ({
-  unifiedApiClient: { listWorkItemReferences },
+const editorRef = vi.hoisted((): { current: LexicalEditor | null } => ({
+  current: null,
 }));
-
 vi.mock("../../../data/hooks/useCachedConversationMentionOptions", () => ({
   useCachedConversationMentionOptions: () => [],
 }));
@@ -32,9 +27,8 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
 }));
 
 vi.mock("../EntityDropPlugin", async () => {
-  const { useLexicalComposerContext } = await import(
-    "@lexical/react/LexicalComposerContext"
-  );
+  const { useLexicalComposerContext } =
+    await import("@lexical/react/LexicalComposerContext");
 
   return {
     EntityDropPlugin: () => {
@@ -45,39 +39,24 @@ vi.mock("../EntityDropPlugin", async () => {
   };
 });
 
-const referencePage = {
-  data: {
-    data: {
-      items: [
-        {
-          id: "feature-search",
-          name: "Feature Search",
-          type: "FEATURE",
-          parentTaskId: null,
-        },
-      ],
-      pagination: {
-        page: 1,
-        limit: 500,
-        total: 1,
-        totalPages: 1,
-        hasNext: false,
-        hasPrevious: false,
-      },
-    },
-  },
-};
-
 describe("SmarterTextAreaEditor reference loading", () => {
+  let server: FakeWorkItemServer;
+
   beforeEach(() => {
     editorRef.current = null;
-    listWorkItemReferences.mockReset();
-    listWorkItemReferences.mockResolvedValue(referencePage);
+    server = new FakeWorkItemServer([
+      {
+        id: "feature-search",
+        name: "Feature Search",
+        type: "FEATURE",
+        status: "ACTIVE",
+      },
+    ]);
   });
 
   it("loads project feature references and discovers a completed title", async () => {
     render(
-      <DataHooksProvider>
+      <DataHooksProvider graphqlClient={server.graphql}>
         <MemoryRouter>
           <SmarterTextAreaEditor
             context={{
@@ -95,20 +74,18 @@ describe("SmarterTextAreaEditor reference loading", () => {
 
     await waitFor(() => expect(editorRef.current).not.toBeNull());
     await waitFor(() =>
-      expect(listWorkItemReferences).toHaveBeenCalledWith({
-        organizationId: "org-references",
-        projectId: "project-references",
-        type: "FEATURE",
-        page: 1,
-        limit: 500,
-      }, expect.objectContaining({ signal: expect.any(AbortSignal) })),
+      expect(server.received("GetAllWorkItemReferences")).toEqual([
+        { type: "FEATURE" },
+      ]),
     );
 
     const editor = editorRef.current;
     if (!editor) throw new Error("Lexical editor was not mounted");
 
     await waitFor(() => {
-      expect(editor.getEditorState().read(() => $getRoot().getTextContent())).toBe("");
+      expect(
+        editor.getEditorState().read(() => $getRoot().getTextContent()),
+      ).toBe("");
     });
 
     editor.update(() => {
@@ -125,9 +102,9 @@ describe("SmarterTextAreaEditor reference loading", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByTestId("editor").querySelectorAll(
-          ".feature-reference-match-node",
-        ),
+        screen
+          .getByTestId("editor")
+          .querySelectorAll(".feature-reference-match-node"),
       ).toHaveLength(1),
     );
   });

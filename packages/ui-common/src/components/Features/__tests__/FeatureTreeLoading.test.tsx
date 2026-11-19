@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "jotai";
@@ -80,7 +83,7 @@ function renderTree(activeFeatureId?: string): void {
           />
         </PathServiceProvider>
       </MemoryRouter>
-    </Provider>
+    </Provider>,
   );
 }
 
@@ -95,10 +98,10 @@ describe("FeatureTreeVisualization loading presentation", () => {
     const contextRead = createDeferred<unknown>();
     mockFeatureMetadata([makeFeature("feature-1", "Ready Feature")]);
     vi.mocked(unifiedApiClient.listWorkItemReferences).mockReturnValue(
-      featureRead.promise as never
+      featureRead.promise as never,
     );
     vi.mocked(entityContextClient.getEntityContext).mockReturnValue(
-      contextRead.promise as never
+      contextRead.promise as never,
     );
 
     renderTree("feature-1");
@@ -114,14 +117,14 @@ describe("FeatureTreeVisualization loading presentation", () => {
 
     await act(async () => {
       featureRead.resolve(
-        referencesResponse([makeFeature("feature-1", "Ready Feature")])
+        referencesResponse([makeFeature("feature-1", "Ready Feature")]),
       );
       await featureRead.promise;
     });
 
     await waitFor(() => {
       expect(screen.getByTestId("feature-tree-loading-state")).toBe(
-        loadingState
+        loadingState,
       );
     });
     expect(screen.queryByText("Ready Feature")).not.toBeInTheDocument();
@@ -141,53 +144,62 @@ describe("FeatureTreeVisualization loading presentation", () => {
 
   it("renders a failed read distinctly from loading", async () => {
     vi.mocked(unifiedApiClient.listWorkItemReferences).mockRejectedValue(
-      new Error("Feature read failed")
+      new Error("Feature read failed"),
     );
 
     renderTree();
 
     expect(await screen.findByTestId("feature-tree-error")).toHaveTextContent(
-      "Failed to load feature tree: Feature read failed"
+      "Failed to load feature tree: Feature read failed",
     );
     expect(
-      screen.queryByTestId("feature-tree-loading-state")
+      screen.queryByTestId("feature-tree-loading-state"),
     ).not.toBeInTheDocument();
   });
 
   it("renders a failed relationship read distinctly from loading", async () => {
     const feature = makeFeature("feature-1", "Ready Feature");
     vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-      referencesResponse([feature]) as never
+      referencesResponse([feature]) as never,
     );
     mockFeatureMetadata([feature]);
     vi.mocked(entityContextClient.getEntityContext).mockRejectedValue(
-      new Error("Relationship read failed")
+      new Error("Relationship read failed"),
     );
 
     renderTree("feature-1");
 
     expect(await screen.findByTestId("feature-tree-error")).toHaveTextContent(
-      "Failed to load feature tree: Relationship read failed"
+      "Failed to load feature tree: Relationship read failed",
     );
     expect(
-      screen.queryByTestId("feature-tree-loading-state")
+      screen.queryByTestId("feature-tree-loading-state"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("feature-tree-ready")).not.toBeInTheDocument();
   });
 
   it("renders an empty read distinctly from loading", async () => {
     vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-      referencesResponse([]) as never
+      referencesResponse([]) as never,
     );
     mockFeatureMetadata([]);
 
     renderTree();
 
     expect(await screen.findByTestId("feature-tree-empty")).toHaveTextContent(
-      "No features to visualize"
+      "No features to visualize",
     );
     expect(
-      screen.queryByTestId("feature-tree-loading-state")
+      screen.queryByTestId("feature-tree-loading-state"),
     ).not.toBeInTheDocument();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

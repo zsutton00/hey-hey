@@ -14,6 +14,9 @@ import {
   AgentEdgeType,
   WorkItemGraphParticipationType,
   type AgentEdgeResponseDto,
+  type PaginatedWorkItemReferenceResponseDto,
+  type TaskHierarchyResponseDto,
+  type WorkItemReferenceDto,
   type TaskResponseDto,
   type TrackedEntitySnapshot,
   type WorkItemGraphDerivedReference,
@@ -24,6 +27,12 @@ import { TaskService } from '../../services/tasks/task.service';
 import type { InitiativeId, TaskId } from '../../types';
 import { normalizeEdgeTypeFilter } from '../../utils/edge-type-filter.util';
 import { normalizeStatusFilter } from '../../utils/work-item.util';
+import {
+  normalizeReferenceSortField,
+  normalizeReferenceSortOrder,
+  normalizeReferenceStatuses,
+  parseReferencePaginationValue,
+} from '../../utils/work-item-reference-query.util';
 import type { GraphQLRequestContext } from '../graphql-request-context';
 import { selectedFieldNames } from '../selected-fields';
 import { UseRestErrorCodes } from '../use-rest-error-codes.decorator';
@@ -40,12 +49,16 @@ import {
   WorkItemEdgeNode,
   WorkItemGraphNode,
   WorkItemGraphReferenceNode,
+  WorkItemHierarchyNode,
   WorkItemNode,
+  WorkItemReferenceNode,
+  WorkItemReferencePageNode,
   WorkItemSectionNode,
   WorkItemSortInput,
 } from './work-item.types';
 
 const MAX_ID_FILTER = 200;
+const MAX_REFERENCE_PAGE = 500;
 const PARTICIPATION_TYPES = new Set<string>(
   Object.values(WorkItemGraphParticipationType),
 );
@@ -117,6 +130,7 @@ export function toEdgeNode(edge: AgentEdgeResponseDto): WorkItemEdgeNode {
       entityType: edge.targetEntityType ?? null,
       name: edge.targetNodeName ?? null,
     },
+    targetNodeType: edge.targetNodeType ?? null,
     category: edge.category ?? null,
     direction: edge.direction ?? null,
     predicate: edge.predicate ?? null,
@@ -152,6 +166,7 @@ function toGraphReferenceNode(
     entityType: reference.entityType,
     name: reference.displayName,
     expansionKey: reference.expansionKey,
+    projectionKind: reference.projectionKind,
     workItemTypeKey: reference.workItemTypeKey ?? null,
     viaEntityIds: reference.viaEntityIds,
   };
@@ -198,6 +213,120 @@ export class WorkItemResolver {
     loaders.remember([task], { sectionKeys: 'all' });
 
     return task;
+  }
+
+  /**
+   * Same read as GET work-items/:taskId/hierarchy. The task, its parent and
+   * its children are WorkItem records, so every view of them shares one copy.
+   */
+  @Query(() => WorkItemHierarchyNode)
+  async workItemHierarchy(
+    @Args('id', { type: () => ID }) id: string,
+    @Context() context: GraphQLRequestContext,
+    @Args('includeDesignDocCounts', { nullable: true })
+    includeDesignDocCounts?: boolean,
+    @Args('includeAgentSessionCounts', { nullable: true })
+    includeAgentSessionCounts?: boolean,
+  ): Promise<TaskHierarchyResponseDto> {
+    const loaders = workItemLoaders(context, this.taskService);
+    const { organizationId, projectId } = loaders.scope;
+    if (!isUUID(id)) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const hierarchy = await this.taskService.findHierarchyByOrganization(
+      organizationId,
+      id as TaskId,
+      includeDesignDocCounts === true,
+      includeAgentSessionCounts === true,
+      false,
+    );
+    // REST checks the path id against the project in its guard; GraphQL
+    // receives the id as an argument, so the project is checked here.
+    if (hierarchy.task.projectId !== projectId) {
+      throw new NotFoundException('Task not found');
+    }
+
+    loaders.remember(
+      [
+        hierarchy.task,
+        ...(hierarchy.parent ? [hierarchy.parent] : []),
+        ...hierarchy.children,
+      ],
+      {
+        designDocCounts: includeDesignDocCounts === true,
+        agentSessionCounts: includeAgentSessionCounts === true,
+      },
+    );
+
+    return hierarchy;
+  }
+
+  /** Same read as GET work-items/references: one deterministic page. */
+  @Query(() => WorkItemReferencePageNode)
+  async workItemReferences(
+    @Context() context: GraphQLRequestContext,
+    @Args('type') type: string,
+    @Args('page', { type: () => Int }) page: number,
+    @Args('limit', { type: () => Int }) limit: number,
+    @Args('filter', { nullable: true }) filter?: string,
+    @Args('statuses', { type: () => [String], nullable: true })
+    statuses?: string[],
+    @Args('sortBy', { nullable: true }) sortBy?: string,
+    @Args('sortOrder', { nullable: true }) sortOrder?: string,
+  ): Promise<PaginatedWorkItemReferenceResponseDto> {
+    const { organizationId, projectId } = workItemLoaders(
+      context,
+      this.taskService,
+    ).scope;
+    if (type.trim().length === 0) {
+      throw new BadRequestException('type is required');
+    }
+
+    return this.taskService.findReferences(
+      organizationId,
+      projectId,
+      type.trim(),
+      parseReferencePaginationValue(page, 'page', 1),
+      parseReferencePaginationValue(limit, 'limit', 1, 500),
+      filter?.trim() || undefined,
+      normalizeReferenceStatuses(statuses),
+      normalizeReferenceSortField(sortBy),
+      normalizeReferenceSortOrder(sortOrder),
+    );
+  }
+
+  /**
+   * Every reference of one type, in name order: the pages of GET
+   * work-items/references read until the last one.
+   */
+  @Query(() => [WorkItemReferenceNode])
+  async allWorkItemReferences(
+    @Context() context: GraphQLRequestContext,
+    @Args('type') type: string,
+  ): Promise<WorkItemReferenceDto[]> {
+    const { organizationId, projectId } = workItemLoaders(
+      context,
+      this.taskService,
+    ).scope;
+    if (type.trim().length === 0) {
+      throw new BadRequestException('type is required');
+    }
+
+    const references: WorkItemReferenceDto[] = [];
+    for (let page = 1; ; page += 1) {
+      const result = await this.taskService.findReferences(
+        organizationId,
+        projectId,
+        type.trim(),
+        page,
+        MAX_REFERENCE_PAGE,
+      );
+      references.push(...result.items);
+      if (!result.pagination.hasNext) {
+        return references;
+      }
+    }
   }
 
   /**

@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import type { TriageApplicationPorts } from "../triage/application";
 import { triageReopenRequest } from "../triage/reopen";
 import type { OpenItemsAdapter } from "../openItemsAdapter";
 import { useAttachToGoal } from "./useAttachToGoal";
 import { useWorkItems } from "./useWorkItems";
-import { workItemKeys } from "../collections/workItemLists";
+import { refreshWorkItemLists } from "../graphql/workItemCache";
 import { Priority, WorkStatus } from "../../api";
 
 export function useTriageApplicationPorts(
@@ -13,7 +13,7 @@ export function useTriageApplicationPorts(
   promote: TriageApplicationPorts["promote"],
 ): TriageApplicationPorts {
   const { organizationId, projectId } = adapter.scope;
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const { attach } = useAttachToGoal({ organizationId, projectId });
   const { createTask } = useWorkItems(organizationId, "task", projectId);
   return useMemo(
@@ -58,6 +58,7 @@ export function useTriageApplicationPorts(
       },
       reopen: async (item, key) => {
         const request = await triageReopenRequest(
+          graphqlClient,
           { organizationId, projectId },
           item,
           key,
@@ -112,8 +113,9 @@ export function useTriageApplicationPorts(
       },
       promote,
       revalidateGoals: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: workItemKeys.project(organizationId, projectId),
+        await refreshWorkItemLists(graphqlClient, {
+          organizationId,
+          projectId,
         });
       },
     }),
@@ -124,7 +126,7 @@ export function useTriageApplicationPorts(
       attach,
       createTask,
       promote,
-      queryClient,
+      graphqlClient,
     ],
   );
 }

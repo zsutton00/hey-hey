@@ -2,6 +2,7 @@ import {
   ApolloClient,
   ApolloLink,
   InMemoryCache,
+  type FieldPolicy,
   type TypePolicies,
 } from "@apollo/client";
 import { ErrorLink } from "@apollo/client/link/error";
@@ -30,10 +31,39 @@ export class GraphQLRequestError extends Error {
 
 const NORMALIZED_TYPES = ["WorkItem", "Conversation", "Message"] as const;
 
+/**
+ * A read of the server replaces what the cache held for these fields: a
+ * refetched list, hierarchy or part of a work item is the server's current
+ * answer, so members it no longer returns are gone.
+ */
+const replacedByRead: FieldPolicy = {
+  merge: (_existing, incoming) => incoming,
+};
+
 const typePolicies: TypePolicies = {
   ...Object.fromEntries(
     NORMALIZED_TYPES.map((typename) => [typename, { keyFields: ["id"] }]),
   ),
+  Query: {
+    fields: {
+      workItems: replacedByRead,
+      workItemHierarchy: replacedByRead,
+      allWorkItemReferences: replacedByRead,
+      workItemReferences: replacedByRead,
+    },
+  },
+  WorkItem: {
+    keyFields: ["id"],
+    fields: {
+      sections: replacedByRead,
+      edges: replacedByRead,
+      serviceRelations: replacedByRead,
+      trackedEntities: replacedByRead,
+      trackedWorkSummary: replacedByRead,
+      childCounts: replacedByRead,
+      graph: replacedByRead,
+    },
+  },
   Conversation: {
     keyFields: ["id"],
     fields: { messages: conversationMessagesFieldPolicy },

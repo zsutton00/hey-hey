@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "jotai";
@@ -60,7 +63,7 @@ const rect = (left: number, width: number): DOMRect =>
     x: left,
     y: 0,
     toJSON: () => ({}),
-  } as DOMRect);
+  }) as DOMRect;
 
 interface RenderTreeOptions {
   orientation?: "left-to-right" | "top-down";
@@ -96,7 +99,7 @@ describe("FeatureTreeVisualization focus navigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-      referencesResponse(features) as never
+      referencesResponse(features) as never,
     );
     vi.mocked(unifiedApiClient.getTasks).mockResolvedValue({
       data: { data: features },
@@ -118,7 +121,7 @@ describe("FeatureTreeVisualization focus navigation", () => {
         if (this.querySelector('a[href="/features/B"]')) return rect(410, 220);
         if (this.querySelector('a[href="/features/C"]')) return rect(700, 220);
         return rect(0, 0);
-      }
+      },
     );
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
       function (this: HTMLElement) {
@@ -198,17 +201,26 @@ describe("FeatureTreeVisualization focus navigation", () => {
 
   it("waits until the instance owns focus navigation", async () => {
     const rendered = render(
-      tree({ activeFeatureId: "C", focusNavigationEnabled: false })
+      tree({ activeFeatureId: "C", focusNavigationEnabled: false }),
     );
     const viewport = await screen.findByTestId("feature-tree-scroll-viewport");
     expect(viewport.scrollLeft).toBe(0);
 
     await act(async () => {
       rendered.rerender(
-        tree({ activeFeatureId: "C", focusNavigationEnabled: true })
+        tree({ activeFeatureId: "C", focusNavigationEnabled: true }),
       );
     });
 
     await waitFor(() => expect(viewport.scrollLeft).toBe(510));
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

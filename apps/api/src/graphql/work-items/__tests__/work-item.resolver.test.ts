@@ -50,6 +50,8 @@ describe('WorkItemResolver', () => {
     findAll: jest.fn(),
     findAllByOrganizationForAdapter: jest.fn(),
     getGraphAggregates: jest.fn(),
+    findHierarchyByOrganization: jest.fn(),
+    findReferences: jest.fn(),
   };
 
   const query = async (body: string) => {
@@ -436,5 +438,191 @@ describe('WorkItemResolver', () => {
 
     expect(body.errors[0].extensions.code).toBe('NOT_FOUND');
     expect(body.errors[0].path).toEqual(['workItem', 'graph']);
+  });
+
+  describe('hierarchy', () => {
+    it('serves the same hierarchy REST returns, as WorkItem records', async () => {
+      taskService.findHierarchyByOrganization.mockResolvedValue({
+        task: workItem({ designDocCount: 2 }),
+        parent: workItem({ id: PARENT, name: 'Parent' }),
+        children: [workItem({ id: SECOND, name: 'Child' })],
+      });
+
+      const body = await query(
+        `{ workItemHierarchy(id: "${ITEM}", includeDesignDocCounts: true) { task { id designDocCount } parent { id name } children { id name type } } }`,
+      );
+
+      expect(body.data.workItemHierarchy).toEqual({
+        task: { id: ITEM, designDocCount: 2 },
+        parent: { id: PARENT, name: 'Parent' },
+        children: [{ id: SECOND, name: 'Child', type: 'competitor' }],
+      });
+      expect(taskService.findHierarchyByOrganization).toHaveBeenCalledWith(
+        ORG,
+        ITEM,
+        true,
+        false,
+        false,
+      );
+      // The counts came with the hierarchy read; no second read is made.
+      expect(
+        taskService.findAllByOrganizationForAdapter,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('answers a top-level task with no parent', async () => {
+      taskService.findHierarchyByOrganization.mockResolvedValue({
+        task: workItem({ parentTaskId: undefined }),
+        children: [],
+      });
+
+      const body = await query(
+        `{ workItemHierarchy(id: "${ITEM}") { parent { id } children { id } } }`,
+      );
+
+      expect(body.data.workItemHierarchy).toEqual({
+        parent: null,
+        children: [],
+      });
+    });
+
+    it('never returns a hierarchy from another project', async () => {
+      taskService.findHierarchyByOrganization.mockResolvedValue({
+        task: workItem({ projectId: OTHER_PROJECT }),
+        children: [],
+      });
+
+      const body = await query(
+        `{ workItemHierarchy(id: "${ITEM}") { task { id } } }`,
+      );
+
+      expect(body.data).toBeNull();
+      expect(body.errors[0].message).toBe('Task not found');
+    });
+
+    it('reports the REST not-found code for a missing task', async () => {
+      taskService.findHierarchyByOrganization.mockRejectedValue(
+        new NotFoundException('Task with ID x not found.'),
+      );
+
+      const body = await query(
+        `{ workItemHierarchy(id: "${ITEM}") { task { id } } }`,
+      );
+
+      expect(body.errors[0].message).toBe('Task with ID x not found.');
+    });
+  });
+
+  describe('references', () => {
+    const page = {
+      items: [
+        {
+          id: ITEM,
+          name: 'Competitor',
+          type: 'competitor',
+          parentTaskId: null,
+        },
+      ],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrevious: false,
+      },
+    };
+
+    it('serves the page REST returns for the same input', async () => {
+      taskService.findReferences.mockResolvedValue(page);
+
+      const body = await query(
+        `{ workItemReferences(type: " competitor ", page: 1, limit: 20, filter: " comp ", statuses: ["ACTIVE", "ACTIVE"], sortBy: "createdAt", sortOrder: "desc") { items { id name type parentTaskId } pagination { page limit total totalPages hasNext hasPrevious } } }`,
+      );
+
+      expect(body.data.workItemReferences).toEqual(page);
+      expect(taskService.findReferences).toHaveBeenCalledWith(
+        ORG,
+        PROJECT,
+        'competitor',
+        1,
+        20,
+        'comp',
+        ['ACTIVE'],
+        'createdAt',
+        'desc',
+      );
+    });
+
+    it('lists every reference of a type by reading the pages REST serves', async () => {
+      taskService.findReferences
+        .mockResolvedValueOnce({
+          items: [page.items[0]],
+          pagination: { ...page.pagination, total: 2, hasNext: true },
+        })
+        .mockResolvedValueOnce({
+          items: [{ ...page.items[0], id: SECOND }],
+          pagination: { ...page.pagination, page: 2, total: 2 },
+        });
+
+      const body = await query(
+        `{ allWorkItemReferences(type: "competitor") { id } }`,
+      );
+
+      expect(body.data.allWorkItemReferences).toEqual([
+        { id: ITEM },
+        { id: SECOND },
+      ]);
+      expect(taskService.findReferences).toHaveBeenNthCalledWith(
+        2,
+        ORG,
+        PROJECT,
+        'competitor',
+        2,
+        500,
+      );
+    });
+
+    it('defaults sort to name ascending', async () => {
+      taskService.findReferences.mockResolvedValue(page);
+
+      await query(
+        `{ workItemReferences(type: "competitor", page: 1, limit: 20) { items { id } } }`,
+      );
+
+      expect(taskService.findReferences).toHaveBeenCalledWith(
+        ORG,
+        PROJECT,
+        'competitor',
+        1,
+        20,
+        undefined,
+        undefined,
+        'name',
+        'asc',
+      );
+    });
+
+    it.each([
+      ['a limit above 500', 'type: "competitor", page: 1, limit: 501'],
+      ['a page below 1', 'type: "competitor", page: 0, limit: 20'],
+      [
+        'an unknown status',
+        'type: "competitor", page: 1, limit: 20, statuses: ["NOPE"]',
+      ],
+      [
+        'an unknown sort field',
+        'type: "competitor", page: 1, limit: 20, sortBy: "x"',
+      ],
+      ['a blank type', 'type: "  ", page: 1, limit: 20'],
+    ])('rejects %s as REST does', async (_name, args) => {
+      const body = await query(
+        `{ workItemReferences(${args}) { items { id } } }`,
+      );
+
+      expect(body.errors).toHaveLength(1);
+      expect(body.data).toBeNull();
+      expect(taskService.findReferences).not.toHaveBeenCalled();
+    });
   });
 });

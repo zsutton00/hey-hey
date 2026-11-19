@@ -462,6 +462,7 @@ describe("initiative invalidation", () => {
           invalidateQueries: (filters) => {
             void client.invalidateQueries(filters);
           },
+          workItemRefresh: { lists: vi.fn(), item: vi.fn() },
         });
         act(() =>
           invalidate({

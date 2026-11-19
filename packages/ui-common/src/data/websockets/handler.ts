@@ -53,7 +53,11 @@ import {
   refreshMessageReplies,
   refreshShownConversationReads,
 } from "../graphql/conversationCache";
-import { getGraphQLClients, getProjectGraphQLClient } from "../graphql/client";
+import {
+  getGraphQLClients,
+  getProjectGraphQLClient,
+  type GraphQLProjectScope,
+} from "../graphql/client";
 import {
   agentSessionKeys,
   invalidateAgentSessionDetail,
@@ -70,11 +74,14 @@ import {
   initiativeKeys,
 } from "../collections/initiatives";
 import { createServiceInvalidator } from "../collections/services";
+import { createWorkItemInvalidator } from "../collections/workItemLists";
+import { graphqlWorkItemRefresh } from "../hooks/relationshipMutationInvalidation";
 import {
-  createWorkItemInvalidator,
-  invalidateWorkItemHolders,
-  removeWorkItem,
-} from "../collections/workItemLists";
+  evictWorkItem,
+  refreshShownWorkItemReads,
+  refreshWorkItem,
+  refreshWorkItemLists,
+} from "../graphql/workItemCache";
 import { isProposalGroupLifecycleEventForScope } from "../collections/proposalGroups";
 import { proposalKeys, type ProposalListData } from "../collections/proposals";
 import {
@@ -313,22 +320,29 @@ export class WebSocketHandler {
   };
 
   /**
-   * Entries holding one work item (its single-item reads, and the lists and
-   * hierarchies containing it), for changes to the item's own data.
+   * Active reads of one work item, and the lists, hierarchies and reference
+   * lists that may now hold it, for changes to the item's own data.
    */
   private invalidateWorkItem = (
-    organizationId: string,
+    _organizationId: string,
     taskId: string,
   ): void => {
-    void invalidateWorkItemHolders(this.queryClient, organizationId, taskId);
+    void refreshWorkItem(this.graphqlClient, taskId);
   };
 
-  private invalidateProjectWorkItemQueries(
+  /**
+   * A work item changed. The GraphQL cache refreshes the reads that show it
+   * (`refresh`), and the TanStack datasets that depend on it are invalidated:
+   * proposals and feature content.
+   */
+  private refreshWorkItemReads(
     organizationId: string,
     projectId: string | undefined,
     eventType: string,
     taskId: string,
+    refresh: (scope: GraphQLProjectScope | undefined) => Promise<void>,
   ): void {
+    void refresh(projectId ? { organizationId, projectId } : undefined);
     void invalidateProjectWorkItemQueries(
       this.queryClient,
       organizationId,
@@ -336,18 +350,14 @@ export class WebSocketHandler {
       taskId || undefined,
     );
 
-    this.debugger.logQueryInvalidation(
-      "workItemReferences",
-      `${eventType}:${taskId}`,
-      {
-        eventType,
-        reason:
-          "Work-item lifecycle change, invalidating references, feature content and lists",
-        organizationId,
-        projectId,
-        taskId,
-      },
-    );
+    this.debugger.logQueryInvalidation("workItems", `${eventType}:${taskId}`, {
+      eventType,
+      reason:
+        "Work-item lifecycle change, refreshing shown work-item reads, feature content and proposals",
+      organizationId,
+      projectId,
+      taskId,
+    });
   }
 
   /**
@@ -418,11 +428,11 @@ export class WebSocketHandler {
           ? { projectId, initiativeId: sourceEntity.id }
           : undefined,
       ),
-      // Task events already ran invalidateProjectWorkItemQueries.
+      // Task events already refreshed the work-item lists.
       Task: createWorkItemInvalidator(
         orgId,
         projectId,
-        this.invalidateQueryFilters,
+        graphqlWorkItemRefresh(this.graphqlClient),
         { listsInvalidated: entityType === "Task" },
       ),
       DesignDoc: createDesignDocInvalidator(
@@ -730,11 +740,12 @@ export class WebSocketHandler {
       taskId: event.taskId,
     });
 
-    this.invalidateProjectWorkItemQueries(
+    this.refreshWorkItemReads(
       event.organizationId,
       event.projectId,
       event.type,
       event.taskId,
+      (scope) => refreshWorkItemLists(this.graphqlClient, scope),
     );
 
     this.debugger.logQueryInvalidation("workItems", "new-item", {
@@ -769,11 +780,12 @@ export class WebSocketHandler {
       changedBy: event.changedBy?.userId,
     });
 
-    this.invalidateProjectWorkItemQueries(
+    this.refreshWorkItemReads(
       event.organizationId,
       event.projectId,
       event.type,
       event.taskId,
+      (scope) => refreshWorkItem(this.graphqlClient, event.taskId, scope),
     );
 
     // Skip updates from current user to avoid unnecessary UI refreshes
@@ -819,21 +831,13 @@ export class WebSocketHandler {
       taskId: event.taskId,
     });
 
-    // Drop the item before invalidating so no read of it is restarted.
-    if (event.projectId) {
-      removeWorkItem(
-        this.queryClient,
-        event.organizationId,
-        event.projectId,
-        event.taskId,
-      );
-    }
-
-    this.invalidateProjectWorkItemQueries(
+    // The item leaves every cached view before the lists read again.
+    this.refreshWorkItemReads(
       event.organizationId,
       event.projectId,
       event.type,
       event.taskId,
+      (scope) => evictWorkItem(this.graphqlClient, event.taskId, scope),
     );
 
     this.debugger.logQueryInvalidation("workItems", `deleted:${event.taskId}`, {
@@ -867,11 +871,12 @@ export class WebSocketHandler {
       },
     );
 
-    this.invalidateProjectWorkItemQueries(
+    this.refreshWorkItemReads(
       event.organizationId,
       event.projectId,
       event.type,
       event.taskId,
+      (scope) => refreshWorkItem(this.graphqlClient, event.taskId, scope),
     );
 
     this.debugger.logQueryInvalidation("workItems", `item:${event.taskId}`, {
@@ -1481,6 +1486,7 @@ export class WebSocketHandler {
   markAllStale() {
     void invalidateAllDataLayerQueries(this.queryClient);
     void refreshShownConversationReads(this.graphqlClient);
+    void refreshShownWorkItemReads(this.graphqlClient);
 
     this.debugger.logQueryInvalidation("all", "all-queries", {
       reason: "WebSocket reconnected or forced refresh",

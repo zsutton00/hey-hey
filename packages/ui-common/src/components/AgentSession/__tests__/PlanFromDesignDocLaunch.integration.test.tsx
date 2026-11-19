@@ -24,7 +24,6 @@ import {
   launchSession,
 } from "../../../test/planLaunchHarness";
 import { PlanFromDesignDocChat } from "../PlanFromDesignDocChat";
-import { fetchWorkItemReferencePage } from "../../../data/collections/workItemReferences";
 
 const Chat = () => (
   <PlanFromDesignDocChat
@@ -40,28 +39,12 @@ const Chat = () => (
 
 describe("plan launch to rendered conversation", () => {
   beforeEach(() => {
-    globalThis.mswServer.use(http.get("http://localhost:3847/api/local/repos", () =>
-      HttpResponse.json({ machineId: launchSession.machineId, bindings: [] }),
-    ));
-  });
-  it("serves the feature references read through the real API client", async () => {
-    const page = await fetchWorkItemReferencePage(
-      { ...launchScope, workItemType: "FEATURE" },
-      1
+    globalThis.mswServer.use(
+      http.get("http://localhost:3847/api/local/repos", () =>
+        HttpResponse.json({ machineId: launchSession.machineId, bindings: [] }),
+      ),
     );
-    expect(page).toEqual({
-      items: [],
-      pagination: {
-        page: 1,
-        limit: 500,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrevious: false,
-      },
-    });
   });
-
   it("does not revive handoff feedback when runtime activity finishes while the route is unmounted", async () => {
     const harness = createLaunchHarness();
     const tree = (visible: boolean) => (
@@ -71,15 +54,15 @@ describe("plan launch to rendered conversation", () => {
     );
     const view = render(tree(true));
     fireEvent.click(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     );
     await waitFor(() =>
-      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1)
+      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1),
     );
     view.rerender(tree(false));
     await act(async () => harness.finish("succeeded"));
     await waitFor(() =>
-      expect(harness.dependencies.reconcile).toHaveBeenCalled()
+      expect(harness.dependencies.reconcile).toHaveBeenCalled(),
     );
     act(() => {
       harness.runtime(AgentSessionCurrentState.Thinking, 2);
@@ -88,10 +71,10 @@ describe("plan launch to rendered conversation", () => {
     view.rerender(tree(true));
     await screen.findByTestId("empty-conversation-history");
     expect(
-      screen.queryByTestId("agent-launch-handoff")
+      screen.queryByTestId("agent-launch-handoff"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-session-current-state-indicator")
+      screen.queryByTestId("agent-session-current-state-indicator"),
     ).not.toBeInTheDocument();
     expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1);
   });
@@ -105,7 +88,7 @@ describe("plan launch to rendered conversation", () => {
       {
         workflowName: launchConversation.workflowName!,
         workflowAboutId: launchPlan.id,
-      }
+      },
     );
     queryClient.setQueryData(workflowKey, [launchConversation]);
     const saved = deferred<{ status: "applied"; plan: typeof launchPlan }>();
@@ -119,32 +102,32 @@ describe("plan launch to rendered conversation", () => {
     );
     const view = render(tree(true));
     fireEvent.click(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     );
     expect(
-      screen.getByTestId("plan-generation-launch-progress")
+      screen.getByTestId("plan-generation-launch-progress"),
     ).toHaveTextContent("Saving generation settings");
     view.rerender(tree(false));
     view.rerender(tree(true));
     expect(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     ).toBeDisabled();
     await act(async () =>
-      saved.resolve({ status: "applied", plan: launchPlan })
+      saved.resolve({ status: "applied", plan: launchPlan }),
     );
     await waitFor(() =>
-      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1)
+      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1),
     );
     expect(
-      screen.getByTestId("plan-generation-launch-progress")
+      screen.getByTestId("plan-generation-launch-progress"),
     ).toHaveTextContent("Waiting for CLI acceptance");
     expect(
-      screen.queryByTestId("agent-launch-handoff")
+      screen.queryByTestId("agent-launch-handoff"),
     ).not.toBeInTheDocument();
     view.rerender(tree(false));
     view.rerender(tree(true));
     expect(
-      screen.getByTestId("plan-generation-launch-progress")
+      screen.getByTestId("plan-generation-launch-progress"),
     ).toHaveTextContent("Waiting for CLI acceptance");
     await act(async () => harness.finish("succeeded"));
     const handoff = await screen.findByTestId("agent-launch-handoff");
@@ -153,31 +136,31 @@ describe("plan launch to rendered conversation", () => {
     expect(handoff).not.toHaveTextContent("CLI accepted the launch");
     expect(queryClient.getQueryState(workflowKey)?.isInvalidated).toBe(true);
     expect(
-      screen.getByTestId("empty-conversation-history")
+      screen.getByTestId("empty-conversation-history"),
     ).toBeInTheDocument();
     view.rerender(tree(false));
     view.rerender(tree(true));
     expect(screen.getByTestId("agent-launch-handoff")).toBeInTheDocument();
     await act(async () =>
-      harness.runtime(AgentSessionCurrentState.Thinking, 2)
+      harness.runtime(AgentSessionCurrentState.Thinking, 2),
     );
     // Query cache writes reach observers on the next tick.
     await waitFor(() =>
       expect(
-        screen.queryByTestId("agent-launch-handoff")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("agent-launch-handoff"),
+      ).not.toBeInTheDocument(),
     );
     expect(
-      screen.getByTestId("agent-session-current-state-indicator")
+      screen.getByTestId("agent-session-current-state-indicator"),
     ).toBeInTheDocument();
     await act(async () => harness.runtime(AgentSessionCurrentState.Idle, 3));
     view.rerender(tree(false));
     view.rerender(tree(true));
     expect(
-      screen.queryByTestId("agent-launch-handoff")
+      screen.queryByTestId("agent-launch-handoff"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-session-current-state-indicator")
+      screen.queryByTestId("agent-session-current-state-indicator"),
     ).not.toBeInTheDocument();
     expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1);
     expect(launchMocks.updateSession).toHaveBeenCalledTimes(1);
@@ -194,25 +177,25 @@ describe("plan launch to rendered conversation", () => {
       );
       const view = render(tree(true));
       fireEvent.click(
-        screen.getByTestId("plan-from-design-doc-start-generating")
+        screen.getByTestId("plan-from-design-doc-start-generating"),
       );
       await waitFor(() =>
-        expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1)
+        expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1),
       );
       view.rerender(tree(false));
       await act(async () => harness.finish(outcome));
       view.rerender(tree(true));
       await screen.findByText(
-        "Launch rejected. Check machine authorization and retry."
+        "Launch rejected. Check machine authorization and retry.",
       );
       expect(
-        screen.getByTestId("plan-from-design-doc-start-generating")
+        screen.getByTestId("plan-from-design-doc-start-generating"),
       ).toBeEnabled();
       expect(
-        screen.queryByTestId("agent-launch-handoff")
+        screen.queryByTestId("agent-launch-handoff"),
       ).not.toBeInTheDocument();
       expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1);
-    }
+    },
   );
 
   it("surfaces configuration failure and permits a successful retry", async () => {
@@ -226,18 +209,18 @@ describe("plan launch to rendered conversation", () => {
         <MemoryRouter>
           <Chat />
         </MemoryRouter>
-      </harness.Wrapper>
+      </harness.Wrapper>,
     );
     fireEvent.click(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     );
     await screen.findByText("Settings could not be saved. Retry.");
     expect(harness.dependencies.startSession).not.toHaveBeenCalled();
     fireEvent.click(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     );
     await waitFor(() =>
-      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1)
+      expect(harness.dependencies.startSession).toHaveBeenCalledTimes(1),
     );
     await act(async () => harness.finish("succeeded"));
     await screen.findByTestId("agent-launch-handoff");
@@ -254,7 +237,7 @@ describe("plan launch to rendered conversation", () => {
     );
     const view = render(tree);
     expect(
-      screen.getByTestId("plan-from-design-doc-start-generating")
+      screen.getByTestId("plan-from-design-doc-start-generating"),
     ).toBeInTheDocument();
     launchMocks.conversation.mockReturnValue({
       data: { ...launchConversation, status: ConversationStatus.InProgress },
@@ -278,13 +261,13 @@ describe("plan launch to rendered conversation", () => {
         <MemoryRouter>
           <Chat />
         </MemoryRouter>
-      </harness.Wrapper>
+      </harness.Wrapper>,
     );
     expect(
-      screen.queryByTestId("plan-from-design-doc-start-generating")
+      screen.queryByTestId("plan-from-design-doc-start-generating"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("agent-session-current-state-indicator")
+      screen.getByTestId("agent-session-current-state-indicator"),
     ).toBeInTheDocument();
     expect(harness.dependencies.startSession).not.toHaveBeenCalled();
   });

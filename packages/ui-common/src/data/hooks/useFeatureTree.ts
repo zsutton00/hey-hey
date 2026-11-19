@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { selectLocalFeatureNeighborhood } from "../../components/Features/localFeatureNeighborhood";
 import type { WorkItemResponseDto } from "../collections/workItems";
@@ -54,7 +54,7 @@ function buildTree(features: WorkItemResponseDto[]): FeatureTreeNode[] {
   }
 
   const roots = features.filter(
-    (f) => !f.parentTaskId || !featureMap.has(f.parentTaskId)
+    (f) => !f.parentTaskId || !featureMap.has(f.parentTaskId),
   );
 
   return roots.map(toTreeNode);
@@ -66,30 +66,30 @@ function buildTree(features: WorkItemResponseDto[]): FeatureTreeNode[] {
  * Features are sourced from the shared work-item collection (`useWorkItems`
  * filtered to `"FEATURE"`) rather than a one-shot fetch. This keeps the
  * tree in sync automatically: creating a feature anywhere — via the New Feature
- * modal, the create-subfeature action, etc. — goes through `useWorkItems`'s
- * `createTask`, which invalidates every work-item list query, so the tree
- * refetches and renders the new feature without a remount (preserving the
- * caller's expand/collapse state).
+ * modal, the create-subfeature action, etc. — is reported by the server's
+ * change event, which refreshes every shown work-item list, so the tree
+ * renders the new feature without a remount (preserving the caller's
+ * expand/collapse state).
  */
 export function useFeatureTree(
   organizationId: string,
   projectId: string,
   suppliedTree?: UseFeatureTreeReturn,
-  localNeighborhood?: LocalFeatureNeighborhoodContext
+  localNeighborhood?: LocalFeatureNeighborhoodContext,
 ): UseFeatureTreeReturn {
   const hierarchy = useFeatureHierarchy(
     organizationId,
-    localNeighborhood ? projectId : ""
+    localNeighborhood ? projectId : "",
   );
   const localSelection = useMemo(
     () =>
       localNeighborhood
         ? selectLocalFeatureNeighborhood(
             localNeighborhood.focusedFeatureId,
-            hierarchy.nodes
+            hierarchy.nodes,
           )
         : null,
-    [localNeighborhood?.focusedFeatureId, hierarchy.nodes]
+    [localNeighborhood?.focusedFeatureId, hierarchy.nodes],
   );
   const localFeatureIds = localSelection?.featureIds;
   const { workItems, isLoading, isFetched, isReady, error, updateTask } =
@@ -109,8 +109,31 @@ export function useFeatureTree(
     projectId,
     localFeatureIds ?? [],
     undefined,
-    "metadata"
+    "metadata",
   );
+  // A move is shown from the drop until the server's change event brings the
+  // new parent in; it is a view overlay, never a write to the shared records.
+  const [moves, setMoves] = useState(new Map<string, string | null>());
+  const dropMove = useCallback(
+    (featureId: string) =>
+      setMoves((previous) => {
+        if (!previous.has(featureId)) return previous;
+        const next = new Map(previous);
+        next.delete(featureId);
+        return next;
+      }),
+    [],
+  );
+  useEffect(() => {
+    setMoves((previous) => {
+      const next = new Map(previous);
+      for (const [id, parent] of previous) {
+        const item = workItems.find((candidate) => candidate.id === id);
+        if (!item || (item.parentTaskId ?? null) === parent) next.delete(id);
+      }
+      return next.size === previous.size ? previous : next;
+    });
+  }, [workItems]);
   const allFeatures = useMemo(
     () =>
       localFeatureIds
@@ -127,8 +150,12 @@ export function useFeatureTree(
                 ]
               : [];
           })
-        : workItems,
-    [localFeatureIds, entries, hierarchy.nodes, workItems]
+        : workItems.map((item) =>
+            moves.has(item.id)
+              ? { ...item, parentTaskId: moves.get(item.id) ?? undefined }
+              : item,
+          ),
+    [localFeatureIds, entries, hierarchy.nodes, workItems, moves],
   );
   const [errorMap, setErrorMap] = useState<Map<string, string>>(new Map());
 
@@ -189,10 +216,16 @@ export function useFeatureTree(
         return next;
       });
 
+      setMoves((previous) => new Map(previous).set(featureId, newParentId));
       try {
-        // updateTask owns the optimistic move + rollback on the shared store.
-        await updateTask(featureId, { parentTaskId: newParentId });
+        await updateTask(
+          featureId,
+          { parentTaskId: newParentId },
+          // A staged change leaves the feature where it was.
+          { onPendingProposal: () => dropMove(featureId) },
+        );
       } catch (err) {
+        dropMove(featureId);
         const message =
           err instanceof Error ? err.message : "Failed to move feature";
         setErrorMap((prev) => {
@@ -203,7 +236,7 @@ export function useFeatureTree(
         throw err;
       }
     },
-    [allFeatures, descendantsMap, updateTask]
+    [allFeatures, descendantsMap, updateTask, dropMove],
   );
 
   const localFailure = localFeatureIds

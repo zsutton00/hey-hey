@@ -67,6 +67,12 @@ export class WorkItemSectionNode {
 
   @Field()
   materializedMarkdown!: string;
+
+  @Field(() => ID)
+  materializedProposalId!: string;
+
+  @Field(() => Int, { nullable: true })
+  crdtSnapshotSeq?: number | null;
 }
 
 @ObjectType('WorkItemChildCounts')
@@ -91,6 +97,9 @@ export class ServiceRelationNode {
 
   @Field(() => ID)
   serviceId!: string;
+
+  @Field(() => ID)
+  taskId!: string;
 
   @Field({ nullable: true })
   relationType?: string;
@@ -130,6 +139,10 @@ export class WorkItemEdgeNode {
 
   @Field(() => EntityRefNode)
   target!: EntityRefNode;
+
+  /** Work-item type key of the target when it is a work item. */
+  @Field(() => String, { nullable: true })
+  targetNodeType?: string | null;
 
   @Field(() => String, { nullable: true })
   category?: string | null;
@@ -257,6 +270,13 @@ export class WorkItemNode {
 
   @Field(() => WorkItemChildCountsNode, { nullable: true })
   childCounts?: WorkItemChildCountsNode;
+
+  @Field({ nullable: true })
+  hasProposalSupport?: boolean;
+
+  /** Launch configuration; its shape is owned by the REST contract. */
+  @Field(() => JSONScalar, { nullable: true })
+  config?: unknown;
 }
 
 /** A work item reached by a graph read expansion (REST WorkItemGraphDerivedReference). */
@@ -264,6 +284,9 @@ export class WorkItemNode {
 export class WorkItemGraphReferenceNode extends EntityRefNode {
   @Field()
   expansionKey!: string;
+
+  @Field()
+  projectionKind!: string;
 
   @Field(() => String, { nullable: true })
   workItemTypeKey?: string | null;
@@ -294,4 +317,64 @@ export class WorkItemGraphNode {
   /** Contract participation evidence, in the REST contract's shape. */
   @Field(() => JSONScalar)
   participation!: unknown;
+}
+
+/** A work item with its structural parent and direct children (REST TaskHierarchyResponseDto). */
+@ObjectType('WorkItemHierarchy')
+export class WorkItemHierarchyNode {
+  @Field(() => WorkItemNode)
+  task!: WorkItemNode;
+
+  @Field(() => WorkItemNode, { nullable: true })
+  parent?: WorkItemNode | null;
+
+  @Field(() => [WorkItemNode])
+  children!: WorkItemNode[];
+}
+
+/** One lightweight reference to a work item (REST WorkItemReferenceDto). */
+@ObjectType('WorkItemReference')
+export class WorkItemReferenceNode {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  name!: string;
+
+  @Field()
+  type!: string;
+
+  @Field(() => String, { nullable: true })
+  parentTaskId!: string | null;
+}
+
+@ObjectType('WorkItemReferencePagination')
+export class WorkItemReferencePaginationNode {
+  @Field(() => Int)
+  page!: number;
+
+  @Field(() => Int)
+  limit!: number;
+
+  @Field(() => Int)
+  total!: number;
+
+  @Field(() => Int)
+  totalPages!: number;
+
+  @Field()
+  hasNext!: boolean;
+
+  @Field()
+  hasPrevious!: boolean;
+}
+
+/** Same page as the REST GET work-items/references. */
+@ObjectType('WorkItemReferencePage')
+export class WorkItemReferencePageNode {
+  @Field(() => [WorkItemReferenceNode])
+  items!: WorkItemReferenceNode[];
+
+  @Field(() => WorkItemReferencePaginationNode)
+  pagination!: WorkItemReferencePaginationNode;
 }

@@ -6,7 +6,28 @@ import {
 } from "../clients/serviceClients";
 import { MessageReadMode } from "../api";
 import { fetchEntityStars } from "../data/collections/entityStars";
-import { fetchAllWorkItemReferences } from "../data/collections/workItemReferences";
+import axios from "axios";
+import { workItemReferencesRead } from "../data/collections/workItemReferences";
+import { WebUiGraphQLClient } from "../data/graphql/client";
+
+/** The work-item references the shared fixture network serves for a project. */
+const fetchAllWorkItemReferences = async (scope: {
+  organizationId: string;
+  projectId: string;
+  workItemType: string;
+}) => {
+  const graphql = new WebUiGraphQLClient(() =>
+    axios.create({ baseURL: "http://localhost:3000/api/v1" }),
+  );
+  const read = workItemReferencesRead(scope);
+  const { data } = await graphql.forProject(scope).query({
+    query: read.document,
+    variables: read.variables,
+    context: scope,
+  });
+
+  return read.select(data!);
+};
 
 describe("shared fixture background reads", () => {
   it("serves empty message history and disconnected CLI presence after handlers reset", async () => {
@@ -40,7 +61,7 @@ describe("shared fixture background reads", () => {
         organizationId: "another-organization",
         projectId: "another-project",
         workItemType: "FEATURE",
-      })
+      }),
     ).resolves.toEqual([]);
     const response = await projectsClient.getQueuedConversationInputs({
       organizationId: "another-organization",
@@ -57,7 +78,7 @@ describe("shared fixture background reads", () => {
         organizationId: "org-1",
         projectId: "proj-1",
         workItemType: "FEATURE",
-      })
+      }),
     ).resolves.toEqual([]);
   });
 
@@ -83,6 +104,6 @@ describe("shared fixture background reads", () => {
       });
       expect(response.data.success).toBe(true);
       expect(response.data.data).toEqual([]);
-    }
+    },
   );
 });
