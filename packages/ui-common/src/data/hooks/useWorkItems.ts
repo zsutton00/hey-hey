@@ -169,7 +169,8 @@ export function useWorkItems(
 
   const isEnabled = enabledOption !== false && !!organizationId;
   // Array params are joined so the memoised options follow their contents.
-  const statusKey = status === undefined ? "" : [status].flat().join(",");
+  // Status names may contain commas, so their key is JSON rather than a join.
+  const statusKey = status === undefined ? "" : JSON.stringify([status].flat());
   const sectionKey = normalizedSectionKeys?.join(",") ?? "";
   const edgeTypesKey = edgeTypes?.join(",") ?? "";
   const parentTaskIdsKey = parentTaskIds?.join(",") ?? "";
@@ -182,7 +183,9 @@ export function useWorkItems(
       initiativeId,
       parentTaskId,
       parentTaskIds: split(parentTaskIdsKey),
-      status: split<TaskResponseDto["status"]>(statusKey),
+      status: statusKey
+        ? (JSON.parse(statusKey) as TaskResponseDto["status"][])
+        : undefined,
       taskIds: split(taskIdsKey),
       includeSectionKeys: split(sectionKey),
       includeServiceRelations,

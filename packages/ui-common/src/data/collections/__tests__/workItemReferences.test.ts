@@ -65,7 +65,10 @@ describe("work-item reference queries", () => {
 
   it("isolates organization, project, and work-item type under the project prefix", () => {
     const featureKey = workItemReferenceKeys.list(scope);
-    const goalKey = workItemReferenceKeys.list({ ...scope, workItemType: "GOAL" });
+    const goalKey = workItemReferenceKeys.list({
+      ...scope,
+      workItemType: "GOAL",
+    });
     const otherProjectKey = workItemReferenceKeys.list({
       ...scope,
       projectId: "project-2",
@@ -123,7 +126,7 @@ describe("work-item reference queries", () => {
         page: 2,
         limit: 20,
         filter: "promise",
-        statuses: "ACTIVE,COMPLETED",
+        statuses: ["ACTIVE", "COMPLETED"],
         sortBy: "createdAt",
         sortOrder: "desc",
       },
@@ -166,12 +169,24 @@ describe("work-item reference queries", () => {
     ]);
     expect(listWorkItemReferencesMock).toHaveBeenNthCalledWith(
       1,
-      { organizationId: "org-1", projectId: "project-1", type: "FEATURE", page: 1, limit: 500 },
+      {
+        organizationId: "org-1",
+        projectId: "project-1",
+        type: "FEATURE",
+        page: 1,
+        limit: 500,
+      },
       {},
     );
     expect(listWorkItemReferencesMock).toHaveBeenNthCalledWith(
       2,
-      { organizationId: "org-1", projectId: "project-1", type: "FEATURE", page: 2, limit: 500 },
+      {
+        organizationId: "org-1",
+        projectId: "project-1",
+        type: "FEATURE",
+        page: 2,
+        limit: 500,
+      },
       {},
     );
   });
@@ -220,13 +235,17 @@ describe("work-item reference queries", () => {
     expect(() =>
       parseWorkItemReferencePage({
         ...validPage,
-        items: [{ name: "Missing identity", type: "FEATURE", parentTaskId: null }],
+        items: [
+          { name: "Missing identity", type: "FEATURE", parentTaskId: null },
+        ],
       }),
     ).toThrow("required identity, name, or pagination data");
     expect(() =>
       parseWorkItemReferencePage({
         ...validPage,
-        items: [{ id: "feature-1", name: "", type: "FEATURE", parentTaskId: null }],
+        items: [
+          { id: "feature-1", name: "", type: "FEATURE", parentTaskId: null },
+        ],
       }),
     ).toThrow("required identity, name, or pagination data");
     expect(() =>
@@ -235,5 +254,32 @@ describe("work-item reference queries", () => {
         pagination: { ...validPage.pagination, page: 0 },
       }),
     ).toThrow("required identity, name, or pagination data");
+  });
+});
+
+describe("work-item reference status filters", () => {
+  const base = {
+    organizationId: "org",
+    projectId: "project",
+    workItemType: "RECIPE",
+    page: 1,
+    limit: 20,
+  };
+
+  it("keeps names containing commas intact in cache identity and requests", async () => {
+    const joined = ["Ready, pending sign-off"];
+    const split = ["Ready", "pending sign-off"];
+
+    expect(
+      workItemReferenceKeys.page({ ...base, statuses: joined }),
+    ).not.toEqual(workItemReferenceKeys.page({ ...base, statuses: split }));
+
+    listWorkItemReferencesMock.mockResolvedValue(pageResponse(1, [], false, 0));
+    await fetchWorkItemReferencePageQuery({ ...base, statuses: joined });
+    await fetchWorkItemReferencePageQuery({ ...base, statuses: split });
+
+    expect(
+      listWorkItemReferencesMock.mock.calls.map(([q]) => q.statuses),
+    ).toEqual([joined, split]);
   });
 });

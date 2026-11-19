@@ -67,7 +67,7 @@ export const workItemReferenceKeys = {
         page: query.page,
         limit: query.limit,
         filter: query.filter?.trim() ?? "",
-        statuses: query.statuses?.join(",") ?? "",
+        statuses: [...(query.statuses ?? [])],
         sortBy: query.sortBy ?? DEFAULT_WORK_ITEM_REFERENCE_SORT.sortBy,
         sortOrder:
           query.sortOrder ?? DEFAULT_WORK_ITEM_REFERENCE_SORT.sortOrder,

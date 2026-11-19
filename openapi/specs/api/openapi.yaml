@@ -6322,8 +6322,8 @@ paths:
             items:
               $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
-          explode: false
-          description: Filter by task statuses (comma-separated)
+          explode: true
+          description: Filter by task statuses; each repeated value is one exact status name
         - name: includeDesignDocCounts
           in: query
           required: false
@@ -6627,8 +6627,8 @@ paths:
             items:
               $ref: "#/components/schemas/WorkItemStatus"
           style: form
-          explode: false
-          description: Optional status set applied before counting and pagination.
+          explode: true
+          description: Optional status set applied before counting and pagination. Each repeated value is one exact status name.
         - name: sortBy
           in: query
           required: false
@@ -20201,7 +20201,10 @@ paths:
                 }
         "403": { description: Source or target is not authorized }
         "409": { description: Stale revision }
-        "422": { description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`) }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/subagent-interactions:
     post:
@@ -20249,7 +20252,10 @@ paths:
                 }
         "403": { description: User does not own the source Agent Session }
         "409": { description: Stale revision }
-        "422": { description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`) }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-message-interactions:
     post:
@@ -20297,7 +20303,10 @@ paths:
         "400": { description: Invalid command or target mention }
         "403": { description: Source or target is not authorized }
         "409": { description: Conflicting interaction state }
-        "422": { description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`) }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /session-message-targets:
     get:

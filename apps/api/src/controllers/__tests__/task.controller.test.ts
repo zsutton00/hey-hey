@@ -926,7 +926,7 @@ describe('TaskController', () => {
       expect(result).toEqual(expectedTasks);
     });
 
-    it('should normalize comma-separated statuses for filtering', async () => {
+    it('should keep each repeated status exact, including names with commas', async () => {
       const expectedTasks = [TestUtils.createMockTaskResponseDto()];
       mockTaskService.findAllByOrganizationForAdapter.mockResolvedValue(
         expectedTasks,
@@ -942,7 +942,7 @@ describe('TaskController', () => {
         undefined,
         undefined,
         undefined,
-        `${WorkStatus.Active},${WorkStatus.Completed}`,
+        [WorkStatus.Active, 'Ready, pending sign-off'],
       );
 
       expect(
@@ -956,7 +956,7 @@ describe('TaskController', () => {
         includeTrackedWorkSummary: false,
         userToken: null,
         projectId: testIds.project,
-        statuses: [WorkStatus.Active, WorkStatus.Completed],
+        statuses: [WorkStatus.Active, 'Ready, pending sign-off'],
         sortBy: 'createdAt',
         sortDir: 'desc',
       });

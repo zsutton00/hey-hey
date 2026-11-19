@@ -292,7 +292,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Array<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<string>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses; each repeated value is one exact status name
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -361,7 +361,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             }
 
             if (status) {
-                localVarQueryParameter['status'] = status.join(COLLECTION_FORMATS.csv);
+                localVarQueryParameter['status'] = status;
             }
 
             if (includeDesignDocCounts !== undefined) {
@@ -953,7 +953,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination. Each repeated value is one exact status name.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
@@ -1005,7 +1005,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             }
 
             if (statuses) {
-                localVarQueryParameter['statuses'] = statuses.join(COLLECTION_FORMATS.csv);
+                localVarQueryParameter['statuses'] = statuses;
             }
 
             if (sortBy !== undefined) {
@@ -1311,7 +1311,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Array<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<string>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses; each repeated value is one exact status name
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -1498,7 +1498,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination. Each repeated value is one exact status name.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
@@ -2163,7 +2163,7 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGetReq
     readonly taskIds?: Array<string>
 
     /**
-     * Filter by task statuses (comma-separated)
+     * Filter by task statuses; each repeated value is one exact status name
      * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGet
      */
@@ -2702,7 +2702,7 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsRe
     readonly filter?: string
 
     /**
-     * Optional status set applied before counting and pagination.
+     * Optional status set applied before counting and pagination. Each repeated value is one exact status name.
      * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet
      */

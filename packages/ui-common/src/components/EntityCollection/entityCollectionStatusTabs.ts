@@ -3,7 +3,13 @@ import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import type { WorkItemTypeDefinitionDto } from "../../api";
 import { getWorkItemStatusLabel } from "../../utils/workItemStatusVocabulary";
 
-export const ALL_STATUSES_TAB_ID = "__all__";
+/**
+ * Tab ids are selection identities, not status names. Status tabs carry a
+ * prefix so no saved status name (even one spelled like this id) can select
+ * the unfiltered tab.
+ */
+export const ALL_STATUSES_TAB_ID = "all";
+export const statusTabId = (status: string) => `status:${status}`;
 
 export interface EntityCollectionStatusTab {
   id: string;
@@ -41,7 +47,7 @@ export const buildDefaultStatusTabs = (
     : statuses;
 
   const statusTabs = orderedStatuses.map((status) => ({
-    id: status,
+    id: statusTabId(status),
     label: getWorkItemStatusLabel(status, typeDefinition),
     statuses: [status],
   }));

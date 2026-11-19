@@ -256,7 +256,7 @@ export class TaskController {
     name: 'status',
     required: false,
     description:
-      'Filter by task statuses (comma-separated or repeated query params).',
+      'Filter by exact task statuses (repeated query params; names may contain commas).',
     isArray: true,
     enum: WorkStatus,
   })
@@ -1087,23 +1087,13 @@ export class TaskController {
   ): TaskResponseDto['status'][] | undefined {
     if (statuses === undefined) return undefined;
 
-    const values = (Array.isArray(statuses) ? statuses : [statuses])
-      .flatMap((value) => value.split(','))
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
+    // Each repeated query value is one exact status name; a name may contain commas.
+    const values = (Array.isArray(statuses) ? statuses : [statuses]).filter(
+      (value) => value.length > 0,
+    );
     if (values.length === 0) return undefined;
 
-    const statusByValue = new Map<string, TaskResponseDto['status']>(
-      Object.values(WorkStatus).map((status) => [status, status]),
-    );
-    const normalized = values.map((value) => statusByValue.get(value));
-    if (normalized.some((status) => status === undefined)) {
-      throw new BadRequestException(
-        `statuses must contain only WorkStatus values`,
-      );
-    }
-
-    return [...new Set(normalized.filter((status) => status !== undefined))];
+    return [...new Set(values)];
   }
 
   private normalizeReferenceSortField(sortBy?: string): ReferenceSortField {
@@ -1134,7 +1124,7 @@ export class TaskController {
     const statuses = Array.isArray(status)
       ? status
       : typeof status === 'string'
-        ? status.split(',').map((value) => value.trim())
+        ? [status]
         : undefined;
 
     const filteredStatuses = statuses?.filter(
