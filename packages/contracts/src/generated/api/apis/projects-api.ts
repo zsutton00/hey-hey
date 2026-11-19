@@ -35,6 +35,8 @@ import type { CancelAgentOperationInput200Response } from '../models.js';
 // @ts-ignore
 import type { CreateProject201Response } from '../models.js';
 // @ts-ignore
+import type { CreateProject403Response } from '../models.js';
+// @ts-ignore
 import type { CreateProjectDto } from '../models.js';
 // @ts-ignore
 import type { FindAllProjects200Response } from '../models.js';
@@ -64,8 +66,6 @@ import type { ProjectApprovalPolicyRevisionConflictResponse } from '../models.js
 import type { ProjectApprovalPolicyValidationErrorResponse } from '../models.js';
 // @ts-ignore
 import type { ProjectInputExecution200Response } from '../models.js';
-// @ts-ignore
-import type { ProjectLimitReachedDto } from '../models.js';
 // @ts-ignore
 import type { UpdateProjectDto } from '../models.js';
 /**

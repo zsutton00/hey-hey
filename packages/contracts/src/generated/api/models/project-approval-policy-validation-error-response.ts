@@ -30,7 +30,9 @@ import type { ProjectApprovalPolicyValidationIssue } from './project-approval-po
  * Invalid rule document or selector rejected without changing the current policy.
  * @export
  */
-export interface ProjectApprovalPolicyValidationErrorResponse extends ApiErrorResponse, ProjectApprovalPolicyValidationErrorResponseAllOf {}
+export interface ProjectApprovalPolicyValidationErrorResponse extends ApiErrorResponse, ProjectApprovalPolicyValidationErrorResponseAllOf {
+    'code': Exclude<ProjectApprovalPolicyValidationErrorResponseAllOf['code'], undefined>;
+}
 
 export namespace ProjectApprovalPolicyValidationErrorResponse {
     export const CodeEnum = ProjectApprovalPolicyValidationErrorResponseAllOfCodeEnum;

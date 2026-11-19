@@ -50,12 +50,13 @@ describe('OrganizationProjectEntitlementService', () => {
     expect(tx.organizationCapacityUsage.upsert).toHaveBeenCalled();
   });
 
-  it('locks the organization and returns the typed conflict at the limit', async () => {
+  it('locks the organization and returns the typed refusal at the limit', async () => {
     tx.project.count.mockResolvedValue(2);
 
     await expect(
       service.assertProjectCreationAllowed(tx, organizationId),
     ).rejects.toMatchObject({
+      status: 403,
       response: expect.objectContaining({ code: PROJECT_LIMIT_REACHED_CODE }),
     });
     expect(tx.$queryRaw).toHaveBeenCalled();

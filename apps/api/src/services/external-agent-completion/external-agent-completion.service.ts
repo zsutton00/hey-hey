@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
   UnprocessableEntityException,
@@ -290,7 +289,7 @@ export class ExternalAgentCompletionService {
 
   private bindingMismatch(binding: string): never {
     this.logger.warn('Rejected EXTERNAL_AGENT completion binding', { binding });
-    throw new ConflictException({
+    throw new UnprocessableEntityException({
       code: 'EXTERNAL_AGENT_COMPLETION_BINDING_MISMATCH',
       message: `EXTERNAL_AGENT completion does not match ${binding}.`,
     });

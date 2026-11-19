@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   AgentOperation,
@@ -203,6 +204,7 @@ export class SessionMonitorDecisionService {
         params.input.decisionId,
         begun.executionOwner,
         error instanceof ConflictException ||
+          error instanceof UnprocessableEntityException ||
           error instanceof MissingRecordException
           ? 'SESSION_MONITOR_BINDING_MISMATCH'
           : 'SESSION_MONITOR_DECISION_FAILED',
@@ -722,8 +724,8 @@ export class SessionMonitorDecisionService {
     }
   }
 
-  private bindingMismatch(binding: string): ConflictException {
-    return new ConflictException({
+  private bindingMismatch(binding: string): UnprocessableEntityException {
+    return new UnprocessableEntityException({
       code: 'SESSION_MONITOR_DECISION_BINDING_MISMATCH',
       message: `Session Monitor decision does not match ${binding}.`,
     });

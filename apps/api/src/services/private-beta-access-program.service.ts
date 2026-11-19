@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import type {
   PrivateBetaAccessProgramCloseResultDto,
   PrivateBetaSelfServiceAdmissionMode,
@@ -134,7 +134,10 @@ export class PrivateBetaAccessProgramService {
     const state = await this.lockState(tx, 'SHARE');
     if (state.closedAt !== null) {
       this.logger.debug('Private-beta operation rejected after closure');
-      throw new ConflictException('Private-beta access is closed');
+      throw new ForbiddenException({
+        code: 'PRIVATE_BETA_ACCESS_CLOSED',
+        message: 'Private-beta access is closed',
+      });
     }
   }
 

@@ -30,6 +30,7 @@ import type { OrganizationReactivationDeadlineLostResponseAllOfData } from './or
  * @export
  */
 export interface OrganizationReactivationDeadlineLostResponse extends ApiErrorResponse, OrganizationReactivationDeadlineLostResponseAllOf {
+    'code': Exclude<OrganizationReactivationDeadlineLostResponseAllOf['code'], undefined>;
     'data': Exclude<OrganizationReactivationDeadlineLostResponseAllOf['data'], undefined>;
 }
 

@@ -1,4 +1,8 @@
-import { ArgumentsHost, ConflictException } from '@nestjs/common';
+import { ArgumentsHost, ConflictException, Logger } from '@nestjs/common';
+import {
+  SERVER_STATE_CALLER_MESSAGE,
+  ServerStateException,
+} from '../../exceptions/server-state.exceptions';
 import { HttpExceptionFilter } from '../http-exception.filter';
 
 describe('HttpExceptionFilter', () => {
@@ -143,5 +147,47 @@ describe('HttpExceptionFilter', () => {
         path: '/api/v1/proposals/proposal-1',
       }),
     );
+  });
+});
+
+describe('HttpExceptionFilter server state faults', () => {
+  it('answers 500 with a generic message and logs the specific cause', () => {
+    const json = jest.fn();
+    const status = jest.fn().mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => ({ status }),
+        getRequest: () => ({
+          url: '/organizations/o/cancel',
+          method: 'POST',
+          header: () => undefined,
+        }),
+      }),
+    } as unknown as ArgumentsHost;
+    const filter = new HttpExceptionFilter();
+    const logError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    filter.catch(
+      new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Organization closure evidence is inconsistent',
+      ),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(500);
+    const body = json.mock.calls[0][0];
+    expect(body.code).toBe('ORGANIZATION_ACCOUNT_STATE_INCONSISTENT');
+    expect(body.message).toBe(SERVER_STATE_CALLER_MESSAGE);
+    expect(JSON.stringify(body)).not.toContain('closure evidence');
+    expect(logError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        diagnostic: 'Organization closure evidence is inconsistent',
+      }),
+    );
+    logError.mockRestore();
   });
 });

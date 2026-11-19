@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+
+import { ServerStateException } from '../../../common/exceptions/server-state.exceptions';
 import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 import {
   readWorkItemConfig,
@@ -54,7 +56,7 @@ describe('work-item config validation', () => {
         ...INITIAL_WORKTREE_CONFIG,
         initialWorktreeBranch: 42,
       }),
-    ).toThrow(ConflictException);
+    ).toThrow(ServerStateException);
   });
 
   it('requires explicit config-kind acceptance from the effective type policy', () => {

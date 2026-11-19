@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import type { PrivateBetaAccessRequestDecisionInputDto } from '@hey-hey/contracts/api/models';
 import type { PrismaService } from '../../prisma/prisma.service';
@@ -248,11 +252,11 @@ describe('PrivateBetaAccessDecisionService', () => {
   it('does not claim a pending approval after private-beta access closes', async () => {
     const harness = makeHarness();
     harness.assertOpenInTransaction.mockRejectedValueOnce(
-      new ConflictException('Private-beta access is closed'),
+      new ForbiddenException('Private-beta access is closed'),
     );
 
     await expect(decide(harness.service, 'APPROVE')).rejects.toBeInstanceOf(
-      ConflictException,
+      ForbiddenException,
     );
     expect(harness.transactionUpdate).not.toHaveBeenCalled();
     expect(harness.onboardApprovedRequest).not.toHaveBeenCalled();

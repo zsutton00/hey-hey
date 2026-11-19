@@ -28,6 +28,11 @@ Some commands are slow enough to dominate a task. Budget for them.
 - Don't re-declare a shape the spec already defines. Import the generated type.
 - Use `satisfies` to check literals against generated types. Do not use `as` to silence a type error. If the type is wrong, fix the spec or the type.
 
+## HTTP status
+
+- 409 only when a request conflicts with the current state or version of an existing resource, or duplicates one. Never use it as a catch-all.
+- Too soon or too many is 429 with `Retry-After`; missing is 404; bad input is 400 or 422; refused is 403; our own broken state is 500.
+
 ## Generation benchmarks
 
 - Compare isolated baseline and candidate checkouts whose complete generation inputs match the intended revisions. Record the OpenAPI closure and generator-input identities (specs, scripts, manifests, and tool versions); a matching OpenAPI digest alone does not make cached outputs comparable.

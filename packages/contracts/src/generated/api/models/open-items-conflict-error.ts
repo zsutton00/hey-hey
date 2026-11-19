@@ -52,14 +52,11 @@ export interface OpenItemsConflictError {
 export const OpenItemsConflictErrorCodeEnum = {
     CollectionAlreadyExists: 'COLLECTION_ALREADY_EXISTS',
     CollectionAbsent: 'COLLECTION_ABSENT',
-    IdempotencyKeyReused: 'IDEMPOTENCY_KEY_REUSED',
     "COLLECTION_ALREADY_EXISTS": "COLLECTION_ALREADY_EXISTS",
     "COLLECTION_ABSENT": "COLLECTION_ABSENT",
-    "IDEMPOTENCY_KEY_REUSED": "IDEMPOTENCY_KEY_REUSED",
 } as const;
 Object.defineProperty(OpenItemsConflictErrorCodeEnum, "COLLECTION_ALREADY_EXISTS", { enumerable: false, value: OpenItemsConflictErrorCodeEnum["CollectionAlreadyExists"] });
 Object.defineProperty(OpenItemsConflictErrorCodeEnum, "COLLECTION_ABSENT", { enumerable: false, value: OpenItemsConflictErrorCodeEnum["CollectionAbsent"] });
-Object.defineProperty(OpenItemsConflictErrorCodeEnum, "IDEMPOTENCY_KEY_REUSED", { enumerable: false, value: OpenItemsConflictErrorCodeEnum["IdempotencyKeyReused"] });
 
 export type OpenItemsConflictErrorCodeEnum = typeof OpenItemsConflictErrorCodeEnum[keyof typeof OpenItemsConflictErrorCodeEnum];
 

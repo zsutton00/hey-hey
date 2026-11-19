@@ -23,6 +23,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Client } from '@temporalio/client';
 import {
@@ -461,7 +462,7 @@ export class MessageController {
       request: executableRequest,
     });
     if (executableRequest.operationFingerprint !== expectedFingerprint) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'AGENT_OPERATION_FINGERPRINT_INVALID',
         message:
           'The operation fingerprint does not match the message submission.',

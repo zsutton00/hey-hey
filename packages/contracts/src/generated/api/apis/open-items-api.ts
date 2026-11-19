@@ -51,6 +51,8 @@ import type { MoveOpenItemRequest } from '../models.js';
 // @ts-ignore
 import type { OpenItemsConflictError } from '../models.js';
 // @ts-ignore
+import type { OpenItemsIdempotencyKeyReusedError } from '../models.js';
+// @ts-ignore
 import type { OpenItemsValidationError } from '../models.js';
 // @ts-ignore
 import type { PromoteGroupToGoal200Response } from '../models.js';

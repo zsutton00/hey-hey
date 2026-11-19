@@ -213,7 +213,7 @@ export const createReposRouter = ({
     if (body.machineId !== machineId) {
       logger.warn('local.service_directory_picker.rejected', { reason: 'machine_mismatch' });
       response
-        .status(409)
+        .status(403)
         .json(
           errorResponse(
             LocalRepositoryBindingErrorCode.MachineMismatch,
@@ -325,7 +325,7 @@ export const createReposRouter = ({
         serviceId,
       });
       response
-        .status(409)
+        .status(403)
         .json(
           errorResponse(
             LocalRepositoryBindingErrorCode.MachineMismatch,
