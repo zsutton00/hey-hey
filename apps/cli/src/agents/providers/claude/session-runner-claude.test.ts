@@ -12,6 +12,10 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
+} from '../../../agent-runtime/index';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
@@ -3785,6 +3789,28 @@ describe('session-runner-claude', () => {
     await expect(runner.getContextUsage('provider-session-1')).resolves.toEqual(contextData);
     expect(getContextUsageMock).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ['disconnects', new ControlRequestDisconnectedError('get_context_usage')],
+    ['is aborted by Turn cancellation', new ControlRequestAbortedError('get_context_usage')],
+  ])(
+    'throws NO_ACTIVE_SESSION when the live client %s while the read is pending',
+    async (_label, failure) => {
+      const runner = new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+      getSessionIdMock.mockReturnValue('provider-session-1');
+      getContextUsageMock.mockRejectedValue(failure);
+
+      await expect(runner.getContextUsage()).rejects.toEqual(
+        expect.objectContaining({ code: 'NO_ACTIVE_SESSION' }),
+      );
+    },
+  );
 
   it('throws NO_ACTIVE_SESSION when no provider session is active', async () => {
     const runner = new ClaudeAgentSessionRunner({
