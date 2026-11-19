@@ -12,7 +12,11 @@ import type {
 } from '@hey-hey/contracts/api/models';
 import type { PlatformWebSocketManager, WorkItemExecutionStateReport } from './platform-ws';
 import type { ServerLogger } from './logger';
-import { COORDINATOR_RECOVERY_GUIDANCE } from '../agents/task-monitor/task-monitor-coordinator-recovery';
+import {
+  COORDINATOR_RECOVERY_GUIDANCE,
+  COORDINATOR_RECOVERY_UNDELIVERED_GUIDANCE,
+} from '../agents/task-monitor/task-monitor-coordinator-recovery';
+import { currentJudgmentRequest } from '../agents/task-monitor/state-machine/current-judgment-request';
 
 type Snapshot = MachineSnapshot<string, TaskMonitorMachineState, TaskMonitorMachineContext>;
 type LifecycleActions = TaskMonitorStateProjection['availableActions'];
@@ -20,6 +24,9 @@ type RunningRegions = Extract<TaskMonitorMachineState, { RUNNING: unknown }>['RU
 
 const RETRYABLE_LAUNCH_GUIDANCE =
   'Start the monitor to retry the launch after correcting the cause, or stop it.';
+
+const PENDING_JUDGMENT_GUIDANCE =
+  "Reply to the coordinator's request in the monitor's coordinator conversation to continue the work, or stop the monitor.";
 
 /**
  * Lifecycle commands the machine admits in its committed regions. STOP is
@@ -45,6 +52,20 @@ const admittedActions = (running: RunningRegions | null): LifecycleActions => {
   return actions;
 };
 
+const recoveryGuidance = (
+  context: TaskMonitorMachineContext,
+  recovery: NonNullable<TaskMonitorMachineContext['coordinatorRecovery']>,
+  running: RunningRegions | null,
+): string => {
+  if (running?.work !== 'OUTCOME_JUDGMENT') {
+    return `Automatic correction ${recovery.correctionAttempt} of 2 is pending or being assessed. Pause or stop the monitor to intervene.`;
+  }
+
+  return currentJudgmentRequest(context)?.posted
+    ? COORDINATOR_RECOVERY_GUIDANCE
+    : COORDINATOR_RECOVERY_UNDELIVERED_GUIDANCE;
+};
+
 const coordinatorRecoveryFailure = (
   context: TaskMonitorMachineContext,
   running: RunningRegions | null,
@@ -65,10 +86,7 @@ const coordinatorRecoveryFailure = (
   return {
     code: 'OPERATION_FAILED',
     cause: `${recovery.failure.code}: ${recovery.failure.message}${currentFailure}${deliveryFailure}`,
-    correctiveGuidance:
-      running?.work === 'OUTCOME_JUDGMENT'
-        ? COORDINATOR_RECOVERY_GUIDANCE
-        : `Automatic correction ${recovery.correctionAttempt} of 2 is pending or being assessed. Pause or stop the monitor to intervene.`,
+    correctiveGuidance: recoveryGuidance(context, recovery, running),
   };
 };
 
@@ -115,6 +133,19 @@ const unclassifiedFailure = (
   };
 };
 
+/** A pending judgment is a normal supervision outcome, published apart from failure. */
+const pendingJudgmentProjection = (
+  context: TaskMonitorMachineContext,
+  running: RunningRegions | null,
+): TaskMonitorStateProjection['pendingJudgment'] => {
+  const current = currentJudgmentRequest(context);
+  if (running?.work !== 'OUTCOME_JUDGMENT' || !current?.posted) {
+    return undefined;
+  }
+
+  return { request: current.request, guidance: PENDING_JUDGMENT_GUIDANCE };
+};
+
 export const taskMonitorStateProjection = ({
   state,
   context,
@@ -139,7 +170,14 @@ export const taskMonitorStateProjection = ({
     retryableLaunchFailure(context) ??
     unclassifiedFailure(context, availableActions);
 
-  return { execution, availableActions, ...(failure ? { failure } : {}) };
+  const pendingJudgment = pendingJudgmentProjection(context, running);
+
+  return {
+    execution,
+    availableActions,
+    ...(failure ? { failure } : {}),
+    ...(pendingJudgment ? { pendingJudgment } : {}),
+  };
 };
 
 const RETRY_BASE_MS = 1_000;

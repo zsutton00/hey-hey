@@ -94,7 +94,7 @@ describe('Task Monitor settled-Run evaluation', () => {
 
     await expect(handler.execute(effect, execution)).resolves.toMatchObject({
       status: 'failed',
-      outcome: { type: 'OUTCOME_JUDGMENT_REQUIRED' },
+      outcome: { type: 'SUPERVISION_FAILED' },
     });
     expect(readAgentSession).not.toHaveBeenCalled();
   });
@@ -107,7 +107,7 @@ describe('Task Monitor settled-Run evaluation', () => {
     await expect(handler.recovery.reconcile(effect, execution)).resolves.toMatchObject({
       status: 'uncertain',
       outcome: {
-        type: 'OUTCOME_JUDGMENT_REQUIRED',
+        type: 'SUPERVISION_FAILED',
         taskMonitorId: effect.taskMonitorId,
       },
     });
@@ -212,7 +212,7 @@ describe('Task Monitor settled-Run evaluation', () => {
     );
     const completeMonitor = vi.fn().mockResolvedValue(undefined);
     const haltMonitor = vi.fn().mockResolvedValue(undefined);
-    const createOutOfBand = vi.fn().mockResolvedValue({});
+    const createOutOfBand = vi.fn().mockResolvedValue('posted-request-message');
     const runTaskMonitor = vi.fn().mockResolvedValue({ runId: 'coordinator-run-1' });
     const wait = vi.fn().mockResolvedValue({ status: 'DECISION', decision });
     const configured: TaskMonitorSettledRunEvaluationEffectHandlerDependencies = {
@@ -350,7 +350,7 @@ describe('Task Monitor settled-Run evaluation', () => {
     await expect(handler.execute(effect, execution)).resolves.toMatchObject({
       status: 'failed',
       outcome: {
-        type: 'OUTCOME_JUDGMENT_REQUIRED',
+        type: 'SUPERVISION_FAILED',
         reason: 'Task acceptance requires a successful Review bound to the current selected work.',
       },
     });
@@ -409,7 +409,7 @@ describe('Task Monitor settled-Run evaluation', () => {
       });
       await expect(handler.execute(effect, execution)).resolves.toMatchObject({
         status: 'failed',
-        outcome: { type: 'OUTCOME_JUDGMENT_REQUIRED' },
+        outcome: { type: 'SUPERVISION_FAILED' },
       });
       expect(completeMonitor).not.toHaveBeenCalled();
       const itemWrites = fetchImpl.mock.calls.filter(
@@ -584,6 +584,24 @@ describe('Task Monitor settled-Run evaluation', () => {
       ),
     ).resolves.toMatchObject({ status: 'failed' });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('records the posted request message so only an answer to it can resume the work', async () => {
+    const { handler, createOutOfBand } = await decisionHarness(TaskMonitorReviewMode.AgentDecides, {
+      action: 'REQUEST_JUDGMENT',
+      rationale: 'A product decision is required.',
+      guidance: 'Decide whether the compatibility trade-off is acceptable.',
+    });
+
+    await expect(handler.execute(effect, execution)).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: {
+        type: 'OUTCOME_JUDGMENT_REQUIRED',
+        reason: 'Decide whether the compatibility trade-off is acceptable.',
+        requestMessageId: 'posted-request-message',
+      },
+    });
+    expect(createOutOfBand).toHaveBeenCalledTimes(1);
   });
 
   it.each([

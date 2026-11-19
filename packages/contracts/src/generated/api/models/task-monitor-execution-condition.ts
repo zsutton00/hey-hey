@@ -104,6 +104,7 @@ export const TaskMonitorExecutionConditionWorkEnum = {
     MonitorLoadFailed: 'MONITOR_LOAD_FAILED',
     LaunchJudgment: 'LAUNCH_JUDGMENT',
     OutcomeJudgment: 'OUTCOME_JUDGMENT',
+    SupervisionFailed: 'SUPERVISION_FAILED',
     RetryableLaunch: 'RETRYABLE_LAUNCH',
     AdmittingLaunchRetry: 'ADMITTING_LAUNCH_RETRY',
     "LOADING_MONITOR": "LOADING_MONITOR",
@@ -128,6 +129,7 @@ export const TaskMonitorExecutionConditionWorkEnum = {
     "MONITOR_LOAD_FAILED": "MONITOR_LOAD_FAILED",
     "LAUNCH_JUDGMENT": "LAUNCH_JUDGMENT",
     "OUTCOME_JUDGMENT": "OUTCOME_JUDGMENT",
+    "SUPERVISION_FAILED": "SUPERVISION_FAILED",
     "RETRYABLE_LAUNCH": "RETRYABLE_LAUNCH",
     "ADMITTING_LAUNCH_RETRY": "ADMITTING_LAUNCH_RETRY",
 } as const;
@@ -153,6 +155,7 @@ Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "REVIEW_REQUEST_FAI
 Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "MONITOR_LOAD_FAILED", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["MonitorLoadFailed"] });
 Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "LAUNCH_JUDGMENT", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["LaunchJudgment"] });
 Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "OUTCOME_JUDGMENT", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["OutcomeJudgment"] });
+Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "SUPERVISION_FAILED", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["SupervisionFailed"] });
 Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "RETRYABLE_LAUNCH", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["RetryableLaunch"] });
 Object.defineProperty(TaskMonitorExecutionConditionWorkEnum, "ADMITTING_LAUNCH_RETRY", { enumerable: false, value: TaskMonitorExecutionConditionWorkEnum["AdmittingLaunchRetry"] });
 

@@ -158,6 +158,12 @@ interface TaskMonitorCoordinatorRecovery {
   readonly deliveryFailure: string | null;
 }
 
+export interface TaskMonitorPendingJudgment {
+  readonly request: string;
+  /** The posted request an answer must name; null only for requests settled before it was recorded. */
+  readonly requestMessageId: string | null;
+}
+
 export interface TaskMonitorMachineContext {
   readonly taskMonitorId: string;
   readonly organizationId: string | null;
@@ -185,5 +191,7 @@ export interface TaskMonitorMachineContext {
   readonly reviewRequest: TaskMonitorReviewRequest | null;
   readonly input: TaskMonitorConversationInputContext;
   readonly failureReason: string | null;
+  /** The coordinator's posted request awaiting the user's judgment; absent in state persisted before it was recorded. */
+  readonly pendingJudgment?: TaskMonitorPendingJudgment | null | undefined;
   readonly coordinatorRecovery?: TaskMonitorCoordinatorRecovery | null | undefined;
 }

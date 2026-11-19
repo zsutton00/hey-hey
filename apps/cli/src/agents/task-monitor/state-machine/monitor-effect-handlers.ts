@@ -355,11 +355,11 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
       return Promise.resolve({
         status: 'uncertain' as const,
         outcome: {
-          type: 'OUTCOME_JUDGMENT_REQUIRED' as const,
+          type: 'SUPERVISION_FAILED' as const,
           taskMonitorId: effect.taskMonitorId,
           runId: activeRunId,
           agentSessionId: coordination.activeRunAgentSessionId,
-          reason: `${effect.cause} coordination was interrupted after its committed effect began delivery; human judgment is required before retrying external work.`,
+          reason: `${effect.cause} coordination was interrupted after its committed effect began delivery; external work is not retried automatically.`,
         },
       });
     },

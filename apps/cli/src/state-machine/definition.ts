@@ -15,6 +15,13 @@ import type { JsonValue } from '../durable-data';
 
 export interface MachinePayloadCompatibility {
   readonly currentSchemaVersion: number;
+  /**
+   * Source schema versions whose migration can correct committed state or context
+   * that observers already hold. When such a migration changes either, the store
+   * advances the instance revision by one so the correction is a new revision;
+   * observers deduplicate on revision and would otherwise keep the old state.
+   */
+  readonly revisionAdvancingMigrations?: ReadonlySet<number>;
   readonly migrations: ReadonlyMap<number, (payload: JsonValue) => JsonValue>;
 }
 

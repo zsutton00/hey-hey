@@ -190,10 +190,10 @@ class TaskMonitorSupervisionOwners {
     auth: PlatformAuth,
     coordinatorRunId: string,
     decision: LocalTaskMonitorCoordinatorDecision,
-  ): Promise<void> {
+  ): Promise<string> {
     const run = await this.dependencies.runStore.getRun(coordinatorRunId);
     if (!run) throw new Error('Task Monitor coordinator Run is unavailable for publication.');
-    await this.dependencies.messagePoster.createOutOfBand({
+    return this.dependencies.messagePoster.createOutOfBand({
       organizationId: auth.organizationId,
       projectId: auth.projectId,
       conversationId: run.conversationId,
@@ -475,7 +475,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
         };
       return {
         status: 'uncertain',
-        outcome: this.judgment(
+        outcome: this.supervisionFailed(
           effect,
           'Settled-Run supervision was interrupted after its durable effect was claimed.',
         ),
@@ -734,12 +734,17 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
       case 'WAIT':
         await this.owners.publishDecision(auth, coordinatorRunId, decision);
         return this.continues(effect);
-      case 'REQUEST_JUDGMENT':
-        await this.owners.publishDecision(auth, coordinatorRunId, decision);
+      case 'REQUEST_JUDGMENT': {
+        const requestMessageId = await this.owners.publishDecision(
+          auth,
+          coordinatorRunId,
+          decision,
+        );
         return {
           status: 'succeeded',
-          outcome: this.judgment(effect, decision.guidance),
+          outcome: this.judgment(effect, decision.guidance, requestMessageId),
         };
+      }
       case 'HALT':
         await this.owners.halt(effect, auth, decision.failureContext);
         await this.owners.publishDecision(auth, coordinatorRunId, decision);
@@ -830,7 +835,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
     kind: TaskMonitorKind,
     nodeId: string,
     completeAgentSession: boolean,
-    publishDecision: (() => Promise<void>) | null,
+    publishDecision: (() => Promise<unknown>) | null,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
     const acceptance = await kind.acceptSettled(
       auth,
@@ -897,12 +902,26 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
     effect: TaskMonitorSupervisionEffect,
     reason: string,
   ): EffectSettlement<TaskMonitorMachineEffectOutcome> {
-    return { status: 'failed', outcome: this.judgment(effect, reason) };
+    return { status: 'failed', outcome: this.supervisionFailed(effect, reason) };
+  }
+
+  private supervisionFailed(
+    effect: TaskMonitorSupervisionEffect,
+    reason: string,
+  ): Extract<TaskMonitorMachineEffectOutcome, { type: 'SUPERVISION_FAILED' }> {
+    return {
+      type: 'SUPERVISION_FAILED',
+      taskMonitorId: effect.taskMonitorId,
+      runId: effect.runId,
+      agentSessionId: effect.agentSessionId,
+      reason,
+    };
   }
 
   private judgment(
     effect: TaskMonitorSupervisionEffect,
     reason: string,
+    requestMessageId: string,
   ): Extract<TaskMonitorMachineEffectOutcome, { type: 'OUTCOME_JUDGMENT_REQUIRED' }> {
     return {
       type: 'OUTCOME_JUDGMENT_REQUIRED',
@@ -910,6 +929,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
       runId: effect.runId,
       agentSessionId: effect.agentSessionId,
       reason,
+      requestMessageId,
     };
   }
 }

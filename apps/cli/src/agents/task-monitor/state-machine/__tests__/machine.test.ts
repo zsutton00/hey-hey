@@ -254,11 +254,77 @@ describe('Task Monitor machine definition', () => {
         context: { launch: { planGuidance: { step: Record<string, unknown> } } };
       }>;
     };
-    expect(promoted.instances[0]?.payloadSchemaVersion).toBe(2);
+    expect(promoted.instances[0]?.payloadSchemaVersion).toBe(3);
     expect(promoted.instances[0]?.context.launch.planGuidance.step).not.toHaveProperty('rationale');
     expect(restored?.effects[0]?.effect).toMatchObject({
       type: 'DELIVER_TASK_MONITOR_REVIEW',
       rationale: 'Unrelated review rationale must remain intact.',
+    });
+  });
+
+  describe('legacy judgment snapshots (schema 2 to 3)', () => {
+    const REASON = 'Approve adding the place columns?';
+    const migrate = (payload: unknown) => {
+      const step = taskMonitorStateStoreCodec
+        .payloadCompatibility?.('TASK_MONITOR')
+        ?.migrations.get(2);
+      if (!step) throw new Error('Missing Task Monitor v2 migration');
+      return step(payload as never) as {
+        state: { RUNNING: { work: string } };
+        context: {
+          failureReason: string | null;
+          pendingJudgment?: { request: string; requestMessageId: string | null } | null;
+        };
+      };
+    };
+    const legacy = (settlement: { status: string } | null, extra: object = {}) => ({
+      state: { RUNNING: { control: 'ACTIVE', work: 'OUTCOME_JUDGMENT', intervention: 'CLEAR' } },
+      context: { failureReason: REASON, coordinatorRecovery: null, ...extra },
+      effects: settlement
+        ? [
+            {
+              effectId: 'effect-1',
+              revision: 4,
+              effect: { type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN' },
+              execution: {
+                status: 'settled',
+                settlement: {
+                  ...settlement,
+                  outcome: { type: 'OUTCOME_JUDGMENT_REQUIRED', reason: REASON },
+                },
+              },
+            },
+          ]
+        : [],
+    });
+
+    it('restores a request the coordinator posted as a pending judgment', () => {
+      const migrated = migrate(legacy({ status: 'succeeded' }));
+
+      expect(migrated.context).toMatchObject({
+        failureReason: null,
+        pendingJudgment: { request: REASON, requestMessageId: null },
+      });
+      expect(migrated.state.RUNNING.work).toBe('OUTCOME_JUDGMENT');
+    });
+
+    it.each(['failed', 'uncertain'])(
+      'restores a %s supervision operation as a supervision failure',
+      (status) => {
+        const migrated = migrate(legacy({ status }));
+
+        expect(migrated.state.RUNNING.work).toBe('SUPERVISION_FAILED');
+        expect(migrated.context.failureReason).toBe(REASON);
+        expect(migrated.context.pendingJudgment ?? null).toBeNull();
+      },
+    );
+
+    it('keeps an unproven cause as a failure and never invents a request', () => {
+      const migrated = migrate(legacy(null));
+
+      expect(migrated.state.RUNNING.work).toBe('OUTCOME_JUDGMENT');
+      expect(migrated.context.failureReason).toBe(REASON);
+      expect(migrated.context.pendingJudgment ?? null).toBeNull();
     });
   });
 

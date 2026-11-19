@@ -664,6 +664,35 @@ describe("TaskMonitorWorkspaceView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a pending judgment as a request with its answer guidance, not as a failure", () => {
+    const retained = retainedState("running");
+    if (retained.status !== "retained") {
+      throw new Error("expected a retained state");
+    }
+    renderWorkspace({
+      executionState: {
+        ...retained,
+        state: {
+          type: "TASK_MONITOR",
+          projection: {
+            ...retained.state.projection,
+            pendingJudgment: {
+              request: "Ask the user to approve the schema change.",
+              guidance: "Reply to the coordinator's request.",
+            },
+          },
+        },
+      },
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-pending-judgment"),
+    ).toHaveTextContent("Ask the user to approve the schema change.");
+    expect(
+      screen.queryByTestId("task-monitor-current-failure"),
+    ).not.toBeInTheDocument();
+  });
+
   it("passes canonical Pause presentation and callback through the workspace", () => {
     const onPause = vi.fn();
     renderWorkspace({ onPause, executionState: retainedState("running") });

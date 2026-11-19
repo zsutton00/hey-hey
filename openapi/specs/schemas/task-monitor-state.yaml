@@ -13,11 +13,49 @@ TaskMonitorExecutionCondition:
     work:
       type: string
       nullable: true
-      enum: [LOADING_MONITOR, COORDINATING, VALIDATING_LAUNCH, RECONCILING_TASK_ACTIVATION, RECONCILING_MONITOR_PROJECTION, LAUNCH_READY, CREATING_AGENT_SESSION, CREATING_CONVERSATION, STARTING_RUN, RECONCILING_AGENT_SESSION_CREATION, RECONCILING_CONVERSATION_CREATION, RECONCILING_RUN_START, PERSISTING_LAUNCH, PROJECTING_STARTED, OBSERVING_RUN, EVALUATING_RUN, REQUESTING_REVIEW, AWAITING_REVIEW, REVIEW_REQUEST_FAILED, MONITOR_LOAD_FAILED, LAUNCH_JUDGMENT, OUTCOME_JUDGMENT, RETRYABLE_LAUNCH, ADMITTING_LAUNCH_RETRY, null]
+      enum:
+        [
+          LOADING_MONITOR,
+          COORDINATING,
+          VALIDATING_LAUNCH,
+          RECONCILING_TASK_ACTIVATION,
+          RECONCILING_MONITOR_PROJECTION,
+          LAUNCH_READY,
+          CREATING_AGENT_SESSION,
+          CREATING_CONVERSATION,
+          STARTING_RUN,
+          RECONCILING_AGENT_SESSION_CREATION,
+          RECONCILING_CONVERSATION_CREATION,
+          RECONCILING_RUN_START,
+          PERSISTING_LAUNCH,
+          PROJECTING_STARTED,
+          OBSERVING_RUN,
+          EVALUATING_RUN,
+          REQUESTING_REVIEW,
+          AWAITING_REVIEW,
+          REVIEW_REQUEST_FAILED,
+          MONITOR_LOAD_FAILED,
+          LAUNCH_JUDGMENT,
+          OUTCOME_JUDGMENT,
+          SUPERVISION_FAILED,
+          RETRYABLE_LAUNCH,
+          ADMITTING_LAUNCH_RETRY,
+          null,
+        ]
     intervention:
       type: string
       nullable: true
-      enum: [CLEAR, PENDING, APPLYING_DECISION, APPLICATION_FAILED, APPLICATION_STALE, APPLICATION_CANCELLED, APPLICATION_UNCERTAIN, null]
+      enum:
+        [
+          CLEAR,
+          PENDING,
+          APPLYING_DECISION,
+          APPLICATION_FAILED,
+          APPLICATION_STALE,
+          APPLICATION_CANCELLED,
+          APPLICATION_UNCERTAIN,
+          null,
+        ]
   description: Independent committed execution regions; region values are null outside RUNNING.
 
 TaskMonitorStateFailure:
@@ -27,7 +65,13 @@ TaskMonitorStateFailure:
   properties:
     code:
       type: string
-      enum: [OPERATION_FAILED, BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY, INVALID_CONFIGURATION, CATALOG_UNAVAILABLE]
+      enum:
+        [
+          OPERATION_FAILED,
+          BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY,
+          INVALID_CONFIGURATION,
+          CATALOG_UNAVAILABLE,
+        ]
     cause:
       type: string
       description: The concrete cause retained by the monitor owner; never a guessed diagnosis.
@@ -44,6 +88,19 @@ TaskMonitorStateFailure:
         type: string
   description: Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior.
 
+TaskMonitorStatePendingJudgment:
+  type: object
+  additionalProperties: false
+  required: [request, guidance]
+  properties:
+    request:
+      type: string
+      description: The coordinator's request for the user's judgment, as committed by the monitor owner.
+    guidance:
+      type: string
+      description: How the user answers the request; a pending judgment is a normal supervision outcome, not a failure.
+  description: The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text.
+
 TaskMonitorLifecycleAction:
   type: object
   additionalProperties: false
@@ -51,7 +108,8 @@ TaskMonitorLifecycleAction:
   properties:
     kind:
       type: string
-      enum: [INITIAL_START, PAUSED_CONTINUATION, RETRYABLE_RECOVERY, PAUSE, STOP]
+      enum:
+        [INITIAL_START, PAUSED_CONTINUATION, RETRYABLE_RECOVERY, PAUSE, STOP]
     command:
       type: string
       enum: [START, RESUME, PAUSE, STOP]
@@ -63,14 +121,16 @@ TaskMonitorStateProjection:
   required: [execution, availableActions]
   properties:
     execution:
-      $ref: '#/TaskMonitorExecutionCondition'
+      $ref: "#/TaskMonitorExecutionCondition"
     failure:
-      $ref: '#/TaskMonitorStateFailure'
+      $ref: "#/TaskMonitorStateFailure"
+    pendingJudgment:
+      $ref: "#/TaskMonitorStatePendingJudgment"
     availableActions:
       type: array
       items:
-        $ref: '#/TaskMonitorLifecycleAction'
-  description: Complete replacement snapshot. Omitted failure means the owner has no current failure; freshness updates never remove a retained failure.
+        $ref: "#/TaskMonitorLifecycleAction"
+  description: Complete replacement snapshot. Omitted failure means the owner has no current failure, and omitted pendingJudgment means it awaits no judgment; freshness updates never remove a retained failure.
 
 TaskMonitorStateObservation:
   type: object
@@ -89,6 +149,5 @@ TaskMonitorStateObservation:
       minimum: 0
       description: Durable CLI machine revision; unchanged when replayed.
     projection:
-      $ref: '#/TaskMonitorStateProjection'
+      $ref: "#/TaskMonitorStateProjection"
   description: Sent on task_monitor.state_observed. Machine identity must match the authenticated connection and canonical owner. Platform derives project and organization scope.
-

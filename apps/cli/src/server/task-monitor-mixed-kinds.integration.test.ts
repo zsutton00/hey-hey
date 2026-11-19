@@ -291,7 +291,9 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
     vi.spyOn(clients.conversationsApi, 'postMessage').mockResolvedValue({
       data: { success: true },
     } as never);
-    vi.spyOn(owners.messagePoster, 'createOutOfBand').mockResolvedValue(crypto.randomUUID());
+    // A judgment is answered by naming the request the coordinator posted.
+    const postedRequestMessageId = crypto.randomUUID();
+    vi.spyOn(owners.messagePoster, 'createOutOfBand').mockResolvedValue(postedRequestMessageId);
     vi.spyOn(owners.infrastructure.apiRuntime.transport, 'request').mockResolvedValue({
       data: { success: true },
     } as never);
@@ -696,7 +698,7 @@ it.each(['DIRECT_ACCEPTANCE', 'COORDINATOR_REVIEW', 'REQUIRE_REVIEW'] as const)(
             command.command = {
               cause: 'JUDGMENT_RESOLVED',
               judgment: {
-                requestMessageId: asMessageId(crypto.randomUUID()),
+                requestMessageId: asMessageId(postedRequestMessageId),
                 label: 'Confirmed',
                 conclusion: 'Accept the observed operation.',
               },

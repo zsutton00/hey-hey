@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod/v4';
 import { version as applicationVersion } from '../../package.json';
 import {
@@ -766,7 +767,9 @@ export class MachineStateStore<
         effects: instance.effects,
         transitionHistory: instance.transitionHistory,
       };
+      let advancesRevision = false;
       while (version < compatibility.currentSchemaVersion) {
+        advancesRevision ||= compatibility.revisionAdvancingMigrations?.has(version) ?? false;
         const migrate = compatibility.migrations.get(version);
         if (!migrate) {
           throw new CompatibilityValidationError(
@@ -786,9 +789,16 @@ export class MachineStateStore<
         version += 1;
       }
       const migrated = persistedMachinePayloadSchema.parse(payload);
+      const correctsCommittedState =
+        advancesRevision &&
+        !(
+          isDeepStrictEqual(migrated.state, instance.state) &&
+          isDeepStrictEqual(migrated.context, instance.context)
+        );
       const candidate: PersistedInstance = {
         ...instance,
         ...migrated,
+        revision: correctsCommittedState ? instance.revision + 1 : instance.revision,
         payloadSchemaVersion: compatibility.currentSchemaVersion,
       };
       this.decodeInstance(candidate);

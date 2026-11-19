@@ -3,6 +3,7 @@ import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/age
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 import {
   parseTaskMonitorCoordinationLocalState,
+  taskMonitorCoordinationLocalStateFromContext,
   validateTaskMonitorDecision,
   type TaskMonitorCoordinationSnapshot,
 } from './task-monitor-coordination';
@@ -102,6 +103,34 @@ describe('Task Monitor coordination policy', () => {
       ok: false,
       reason: 'Task Monitor coordination requires an active monitor, not ON_HOLD.',
     });
+  });
+
+  it('resumes a real failure without presenting it to the coordinator as a pending question', () => {
+    const context = {
+      userGuidance: null,
+      selectedTaskId: null,
+      activeRunAgentSessionId: '44444444-4444-4444-8444-444444444444',
+      conversationId: null,
+      reviewRequest: null,
+      settledRun: null,
+      failureReason: 'Task Monitor coordinator Run could not be started.',
+      pendingJudgment: null,
+    };
+
+    expect(
+      taskMonitorCoordinationLocalStateFromContext(context, 'ACTIVE', 'SUPERVISION_FAILED')
+        .pendingJudgmentReason,
+    ).toBeNull();
+    expect(
+      taskMonitorCoordinationLocalStateFromContext(
+        {
+          ...context,
+          pendingJudgment: { request: 'Approve the schema change?', requestMessageId: null },
+        },
+        'ACTIVE',
+        'OUTCOME_JUDGMENT',
+      ).pendingJudgmentReason,
+    ).toBe('Approve the schema change?');
   });
 
   it('only restores the exact local coordination shape from persisted context', () => {

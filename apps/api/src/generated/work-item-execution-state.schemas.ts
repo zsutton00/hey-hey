@@ -115,6 +115,7 @@ export const workItemExecutionStateJsonSchemas = {
                               "MONITOR_LOAD_FAILED",
                               "LAUNCH_JUDGMENT",
                               "OUTCOME_JUDGMENT",
+                              "SUPERVISION_FAILED",
                               "RETRYABLE_LAUNCH",
                               "ADMITTING_LAUNCH_RETRY",
                               null
@@ -189,6 +190,25 @@ export const workItemExecutionStateJsonSchemas = {
                     },
                     "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
                   },
+                  "pendingJudgment": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "request",
+                      "guidance"
+                    ],
+                    "properties": {
+                      "request": {
+                        "type": "string",
+                        "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
+                      },
+                      "guidance": {
+                        "type": "string",
+                        "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+                      }
+                    },
+                    "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+                  },
                   "availableActions": {
                     "type": "array",
                     "items": {
@@ -223,7 +243,7 @@ export const workItemExecutionStateJsonSchemas = {
                     }
                   }
                 },
-                "description": "Complete replacement snapshot. Omitted failure means the owner has no current failure; freshness updates never remove a retained failure."
+                "description": "Complete replacement snapshot. Omitted failure means the owner has no current failure, and omitted pendingJudgment means it awaits no judgment; freshness updates never remove a retained failure."
               }
             },
             "description": "Task Monitor execution state. Failure, corrective guidance and admitted actions belong to this type's projection and are not shared fields."
@@ -321,6 +341,7 @@ export const workItemExecutionStateJsonSchemas = {
                           "MONITOR_LOAD_FAILED",
                           "LAUNCH_JUDGMENT",
                           "OUTCOME_JUDGMENT",
+                          "SUPERVISION_FAILED",
                           "RETRYABLE_LAUNCH",
                           "ADMITTING_LAUNCH_RETRY",
                           null
@@ -395,6 +416,25 @@ export const workItemExecutionStateJsonSchemas = {
                 },
                 "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
               },
+              "pendingJudgment": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "request",
+                  "guidance"
+                ],
+                "properties": {
+                  "request": {
+                    "type": "string",
+                    "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
+                  },
+                  "guidance": {
+                    "type": "string",
+                    "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+                  }
+                },
+                "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+              },
               "availableActions": {
                 "type": "array",
                 "items": {
@@ -429,7 +469,7 @@ export const workItemExecutionStateJsonSchemas = {
                 }
               }
             },
-            "description": "Complete replacement snapshot. Omitted failure means the owner has no current failure; freshness updates never remove a retained failure."
+            "description": "Complete replacement snapshot. Omitted failure means the owner has no current failure, and omitted pendingJudgment means it awaits no judgment; freshness updates never remove a retained failure."
           }
         },
         "description": "Task Monitor execution state. Failure, corrective guidance and admitted actions belong to this type's projection and are not shared fields."

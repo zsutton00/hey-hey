@@ -1,4 +1,5 @@
 import { and, or, stateIn } from 'xstate';
+import { currentJudgmentRequest } from './current-judgment-request';
 import type { TaskMonitorMachineContext } from './context';
 import { taskMonitorCoordinationLocalStateFromContext } from '../task-monitor-coordination';
 import {
@@ -30,6 +31,7 @@ export const matchesSettledRunEvaluation = ({ context, event }: SupervisionArgum
       event.type === 'COORDINATION_CONTINUES' ||
       event.type === 'LAUNCH_JUDGMENT_REQUIRED' ||
       event.type === 'OUTCOME_JUDGMENT_REQUIRED' ||
+      event.type === 'SUPERVISION_FAILED' ||
       event.type === 'SUPERVISION_HALTED' ||
       event.type === 'SUPERVISION_COMPLETED') &&
     event.taskMonitorId === context.taskMonitorId &&
@@ -44,6 +46,7 @@ export const matchesCoordinationOutcome = ({ context, event }: SupervisionArgume
     event.type !== 'COORDINATION_CONTINUES' &&
     event.type !== 'REVIEW_REQUEST_COMMITTED' &&
     event.type !== 'OUTCOME_JUDGMENT_REQUIRED' &&
+    event.type !== 'SUPERVISION_FAILED' &&
     event.type !== 'SUPERVISION_HALTED' &&
     event.type !== 'SUPERVISION_COMPLETED'
   ) {
@@ -75,12 +78,31 @@ export const matchesActiveReviewRequest = ({ context, event }: SupervisionArgume
   event.agentSessionId === context.reviewRequest.agentSessionId &&
   event.requestId === context.reviewRequest.requestId;
 
+/**
+ * An answer resumes work only when it names the request now pending, so a repeat of
+ * an earlier answer cannot resume a later question. A request settled before its
+ * message was recorded has no identity to compare and accepts the answer.
+ */
+const answersPendingRequest = (
+  context: SupervisionArguments['context'],
+  requestMessageId: string,
+): boolean => {
+  const current = currentJudgmentRequest(context);
+  if (current === null) {
+    return true;
+  }
+  if (current.kind === 'RECOVERY') {
+    return current.requestMessageId === requestMessageId;
+  }
+
+  return current.requestMessageId === null || current.requestMessageId === requestMessageId;
+};
+
 export const matchesResolvedJudgment = ({ context, event }: SupervisionArguments): boolean =>
   event.type === 'JUDGMENT_RESOLVED' &&
   event.taskMonitorId === context.taskMonitorId &&
   context.settledRun !== null &&
-  (!context.coordinatorRecovery ||
-    context.coordinatorRecovery.requestMessageId === event.judgment.requestMessageId);
+  answersPendingRequest(context, event.judgment.requestMessageId);
 
 export const matchesResolvedCoordinationJudgment = ({
   context,
@@ -91,8 +113,7 @@ export const matchesResolvedCoordinationJudgment = ({
   context.settledRun === null &&
   (context.coordinationCause === 'RESUME' || context.coordinationCause === 'JUDGMENT_RESOLVED') &&
   context.activeRunAgentSessionId !== null &&
-  (!context.coordinatorRecovery ||
-    context.coordinatorRecovery.requestMessageId === event.judgment.requestMessageId);
+  answersPendingRequest(context, event.judgment.requestMessageId);
 
 const evaluationParameters = ({ context, event }: SupervisionArguments) => {
   if (event.type !== 'RUN_SETTLED') throw new Error('Expected RUN_SETTLED.');
@@ -251,7 +272,12 @@ export const taskMonitorSupervisionStates = {
         target: 'LAUNCH_JUDGMENT',
         actions: 'storeFailure',
       },
-      OUTCOME_JUDGMENT_REQUIRED: [
+      OUTCOME_JUDGMENT_REQUIRED: {
+        guard: 'matchesSettledRunEvaluation',
+        target: 'OUTCOME_JUDGMENT',
+        actions: 'storePendingJudgment',
+      },
+      SUPERVISION_FAILED: [
         {
           guard: ({ context, event }: SupervisionArguments) =>
             context.coordinatorRecovery != null && matchesSettledRunEvaluation({ context, event }),
@@ -267,7 +293,7 @@ export const taskMonitorSupervisionStates = {
         },
         {
           guard: 'matchesSettledRunEvaluation',
-          target: 'OUTCOME_JUDGMENT',
+          target: 'SUPERVISION_FAILED',
           actions: 'storeFailure',
         },
       ],
@@ -320,6 +346,7 @@ export const taskMonitorSupervisionStates = {
     },
   },
   REVIEW_REQUEST_FAILED: {},
+  SUPERVISION_FAILED: {},
   OUTCOME_JUDGMENT: {
     on: {
       OUTCOME_JUDGMENT_PROJECTED: {

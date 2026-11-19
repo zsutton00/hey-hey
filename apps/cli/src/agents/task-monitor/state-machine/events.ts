@@ -349,6 +349,17 @@ interface TaskMonitorOutcomeJudgmentRequiredEvent {
   readonly runId: string;
   readonly agentSessionId: string;
   readonly reason: string;
+  /** The posted request; absent only from outcomes settled before the CLI recorded it. */
+  readonly requestMessageId?: string | undefined;
+}
+
+/** Supervision could not complete an operation; a person must act, but no judgment was requested. */
+interface TaskMonitorSupervisionFailedEvent {
+  readonly type: 'SUPERVISION_FAILED';
+  readonly taskMonitorId: string;
+  readonly runId: string;
+  readonly agentSessionId: string;
+  readonly reason: string;
 }
 
 interface TaskMonitorSupervisionHaltedEvent {
@@ -669,6 +680,7 @@ export type TaskMonitorMachineEvent =
   | TaskMonitorOutcomeJudgmentProjectionEvent
   | TaskMonitorOutcomeJudgmentProjectionFailedEvent
   | TaskMonitorOutcomeJudgmentRequiredEvent
+  | TaskMonitorSupervisionFailedEvent
   | TaskMonitorSupervisionHaltedEvent
   | TaskMonitorSupervisionCompletedEvent
   | TaskMonitorLoadedEvent

@@ -160,7 +160,12 @@ export const taskMonitorWorkStates = {
             { type: 'coordinateTaskMonitorWork', params: continuedCoordinationParameters },
           ],
         },
-        OUTCOME_JUDGMENT_REQUIRED: [
+        OUTCOME_JUDGMENT_REQUIRED: {
+          guard: 'matchesCoordinationOutcome',
+          target: 'OUTCOME_JUDGMENT',
+          actions: 'storePendingJudgment',
+        },
+        SUPERVISION_FAILED: [
           {
             guard: ({ context, event }: ActionParameters) =>
               context.coordinatorRecovery != null && matchesCoordinationOutcome({ context, event }),
@@ -176,7 +181,7 @@ export const taskMonitorWorkStates = {
           },
           {
             guard: 'matchesCoordinationOutcome',
-            target: 'OUTCOME_JUDGMENT',
+            target: 'SUPERVISION_FAILED',
             actions: 'storeFailure',
           },
         ],
