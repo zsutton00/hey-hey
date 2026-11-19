@@ -320,20 +320,12 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(screen.queryByTestId("task-monitor-cursor")).not.toBeInTheDocument();
   });
 
-  it("hides the monitor name below md while keeping the status chip visible", () => {
+  it("renders no monitor title or status chip, leaving lifecycle state to the control dock", () => {
     renderWorkspace();
 
-    const monitorName = screen.getByTestId("task-monitor-name");
-    const monitorNameStyles = generatedStylesFor(monitorName);
-
-    expect(monitorName).toHaveTextContent("Release monitor");
-    expect(monitorNameStyles).toMatch(
-      /@media \(min-width:0px\)\{[^}]*display:none;/,
-    );
-    expect(monitorNameStyles).toMatch(
-      /@media \(min-width:900px\)\{[^}]*display:block;/,
-    );
-    expect(screen.getByTestId("task-monitor-status")).toBeVisible();
+    expect(screen.queryByTestId("task-monitor-name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-monitor-status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-monitor-control-dock")).toBeVisible();
   });
 
   it("orders Steps, Task Monitor, and Active Session for responsive layout", () => {
@@ -652,9 +644,6 @@ describe("TaskMonitorWorkspaceView", () => {
       pendingLifecycleAction: "RESUME",
     });
 
-    expect(screen.getByTestId("task-monitor-status")).toHaveTextContent(
-      "ON_HOLD",
-    );
     expect(screen.getByTestId("task-monitor-start")).toBeDisabled();
     expect(screen.getByTestId("task-monitor-start-progress")).toBeVisible();
     expect(screen.queryByTestId("task-monitor-resume")).not.toBeInTheDocument();
@@ -672,9 +661,6 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(
       screen.getByTestId("task-monitor-command-outcome"),
     ).toHaveTextContent("The lifecycle command was rejected.");
-    expect(screen.getByTestId("task-monitor-status")).toHaveTextContent(
-      "ACTIVE",
-    );
   });
 
   it("keeps refresh failures explicit and retryable from canonical pre-start state", () => {

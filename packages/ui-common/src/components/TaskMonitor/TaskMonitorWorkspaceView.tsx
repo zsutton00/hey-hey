@@ -5,7 +5,6 @@ import { useTaskMonitorDockMotion } from "./useTaskMonitorDockMotion";
 import {
   Alert,
   Box,
-  Chip,
   Button,
   ButtonGroup,
   CircularProgress,
@@ -436,26 +435,6 @@ export const TaskMonitorWorkspaceView = ({
             {snapshot.failure.correctiveGuidance}
           </Alert>
         ) : null}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          alignItems={{ xs: "flex-start", sm: "center" }}
-        >
-          <Typography
-            variant="h4"
-            data-testid="task-monitor-name"
-            sx={{ flex: 1, display: { xs: "none", md: "block" } }}
-          >
-            {monitorName}
-          </Typography>
-          <Chip
-            label={snapshot ? phase : monitorStatus}
-            color="primary"
-            variant="outlined"
-            data-testid="task-monitor-status"
-          />
-        </Stack>
-
         {coordinatorStartError || operationalErrorMessage ? (
           <Alert severity="error" data-testid="task-monitor-start-error">
             {coordinatorStartError ?? operationalErrorMessage}
