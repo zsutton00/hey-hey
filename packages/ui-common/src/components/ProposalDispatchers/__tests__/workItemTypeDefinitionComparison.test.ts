@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../../api";
 import { compareWorkItemTypeDefinitions } from "../workItemTypeDefinitionComparison";
@@ -6,7 +7,7 @@ const current: WorkItemTypeDefinitionDto = {
   key: "JOB_APPLICATION_RECORD",
   name: "Job application record",
   role: "work-item",
-  allowedStatuses: ["NOT_STARTED"],
+  statuses: legacyStatuses(["NOT_STARTED"]),
   sections: [
     {
       key: "overview",
@@ -36,6 +37,32 @@ describe("complete type definition comparison", () => {
       { label: "Session-role guidance — research", before: "", after: "Learn" },
       { label: "Session-role guidance — review", before: "Check", after: "" },
     ]);
+  });
+  it("shows status names, order, starting status and changed meanings", () => {
+    const before = {
+      ...current,
+      statuses: [
+        { name: "Drafting", meaning: "NOT_STARTED" as const },
+        { name: "Published", meaning: "FINISHED" as const },
+      ],
+    };
+    const after = {
+      ...current,
+      statuses: [
+        { name: "Published", meaning: "UNFINISHED" as const },
+        { name: "Drafting", meaning: "NOT_STARTED" as const },
+      ],
+    };
+    const labels = compareWorkItemTypeDefinitions(before, after).fields.map(
+      (field) => field.label,
+    );
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Allowed statuses",
+        "Starting status",
+        "Status meanings",
+      ]),
+    );
   });
   it("shows maintenance advice separately from authoring guidance", () => {
     const addition = compareWorkItemTypeDefinitions(current, {
@@ -172,12 +199,14 @@ describe("complete type definition comparison", () => {
     const result = compareWorkItemTypeDefinitions(current, {
       ...current,
       name: "Applications",
-      allowedStatuses: ["IN_PROGRESS", "NOT_STARTED"],
+      statuses: legacyStatuses(["IN_PROGRESS", "NOT_STARTED"]),
       writingStandards: { create: "Check evidence", edit: "Keep history" },
     });
     expect(result.fields.map((f) => f.label)).toEqual([
       "Name",
       "Allowed statuses",
+      "Starting status",
+      "Status meanings",
       "Writing standard — Create",
       "Writing standard — Edit",
     ]);

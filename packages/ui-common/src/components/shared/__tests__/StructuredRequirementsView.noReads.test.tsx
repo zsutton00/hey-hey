@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -9,7 +10,7 @@ import { MentionEditorContext } from "../../SmarterTextAreaCard/EditorContext";
 import type { FeatureRequirementRecord } from "../../../utils/structuredRequirements";
 
 const useWorkItemSpy = vi.hoisted(() =>
-  vi.fn((..._args: unknown[]) => ({ workItem: undefined }))
+  vi.fn((..._args: unknown[]) => ({ workItem: undefined })),
 );
 
 vi.mock("../../../data/hooks/useWorkItem", () => ({
@@ -28,15 +29,21 @@ vi.mock("../../../data/hooks/useWorkItemTypes", async (importOriginal) => ({
   useMentionWorkItemTypeKey: (
     _organizationId: string | undefined,
     _projectId: string | undefined,
-    kind: string | undefined
+    kind: string | undefined,
   ) => ({ typeKey: kind?.toUpperCase(), isResolved: kind !== undefined }),
   useWorkItemTypeByKey: (
     _organizationId: string | undefined,
     _projectId: string | undefined,
-    key: string | undefined
+    key: string | undefined,
   ) => ({
     workItemTypeDefinition: key
-      ? { key, name: key, capabilities: { rendersInline: false }, allowedStatuses: [], sections: [] }
+      ? {
+          key,
+          name: key,
+          capabilities: { rendersInline: false },
+          statuses: legacyStatuses([]),
+          sections: [],
+        }
       : undefined,
     isFetched: key !== undefined,
     error: null,
@@ -50,8 +57,16 @@ const requirements: FeatureRequirementRecord[] = [
     id: uuid("1"),
     statement: "Renders without reads",
     designedBy: [
-      { entityType: "MOCKUP", entityId: uuid("2"), entityTitle: "Badge mockup" },
-      { entityType: "DESIGN_DOC", entityId: uuid("3"), entityTitle: "Badge doc" },
+      {
+        entityType: "MOCKUP",
+        entityId: uuid("2"),
+        entityTitle: "Badge mockup",
+      },
+      {
+        entityType: "DESIGN_DOC",
+        entityId: uuid("3"),
+        entityTitle: "Badge doc",
+      },
     ],
     fulfilledBy: [
       { entityType: "TASK", entityId: uuid("4"), entityTitle: "Badge task" },
@@ -63,7 +78,11 @@ const requirements: FeatureRequirementRecord[] = [
 const wrap = (node: React.ReactNode) => (
   <MemoryRouter>
     <MentionEditorContext.Provider
-      value={{ organizationId: "org-1", projectId: "project-1", navigate: vi.fn() }}
+      value={{
+        organizationId: "org-1",
+        projectId: "project-1",
+        navigate: vi.fn(),
+      }}
     >
       {node}
     </MentionEditorContext.Provider>
@@ -83,10 +102,14 @@ describe("mention and citation rendering", () => {
         <>
           <StructuredRequirementsView requirements={requirements} />
           <MentionBadgeInner
-            mention={{ entityType: "task", entityId: uuid("5"), entityName: "Described task" }}
+            mention={{
+              entityType: "task",
+              entityId: uuid("5"),
+              entityName: "Described task",
+            }}
           />
-        </>
-      )
+        </>,
+      ),
     );
 
     expect(screen.getByText("Badge mockup")).toBeInTheDocument();
@@ -108,8 +131,8 @@ describe("mention and citation rendering", () => {
           mentionConfig={{ organizationId: "org-1", projectId: "project-1" }}
         >
           {markdown}
-        </MarkdownRenderer>
-      )
+        </MarkdownRenderer>,
+      ),
     );
 
     expect(screen.getByText("Open Items")).toBeInTheDocument();

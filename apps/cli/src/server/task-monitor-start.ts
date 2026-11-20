@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { z } from 'zod';
@@ -264,6 +265,7 @@ export class TaskMonitorStartRuntime {
       return new TaskMonitorKind(
         {
           runtime: this,
+          authContext: this.dependencies.authContext,
           apiBaseUrl: this.dependencies.apiBaseUrl,
           fetchImpl: this.dependencies.fetchImpl,
           logger: this.dependencies.logger,
@@ -550,7 +552,7 @@ export class TaskMonitorStartRuntime {
     reason,
   }: {
     monitor: TaskMonitorStartMonitor;
-    status: WorkStatus;
+    status: TaskResponseDto['status'];
     reason: string;
   }): Promise<TaskMonitorStartMonitor> {
     const token = await this.dependencies.authContext.getAccessToken();

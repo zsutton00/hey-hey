@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import type { ReactNode } from "react";
 import {
   act,
@@ -104,7 +105,7 @@ const childTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "CARD",
   name: "Card",
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   forbiddenScalars: ["dueDate", "tag"],
 };
 
@@ -122,7 +123,7 @@ function input(supportedActions: WorkItemTypeGraphActionType[]) {
     typeDefinition: {
       key: "BOARD",
       name: "Board",
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       sections: [
         { key: "positions", kind: "json" as const, schemaRef: "layout.v1" },
       ],

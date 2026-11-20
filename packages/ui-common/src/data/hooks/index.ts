@@ -400,6 +400,7 @@ export {
   useAllowedParentEntityTypes,
   useCanParentEntityType,
   useTrackingTargetWorkItemTypes,
+  useWorkItemStatusVocabularies,
   useWorkItemTypeByKey,
   useWorkItemTypeRelationshipIndex,
   useWorkItemTypes,
@@ -419,6 +420,7 @@ export {
   useWorkItemTypeCascadeImpact,
   useWorkItemTypeSectionContentImpact,
   useWorkItemTypeTrackingLinkRevocationImpact,
+  useResolveWorkItemTypeStatuses,
 } from "./useWorkItemTypeLifecycle";
 
 // Entity context hooks

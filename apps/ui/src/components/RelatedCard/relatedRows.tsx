@@ -282,7 +282,10 @@ export const renderEntityRow = (
           {row.displayName}
         </Typography>
         <Box sx={{ flexShrink: 0 }}>
-          <EntityNodeStatusChip status={row.status} />
+          <EntityNodeStatusChip
+            status={row.status}
+            workItem={workItemIcon && { definition: workItemIcon.definition }}
+          />
         </Box>
       </Box>
       <Box

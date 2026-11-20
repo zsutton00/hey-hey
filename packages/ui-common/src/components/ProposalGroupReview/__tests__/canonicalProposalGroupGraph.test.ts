@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   buildWorkflowGraphModel,
   projectWorkItemGraphForWorkflowSurface,
@@ -32,7 +33,7 @@ const diagramDefinition: WorkItemTypeDefinitionDto = {
       schemaRef: "work-item-graph-layout.v1",
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   capabilities: {
     graph: {
       nodeChildType: "DIAGRAM_ELEMENT",

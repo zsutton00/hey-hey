@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { describe, expect, it } from "vitest";
 import {
   PlanConfigurationV1SchemaVersionEnum,
@@ -79,7 +80,7 @@ const task = (
   id: string,
   name: string,
   options: {
-    status?: WorkStatus;
+    status?: TaskResponseDto["status"];
     createdAt?: string;
     dependencies?: string[];
     type?: "STANDARD" | "BUG";

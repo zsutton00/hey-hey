@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import type React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -189,13 +190,13 @@ describe("WorkflowProposalRenderer", () => {
           { key: "acceptanceCriteria", label: "Acceptance criteria" },
           { key: "operatorNotes", label: "Operator Notes" },
         ],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       } as unknown as WorkItemTypeDefinitionDto,
       workflow_step: {
         key: "workflow_step",
         name: "Workflow Step",
         sections: [{ key: "description", label: "Description" }],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       } as unknown as WorkItemTypeDefinitionDto,
     };
     workflowRegistry.isLoading = false;

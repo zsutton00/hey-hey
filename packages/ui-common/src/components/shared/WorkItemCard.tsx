@@ -48,7 +48,7 @@ export const WorkItemCard: React.FC<WorkItemCardProps> = ({
       e.stopPropagation();
       onRefine(item);
     },
-    [onRefine, item]
+    [onRefine, item],
   );
 
   const handleReject = useCallback(
@@ -56,7 +56,7 @@ export const WorkItemCard: React.FC<WorkItemCardProps> = ({
       e.stopPropagation();
       onReject(item);
     },
-    [onReject, item]
+    [onReject, item],
   );
 
   const actionButtons: ActionButtonConfig[] = [
@@ -92,6 +92,9 @@ export const WorkItemCard: React.FC<WorkItemCardProps> = ({
             <WorkItemStatusChip
               status={item.status}
               itemId={item.id}
+              organizationId={item.organizationId}
+              projectId={item.originatingProjectId}
+              typeKey="initiative"
               testIdPrefix={workType + "-card"}
             />
 

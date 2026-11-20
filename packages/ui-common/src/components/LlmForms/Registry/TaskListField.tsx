@@ -18,11 +18,7 @@ import {
 } from "@mui/material";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  TaskResponseDto,
-  TasksSystemMessageData,
-  WorkStatus,
-} from "../../../api";
+import type { TaskResponseDto, TasksSystemMessageData } from "../../../api";
 import { isTask } from "../../../data/collections/workItems";
 import type { WorkItemResponseDto } from "../../../data/collections/workItems";
 import { useWorkItems } from "../../../data/hooks/useWorkItems";
@@ -264,8 +260,9 @@ export const TaskListField: React.FC<TaskListFieldProps> = ({
   const shouldFetchTasks = !!initiativeId && generatedTaskIds.length > 0;
 
   // Filter to only show GENERATED tasks that match the generatedTaskIds from this conversation
-  const generatedStatus = "GENERATED" as WorkStatus;
-  const refiningDescriptionStatus = "REFINING_DESCRIPTION" as WorkStatus;
+  const generatedStatus = "GENERATED" as TaskResponseDto["status"];
+  const refiningDescriptionStatus =
+    "REFINING_DESCRIPTION" as TaskResponseDto["status"];
 
   // Load tasks from database using the generated task IDs
   const {

@@ -1,3 +1,5 @@
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
+import { legacyStatuses } from './legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -134,7 +136,7 @@ by the scoped edit. A conflict is evidence to flag or clarify; it does
 not authorize proposing unrelated feature edits automatically.`;
 
 /** allowed_statuses with the intended initial status first (deriveRules reads [0]). */
-function ordered(statuses: WorkStatus[], initial: WorkStatus): WorkStatus[] {
+function ordered(statuses: string[], initial: string): string[] {
   return [initial, ...statuses.filter((status) => status !== initial)];
 }
 
@@ -236,7 +238,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -264,7 +265,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -283,7 +283,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: true,
-      hasSetInitialStatus: true,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -305,7 +304,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: true,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -337,7 +335,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -369,7 +366,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: true,
     },
@@ -395,7 +391,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -418,7 +413,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: true,
       showsInExplorerSidebar: false,
     },
@@ -443,7 +437,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -466,7 +459,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: false,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: true,
       showsInExplorerSidebar: false,
     },
@@ -491,7 +483,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
     },
@@ -523,7 +514,6 @@ const TYPE_FIXTURES: Record<BuiltInTypeKey, TypeFixture> = {
     capabilities: {
       requiresParent: true,
       planEligible: false,
-      hasSetInitialStatus: false,
       rendersInline: false,
       showsInExplorerSidebar: false,
       monitorKinds: shippedTaskMonitorKinds(),
@@ -597,7 +587,7 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
     allowedParentTypes: fx.allowedParentTypes,
     allowedChildTypes: fx.allowedChildTypes,
     edgeTargets: fx.edgeTargets ?? [],
-    allowedStatuses,
+    statuses: legacyStatuses(allowedStatuses),
     requiredScalars: fx.requiredScalars,
     forbiddenScalars: fx.forbiddenScalars,
     parentage: {
@@ -605,7 +595,9 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
         fx.parentageAllowedEntityTypes ?? ALL_ENTITY_TYPES,
     },
     tracking: fx.tracking,
-    agentSettableStatuses: fx.agentSettableStatuses ?? allowedStatuses,
+    agentSettableStatuses: (fx.agentSettableStatuses ?? allowedStatuses).filter(
+      (status) => status !== WorkStatus.Superseded,
+    ),
     anchorableReportTypes: fx.anchorableReportTypes ?? ALL_REPORT_TYPES,
     writingStandards:
       taskType === WORK_ITEM_TYPE_KEYS.Standard
@@ -630,7 +622,10 @@ function buildRow(taskType: BuiltInTypeKey): WorkItemType {
     acceptedConfigKinds:
       fx.acceptedConfigKinds ??
       (taskType === WORK_ITEM_TYPE_KEYS.Standard ? ['INITIAL_WORKTREE'] : []),
-    capabilities: fx.capabilities,
+    capabilities: {
+      ...fx.capabilities,
+      supportsSupersession: allowedStatuses.includes(WorkStatus.Superseded),
+    },
     createdAt: new Date('2026-06-12T00:00:00.000Z'),
     updatedAt: new Date('2026-06-12T00:00:00.000Z'),
   } as unknown as WorkItemType;
@@ -709,7 +704,7 @@ export interface CustomTypeRowSpec {
    * the per-type status contract — a status outside this set must be rejected
    * on both create and edit.
    */
-  allowedStatuses?: WorkStatus[];
+  statuses?: WorkItemTypeStatus[];
   requiredScalars?: string[];
   forbiddenScalars?: string[];
   allowedParentTypes?: string[];
@@ -729,19 +724,19 @@ export interface CustomTypeRowSpec {
 const DEFAULT_CUSTOM_CAPABILITIES: Record<string, boolean> = {
   requiresParent: false,
   planEligible: true,
-  hasSetInitialStatus: false,
   rendersInline: false,
   showsInExplorerSidebar: false,
 };
 
 function buildCustomRow(spec: CustomTypeRowSpec): WorkItemType {
-  const initialStatus = spec.initialStatus ?? WorkStatus.Backlog;
+  const initialStatus =
+    spec.initialStatus ?? spec.statuses?.[0]?.name ?? WorkStatus.Backlog;
   const sectionKeys = spec.sectionKeys ?? [
     TaskSectionKey.Description,
     TaskSectionKey.Requirements,
   ];
   const allowedStatuses = ordered(
-    spec.allowedStatuses ?? SUPERSEDABLE_STATUSES,
+    spec.statuses?.map((status) => status.name) ?? SUPERSEDABLE_STATUSES,
     initialStatus,
   );
   const { graph, ...capabilities } =
@@ -764,7 +759,7 @@ function buildCustomRow(spec: CustomTypeRowSpec): WorkItemType {
     allowedParentTypes: spec.allowedParentTypes ?? [],
     allowedChildTypes: spec.allowedChildTypes ?? [],
     edgeTargets: spec.edgeTargets ?? [],
-    allowedStatuses,
+    statuses: spec.statuses ?? legacyStatuses(allowedStatuses),
     requiredScalars: spec.requiredScalars ?? [],
     forbiddenScalars: spec.forbiddenScalars ?? ['tag'],
     parentage: {
@@ -772,11 +767,16 @@ function buildCustomRow(spec: CustomTypeRowSpec): WorkItemType {
         spec.allowedParentEntityTypes ?? ALL_ENTITY_TYPES,
     },
     tracking: spec.tracking ?? NOT_A_TRACKING_SOURCE,
-    agentSettableStatuses: allowedStatuses,
+    agentSettableStatuses: allowedStatuses.filter(
+      (status) => status !== WorkStatus.Superseded,
+    ),
     anchorableReportTypes: ALL_REPORT_TYPES,
     writingStandards: spec.writingStandards ?? { create: '', edit: '' },
     acceptedConfigKinds: spec.acceptedConfigKinds ?? [],
-    capabilities,
+    capabilities: {
+      ...capabilities,
+      supportsSupersession: allowedStatuses.includes(WorkStatus.Superseded),
+    },
     graphConfiguration: graph ?? null,
     createdAt: new Date('2026-06-12T00:00:00.000Z'),
     updatedAt: new Date('2026-06-12T00:00:00.000Z'),

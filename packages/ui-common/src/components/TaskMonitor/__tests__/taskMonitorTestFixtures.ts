@@ -53,7 +53,7 @@ export const createTaskMonitorDefinition =
 export const createTask = (
   id: string,
   name: string,
-  status: WorkStatus = WorkStatus.Ready,
+  status: TaskResponseDto["status"] = WorkStatus.Ready,
 ): TaskResponseDto => ({
   id,
   name,

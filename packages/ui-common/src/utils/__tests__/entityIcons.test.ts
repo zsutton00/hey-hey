@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import BugReportIcon from "@mui/icons-material/BugReport";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
@@ -23,13 +24,13 @@ import {
 
 const definition = (
   key: string,
-  iconKey: WorkItemTypeDefinitionDto["iconKey"]
+  iconKey: WorkItemTypeDefinitionDto["iconKey"],
 ): WorkItemTypeDefinitionDto => ({
   key,
   name: key,
   role: WorkItemTypeRole.WorkItem,
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   iconKey,
 });
 
@@ -59,13 +60,13 @@ describe("entityIcons", () => {
       color: "success.contrastText",
     });
     expect(
-      resolveWorkItemIconPresentation("mockup", definition("mockup", "design"))
+      resolveWorkItemIconPresentation("mockup", definition("mockup", "design")),
     ).toEqual({
       Icon: DesignIcon,
       colors: { background: "error.main", color: "error.contrastText" },
     });
     expect(
-      resolveWorkItemIconPresentation("mockup", definition("mockup", "task"))
+      resolveWorkItemIconPresentation("mockup", definition("mockup", "task")),
     ).toEqual({
       Icon: DesignIcon,
       colors: { background: "error.main", color: "error.contrastText" },
@@ -73,8 +74,8 @@ describe("entityIcons", () => {
     expect(
       resolveWorkItemIconPresentation(
         "decision",
-        definition("decision", "decision")
-      )
+        definition("decision", "decision"),
+      ),
     ).toEqual({
       Icon: DecisionIcon,
       colors: { background: "success.main", color: "success.contrastText" },
@@ -83,19 +84,19 @@ describe("entityIcons", () => {
 
   it("withholds type-specific icon and color when the registry definition is unavailable or mismatched", () => {
     expect(
-      resolveWorkItemIconPresentation("decision", undefined)
+      resolveWorkItemIconPresentation("decision", undefined),
     ).toBeUndefined();
     expect(
       resolveWorkItemIconPresentation(
         "decision",
-        definition("mockup", "decision")
-      )
+        definition("mockup", "decision"),
+      ),
     ).toBeUndefined();
     expect(
       resolveWorkItemIconPresentation(
         "decision",
-        definition("decision", undefined)
-      )
+        definition("decision", undefined),
+      ),
     ).toBeUndefined();
   });
 
@@ -123,22 +124,25 @@ describe("entityIcons", () => {
 
   it("resolves registry-backed work-item icons from the closed palette", () => {
     expect(
-      resolveWorkItemIcon("CONTRACT", definition("CONTRACT", "contract"))
+      resolveWorkItemIcon("CONTRACT", definition("CONTRACT", "contract")),
     ).toBe(ContractIcon);
     expect(
-      resolveWorkItemIcon("workflow", definition("workflow", "workflow"))
+      resolveWorkItemIcon("workflow", definition("workflow", "workflow")),
     ).toBe(AccountTreeIcon);
     expect(resolveWorkItemIcon("BUG", definition("BUG", "bug"))).toBe(
-      BugReportIcon
+      BugReportIcon,
     );
   });
 
   it("uses the dedicated Task Monitor icon for the built-in monitor type", () => {
     expect(
-      resolveWorkItemIcon("TASK_MONITOR", definition("TASK_MONITOR", undefined))
+      resolveWorkItemIcon(
+        "TASK_MONITOR",
+        definition("TASK_MONITOR", undefined),
+      ),
     ).toBe(TaskMonitorIcon);
     expect(
-      resolveWorkItemIcon("TASK_MONITOR", definition("TASK_MONITOR", "task"))
+      resolveWorkItemIcon("TASK_MONITOR", definition("TASK_MONITOR", "task")),
     ).toBe(TaskMonitorIcon);
     expect(getEntityIcon("TASK_MONITOR")).toBe(TaskMonitorIcon);
   });
@@ -147,10 +151,10 @@ describe("entityIcons", () => {
     expect(resolveWorkItemIcon(undefined, undefined)).toBe(TaskIcon);
     expect(resolveWorkItemIcon("CONTRACT", undefined)).toBeUndefined();
     expect(
-      resolveWorkItemIcon("CONTRACT", definition("workflow", "workflow"))
+      resolveWorkItemIcon("CONTRACT", definition("workflow", "workflow")),
     ).toBeUndefined();
     expect(
-      resolveWorkItemIcon("CONTRACT", definition("CONTRACT", undefined))
+      resolveWorkItemIcon("CONTRACT", definition("CONTRACT", undefined)),
     ).toBeUndefined();
   });
 
@@ -186,8 +190,8 @@ describe("independent registry colors", () => {
           ...definition("custom", undefined),
           colorKey: "primary",
         },
-        "PROJECT_CUSTOM"
-      )?.colors
+        "PROJECT_CUSTOM",
+      )?.colors,
     ).toEqual({ background: "primary.main", color: "primary.contrastText" });
   });
   it.each([
@@ -203,18 +207,18 @@ describe("independent registry colors", () => {
       const custom = { ...definition("custom", "star"), colorKey };
       expect(
         resolveWorkItemIconPresentation("custom", custom, "PROJECT_CUSTOM")
-          ?.colors
+          ?.colors,
       ).toEqual({
         background: `${colorKey}.main`,
         color: `${colorKey}.contrastText`,
       });
       expect(
-        resolveWorkItemIconPresentation("other", custom, "PROJECT_CUSTOM")
+        resolveWorkItemIconPresentation("other", custom, "PROJECT_CUSTOM"),
       ).toBeUndefined();
       expect(resolveWorkItemIconPresentation("custom", custom)?.colors).toEqual(
-        { background: "action.hover", color: "text.secondary" }
+        { background: "action.hover", color: "text.secondary" },
       );
-    }
+    },
   );
   it.each(["CANONICAL", "CANONICAL_OVERRIDE"] as const)(
     "preserves base colors for %s after a glyph change",
@@ -224,16 +228,16 @@ describe("independent registry colors", () => {
         colorKey: "primary" as const,
       };
       expect(
-        resolveWorkItemIconPresentation("BUG", builtin, source)?.colors
+        resolveWorkItemIconPresentation("BUG", builtin, source)?.colors,
       ).toEqual(getEntityColors("BUG"));
       expect(
         resolveWorkItemIconPresentation(
           "BUG",
           definition("BUG", undefined),
-          source
-        )?.colors
+          source,
+        )?.colors,
       ).toEqual(getEntityColors("BUG"));
-    }
+    },
   );
   it.each([
     "star",
@@ -257,14 +261,14 @@ describe("independent registry colors", () => {
       const result = resolveWorkItemIconPresentation(
         "custom",
         definition("custom", iconKey),
-        "PROJECT_CUSTOM"
+        "PROJECT_CUSTOM",
       );
       expect(result?.Icon).toBeDefined();
       expect(result?.colors).toEqual({
         background: "action.hover",
         color: "text.secondary",
       });
-    }
+    },
   );
   it("restores the legacy custom default after clearing", () => {
     const selected = {
@@ -273,14 +277,14 @@ describe("independent registry colors", () => {
     };
     expect(
       resolveWorkItemIconPresentation("decision", selected, "PROJECT_CUSTOM")
-        ?.colors.background
+        ?.colors.background,
     ).toBe("primary.main");
     expect(
       resolveWorkItemIconPresentation(
         "decision",
         definition("decision", "decision"),
-        "PROJECT_CUSTOM"
-      )?.colors.background
+        "PROJECT_CUSTOM",
+      )?.colors.background,
     ).toBe("success.main");
   });
 });

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
@@ -34,7 +35,7 @@ describe("WorkItemTypesList", () => {
             name: "Custom type",
             description: "Project-defined work.",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
         {
@@ -46,7 +47,7 @@ describe("WorkItemTypesList", () => {
             name: "Bug",
             description: "Archived canonical work.",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
         {
@@ -57,7 +58,7 @@ describe("WorkItemTypesList", () => {
             key: "STANDARD",
             name: "Task",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
         {
@@ -69,7 +70,7 @@ describe("WorkItemTypesList", () => {
             name: "Archived custom",
             description: "Retained project work.",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
         {
@@ -80,7 +81,7 @@ describe("WorkItemTypesList", () => {
             key: "FOREIGN",
             name: "Foreign project type",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
       ],
@@ -172,7 +173,7 @@ describe("WorkItemTypesList", () => {
             key: "FOREIGN",
             name: "Foreign project type",
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         },
       ],

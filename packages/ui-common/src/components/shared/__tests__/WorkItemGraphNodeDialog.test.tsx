@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -13,7 +14,7 @@ const typeDefinition: WorkItemTypeDefinitionDto = {
   key: "MILESTONE",
   name: "Milestone",
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   requiredScalars: [WorkItemTypeScalarField.DueDate],
 };
 
@@ -40,12 +41,12 @@ describe("WorkItemGraphNodeDialog", () => {
         typeDefinition={typeDefinition}
         onCancel={vi.fn()}
         onCommit={onCommit}
-      />
+      />,
     );
 
     await userEvent.type(
       screen.getByTestId("work-item-graph-node-name"),
-      "Launch milestone"
+      "Launch milestone",
     );
     fireEvent.change(screen.getByLabelText(/Due date/), {
       target: { value: "2026-07-31" },
@@ -67,12 +68,12 @@ describe("WorkItemGraphNodeDialog", () => {
         typeDefinition={presentationTypeDefinition}
         onCancel={vi.fn()}
         onCommit={onCommit}
-      />
+      />,
     );
 
     await userEvent.type(
       screen.getByTestId("work-item-graph-node-name"),
-      "Colored step"
+      "Colored step",
     );
     fireEvent.change(screen.getByTestId("work-item-graph-node-section"), {
       target: { value: "#123456" },
@@ -114,7 +115,7 @@ describe("WorkItemGraphNodeDialog", () => {
         typeDefinition={presentationTypeDefinition}
         onCancel={vi.fn()}
         onCommit={clearCommit}
-      />
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Clear" }));
     await userEvent.click(screen.getByTestId("work-item-graph-node-commit"));

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../api";
 import {
@@ -16,12 +17,12 @@ import { createProgressiveTemplate } from "../../components/WorkItem/progressive
 
 const buildDefinition = (
   key: string,
-  sections: WorkItemTypeDefinitionDto["sections"]
+  sections: WorkItemTypeDefinitionDto["sections"],
 ): WorkItemTypeDefinitionDto => ({
   key,
   name: key,
   sections,
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 });
 
 const STANDARD_DEFINITION = buildDefinition("STANDARD", [
@@ -42,7 +43,7 @@ describe("workItemSections registry selection", () => {
       buildDefinition("RESEARCH", [
         { key: "findings", label: "Findings" },
         { key: "sources", label: "Evidence sources" },
-      ])
+      ]),
     );
 
     expect(getSelectedSectionKeys(selection)).toEqual(["findings", "sources"]);
@@ -62,15 +63,15 @@ describe("workItemSections registry selection", () => {
           typeKey: "CONTRACT",
           definition: undefined,
           isFetched: false,
-        })
-      )
+        }),
+      ),
     ).toEqual([]);
     expect(
       selectWorkItemSections({
         typeKey: "CONTRACT",
         definition: undefined,
         isFetched: true,
-      })
+      }),
     ).toEqual({ status: "unavailable", reason: "unresolved" });
   });
 });
@@ -83,11 +84,11 @@ describe("selectInlineWorkItemSections", () => {
         { key: "desktop", label: "Desktop", kind: "structured-mockup" },
         { key: "notes", label: "Notes" },
         { key: "mobile", label: "Mobile", kind: "html/css" },
-      ])
+      ]),
     );
 
     expect(
-      getSelectedSectionKeys(selectInlineWorkItemSections(selection))
+      getSelectedSectionKeys(selectInlineWorkItemSections(selection)),
     ).toEqual(["desktop", "mobile"]);
   });
 
@@ -95,7 +96,7 @@ describe("selectInlineWorkItemSections", () => {
     const selection = resolvedSelection(STANDARD_DEFINITION);
 
     expect(
-      getSelectedSectionKeys(selectInlineWorkItemSections(selection))
+      getSelectedSectionKeys(selectInlineWorkItemSections(selection)),
     ).toEqual([]);
   });
 
@@ -147,12 +148,12 @@ describe("taskContentToSectionInputs", () => {
     const selection = resolvedSelection(
       buildDefinition("ANY_CUSTOM_TYPE", [
         { key: "preview", label: "Preview", kind: "html/css" },
-      ])
+      ]),
     );
     const serialized = JSON.stringify({ html: "<main>Hi</main>", css: "" });
 
     expect(
-      taskContentToSectionInputs({ preview: serialized }, { selection })
+      taskContentToSectionInputs({ preview: serialized }, { selection }),
     ).toEqual([
       {
         key: "preview",
@@ -161,10 +162,10 @@ describe("taskContentToSectionInputs", () => {
       },
     ]);
     expect(
-      taskContentToSectionInputs({ preview: "{}" }, { selection })
+      taskContentToSectionInputs({ preview: "{}" }, { selection }),
     ).toEqual([]);
     expect(
-      decodeHtmlCssSectionContent({ html: "x", css: "", extra: true })
+      decodeHtmlCssSectionContent({ html: "x", css: "", extra: true }),
     ).toBeNull();
   });
 
@@ -195,14 +196,14 @@ describe("taskContentToSectionInputs", () => {
       ],
     };
 
-    expect(
-      JSON.parse(serializeHtmlCssSectionContent(content))
-    ).toEqual(content);
+    expect(JSON.parse(serializeHtmlCssSectionContent(content))).toEqual(
+      content,
+    );
     expect(
       decodeHtmlCssSectionContent({
         ...content,
         annotations: [content.annotations[0], content.annotations[0]],
-      })
+      }),
     ).toBeNull();
   });
   it("writes description and requirements — not acceptanceCriteria", () => {
@@ -210,7 +211,7 @@ describe("taskContentToSectionInputs", () => {
       buildDefinition("FEATURE", [
         { key: "description", label: "Description" },
         { key: "requirements", label: "Requirements" },
-      ])
+      ]),
     );
     const inputs = taskContentToSectionInputs(
       {
@@ -218,7 +219,7 @@ describe("taskContentToSectionInputs", () => {
         requirements: "- req 1\n- req 2",
         acceptanceCriteria: "should be ignored for features",
       },
-      { selection: featureSelection }
+      { selection: featureSelection },
     );
 
     expect(inputs).toEqual([
@@ -234,7 +235,7 @@ describe("taskContentToSectionInputs", () => {
         requirements: "should be ignored for standards",
         acceptanceCriteria: "AC",
       },
-      { selection: resolvedSelection(STANDARD_DEFINITION) }
+      { selection: resolvedSelection(STANDARD_DEFINITION) },
     );
 
     expect(inputs).toEqual([
@@ -255,9 +256,9 @@ describe("taskContentToSectionInputs", () => {
           buildDefinition("FEATURE", [
             { key: "description", label: "Description" },
             { key: "requirements", label: "Requirements" },
-          ])
+          ]),
         ),
-      }
+      },
     );
 
     expect(inputs).toEqual([
@@ -279,8 +280,8 @@ describe("taskContentToSectionInputs", () => {
             status: "unavailable",
             reason: "loading",
           },
-        }
-      )
+        },
+      ),
     ).toEqual([]);
   });
 });
@@ -302,7 +303,7 @@ describe("createProgressiveTemplate", () => {
     });
 
     expect(template.sections[0]?.content.initialText).toBe(
-      JSON.stringify({ html: "", css: "" })
+      JSON.stringify({ html: "", css: "" }),
     );
   });
 
@@ -333,7 +334,7 @@ describe("createProgressiveTemplate", () => {
         content: [],
         annotations: [],
         sizeKey: "panel",
-      })
+      }),
     );
   });
 });
@@ -346,7 +347,7 @@ describe("applyTaskSectionInputsToMaterialized", () => {
       [
         { key: "configuration", content },
         { key: "description", content: "# Plain Markdown" },
-      ]
+      ],
     );
     expect(result?.map((section) => section.materializedMarkdown)).toEqual([
       JSON.stringify(content),
@@ -359,7 +360,7 @@ describe("applyTaskSectionInputsToMaterialized", () => {
       buildDefinition("RESEARCH", [
         { key: "sources", label: "Sources" },
         { key: "findings", label: "Findings" },
-      ])
+      ]),
     );
 
     expect(
@@ -377,8 +378,8 @@ describe("applyTaskSectionInputsToMaterialized", () => {
           { key: "findings", content: "Result", order: 99 },
           { key: "sources", content: "Evidence", order: 98 },
         ],
-        selection
-      )
+        selection,
+      ),
     ).toEqual([
       {
         id: "temp-sources",
@@ -405,34 +406,37 @@ describe("structured mockup decoding", () => {
     "work-item-structured-mockup.v3",
     "work-item-structured-mockup.v4",
     "work-item-structured-mockup.v5",
-  ] as const)("serializes the selected profile for %s without downgrading", (schemaVersion) => {
-    const document = {
-      schemaVersion,
-      revision: 2,
-      sizeKey: "panel",
-      annotations: [],
-      content: [
-        {
-          type: "text" as const,
-          props: {
-            id: "title",
-            width: { mode: "fit" as const },
-            height: { mode: "content" as const },
-            text: "Review",
-            ...(schemaVersion === "work-item-structured-mockup.v5"
-              ? { role: "heading" as const }
-              : {}),
+  ] as const)(
+    "serializes the selected profile for %s without downgrading",
+    (schemaVersion) => {
+      const document = {
+        schemaVersion,
+        revision: 2,
+        sizeKey: "panel",
+        annotations: [],
+        content: [
+          {
+            type: "text" as const,
+            props: {
+              id: "title",
+              width: { mode: "fit" as const },
+              height: { mode: "content" as const },
+              text: "Review",
+              ...(schemaVersion === "work-item-structured-mockup.v5"
+                ? { role: "heading" as const }
+                : {}),
+            },
           },
-        },
-      ],
-    };
+        ],
+      };
 
-    const decoded = decodeStructuredMockupSectionContent(document);
-    expect(decoded).not.toBeNull();
-    expect(
-      JSON.parse(serializeStructuredMockupSectionContent(decoded))
-    ).toEqual(document);
-  });
+      const decoded = decodeStructuredMockupSectionContent(document);
+      expect(decoded).not.toBeNull();
+      expect(
+        JSON.parse(serializeStructuredMockupSectionContent(decoded)),
+      ).toEqual(document);
+    },
+  );
 
   it("keeps modern container layout valid when a document advances to v4", () => {
     const value = {
@@ -547,7 +551,7 @@ describe("structured mockup decoding", () => {
             ],
           },
         ],
-      })
+      }),
     ).toMatchObject({
       content: [
         {
@@ -592,7 +596,7 @@ describe("structured mockup decoding", () => {
     ];
 
     unsafeDocuments.forEach((document) =>
-      expect(decodeStructuredMockupSectionContent(document)).toBeNull()
+      expect(decodeStructuredMockupSectionContent(document)).toBeNull(),
     );
   });
 
@@ -642,7 +646,7 @@ describe("structured mockup decoding", () => {
       decodeStructuredMockupSectionContent({
         ...document,
         annotations: [document.annotations[0], { ...document.annotations[0] }],
-      })
+      }),
     ).toBeNull();
     const { authoredProposalId: _authoredProposalId, ...legacyAnnotation } =
       document.annotations[0];
@@ -650,7 +654,7 @@ describe("structured mockup decoding", () => {
       decodeStructuredMockupSectionContent({
         ...document,
         annotations: [{ ...legacyAnnotation, authoredRevision: 3 }],
-      })?.annotations
+      })?.annotations,
     ).toEqual([]);
     expect(
       decodeStructuredMockupSectionContent({
@@ -661,7 +665,7 @@ describe("structured mockup decoding", () => {
             target: { type: "position", x: 1.1, y: 0 },
           },
         ],
-      })
+      }),
     ).toBeNull();
     expect(
       decodeStructuredMockupSectionContent({
@@ -672,7 +676,7 @@ describe("structured mockup decoding", () => {
             target: { type: "component", componentId: "missing" },
           },
         ],
-      })
+      }),
     ).not.toBeNull();
     expect(
       decodeStructuredMockupSectionContent({
@@ -683,7 +687,7 @@ describe("structured mockup decoding", () => {
             conversationId: "10000000-0000-4000-8000-000000000003",
           },
         ],
-      })
+      }),
     ).toBeNull();
   });
 
@@ -769,7 +773,7 @@ describe("structured mockup decoding", () => {
             ],
           },
         ],
-      })
+      }),
     ).toBeNull();
     expect(
       decodeStructuredMockupSectionContent({
@@ -785,7 +789,7 @@ describe("structured mockup decoding", () => {
             },
           },
         ],
-      })
+      }),
     ).toBeNull();
     expect(
       decodeStructuredMockupSectionContent({
@@ -801,7 +805,7 @@ describe("structured mockup decoding", () => {
             },
           },
         ],
-      })
+      }),
     ).toBeNull();
   });
 });

@@ -20,6 +20,8 @@ import { summarizeClaudeInitToolExposure } from './init-tool-exposure';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import {
   ClaudeCodeSdkClient,
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
   type ClaudeCodePermissionResult,
   type ClaudeCodeSdkEvent,
   type ClaudeCodeTurnResult,
@@ -2760,7 +2762,28 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     // fields to `T | undefined`, which `exactOptionalPropertyTypes` rejects
     // against the DTO's bare-optional props. Reconcile at this single, already
     // schema-validated boundary.
-    const contextData = (await this.client.getContextUsage()) as LocalContextData;
+    let contextData: LocalContextData;
+    try {
+      contextData = (await this.client.getContextUsage()) as LocalContextData;
+    } catch (error) {
+      const sessionEnded =
+        error instanceof ControlRequestDisconnectedError ||
+        error instanceof ControlRequestAbortedError;
+      if (!sessionEnded) {
+        throw error;
+      }
+
+      // The live session ended (the Turn finished and Run discarded the provider
+      // session, or the Turn was cancelled and the client was torn down) while the read was pending. Report it as "no active
+      // session" so the caller falls back to reading by resuming the persisted one.
+      requestContext.log(this.logger, 'debug', 'local.runner.claude.context_usage.disconnected', {
+        activeSessionId,
+      });
+      throw new AgentSessionRunnerError(
+        'NO_ACTIVE_SESSION',
+        'The Claude SDK session ended while context usage was being read.',
+      );
+    }
     requestContext.log(this.logger, 'debug', 'local.runner.claude.context_usage.succeeded', {
       activeSessionId,
       totalTokens: contextData.totalTokens,

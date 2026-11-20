@@ -33,7 +33,10 @@ vi.mock("./ExplorerTreeNode", () => ({
   ),
 }));
 
-const feature = (id: string, status: WorkStatus): TaskResponseDto => ({
+const feature = (
+  id: string,
+  status: TaskResponseDto["status"],
+): TaskResponseDto => ({
   id,
   name: id,
   type: "FEATURE",

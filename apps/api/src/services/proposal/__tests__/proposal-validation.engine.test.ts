@@ -1,10 +1,12 @@
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
 } from 'src/services/tasks/work-item-type-keys';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { buildWorkItemTypeEditProposal } from '../work-item-type-proposal.builder';
 import {
   ProposalValidationEngine,
   assertProposalStructurallyValid,
@@ -85,7 +87,7 @@ function makeCreateWorkItemTypeDto(
       name: 'Marketing',
       role: 'project-info',
       sections: [{ key: 'audience', label: 'Audience' }],
-      allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'],
+      statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'COMPLETED']),
       ...defOverrides,
     },
     ...dtoOverrides,
@@ -2891,7 +2893,7 @@ describe('ProposalValidationEngine', () => {
       expect(issue!.suggestion).toContain('supersede transition');
     });
 
-    it('passes a SUPERSEDED status edit paired with a SUPERSEDES edge', async () => {
+    it('rejects a SUPERSEDED status assignment even with a SUPERSEDES edge', async () => {
       mockPrisma.db.project.findFirst.mockResolvedValue({
         id: testIds.project,
       });
@@ -2913,14 +2915,11 @@ describe('ProposalValidationEngine', () => {
         context: makeContext(),
       });
 
-      // The co-presence guard must not flag a well-formed supersede proposal.
-      const supersedeIssue = result.proposals[0]!.errors.find(
-        (e) =>
-          e.code === 'forbidden_status' ||
-          e.code === 'orphan_supersedes_edge' ||
-          e.code === 'ambiguous_successor',
+      expect(result.proposals[0]!.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: 'forbidden_status' }),
+        ]),
       );
-      expect(supersedeIssue).toBeUndefined();
     });
 
     it('allows a SUPERSEDES edge declared without a SUPERSEDED status change', async () => {
@@ -5033,24 +5032,22 @@ describe('ProposalValidationEngine', () => {
         ).toEqual([]);
       });
 
-      it('rejects an unrecognized status enum member', async () => {
+      it('accepts resolved custom status names structurally', async () => {
         const dto = makeCreateWorkItemTypeDto({
-          allowedStatuses: ['BACKLOG', 'WIP'] as any,
+          statuses: [
+            { name: 'Idea', meaning: 'NOT_STARTED' },
+            { name: 'Testing', meaning: 'IN_PROGRESS' },
+          ],
         });
-
         const result = await engine.validate({
           proposals: [dto],
           context: makeContext(),
         });
-
-        expect(result.valid).toBe(false);
-        const issue = result.proposals[0]!.errors.find(
-          (e) =>
-            e.field.includes('updates.allowedStatuses') &&
-            e.code === 'invalid_enum',
-        );
-        expect(issue).toBeDefined();
-        expect(issue!.layer).toBe('structural');
+        expect(
+          result.proposals[0]!.errors.filter(
+            (error) => error.layer === 'structural',
+          ),
+        ).toEqual([]);
       });
 
       it('rejects a missing key with a required error', async () => {
@@ -5062,7 +5059,7 @@ describe('ProposalValidationEngine', () => {
           updates: {
             name: 'Marketing',
             sections: [{ key: 'audience', label: 'Audience' }],
-            allowedStatuses: ['BACKLOG'],
+            statuses: legacyStatuses(['BACKLOG']),
           },
         };
 
@@ -5088,7 +5085,7 @@ describe('ProposalValidationEngine', () => {
           updates: {
             key: 'MARKETING',
             sections: [{ key: 'audience', label: 'Audience' }],
-            allowedStatuses: ['BACKLOG'],
+            statuses: legacyStatuses(['BACKLOG']),
           },
         };
 
@@ -5371,8 +5368,8 @@ describe('ProposalValidationEngine', () => {
         ).toBe(false);
       });
 
-      it('rejects an empty allowedStatuses as an incoherent initial-status policy', async () => {
-        const dto = makeCreateWorkItemTypeDto({ allowedStatuses: [] });
+      it('rejects an empty ordinary status list', async () => {
+        const dto = makeCreateWorkItemTypeDto({ statuses: legacyStatuses([]) });
 
         const result = await engine.validate({
           proposals: [dto],
@@ -5381,11 +5378,10 @@ describe('ProposalValidationEngine', () => {
 
         expect(result.valid).toBe(false);
         const issue = result.proposals[0]!.errors.find((e) =>
-          e.field.includes('updates.allowedStatuses'),
+          e.field.includes('updates.statuses'),
         );
         expect(issue).toBeDefined();
         expect(issue!.layer).toBe('structural');
-        expect(issue!.reason).toContain('at least one status');
       });
 
       it('rejects a scalar field outside the closed WorkItemTypeScalarField set', async () => {
@@ -5557,7 +5553,11 @@ describe('ProposalValidationEngine', () => {
               name: 'Marketing',
               lifecycleStatus: 'archived',
               sectionDefinitions: [{ key: 'audience', label: 'Audience' }],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedRegistryModule: TestingModule =
@@ -5604,7 +5604,11 @@ describe('ProposalValidationEngine', () => {
               name: 'Marketing',
               lifecycleStatus: 'archived',
               sectionDefinitions: [{ key: 'audience', label: 'Audience' }],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedSummary = archivedRegistry.getDefinition(
@@ -5692,6 +5696,49 @@ describe('ProposalValidationEngine', () => {
             (e) => e.code === 'unrecognized_type' && e.reason.includes('GHOST'),
           ),
         ).toBe(true);
+      });
+
+      it('rejects agent-settable statuses that are not among the type statuses or ARCHIVED', async () => {
+        mockPrisma.db.project.findFirst.mockResolvedValue({
+          id: testIds.project,
+        });
+
+        const stale = await engine.validate({
+          proposals: [
+            makeCreateWorkItemTypeDto({
+              statuses: [
+                { name: 'Drafting', meaning: 'NOT_STARTED' },
+                { name: 'Published', meaning: 'FINISHED' },
+              ],
+              agentSettableStatuses: ['Draft', 'Published'],
+            }),
+          ],
+          context: makeContext(),
+        });
+        const current = await engine.validate({
+          proposals: [
+            makeCreateWorkItemTypeDto({
+              statuses: [
+                { name: 'Drafting', meaning: 'NOT_STARTED' },
+                { name: 'Published', meaning: 'FINISHED' },
+              ],
+              agentSettableStatuses: ['Drafting', 'Published', 'ARCHIVED'],
+            }),
+          ],
+          context: makeContext(),
+        });
+
+        const issue = stale.proposals[0]!.errors.find(
+          (e) => e.code === 'unknown_agent_settable_status',
+        );
+        expect(stale.valid).toBe(false);
+        expect(issue?.reason).toContain('Draft');
+        expect(issue?.reason).not.toContain('Published');
+        expect(
+          current.proposals[0]!.errors.some(
+            (e) => e.code === 'unknown_agent_settable_status',
+          ),
+        ).toBe(false);
       });
 
       it('rejects a reference to an archived type', async () => {
@@ -6030,7 +6077,7 @@ describe('ProposalValidationEngine', () => {
                 name: targetEntityId,
                 role: 'work-item',
                 sections: [{ key: 'description', label: 'Description' }],
-                allowedStatuses: ['BACKLOG'],
+                statuses: legacyStatuses(['BACKLOG']),
               },
             },
           };
@@ -6138,7 +6185,11 @@ describe('ProposalValidationEngine', () => {
               sectionDefinitions: [
                 { key: 'description', label: 'Description' },
               ],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const archivedRegistryModule: TestingModule =
@@ -6175,7 +6226,7 @@ describe('ProposalValidationEngine', () => {
                   name: 'Marketing',
                   role: 'work-item',
                   sections: [{ key: 'description', label: 'Description' }],
-                  allowedStatuses: ['BACKLOG'],
+                  statuses: legacyStatuses(['BACKLOG']),
                 },
               },
             },
@@ -6207,7 +6258,11 @@ describe('ProposalValidationEngine', () => {
                     '#/components/schemas/TaskMonitorExecutionDefinition',
                 },
               ],
-              allowedStatuses: ['BACKLOG', 'ACTIVE', 'COMPLETED'] as any,
+              statuses: legacyStatuses([
+                'BACKLOG',
+                'ACTIVE',
+                'COMPLETED',
+              ] as any),
             },
           ]);
         const customModule = await Test.createTestingModule({
@@ -6242,7 +6297,8 @@ describe('ProposalValidationEngine', () => {
                   ...existing.definition,
                   name: 'Campaign',
                   description: 'Campaign planning work',
-                  allowedStatuses: ['BACKLOG', 'COMPLETED'],
+                  statuses: legacyStatuses(['BACKLOG', 'COMPLETED']),
+                  agentSettableStatuses: ['BACKLOG', 'COMPLETED', 'ARCHIVED'],
                 },
               },
             },
@@ -6251,6 +6307,67 @@ describe('ProposalValidationEngine', () => {
         });
 
         expect(result.valid).toBe(true);
+      });
+
+      it('rejects a carried-over agent-settable list that names a removed status', async () => {
+        const customRegistry =
+          await createWarmWorkItemTypeRegistryWithCustomTypes([
+            {
+              typeKey: 'MARKETING',
+              projectId: testIds.project,
+              name: 'Marketing',
+              sectionDefinitions: [
+                { key: 'description', label: 'Description' },
+              ],
+              statuses: legacyStatuses(['BACKLOG', 'ACTIVE', 'COMPLETED']),
+            },
+          ]);
+        const customModule = await Test.createTestingModule({
+          providers: [
+            ProposalValidationEngine,
+            WorkItemParentageValidator,
+            { provide: PrismaService, useValue: mockPrisma },
+            { provide: WorkItemTypeRegistryService, useValue: customRegistry },
+          ],
+        }).compile();
+        const customEngine = customModule.get<ProposalValidationEngine>(
+          ProposalValidationEngine,
+        );
+        mockPrisma.db.project.findFirst.mockResolvedValue({
+          id: testIds.project,
+        });
+        const existing = customRegistry.getDefinition(
+          testIds.project,
+          'MARKETING',
+        )!.definition;
+        const { agentSettableStatuses: _omitted, ...edited } = existing;
+
+        const result = await customEngine.validate({
+          proposals: [
+            buildWorkItemTypeEditProposal({
+              typeKey: 'MARKETING',
+              definition: {
+                ...edited,
+                statuses: legacyStatuses(['BACKLOG', 'COMPLETED']),
+              },
+              currentDefinition: existing,
+              requestorContext: {
+                userId: testIds.user,
+                organizationId: testIds.organization,
+                toolName: 'edit_work_item_type',
+                timestamp: new Date().toISOString(),
+                source: 'agent',
+              },
+            }) as CreateProposalDto,
+          ],
+          context: makeContext(),
+        });
+
+        const issue = result.proposals[0]!.errors.find(
+          (e) => e.code === 'unknown_agent_settable_status',
+        );
+        expect(result.valid).toBe(false);
+        expect(issue?.reason).toContain('ACTIVE');
       });
 
       it('rejects a work-item-type proposal without project context', async () => {

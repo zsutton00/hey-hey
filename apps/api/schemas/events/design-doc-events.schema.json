@@ -6354,7 +6354,14 @@
           "description": "Display title for the tracked entity."
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
+        },
+        "statusMeaning": {
+          "$ref": "#/definitions/WorkItemStatusMeaning"
+        },
+        "completionBehavior": {
+          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
         },
         "dueDate": {
           "type": [
@@ -6433,72 +6440,30 @@
       ],
       "description": "Entity type for canonical entities. `USER` is used in proposal influence rows to attribute a change to the human who authored it (resolved to the user\\'s display name on snapshot); users are not stored in the entity registry."
     },
-    "WorkStatus": {
+    "WorkItemStatusMeaning": {
       "anyOf": [
         {
           "type": "string",
-          "const": "GENERATED"
+          "const": "NOT_STARTED"
         },
         {
           "type": "string",
-          "const": "BACKLOG"
+          "const": "IN_PROGRESS"
         },
         {
           "type": "string",
-          "const": "READY"
+          "const": "UNFINISHED"
         },
         {
           "type": "string",
-          "const": "REFINING"
+          "const": "FINISHED"
         },
-        {
-          "type": "string",
-          "const": "BLOCKED"
-        },
-        {
-          "type": "string",
-          "const": "REFINING_DESCRIPTION"
-        },
-        {
-          "type": "string",
-          "const": "REFINING_DETAILS"
-        },
-        {
-          "type": "string",
-          "const": "REFINING_ACCEPTANCE_CRITERIA"
-        },
-        {
-          "type": "string",
-          "const": "GENERATING_DESCRIPTION"
-        },
-        {
-          "type": "string",
-          "const": "GENERATING_DETAILS"
-        },
-        {
-          "type": "string",
-          "const": "GENERATING_DESCRIPTION_AND_DETAILS"
-        },
-        {
-          "type": "string",
-          "const": "GENERATING_ACCEPTANCE_CRITERIA"
-        },
-        {
-          "type": "string",
-          "const": "GENERATING_ALL"
-        },
-        {
-          "type": "string",
-          "const": "ACTIVE"
-        },
-        {
-          "type": "string",
-          "const": "ON_HOLD"
-        },
-        {
-          "type": "string",
-          "const": "VERIFYING"
-        },
+        {}
+      ],
+      "description": "What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name."
+    },
+    "WorkItemStatusCompletionBehavior": {
+      "anyOf": [
         {
           "type": "string",
           "const": "COMPLETED"
@@ -6507,17 +6472,9 @@
           "type": "string",
           "const": "CANCELLED"
         },
-        {
-          "type": "string",
-          "const": "ARCHIVED"
-        },
-        {
-          "type": "string",
-          "const": "SUPERSEDED"
-        },
         {}
       ],
-      "description": "Unified work status for initiatives and tasks"
+      "description": "Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior."
     },
     "LocalEntityConversationInfluence": {
       "type": "object",
@@ -9965,7 +9922,8 @@
           "description": "The ID of the initiative this task is part of."
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "source": {
           "$ref": "#/definitions/TaskSource"
@@ -10580,11 +10538,11 @@
         },
         "completedCount": {
           "type": "number",
-          "description": "Number of tracked targets in COMPLETED status."
+          "description": "Number of finished tracked targets without cancellation compatibility behavior."
         },
         "cancelledCount": {
           "type": "number",
-          "description": "Number of tracked targets in CANCELLED status."
+          "description": "Number of finished tracked targets with cancellation compatibility behavior."
         },
         "pastDueCount": {
           "type": "number",
@@ -15300,7 +15258,8 @@
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "reason": {
           "type": "string"
@@ -18324,7 +18283,8 @@
           "description": "The ID of the initiative this task belongs to."
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "source": {
           "$ref": "#/definitions/TaskSource"
@@ -18584,7 +18544,8 @@
           }
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "source": {
           "$ref": "#/definitions/TaskSource"
@@ -19065,7 +19026,8 @@
           "description": "The ID of the initiative this task is part of."
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "source": {
           "$ref": "#/definitions/TaskSource"
@@ -19266,7 +19228,8 @@
           "$ref": "#/definitions/WorkItemChangeSetIdentity"
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "priority": {
           "$ref": "#/definitions/TaskPriority"
@@ -20210,7 +20173,8 @@
               "$ref": "#/definitions/WorkItemChangeSetIdentity"
             },
             "status": {
-              "$ref": "#/definitions/WorkStatus"
+              "type": "string",
+              "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
             },
             "priority": {
               "$ref": "#/definitions/TaskPriority"
@@ -20284,7 +20248,8 @@
               ]
             },
             "status": {
-              "$ref": "#/definitions/WorkStatus"
+              "type": "string",
+              "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
             },
             "priority": {
               "$ref": "#/definitions/TaskPriority"
@@ -20795,7 +20760,8 @@
           "description": "The new initiative ID for the task."
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         },
         "priority": {
           "$ref": "#/definitions/TaskPriority"
@@ -21178,12 +21144,12 @@
           },
           "description": "Scalar fields an item of this type may not carry. Each entry names a field from the closed WorkItemTypeScalarField set; membership here means the field is rejected on items of this type. A field absent from both lists is optional."
         },
-        "allowedStatuses": {
+        "statuses": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/WorkStatus"
+            "$ref": "#/definitions/WorkItemTypeStatus"
           },
-          "description": "The work statuses an item of this type may occupy. Reuses the shared WorkStatus enum rather than declaring a type-local status set."
+          "description": "The type\\'s ordered ordinary statuses — the authority for which statuses items of this type may be created in and moved between. The first entry is the status new items start in. Each entry carries the internal meaning the platform reads for progress and active filters, and the metadata that preserves legacy labels and completion/cancellation behavior. ARCHIVED is universal and SUPERSEDED is protected and platform-owned (see `capabilities.supportsSupersession`); neither appears in this list."
         },
         "allowedParentTypes": {
           "type": "array",
@@ -21212,9 +21178,9 @@
         "agentSettableStatuses": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/WorkStatus"
+            "type": "string"
           },
-          "description": "The subset of `allowedStatuses` an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. Reuses the shared WorkStatus enum."
+          "description": "The subset of the type\\'s status names (`statuses`, plus the universal ARCHIVED) an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here."
         },
         "anchorableReportTypes": {
           "type": "array",
@@ -21243,7 +21209,7 @@
         "name",
         "role",
         "sections",
-        "allowedStatuses"
+        "statuses"
       ],
       "description": "A complete work-item-type definition — the serialized registry config for one type, composed by the agentic drafter or the admin form and submitted as a WORK_ITEM_TYPE proposal. Canonical-seeded and project-authored custom definitions use this same shape and declare the same axes."
     },
@@ -21675,6 +21641,30 @@
       ],
       "description": "A scalar field an item may carry beyond its content sections. The closed set mirrors the registry\\'s TaskScalarField axis. A work-item type lists each field under requiredScalars (an item of the type must carry it) or forbiddenScalars (an item of the type may not carry it); a field in neither list is optional."
     },
+    "WorkItemTypeStatus": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The status name, stored verbatim on items (e.g. \\\"BACKLOG\\\" for a migrated platform status, \\\"Testing\\\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED."
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label when it differs from `name` (preserves the labels existing statuses have always shown, e.g. ACTIVE shows \\\"In progress\\\"). Absent means `name` is shown as written."
+        },
+        "meaning": {
+          "$ref": "#/definitions/WorkItemStatusMeaning"
+        },
+        "completionBehavior": {
+          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
+        }
+      },
+      "required": [
+        "name",
+        "meaning"
+      ],
+      "description": "One ordinary status of a work-item type. `name` is the exact value stored on items and is never rewritten by a type edit."
+    },
     "WorkItemTypeEdgeTarget": {
       "type": "object",
       "properties": {
@@ -21861,9 +21851,9 @@
           "type": "boolean",
           "description": "Whether this type may be planned as plan implementation work."
         },
-        "hasSetInitialStatus": {
+        "supportsSupersession": {
           "type": "boolean",
-          "description": "Whether this type\\'s first allowed status is an explicit initial-status policy."
+          "description": "Whether items of this type are eligible for the protected SUPERSEDED status. SUPERSEDED is set only by successor proposal approval, never through the ordinary status list or ordinary status edits."
         },
         "rendersInline": {
           "type": "boolean",
@@ -22444,6 +22434,92 @@
         {}
       ]
     },
+    "WorkStatus": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "GENERATED"
+        },
+        {
+          "type": "string",
+          "const": "BACKLOG"
+        },
+        {
+          "type": "string",
+          "const": "READY"
+        },
+        {
+          "type": "string",
+          "const": "REFINING"
+        },
+        {
+          "type": "string",
+          "const": "BLOCKED"
+        },
+        {
+          "type": "string",
+          "const": "REFINING_DESCRIPTION"
+        },
+        {
+          "type": "string",
+          "const": "REFINING_DETAILS"
+        },
+        {
+          "type": "string",
+          "const": "REFINING_ACCEPTANCE_CRITERIA"
+        },
+        {
+          "type": "string",
+          "const": "GENERATING_DESCRIPTION"
+        },
+        {
+          "type": "string",
+          "const": "GENERATING_DETAILS"
+        },
+        {
+          "type": "string",
+          "const": "GENERATING_DESCRIPTION_AND_DETAILS"
+        },
+        {
+          "type": "string",
+          "const": "GENERATING_ACCEPTANCE_CRITERIA"
+        },
+        {
+          "type": "string",
+          "const": "GENERATING_ALL"
+        },
+        {
+          "type": "string",
+          "const": "ACTIVE"
+        },
+        {
+          "type": "string",
+          "const": "ON_HOLD"
+        },
+        {
+          "type": "string",
+          "const": "VERIFYING"
+        },
+        {
+          "type": "string",
+          "const": "COMPLETED"
+        },
+        {
+          "type": "string",
+          "const": "CANCELLED"
+        },
+        {
+          "type": "string",
+          "const": "ARCHIVED"
+        },
+        {
+          "type": "string",
+          "const": "SUPERSEDED"
+        },
+        {}
+      ],
+      "description": "Platform-defined status names: the vocabulary canonical work-item types are seeded with, plus the universal ARCHIVED and the protected SUPERSEDED. A type may define its own ordinary statuses, so a work item\\'s current status is a WorkItemStatus, not necessarily one of these."
+    },
     "WorkItemTypeMonitorKindDonePolicy": {
       "anyOf": [
         {
@@ -22597,7 +22673,7 @@
               "description": "Actual registered work-item type key."
             },
             "status": {
-              "$ref": "#/definitions/WorkStatus",
+              "type": "string",
               "description": "Current status on approved future reads only; absent on pending previews."
             }
           },
@@ -22788,7 +22864,8 @@
           "$ref": "#/definitions/FutureCompletionBlockerReasonEnum"
         },
         "status": {
-          "$ref": "#/definitions/WorkStatus"
+          "type": "string",
+          "description": "The status a work item currently holds. Either the name of one of its type\\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \\\"Testing\\\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\\'s `statuses` is the authority for what a type allows."
         }
       },
       "required": [

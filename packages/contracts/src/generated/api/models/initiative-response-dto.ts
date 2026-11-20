@@ -1,6 +1,5 @@
 // @ts-nocheck
 import type { InitiativeId, OrganizationId, ProjectId, UserId } from '../../../brands.js';
-import { WorkStatus } from './work-status.js';
 import { Priority } from './priority.js';
 import { InitiativeCreatorType } from './initiative-creator-type.js';
 import { InitiativeSourceType } from './initiative-source-type.js';
@@ -34,9 +33,6 @@ import type { MaterializedWorkItemSection } from './materialized-work-item-secti
 // May contain unused imports in some cases
 // @ts-ignore
 import type { Priority } from './priority.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  *
@@ -75,11 +71,11 @@ export interface InitiativeResponseDto {
      */
     'reasoning'?: string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof InitiativeResponseDto
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      *
      * @type {Priority}
@@ -161,8 +157,6 @@ export interface InitiativeResponseDto {
 }
 
 export namespace InitiativeResponseDto {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const PriorityEnum = Priority;
     export type PriorityEnum = Priority;
     export const CreatorTypeEnum = InitiativeCreatorType;

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
@@ -43,12 +44,12 @@ function createHarness() {
   const seedCatalog = (entries: unknown[]) =>
     queryClient.setQueryData(
       workItemTypeKeys.catalog("org-1", "project-1"),
-      entries as WorkItemTypeSummaryDto[]
+      entries as WorkItemTypeSummaryDto[],
     );
   const seedType = (typeKey: string, summary: unknown) =>
     queryClient.setQueryData(
       workItemTypeKeys.byKey("org-1", "project-1", typeKey),
-      summary as WorkItemTypeSummaryDto | null
+      summary as WorkItemTypeSummaryDto | null,
     );
   return { queryClient, wrapper, seedCatalog, seedType };
 }
@@ -66,7 +67,7 @@ describe("useWorkItemTypes", () => {
       key,
       name: key,
       sections: [],
-      allowedStatuses: ["ACTIVE"],
+      statuses: legacyStatuses(["ACTIVE"]),
     },
     status,
     projectId: "project-1",
@@ -80,7 +81,7 @@ describe("useWorkItemTypes", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypes("org-1", { projectId: "project-1" }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.workItemTypes).toEqual([marketing, legacy]);
@@ -98,11 +99,11 @@ describe("useWorkItemTypes", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypes("org-1", { projectId: "project-1", status }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(
-      result.current.workItemTypes.map((type) => type.definition.key)
+      result.current.workItemTypes.map((type) => type.definition.key),
     ).toEqual([key]);
     expect(catalogRead).not.toHaveBeenCalled();
   });
@@ -115,7 +116,7 @@ describe("useWorkItemTypes", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypes(organizationId, { projectId }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(catalogRead).not.toHaveBeenCalled();
@@ -130,8 +131,9 @@ describe("useWorkItemTypes", () => {
     const { wrapper } = createHarness();
 
     renderHook(
-      () => useWorkItemTypes("org-1", { projectId: "project-1", enabled: false }),
-      { wrapper }
+      () =>
+        useWorkItemTypes("org-1", { projectId: "project-1", enabled: false }),
+      { wrapper },
     );
 
     expect(catalogRead).not.toHaveBeenCalled();
@@ -142,7 +144,7 @@ describe("useWorkItemTypes", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypes("org-1", { projectId: "project-1" }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.isLoading).toBe(true);
@@ -164,16 +166,16 @@ describe("work-item type relationship hooks", () => {
         parents: useAllowedParentEntityTypes(
           "org-1",
           "project-1",
-          "DESIGN_DOC"
+          "DESIGN_DOC",
         ),
         canParent: useCanParentEntityType(
           "org-1",
           "project-1",
           EntityType.Task,
-          "DESIGN_DOC"
+          "DESIGN_DOC",
         ),
       }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.children.allowedChildTypes).toBeUndefined();
@@ -187,7 +189,7 @@ describe("work-item type relationship hooks", () => {
     const entry = (
       key: string,
       allowedParentTypes: string[] = [],
-      status = WorkItemTypeLifecycleStatus.Active
+      status = WorkItemTypeLifecycleStatus.Active,
     ) => ({
       id: key,
       projectId: "project-1",
@@ -206,7 +208,7 @@ describe("work-item type relationship hooks", () => {
 
     const { result, rerender } = renderHook(
       () => useAllowedChildWorkItemTypes("org-1", "project-1", "FEATURE"),
-      { wrapper }
+      { wrapper },
     );
     expect(result.current.allowedChildTypes).toEqual(["STANDARD"]);
 
@@ -251,7 +253,7 @@ describe("work-item type relationship hooks", () => {
 
     const { result } = renderHook(
       () => useTrackingTargetWorkItemTypes("org-1", "project-1", "GOAL"),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.trackingTargetTaskTypes).toEqual([
@@ -277,22 +279,22 @@ describe("work-item type relationship hooks", () => {
         allowed: useAllowedParentEntityTypes(
           "org-1",
           "project-1",
-          "DESIGN_DOC"
+          "DESIGN_DOC",
         ),
         constrained: useCanParentEntityType(
           "org-1",
           "project-1",
           EntityType.Project,
-          "DESIGN_DOC"
+          "DESIGN_DOC",
         ),
         unrestricted: useCanParentEntityType(
           "org-1",
           "project-1",
           EntityType.Task,
-          "PLAN"
+          "PLAN",
         ),
       }),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.allowed.allowedParentEntityTypes).toEqual([
@@ -308,14 +310,14 @@ describe("useWorkItemTypeByKey", () => {
     key: "STANDARD",
     name: "Standard",
     sections: [],
-    allowedStatuses: ["ACTIVE"],
+    statuses: legacyStatuses(["ACTIVE"]),
   };
 
   const epicDefinition = {
     key: "EPIC",
     name: "Epic",
     sections: [],
-    allowedStatuses: ["ACTIVE"],
+    statuses: legacyStatuses(["ACTIVE"]),
     allowedParentTypes: ["FEATURE"],
   };
 
@@ -338,7 +340,7 @@ describe("useWorkItemTypeByKey", () => {
       key: "OLD_EPIC",
       name: "Old Epic",
       sections: [],
-      allowedStatuses: ["ACTIVE"],
+      statuses: legacyStatuses(["ACTIVE"]),
     },
     isSystem: false,
     status: "ARCHIVED" as const,
@@ -350,7 +352,7 @@ describe("useWorkItemTypeByKey", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", undefined),
-      { wrapper }
+      { wrapper },
     );
 
     expect(byKeyRead).not.toHaveBeenCalled();
@@ -364,7 +366,7 @@ describe("useWorkItemTypeByKey", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", "UNKNOWN"),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.workItemTypeSummary).toBeUndefined();
@@ -382,7 +384,7 @@ describe("useWorkItemTypeByKey", () => {
 
     const { result } = renderHook(
       () => useWorkItemTypeByKey("org-1", "project-1", typeKey),
-      { wrapper }
+      { wrapper },
     );
 
     expect(result.current.workItemTypeSummary).toEqual(summary);

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
@@ -14,19 +15,19 @@ const waitForDiagramArranged = () =>
   waitFor(
     () => {
       expect(
-        document.querySelector('[data-workflow-view-mode="arranging"]')
+        document.querySelector('[data-workflow-view-mode="arranging"]'),
       ).toBeNull();
       document
         .querySelectorAll(
-          '[data-workflow-view-mode="natural-size"], [data-workflow-view-mode="fit-to-view"]'
+          '[data-workflow-view-mode="natural-size"], [data-workflow-view-mode="fit-to-view"]',
         )
         .forEach((surface) =>
           expect(
-            surface.querySelector('[data-testid="workflow-inline-step"]')
-          ).not.toBeNull()
+            surface.querySelector('[data-testid="workflow-inline-step"]'),
+          ).not.toBeNull(),
         );
     },
-    { timeout: 5000 }
+    { timeout: 5000 },
   );
 
 const hookMocks = vi.hoisted(() => ({
@@ -76,7 +77,7 @@ const projectWrapper: React.FC<{ children: React.ReactNode }> = ({
 );
 
 const makeTask = (
-  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">
+  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto => ({
   id: overrides.id,
   name: overrides.name,
@@ -91,7 +92,7 @@ const makeTask = (
 
 const makeWorkflow = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow" } => ({
   ...makeTask(overrides),
   type: "workflow",
@@ -99,7 +100,7 @@ const makeWorkflow = (
 
 const makeWorkflowStep = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow_step" } => ({
   ...makeTask(overrides),
   type: "workflow_step",
@@ -122,7 +123,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -155,11 +156,11 @@ describe("DesignDocReadView shared markdown rendering", () => {
           },
         ]}
       />,
-      { wrapper }
+      { wrapper },
     );
 
     expect(screen.getByTestId("mention-badge")).toHaveTextContent(
-      "Review workflow"
+      "Review workflow",
     );
   });
 
@@ -208,12 +209,12 @@ describe("DesignDocReadView shared markdown rendering", () => {
           },
         ]}
       />,
-      { wrapper: projectWrapper }
+      { wrapper: projectWrapper },
     );
     await waitForDiagramArranged();
 
     expect(screen.getByTestId("workflow-inline-diagram")).toHaveTextContent(
-      "Review workflow"
+      "Review workflow",
     );
     expect(screen.getByText("Review implementation")).toBeInTheDocument();
     expect(screen.queryByTestId("mention-badge")).not.toBeInTheDocument();
@@ -231,14 +232,14 @@ describe("DesignDocReadView shared markdown rendering", () => {
           },
         ]}
       />,
-      { wrapper: projectWrapper }
+      { wrapper: projectWrapper },
     );
 
     expect(
-      screen.getByTestId("workflow-inline-diagram-unavailable")
+      screen.getByTestId("workflow-inline-diagram-unavailable"),
     ).toHaveTextContent("Review workflow");
     expect(
-      screen.queryByTestId("workflow-inline-diagram")
+      screen.queryByTestId("workflow-inline-diagram"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("mention-badge")).not.toBeInTheDocument();
   });

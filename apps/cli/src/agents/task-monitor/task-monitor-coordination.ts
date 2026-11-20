@@ -5,6 +5,7 @@ import type {
   TaskMonitorLifecycleCause,
 } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
+import { isDeliveredStatus } from './task-finished-status';
 
 const reportTypeSchema = z.enum(Object.values(ReportType) as [ReportType, ...ReportType[]]);
 
@@ -205,9 +206,12 @@ export const validateTaskMonitorDecision = (
       // acceptance effects. Only item-completion policies require a completed definition.
       if (
         evidence.operationPolicy?.acceptance.type !== 'NO_STATUS_CHANGE' &&
-        evidence.selectedTask.status !== 'COMPLETED'
+        !isDeliveredStatus(evidence.selectedTask.typeStatuses, evidence.selectedTask.status)
       ) {
-        return { ok: false, reason: 'Task acceptance requires a canonically completed Task.' };
+        return {
+          ok: false,
+          reason: 'Task acceptance requires a Task in a finished, non-cancelled status.',
+        };
       }
       if (
         evidence.monitor.reviewMode === 'REQUIRE_REVIEW' &&

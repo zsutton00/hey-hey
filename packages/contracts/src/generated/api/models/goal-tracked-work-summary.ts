@@ -28,13 +28,13 @@ export interface GoalTrackedWorkSummary {
      */
     'totalCount': number;
     /**
-     * Number of tracked targets in COMPLETED status.
+     * Number of finished tracked targets without cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */
     'completedCount': number;
     /**
-     * Number of tracked targets in CANCELLED status.
+     * Number of finished tracked targets with cancellation compatibility behavior.
      * @type {number}
      * @memberof GoalTrackedWorkSummary
      */

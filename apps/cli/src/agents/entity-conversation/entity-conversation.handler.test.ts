@@ -115,6 +115,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
     expect(
@@ -127,9 +128,17 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
     expect(ENTITY_CONVERSATION_HELP_TOOLS).toEqual(['search_help', 'get_help_node']);
+  });
+
+  it('tells the agent to look up Service IDs with list_services instead of asking the user', () => {
+    const handler = buildEntityConversationHandler(makeDeps());
+
+    expect(handler.additionalAllowedTools).toContain('list_services');
+    expect(handler.buildPrompt(makePayload(EntityType.Task))).toContain('`list_services`');
   });
 
   it('keeps a PLAN-typed TASK on the ordinary entity-conversation tool surface', () => {
@@ -141,6 +150,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
   });
@@ -157,6 +167,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
   });
@@ -173,6 +184,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
       ...GOAL_ENTITY_CONVERSATION_ALLOWED_TOOLS,
     ]);
@@ -191,6 +203,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
     expect(resolveAdditionalAllowedTools(handler, taskRun, standardPayload)).not.toEqual(
@@ -210,6 +223,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
   });
@@ -234,6 +248,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
       ...GOAL_ENTITY_CONVERSATION_ALLOWED_TOOLS,
     ]);
@@ -249,6 +264,7 @@ describe('buildEntityConversationHandler', () => {
       'propose_future_revision',
       'create_design_doc',
       'edit_design_doc',
+      'list_services',
       ...ENTITY_CONVERSATION_HELP_TOOLS,
     ]);
   });

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { Box, Typography } from "@mui/material";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { AuthProvider } from "../../contexts/AuthContext";
 import { StatusActionCompact } from "./StatusActionCompact";
 
 interface HarnessProps {
-  initialStatus: WorkStatus;
+  initialStatus: TaskResponseDto["status"];
   initialPriority: Priority;
   initialDueDate: string | null;
   initialAssigneeId: string | null;
@@ -23,11 +24,12 @@ const StatusActionCompactHarness: React.FC<HarnessProps> = ({
   initialServiceIds = [],
   withServices = false,
 }) => {
-  const [status, setStatus] = useState<WorkStatus>(initialStatus);
+  const [status, setStatus] =
+    useState<TaskResponseDto["status"]>(initialStatus);
   const [priority, setPriority] = useState<Priority>(initialPriority);
   const [dueDate, setDueDate] = useState<string | null>(initialDueDate);
   const [assigneeId, setAssigneeId] = useState<string | null>(
-    initialAssigneeId
+    initialAssigneeId,
   );
   const [serviceIds, setServiceIds] = useState<string[]>(initialServiceIds);
 

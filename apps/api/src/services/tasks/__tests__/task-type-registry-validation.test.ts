@@ -1,4 +1,5 @@
 import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -387,7 +388,7 @@ describe('TaskService update path — allowedStatuses gate', () => {
     typeKey: LIMITED_TYPE,
     projectId: testIds.project,
     initialStatus: WorkStatus.Backlog,
-    allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+    statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
   };
 
   const existingLimitedTask = {

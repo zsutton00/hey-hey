@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -5,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PreviewPresentationProvider } from "../../contexts/PreviewPresentationContext";
 import { GoalsPage } from "./GoalsPage";
 
-const goalDefinition = { key: "GOAL", allowedStatuses: ["ACTIVE", "COMPLETED"] };
+const goalDefinition = {
+  key: "GOAL",
+  statuses: legacyStatuses(["ACTIVE", "COMPLETED"]),
+};
 const createTask = vi.fn();
 const invalidateQueries = vi.fn();
 const useWorkItemsMock = vi.fn();
@@ -47,12 +51,11 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   GoalProgressChip: ({ goal }: { goal: { id: string } }) => (
     <span>progress-{goal.id}</span>
   ),
-  entityCollectionQueryKeyPrefix: (org: string, project: string, type: string) => [
-    "work-item-reference-page",
-    org,
-    project,
-    type,
-  ],
+  entityCollectionQueryKeyPrefix: (
+    org: string,
+    project: string,
+    type: string,
+  ) => ["work-item-reference-page", org, project, type],
   EntityCollectionPage: (props: {
     renderRowAttention?: (item: { id: string }) => React.ReactNode;
   }) => {
@@ -97,8 +100,12 @@ describe("GoalsPage", () => {
   it("suppresses the collection title and create action in Preview", () => {
     renderPage(true);
 
-    expect(screen.queryByRole("heading", { name: "Goals" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Create Goal" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Goals" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create Goal" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("goal-collection")).toBeInTheDocument();
   });
 
@@ -120,7 +127,10 @@ describe("GoalsPage", () => {
       "task",
       "project-1",
       undefined,
-      expect.objectContaining({ enabled: false, includeTrackedEntities: false }),
+      expect.objectContaining({
+        enabled: false,
+        includeTrackedEntities: false,
+      }),
     );
   });
 

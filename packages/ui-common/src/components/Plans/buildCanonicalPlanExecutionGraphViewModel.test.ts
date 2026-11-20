@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { AgentEdgeType, TaskSource, WorkStatus } from "../../api";
 import type {
   CanonicalPlanAggregateStage,
@@ -7,7 +8,7 @@ import { buildCanonicalPlanExecutionGraphViewModel } from "./buildCanonicalPlanE
 
 const task = (
   id: string,
-  status: WorkStatus,
+  status: TaskResponseDto["status"],
   dependencies: string[] = [],
 ): PlanStageStandardTask => ({
   id,

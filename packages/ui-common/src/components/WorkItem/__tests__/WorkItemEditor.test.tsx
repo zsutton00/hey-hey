@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React, { useEffect } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +57,7 @@ const standardDefinition: WorkItemTypeDefinitionDto = {
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 vi.mock("react-i18next", () => ({
@@ -487,7 +488,7 @@ describe("WorkItemEditor progressive sections", () => {
         { key: "sources", label: "Evidence sources" },
         { key: "findings", label: "Findings" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     renderEditor();
@@ -506,7 +507,7 @@ describe("WorkItemEditor progressive sections", () => {
         { key: "description", label: "Description" },
         { key: "requirements", label: "Requirements" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     renderEditor();
@@ -528,7 +529,7 @@ describe("WorkItemEditor progressive sections", () => {
         { key: "sources", label: "Evidence sources" },
         { key: "findings", label: "Findings" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     mockWorkItemSections = [
       {
@@ -605,7 +606,7 @@ describe("WorkItemEditor progressive sections", () => {
       key: "MOCKUP",
       name: "Mockup",
       sections: [{ key: "mockup", label: "Mockup", kind: "structured-mockup" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     mockWorkItemSections = [
       {

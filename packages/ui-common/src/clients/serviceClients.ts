@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../api/api";
 /**
  * Service-specific API clients for the new microservices architecture.
  * This module builds generated API clients using a supplied runtime and exposes
@@ -43,7 +44,6 @@ import type {
   CreateAgentEdgeRequest,
   CreateTaskDto,
   UpdateTaskDto,
-  WorkStatus,
   TaskSortBy,
   TaskSortDir,
   CreateSuggestedTaskRequestDto,
@@ -1008,7 +1008,7 @@ export class UnifiedApiClient {
       organizationId: string;
       projectId: string;
       taskIds?: string[];
-      status?: WorkStatus | WorkStatus[];
+      status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
       /** @deprecated Still supported for initiative-scoped views during transition */
       initiativeId?: string;
       parentTaskId?: string | null;

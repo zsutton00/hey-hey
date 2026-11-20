@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { useFilteredEntities } from "../useFilteredEntities";
@@ -8,7 +9,7 @@ interface TestEntity {
   name: string;
   description?: string;
   tags?: string[];
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   priority: Priority;
   createdAt: string;
   assigneeId?: string;
@@ -53,7 +54,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["name"],
           searchTerm: "dark mode",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -65,7 +66,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["description"],
           searchTerm: "log in",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -77,7 +78,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["tags"],
           searchTerm: "urgent",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -89,7 +90,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["name", "description", "tags"],
           searchTerm: "ui",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -101,7 +102,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["name"],
           searchTerm: "DARK MODE",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -113,7 +114,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["name"],
           searchTerm: "",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(3);
@@ -124,7 +125,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(testEntities, {
           searchFields: ["name"],
           searchTerm: "nonexistent",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(0);
@@ -138,7 +139,7 @@ describe("useFilteredEntities", () => {
           exactMatchFilters: {
             status: WorkStatus.Active,
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -151,7 +152,7 @@ describe("useFilteredEntities", () => {
           exactMatchFilters: {
             priority: Priority.High,
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -164,7 +165,7 @@ describe("useFilteredEntities", () => {
           exactMatchFilters: {
             assigneeId: "user-2",
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -178,7 +179,7 @@ describe("useFilteredEntities", () => {
             status: WorkStatus.Active,
             priority: Priority.High,
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -192,7 +193,7 @@ describe("useFilteredEntities", () => {
             status: undefined,
             priority: Priority.High,
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -206,7 +207,7 @@ describe("useFilteredEntities", () => {
             status: WorkStatus.Active,
             priority: Priority.Low,
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(0);
@@ -223,7 +224,7 @@ describe("useFilteredEntities", () => {
               start: new Date("2024-01-02T00:00:00Z"),
             },
           ],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(2);
@@ -239,7 +240,7 @@ describe("useFilteredEntities", () => {
               end: new Date("2024-01-02T00:00:00Z"),
             },
           ],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(2);
@@ -256,7 +257,7 @@ describe("useFilteredEntities", () => {
               end: new Date("2024-01-02T23:59:59Z"),
             },
           ],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -269,7 +270,7 @@ describe("useFilteredEntities", () => {
       const { result } = renderHook(() =>
         useFilteredEntities(testEntities, {
           customFilters: [(item) => item.name.includes("mode")],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -283,7 +284,7 @@ describe("useFilteredEntities", () => {
             (item) => item.priority !== Priority.Low,
             (item) => item.tags !== undefined && item.tags.length > 1,
           ],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(2);
@@ -299,7 +300,7 @@ describe("useFilteredEntities", () => {
           sortConfig: {
             "name-asc": (a, b) => a.name.localeCompare(b.name),
           },
-        })
+        }),
       );
 
       expect(result.current.map((e) => e.name)).toEqual([
@@ -317,7 +318,7 @@ describe("useFilteredEntities", () => {
             "created-desc": (a, b) =>
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
           },
-        })
+        }),
       );
 
       expect(result.current.map((e) => e.id)).toEqual(["3", "2", "1"]);
@@ -329,7 +330,7 @@ describe("useFilteredEntities", () => {
           sortConfig: {
             "name-asc": (a, b) => a.name.localeCompare(b.name),
           },
-        })
+        }),
       );
 
       // Should maintain original order
@@ -343,7 +344,7 @@ describe("useFilteredEntities", () => {
           sortConfig: {
             "name-asc": (a, b) => a.name.localeCompare(b.name),
           },
-        })
+        }),
       );
 
       // Should maintain original order
@@ -364,7 +365,7 @@ describe("useFilteredEntities", () => {
           sortConfig: {
             "name-asc": (a, b) => a.name.localeCompare(b.name),
           },
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -380,7 +381,7 @@ describe("useFilteredEntities", () => {
             priority: Priority.Medium,
           },
           customFilters: [(item) => (item.tags?.length ?? 0) >= 2],
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(1);
@@ -394,7 +395,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities([], {
           searchFields: ["name"],
           searchTerm: "test",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(0);
@@ -417,7 +418,7 @@ describe("useFilteredEntities", () => {
         useFilteredEntities(entitiesWithNulls, {
           searchFields: ["description", "tags"],
           searchTerm: "test",
-        })
+        }),
       );
 
       expect(result.current).toHaveLength(0);
@@ -432,7 +433,7 @@ describe("useFilteredEntities", () => {
           sortConfig: {
             "name-asc": (a, b) => a.name.localeCompare(b.name),
           },
-        })
+        }),
       );
 
       expect(testEntities).toEqual(original);

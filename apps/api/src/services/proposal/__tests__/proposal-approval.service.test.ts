@@ -1,6 +1,7 @@
 import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
 import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
@@ -1254,7 +1255,7 @@ describe('ProposalApprovalService', () => {
           name: 'Marketing',
           description: 'Campaign work',
           sections: [{ key: 'brief', label: 'Brief' }],
-          allowedStatuses: ['ACTIVE', 'COMPLETED'],
+          statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
         },
       });
     }
@@ -1409,7 +1410,7 @@ describe('ProposalApprovalService', () => {
         name: 'Marketing',
         description: 'Campaign work',
         sections: [{ key: 'brief', label: 'Brief' }],
-        allowedStatuses: ['ACTIVE', 'COMPLETED'],
+        statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
       };
       const draft = makeStoredProposal({
         targetEntityType: 'WORK_ITEM_TYPE',
@@ -1459,7 +1460,7 @@ describe('ProposalApprovalService', () => {
         key: typeKey,
         name: 'Marketing',
         sections,
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       };
     }
 
@@ -6064,7 +6065,7 @@ describe('ProposalApprovalService', () => {
           key: 'RESEARCH',
           name: 'Research',
           sections: [],
-          allowedStatuses: ['ACTIVE'],
+          statuses: legacyStatuses(['ACTIVE']),
         },
       });
       stubGroupedMember(proposal);

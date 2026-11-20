@@ -9,7 +9,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
 
 import {
   AgentEdgeResponseDto,
@@ -437,11 +436,17 @@ export class GoalTracksService {
             `${rules.allowedSourceTaskTypes.join(' / ')}.`,
         );
       }
+      const status = this.workItemTypeRegistry
+        .getRulesForProject(task.type, projectId)
+        ?.statuses.find((status) => status.name === task.status);
+
       return {
         targetEntityId: task.id,
         targetEntityType: 'TASK',
         title: task.name,
-        status: task.status as WorkStatus,
+        status: task.status,
+        statusMeaning: status?.meaning,
+        completionBehavior: status?.completionBehavior,
         dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       };
     }

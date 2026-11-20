@@ -403,8 +403,19 @@ export const WorkItemEditor: React.FC<WorkItemEditorProps> = ({
     sectionSelection.status === "resolved" &&
     !hasSelectedSection(sectionSelection, "acceptanceCriteria");
 
-  // Check if all sections have content for reveal all button
-  const canRevealAll = sectionSelection.status === "resolved";
+  // The action writes a fixed status, so it is offered only when the item's
+  // own type defines the status it would set.
+  const typeDefinesStatus = (status: WorkStatus): boolean =>
+    workItemTypeDefinition?.statuses.some(({ name }) => name === status) ??
+    false;
+  const revealAllTargetStatus =
+    skipsAcceptanceCriteriaReveal ||
+    workItemStatus === WorkStatus.RefiningAcceptanceCriteria
+      ? WorkStatus.Backlog
+      : WorkStatus.RefiningAcceptanceCriteria;
+  const canRevealAll =
+    sectionSelection.status === "resolved" &&
+    typeDefinesStatus(revealAllTargetStatus);
 
   const refreshWorkItemData = useCallback(async () => {
     markWorkItemStale?.();

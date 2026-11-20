@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
@@ -26,7 +27,7 @@ export interface PlanCompletionActionProps {
   projectId: string;
   planId: string;
   planTitle: string;
-  planStatus: WorkStatus;
+  planStatus: TaskResponseDto["status"];
   disabled?: boolean;
 }
 

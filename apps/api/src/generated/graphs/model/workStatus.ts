@@ -11,7 +11,7 @@
  */
 
 /**
- * Unified work status for initiatives and tasks
+ * Platform-defined status names: the vocabulary canonical work-item types are seeded with, plus the universal ARCHIVED and the protected SUPERSEDED. A type may define its own ordinary statuses, so a work item\'s current status is a WorkItemStatus, not necessarily one of these.
  */
 export type WorkStatus =
   | 'GENERATED'

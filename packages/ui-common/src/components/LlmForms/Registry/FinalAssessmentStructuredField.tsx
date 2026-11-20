@@ -22,7 +22,6 @@ import {
   SuggestionType as SuggestionTypeEnum,
   TaskSectionUpdateSource as TaskSectionUpdateSourceEnum,
   UpdateImplementationHintDtoSourceTypeEnum,
-  WorkStatus,
   type CodingPromptFinalAssessmentPayload,
   type CodingPromptFinalAssessmentV1Payload,
   type CodingPromptFinalAssessmentV2Payload,
@@ -33,7 +32,6 @@ import {
   type TaskResponseDto,
   type UpdateDesignDocDto,
   type UpdateImplementationHintDto,
-  type WorkStatus as WorkStatusType,
 } from "../../../api";
 import { unifiedApiClient } from "../../../clients/serviceClients";
 import { useAgentSession } from "../../../data/hooks/useAgentSession";
@@ -115,7 +113,7 @@ interface TaskStatusArtifactSuggestion extends ArtifactSuggestionBase {
   kind: "task_status";
   target: SuggestionTarget<"task">;
   updatePayload: {
-    status: WorkStatusType;
+    status: string;
     sectionUpdateSource?: (typeof TaskSectionUpdateSourceEnum)[keyof typeof TaskSectionUpdateSourceEnum];
   };
 }
@@ -191,11 +189,10 @@ interface DiffReviewRow {
 interface TaskContextValue {
   id: string;
   initiativeId: string;
-  status: WorkStatusType;
+  status: string;
   sections?: TaskResponseDto["sections"];
 }
 
-const WORK_STATUS_VALUES = new Set<string>(Object.values(WorkStatus));
 const IMPLEMENTATION_HINT_SOURCE_TYPES = new Set<string>(
   Object.values(CreateImplementationHintDtoSourceTypeEnum),
 );
@@ -213,9 +210,6 @@ const ASSESSMENT_SUGGESTION_TYPE = SuggestionTypeEnum.CodingPromptAccept;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object";
-
-const isWorkStatus = (value: unknown): value is WorkStatusType =>
-  typeof value === "string" && WORK_STATUS_VALUES.has(value);
 
 const readNonEmptyString = (value: unknown): string | null => {
   if (typeof value !== "string") {
@@ -758,8 +752,8 @@ const parseArtifactSuggestion = (
         );
       }
 
-      const status = updatePayload.status;
-      if (!isWorkStatus(status)) {
+      const status = readNonEmptyString(updatePayload.status);
+      if (!status) {
         return toUnsupportedSuggestion(
           value,
           index,
@@ -1289,7 +1283,8 @@ const toTaskWorkItem = (value: unknown): TaskContextValue | null => {
     typeof value.name !== "string" ||
     typeof value.organizationId !== "string" ||
     typeof value.initiativeId !== "string" ||
-    !isWorkStatus(value.status)
+    typeof value.status !== "string" ||
+    value.status.length === 0
   ) {
     return null;
   }

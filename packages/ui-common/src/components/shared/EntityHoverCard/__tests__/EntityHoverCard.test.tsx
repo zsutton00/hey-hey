@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../test/fixtures/workItemStatuses";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -250,7 +251,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Markdown,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -276,7 +277,7 @@ describe("EntityHoverCard plan preview", () => {
     expect(
       screen.getByText("Five customers struggled to find saved views."),
     ).toBeInTheDocument();
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
   });
 
   it("renders a scaled, non-interactive thumbnail for a leading HTML/CSS section", () => {
@@ -336,7 +337,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Markdown,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -427,7 +428,7 @@ describe("EntityHoverCard plan preview", () => {
             ],
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -475,7 +476,7 @@ describe("EntityHoverCard plan preview", () => {
             kind: WorkItemTypeSectionDefinitionKindEnum.Json,
           },
         ],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
       },
       isLoading: false,
       isFetching: false,
@@ -498,7 +499,7 @@ describe("EntityHoverCard plan preview", () => {
     );
 
     expect(screen.getByText("Interview synthesis")).toBeInTheDocument();
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(
       screen.queryByText("Five customers struggled to find saved views."),
     ).not.toBeInTheDocument();
@@ -696,7 +697,7 @@ describe("EntityHoverCard plan preview", () => {
           ],
         },
       ],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
     };
 
     const renderProposalCard = (proposal: ProposalResponseDto) => {

@@ -1,19 +1,23 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../hooks/auth/useProjectCapabilities", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("../../../hooks/auth/useProjectCapabilities")
-    >();
-  return {
-    ...actual,
-    useProjectCapabilities: vi.fn(() =>
-      actual.projectCapabilitiesForRole("OWNER")
-    ),
-  };
-});
+vi.mock(
+  "../../../hooks/auth/useProjectCapabilities",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../hooks/auth/useProjectCapabilities")
+      >();
+    return {
+      ...actual,
+      useProjectCapabilities: vi.fn(() =>
+        actual.projectCapabilitiesForRole("OWNER"),
+      ),
+    };
+  },
+);
 import {
   EntityType,
   ProposalAction,
@@ -172,7 +176,7 @@ describe("CreateProposal — canonical proposal cards", () => {
       name: "Marketing Campaign",
       role: WorkItemTypeRole.WorkItem,
       sections: [],
-      allowedStatuses: [WorkStatus.Backlog],
+      statuses: legacyStatuses([WorkStatus.Backlog]),
     });
 
     render(
@@ -252,7 +256,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
       key,
       name: "Plan stage",
       sections: [{ key: "description", label: "Description" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
     isLoading: false,
     isReady: true,

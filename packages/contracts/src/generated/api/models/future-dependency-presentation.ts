@@ -20,9 +20,6 @@ import type { AvailableFutureDependency } from './available-future-dependency.js
 // May contain unused imports in some cases
 // @ts-ignore
 import type { UnavailableFutureDependency } from './unavailable-future-dependency.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * @type FutureDependencyPresentation

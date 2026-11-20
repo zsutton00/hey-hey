@@ -1,4 +1,5 @@
 import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type {
   AgentSessionDto,
@@ -49,10 +50,13 @@ let mockIsPlatformAdmin = false;
 let mockGoalTask: TaskResponseDto | null;
 let mockGoalWorkItem: TaskResponseDto | null;
 let mockTrackedWorkItems: Record<string, TaskResponseDto | null>;
-let mockPlans: Record<string, { id: string; name: string; status: WorkStatus }>;
+let mockPlans: Record<
+  string,
+  { id: string; name: string; status: TaskResponseDto["status"] }
+>;
 let mockDesignDocs: Record<
   string,
-  { id: string; title: string; status: WorkStatus }
+  { id: string; title: string; status: TaskResponseDto["status"] }
 >;
 let mockWorkItemTypes: WorkItemTypeSummaryDto[];
 let mockReports: ReportDto[];
@@ -293,7 +297,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       .replace(/^\w/, (character) => character.toUpperCase()),
   WorkItemMetadata: (props: {
     fields: {
-      status?: { onChange?: (value: WorkStatus) => void };
+      status?: { onChange?: (value: TaskResponseDto["status"]) => void };
       dueDate?: {
         onChange?: (value: string | null) => void;
         allowClear?: boolean;
@@ -495,7 +499,8 @@ vi.mock("@hey-hey/ui-common/services", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/utils", () => ({
+vi.mock("@hey-hey/ui-common/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/utils")>()),
   deriveGoalStatus: () => null,
   goalStatusChipDescriptor: vi.fn(),
 }));
@@ -761,13 +766,13 @@ const createGoalReport = (overrides: Partial<ReportDto> = {}): ReportDto =>
 const createTypeDefinition = (
   key: string,
   name: string,
-  allowedStatuses: WorkStatus[],
+  allowedStatuses: TaskResponseDto["status"][],
 ): WorkItemTypeDefinitionDto =>
   ({
     key,
     name,
     sections: [],
-    allowedStatuses,
+    statuses: legacyStatuses(allowedStatuses),
   }) as WorkItemTypeDefinitionDto;
 
 const createTypeSummary = (
@@ -884,7 +889,7 @@ describe("GoalPage tabs", () => {
     );
     mockPlanAdapter.mockImplementation(
       (
-        plan: { id: string; name: string; status: WorkStatus },
+        plan: { id: string; name: string; status: TaskResponseDto["status"] },
         options: {
           pathService: { plan: (input: { planId: string }) => string };
           showEntityKind?: boolean;
@@ -899,7 +904,11 @@ describe("GoalPage tabs", () => {
     );
     mockDesignDocAdapter.mockImplementation(
       (
-        designDoc: { id: string; title: string; status: WorkStatus },
+        designDoc: {
+          id: string;
+          title: string;
+          status: TaskResponseDto["status"];
+        },
         options: {
           pathService: {
             designDoc: (input: { designDocId: string }) => string;

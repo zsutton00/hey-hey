@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -49,12 +50,12 @@ vi.mock("../../../data/hooks/useWorkItemTypeLifecycle", () => ({
 
 const definition = (
   key: string,
-  kind?: "html/css" | "structured-mockup"
+  kind?: "html/css" | "structured-mockup",
 ): WorkItemTypeDefinitionDto =>
   ({
     key,
     name: key,
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     sections: [
       { key: "description", label: "Description" },
       ...(kind ? [{ key: "preview", label: "Preview", kind }] : []),
@@ -86,7 +87,7 @@ vi.mock("../useEntityData", () => ({
             type: (proposal.updates as { existingType: string }).existingType,
           },
         },
-      ])
+      ]),
     ),
     loading: false,
     error: null,
@@ -95,7 +96,7 @@ vi.mock("../useEntityData", () => ({
 
 const proposal = (
   action: ProposalAction,
-  updates: Record<string, unknown>
+  updates: Record<string, unknown>,
 ): ProposalResponseDto =>
   ({
     id: `proposal-${action}`,
@@ -130,10 +131,10 @@ describe("proposal mention expansion", () => {
             proposal(ProposalAction.Create, { name: "Visual", type }),
           ]}
           onApply={vi.fn()}
-        />
+        />,
       );
       expect(expansion()).toBe("badge");
-    }
+    },
   );
 
   it("renders mentions as badges in a proposal routed to the graph surface", () => {
@@ -143,7 +144,7 @@ describe("proposal mention expansion", () => {
           proposal(ProposalAction.Create, { name: "Flow", type: "workflow" }),
         ]}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(expansion()).toBe("badge");
   });
@@ -159,7 +160,7 @@ describe("proposal mention expansion", () => {
           }),
         ]}
         onApply={vi.fn()}
-      />
+      />,
     );
     expect(expansion()).toBe("card");
   });
@@ -173,7 +174,7 @@ describe("proposal mention expansion", () => {
         onApply={vi.fn()}
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(expansion()).toBe("badge");
   });
@@ -187,7 +188,7 @@ describe("proposal mention expansion", () => {
         onApply={vi.fn()}
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
     expect(expansion()).toBe("card");
   });

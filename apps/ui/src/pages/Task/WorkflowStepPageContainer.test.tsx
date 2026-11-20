@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { TaskPriority, WorkStatus } from "@hey-hey/contracts/api";
@@ -196,7 +197,7 @@ describe("WorkflowStepPage", () => {
         key: "workflow",
         name: "Workflow",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "workflow",
       },
       isLoading: false,

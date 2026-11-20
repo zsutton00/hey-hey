@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,7 +112,7 @@ const workItemTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "MODE",
   name: "Agent Mode",
   sections: [{ key: "description", label: "Guidance" }],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const makeProposal = (): ProposalResponseDto =>

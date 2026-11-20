@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
@@ -24,8 +25,21 @@ describe("WorkItemEntityFilters", () => {
   const defaultProps = {
     searchTerm: "",
     onSearchChange: mockOnSearchChange,
-    statusFilter: "" as WorkStatus | "",
+    statusFilter: "" as TaskResponseDto["status"] | "",
     onStatusFilterChange: mockOnStatusFilterChange,
+    statusOptions: [
+      { value: "REFINING_DESCRIPTION", label: "Refining Description" },
+      { value: "REFINING_DETAILS", label: "Refining Details" },
+      {
+        value: "REFINING_ACCEPTANCE_CRITERIA",
+        label: "Refining Acceptance Criteria",
+      },
+      { value: "ACTIVE", label: "Active" },
+      { value: "ON_HOLD", label: "On Hold" },
+      { value: "COMPLETED", label: "Completed" },
+      { value: "CANCELLED", label: "Cancelled" },
+      { value: "Testing", label: "Testing" },
+    ],
     sortBy: "created-desc",
     onSortByChange: mockOnSortByChange,
   };
@@ -35,17 +49,17 @@ describe("WorkItemEntityFilters", () => {
 
     // Search field
     expect(
-      screen.getByLabelText("initiatives.filters.searchPlaceholder")
+      screen.getByLabelText("initiatives.filters.searchPlaceholder"),
     ).toBeInTheDocument();
 
     // Status filter
     expect(
-      screen.getByText("initiatives.filters.status", { selector: "label" })
+      screen.getByText("initiatives.filters.status", { selector: "label" }),
     ).toBeInTheDocument();
 
     // Sort filter
     expect(
-      screen.getByText("Sort by", { selector: "label" })
+      screen.getByText("Sort by", { selector: "label" }),
     ).toBeInTheDocument();
   });
 
@@ -53,7 +67,7 @@ describe("WorkItemEntityFilters", () => {
     render(<WorkItemEntityFilters {...defaultProps} searchTerm="test query" />);
 
     const searchInput = screen.getByLabelText(
-      "initiatives.filters.searchPlaceholder"
+      "initiatives.filters.searchPlaceholder",
     );
     expect(searchInput).toHaveValue("test query");
   });
@@ -63,7 +77,7 @@ describe("WorkItemEntityFilters", () => {
     render(<WorkItemEntityFilters {...defaultProps} />);
 
     const searchInput = screen.getByLabelText(
-      "initiatives.filters.searchPlaceholder"
+      "initiatives.filters.searchPlaceholder",
     );
     await user.type(searchInput, "new search");
 
@@ -75,7 +89,7 @@ describe("WorkItemEntityFilters", () => {
       <WorkItemEntityFilters
         {...defaultProps}
         statusFilter={WorkStatus.Active}
-      />
+      />,
     );
 
     expect(screen.getByText("Active")).toBeInTheDocument();
@@ -104,12 +118,13 @@ describe("WorkItemEntityFilters", () => {
     expect(await screen.findByText("Refining Description")).toBeInTheDocument();
     expect(await screen.findByText("Refining Details")).toBeInTheDocument();
     expect(
-      await screen.findByText("Refining Acceptance Criteria")
+      await screen.findByText("Refining Acceptance Criteria"),
     ).toBeInTheDocument();
     expect(await screen.findByText("Active")).toBeInTheDocument();
     expect(await screen.findByText("On Hold")).toBeInTheDocument();
     expect(await screen.findByText("Completed")).toBeInTheDocument();
     expect(await screen.findByText("Cancelled")).toBeInTheDocument();
+    expect(await screen.findByText("Testing")).toBeInTheDocument();
   });
 
   it("should display current sort value", () => {
@@ -128,7 +143,7 @@ describe("WorkItemEntityFilters", () => {
     await user.click(sortSelect);
 
     const nameAscOption = await screen.findByText(
-      "initiatives.filters.sortNameAsc"
+      "initiatives.filters.sortNameAsc",
     );
     await user.click(nameAscOption);
 
@@ -145,32 +160,32 @@ describe("WorkItemEntityFilters", () => {
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortCreatedDesc",
-      })
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortCreatedAsc",
-      })
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortNameAsc",
-      })
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortNameDesc",
-      })
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortStatus",
-      })
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("option", {
         name: "initiatives.filters.sortPriority",
-      })
+      }),
     ).toBeInTheDocument();
   });
 
@@ -189,7 +204,7 @@ describe("WorkItemEntityFilters", () => {
 
     // Should render without errors
     expect(
-      screen.getByText("initiatives.filters.status", { selector: "label" })
+      screen.getByText("initiatives.filters.status", { selector: "label" }),
     ).toBeInTheDocument();
   });
 
@@ -198,7 +213,7 @@ describe("WorkItemEntityFilters", () => {
     const props = {
       searchTerm: "test",
       onSearchChange: vi.fn(),
-      statusFilter: WorkStatus.Active as WorkStatus | "",
+      statusFilter: WorkStatus.Active as TaskResponseDto["status"] | "",
       onStatusFilterChange: vi.fn(),
       sortBy: "created-desc",
       onSortByChange: vi.fn(),

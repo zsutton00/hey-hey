@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -98,7 +99,7 @@ const registryItem = (key: string): WorkItemTypeSummaryDto => ({
       key === "PLAN"
         ? [{ key: "planConfiguration", label: "Plan configuration" }]
         : [],
-    allowedStatuses: [WorkStatus.Backlog],
+    statuses: legacyStatuses([WorkStatus.Backlog]),
     allowedParentTypes:
       key === "PLAN"
         ? ["FEATURE"]

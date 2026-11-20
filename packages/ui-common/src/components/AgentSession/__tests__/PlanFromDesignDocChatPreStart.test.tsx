@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { defaultAgentOperationCoordinator } from "../operations/AgentOperationProvider";
 import {
   act,
@@ -510,7 +511,7 @@ beforeEach(() => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,

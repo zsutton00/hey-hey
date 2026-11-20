@@ -1,6 +1,5 @@
 // @ts-nocheck
 import type { OrganizationId } from '../../../brands.js';
-import { WorkStatus } from './work-status.js';
 import { Priority } from './priority.js';
 /* tslint:disable */
 /* eslint-disable */
@@ -20,9 +19,6 @@ import { Priority } from './priority.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { Priority } from './priority.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * Consolidated work item representation used by UI clients
@@ -61,11 +57,11 @@ export interface WorkItem {
      */
     'acceptanceCriteria'?: string | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof WorkItem
      */
-    'status': WorkStatus;
+    'status': string;
     /**
      *
      * @type {Priority}
@@ -99,8 +95,6 @@ export interface WorkItem {
 }
 
 export namespace WorkItem {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const PriorityEnum = Priority;
     export type PriorityEnum = Priority;
 }

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -66,9 +67,8 @@ vi.mock("../../../data/hooks/useWorkItemTypeLifecycle", () => ({
 }));
 
 vi.mock("../../InteractionComponent", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../InteractionComponent")
-  >();
+  const actual =
+    await importOriginal<typeof import("../../InteractionComponent")>();
 
   return {
     ...actual,
@@ -143,7 +143,7 @@ const workItemTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "STANDARD",
   name: "Task",
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const updateEntity = {
@@ -160,7 +160,7 @@ let proposalSequence = 0;
 function makeProposal(
   action: ProposalAction,
   status: ProposalStatus,
-  reason: string | null = "Needs another review"
+  reason: string | null = "Needs another review",
 ): ProposalResponseDto {
   proposalSequence += 1;
   const id = `proposal-${proposalSequence}`;
@@ -181,8 +181,8 @@ function makeProposal(
       action === ProposalAction.Create
         ? { name: "Created target", type: "STANDARD" }
         : action === ProposalAction.Update
-        ? { name: "Updated target", type: "STANDARD" }
-        : {},
+          ? { name: "Updated target", type: "STANDARD" }
+          : {},
     requestorId: "requestor-1",
     requiredApprovals: 1,
     approvals:
@@ -204,7 +204,7 @@ function makeProposal(
 function renderDispatcher(proposal: ProposalResponseDto) {
   if (proposal.action === ProposalAction.Create) {
     return render(
-      <CreateProposal proposals={[proposal]} onApply={async () => {}} />
+      <CreateProposal proposals={[proposal]} onApply={async () => {}} />,
     );
   }
   if (proposal.action === ProposalAction.Update) {
@@ -214,7 +214,7 @@ function renderDispatcher(proposal: ProposalResponseDto) {
         onApply={async () => {}}
         organizationId={ORG_ID}
         projectId={PROJECT_ID}
-      />
+      />,
     );
   }
   return render(
@@ -223,7 +223,7 @@ function renderDispatcher(proposal: ProposalResponseDto) {
       onApply={async () => {}}
       organizationId={ORG_ID}
       projectId={PROJECT_ID}
-    />
+    />,
   );
 }
 
@@ -284,30 +284,30 @@ describe("rejected proposal dispatcher cards", () => {
 
       expect(screen.getByTestId("rejected-proposal-card")).toBeInTheDocument();
       expect(screen.getByTestId("shared-title-boundary")).toHaveTextContent(
-        proposal.title!
+        proposal.title!,
       );
       expect(screen.getByTestId("rejected-proposal-target")).toHaveTextContent(
-        `${action} target title`
+        `${action} target title`,
       );
       expect(screen.getByText("Ada Reviewer")).toBeInTheDocument();
       expect(screen.getByTestId("rejected-proposal-summary")).toHaveTextContent(
-        `${action.charAt(0)}${action.slice(1).toLowerCase()} Task rejected by`
+        `${action.charAt(0)}${action.slice(1).toLowerCase()} Task rejected by`,
       );
       expect(screen.getByTestId("rejected-proposal-summary")).toHaveTextContent(
-        "Needs another review"
+        "Needs another review",
       );
       const contentIsTestId = content.endsWith("-full-content");
       expect(
         contentIsTestId
           ? screen.queryByTestId(content)
-          : screen.queryByText(content)
+          : screen.queryByText(content),
       ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId("rejected-proposal-toggle"));
       expect(
         contentIsTestId
           ? await screen.findByTestId(content)
-          : await screen.findByText(content)
+          : await screen.findByText(content),
       ).toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId("rejected-proposal-toggle"));
@@ -315,15 +315,15 @@ describe("rejected proposal dispatcher cards", () => {
         expect(
           contentIsTestId
             ? screen.queryByTestId(content)
-            : screen.queryByText(content)
+            : screen.queryByText(content),
         ).not.toBeInTheDocument();
       });
-    }
+    },
   );
 
   it("keeps a reasonless CREATE rejection reason-free", () => {
     renderDispatcher(
-      makeProposal(ProposalAction.Create, ProposalStatus.Rejected, null)
+      makeProposal(ProposalAction.Create, ProposalStatus.Rejected, null),
     );
 
     expect(screen.getByTestId("rejected-proposal-card")).toBeInTheDocument();
@@ -336,7 +336,7 @@ describe("rejected proposal dispatcher cards", () => {
     useUsersMock.mockReturnValue({ data: [] });
 
     renderDispatcher(
-      makeProposal(ProposalAction.Delete, ProposalStatus.Rejected)
+      makeProposal(ProposalAction.Delete, ProposalStatus.Rejected),
     );
 
     expect(screen.getByText("User unavailable")).toBeInTheDocument();
@@ -345,11 +345,11 @@ describe("rejected proposal dispatcher cards", () => {
 
   it("keeps pending CREATE content fully visible", () => {
     renderDispatcher(
-      makeProposal(ProposalAction.Create, ProposalStatus.Pending)
+      makeProposal(ProposalAction.Create, ProposalStatus.Pending),
     );
 
     expect(
-      screen.queryByTestId("rejected-proposal-card")
+      screen.queryByTestId("rejected-proposal-card"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("create-full-content")).toBeInTheDocument();
   });

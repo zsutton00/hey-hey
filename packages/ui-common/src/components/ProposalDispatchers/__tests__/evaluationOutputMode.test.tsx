@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -27,7 +28,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           key: "mockup",
           name: "Mockup",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         } as WorkItemTypeDefinitionDto,
         status: "ACTIVE",
         projectId: "project-1",

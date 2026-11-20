@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { BadRequestException } from '@nestjs/common';
 import { EntityType } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
@@ -22,7 +23,7 @@ const definition: WorkItemTypeDefinitionDto = {
   name: 'Research',
   role: 'project-info',
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: ['STANDARD'],
 };
 
@@ -43,6 +44,7 @@ describe('work-item type proposal parentage normalization', () => {
     const edit = buildWorkItemTypeEditProposal({
       typeKey: definition.key,
       definition,
+      currentDefinition: definition,
       requestorContext,
     });
 
@@ -60,6 +62,7 @@ describe('work-item type proposal parentage normalization', () => {
     const edit = buildWorkItemTypeEditProposal({
       typeKey: definition.key,
       definition,
+      currentDefinition: definition,
       requestorContext,
       acknowledgeCanonicalCustomization: true,
     });

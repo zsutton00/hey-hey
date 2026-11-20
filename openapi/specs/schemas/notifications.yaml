@@ -77,9 +77,9 @@ TaskCompletedPayload:
       type: string
       description: Human-readable name of the completed task.
     previousStatus:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     newStatus:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
   description: Payload for task.completed notifications carrying task status transition data.
 
 SystemMessagePayload:

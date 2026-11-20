@@ -601,11 +601,14 @@ export const composeCanonicalPlanAggregate = (input: {
  * Stage work that leaves nothing actionable. Mirrors the backend stage rollup:
  * VERIFYING and other intermediate statuses are not finished.
  */
-export const isPlanStageWorkFinished = (status: WorkStatus): boolean =>
+export const isPlanStageWorkFinished = (
+  status: PlanStageStandardTask["status"],
+): boolean =>
   status === WorkStatus.Completed ||
   status === WorkStatus.Cancelled ||
   status === WorkStatus.Superseded;
 
 /** Stage work that has not started, so it does not make its stage active. */
-export const isPlanStageWorkNotStarted = (status: WorkStatus): boolean =>
-  status === WorkStatus.Backlog || status === WorkStatus.Generated;
+export const isPlanStageWorkNotStarted = (
+  status: PlanStageStandardTask["status"],
+): boolean => status === WorkStatus.Backlog || status === WorkStatus.Generated;
