@@ -11,7 +11,7 @@ const log = (action: string, data?: Record<string, unknown>) => {
 const logError = (
   action: string,
   error: unknown,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   console.error(`${LOG_PREFIX} ${action}`, { error, ...data });
 };
@@ -27,7 +27,7 @@ const logError = (
  */
 export interface PlatformStopRunPoster {
   stopAgentSessionRun: (
-    request: AgentSessionsApiStopAgentSessionRunRequest
+    request: AgentSessionsApiStopAgentSessionRunRequest,
   ) => Promise<unknown>;
 }
 
