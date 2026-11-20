@@ -21360,6 +21360,59 @@ paths:
         "404":
           description: Agent Session not found in the route project.
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: agentSessionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: reportAgentSessionServicePlaces
+      summary: Record where each Service works in an Agent Session
+      description: >-
+        Records, once per Service, whether the Service works in its main folder
+        or a worktree, and on which branch. Each Service is decided on its own:
+        an unrecorded member is recorded, an identical repeat is a no-op, a
+        different place for a recorded Service is a conflict that leaves the
+        record unchanged, and a non-member is refused. The owning user and the
+        session's bound machine are validated before anything is written.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportAgentSessionServicePlacesDto"
+      responses:
+        "200":
+          description: One outcome per submitted Service and the resulting session.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReportAgentSessionServicePlacesResultDto"
+        "400":
+          description: Invalid report or machine does not match the session binding.
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Agent Session ownership mismatch.
+        "404":
+          description: Agent Session not found in the route project.
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation:
     parameters:
       - name: organizationId
@@ -26548,6 +26601,22 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/UpdateAgentSessionDto"
     GrantAgentSessionServicesDto:
       $ref: "../schemas/coding-sessions.yaml#/GrantAgentSessionServicesDto"
+    AgentSessionServicePlaceKind:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceKind"
+    ServicePlaceChoice:
+      $ref: "../schemas/coding-sessions.yaml#/ServicePlaceChoice"
+    AgentSessionServicePlace:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlace"
+    ReportedAgentSessionServicePlace:
+      $ref: "../schemas/coding-sessions.yaml#/ReportedAgentSessionServicePlace"
+    ReportAgentSessionServicePlacesDto:
+      $ref: "../schemas/coding-sessions.yaml#/ReportAgentSessionServicePlacesDto"
+    AgentSessionServicePlaceOutcome:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceOutcome"
+    AgentSessionServicePlaceResult:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceResult"
+    ReportAgentSessionServicePlacesResultDto:
+      $ref: "../schemas/coding-sessions.yaml#/ReportAgentSessionServicePlacesResultDto"
     CreateAgentSessionConversationDto:
       $ref: "../schemas/coding-sessions.yaml#/CreateAgentSessionConversationDto"
     CreateAgentSessionConversationResponseDto:

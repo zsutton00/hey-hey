@@ -1,3 +1,4 @@
+import { assertLaunchServicePlaceChoices } from '../services/service-place-choices.validator';
 import { startControllerInputs } from '../generated/controller-action-contract';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
@@ -1097,6 +1098,7 @@ export class ConversationController implements IConversationControllerSpec {
       launchServiceId: requestDto.launchServiceId,
       worktreeEnabled: requestDto.worktree?.enabled ?? false,
       worktreeBranch: requestDto.worktree?.branch,
+      servicePlaceChoiceCount: requestDto.servicePlaceChoices?.length ?? 0,
       agentSessionId: requestDto.agentSessionId,
     });
 
@@ -1259,6 +1261,33 @@ export class ConversationController implements IConversationControllerSpec {
           config: requestDto.config,
         });
       const startRunConfig = resolvedStartRunConfig ?? requestDto.config;
+
+      // A Task Monitor launch belongs to a Plan; its persisted worktree is the
+      // Plan's locked branch.
+      const planLockedBranch = requestDto.contextMetadata.taskMonitorId
+        ? resolvedStartRunConfig?.worktree
+        : undefined;
+      try {
+        assertLaunchServicePlaceChoices(requestDto.servicePlaceChoices, {
+          serviceIds: requestDto.serviceIds ?? [],
+          worktreeBranch: requestDto.worktree?.branch,
+          planLockedBranch,
+        });
+      } catch (error) {
+        this.logger.warn(
+          '[ConversationController] startConversationRun rejected service place choices',
+          {
+            conversationId,
+            agentSessionId: requestDto.agentSessionId,
+            serviceIds: requestDto.serviceIds,
+            choices: requestDto.servicePlaceChoices,
+            worktreeBranch: requestDto.worktree?.branch,
+            planLockedBranch,
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+        throw error;
+      }
 
       launchClaimed = await this.agentSessionService.claimStartRunLaunch(
         organizationId,

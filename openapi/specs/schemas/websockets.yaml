@@ -2837,6 +2837,12 @@ ConversationControlPermissionDecision:
       description: >-
         User-supplied explanation for the decision, rendered alongside the
         Approved/Denied message in CLI output.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "../schemas/coding-sessions.yaml#/ServicePlaceChoice"
+      description: >-
+        Where each newly requested Service works. Present only with `approve`.
     idempotencyToken:
       type: string
       minLength: 1

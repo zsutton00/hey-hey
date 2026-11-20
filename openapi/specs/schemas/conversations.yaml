@@ -6760,6 +6760,11 @@ AgentSessionServiceScopeRequest:
         type: string
         minLength: 1
       description: Complete proposed Service scope after approval
+    proposedPlaces:
+      type: array
+      items:
+        $ref: "./coding-sessions.yaml#/ServicePlaceChoice"
+      description: Proposed place for each newly requested Service. Absent on requests from older CLIs.
     reason:
       type: string
       minLength: 1
