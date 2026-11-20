@@ -109,6 +109,8 @@ export const providerLabel = (provider: string): string => {
       return 'Claude';
     case 'codex':
       return 'Codex';
+    case 'antigravity':
+      return 'Antigravity';
     case 'opencode':
       return 'OpenCode';
     default:

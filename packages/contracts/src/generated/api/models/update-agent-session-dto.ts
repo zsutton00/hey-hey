@@ -146,13 +146,16 @@ export const UpdateAgentSessionDtoProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(UpdateAgentSessionDtoProviderEnum, "claude", { enumerable: false, value: UpdateAgentSessionDtoProviderEnum["Claude"] });
 Object.defineProperty(UpdateAgentSessionDtoProviderEnum, "codex", { enumerable: false, value: UpdateAgentSessionDtoProviderEnum["Codex"] });
 Object.defineProperty(UpdateAgentSessionDtoProviderEnum, "opencode", { enumerable: false, value: UpdateAgentSessionDtoProviderEnum["Opencode"] });
+Object.defineProperty(UpdateAgentSessionDtoProviderEnum, "antigravity", { enumerable: false, value: UpdateAgentSessionDtoProviderEnum["Antigravity"] });
 
 export type UpdateAgentSessionDtoProviderEnum = typeof UpdateAgentSessionDtoProviderEnum[keyof typeof UpdateAgentSessionDtoProviderEnum];
 

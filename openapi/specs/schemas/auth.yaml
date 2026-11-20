@@ -123,6 +123,8 @@ LocalCodingAgentDetectionDto:
       $ref: "#/LocalCodingAgentAvailability"
     opencode:
       $ref: "#/LocalCodingAgentAvailability"
+    antigravity:
+      $ref: "#/LocalCodingAgentAvailability"
 
 LocalSetupStatusDto:
   type: object

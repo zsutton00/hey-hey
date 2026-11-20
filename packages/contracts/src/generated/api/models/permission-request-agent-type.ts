@@ -25,12 +25,15 @@ export const PermissionRequestAgentType = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(PermissionRequestAgentType, "claude", { enumerable: false, value: PermissionRequestAgentType["Claude"] });
 Object.defineProperty(PermissionRequestAgentType, "codex", { enumerable: false, value: PermissionRequestAgentType["Codex"] });
 Object.defineProperty(PermissionRequestAgentType, "opencode", { enumerable: false, value: PermissionRequestAgentType["Opencode"] });
+Object.defineProperty(PermissionRequestAgentType, "antigravity", { enumerable: false, value: PermissionRequestAgentType["Antigravity"] });
 
 export type PermissionRequestAgentType = typeof PermissionRequestAgentType[keyof typeof PermissionRequestAgentType];

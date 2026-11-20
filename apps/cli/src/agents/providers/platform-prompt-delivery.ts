@@ -20,6 +20,7 @@ export const PROVIDER_PLATFORM_PROMPT_DELIVERY_MODE = {
   claude: PLATFORM_PROMPT_DELIVERY_MODE.APPENDED_SYSTEM_SLOT,
   opencode: PLATFORM_PROMPT_DELIVERY_MODE.MINT_TURN_SYSTEM_FIELD,
   codex: PLATFORM_PROMPT_DELIVERY_MODE.INITIAL_PREFIX,
+  antigravity: PLATFORM_PROMPT_DELIVERY_MODE.FULL_SYSTEM_PROMPT,
 } as const satisfies Record<string, PlatformPromptDeliveryMode>;
 
 /** Handler intent selects replacement independently of filesystem permissions. */

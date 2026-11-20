@@ -3850,6 +3850,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
           description: Agent provider that issued the permission request.
         reason:
           type: string
@@ -5495,7 +5496,7 @@ components:
           type: array
           minItems: 3
           maxItems: 3
-          description: Exactly one latest usage entry for Claude Code, Codex, and OpenCode.
+          description: Exactly one latest usage entry for Claude Code, Codex, OpenCode, and Antigravity.
           items:
             $ref: "#/components/schemas/CliReadProviderUsage"
       additionalProperties: false
@@ -5514,6 +5515,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
         status:
           type: string
           enum:
@@ -5733,6 +5735,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
         models:
           type: array
           items:
@@ -5872,6 +5875,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
         providerSessionId:
           type: string
           minLength: 1

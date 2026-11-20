@@ -25,12 +25,15 @@ export const TaskMonitorLaunchProvider = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(TaskMonitorLaunchProvider, "claude", { enumerable: false, value: TaskMonitorLaunchProvider["Claude"] });
 Object.defineProperty(TaskMonitorLaunchProvider, "codex", { enumerable: false, value: TaskMonitorLaunchProvider["Codex"] });
 Object.defineProperty(TaskMonitorLaunchProvider, "opencode", { enumerable: false, value: TaskMonitorLaunchProvider["Opencode"] });
+Object.defineProperty(TaskMonitorLaunchProvider, "antigravity", { enumerable: false, value: TaskMonitorLaunchProvider["Antigravity"] });
 
 export type TaskMonitorLaunchProvider = typeof TaskMonitorLaunchProvider[keyof typeof TaskMonitorLaunchProvider];

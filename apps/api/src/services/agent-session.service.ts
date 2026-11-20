@@ -521,7 +521,12 @@ const SESSION_MONITOR_TERMINAL_POLICY_ACTION_KEYS = new Set([
 const LEGACY_SESSION_MONITOR_TERMINAL_POLICY_TYPE =
   'session_monitor_terminal_policy';
 
-const AGENT_SESSION_PROVIDERS = ['claude', 'codex', 'opencode'] as const;
+const AGENT_SESSION_PROVIDERS = [
+  'claude',
+  'codex',
+  'opencode',
+  'antigravity',
+] as const;
 type AgentSessionProvider = (typeof AGENT_SESSION_PROVIDERS)[number];
 const AGENT_SESSION_STATUSES = [
   'NOT_STARTED',

@@ -105,13 +105,16 @@ export const PermissionDecisionRequestDtoAgentTypeEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "claude", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Claude"] });
 Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "codex", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Codex"] });
 Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "opencode", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Opencode"] });
+Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "antigravity", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Antigravity"] });
 
 export type PermissionDecisionRequestDtoAgentTypeEnum = typeof PermissionDecisionRequestDtoAgentTypeEnum[keyof typeof PermissionDecisionRequestDtoAgentTypeEnum];
 

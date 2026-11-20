@@ -56,13 +56,16 @@ export const GoalPmRoutingCreationProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(GoalPmRoutingCreationProviderEnum, "claude", { enumerable: false, value: GoalPmRoutingCreationProviderEnum["Claude"] });
 Object.defineProperty(GoalPmRoutingCreationProviderEnum, "codex", { enumerable: false, value: GoalPmRoutingCreationProviderEnum["Codex"] });
 Object.defineProperty(GoalPmRoutingCreationProviderEnum, "opencode", { enumerable: false, value: GoalPmRoutingCreationProviderEnum["Opencode"] });
+Object.defineProperty(GoalPmRoutingCreationProviderEnum, "antigravity", { enumerable: false, value: GoalPmRoutingCreationProviderEnum["Antigravity"] });
 
 export type GoalPmRoutingCreationProviderEnum = typeof GoalPmRoutingCreationProviderEnum[keyof typeof GoalPmRoutingCreationProviderEnum];
 

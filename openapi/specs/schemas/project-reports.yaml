@@ -1,6 +1,6 @@
 ProjectReportProvider:
   type: string
-  enum: [claude, codex, opencode]
+  enum: [claude, codex, opencode, antigravity]
   description: Provider selected through the existing agent launch configuration.
 
 ProjectReportKind:

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import type { LocalRunProviderSessionTranscriptRequest } from "@hey-hey/contracts/local";
 import {
   LocalRunProviderSessionTranscriptError,
   createDirectoryBindingApi,
@@ -26,7 +27,7 @@ export type ProviderSessionTranscriptState =
 export interface ProviderSessionTranscriptTarget {
   /** The Run (agent session) that owns the provider session. */
   runId: string;
-  providerId: "claude" | "codex" | "opencode";
+  providerId: LocalRunProviderSessionTranscriptRequest["providerId"];
   providerSessionId: string;
 }
 

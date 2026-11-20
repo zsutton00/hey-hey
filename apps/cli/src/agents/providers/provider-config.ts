@@ -1,39 +1,42 @@
-export type AgentProviderId = 'claude' | 'codex' | 'opencode';
+export const AGENT_PROVIDERS = ['claude', 'codex', 'opencode', 'antigravity'] as const;
+export type AgentProviderId = (typeof AGENT_PROVIDERS)[number];
 
-const MISSING_CREDENTIAL_PATTERN = /No (Codex|Claude|OpenCode) credential found for account (.+)$/u;
-
-export const resolveAgentProviderId = (provider: string): AgentProviderId => {
-  const lower = provider.toLowerCase();
-  if (lower.includes('codex')) return 'codex';
-  if (lower.includes('opencode')) return 'opencode';
-  return 'claude';
+const PROVIDER_DISPLAY_NAMES: Record<AgentProviderId, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  antigravity: 'Antigravity',
 };
 
-export const resolveAgentAccountId = (providerId: AgentProviderId): string => {
-  if (providerId === 'codex') {
-    return (
-      process.env['HEYHEY_CODEX_ACCOUNT_ID'] ?? process.env['HEYHEY_AGENT_ACCOUNT_ID'] ?? 'default'
+const MISSING_CREDENTIAL_PATTERN = /No (.+?) credential found for account (.+)$/u;
+
+export class UnknownAgentProviderError extends Error {
+  public constructor(provider: unknown) {
+    super(
+      `Unknown agent provider: ${typeof provider === 'string' ? JSON.stringify(provider) : typeof provider}`,
     );
+    this.name = 'UnknownAgentProviderError';
+  }
+}
+
+export const isAgentProviderId = (provider: unknown): provider is AgentProviderId =>
+  AGENT_PROVIDERS.some((id) => id === provider);
+
+export const resolveAgentProviderId = (provider: unknown): AgentProviderId => {
+  if (isAgentProviderId(provider)) {
+    return provider;
   }
 
-  if (providerId === 'opencode') {
-    return (
-      process.env['HEYHEY_OPENCODE_ACCOUNT_ID'] ??
-      process.env['HEYHEY_AGENT_ACCOUNT_ID'] ??
-      'default'
-    );
-  }
-
-  return (
-    process.env['HEYHEY_CLAUDE_ACCOUNT_ID'] ?? process.env['HEYHEY_AGENT_ACCOUNT_ID'] ?? 'default'
-  );
+  throw new UnknownAgentProviderError(provider);
 };
 
-export const toProviderDisplayName = (providerId: AgentProviderId): string => {
-  if (providerId === 'codex') return 'Codex';
-  if (providerId === 'opencode') return 'OpenCode';
-  return 'Claude';
-};
+export const resolveAgentAccountId = (providerId: AgentProviderId): string =>
+  process.env[`HEYHEY_${providerId.toUpperCase()}_ACCOUNT_ID`] ??
+  process.env['HEYHEY_AGENT_ACCOUNT_ID'] ??
+  'default';
+
+export const toProviderDisplayName = (providerId: AgentProviderId): string =>
+  PROVIDER_DISPLAY_NAMES[providerId];
 
 export const buildCredentialRefreshCommand = (
   providerId: AgentProviderId,
@@ -54,11 +57,9 @@ export const extractCredentialLookupFromErrorMessage = (
     return null;
   }
 
-  const lower = providerPart.toLowerCase();
-  let providerId: AgentProviderId;
-  if (lower === 'codex') providerId = 'codex';
-  else if (lower === 'opencode') providerId = 'opencode';
-  else providerId = 'claude';
+  const providerId =
+    AGENT_PROVIDERS.find((id) => PROVIDER_DISPLAY_NAMES[id] === providerPart) ??
+    resolveAgentProviderId(providerPart);
 
   const accountId = accountPart.trim();
   if (accountId.length === 0) {
@@ -93,6 +94,7 @@ export const NATIVE_PERMISSION_MODES: Readonly<
   claude: { mode: 'auto', minimumVersion: '2.1.327' },
   codex: { mode: 'auto', minimumVersion: '0.170.0' },
   opencode: null,
+  antigravity: null,
 };
 
 export const nativePermissionModeFor = (

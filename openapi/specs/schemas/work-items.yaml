@@ -733,6 +733,7 @@ TaskMonitorLaunchProvider:
     - claude
     - codex
     - opencode
+    - antigravity
 
 TaskMonitorLaunchModel:
   type: string

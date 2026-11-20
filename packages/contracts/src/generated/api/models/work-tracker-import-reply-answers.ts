@@ -92,11 +92,14 @@ export interface WorkTrackerImportReplyAnswers {
 export const WorkTrackerImportReplyAnswersWorkTrackerProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(WorkTrackerImportReplyAnswersWorkTrackerProviderEnum, "claude", { enumerable: false, value: WorkTrackerImportReplyAnswersWorkTrackerProviderEnum["Claude"] });
 Object.defineProperty(WorkTrackerImportReplyAnswersWorkTrackerProviderEnum, "codex", { enumerable: false, value: WorkTrackerImportReplyAnswersWorkTrackerProviderEnum["Codex"] });
+Object.defineProperty(WorkTrackerImportReplyAnswersWorkTrackerProviderEnum, "antigravity", { enumerable: false, value: WorkTrackerImportReplyAnswersWorkTrackerProviderEnum["Antigravity"] });
 
 export type WorkTrackerImportReplyAnswersWorkTrackerProviderEnum = typeof WorkTrackerImportReplyAnswersWorkTrackerProviderEnum[keyof typeof WorkTrackerImportReplyAnswersWorkTrackerProviderEnum];
 export const WorkTrackerImportReplyAnswersWorkTrackerReasoningEffortEnum = {

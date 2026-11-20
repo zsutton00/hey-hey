@@ -77,6 +77,23 @@ export interface SessionRunnerFacadeDependencies {
 const firstReportedModel = (providerId: AgentProviderId): string | undefined =>
   providerId === 'opencode' ? undefined : listModels(providerId)[0]?.id;
 
+export function assertProviderRunnerAvailable(
+  providerId: AgentProviderId,
+  logger: ServerLogger,
+  identity: { runId: string } | { agentSessionId: string } | { monitorId: string },
+): asserts providerId is Exclude<AgentProviderId, 'antigravity'> {
+  if (providerId === 'antigravity') {
+    const error = new AgentSessionRunnerError('NOT_SUPPORTED', 'Antigravity runner not available.');
+    logger.warn('select.runner.unavailable', {
+      ...identity,
+      provider: providerId,
+      code: error.code,
+      message: error.message,
+    });
+    throw error;
+  }
+}
+
 export class SessionRunnerFacade {
   private readonly runners = new Map<
     string,
@@ -108,8 +125,9 @@ export class SessionRunnerFacade {
     if (this.decidedRuns.has(run.runId)) {
       return;
     }
-    this.decidedRuns.add(run.runId);
     const providerId = resolveAgentProviderId(run.provider);
+    assertProviderRunnerAvailable(providerId, this.dependencies.logger, { runId: run.runId });
+    this.decidedRuns.add(run.runId);
     let enabled = false;
     try {
       enabled = await this.machineOptionsStore.isPreciseFileChangeTrackingEnabled();
@@ -151,6 +169,7 @@ export class SessionRunnerFacade {
   public forRun(run: Run): AgentSessionRunner {
     const existing = this.runners.get(run.runId);
     const providerId = resolveAgentProviderId(run.provider);
+    assertProviderRunnerAvailable(providerId, this.dependencies.logger, { runId: run.runId });
     if (existing?.providerId === providerId) return existing.runner;
 
     // Provider hooks are sent only for a Run started with precise file change tracking on.
@@ -237,6 +256,9 @@ export class SessionRunnerFacade {
     providerSessionId?: string,
   ): Promise<LocalContextData> {
     const providerId = resolveAgentProviderId(session.provider);
+    assertProviderRunnerAvailable(providerId, this.dependencies.logger, {
+      agentSessionId: session.agentic_session_id,
+    });
     let runner: AgentSessionRunner;
     if (providerId === 'claude') {
       runner = new ClaudeAgentSessionRunner({

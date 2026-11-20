@@ -168,6 +168,7 @@ AgentSkillProvider:
     - claude
     - codex
     - opencode
+    - antigravity
 
 AgentSkillCatalogScope:
   type: string

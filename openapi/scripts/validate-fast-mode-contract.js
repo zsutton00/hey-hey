@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const Ajv = require("ajv");
 const SwaggerParser = require("@apidevtools/swagger-parser");
 
 const agentBridgeSpecPath = path.resolve(
@@ -7,19 +8,29 @@ const agentBridgeSpecPath = path.resolve(
   "../specs/agent-bridge/openapi.yaml",
 );
 
-const fastModeValues = [true, false, undefined];
+const apiSpecPath = path.resolve(__dirname, "../specs/api/openapi.yaml");
+const conversationStartPath =
+  "/organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/start-run";
 
-const acceptsNamedConstraint = (constraint, provider, fastMode) => {
-  const invalidCombination = constraint.not.allOf;
-  const requiresFastMode = invalidCombination[0].required.includes("fastMode");
-  const fastModeProviders = invalidCombination[1].properties.provider.not.enum;
+const assertFastModeAdmission = (name, schema) => {
+  assert.ok(schema.not, `${name} must define its Fast mode exclusion`);
+  const validate = new Ajv({ strict: false }).compile({ not: schema.not });
 
-  return !(
-    requiresFastMode &&
-    fastMode !== undefined &&
-    provider !== undefined &&
-    !fastModeProviders.includes(provider)
-  );
+  for (const provider of ["codex", "claude", "opencode", "antigravity"]) {
+    assert.equal(
+      validate({ provider }),
+      true,
+      `${name} must allow omission for ${provider}`,
+    );
+    for (const fastMode of [true, false]) {
+      const supported = provider === "codex" || provider === "claude";
+      assert.equal(
+        validate({ provider, fastMode }),
+        supported,
+        `${name}: ${provider} with fastMode=${fastMode}`,
+      );
+    }
+  }
 };
 
 const main = async () => {
@@ -33,29 +44,13 @@ const main = async () => {
   assert.equal(config.required.includes("fastMode"), false);
   assert.equal(startRun.properties.fastMode.type, "boolean");
 
-  for (const provider of ["codex", "claude"]) {
-    for (const fastMode of fastModeValues) {
-      assert.equal(
-        acceptsNamedConstraint(startRunFastModeConstraint, provider, fastMode),
-        true,
-      );
-    }
-  }
-
-  for (const provider of ["opencode"]) {
-    assert.equal(
-      acceptsNamedConstraint(startRunFastModeConstraint, provider, undefined),
-      true,
-    );
-    assert.equal(
-      acceptsNamedConstraint(startRunFastModeConstraint, provider, true),
-      false,
-    );
-    assert.equal(
-      acceptsNamedConstraint(startRunFastModeConstraint, provider, false),
-      false,
-    );
-  }
+  const api = await SwaggerParser.dereference(apiSpecPath);
+  const conversationStart =
+    api.paths[conversationStartPath].post.requestBody.content[
+      "application/json"
+    ].schema;
+  assertFastModeAdmission("Conversation start-run", conversationStart);
+  assertFastModeAdmission("Agent Bridge start-run", startRunFastModeConstraint);
 
   console.log("Fast mode contract validation passed.");
 };

@@ -1469,6 +1469,7 @@ components:
         - claude
         - codex
         - opencode
+        - antigravity
 
     AgentSessionTraversalNodeProperties:
       type: object

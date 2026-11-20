@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import { CommitGitError } from '../agents/commit/commit-git-error';
 import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
@@ -448,7 +449,7 @@ export interface RunArgs {
   organizationId: string;
   projectId: string;
   conversationId: string;
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
   /**
    * The AgenticSession this Run is bound to. Resolved once at Run activation
    * and held here for the Run's lifetime. Nothing below Run reads the
@@ -713,7 +714,7 @@ export class Run {
    * selection may switch it between Turns; the switch rotates the provider
    * session inside this Run and never creates another Run.
    */
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
 
   session: AgenticSession;
   hasProviderSession: boolean;

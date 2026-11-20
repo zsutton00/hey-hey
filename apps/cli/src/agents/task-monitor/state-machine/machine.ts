@@ -146,7 +146,7 @@ type ExpandTypeUnion<Shape> = Shape extends { type: infer Type }
   : never;
 type Expect<Value extends true> = Value;
 
-const providerSchema = z.enum(['claude', 'codex', 'opencode']);
+const providerSchema = z.enum(['claude', 'codex', 'opencode', 'antigravity']);
 const effortSchema = z.enum(TaskMonitorReasoningEffort);
 const methodSchema = z.enum(['plan', 'open', 'quick']);
 const worktreeSchema = z

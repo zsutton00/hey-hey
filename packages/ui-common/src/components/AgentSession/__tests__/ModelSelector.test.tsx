@@ -11,6 +11,7 @@ import { ConversationStartRunRequestDtoProviderEnum } from "../../../api";
 import { setCapabilityCatalogForTests } from "../capabilityCatalog";
 import { TEST_CAPABILITY_CATALOG } from "../../../test/capabilityCatalogFixture";
 import { ModelSelector, type ModelSelectorProps } from "../ModelSelector";
+import { CatalogNotices } from "../RuntimeModelSelector";
 
 const readyMachine: MachineDto = {
   machineId: "machine-1",
@@ -72,6 +73,19 @@ describe("ModelSelector", () => {
   afterEach(() => localStorage.clear());
 
   it("renders each provider option with its icon in the open menu", async () => {
+    setCapabilityCatalogForTests([
+      ...TEST_CAPABILITY_CATALOG,
+      {
+        provider: ConversationStartRunRequestDtoProviderEnum.Antigravity,
+        models: [
+          {
+            id: "gemini-3.5-flash",
+            label: "Gemini 3.5 Flash",
+            efforts: ["low"],
+          },
+        ],
+      },
+    ]);
     render(<ModelSelector {...buildProps()} />);
     await openSelect("model-selector-provider-select");
 
@@ -84,6 +98,16 @@ describe("ModelSelector", () => {
     const opencodeOption = screen.getByTestId(
       "model-selector-provider-option-opencode",
     );
+    const antigravityOption = screen.getByTestId(
+      "model-selector-provider-option-antigravity",
+    );
+
+    expect(
+      within(antigravityOption).getByLabelText("Antigravity"),
+    ).toBeInTheDocument();
+    expect(
+      within(antigravityOption).getByText("Antigravity"),
+    ).toBeInTheDocument();
 
     expect(
       within(claudeOption).getByLabelText("Claude Code"),
@@ -92,6 +116,26 @@ describe("ModelSelector", () => {
     expect(
       within(opencodeOption).getByLabelText("Opencode"),
     ).toBeInTheDocument();
+  });
+
+  it("shows Antigravity's icon when the machine reports the runner unavailable", () => {
+    setCapabilityCatalogForTests([
+      {
+        provider: "antigravity",
+        models: [],
+        notice: "Antigravity runner not available.",
+      },
+    ]);
+
+    render(<CatalogNotices testIdPrefix="model-selector" />);
+
+    const notice = screen.getByTestId(
+      "model-selector-catalog-notice-antigravity",
+    );
+    expect(
+      within(notice).getByRole("img", { name: "Antigravity" }),
+    ).toBeInTheDocument();
+    expect(notice).toHaveTextContent("Antigravity runner not available.");
   });
 
   it("renders the controlled provider, model, and effort values", () => {

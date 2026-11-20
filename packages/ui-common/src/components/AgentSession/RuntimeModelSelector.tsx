@@ -4,6 +4,7 @@ import type {
   ConversationStartRunRequestDtoProviderEnum,
   ConversationStartRunRequestDtoReasoningEffortEnum,
 } from "../../api";
+import { AntigravityIcon } from "../Activity/providerIcons";
 import { listCatalogNotices, listProviders } from "./capabilityCatalog";
 import {
   FavoriteModelSelector,
@@ -62,6 +63,9 @@ export const CatalogNotices = ({ testIdPrefix }: { testIdPrefix: string }) => (
       <Alert
         key={provider}
         severity="info"
+        icon={
+          provider === "antigravity" ? <AntigravityIcon size={22} /> : undefined
+        }
         data-testid={`${testIdPrefix}-catalog-notice-${provider}`}
       >
         {notice}

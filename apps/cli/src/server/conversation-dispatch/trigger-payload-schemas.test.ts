@@ -1342,13 +1342,18 @@ describe('validateTriggerPayload', () => {
       expect(validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, envelope)).toEqual(envelope);
     });
 
-    it('rejects fastMode for an OpenCode provider', () => {
+    it.each([
+      [LocalRunProvider.Opencode, true],
+      [LocalRunProvider.Opencode, false],
+      [LocalRunProvider.Antigravity, true],
+      [LocalRunProvider.Antigravity, false],
+    ])('rejects %s fastMode=%s', (provider, fastMode) => {
       const envelope = buildEnvelope(LocalPromptType.DailySession, {
         promptType: LocalPromptType.DailySession,
         payloadVersion: 1,
       });
-      envelope['provider'] = LocalRunProvider.Opencode;
-      envelope['fastMode'] = false;
+      envelope['provider'] = provider;
+      envelope['fastMode'] = fastMode;
 
       expect(() => validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, envelope)).toThrow(
         /fastMode is supported only when provider is codex or claude/,

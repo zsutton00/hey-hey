@@ -25,6 +25,8 @@ export interface ProviderSessionUsageCostInput {
 }
 
 type CcusageCostProviderId = Extract<AgentProviderId, 'claude' | 'codex'>;
+const isCcusageCostProvider = (providerId: AgentProviderId): providerId is CcusageCostProviderId =>
+  providerId === 'claude' || providerId === 'codex';
 export type ProviderCostSourceState = 'available' | 'unavailable' | 'malformed' | 'unsupported';
 
 export interface ProviderSessionCostBatchInput {
@@ -435,7 +437,7 @@ export class SessionCostAdapter {
 
     await Promise.all(
       [...representedProviders].map(async (providerId) => {
-        if (providerId === 'opencode') {
+        if (!isCcusageCostProvider(providerId)) {
           sourceStates.set(providerId, 'unsupported');
           logger?.debug('local.service.session_cost_batch.source_unsupported', { providerId });
           return;
@@ -504,8 +506,10 @@ export class SessionCostAdapter {
         providerId,
         providerSessionId,
         sourceState: sourceStates.get(providerId),
-        records: providerId === 'opencode' ? undefined : recordsByProvider.get(providerId),
-        malformedJson: providerId === 'opencode' ? false : malformedJsonProviders.has(providerId),
+        records: !isCcusageCostProvider(providerId) ? undefined : recordsByProvider.get(providerId),
+        malformedJson: !isCcusageCostProvider(providerId)
+          ? false
+          : malformedJsonProviders.has(providerId),
         logger,
       }),
     );
@@ -535,7 +539,7 @@ export class SessionCostAdapter {
       return unavailableProviderSessionCost(reason, message);
     };
 
-    if (providerId === 'opencode') {
+    if (!isCcusageCostProvider(providerId)) {
       return unavailable(
         'unsupported_provider',
         `Provider ${providerId} does not expose local session cost data through ccusage.`,

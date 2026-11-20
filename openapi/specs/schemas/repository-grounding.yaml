@@ -428,6 +428,7 @@ RepositoryGroundingAnalysisConfiguration:
         - claude
         - codex
         - opencode
+        - antigravity
       description: >-
         Provider selected from the currently supported repository-analysis
         catalog.
@@ -517,6 +518,7 @@ RepositoryGroundingRequest:
         - claude
         - codex
         - opencode
+        - antigravity
     resolvedFrontierModel:
       type: string
       minLength: 1
@@ -591,7 +593,7 @@ RepositoryPlacementRequest:
       $ref: "./common.yaml#/MachineId"
     provider:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     resolvedFrontierModel:
       type: string
       minLength: 1
@@ -1053,7 +1055,7 @@ RepositoryFeatureEnrichmentRequest:
       $ref: "./common.yaml#/MachineId"
     provider:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     resolvedFrontierModel:
       type: string
       minLength: 1
@@ -1300,7 +1302,7 @@ RepositoryFirstWorkRequest:
       $ref: "./common.yaml#/MachineId"
     provider:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     resolvedFrontierModel:
       type: string
       minLength: 1

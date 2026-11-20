@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
-export const providers = ['claude', 'codex', 'opencode'] as const;
+export const providers = ['claude', 'codex', 'opencode', 'antigravity'] as const;
 export type UsageProvider = (typeof providers)[number];
 // Claude usage is read live from Claude Code (see claude-usage.ts), never persisted.
-export const storedProviders = ['codex', 'opencode'] as const satisfies readonly UsageProvider[];
+export const storedProviders = [
+  'codex',
+  'opencode',
+  'antigravity',
+] as const satisfies readonly UsageProvider[];
 const limitWindowSchema = z
   .object({
     usedPercent: z.number().finite().nonnegative().nullable(),

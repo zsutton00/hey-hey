@@ -205,6 +205,18 @@ const resetState = (): void => {
   codexState.createdRunnerDependencies = [];
 };
 
+it('rejects Antigravity before selecting any existing runner', async () => {
+  resetState();
+  const facade = buildFacade();
+  const run = buildRun({ provider: 'antigravity' });
+
+  expect(() => facade.forRun(run)).toThrow('Antigravity runner not available');
+  await expect(facade.runPrompt(run, buildRunArgs())).rejects.toThrow(
+    'Antigravity runner not available',
+  );
+  expect(run.setRunner).not.toHaveBeenCalled();
+});
+
 describe('SessionRunnerFacade — ToolRuleStore ownership', () => {
   it('sends no capture hooks while precise file change tracking is off', async () => {
     resetState();

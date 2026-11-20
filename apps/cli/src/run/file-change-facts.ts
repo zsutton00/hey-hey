@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,7 +13,7 @@ import {
 } from '../git/index';
 import type { AgenticSession } from '../session/types';
 
-type FileChangeProvider = 'claude' | 'codex' | 'opencode';
+type FileChangeProvider = AgentProviderId;
 
 export interface ResolvedRunFilePath {
   serviceId: string;
@@ -102,7 +103,7 @@ const factSchema = z.object({
   factId: z.string().min(1),
   runId: z.string().min(1),
   turnId: z.string().min(1),
-  provider: z.enum(['claude', 'codex', 'opencode']),
+  provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   providerSessionId: z.string().min(1),
   providerThreadId: z.string().nullable(),
   providerTurnId: z.string().nullable(),

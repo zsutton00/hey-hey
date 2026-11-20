@@ -462,12 +462,12 @@ export class RunService {
     });
 
     try {
-      if (input.inert && provider === 'opencode') {
+      if (input.inert && provider !== 'claude' && provider !== 'codex') {
         this.log('warn', 'local.service.create_run.inert.invalid_provider', { provider });
         throw new LocalAgentApiError('INVALID_REQUEST', 'Inert runs require Claude or Codex.', 400);
       }
       this.log('debug', 'local.service.create_run.inert', { inert: input.inert === true });
-      if (input.fastMode !== undefined && provider === 'opencode') {
+      if (input.fastMode !== undefined && provider !== 'claude' && provider !== 'codex') {
         this.log('warn', 'local.service.create_run.fast_mode.invalid_provider', {
           provider,
           fastModeProvided: true,

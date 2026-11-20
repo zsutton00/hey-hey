@@ -5,6 +5,11 @@ import type { WorkTrackerImportRequest } from '@hey-hey/contracts/agent-bridge';
 export function buildWorkTrackerConnectionInstructions(
   payload: Pick<WorkTrackerImportRequest, 'source' | 'provider'>,
 ): string {
+  const sourceLabel = payload.source === 'jira' ? 'Jira' : 'Linear';
+  if (payload.provider === 'antigravity') {
+    return `Antigravity connection setup for ${sourceLabel} is currently unavailable.`;
+  }
+
   const name = payload.source === 'jira' ? 'atlassian' : 'linear';
   const url =
     payload.source === 'jira' ? 'https://mcp.atlassian.com/v2/mcp' : 'https://mcp.linear.app/mcp';
@@ -17,7 +22,7 @@ export function buildWorkTrackerConnectionInstructions(
       ? 'Open Claude Code and use /mcp to authenticate in your browser.'
       : `If authentication is still needed, run codex mcp login ${name} and sign in in your browser.`;
   return [
-    `Connect ${payload.source === 'jira' ? 'Jira' : 'Linear'} on your paired machine:`,
+    `Connect ${sourceLabel} on your paired machine:`,
     '```sh',
     command,
     '```',

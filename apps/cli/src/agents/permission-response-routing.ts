@@ -1,6 +1,7 @@
 import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
+import type { AgentProviderId } from './providers/provider-config';
+
 export type PermissionDecision = 'approve' | 'always_approve' | 'deny' | 'whitelist';
-type PermissionAgentType = 'claude' | 'codex' | 'opencode';
 
 export type PermissionCallbackType =
   | 'claude_control_response'
@@ -12,7 +13,7 @@ export interface PermissionDecisionRoutingInput {
   runId: string;
   sessionId: string;
   requestId: string;
-  agentType: PermissionAgentType;
+  agentType: AgentProviderId;
   decision: PermissionDecision;
   reason: string | null;
   /** Where each newly requested Service works; only meaningful for a Service scope approval. */
@@ -154,6 +155,10 @@ export const translatePermissionDecisionToDispatch = (
       },
       routing,
     };
+  }
+
+  if (input.agentType !== 'codex') {
+    throw new Error(`Permission responses are unavailable for provider "${input.agentType}".`);
   }
 
   return {

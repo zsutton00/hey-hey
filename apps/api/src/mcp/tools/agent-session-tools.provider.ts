@@ -46,7 +46,10 @@ const mcpAgentSessionDtoSchema = z.object({
   agentSessionId: z.string().describe('Agent session ID'),
   title: z.string().describe('Agent session title'),
   status: z.string().describe('Agent session status'),
-  provider: z.string().optional().describe('Agent provider (claude, codex)'),
+  provider: z
+    .string()
+    .optional()
+    .describe('Agent provider (claude, codex, opencode, antigravity)'),
   taskId: z.string().optional().describe('Associated task ID'),
   serviceId: z.string().optional().describe('Associated service ID'),
   serviceName: z.string().optional().describe('Associated service name'),

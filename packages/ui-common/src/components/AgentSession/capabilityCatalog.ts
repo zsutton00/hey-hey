@@ -172,7 +172,8 @@ const parseProvider = (
   if (
     value === ConversationStartRunRequestDtoProviderEnum.Claude ||
     value === ConversationStartRunRequestDtoProviderEnum.Codex ||
-    value === ConversationStartRunRequestDtoProviderEnum.Opencode
+    value === ConversationStartRunRequestDtoProviderEnum.Opencode ||
+    value === ConversationStartRunRequestDtoProviderEnum.Antigravity
   ) {
     return value;
   }

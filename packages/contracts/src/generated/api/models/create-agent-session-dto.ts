@@ -147,13 +147,16 @@ export const CreateAgentSessionDtoProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(CreateAgentSessionDtoProviderEnum, "claude", { enumerable: false, value: CreateAgentSessionDtoProviderEnum["Claude"] });
 Object.defineProperty(CreateAgentSessionDtoProviderEnum, "codex", { enumerable: false, value: CreateAgentSessionDtoProviderEnum["Codex"] });
 Object.defineProperty(CreateAgentSessionDtoProviderEnum, "opencode", { enumerable: false, value: CreateAgentSessionDtoProviderEnum["Opencode"] });
+Object.defineProperty(CreateAgentSessionDtoProviderEnum, "antigravity", { enumerable: false, value: CreateAgentSessionDtoProviderEnum["Antigravity"] });
 
 export type CreateAgentSessionDtoProviderEnum = typeof CreateAgentSessionDtoProviderEnum[keyof typeof CreateAgentSessionDtoProviderEnum];
 

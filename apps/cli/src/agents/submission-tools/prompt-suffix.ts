@@ -23,6 +23,7 @@ const SUBMISSION_TOOL_DISCOVERY: Record<AgentProviderId | 'unknown', string> = {
     `\`mcp__${SUBMISSION_TOOL_SERVER}__<name>\` or, where hyphens in server ` +
     `names become underscores, \`mcp__${SUBMISSION_TOOL_SERVER.replaceAll('-', '_')}__<name>\`. ` +
     `Match on the bare name, and list your full tool catalog if search finds nothing.`,
+  antigravity: `List the tools from the \`${SUBMISSION_TOOL_SERVER}\` server and match the bare name before reporting one missing.`,
   opencode:
     `The submission tools appear in your catalog under the ` +
     `\`${SUBMISSION_TOOL_SERVER}\` server. List your full tool catalog and ` +

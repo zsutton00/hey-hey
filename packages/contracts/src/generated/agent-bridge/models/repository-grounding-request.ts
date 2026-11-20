@@ -137,13 +137,16 @@ export const RepositoryGroundingRequestProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(RepositoryGroundingRequestProviderEnum, "claude", { enumerable: false, value: RepositoryGroundingRequestProviderEnum["Claude"] });
 Object.defineProperty(RepositoryGroundingRequestProviderEnum, "codex", { enumerable: false, value: RepositoryGroundingRequestProviderEnum["Codex"] });
 Object.defineProperty(RepositoryGroundingRequestProviderEnum, "opencode", { enumerable: false, value: RepositoryGroundingRequestProviderEnum["Opencode"] });
+Object.defineProperty(RepositoryGroundingRequestProviderEnum, "antigravity", { enumerable: false, value: RepositoryGroundingRequestProviderEnum["Antigravity"] });
 
 export type RepositoryGroundingRequestProviderEnum = typeof RepositoryGroundingRequestProviderEnum[keyof typeof RepositoryGroundingRequestProviderEnum];
 export const RepositoryGroundingRequestReasoningEffortEnum = {

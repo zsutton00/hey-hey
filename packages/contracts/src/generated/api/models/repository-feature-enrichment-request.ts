@@ -133,13 +133,16 @@ export const RepositoryFeatureEnrichmentRequestProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(RepositoryFeatureEnrichmentRequestProviderEnum, "claude", { enumerable: false, value: RepositoryFeatureEnrichmentRequestProviderEnum["Claude"] });
 Object.defineProperty(RepositoryFeatureEnrichmentRequestProviderEnum, "codex", { enumerable: false, value: RepositoryFeatureEnrichmentRequestProviderEnum["Codex"] });
 Object.defineProperty(RepositoryFeatureEnrichmentRequestProviderEnum, "opencode", { enumerable: false, value: RepositoryFeatureEnrichmentRequestProviderEnum["Opencode"] });
+Object.defineProperty(RepositoryFeatureEnrichmentRequestProviderEnum, "antigravity", { enumerable: false, value: RepositoryFeatureEnrichmentRequestProviderEnum["Antigravity"] });
 
 export type RepositoryFeatureEnrichmentRequestProviderEnum = typeof RepositoryFeatureEnrichmentRequestProviderEnum[keyof typeof RepositoryFeatureEnrichmentRequestProviderEnum];
 export const RepositoryFeatureEnrichmentRequestReasoningEffortEnum = {

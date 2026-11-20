@@ -121,13 +121,16 @@ export const RepositoryPlacementRequestProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(RepositoryPlacementRequestProviderEnum, "claude", { enumerable: false, value: RepositoryPlacementRequestProviderEnum["Claude"] });
 Object.defineProperty(RepositoryPlacementRequestProviderEnum, "codex", { enumerable: false, value: RepositoryPlacementRequestProviderEnum["Codex"] });
 Object.defineProperty(RepositoryPlacementRequestProviderEnum, "opencode", { enumerable: false, value: RepositoryPlacementRequestProviderEnum["Opencode"] });
+Object.defineProperty(RepositoryPlacementRequestProviderEnum, "antigravity", { enumerable: false, value: RepositoryPlacementRequestProviderEnum["Antigravity"] });
 
 export type RepositoryPlacementRequestProviderEnum = typeof RepositoryPlacementRequestProviderEnum[keyof typeof RepositoryPlacementRequestProviderEnum];
 export const RepositoryPlacementRequestReasoningEffortEnum = {

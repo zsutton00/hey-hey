@@ -597,7 +597,7 @@ export const controllerActionRuntimeSchema = {
                     },
                     agentType: {
                       type: 'string',
-                      enum: ['claude', 'codex', 'opencode'],
+                      enum: ['claude', 'codex', 'opencode', 'antigravity'],
                       description:
                         'Agent provider that issued the permission request.',
                     },
@@ -1383,7 +1383,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex'],
+          enum: ['claude', 'codex', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -1613,7 +1613,7 @@ export const controllerActionRuntimeSchema = {
     },
     AgentSkillProvider: {
       type: 'string',
-      enum: ['claude', 'codex', 'opencode'],
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
     },
     AgentSkillCatalogContext: {
       oneOf: [
@@ -2001,7 +2001,7 @@ export const controllerActionRuntimeSchema = {
         },
         agentType: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         answers: {
           type: 'object',
@@ -2761,7 +2761,7 @@ export const controllerActionRuntimeSchema = {
     },
     TaskMonitorLaunchProvider: {
       type: 'string',
-      enum: ['claude', 'codex', 'opencode'],
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
     },
     TaskMonitorReasoningEffort: {
       type: 'string',
@@ -3071,7 +3071,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
           description:
             'Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep.\n',
         },
@@ -5770,7 +5770,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -5934,7 +5934,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -8224,7 +8224,7 @@ export const controllerActionRuntimeSchema = {
             },
             provider: {
               type: 'string',
-              enum: ['claude', 'codex', 'opencode'],
+              enum: ['claude', 'codex', 'opencode', 'antigravity'],
             },
             resolvedFrontierModel: {
               type: 'string',
@@ -8362,7 +8362,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -8466,7 +8466,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -10508,7 +10508,7 @@ export const controllerActionRuntimeSchema = {
       properties: {
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
           description: 'Agent provider selected for the implementation run.',
         },
         model: {

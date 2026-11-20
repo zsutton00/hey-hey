@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../../agents/providers/provider-config';
 import type { RunRegistry } from '../../run/run-registry';
 import type { RunStore } from '../../run-store/run-store';
 import type { ServerLogger } from '../logger';
@@ -7,7 +8,7 @@ export interface QuestionAnswerControlInput {
   readonly conversationId: string;
   readonly requestId: string;
   readonly sessionId: string;
-  readonly agentType: 'claude' | 'codex' | 'opencode';
+  readonly agentType: AgentProviderId;
   readonly answers: Record<string, string>;
   readonly idempotencyToken: string;
   readonly userId: string;
