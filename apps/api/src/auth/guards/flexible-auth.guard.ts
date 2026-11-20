@@ -19,7 +19,7 @@ export class FlexibleAuthGuard extends AuthGuard(['jwt', 'api-key']) {
   canActivate(context: ExecutionContext) {
     // GraphQL resolvers authenticate through WebUiReadAccessMiddleware, which runs
     // this guard against the HTTP request that carries the query.
-    if (context.getType() === 'graphql') {
+    if (context.getType<string>() === 'graphql') {
       return true;
     }
 

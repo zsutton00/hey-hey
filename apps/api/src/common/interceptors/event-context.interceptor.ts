@@ -20,7 +20,7 @@ export class EventContextInterceptor implements NestInterceptor {
     }
 
     const { request } = http;
-    const user: AuthenticatedUser = request.user;
+    const user = request.user as AuthenticatedUser | undefined;
 
     const eventContextManager = EventContextManager.getInstance();
     const headers = request.headers as Record<string, string>;

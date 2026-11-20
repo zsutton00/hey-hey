@@ -48,7 +48,7 @@ export class ApiKeyThrottlerGuard extends ThrottlerGuard {
    * fields share its outcome.
    */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (context.getType() !== 'graphql') {
+    if (context.getType<string>() !== 'graphql') {
       return super.canActivate(context);
     }
 
@@ -61,7 +61,7 @@ export class ApiKeyThrottlerGuard extends ThrottlerGuard {
   }
 
   protected getRequestResponse(context: ExecutionContext) {
-    if (context.getType() !== 'graphql') {
+    if (context.getType<string>() !== 'graphql') {
       return super.getRequestResponse(context);
     }
 

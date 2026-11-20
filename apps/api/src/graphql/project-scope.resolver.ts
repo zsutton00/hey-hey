@@ -17,7 +17,10 @@ export class ProjectScopeResolver {
   /** The project this endpoint is serving, once access to it is confirmed. */
   @Query(() => ProjectScope)
   projectScope(@Context() { req }: GraphQLRequestContext): ProjectScope {
-    const { organizationId, projectId } = req.params;
+    const { organizationId, projectId } = req.params as Record<
+      'organizationId' | 'projectId',
+      string
+    >;
 
     return { organizationId, projectId };
   }

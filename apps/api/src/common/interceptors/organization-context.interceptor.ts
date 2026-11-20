@@ -22,7 +22,7 @@ export class OrganizationContextInterceptor implements NestInterceptor {
     }
 
     const { request } = http;
-    const user: AuthenticatedUser = request.user;
+    const user = request.user as AuthenticatedUser | undefined;
 
     // Extract organization ID from params, body, or query
     let organizationId: string | undefined;
@@ -37,7 +37,7 @@ export class OrganizationContextInterceptor implements NestInterceptor {
     }
     // Check query params
     else if (request.query?.organizationId) {
-      organizationId = request.query.organizationId;
+      organizationId = request.query.organizationId as string;
     }
     // For authenticated users, use their first organization if no explicit org ID
     else if (user?.orgMemberships?.[0]?.orgId) {
