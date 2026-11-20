@@ -79,6 +79,7 @@ export const pendingInterventionFromRequest = (
   createdAt: request.createdAt,
   expiresAt: request.expiresAt,
   userRequired: request.userRequired === true,
+  ...(request.requestKind ? { requestKind: request.requestKind } : {}),
   owner: request.userRequired === true ? 'HUMAN' : 'MONITOR',
   escalationReason:
     request.userRequired === true
@@ -137,6 +138,14 @@ export const matchesPendingMonitorDecision = ({ context, event }: InterventionAr
 export const matchesPendingMonitorEscalation = (arguments_: InterventionArguments): boolean =>
   arguments_.event.type === 'MONITOR_PERMISSION_ESCALATED' &&
   matchesMonitorPermissionOutcome(arguments_);
+
+/**
+ * A Service scope request is already shown to the person on the Run-owned card, so an escalation
+ * only hands the Run's wait to them; the machine drops its copy instead of projecting a second one.
+ */
+export const matchesPendingServiceScopeEscalation = (arguments_: InterventionArguments): boolean =>
+  matchesPendingMonitorEscalation(arguments_) &&
+  arguments_.context.pendingIntervention?.requestKind === 'SERVICE_SCOPE';
 
 export const matchesPendingHumanDecision = ({ context, event }: InterventionArguments): boolean => {
   const pending = context.pendingIntervention;
@@ -311,14 +320,24 @@ export const taskMonitorInterventionStates = {
             { type: 'applyTaskMonitorDecision', params: applicationParameters },
           ],
         },
-        MONITOR_PERMISSION_ESCALATED: {
-          guard: 'matchesPendingMonitorEscalation',
-          actions: [
-            'storeInterventionEscalation',
-            { type: 'recordTaskMonitorPermissionDecision', params: recordParameters },
-            { type: 'projectTaskMonitorIntervention', params: projectionParameters },
-          ],
-        },
+        MONITOR_PERMISSION_ESCALATED: [
+          {
+            guard: 'matchesPendingServiceScopeEscalation',
+            target: 'CLEAR',
+            actions: [
+              { type: 'recordTaskMonitorPermissionDecision', params: recordParameters },
+              'clearPendingIntervention',
+            ],
+          },
+          {
+            guard: 'matchesPendingMonitorEscalation',
+            actions: [
+              'storeInterventionEscalation',
+              { type: 'recordTaskMonitorPermissionDecision', params: recordParameters },
+              { type: 'projectTaskMonitorIntervention', params: projectionParameters },
+            ],
+          },
+        ],
         HUMAN_DECISION: {
           guard: 'matchesPendingHumanDecision',
           target: 'APPLYING_DECISION',

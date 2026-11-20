@@ -30,6 +30,7 @@ import type {
   ServiceScopeDecisionInput,
   ServiceScopeRequestResult,
 } from './service-scope-types';
+import type { TaskMonitorServiceScopeAdmission } from '../../server/task-monitor-service-scope-admission';
 import { ProjectServiceNameResolver } from './project-service-name-resolver';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 export type ServiceScopeDecisionResult =
@@ -55,7 +56,9 @@ interface ServiceScopeCoordinatorDependencies {
   taskMonitorId(): string | null;
   /** The handler that owns a new request: the running turn's handler, or the persisted one. */
   currentAgentId(): string | null;
-  canAutoResolveTaskMonitorScopeRequest(): boolean;
+  agentSessionId(): string;
+  /** Where a monitored Run's request is sent to the Task Monitor; null until the monitor runtime is up. */
+  taskMonitorAdmission(): TaskMonitorServiceScopeAdmission | null;
   applyApprovedServiceScope(input: {
     services: ResolvedServiceBinding[];
     launchServiceId: string;
@@ -166,40 +169,110 @@ export class AgentSessionServiceScopeCoordinator {
       stamp: null,
     });
     scope.recordServiceScopeRequest(request, messageId, data);
-    const autoResolve = deps.canAutoResolveTaskMonitorScopeRequest();
-    await scope.pauseForServiceScopeRequest(request.id, autoResolve ? 'automatic' : 'human');
+    const monitored = deps.taskMonitorId() !== null;
+    await scope.pauseForServiceScopeRequest(request.id, monitored ? 'automatic' : 'human');
     this.dependencies.logger.info('local.service_scope.request.created', {
       runId: deps.runId,
       requestId: request.id,
       currentServiceIds,
       requestedServiceIds,
-      autoResolve,
+      monitored,
     });
-    if (autoResolve) {
-      this.dependencies.logger.info('local.service_scope.request.auto_approval_started', {
-        runId: deps.runId,
-        requestId: request.id,
-        taskMonitorId: deps.taskMonitorId(),
-      });
-      const result = await this.decide({
-        requestId: request.id,
-        sessionId: request.sessionId,
-        agentType: request.agentType,
-        decision: 'approve',
-        reason: 'Approved by the Task Monitor session authorization.',
-        idempotencyToken: request.idempotencyToken,
-      });
-      if (result.outcome !== 'delivered') {
-        this.dependencies.logger.warn('local.service_scope.request.auto_approval_failed', {
-          runId: deps.runId,
-          requestId: request.id,
-          outcome: result.outcome,
-          reason: result.reason,
-        });
-      }
+    if (monitored) {
+      await this.admitToTaskMonitor(request, additionalServiceNames);
     }
     return { status: 'requested', request };
   }
+  /**
+   * A monitored Run's request goes to the Task Monitor, which approves, denies or hands it to the
+   * person. Anything that keeps the monitor from receiving it hands it to the person instead, with
+   * the cause logged, so the Run never waits on a decision nobody was asked to make.
+   */
+  private async admitToTaskMonitor(
+    request: AgentSessionServiceScopeRequest,
+    additionalServiceNames: readonly string[],
+  ): Promise<void> {
+    const deps = this.dependencies;
+    const taskMonitorId = deps.taskMonitorId();
+    const admission = deps.taskMonitorAdmission();
+    if (taskMonitorId === null || admission === null) {
+      this.handToHuman(request.id, 'The Task Monitor is not available to decide this request.');
+      return;
+    }
+
+    try {
+      const result = await admission.admit({
+        taskMonitorId,
+        runId: deps.runId,
+        agentSessionId: deps.agentSessionId(),
+        request,
+        additionalServiceNames,
+      });
+      if (result.status === 'admitted') {
+        deps.logger.info('local.service_scope.request.sent_to_task_monitor', {
+          runId: deps.runId,
+          requestId: request.id,
+          taskMonitorId,
+        });
+        return;
+      }
+      deps.logger.warn('local.service_scope.request.task_monitor_rejected', {
+        runId: deps.runId,
+        requestId: request.id,
+        taskMonitorId,
+        code: result.code,
+        reason: result.reason,
+      });
+      this.handToHuman(
+        request.id,
+        `The Task Monitor could not take this request: ${result.reason}`,
+      );
+    } catch (error) {
+      deps.logger.error('local.service_scope.request.task_monitor_admission_failed', {
+        runId: deps.runId,
+        requestId: request.id,
+        taskMonitorId,
+        error,
+      });
+      this.handToHuman(request.id, 'The Task Monitor could not be reached for this request.');
+    }
+  }
+
+  /** The person decides from here: the Run waits for their approval, not for the monitor. */
+  public handToHuman(requestId: string, reason: string): void {
+    const deps = this.dependencies;
+    const moved = deps.serviceScope.handAutomaticRequestToHuman(requestId);
+    deps.logger.info('local.service_scope.request.handed_to_human', {
+      runId: deps.runId,
+      requestId,
+      reason,
+      moved,
+    });
+  }
+
+  /** Applies the Task Monitor's decision with the request's own session, agent and idempotency token. */
+  public async decideByMonitor(input: {
+    requestId: string;
+    decision: 'approve' | 'deny';
+    reason: string | null;
+  }): Promise<ServiceScopeDecisionResult> {
+    const pending = this.dependencies.serviceScope.getServiceScopeRequest(input.requestId);
+    if (!pending) {
+      return this.dependencies.serviceScope.isServiceScopeRequestSettled(input.requestId)
+        ? { outcome: 'delivered', callbackType: 'service_scope_decision' }
+        : { outcome: 'dropped', reason: 'service_scope_request_not_found' };
+    }
+
+    return this.decide({
+      requestId: input.requestId,
+      sessionId: pending.request.sessionId,
+      agentType: pending.request.agentType,
+      decision: input.decision,
+      reason: input.reason,
+      idempotencyToken: pending.request.idempotencyToken,
+    });
+  }
+
   public async decide(input: ServiceScopeDecisionInput): Promise<ServiceScopeDecisionResult> {
     const deps = this.dependencies;
     const scope = deps.serviceScope;

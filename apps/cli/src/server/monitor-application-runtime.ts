@@ -37,6 +37,7 @@ import type { AgentOutputEvents } from './agent-output-events';
 import type { TaskMonitorStateMachineInputAdapter } from './state-machine-input-adapter';
 import type { TaskMonitorStateStore } from '../agents/task-monitor/state-machine/machine';
 import { TaskMonitorSettlementMachineAdapter } from './task-monitor-settlement-machine-adapter';
+import { TaskMonitorServiceScopeAdmission } from './task-monitor-service-scope-admission';
 import { TaskMonitorProviderEventAdmission } from './task-monitor-provider-event-admission';
 import { TaskMonitorLaunchFailureAdapter } from './task-monitor-launch-failure-adapter';
 import type { TaskMonitorLaunchFailureRuntime } from './task-monitor-launch-failure-runtime';
@@ -172,6 +173,12 @@ export class MonitorApplicationRuntime {
       this.dependencies.logger.child({ component: 'task-monitor.provider-events' }),
     );
     this.taskMonitorProviderEventAdmission.start(events);
+    this.dependencies.runRegistry.setTaskMonitorServiceScopeAdmission(
+      new TaskMonitorServiceScopeAdmission(
+        inputAdapter,
+        this.dependencies.logger.child({ component: 'task-monitor.service-scope-admission' }),
+      ),
+    );
     this.taskMonitorSettlementMachineAdapter = new TaskMonitorSettlementMachineAdapter(
       this.dependencies.agentSessionReader,
       this.dependencies.runStore,
@@ -195,6 +202,7 @@ export class MonitorApplicationRuntime {
     this.taskMonitorMachineOwner.statePublication?.dispose();
     this.taskMonitorLaunchFailureAdapter?.dispose();
     this.taskMonitorLaunchFailureAdapter = null;
+    this.dependencies.runRegistry.setTaskMonitorServiceScopeAdmission(null);
     this.taskMonitorProviderEventAdmission?.dispose();
     this.taskMonitorProviderEventAdmission = null;
     this.taskMonitorSettlementMachineAdapter = null;

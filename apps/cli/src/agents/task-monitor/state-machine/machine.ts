@@ -80,6 +80,7 @@ import {
   queuedInterventions,
   matchesPendingMonitorDecision,
   matchesPendingMonitorEscalation,
+  matchesPendingServiceScopeEscalation,
   matchesApplyingDecision,
   matchesPendingInterventionProjection,
   matchesPendingHumanDecision,
@@ -282,6 +283,7 @@ const interventionDecisionSchema = z
     monitorRationale: z.string().nullable().default(null),
   })
   .strict() satisfies z.ZodType<TaskMonitorInterventionDecision>;
+const requestKindSchema = z.enum(['PROVIDER_PERMISSION', 'SERVICE_SCOPE']);
 const pendingInterventionSchema = z
   .object({
     interventionId: z.string(),
@@ -295,6 +297,7 @@ const pendingInterventionSchema = z
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
     userRequired: z.boolean().optional(),
+    requestKind: requestKindSchema.optional(),
     owner: z.enum(['MONITOR', 'HUMAN']).optional(),
     escalationReason: z.string().nullable().optional(),
     decision: interventionDecisionSchema.nullable(),
@@ -314,6 +317,7 @@ const queuedInterventionSchema = z
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
     userRequired: z.boolean().optional(),
+    requestKind: requestKindSchema.optional(),
   })
   .strict() satisfies z.ZodType<TaskMonitorQueuedIntervention>;
 const settledRunSchema = z
@@ -822,6 +826,7 @@ const applyDecisionEffectSchema = z
     target: z.string(),
     fingerprint: z.string(),
     decidedAt: z.string().datetime(),
+    requestKind: requestKindSchema.optional(),
     human: humanEvidenceSchema.nullable(),
     monitorRationale: z.string().nullable().default(null),
   })
@@ -842,6 +847,7 @@ const decideMonitorPermissionEffectSchema = z
     fingerprint: z.string(),
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
+    requestKind: requestKindSchema.optional(),
   })
   .strict();
 const recordMonitorPermissionDecisionEffectSchema = z
@@ -1597,6 +1603,7 @@ const taskMonitorMachine = setup({
     hasQueuedUserRequiredIntervention,
     matchesPendingMonitorDecision,
     matchesPendingMonitorEscalation,
+    matchesPendingServiceScopeEscalation,
     matchesPendingHumanDecision,
     matchesPendingInterventionProjection,
     matchesApplyingDecision,
@@ -1993,6 +2000,7 @@ const taskMonitorMachine = setup({
                 createdAt: event.createdAt,
                 expiresAt: event.expiresAt,
                 userRequired: event.userRequired === true,
+                ...(event.requestKind ? { requestKind: event.requestKind } : {}),
               },
             ]
           : queuedInterventions(context),

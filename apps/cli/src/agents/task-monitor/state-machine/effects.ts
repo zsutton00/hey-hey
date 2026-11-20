@@ -4,6 +4,7 @@ import type {
   TaskMonitorExecutionNode,
   TaskMonitorLaunchDeclaration,
   TaskMonitorLaunchFailure,
+  TaskMonitorRequestKind,
   TaskMonitorTerminalPolicy,
   TaskMonitorRequestedLaunchConfig,
   TaskMonitorRetryableLaunch,
@@ -176,6 +177,40 @@ export interface ReconcileTaskMonitorConversationResponseEffect {
   readonly turnId: string;
 }
 
+/** Asks the Task Monitor agent to decide one pending provider permission request. */
+export interface DecideTaskMonitorPermissionEffect {
+  readonly type: 'DECIDE_TASK_MONITOR_PERMISSION';
+  readonly taskMonitorId: string;
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly conversationId: string | null;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly runId: string;
+  readonly agentSessionId: string;
+  readonly action: string;
+  readonly target: string;
+  readonly fingerprint: string;
+  readonly createdAt: string;
+  readonly expiresAt: string | null;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
+}
+
+/** Records one committed monitor permission outcome as supervision activity. */
+export interface RecordTaskMonitorPermissionDecisionEffect {
+  readonly type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION';
+  readonly taskMonitorId: string;
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly conversationId: string | null;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly action: string;
+  readonly target: string;
+  readonly decision: 'APPROVED' | 'DENIED' | 'ESCALATED';
+  readonly rationale: string;
+}
+
 export interface ApplyTaskMonitorDecisionEffect {
   readonly type: 'APPLY_TASK_MONITOR_DECISION';
   readonly operation: 'RELEASE_EXACT_ACTION' | 'REJECT_EXACT_ACTION';
@@ -190,10 +225,13 @@ export interface ApplyTaskMonitorDecisionEffect {
   readonly target: string;
   readonly fingerprint: string;
   readonly decidedAt: string;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
+  /** The person who decided; null when the Task Monitor decided. */
   readonly human: {
     readonly userId: string;
     readonly authenticatedAt: string;
-  };
+  } | null;
+  readonly monitorRationale: string | null;
 }
 
 export interface EvaluateTaskMonitorSettledRunEffect {
@@ -272,6 +310,8 @@ export type TaskMonitorMachineEffect =
   | ReconcileTaskMonitorConversationResponseEffect
   | HaltTaskMonitorControlEffect
   | ProjectTaskMonitorInterventionEffect
+  | DecideTaskMonitorPermissionEffect
+  | RecordTaskMonitorPermissionDecisionEffect
   | EvaluateTaskMonitorSettledRunEffect
   | DeliverTaskMonitorReviewEffect
   | ApplyTaskMonitorDecisionEffect;
@@ -645,10 +685,32 @@ export const projectTaskMonitorControlStatusEffect = (
 
 export const applyTaskMonitorDecisionEffect = (
   context: TaskMonitorMachineContext,
-  event: TaskMonitorHumanDecisionEvent,
+  event:
+    | TaskMonitorHumanDecisionEvent
+    | Extract<TaskMonitorMachineEvent, { type: 'MONITOR_PERMISSION_DECIDED' }>,
 ): ApplyTaskMonitorDecisionEffect => {
   const pending = context.pendingIntervention;
   if (pending === null) throw new Error('Task Monitor has no pending intervention decision.');
+  if (event.type === 'MONITOR_PERMISSION_DECIDED') {
+    return {
+      type: 'APPLY_TASK_MONITOR_DECISION',
+      operation: event.resolution === 'APPROVE' ? 'RELEASE_EXACT_ACTION' : 'REJECT_EXACT_ACTION',
+      providerDecision: event.providerDecision,
+      taskMonitorId: context.taskMonitorId,
+      interventionId: pending.interventionId,
+      providerActionId: pending.providerActionId,
+      providerSessionId: pending.providerSessionId,
+      runId: pending.runId,
+      agentSessionId: pending.agentSessionId,
+      action: pending.action,
+      target: pending.target,
+      fingerprint: pending.fingerprint,
+      decidedAt: event.decidedAt,
+      human: null,
+      monitorRationale: event.rationale,
+      ...(pending.requestKind ? { requestKind: pending.requestKind } : {}),
+    };
+  }
   return {
     type: 'APPLY_TASK_MONITOR_DECISION',
     operation: event.resolution === 'APPROVE' ? 'RELEASE_EXACT_ACTION' : 'REJECT_EXACT_ACTION',
@@ -664,12 +726,97 @@ export const applyTaskMonitorDecisionEffect = (
     fingerprint: pending.fingerprint,
     decidedAt: event.decidedAt,
     human: event.human,
+    monitorRationale: null,
+    ...(pending.requestKind ? { requestKind: pending.requestKind } : {}),
   };
 };
 
+export const recordTaskMonitorPermissionDecisionEffect = (
+  context: TaskMonitorMachineContext,
+  event: Extract<
+    TaskMonitorMachineEvent,
+    { type: 'MONITOR_PERMISSION_DECIDED' | 'MONITOR_PERMISSION_ESCALATED' }
+  >,
+): RecordTaskMonitorPermissionDecisionEffect => {
+  const pending = context.pendingIntervention;
+  if (pending === null || context.organizationId === null || context.projectId === null) {
+    throw new Error('Task Monitor has no pending request to record a permission outcome for.');
+  }
+
+  return {
+    type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+    taskMonitorId: context.taskMonitorId,
+    organizationId: context.organizationId,
+    projectId: context.projectId,
+    conversationId: context.conversationId,
+    interventionId: pending.interventionId,
+    providerActionId: pending.providerActionId,
+    action: pending.action,
+    target: pending.target,
+    decision:
+      event.type === 'MONITOR_PERMISSION_ESCALATED'
+        ? 'ESCALATED'
+        : event.resolution === 'APPROVE'
+          ? 'APPROVED'
+          : 'DENIED',
+    rationale: event.type === 'MONITOR_PERMISSION_ESCALATED' ? event.reason : event.rationale,
+  };
+};
+
+export const decideTaskMonitorPermissionEffect = (
+  context: TaskMonitorMachineContext,
+  event: Pick<
+    Extract<TaskMonitorMachineEvent, { type: 'EXACT_ACTION_REQUIRED' }>,
+    | 'interventionId'
+    | 'providerActionId'
+    | 'runId'
+    | 'agentSessionId'
+    | 'action'
+    | 'target'
+    | 'fingerprint'
+    | 'createdAt'
+    | 'expiresAt'
+    | 'requestKind'
+  >,
+): DecideTaskMonitorPermissionEffect => {
+  if (context.organizationId === null || context.projectId === null) {
+    throw new Error('Task Monitor has no organization or project to decide a permission request.');
+  }
+  return {
+    type: 'DECIDE_TASK_MONITOR_PERMISSION',
+    taskMonitorId: context.taskMonitorId,
+    organizationId: context.organizationId,
+    projectId: context.projectId,
+    conversationId: context.conversationId,
+    interventionId: event.interventionId,
+    providerActionId: event.providerActionId,
+    runId: event.runId,
+    agentSessionId: event.agentSessionId,
+    action: event.action,
+    target: event.target,
+    fingerprint: event.fingerprint,
+    createdAt: event.createdAt,
+    expiresAt: event.expiresAt,
+    ...(event.requestKind ? { requestKind: event.requestKind } : {}),
+  };
+};
+
+type InterventionProjectionRequest = Pick<
+  Extract<TaskMonitorMachineEvent, { type: 'EXACT_ACTION_REQUIRED' }>,
+  | 'interventionId'
+  | 'providerActionId'
+  | 'runId'
+  | 'agentSessionId'
+  | 'action'
+  | 'target'
+  | 'fingerprint'
+  | 'createdAt'
+  | 'expiresAt'
+>;
+
 export const projectTaskMonitorInterventionEffect = (
   context: TaskMonitorMachineContext,
-  event: Extract<TaskMonitorMachineEvent, { type: 'EXACT_ACTION_REQUIRED' }>,
+  event: InterventionProjectionRequest,
 ): ProjectTaskMonitorInterventionEffect => {
   if (
     context.organizationId === null ||

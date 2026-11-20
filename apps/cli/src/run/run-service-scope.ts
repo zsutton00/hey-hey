@@ -353,6 +353,19 @@ export class RunServiceScope {
     return true;
   }
 
+  /**
+   * Moves a request the Task Monitor was deciding to the person: the Run waits for approval
+   * instead of for the monitor. False when the request is no longer waiting on the monitor.
+   */
+  public handAutomaticRequestToHuman(requestId: string): boolean {
+    if (this.automaticTaskMonitorScopeRequestId !== requestId) {
+      return false;
+    }
+    this.automaticTaskMonitorScopeRequestId = null;
+    this.beginApprovalWait({ kind: 'service_scope', requestId });
+    return true;
+  }
+
   private beginApprovalWait(wait: ApprovalWait): void {
     if (
       this.approvalWait !== null &&

@@ -15,6 +15,7 @@ import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import { toRepositoryPath, toServiceId } from '../../repo';
+import type { TaskMonitorServiceScopeAdmission } from '../../server/task-monitor-service-scope-admission';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
 import {
   createTestRunEventPublisher,
@@ -96,6 +97,7 @@ const makeHarness = (input?: {
   machineIdReadFailure?: Error;
   fetchImpl?: typeof fetch;
   taskMonitorId?: string;
+  taskMonitorServiceScopeAdmission?: () => TaskMonitorServiceScopeAdmission | null;
 }) => {
   const runStore = createTestRunStore();
   vi.spyOn(runStore, 'hasIdempotencyToken').mockResolvedValue(false);
@@ -188,6 +190,9 @@ const makeHarness = (input?: {
       runFollowUpAdmission: ownership.runFollowUpAdmission,
       runnerPicker,
       logger,
+      ...(input?.taskMonitorServiceScopeAdmission
+        ? { taskMonitorServiceScopeAdmission: input.taskMonitorServiceScopeAdmission }
+        : {}),
     },
   );
   const discardProviderSession = vi.spyOn(run, 'discardProviderSessionForScopeChange');
@@ -209,8 +214,8 @@ const decision = (value: 'approve' | 'deny') => ({
 });
 
 describe('AgentSessionServiceScopeCoordinator settlement', () => {
-  it('auto-approves an authorized Task Monitor request without publishing user waiting', async () => {
-    const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+  const scopeFetch = () =>
+    vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       if (init?.method === 'POST') return new Response(null, { status: 200 });
       return Response.json({
         data: [
@@ -219,26 +224,63 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
         ],
       });
     }) as unknown as typeof fetch;
-    const { run, broadcaster } = makeHarness({
-      fetchImpl,
+  const monitoredHarness = (admission: Pick<TaskMonitorServiceScopeAdmission, 'admit'>) =>
+    makeHarness({
+      fetchImpl: scopeFetch(),
       taskMonitorId: 'task-monitor-1',
       withoutPendingRequest: true,
+      taskMonitorServiceScopeAdmission: () => admission as TaskMonitorServiceScopeAdmission,
     });
-    vi.spyOn(run.serviceScope, 'resumeAfterServiceScopeApproval').mockResolvedValue(undefined);
-    run.setTaskMonitorAutomationAuthorization(true);
-
-    await expect(
-      run.serviceScopeCoordinator.request({
-        serviceIds: ['svc-2'],
-        reason: 'The implementation also requires the API Service.',
-      }),
-    ).resolves.toMatchObject({ status: 'requested' });
-
-    const states = vi
+  const requestApi = (run: Run) =>
+    run.serviceScopeCoordinator.request({
+      serviceIds: ['svc-2'],
+      reason: 'The implementation also requires the API Service.',
+    });
+  const observedStates = (broadcaster: ReturnType<typeof makeHarness>['broadcaster']) =>
+    vi
       .mocked(broadcaster.emitAgentSessionCurrentStateObservation)
       .mock.calls.map(([observation]) => observation.currentState);
-    expect(states).not.toContain('AWAITING_APPROVAL');
-    expect(states).toContain('STARTING');
+
+  it('sends a monitored Run request to the Task Monitor and waits for its decision, not a person', async () => {
+    const admit = vi.fn(async () => ({ status: 'admitted' as const }));
+    const { run, broadcaster } = monitoredHarness({ admit });
+
+    const result = await requestApi(run);
+
+    expect(result).toMatchObject({ status: 'requested' });
+    expect(admit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskMonitorId: 'task-monitor-1',
+        runId: 'run-1',
+        additionalServiceNames: ['API'],
+        request: expect.objectContaining({
+          requestedServiceIds: ['svc-1', 'svc-2'],
+          reason: 'The implementation also requires the API Service.',
+        }),
+      }),
+    );
+    expect(observedStates(broadcaster)).not.toContain('AWAITING_APPROVAL');
+    expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+  });
+
+  it('grants the Services when the Task Monitor approves, through the request owner', async () => {
+    const { run, broadcaster } = monitoredHarness({
+      admit: vi.fn(async () => ({ status: 'admitted' as const })),
+    });
+    vi.spyOn(run.serviceScope, 'resumeAfterServiceScopeApproval').mockResolvedValue(undefined);
+    const result = await requestApi(run);
+    if (result.status !== 'requested') throw new Error('Expected a requested outcome.');
+
+    await expect(
+      run.serviceScopeCoordinator.decideByMonitor({
+        requestId: result.request.id,
+        decision: 'approve',
+        reason: null,
+      }),
+    ).resolves.toEqual({ outcome: 'delivered', callbackType: 'service_scope_decision' });
+
+    expect(observedStates(broadcaster)).toContain('STARTING');
+    expect(observedStates(broadcaster)).not.toContain('AWAITING_APPROVAL');
     expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(false);
     expect(run.session.services).toEqual([
       { id: 'svc-1', path: '/tmp' },
@@ -246,17 +288,101 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
     ]);
   });
 
-  it('keeps a non-Task-Monitor request awaiting human approval despite runner authorization', async () => {
+  it('denies without granting when the Task Monitor denies', async () => {
+    const { run } = monitoredHarness({
+      admit: vi.fn(async () => ({ status: 'admitted' as const })),
+    });
+    const result = await requestApi(run);
+    if (result.status !== 'requested') throw new Error('Expected a requested outcome.');
+
+    await run.serviceScopeCoordinator.decideByMonitor({
+      requestId: result.request.id,
+      decision: 'deny',
+      reason: 'Denied by Task Monitor: not needed.',
+    });
+
+    expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(false);
+    expect(run.session.services).toEqual([{ id: 'svc-1', path: '/tmp' }]);
+  });
+
+  it('hands the request to a person when the Task Monitor escalates, and the person can still decide it', async () => {
+    const { run, broadcaster } = monitoredHarness({
+      admit: vi.fn(async () => ({ status: 'admitted' as const })),
+    });
+    vi.spyOn(run.serviceScope, 'resumeAfterServiceScopeApproval').mockResolvedValue(undefined);
+    const result = await requestApi(run);
+    if (result.status !== 'requested') throw new Error('Expected a requested outcome.');
+
+    run.serviceScopeCoordinator.handToHuman(result.request.id, 'Needs a person to judge.');
+
+    expect(observedStates(broadcaster)).toContain('AWAITING_APPROVAL');
+    expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+    await expect(
+      run.serviceScopeCoordinator.decide({
+        requestId: result.request.id,
+        sessionId: result.request.sessionId,
+        agentType: result.request.agentType,
+        decision: 'approve',
+        reason: null,
+        idempotencyToken: result.request.idempotencyToken,
+      }),
+    ).resolves.toMatchObject({ outcome: 'delivered' });
+  });
+
+  it.each([
+    ['is not running', () => null, 'local.service_scope.request.handed_to_human'],
+    [
+      'rejects the request',
+      () => ({
+        admit: vi.fn(async () => ({
+          status: 'rejected' as const,
+          code: 'transition_rejected',
+          reason: 'Task Monitor is not accepting requests.',
+        })),
+      }),
+      'local.service_scope.request.task_monitor_rejected',
+    ],
+    [
+      'cannot be reached',
+      () => ({
+        admit: vi.fn(async () => {
+          throw new Error('adapter down');
+        }),
+      }),
+      'local.service_scope.request.task_monitor_admission_failed',
+    ],
+  ])(
+    'waits for a person and logs the cause when the Task Monitor %s',
+    async (_name, make, logEvent) => {
+      const admission = make() as TaskMonitorServiceScopeAdmission | null;
+      const { run, broadcaster, logger } = makeHarness({
+        fetchImpl: scopeFetch(),
+        taskMonitorId: 'task-monitor-1',
+        withoutPendingRequest: true,
+        taskMonitorServiceScopeAdmission: () => admission,
+      });
+
+      await requestApi(run);
+
+      expect(observedStates(broadcaster)).toContain('AWAITING_APPROVAL');
+      expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+      expect(
+        [
+          ...vi.mocked(logger.info).mock.calls,
+          ...vi.mocked(logger.warn).mock.calls,
+          ...vi.mocked(logger.error).mock.calls,
+        ].some(([event]) => event === logEvent),
+      ).toBe(true);
+    },
+  );
+
+  it('keeps a Run without a Task Monitor awaiting human approval', async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({ data: [{ id: 'svc-2', name: 'API' }] }),
     ) as unknown as typeof fetch;
     const { run, broadcaster } = makeHarness({ fetchImpl, withoutPendingRequest: true });
-    run.setTaskMonitorAutomationAuthorization(true);
 
-    await run.serviceScopeCoordinator.request({
-      serviceIds: ['svc-2'],
-      reason: 'The implementation also requires the API Service.',
-    });
+    await requestApi(run);
 
     expect(broadcaster.emitAgentSessionCurrentStateObservation).toHaveBeenCalledWith(
       expect.objectContaining({ currentState: 'AWAITING_APPROVAL' }),

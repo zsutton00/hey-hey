@@ -15,6 +15,7 @@ import type {
   TaskMonitorHumanDecisionResolution,
   TaskMonitorLaunchDeclaration,
   TaskMonitorLaunchFailure,
+  TaskMonitorRequestKind,
   TaskMonitorWorktree,
   TaskMonitorTerminalPolicy,
 } from './context';
@@ -191,6 +192,7 @@ export interface TaskMonitorExactActionRequiredEvent {
   readonly expiresAt: string | null;
   /** True when an authoritative instruction or the originating tool marks it USER_REQUIRED. */
   readonly userRequired?: boolean | undefined;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
 }
 
 /** The Task Monitor approved or denied the pending request from its own judgment. */
@@ -781,6 +783,7 @@ export interface VerifiedTaskMonitorProviderInterventionInput extends AddressedT
   readonly createdAt: string;
   readonly expiresAt: string | null;
   readonly userRequired?: boolean | undefined;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
 }
 
 export type TaskMonitorExecutionPhase = 'IMPLEMENTATION' | 'REVIEW';
@@ -863,6 +866,7 @@ export const taskMonitorEventFromVerifiedInput = (
         createdAt: input.createdAt,
         expiresAt: input.expiresAt,
         userRequired: input.userRequired ?? false,
+        ...(input.requestKind ? { requestKind: input.requestKind } : {}),
       };
     case 'EXECUTION_TURN_RELEASED':
       return {

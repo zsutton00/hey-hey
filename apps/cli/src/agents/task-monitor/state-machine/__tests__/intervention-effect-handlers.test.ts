@@ -141,6 +141,110 @@ describe('Task Monitor decision application', () => {
     expect(submit).toHaveBeenCalledTimes(2);
   });
 
+  describe('for a Service scope request', () => {
+    const serviceScopeDecision: ApplyTaskMonitorDecisionEffect = {
+      ...decision,
+      requestKind: 'SERVICE_SCOPE',
+      human: null,
+      monitorRationale: 'The Task needs the API Service.',
+    };
+    const registryWithOwner = (decideByMonitor: ReturnType<typeof vi.fn>) => {
+      const registry = createTestRunRegistryWiring().runRegistry;
+      vi.spyOn(registry, 'get').mockReturnValue({
+        agentSessionId: decision.agentSessionId,
+        provider: 'codex',
+        serviceScopeCoordinator: { decideByMonitor },
+      } as never);
+      const providerPath = vi.spyOn(registry, 'submitPermissionDecision');
+      return { registry, providerPath };
+    };
+
+    it('is decided by the Service scope owner and never through the provider permission path', async () => {
+      const decideByMonitor = vi.fn(async () => ({
+        outcome: 'delivered' as const,
+        callbackType: 'service_scope_decision' as const,
+      }));
+      const { registry, providerPath } = registryWithOwner(decideByMonitor);
+
+      await expect(
+        new TaskMonitorDecisionApplicationEffectHandler(registry, NOOP_LOGGER).execute(
+          serviceScopeDecision,
+          execution,
+        ),
+      ).resolves.toMatchObject({ status: 'succeeded', outcome: { type: 'DECISION_APPLIED' } });
+
+      expect(decideByMonitor).toHaveBeenCalledWith({
+        requestId: decision.providerActionId,
+        decision: 'approve',
+        reason: null,
+      });
+      expect(providerPath).not.toHaveBeenCalled();
+    });
+
+    it('carries the monitor’s rationale as the denial reason', async () => {
+      const decideByMonitor = vi.fn(async () => ({
+        outcome: 'delivered' as const,
+        callbackType: 'service_scope_decision' as const,
+      }));
+      const { registry } = registryWithOwner(decideByMonitor);
+
+      await new TaskMonitorDecisionApplicationEffectHandler(registry, NOOP_LOGGER).execute(
+        {
+          ...serviceScopeDecision,
+          operation: 'REJECT_EXACT_ACTION',
+          providerDecision: 'deny',
+          monitorRationale: 'Not needed for this Task.',
+        },
+        execution,
+      );
+
+      expect(decideByMonitor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          decision: 'deny',
+          reason: 'Denied by Task Monitor: Not needed for this Task.',
+        }),
+      );
+    });
+
+    it.each([
+      ['dropped', 'service_scope_request_not_found', 'DECISION_APPLICATION_STALE'],
+      [
+        'failed',
+        'Approved Service scope continuation is unavailable.',
+        'DECISION_APPLICATION_FAILED',
+      ],
+    ] as const)(
+      'reports a %s decision with its specific cause',
+      async (outcome, reason, outcomeType) => {
+        const { registry } = registryWithOwner(vi.fn(async () => ({ outcome, reason })));
+
+        await expect(
+          new TaskMonitorDecisionApplicationEffectHandler(registry, NOOP_LOGGER).execute(
+            serviceScopeDecision,
+            execution,
+          ),
+        ).resolves.toMatchObject({ outcome: { type: outcomeType, reason } });
+      },
+    );
+
+    it('reports a thrown decision as failed with its cause', async () => {
+      const { registry } = registryWithOwner(
+        vi.fn(async () => {
+          throw new Error('platform grant exploded');
+        }),
+      );
+
+      await expect(
+        new TaskMonitorDecisionApplicationEffectHandler(registry, NOOP_LOGGER).execute(
+          serviceScopeDecision,
+          execution,
+        ),
+      ).resolves.toMatchObject({
+        outcome: { type: 'DECISION_APPLICATION_FAILED', reason: 'platform grant exploded' },
+      });
+    });
+  });
+
   it.each([
     ['no_run_registered', 'failed', 'DECISION_APPLICATION_STALE'],
     ['cancelled by provider', 'cancelled', 'DECISION_APPLICATION_CANCELLED'],
@@ -191,7 +295,10 @@ describe('Task Monitor permission decision', () => {
   const COORDINATOR_RUN_ID = 'coordinator-run-1';
 
   /** The monitor agent is the boundary: it answers through the real decision store, as the handler does. */
-  const withMonitorAnswer = (answer: TaskMonitorDecisionResult | Error) => {
+  const withMonitorAnswer = (
+    answer: TaskMonitorDecisionResult | Error,
+    registry = createTestRunRegistryWiring().runRegistry,
+  ) => {
     const store = new TaskMonitorDecisionStore(
       NOOP_LOGGER,
       new TaskMonitorManagedTurnRuntime(NOOP_LOGGER),
@@ -213,11 +320,57 @@ describe('Task Monitor permission decision', () => {
     const handler = new TaskMonitorPermissionDecisionEffectHandler(
       { runTaskMonitor } as unknown as TaskMonitorCoordinatorRunner,
       store,
+      registry,
       NOOP_LOGGER,
       () => Date.parse('2026-08-09T12:00:30.000Z'),
     );
     return { handler, runTaskMonitor };
   };
+
+  const serviceScopeEffect: DecideTaskMonitorPermissionEffect = {
+    ...decideEffect,
+    action: 'Give the coding session access to additional project Services',
+    target: 'Services: API. Reason given: The implementation also requires the API Service.',
+    requestKind: 'SERVICE_SCOPE',
+  };
+
+  it('moves a Service scope request to the person, on its own Run, when the monitor escalates it', async () => {
+    const registry = createTestRunRegistryWiring().runRegistry;
+    const handToHuman = vi.fn();
+    vi.spyOn(registry, 'get').mockReturnValue({
+      agentSessionId: serviceScopeEffect.agentSessionId,
+      serviceScopeCoordinator: { handToHuman },
+    } as never);
+    const { handler } = withMonitorAnswer(
+      {
+        status: 'DECISION',
+        decision: { action: 'ESCALATE_PERMISSION', rationale: 'Widens access beyond the Task.' },
+      },
+      registry,
+    );
+
+    await expect(handler.execute(serviceScopeEffect, execution)).resolves.toMatchObject({
+      outcome: { type: 'MONITOR_PERMISSION_ESCALATED' },
+    });
+
+    expect(handToHuman).toHaveBeenCalledWith(
+      serviceScopeEffect.providerActionId,
+      'Widens access beyond the Task.',
+    );
+  });
+
+  it('leaves a provider permission escalation to the machine, not the Service scope owner', async () => {
+    const registry = createTestRunRegistryWiring().runRegistry;
+    const get = vi.spyOn(registry, 'get');
+    const { handler } = withMonitorAnswer(
+      { status: 'DECISION', decision: { action: 'ESCALATE_PERMISSION', rationale: 'Unsure.' } },
+      registry,
+    );
+
+    await handler.execute(decideEffect, execution);
+
+    expect(get).not.toHaveBeenCalled();
+  });
 
   it('asks the monitor with the exact request, even when the provider sent no expiry', async () => {
     const { handler, runTaskMonitor } = withMonitorAnswer({

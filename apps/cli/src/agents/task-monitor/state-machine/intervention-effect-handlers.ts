@@ -1,5 +1,6 @@
 import type { MessagePoster } from '../../../run/message-poster';
-import type { RunRegistry } from '../../../run/run-registry';
+import type { Run } from '../../../run/run';
+import type { PermissionDecisionDeliveryOutcome, RunRegistry } from '../../../run/run-registry';
 import type { ServerLogger } from '../../../server/logger';
 import type {
   EffectExecutionIdentity,
@@ -113,7 +114,7 @@ export class TaskMonitorInterventionProjectionEffectHandler implements EffectHan
 
 const deliveryClassification = (reason: string): 'stale' | 'failed' | 'cancelled' | 'uncertain' => {
   if (
-    /no_run_registered|No pending .* permission request|does not match pending request/u.test(
+    /no_run_registered|No pending .* permission request|does not match pending request|service_scope_request_not_found/u.test(
       reason,
     )
   ) {
@@ -209,16 +210,7 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
       ...logContext,
       provider: run.provider,
     });
-    const delivery = await this.runRegistry.submitPermissionDecision(effect.runId, {
-      runId: effect.runId,
-      sessionId: effect.providerSessionId,
-      requestId: effect.providerActionId,
-      agentType: run.provider,
-      decision: effect.providerDecision,
-      reason: this.denialReason(effect),
-      idempotencyToken: execution.effectId,
-      ...(effect.human ? { userId: effect.human.userId, deciderUserId: effect.human.userId } : {}),
-    });
+    const delivery = await this.submit(effect, run, execution);
     this.logger.debug('task_monitor.intervention.decision.owner_call.completed', {
       ...logContext,
       provider: run.provider,
@@ -245,6 +237,37 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
       deliveryClassification(delivery.reason),
       delivery.reason,
     );
+  }
+
+  /** Each request kind is answered by its own owner; neither is ever decided through the other. */
+  private async submit(
+    effect: ApplyTaskMonitorDecisionEffect,
+    run: Run,
+    execution: EffectExecutionIdentity,
+  ): Promise<PermissionDecisionDeliveryOutcome> {
+    const reason = this.denialReason(effect);
+    if (effect.requestKind === 'SERVICE_SCOPE') {
+      try {
+        return await run.serviceScopeCoordinator.decideByMonitor({
+          requestId: effect.providerActionId,
+          decision: effect.providerDecision === 'approve' ? 'approve' : 'deny',
+          reason,
+        });
+      } catch (error) {
+        return { outcome: 'failed', reason: reasonFrom(error) };
+      }
+    }
+
+    return this.runRegistry.submitPermissionDecision(effect.runId, {
+      runId: effect.runId,
+      sessionId: effect.providerSessionId,
+      requestId: effect.providerActionId,
+      agentType: run.provider,
+      decision: effect.providerDecision,
+      reason,
+      idempotencyToken: execution.effectId,
+      ...(effect.human ? { userId: effect.human.userId, deciderUserId: effect.human.userId } : {}),
+    });
   }
 
   private denialReason(effect: ApplyTaskMonitorDecisionEffect): string | null {
@@ -317,6 +340,7 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
   public constructor(
     private readonly coordinatorRunner: TaskMonitorCoordinatorRunner,
     private readonly decisionStore: TaskMonitorDecisionStore,
+    private readonly runRegistry: RunRegistry,
     private readonly logger: ServerLogger,
     private readonly now: () => number = Date.now,
   ) {}
@@ -335,8 +359,32 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     this.logger.info('task_monitor.permission_decision.started', logContext);
 
     const outcome = await this.decide(effect, execution, logContext);
+    if (outcome.type === 'MONITOR_PERMISSION_ESCALATED' && effect.requestKind === 'SERVICE_SCOPE') {
+      this.handServiceScopeToHuman(effect, outcome.reason, logContext);
+    }
 
     return { status: 'succeeded', outcome };
+  }
+
+  /**
+   * The Run owns a Service scope request and already shows it to the person; an escalation moves
+   * the Run's wait from the monitor to them. When the Run is gone, restoring it from its persisted
+   * request waits on the person, so there is nothing further to hand over.
+   */
+  private handServiceScopeToHuman(
+    effect: DecideTaskMonitorPermissionEffect,
+    reason: string,
+    logContext: Record<string, string>,
+  ): void {
+    const run = this.runRegistry.get(effect.runId);
+    if (!run || run.agentSessionId !== effect.agentSessionId) {
+      this.logger.warn('task_monitor.service_scope.handoff_owner_missing', {
+        ...logContext,
+        reason,
+      });
+      return;
+    }
+    run.serviceScopeCoordinator.handToHuman(effect.providerActionId, reason);
   }
 
   private async decide(

@@ -618,3 +618,64 @@ describe('Task Monitor exact-action intervention', () => {
     });
   });
 });
+
+describe('Task Monitor Service scope request', () => {
+  const serviceScopeRequest = {
+    ...exactAction,
+    providerActionId: 'scope-request-1',
+    action: 'Give the coding session access to additional project Services',
+    target: 'Services: API. Reason given: The Task also changes the API.',
+    fingerprint: 'service-scope:abc',
+    requestKind: 'SERVICE_SCOPE',
+  } satisfies TaskMonitorMachineEvent;
+
+  it('is decided by the monitor and answered by its own owner when approved', () => {
+    const { definition, snapshot } = observing();
+    const [pending, opened] = transition(definition.machine, snapshot, serviceScopeRequest);
+
+    expect(effectsOf(definition, opened)).toEqual([
+      expect.objectContaining({
+        type: 'DECIDE_TASK_MONITOR_PERMISSION',
+        providerActionId: 'scope-request-1',
+        requestKind: 'SERVICE_SCOPE',
+      }),
+    ]);
+
+    const [, applied] = transition(
+      definition.machine,
+      pending,
+      monitorDecision({ providerActionId: 'scope-request-1', fingerprint: 'service-scope:abc' }),
+    );
+    expect(effectsOf(definition, applied)).toContainEqual(
+      expect.objectContaining({
+        type: 'APPLY_TASK_MONITOR_DECISION',
+        providerActionId: 'scope-request-1',
+        requestKind: 'SERVICE_SCOPE',
+      }),
+    );
+  });
+
+  it('is not shown a second time when the monitor escalates it, and frees the next request', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, serviceScopeRequest);
+    const [queued] = transition(definition.machine, pending, {
+      ...exactAction,
+      interventionId: '40000000-0000-4000-8000-000000000005',
+      providerActionId: 'provider-action-2',
+    });
+
+    const [next, actions] = transition(definition.machine, queued, {
+      ...escalation('Widens access beyond the Task.'),
+      providerActionId: 'scope-request-1',
+    });
+
+    expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
+      'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+      'DECIDE_TASK_MONITOR_PERMISSION',
+    ]);
+    expect(next.context.pendingIntervention).toMatchObject({
+      providerActionId: 'provider-action-2',
+      owner: 'MONITOR',
+    });
+  });
+});
