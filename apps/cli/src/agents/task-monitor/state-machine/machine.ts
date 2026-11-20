@@ -72,6 +72,9 @@ import { toOpenApiMessageId } from '../../../shared/api/identifierAdapters';
 import {
   canOpenExactActionIntervention,
   canOpenMonitorOwnedIntervention,
+  isServiceScopeExactAction,
+  matchesFailedServiceScopeApplication,
+  nextQueuedIsServiceScope,
   canOpenUserRequiredIntervention,
   canQueueExactActionIntervention,
   hasQueuedMonitorOwnedIntervention,
@@ -848,6 +851,7 @@ const decideMonitorPermissionEffectSchema = z
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
     requestKind: requestKindSchema.optional(),
+    monitorPaused: z.literal(true).optional(),
   })
   .strict();
 const recordMonitorPermissionDecisionEffectSchema = z
@@ -1597,6 +1601,9 @@ const taskMonitorMachine = setup({
     matchesSelectedLaunch,
     canOpenExactActionIntervention,
     canOpenMonitorOwnedIntervention,
+    isServiceScopeExactAction,
+    nextQueuedIsServiceScope,
+    matchesFailedServiceScopeApplication,
     canOpenUserRequiredIntervention,
     canQueueExactActionIntervention,
     hasQueuedMonitorOwnedIntervention,

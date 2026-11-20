@@ -1,3 +1,4 @@
+import { and, not, or, stateIn } from 'xstate';
 import type {
   TaskMonitorMachineContext,
   TaskMonitorPendingIntervention,
@@ -105,6 +106,20 @@ export const canQueueExactActionIntervention = (arguments_: InterventionArgument
   );
 };
 
+export const isServiceScopeExactAction = ({ event }: InterventionArguments): boolean =>
+  event.type === 'EXACT_ACTION_REQUIRED' && event.requestKind === 'SERVICE_SCOPE';
+
+export const nextQueuedIsServiceScope = ({ context }: InterventionArguments): boolean =>
+  nextQueuedIntervention(context)?.requestKind === 'SERVICE_SCOPE';
+
+/**
+ * A paused monitor decides nothing: a Service scope request it is given goes to the person on the
+ * card already shown. Other request kinds keep their existing admission.
+ */
+const monitorMayDecideServiceScope = (
+  isServiceScope: 'isServiceScopeExactAction' | 'nextQueuedIsServiceScope',
+) => or([not(isServiceScope), stateIn({ RUNNING: { control: 'ACTIVE' } })]);
+
 export const hasQueuedMonitorOwnedIntervention = ({ context }: InterventionArguments): boolean =>
   context.pendingIntervention === null &&
   nextQueuedIntervention(context) !== null &&
@@ -145,6 +160,12 @@ export const matchesPendingMonitorEscalation = (arguments_: InterventionArgument
  */
 export const matchesPendingServiceScopeEscalation = (arguments_: InterventionArguments): boolean =>
   matchesPendingMonitorEscalation(arguments_) &&
+  arguments_.context.pendingIntervention?.requestKind === 'SERVICE_SCOPE';
+
+/** A Service scope decision the Run could not finish applying goes back to the person, who retries on the card. */
+export const matchesFailedServiceScopeApplication = (arguments_: InterventionArguments): boolean =>
+  arguments_.event.type === 'DECISION_APPLICATION_FAILED' &&
+  matchesApplyingDecision(arguments_) &&
   arguments_.context.pendingIntervention?.requestKind === 'SERVICE_SCOPE';
 
 export const matchesPendingHumanDecision = ({ context, event }: InterventionArguments): boolean => {
@@ -236,6 +257,12 @@ const queuedDecisionRequestParameters = ({ context }: InterventionArguments) => 
   return decideTaskMonitorPermissionEffect(context, next);
 };
 
+const pausedQueuedDecisionRequestParameters = ({ context }: InterventionArguments) => {
+  const next = nextQueuedIntervention(context);
+  if (next === null) throw new Error('Expected a queued request.');
+  return decideTaskMonitorPermissionEffect(context, next, { monitorPaused: true });
+};
+
 const queuedProjectionParameters = ({ context }: InterventionArguments) => {
   const next = nextQueuedIntervention(context);
   if (next === null) throw new Error('Expected a queued request.');
@@ -260,10 +287,23 @@ export const taskMonitorInterventionStates = {
       // The next queued request opens once the previous one is answered.
       always: [
         {
-          guard: 'hasQueuedMonitorOwnedIntervention',
+          guard: and([
+            'hasQueuedMonitorOwnedIntervention',
+            monitorMayDecideServiceScope('nextQueuedIsServiceScope'),
+          ]),
           target: 'PENDING',
           actions: [
             { type: 'decideTaskMonitorPermission', params: queuedDecisionRequestParameters },
+            'promoteQueuedIntervention',
+          ],
+        },
+        // A Service scope request queued while the monitor was active may reach the front after it
+        // was paused. The monitor is not asked: the request is handed to the person's card.
+        {
+          guard: 'hasQueuedMonitorOwnedIntervention',
+          target: 'PENDING',
+          actions: [
+            { type: 'decideTaskMonitorPermission', params: pausedQueuedDecisionRequestParameters },
             'promoteQueuedIntervention',
           ],
         },
@@ -280,7 +320,10 @@ export const taskMonitorInterventionStates = {
         // Every request reaches the monitor first; only USER_REQUIRED goes straight to the human.
         EXACT_ACTION_REQUIRED: [
           {
-            guard: 'canOpenMonitorOwnedIntervention',
+            guard: and([
+              'canOpenMonitorOwnedIntervention',
+              monitorMayDecideServiceScope('isServiceScopeExactAction'),
+            ]),
             target: 'PENDING',
             actions: [
               'storePendingIntervention',
@@ -359,11 +402,18 @@ export const taskMonitorInterventionStates = {
           target: 'CLEAR',
           actions: 'clearPendingIntervention',
         },
-        DECISION_APPLICATION_FAILED: {
-          guard: 'matchesApplyingDecision',
-          target: 'APPLICATION_FAILED',
-          actions: 'storeInterventionApplicationFailure',
-        },
+        DECISION_APPLICATION_FAILED: [
+          {
+            guard: 'matchesFailedServiceScopeApplication',
+            target: 'CLEAR',
+            actions: 'clearPendingIntervention',
+          },
+          {
+            guard: 'matchesApplyingDecision',
+            target: 'APPLICATION_FAILED',
+            actions: 'storeInterventionApplicationFailure',
+          },
+        ],
         DECISION_APPLICATION_STALE: {
           guard: 'matchesApplyingDecision',
           target: 'APPLICATION_STALE',

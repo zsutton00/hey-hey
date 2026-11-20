@@ -33,6 +33,7 @@ import type {
 import type { TaskMonitorServiceScopeAdmission } from '../../server/task-monitor-service-scope-admission';
 import { ProjectServiceNameResolver } from './project-service-name-resolver';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
+type ServiceScopeDecider = 'monitor' | 'person';
 export type ServiceScopeDecisionResult =
   | { outcome: 'delivered'; callbackType: 'service_scope_decision' }
   | { outcome: 'dropped'; reason: string }
@@ -102,6 +103,15 @@ const serviceScopeMessageData = (
 });
 export class AgentSessionServiceScopeCoordinator {
   private readonly serviceNameResolver: ProjectServiceNameResolver;
+  /** Settlement of one request never overlaps another answer to the same request. */
+  private readonly settlementQueues = new Map<string, Promise<unknown>>();
+  /** Who settled each request and how, so a later opposite answer is never reported as delivered. */
+  private readonly settledBy = new Map<
+    string,
+    { decider: ServiceScopeDecider; decision: 'approve' | 'deny' }
+  >();
+  /** Requests whose platform grant succeeded, so a retry reconciles it instead of granting again. */
+  private readonly platformGrantedRequestIds = new Set<string>();
 
   public constructor(private readonly dependencies: ServiceScopeCoordinatorDependencies) {
     this.serviceNameResolver = new ProjectServiceNameResolver(dependencies);
@@ -251,36 +261,95 @@ export class AgentSessionServiceScopeCoordinator {
   }
 
   /** Applies the Task Monitor's decision with the request's own session, agent and idempotency token. */
-  public async decideByMonitor(input: {
+  public decideByMonitor(input: {
     requestId: string;
     decision: 'approve' | 'deny';
     reason: string | null;
   }): Promise<ServiceScopeDecisionResult> {
-    const pending = this.dependencies.serviceScope.getServiceScopeRequest(input.requestId);
-    if (!pending) {
-      return this.dependencies.serviceScope.isServiceScopeRequestSettled(input.requestId)
-        ? { outcome: 'delivered', callbackType: 'service_scope_decision' }
-        : { outcome: 'dropped', reason: 'service_scope_request_not_found' };
-    }
+    return this.serialized(input.requestId, async () => {
+      const pending = this.dependencies.serviceScope.getServiceScopeRequest(input.requestId);
+      if (!pending) {
+        return this.settledResult(input.requestId, 'monitor', input.decision);
+      }
 
-    return this.decide({
-      requestId: input.requestId,
-      sessionId: pending.request.sessionId,
-      agentType: pending.request.agentType,
-      decision: input.decision,
-      reason: input.reason,
-      idempotencyToken: pending.request.idempotencyToken,
+      return this.decideAs('monitor', {
+        requestId: input.requestId,
+        sessionId: pending.request.sessionId,
+        agentType: pending.request.agentType,
+        decision: input.decision,
+        reason: input.reason,
+        idempotencyToken: pending.request.idempotencyToken,
+      });
     });
   }
 
-  public async decide(input: ServiceScopeDecisionInput): Promise<ServiceScopeDecisionResult> {
+  /** A person's answer from the Additional Service access card. */
+  public decide(input: ServiceScopeDecisionInput): Promise<ServiceScopeDecisionResult> {
+    return this.serialized(input.requestId, () => this.decideAs('person', input));
+  }
+
+  private async serialized<T>(requestId: string, work: () => Promise<T>): Promise<T> {
+    const previous = this.settlementQueues.get(requestId) ?? Promise.resolve();
+    const next = previous.then(work, work);
+    const tail = next.catch(() => undefined);
+    this.settlementQueues.set(requestId, tail);
+    try {
+      return await next;
+    } finally {
+      if (this.settlementQueues.get(requestId) === tail) {
+        this.settlementQueues.delete(requestId);
+      }
+    }
+  }
+
+  /** An answer for a request that is no longer pending: delivered only if it is the answer that settled it. */
+  private settledResult(
+    requestId: string,
+    decider: ServiceScopeDecider,
+    decision: 'approve' | 'deny',
+  ): ServiceScopeDecisionResult {
+    const settled = this.settledBy.get(requestId);
+    if (!settled) {
+      return this.dependencies.serviceScope.isServiceScopeRequestSettled(requestId)
+        ? { outcome: 'delivered', callbackType: 'service_scope_decision' }
+        : { outcome: 'dropped', reason: 'service_scope_request_not_found' };
+    }
+    if (settled.decider === decider && settled.decision === decision) {
+      return { outcome: 'delivered', callbackType: 'service_scope_decision' };
+    }
+    this.dependencies.logger.warn('local.service_scope.decision.superseded_by_settled_answer', {
+      runId: this.dependencies.runId,
+      requestId,
+      answeredBy: decider,
+      answered: decision,
+      settledBy: settled.decider,
+      settled: settled.decision,
+    });
+
+    return { outcome: 'dropped', reason: 'service_scope_request_already_decided' };
+  }
+
+  private async decideAs(
+    decider: ServiceScopeDecider,
+    input: ServiceScopeDecisionInput,
+  ): Promise<ServiceScopeDecisionResult> {
     const deps = this.dependencies;
     const scope = deps.serviceScope;
     const pending = scope.getServiceScopeRequest(input.requestId);
-    if (!pending)
-      return scope.isServiceScopeRequestSettled(input.requestId)
-        ? { outcome: 'delivered', callbackType: 'service_scope_decision' }
-        : { outcome: 'dropped', reason: 'service_scope_request_not_found' };
+    if (!pending) {
+      return this.settledResult(input.requestId, decider, input.decision);
+    }
+    const owner = scope.serviceScopeDecisionOwner(input.requestId);
+    if (owner !== decider) {
+      deps.logger.warn('local.service_scope.decision.wrong_owner', {
+        runId: deps.runId,
+        requestId: input.requestId,
+        answeredBy: decider,
+        owner,
+      });
+
+      return { outcome: 'dropped', reason: `service_scope_request_owned_by_${owner}` };
+    }
     if (
       pending.request.sessionId !== input.sessionId ||
       pending.request.agentType !== input.agentType ||
@@ -289,8 +358,21 @@ export class AgentSessionServiceScopeCoordinator {
       return { outcome: 'dropped', reason: 'service_scope_decision_context_mismatch' };
     if (await this.dependencies.runStore.hasIdempotencyToken(deps.runId, input.idempotencyToken))
       return { outcome: 'delivered', callbackType: 'service_scope_decision' };
+    if (input.decision === 'deny' && this.platformGrantedRequestIds.has(pending.request.id)) {
+      // The platform already holds the grant and cannot be asked to revoke it here, so a denial
+      // would record a decision the session's access contradicts. Only finishing the grant is open.
+      const reason =
+        'Access was already granted on the platform and cannot be denied; approve to finish applying it.';
+      deps.logger.warn('local.service_scope.denial.refused_after_platform_grant', {
+        runId: deps.runId,
+        requestId: input.requestId,
+        answeredBy: decider,
+      });
+
+      return { outcome: 'failed', reason };
+    }
     if (input.decision === 'deny') {
-      await this.settle(pending.request, pending.messageId, pending.data, input.decision);
+      await this.settle(pending, input.decision, decider);
       try {
         await this.dependencies.runStore.persistIdempotencyToken(
           deps.runId,
@@ -317,7 +399,7 @@ export class AgentSessionServiceScopeCoordinator {
         requestId: input.requestId,
         launchServiceId,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return {
         outcome: 'failed',
         reason: 'Approved Service scope does not contain launch Service.',
@@ -329,7 +411,7 @@ export class AgentSessionServiceScopeCoordinator {
         runId: deps.runId,
         requestId: input.requestId,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason };
     }
     const bindings = await resolveServiceBindingsForIds({
@@ -343,7 +425,7 @@ export class AgentSessionServiceScopeCoordinator {
         requestId: input.requestId,
         reason: bindings.message,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason: bindings.message };
     }
     const workspace = await resolveRunWorkspace({
@@ -357,7 +439,7 @@ export class AgentSessionServiceScopeCoordinator {
         requestId: input.requestId,
         reason: workspace.message,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason: workspace.message };
     }
     let machineId: string | null;
@@ -369,7 +451,7 @@ export class AgentSessionServiceScopeCoordinator {
         requestId: input.requestId,
         error,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason: error instanceof Error ? error.message : String(error) };
     }
     if (!machineId) {
@@ -378,18 +460,21 @@ export class AgentSessionServiceScopeCoordinator {
         runId: deps.runId,
         requestId: input.requestId,
       });
-      await this.settleFailedApproval(pending, input);
+      await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason };
     }
     const existingServiceIds = new Set(deps.session().services.map((service) => service.id));
     const additionalServiceIds = serviceIds.filter(
       (serviceId) => !existingServiceIds.has(serviceId),
     );
-    let platformGrantPersisted = additionalServiceIds.length === 0;
+    // A retry after a local failure finds the platform grant already made and does not repeat it.
+    let platformGrantPersisted =
+      additionalServiceIds.length === 0 || this.platformGrantedRequestIds.has(pending.request.id);
     try {
-      if (additionalServiceIds.length > 0) {
+      if (!platformGrantPersisted) {
         await this.updatePlatformSession(machineId, additionalServiceIds, launchServiceId);
         platformGrantPersisted = true;
+        this.platformGrantedRequestIds.add(pending.request.id);
       }
       await deps.applyApprovedServiceScope({
         services: bindings.services,
@@ -398,7 +483,7 @@ export class AgentSessionServiceScopeCoordinator {
       });
     } catch (error) {
       if (!platformGrantPersisted) {
-        await this.settleFailedApproval(pending, input);
+        await this.settleFailedApproval(pending, input, decider);
       } else {
         this.dependencies.logger.error(
           'local.service_scope.local_apply_failed_after_platform_grant',
@@ -409,10 +494,11 @@ export class AgentSessionServiceScopeCoordinator {
             error,
           },
         );
+        scope.handAutomaticRequestToHuman(pending.request.id);
       }
       return { outcome: 'failed', reason: error instanceof Error ? error.message : String(error) };
     }
-    await this.settle(pending.request, pending.messageId, pending.data, input.decision);
+    await this.settle(pending, input.decision, decider);
     try {
       await this.dependencies.runStore.persistIdempotencyToken(
         deps.runId,
@@ -433,11 +519,12 @@ export class AgentSessionServiceScopeCoordinator {
   private async settleFailedApproval(
     pending: ServiceScopeRequestEntry,
     input: ServiceScopeDecisionInput,
+    decider: ServiceScopeDecider,
   ): Promise<void> {
     const deps = this.dependencies;
     const scope = deps.serviceScope;
     await scope.clearServiceScopeContinuation();
-    await this.settle(pending.request, pending.messageId, pending.data, input.decision);
+    await this.settle(pending, input.decision, decider);
     try {
       await this.dependencies.runStore.persistIdempotencyToken(
         deps.runId,
@@ -477,11 +564,11 @@ export class AgentSessionServiceScopeCoordinator {
     }
   }
   private async settle(
-    request: AgentSessionServiceScopeRequest,
-    messageId: string,
-    data: SystemMessageData | null,
+    entry: ServiceScopeRequestEntry,
     decision: 'approve' | 'deny',
+    decider: ServiceScopeDecider,
   ): Promise<void> {
+    const { request, messageId, data } = entry;
     const deps = this.dependencies;
     const decidedAt = new Date().toISOString();
     const updatedData = this.withDecision(
@@ -497,6 +584,8 @@ export class AgentSessionServiceScopeCoordinator {
       null,
     );
     deps.serviceScope.settleServiceScopeRequest(request.id);
+    this.settledBy.set(request.id, { decider, decision });
+    this.platformGrantedRequestIds.delete(request.id);
   }
   private withDecision(
     data: SystemMessageData,

@@ -358,7 +358,9 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     };
     this.logger.info('task_monitor.permission_decision.started', logContext);
 
-    const outcome = await this.decide(effect, execution, logContext);
+    const outcome = effect.monitorPaused
+      ? this.pausedEscalation(effect, logContext)
+      : await this.decide(effect, execution, logContext);
     if (outcome.type === 'MONITOR_PERMISSION_ESCALATED' && effect.requestKind === 'SERVICE_SCOPE') {
       this.handServiceScopeToHuman(effect, outcome.reason, logContext);
     }
@@ -385,6 +387,19 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
       return;
     }
     run.serviceScopeCoordinator.handToHuman(effect.providerActionId, reason);
+  }
+
+  /** A paused monitor decides nothing: the request goes to the person without asking it. */
+  private pausedEscalation(
+    effect: DecideTaskMonitorPermissionEffect,
+    logContext: Record<string, string>,
+  ): TaskMonitorMachineEffectOutcome {
+    this.logger.warn('task_monitor.permission_decision.monitor_paused', logContext);
+
+    return this.escalation(
+      effect,
+      'The Task Monitor is paused, so this request is waiting for a person.',
+    );
   }
 
   private async decide(

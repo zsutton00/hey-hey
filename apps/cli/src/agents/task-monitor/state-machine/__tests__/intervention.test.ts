@@ -678,4 +678,87 @@ describe('Task Monitor Service scope request', () => {
       owner: 'MONITOR',
     });
   });
+
+  it('does not let a paused monitor decide a new request: the person keeps the existing card', () => {
+    const definition = createTaskMonitorDefinition();
+    const paused = definition.machine.resolveState({
+      value: {
+        RUNNING: {
+          control: 'PAUSED',
+          work: 'OBSERVING_RUN',
+          intervention: 'CLEAR',
+          input: 'WAITING_FOR_INPUT',
+        },
+      },
+      context: context(),
+    });
+
+    const [next, actions] = transition(definition.machine, paused, serviceScopeRequest);
+
+    expect(effectsOf(definition, actions)).toEqual([]);
+    expect(next.context.pendingIntervention).toBeNull();
+  });
+
+  it('hands a queued request to the person when the monitor was paused before its turn came', () => {
+    const { definition, snapshot } = observing();
+    const [first] = transition(definition.machine, snapshot, exactAction);
+    const [queued] = transition(definition.machine, first, {
+      ...serviceScopeRequest,
+      interventionId: '40000000-0000-4000-8000-000000000005',
+    });
+    const [applying] = transition(definition.machine, queued, monitorDecision());
+    const paused = definition.machine.resolveState({
+      value: {
+        RUNNING: {
+          control: 'PAUSED',
+          work: 'OBSERVING_RUN',
+          intervention: 'APPLYING_DECISION',
+          input: 'WAITING_FOR_INPUT',
+        },
+      },
+      context: applying.context,
+    });
+
+    const [next, actions] = transition(definition.machine, paused, {
+      type: 'DECISION_APPLIED',
+      taskMonitorId: MONITOR_ID,
+      interventionId: INTERVENTION_ID,
+      providerActionId: 'provider-action-1',
+    });
+
+    // The request leaves the queue and goes to the person without the paused monitor being asked.
+    expect(next.context.queuedInterventions).toEqual([]);
+    expect(next.context.pendingIntervention).toMatchObject({
+      providerActionId: 'scope-request-1',
+      requestKind: 'SERVICE_SCOPE',
+    });
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({
+        type: 'DECIDE_TASK_MONITOR_PERMISSION',
+        providerActionId: 'scope-request-1',
+        monitorPaused: true,
+      }),
+    ]);
+  });
+
+  it('gives a decision the Run could not finish applying back to the person instead of stalling', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, serviceScopeRequest);
+    const [applying] = transition(
+      definition.machine,
+      pending,
+      monitorDecision({ providerActionId: 'scope-request-1', fingerprint: 'service-scope:abc' }),
+    );
+
+    const [next] = transition(definition.machine, applying, {
+      type: 'DECISION_APPLICATION_FAILED',
+      taskMonitorId: MONITOR_ID,
+      interventionId: INTERVENTION_ID,
+      providerActionId: 'scope-request-1',
+      reason: 'local persistence failed',
+    });
+
+    expect(next.context.pendingIntervention).toBeNull();
+    expect(next.matches({ RUNNING: { intervention: 'CLEAR' } })).toBe(true);
+  });
 });

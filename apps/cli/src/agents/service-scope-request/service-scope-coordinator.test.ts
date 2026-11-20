@@ -376,6 +376,116 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
     },
   );
 
+  describe('who may answer a request', () => {
+    const monitoredRequest = async (input?: { servicePersistenceFailure?: Error }) => {
+      const fetchImpl = scopeFetch();
+      const harness = makeHarness({
+        fetchImpl,
+        taskMonitorId: 'task-monitor-1',
+        withoutPendingRequest: true,
+        taskMonitorServiceScopeAdmission: () =>
+          ({
+            admit: vi.fn(async () => ({ status: 'admitted' as const })),
+          }) as unknown as TaskMonitorServiceScopeAdmission,
+        ...(input?.servicePersistenceFailure
+          ? { servicePersistenceFailure: input.servicePersistenceFailure }
+          : {}),
+      });
+      const resume = vi
+        .spyOn(harness.run.serviceScope, 'resumeAfterServiceScopeApproval')
+        .mockResolvedValue(undefined);
+      const result = await requestApi(harness.run);
+      if (result.status !== 'requested') throw new Error('Expected a requested outcome.');
+      const { request: created } = result;
+      const personAnswer = (value: 'approve' | 'deny') => ({
+        requestId: created.id,
+        sessionId: created.sessionId,
+        agentType: created.agentType,
+        decision: value,
+        reason: null,
+        idempotencyToken: created.idempotencyToken,
+      });
+      const monitorAnswer = (value: 'approve' | 'deny') => ({
+        requestId: created.id,
+        decision: value,
+        reason: null,
+      });
+
+      return { ...harness, fetchImpl, resume, created, personAnswer, monitorAnswer };
+    };
+    const grantCalls = (fetchImpl: typeof fetch) =>
+      vi.mocked(fetchImpl).mock.calls.filter(([, init]) => init?.method === 'POST');
+
+    it('does not let a person settle a request the Task Monitor still owns', async () => {
+      const { run, personAnswer, monitorAnswer } = await monitoredRequest();
+
+      await expect(run.serviceScopeCoordinator.decide(personAnswer('approve'))).resolves.toEqual({
+        outcome: 'dropped',
+        reason: 'service_scope_request_owned_by_monitor',
+      });
+      expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+      expect(run.session.services).toEqual([{ id: 'svc-1', path: '/tmp' }]);
+
+      await expect(
+        run.serviceScopeCoordinator.decideByMonitor(monitorAnswer('deny')),
+      ).resolves.toMatchObject({ outcome: 'delivered' });
+    });
+
+    it('does not report an opposite Task Monitor answer as delivered once the person settled the request', async () => {
+      const { run, created, personAnswer, monitorAnswer } = await monitoredRequest();
+      run.serviceScopeCoordinator.handToHuman(created.id, 'Needs a person to judge.');
+
+      await expect(run.serviceScopeCoordinator.decide(personAnswer('approve'))).resolves.toEqual({
+        outcome: 'delivered',
+        callbackType: 'service_scope_decision',
+      });
+      await expect(
+        run.serviceScopeCoordinator.decideByMonitor(monitorAnswer('deny')),
+      ).resolves.toEqual({ outcome: 'dropped', reason: 'service_scope_request_already_decided' });
+      expect(run.session.services.map((service) => service.id)).toEqual(['svc-1', 'svc-2']);
+    });
+
+    it('settles opposite answers that arrive together once, in arrival order', async () => {
+      const { run, created, personAnswer, monitorAnswer, resume } = await monitoredRequest();
+      run.serviceScopeCoordinator.handToHuman(created.id, 'Needs a person to judge.');
+
+      const [person, monitor] = await Promise.all([
+        run.serviceScopeCoordinator.decide(personAnswer('approve')),
+        run.serviceScopeCoordinator.decideByMonitor(monitorAnswer('deny')),
+      ]);
+
+      expect(person).toMatchObject({ outcome: 'delivered' });
+      expect(monitor).toMatchObject({ outcome: 'dropped' });
+      expect(resume).toHaveBeenCalledOnce();
+      expect(run.session.services.map((service) => service.id)).toEqual(['svc-1', 'svc-2']);
+    });
+
+    it('hands a monitored approval that only partly applied to the person, who retries without granting twice', async () => {
+      const { run, runStore, fetchImpl, created, personAnswer, monitorAnswer, resume } =
+        await monitoredRequest({
+          servicePersistenceFailure: new Error('local persistence failed'),
+        });
+
+      await expect(
+        run.serviceScopeCoordinator.decideByMonitor(monitorAnswer('approve')),
+      ).resolves.toEqual({ outcome: 'failed', reason: 'local persistence failed' });
+
+      expect(run.serviceScope.serviceScopeDecisionOwner(created.id)).toBe('person');
+      expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+      expect(resume).not.toHaveBeenCalled();
+
+      vi.mocked(runStore.updateRunServices).mockResolvedValue(makeSession());
+      await expect(run.serviceScopeCoordinator.decide(personAnswer('approve'))).resolves.toEqual({
+        outcome: 'delivered',
+        callbackType: 'service_scope_decision',
+      });
+
+      expect(grantCalls(fetchImpl)).toHaveLength(1);
+      expect(resume).toHaveBeenCalledOnce();
+      expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(false);
+    });
+  });
+
   it('keeps a Run without a Task Monitor awaiting human approval', async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({ data: [{ id: 'svc-2', name: 'API' }] }),
@@ -711,6 +821,24 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
     expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
     expect(run.serviceScope.hasServiceScopeContinuation()).toBe(true);
     expect(run.session.services).toEqual([{ id: 'svc-1', path: '/tmp' }]);
+  });
+
+  it('refuses a denial once the platform has granted access, leaving the card to finish applying it', async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(new Response(null, { status: 200 })),
+    ) as unknown as typeof fetch;
+    const { run } = makeHarness({
+      fetchImpl,
+      servicePersistenceFailure: new Error('local Run persistence failed'),
+    });
+    await run.serviceScopeCoordinator.decide(decision('approve'));
+
+    const denied = await run.serviceScopeCoordinator.decide(decision('deny'));
+
+    expect(denied).toMatchObject({ outcome: 'failed' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(true);
+    expect(run.serviceScope.hasServiceScopeContinuation()).toBe(true);
   });
 
   it('settles a missing verified machine binding before calling the platform', async () => {

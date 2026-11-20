@@ -357,6 +357,11 @@ export class RunServiceScope {
    * Moves a request the Task Monitor was deciding to the person: the Run waits for approval
    * instead of for the monitor. False when the request is no longer waiting on the monitor.
    */
+  /** The Task Monitor owns a request until it hands it over; every other request is the person's. */
+  public serviceScopeDecisionOwner(requestId: string): 'monitor' | 'person' {
+    return this.automaticTaskMonitorScopeRequestId === requestId ? 'monitor' : 'person';
+  }
+
   public handAutomaticRequestToHuman(requestId: string): boolean {
     if (this.automaticTaskMonitorScopeRequestId !== requestId) {
       return false;

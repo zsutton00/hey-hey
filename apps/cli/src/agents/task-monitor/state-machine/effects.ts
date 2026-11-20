@@ -194,6 +194,8 @@ export interface DecideTaskMonitorPermissionEffect {
   readonly createdAt: string;
   readonly expiresAt: string | null;
   readonly requestKind?: TaskMonitorRequestKind | undefined;
+  /** Set when the monitor is paused: it is not asked, and the request goes straight to the person. */
+  readonly monitorPaused?: true | undefined;
 }
 
 /** Records one committed monitor permission outcome as supervision activity. */
@@ -778,6 +780,7 @@ export const decideTaskMonitorPermissionEffect = (
     | 'expiresAt'
     | 'requestKind'
   >,
+  options: { readonly monitorPaused?: true } = {},
 ): DecideTaskMonitorPermissionEffect => {
   if (context.organizationId === null || context.projectId === null) {
     throw new Error('Task Monitor has no organization or project to decide a permission request.');
@@ -798,6 +801,7 @@ export const decideTaskMonitorPermissionEffect = (
     createdAt: event.createdAt,
     expiresAt: event.expiresAt,
     ...(event.requestKind ? { requestKind: event.requestKind } : {}),
+    ...(options.monitorPaused ? { monitorPaused: true as const } : {}),
   };
 };
 
