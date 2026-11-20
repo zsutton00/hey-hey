@@ -4,6 +4,7 @@ import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
 import { ConversationCard } from "../Conversation/Card";
 import { NEEDS_YOUR_ANSWER_LABEL } from "./QuestionFrame";
+import { UncertaintyDiscussControl } from "./UncertaintyDiscussControl";
 
 export const UNCERTAINTY_CATEGORY_LABELS: Record<
   AgentUncertaintySystemMessageData["category"],
@@ -80,6 +81,8 @@ export interface UncertaintyItemProps {
   testId: string;
   /** Reports omit the "Needs your answer" band; conversations show it. */
   showAnswerBand?: boolean;
+  /** Shows a Discuss control on non-question cards; the host opens the conversation. */
+  onDiscuss?: () => void;
   children?: React.ReactNode;
 }
 
@@ -89,6 +92,7 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
   statement,
   testId,
   showAnswerBand = true,
+  onDiscuss,
   children,
 }) => {
   if (category === "question") {
@@ -134,6 +138,9 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
         </>
       }
       lead={statement}
+      leading={
+        onDiscuss ? <UncertaintyDiscussControl onDiscuss={onDiscuss} /> : null
+      }
     >
       {children}
     </ConversationCard>

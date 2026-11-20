@@ -24,10 +24,12 @@ import {
   type SnapshotReportPayload,
   type ValidationWalkthroughReportPayload,
 } from "../../api";
+import { createCodingResearchFrameModel } from "./viewer/codingResearchReportModel";
 import {
   ChangeWalkthroughReport,
   CodingResearchReport,
   CodingResearchUncertaintiesSection,
+  getCodingResearchUncertaintyDiscussScope,
   CommitReport,
   CompetitiveAnalysisReport,
   DailySessionReport,
@@ -170,6 +172,12 @@ export const ReportOpenQuestions: React.FC<{
   }
   return (
     <CodingResearchUncertaintiesSection
+      discussScope={getCodingResearchUncertaintyDiscussScope(
+        report,
+        payload.format === "SUBAGENT_PARENT"
+          ? createCodingResearchFrameModel(undefined)
+          : createCodingResearchFrameModel(payload.frame),
+      )}
       reportTestId={testId}
       uncertainties={getCodingResearchUncertainties(payload)}
     />

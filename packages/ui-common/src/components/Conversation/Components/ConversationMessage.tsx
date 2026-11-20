@@ -13,6 +13,7 @@ import type {
 } from "../../../api";
 import {
   AgentSessionCurrentState,
+  EntityType,
   MessageType,
   SystemMessageDataNoticeSeverityEnum,
   SystemMessageDataTypeEnum,
@@ -50,7 +51,12 @@ import {
 } from "../../LlmForms/Registry";
 import { getInterstitialTiming } from "./interstitialTiming";
 import { useRetryConversationOpenTrigger } from "../../../data/hooks";
-import { UncertaintyItem } from "../../Uncertainties";
+import {
+  UncertaintyItem,
+  buildUncertaintyDiscussSeed,
+} from "../../Uncertainties";
+import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
+import { useModal } from "../../../contexts/ModalContext";
 
 const TERMINAL_CAPACITY_MESSAGE =
   "The provider is temporarily at capacity for the selected model. Please retry.";
@@ -158,6 +164,7 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       hideAnalysisAction,
       hideProcessingPlaceholder,
     } = useConversationContext();
+    const modal = useModal();
     const retryOpenTrigger = useRetryConversationOpenTrigger({
       onSuccess: handleRetrySuccess,
     });
@@ -330,12 +337,32 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
               ) : taskMonitorSupervisionData ? (
                 <SupervisionDecisionMessage data={taskMonitorSupervisionData} />
               ) : agentUncertaintyData ? (
-                <UncertaintyItem
-                  category={agentUncertaintyData.category}
-                  severity={agentUncertaintyData.severity}
-                  statement={agentUncertaintyData.statement}
-                  testId="conversation-agent-uncertainty"
-                />
+                <Box
+                  data-testid="conversation-agent-uncertainty-width"
+                  sx={{ maxWidth: SYSTEM_MESSAGE_MAX_WIDTH }}
+                >
+                  <UncertaintyItem
+                    category={agentUncertaintyData.category}
+                    severity={agentUncertaintyData.severity}
+                    statement={agentUncertaintyData.statement}
+                    testId="conversation-agent-uncertainty"
+                    onDiscuss={
+                      agentSessionId && modal
+                        ? () =>
+                            modal.openModal({
+                              type: "discuss",
+                              organizationId: project.organizationId,
+                              projectId: project.id,
+                              entityId: agentSessionId,
+                              entityType: EntityType.AgentSession,
+                              initialValue: buildUncertaintyDiscussSeed(
+                                agentUncertaintyData.statement,
+                              ),
+                            })
+                        : undefined
+                    }
+                  />
+                </Box>
               ) : (
                 /* Show system response with typing animation */
                 (conversationMessage.message.data?.response ||

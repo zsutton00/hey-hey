@@ -32,6 +32,11 @@ const launcherMock = vi.hoisted(() => ({
   clearError: vi.fn(),
 }));
 
+const openModal = vi.hoisted(() => vi.fn());
+vi.mock("../../../contexts/ModalContext", () => ({
+  useModal: () => ({ openModal }),
+}));
+
 vi.mock("../../InteractionComponent/useEntityConversationLauncher", () => ({
   useEntityConversationLauncher: () => launcherMock,
 }));
@@ -226,6 +231,27 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
+  it("opens Discuss on the report's focal entity, seeded with the statement and references", async () => {
+    renderReport(fullPayload, "research");
+
+    const card = screen.getByTestId(
+      "research-coding-research-uncertainty-conflict-0",
+    );
+    await userEvent.click(
+      within(card).getByTestId("uncertainty-discuss-control"),
+    );
+
+    expect(openModal).toHaveBeenCalledWith({
+      type: "discuss",
+      organizationId: "org-1",
+      projectId: "project-1",
+      entityId: FOCAL_TASK_ID,
+      entityType: EntityType.Task,
+      entityTitle: "Improve CODING_RESEARCH renderer",
+      initialValue: `Two project sources give incompatible behavior.\n\n@[task:${FOCAL_TASK_ID}|Improve CODING_RESEARCH renderer]`,
+    });
+  });
+
   it("lists several references on one uncertainty as related-item rows", () => {
     const payload: CodingResearchReportPayload = {
       ...fullPayload,
