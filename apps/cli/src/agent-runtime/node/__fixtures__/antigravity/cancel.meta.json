@@ -1,13 +1,13 @@
 {
   "scenario": "cancel",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-cancel-NZpvN9",
+  "cwd": "/tmp/agy-capture-cancel-G5eHGH",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:20:44.986Z",
-  "finishedAt": "2026-11-20T04:20:52.120Z",
+  "startedAt": "2026-11-20T07:16:09.278Z",
+  "finishedAt": "2026-11-20T07:16:22.819Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "844e8821-3036-4b25-a603-9729e76a9eb8",
+      "sessionId": "3b64a654-fe82-41c7-a3e6-888f7f9d22d5",
       "models": {
         "availableModels": [
           {
@@ -331,12 +331,12 @@
     "promptAfterCancel": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 26456,
-        "outputTokens": 70,
+        "inputTokens": 26459,
+        "outputTokens": 138,
         "cachedReadTokens": 0,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 68,
-        "totalTokens": 26526
+        "thoughtTokens": 136,
+        "totalTokens": 26597
       }
     }
   }

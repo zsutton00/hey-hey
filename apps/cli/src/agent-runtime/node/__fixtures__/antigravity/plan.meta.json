@@ -1,13 +1,13 @@
 {
   "scenario": "plan",
   "mode": "plan",
-  "cwd": "/tmp/agy-capture-plan-t1A0um",
+  "cwd": "/tmp/agy-capture-plan-bWIHJz",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:21:50.563Z",
-  "finishedAt": "2026-11-20T04:22:30.308Z",
+  "startedAt": "2026-11-20T07:17:23.018Z",
+  "finishedAt": "2026-11-20T07:18:11.725Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "39fd1ee4-a094-4d7f-9703-6fb4d9dad1b7",
+      "sessionId": "0a3a2eb4-7900-4c7e-8c22-859e0ebfd0f0",
       "models": {
         "availableModels": [
           {
@@ -328,12 +328,12 @@
     "promptResult": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 32222,
-        "outputTokens": 2998,
-        "cachedReadTokens": 53064,
+        "inputTokens": 32292,
+        "outputTokens": 3178,
+        "cachedReadTokens": 52952,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 1449,
-        "totalTokens": 88284
+        "thoughtTokens": 1387,
+        "totalTokens": 88422
       }
     }
   }

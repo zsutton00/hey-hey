@@ -90,6 +90,18 @@ describe('Antigravity captured transcripts', () => {
     });
   });
 
+  it('captures the quota snapshots around the whole scenario batch', () => {
+    const times = SCENARIOS.map((scenario) => {
+      const meta = readJson(`${scenario}.meta.json`) as { startedAt: string; finishedAt: string };
+      return { start: Date.parse(meta.startedAt), finish: Date.parse(meta.finishedAt) };
+    });
+    const before = Date.parse(readJson('quota-before-quota.json')['capturedAt'] as string);
+    const after = Date.parse(readJson('quota-after-quota.json')['capturedAt'] as string);
+
+    expect(before).toBeLessThan(Math.min(...times.map((t) => t.start)));
+    expect(after).toBeGreaterThan(Math.max(...times.map((t) => t.finish)));
+  });
+
   it('covers quota before and after, and signed-out reads that failed to authenticate', () => {
     expect(fixtureFiles).toContain('quota-before-quota.json');
     expect(fixtureFiles).toContain('quota-after-quota.json');

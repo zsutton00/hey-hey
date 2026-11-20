@@ -1,13 +1,13 @@
 {
   "scenario": "resume",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-resume-3lbyNi",
+  "cwd": "/tmp/agy-capture-resume-4VTdrV",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:20:31.574Z",
-  "finishedAt": "2026-11-20T04:20:44.986Z",
+  "startedAt": "2026-11-20T07:15:55.642Z",
+  "finishedAt": "2026-11-20T07:16:09.277Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "d146db4e-c73e-49fd-9344-662f0a28d767",
+      "sessionId": "ec33eba3-bc6e-4350-83af-4b6367b6fc25",
       "models": {
         "availableModels": [
           {
@@ -388,9 +388,9 @@
         }
       ]
     },
-    "resumeSessionId": "d146db4e-c73e-49fd-9344-662f0a28d767",
+    "resumeSessionId": "ec33eba3-bc6e-4350-83af-4b6367b6fc25",
     "resumeResult": {
-      "sessionId": "d146db4e-c73e-49fd-9344-662f0a28d767",
+      "sessionId": "ec33eba3-bc6e-4350-83af-4b6367b6fc25",
       "models": {
         "availableModels": [
           {
@@ -627,12 +627,12 @@
     "promptAfterResume": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 2298,
-        "outputTokens": 36,
-        "cachedReadTokens": 24323,
+        "inputTokens": 2299,
+        "outputTokens": 26,
+        "cachedReadTokens": 24315,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 31,
-        "totalTokens": 26657
+        "thoughtTokens": 21,
+        "totalTokens": 26640
       }
     }
   }

@@ -1,13 +1,13 @@
 {
   "scenario": "quick",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-quick-76ioV9",
+  "cwd": "/tmp/agy-capture-quick-buVW3m",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:20:11.745Z",
-  "finishedAt": "2026-11-20T04:20:19.027Z",
+  "startedAt": "2026-11-20T07:15:42.034Z",
+  "finishedAt": "2026-11-20T07:15:48.677Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "1efa4fa9-f845-46e1-81db-eaa9f0d1b8cd",
+      "sessionId": "97bd4507-c3c2-4e7d-b2c7-3f920a08c7e8",
       "models": {
         "availableModels": [
           {
@@ -328,12 +328,12 @@
     "promptResult": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 26366,
-        "outputTokens": 23,
+        "inputTokens": 26375,
+        "outputTokens": 37,
         "cachedReadTokens": 0,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 21,
-        "totalTokens": 26389
+        "thoughtTokens": 35,
+        "totalTokens": 26412
       }
     }
   }

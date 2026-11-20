@@ -1,13 +1,13 @@
 {
   "scenario": "permission-reject",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-permission-reject-LJzyqS",
+  "cwd": "/tmp/agy-capture-permission-reject-sV76zK",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:21:33.202Z",
-  "finishedAt": "2026-11-20T04:21:50.562Z",
+  "startedAt": "2026-11-20T07:17:09.255Z",
+  "finishedAt": "2026-11-20T07:17:23.017Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "e3253449-77f6-4a7d-a0d3-f3f1c9452d8d",
+      "sessionId": "8da8e360-9999-4fcb-a3f9-c48e5b1002ee",
       "models": {
         "availableModels": [
           {
@@ -328,23 +328,23 @@
     "attempt1": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 26439,
-        "outputTokens": 190,
+        "inputTokens": 26440,
+        "outputTokens": 196,
         "cachedReadTokens": 0,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 92,
-        "totalTokens": 26629
+        "thoughtTokens": 96,
+        "totalTokens": 26636
       }
     },
     "attempt2": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 2583,
-        "outputTokens": 223,
-        "cachedReadTokens": 24390,
+        "inputTokens": 2595,
+        "outputTokens": 235,
+        "cachedReadTokens": 24391,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 124,
-        "totalTokens": 27196
+        "thoughtTokens": 134,
+        "totalTokens": 27221
       }
     },
     "permissionRequestCount": 2

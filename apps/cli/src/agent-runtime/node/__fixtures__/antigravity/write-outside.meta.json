@@ -1,13 +1,13 @@
 {
   "scenario": "write-outside",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-write-outside-ENMzXR",
+  "cwd": "/tmp/agy-capture-write-outside-b2CcKE",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:23:22.198Z",
-  "finishedAt": "2026-11-20T04:23:42.029Z",
+  "startedAt": "2026-11-20T07:19:13.103Z",
+  "finishedAt": "2026-11-20T07:19:26.518Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -91,7 +91,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "4d4f922a-fde0-4177-be75-18b31b3bda1f",
+      "sessionId": "b1f0c9ee-7909-41f7-9f78-31a3b5c498a9",
       "models": {
         "availableModels": [
           {
@@ -325,16 +325,16 @@
         }
       }
     },
-    "outsidePath": "/tmp/outside-acc66a58-ca8d-4907-af90-c0daf3a1ae05.txt",
+    "outsidePath": "/tmp/outside-ab3f1cb4-d888-4f77-8720-c755ff79742d.txt",
     "promptResult": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 29196,
-        "outputTokens": 774,
-        "cachedReadTokens": 24386,
+        "inputTokens": 29193,
+        "outputTokens": 753,
+        "cachedReadTokens": 24400,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 568,
-        "totalTokens": 54356
+        "thoughtTokens": 539,
+        "totalTokens": 54346
       }
     },
     "outsideFileExists": true

@@ -1,13 +1,13 @@
 {
   "scenario": "mcp-subset",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-mcp-subset-MfVKIF",
+  "cwd": "/tmp/agy-capture-mcp-subset-jo6qV0",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T04:22:49.834Z",
-  "finishedAt": "2026-11-20T04:23:22.198Z",
+  "startedAt": "2026-11-20T07:18:40.735Z",
+  "finishedAt": "2026-11-20T07:19:13.102Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -94,7 +94,7 @@
       "get_entity_identities"
     ],
     "sessionNew": {
-      "sessionId": "ae9258a5-7dee-4148-b197-637435a35d45",
+      "sessionId": "9618c87e-d987-45fb-b91f-891733373ffa",
       "models": {
         "availableModels": [
           {
@@ -331,12 +331,12 @@
     "subsetTurn": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 30017,
-        "outputTokens": 3613,
-        "cachedReadTokens": 24333,
+        "inputTokens": 30021,
+        "outputTokens": 2948,
+        "cachedReadTokens": 24340,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 2153,
-        "totalTokens": 57963
+        "thoughtTokens": 2170,
+        "totalTokens": 57309
       }
     }
   }
