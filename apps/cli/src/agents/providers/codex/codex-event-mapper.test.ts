@@ -854,9 +854,9 @@ describe('codex-event-mapper', () => {
     );
     expect(canonical['permission_request']).toMatchObject({
       action: 'exec',
-      target: 'ls -la',
+      target: 'cwd: /tmp\ncommand: ls -la',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
     const pr = result.payload['permission_request'] as Record<string, unknown>;
@@ -910,11 +910,13 @@ describe('codex-event-mapper', () => {
     expect(pr['requestId']).toBe('req-2');
     expect(pr['permission_type']).toBe('file_change');
     expect(pr['agent_type']).toBe('codex');
-    expect((result.payload['canonical_event'] as Record<string, unknown>)['permission_request']).toMatchObject({
+    expect(
+      (result.payload['canonical_event'] as Record<string, unknown>)['permission_request'],
+    ).toMatchObject({
       action: 'apply_patch',
       target: '/project',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
   });
@@ -933,11 +935,13 @@ describe('codex-event-mapper', () => {
     expect(pr['permission_type']).toBe('command_execution');
     expect(pr['agent_type']).toBe('codex');
     expect(result.payload['cwd']).toBe('/workspace');
-    expect((result.payload['canonical_event'] as Record<string, unknown>)['permission_request']).toMatchObject({
+    expect(
+      (result.payload['canonical_event'] as Record<string, unknown>)['permission_request'],
+    ).toMatchObject({
       action: 'grant_permissions',
       target: '/workspace {}',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
   });
@@ -966,11 +970,13 @@ describe('codex-event-mapper', () => {
     expect(pr['agent_type']).toBe('codex');
     expect(Array.isArray(result.payload['command'])).toBe(true);
     expect(result.payload['command']).toEqual(['git', 'commit', '-m', 'msg']);
-    expect((result.payload['canonical_event'] as Record<string, unknown>)['permission_request']).toMatchObject({
+    expect(
+      (result.payload['canonical_event'] as Record<string, unknown>)['permission_request'],
+    ).toMatchObject({
       action: 'exec',
-      target: 'git commit -m msg',
+      target: 'cwd: /repo\ncommand: git commit -m msg',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
   });
@@ -990,11 +996,13 @@ describe('codex-event-mapper', () => {
     expect(pr['permission_type']).toBe('file_change');
     expect(pr['agent_type']).toBe('codex');
     expect(result.payload['changes']).toEqual(fileChanges);
-    expect((result.payload['canonical_event'] as Record<string, unknown>)['permission_request']).toMatchObject({
+    expect(
+      (result.payload['canonical_event'] as Record<string, unknown>)['permission_request'],
+    ).toMatchObject({
       action: 'apply_patch',
       target: 'src/a.ts',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
   });
@@ -1031,11 +1039,13 @@ describe('codex-event-mapper', () => {
     expect(pr['agent_type']).toBe('codex');
     expect(result.payload['tool_name']).toBe('mcp__heyhey-platform__get_context');
     expect(result.payload['tool_input']).toEqual({ entityId: 'task-1' });
-    expect((result.payload['canonical_event'] as Record<string, unknown>)['permission_request']).toMatchObject({
+    expect(
+      (result.payload['canonical_event'] as Record<string, unknown>)['permission_request'],
+    ).toMatchObject({
       action: 'mcp_tool_call',
-      target: 'mcp__heyhey-platform__get_context',
+      target: 'mcp__heyhey-platform__get_context\narguments: {"entityId":"task-1"}',
       created_at: '2026-06-17T00:00:00.000Z',
-      expires_at: '2026-06-17T00:05:00.000Z',
+      expires_at: null,
       fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
     });
   });

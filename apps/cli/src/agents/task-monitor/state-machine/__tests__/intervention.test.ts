@@ -1,3 +1,4 @@
+import { mapCodexEvent } from '../../../providers/codex/codex-event-mapper';
 import { normalizeProviderEventPayload } from '../../../providers/provider-event-normalization';
 import { taskMonitorExactActionInputFromProviderEvent } from '../provider-event-adapter';
 import { taskMonitorEventFromVerifiedInput } from '../events';
@@ -73,6 +74,44 @@ const decision = (
   ...overrides,
 });
 
+const escalation = (reason = 'The monitor cannot judge this safely.') =>
+  ({
+    type: 'MONITOR_PERMISSION_ESCALATED' as const,
+    taskMonitorId: MONITOR_ID,
+    interventionId: INTERVENTION_ID,
+    providerActionId: 'provider-action-1',
+    reason,
+  }) satisfies TaskMonitorMachineEvent;
+
+const monitorDecision = (
+  overrides: Partial<Extract<TaskMonitorMachineEvent, { type: 'MONITOR_PERMISSION_DECIDED' }>> = {},
+) =>
+  ({
+    type: 'MONITOR_PERMISSION_DECIDED' as const,
+    taskMonitorId: MONITOR_ID,
+    interventionId: INTERVENTION_ID,
+    providerActionId: 'provider-action-1',
+    fingerprint: 'sha256:exact-action',
+    resolution: 'APPROVE' as const,
+    providerDecision: 'approve' as const,
+    rationale: 'The Task needs this command.',
+    decidedAt: '2026-08-08T12:00:30.000Z',
+    ...overrides,
+  }) satisfies TaskMonitorMachineEvent;
+
+const effectsOf = (
+  definition: ReturnType<typeof createTaskMonitorDefinition>,
+  actions: Parameters<ReturnType<typeof createTaskMonitorDefinition>['effectFromAction']>[0][],
+) => actions.flatMap((action) => definition.effectFromAction(action) ?? []);
+
+/** A request the monitor has handed to the human: the only state a person may decide from. */
+const humanOwned = () => {
+  const { definition, snapshot } = observing();
+  const [pending] = transition(definition.machine, snapshot, exactAction);
+  const [escalated, actions] = transition(definition.machine, pending, escalation());
+  return { definition, escalated, actions };
+};
+
 const observing = () => {
   const definition = createTaskMonitorDefinition();
   return {
@@ -92,6 +131,74 @@ const observing = () => {
 };
 
 describe('Task Monitor exact-action intervention', () => {
+  it.each([
+    ['approves', 'APPROVE', 'approve'],
+    ['denies', 'DENY', 'deny'],
+  ] as const)(
+    'applies a monitor decision that %s a real Codex request long after the old five-minute mark',
+    (_name, resolution, providerDecision) => {
+      const timestamp = exactAction.createdAt;
+      const mapped = mapCodexEvent({
+        provider: 'codex',
+        runId: RUN_ID,
+        eventType: 'item/commandExecution/requestApproval',
+        timestamp,
+        sessionId: 'provider-session-1',
+        agentId: 'codex',
+        rawEvent: {
+          id: 'provider-action-1',
+          params: { command: ['pnpm', 'deploy'], cwd: '/workspace' },
+        },
+        config: { validationMode: 'strict', maxDiffBlobBytes: 4096, trackTools: false },
+      });
+      if (!mapped.resolvedEventType) throw new Error('Expected a resolved Codex request');
+      const input = taskMonitorExactActionInputFromProviderEvent(
+        {
+          owner: { taskMonitorId: MONITOR_ID, agentSessionId: SESSION_ID, runId: RUN_ID },
+          event: {
+            runId: RUN_ID,
+            source: 'provider',
+            eventType: mapped.resolvedEventType,
+            timestamp,
+            sessionId: 'provider-session-1',
+            agentId: 'codex',
+            payload: mapped.payload,
+          },
+        },
+        () => INTERVENTION_ID,
+        () => Date.parse(timestamp),
+      );
+      if (!input) throw new Error('Expected admitted input');
+      expect(input.expiresAt).toBeNull();
+
+      const { definition, snapshot } = observing();
+      const [opened] = transition(
+        definition.machine,
+        snapshot,
+        taskMonitorEventFromVerifiedInput(input),
+      );
+      const [applying, actions] = transition(
+        definition.machine,
+        opened,
+        monitorDecision({
+          fingerprint: input.fingerprint,
+          resolution,
+          providerDecision,
+          decidedAt: '2026-08-08T12:30:00.000Z',
+        }),
+      );
+
+      expect(applying.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+      expect(effectsOf(definition, actions)).toContainEqual(
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          providerDecision,
+          providerActionId: 'provider-action-1',
+        }),
+      );
+    },
+  );
+
   it.each([null, undefined])(
     'admits and decides a normalized Claude request with no deadline (%s)',
     (expiresAt) => {
@@ -150,14 +257,38 @@ describe('Task Monitor exact-action intervention', () => {
       expect(input).not.toBeNull();
       if (!input) throw new Error('Expected admitted input');
       const { definition, snapshot } = observing();
-      const [pending, projectionActions] = transition(
+      const [opened, openActions] = transition(
         definition.machine,
         snapshot,
         taskMonitorEventFromVerifiedInput(input),
       );
-      const projection = projectionActions.flatMap(
-        (action) => definition.effectFromAction(action) ?? [],
-      )[0];
+      // The request reaches the monitor first, with no deadline to reject it for.
+      expect(effectsOf(definition, openActions)).toEqual([
+        expect.objectContaining({
+          type: 'DECIDE_TASK_MONITOR_PERMISSION',
+          providerActionId: 'provider-action-1',
+          expiresAt: null,
+        }),
+      ]);
+      const [approved, approveActions] = transition(definition.machine, opened, monitorDecision());
+      expect(approved.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+      expect(effectsOf(definition, approveActions)).toEqual([
+        expect.objectContaining({
+          type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+          decision: 'APPROVED',
+        }),
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          operation: 'RELEASE_EXACT_ACTION',
+          human: null,
+          monitorRationale: 'The Task needs this command.',
+        }),
+      ]);
+
+      const [pending, projectionActions] = transition(definition.machine, opened, escalation());
+      const projection = effectsOf(definition, projectionActions).find(
+        (effect) => effect.type === 'PROJECT_TASK_MONITOR_INTERVENTION',
+      );
       if (projection?.type !== 'PROJECT_TASK_MONITOR_INTERVENTION')
         throw new Error('Expected projection');
       expect(toTaskMonitorInterventionData(projection)).toMatchObject({
@@ -178,7 +309,7 @@ describe('Task Monitor exact-action intervention', () => {
     },
   );
 
-  it('stores one pending intervention without changing work or control', () => {
+  it('stores one monitor-owned intervention and asks the monitor, not the human', () => {
     const { definition, snapshot } = observing();
     const [next, actions] = transition(definition.machine, snapshot, exactAction);
 
@@ -196,21 +327,100 @@ describe('Task Monitor exact-action intervention', () => {
       pendingIntervention: {
         interventionId: INTERVENTION_ID,
         providerActionId: 'provider-action-1',
+        owner: 'MONITOR',
         decision: null,
       },
     });
-    expect(actions.flatMap((action) => definition.effectFromAction(action) ?? [])).toEqual([
+    expect(effectsOf(definition, actions)).toEqual([
       expect.objectContaining({
-        type: 'PROJECT_TASK_MONITOR_INTERVENTION',
+        type: 'DECIDE_TASK_MONITOR_PERMISSION',
         interventionId: INTERVENTION_ID,
         providerActionId: 'provider-action-1',
+        action: 'exec',
+        target: 'pnpm deploy',
       }),
     ]);
   });
 
-  it('declares exactly one release effect for a fully matching unexpired decision', () => {
+  it('hands a USER_REQUIRED request straight to the human and never to the monitor', () => {
+    const { definition, snapshot } = observing();
+    const [pending, actions] = transition(definition.machine, snapshot, {
+      ...exactAction,
+      userRequired: true,
+    });
+
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({ type: 'PROJECT_TASK_MONITOR_INTERVENTION' }),
+    ]);
+    expect(pending.context.pendingIntervention).toMatchObject({
+      owner: 'HUMAN',
+      userRequired: true,
+    });
+    expect(transition(definition.machine, pending, monitorDecision())[0]).toBe(pending);
+  });
+
+  it('shows the request to the human only after the monitor escalates it', () => {
+    const { escalated, actions, definition } = humanOwned();
+
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({
+        type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+        decision: 'ESCALATED',
+        rationale: 'The monitor cannot judge this safely.',
+      }),
+      expect.objectContaining({
+        type: 'PROJECT_TASK_MONITOR_INTERVENTION',
+        providerActionId: 'provider-action-1',
+      }),
+    ]);
+    expect(escalated.context.pendingIntervention).toMatchObject({
+      owner: 'HUMAN',
+      escalationReason: 'The monitor cannot judge this safely.',
+    });
+  });
+
+  it('applies a monitor denial through the same effect as a human one', () => {
     const { definition, snapshot } = observing();
     const [pending] = transition(definition.machine, snapshot, exactAction);
+    const [, actions] = transition(
+      definition.machine,
+      pending,
+      monitorDecision({ resolution: 'DENY', providerDecision: 'deny', rationale: 'Out of scope.' }),
+    );
+
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({
+        type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+        action: 'exec',
+        target: 'pnpm deploy',
+        decision: 'DENIED',
+        rationale: 'Out of scope.',
+      }),
+      expect.objectContaining({
+        type: 'APPLY_TASK_MONITOR_DECISION',
+        operation: 'REJECT_EXACT_ACTION',
+        providerDecision: 'deny',
+        human: null,
+        monitorRationale: 'Out of scope.',
+      }),
+    ]);
+  });
+
+  it('ignores a human decision while the monitor still owns the request', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, exactAction);
+
+    expect(transition(definition.machine, pending, decision())[0]).toBe(pending);
+  });
+
+  it('lets the first decision win: a monitor decision after escalation is ignored', () => {
+    const { definition, escalated } = humanOwned();
+
+    expect(transition(definition.machine, escalated, monitorDecision())[0]).toBe(escalated);
+  });
+
+  it('declares exactly one release effect for a fully matching unexpired decision', () => {
+    const { definition, escalated: pending } = humanOwned();
     const [applying, actions] = transition(definition.machine, pending, decision());
     const effects = actions.flatMap((action) => definition.effectFromAction(action) ?? []);
 
@@ -241,24 +451,18 @@ describe('Task Monitor exact-action intervention', () => {
     ['wrong fingerprint', { fingerprint: 'sha256:other' }],
     ['wrong Run', { runId: '31000000-0000-4000-8000-000000000003' }],
     ['wrong Agent Session', { agentSessionId: '21000000-0000-4000-8000-000000000002' }],
-    ['expired', { decidedAt: '2026-08-08T12:06:00.000Z' }],
   ])('ignores a %s decision with no effect', (_name, override) => {
-    const { definition, snapshot } = observing();
-    const [pending] = transition(definition.machine, snapshot, exactAction);
+    const { definition, escalated: pending } = humanOwned();
     const [next, actions] = transition(definition.machine, pending, decision(override));
     expect(next).toBe(pending);
     expect(actions).toEqual([]);
   });
 
-  it('keeps failed application evidence explicit and rejects duplicate or over-capacity inputs', () => {
-    const { definition, snapshot } = observing();
-    const [pending] = transition(definition.machine, snapshot, exactAction);
-    const [overCapacity, overCapacityActions] = transition(definition.machine, pending, {
-      ...exactAction,
-      providerActionId: 'provider-action-2',
-    });
-    expect(overCapacity).toBe(pending);
-    expect(overCapacityActions).toEqual([]);
+  it('keeps failed application evidence explicit and ignores a duplicate of the pending request', () => {
+    const { definition, escalated: pending } = humanOwned();
+    const [duplicate, duplicateActions] = transition(definition.machine, pending, exactAction);
+    expect(duplicate).toBe(pending);
+    expect(duplicateActions).toEqual([]);
 
     const [applying] = transition(definition.machine, pending, decision());
     const [failed] = transition(definition.machine, applying, {
@@ -282,5 +486,135 @@ describe('Task Monitor exact-action intervention', () => {
       decision: { resolution: 'APPROVE' },
     });
     expect(transition(definition.machine, failed, decision())[0]).toBe(failed);
+  });
+  it('accepts a monitor decision at any time for a request with no deadline', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, { ...exactAction, expiresAt: null });
+
+    const [next, actions] = transition(
+      definition.machine,
+      pending,
+      monitorDecision({ decidedAt: '2026-08-20T12:00:00.000Z' }),
+    );
+
+    expect(next.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+    expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
+      'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+      'APPLY_TASK_MONITOR_DECISION',
+    ]);
+  });
+
+  it('records nothing for a monitor decision the machine rejects', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, exactAction);
+
+    const [next, actions] = transition(
+      definition.machine,
+      pending,
+      monitorDecision({ fingerprint: 'sha256:other' }),
+    );
+
+    expect(next).toBe(pending);
+    expect(actions).toEqual([]);
+  });
+
+  describe('overlapping requests', () => {
+    const second = {
+      ...exactAction,
+      interventionId: '41000000-0000-4000-8000-000000000004',
+      providerActionId: 'provider-action-2',
+      fingerprint: 'sha256:second-action',
+      target: 'pnpm build',
+    } satisfies TaskMonitorMachineEvent;
+    const secondDecision = () =>
+      monitorDecision({
+        interventionId: second.interventionId,
+        providerActionId: second.providerActionId,
+        fingerprint: second.fingerprint,
+        rationale: 'The build is part of the Task.',
+      });
+
+    it('gives each of two overlapping writes its own monitor decision, never a human prompt', () => {
+      const { definition, snapshot } = observing();
+      const [first] = transition(definition.machine, snapshot, exactAction);
+
+      // While the first is still with the monitor, the second waits without prompting anyone.
+      const [queued, queueActions] = transition(definition.machine, first, second);
+      expect(queueActions).toEqual([]);
+      expect(queued.context.pendingIntervention).toMatchObject({
+        providerActionId: 'provider-action-1',
+        owner: 'MONITOR',
+      });
+      expect(queued.context.queuedInterventions).toEqual([
+        expect.objectContaining({ providerActionId: 'provider-action-2' }),
+      ]);
+
+      // The first is answered; the second may even arrive while that answer is applied.
+      const [applying] = transition(definition.machine, queued, monitorDecision());
+      const third = { ...second, interventionId: 'ignored', providerActionId: 'provider-action-3' };
+      const [applyingWithThird] = transition(definition.machine, applying, third);
+      expect(applyingWithThird.context.queuedInterventions).toHaveLength(2);
+
+      const [next, nextActions] = transition(definition.machine, applyingWithThird, {
+        type: 'DECISION_APPLIED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: INTERVENTION_ID,
+        providerActionId: 'provider-action-1',
+      });
+
+      // The next request in arrival order now goes to the monitor, and only to the monitor.
+      expect(next.value).toMatchObject({ RUNNING: { intervention: 'PENDING' } });
+      expect(next.context.pendingIntervention).toMatchObject({
+        providerActionId: 'provider-action-2',
+        owner: 'MONITOR',
+        decision: null,
+      });
+      expect(next.context.queuedInterventions).toEqual([
+        expect.objectContaining({ providerActionId: 'provider-action-3' }),
+      ]);
+      expect(effectsOf(definition, nextActions)).toEqual([
+        expect.objectContaining({
+          type: 'DECIDE_TASK_MONITOR_PERMISSION',
+          providerActionId: 'provider-action-2',
+          target: 'pnpm build',
+        }),
+      ]);
+
+      const [decided, decidedActions] = transition(definition.machine, next, secondDecision());
+      expect(decided.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+      expect(effectsOf(definition, decidedActions)).toEqual([
+        expect.objectContaining({
+          type: 'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+          providerActionId: 'provider-action-2',
+        }),
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          providerActionId: 'provider-action-2',
+        }),
+      ]);
+    });
+
+    it('hands a queued USER_REQUIRED request to the human only when its turn comes', () => {
+      const { definition, snapshot } = observing();
+      const [first] = transition(definition.machine, snapshot, exactAction);
+      const [queued] = transition(definition.machine, first, { ...second, userRequired: true });
+      const [applying] = transition(definition.machine, queued, monitorDecision());
+
+      const [next, actions] = transition(definition.machine, applying, {
+        type: 'DECISION_APPLIED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: INTERVENTION_ID,
+        providerActionId: 'provider-action-1',
+      });
+
+      expect(next.context.pendingIntervention).toMatchObject({
+        providerActionId: 'provider-action-2',
+        owner: 'HUMAN',
+        userRequired: true,
+      });
+      expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
+        'PROJECT_TASK_MONITOR_INTERVENTION',
+      ]);
+    });
   });
 });

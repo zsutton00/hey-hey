@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   buildRoutingIdentifiers,
   buildNormalizedProviderFacts,
+  readUserRequiredDesignation,
   loadProviderEventNormalizationConfig,
   narrationFromMapping,
   truncateUtf8ToBytes,
@@ -71,14 +72,14 @@ const readStringArray = (value: unknown): string[] => {
   return value.filter((entry): entry is string => typeof entry === 'string');
 };
 
-const EXACT_ACTION_TTL_MS = 5 * 60 * 1000;
-
 interface CodexExactActionFacts {
   readonly action: string;
   readonly target: string;
   readonly fingerprint: string;
   readonly created_at: string;
-  readonly expires_at: string;
+  /** Codex enforces no deadline on a permission request, so none is invented. */
+  readonly expires_at: null;
+  readonly user_required?: boolean;
 }
 
 const stableJsonValue = (value: unknown): string => {
@@ -99,6 +100,8 @@ const exactActionFacts = (input: {
   action: string;
   target: string | null;
   params: Record<string, unknown>;
+  /** Further records that may carry the originating tool's USER_REQUIRED designation. */
+  designationSources?: readonly (Record<string, unknown> | null)[];
 }): CodexExactActionFacts | null => {
   if (!input.requestId || !input.sessionId || !input.target) return null;
   const createdAtMs = Date.parse(input.timestamp);
@@ -111,24 +114,46 @@ const exactActionFacts = (input: {
     target: input.target,
     params: input.params,
   });
+  const userRequired = readUserRequiredDesignation([
+    input.params,
+    ...(input.designationSources ?? []),
+  ]);
   return {
     action: input.action,
     target: input.target,
     fingerprint: `sha256:${createHash('sha256').update(fingerprintPayload).digest('hex')}`,
     created_at: input.timestamp,
-    expires_at: new Date(createdAtMs + EXACT_ACTION_TTL_MS).toISOString(),
+    expires_at: null,
+    ...(userRequired !== null ? { user_required: userRequired } : {}),
   };
 };
 
-const commandTarget = (value: unknown): string | null => {
+const SHELL_SAFE_WORD = /^[A-Za-z0-9_@%+=:,./-]+$/u;
+
+/** Keeps argument boundaries visible: `['echo', 'a b']` and `['echo', 'a', 'b']` must differ. */
+const quoteArgument = (part: string): string =>
+  SHELL_SAFE_WORD.test(part) ? part : `'${part.replaceAll("'", `'\\''`)}'`;
+
+/**
+ * The monitor judges this text, so it names the directory the command runs in: the same
+ * relative command in two checkouts is two different actions.
+ */
+const commandTarget = (value: unknown, cwd: string | null): string | null => {
   const direct = readTrimmedString(value);
-  if (direct) return direct;
-  const argv = readStringArray(value)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return argv.length > 0 ? argv.join(' ') : null;
+  const argv = Array.isArray(value) ? readStringArray(value) : [];
+  const command = direct ?? (argv.length > 0 ? argv.map(quoteArgument).join(' ') : null);
+  if (command === null) {
+    return null;
+  }
+
+  return cwd ? `cwd: ${cwd}\ncommand: ${command}` : command;
 };
 
+/**
+ * The monitor approves what this names, so it must say what the write affects. An opaque item id
+ * names nothing: with neither changed paths nor a grant root there is no target to judge, and the
+ * request is left for a person.
+ */
 const fileChangeTarget = (params: Record<string, unknown>): string | null => {
   const changes = isRecord(params['fileChanges'])
     ? params['fileChanges']
@@ -136,8 +161,31 @@ const fileChangeTarget = (params: Record<string, unknown>): string | null => {
       ? params['changes']
       : null;
   const changedPaths = changes ? Object.keys(changes).sort() : [];
-  if (changedPaths.length > 0) return changedPaths.join(', ');
-  return readTrimmedString(params['itemId']) ?? readTrimmedString(params['grantRoot']);
+  const grantRoot = readTrimmedString(params['grantRoot']);
+  if (changedPaths.length === 0) {
+    return grantRoot;
+  }
+
+  const paths = changedPaths.join(', ');
+  return grantRoot ? `${paths}\ngrant root: ${grantRoot}` : paths;
+};
+
+/**
+ * Two calls to the same tool against different resources are different actions, so the monitor
+ * sees the arguments with the tool. A request that carries no arguments at all cannot be judged
+ * and is left for a person; an explicit empty argument set is a call with nothing to scope.
+ */
+const mcpToolCallTarget = (
+  qualifiedToolName: string | null,
+  toolParams: Record<string, unknown> | null,
+): string | null => {
+  if (qualifiedToolName === null || toolParams === null) {
+    return null;
+  }
+
+  return Object.keys(toolParams).length === 0
+    ? qualifiedToolName
+    : `${qualifiedToolName}\narguments: ${stableJsonValue(toolParams)}`;
 };
 
 const permissionGrantTarget = (params: Record<string, unknown>): string | null => {
@@ -646,7 +694,7 @@ const dispatchCodexEvent = (
         sessionId,
         timestamp,
         action: 'exec',
-        target: commandTarget(command),
+        target: commandTarget(command, cwd),
         params,
       });
       return {
@@ -788,7 +836,7 @@ const dispatchCodexEvent = (
         sessionId,
         timestamp,
         action: 'exec',
-        target: commandTarget(params['command']),
+        target: commandTarget(params['command'], cwd),
         params,
       });
       return {
@@ -892,10 +940,11 @@ const dispatchCodexEvent = (
         qualifiedToolName
           ? qualifiedToolName
           : 'mcp_elicitation';
-      const toolParams =
+      const suppliedToolParams =
         meta && isRecord(meta[MCP_ELICITATION_TOOL_PARAMS_KEY])
           ? meta[MCP_ELICITATION_TOOL_PARAMS_KEY]
-          : {};
+          : null;
+      const toolParams = suppliedToolParams ?? {};
       const toolParamsDisplay =
         meta && Array.isArray(meta[MCP_ELICITATION_TOOL_PARAMS_DISPLAY_KEY])
           ? meta[MCP_ELICITATION_TOOL_PARAMS_DISPLAY_KEY]
@@ -910,8 +959,9 @@ const dispatchCodexEvent = (
         sessionId,
         timestamp,
         action: 'mcp_tool_call',
-        target: qualifiedToolName,
+        target: mcpToolCallTarget(qualifiedToolName, suppliedToolParams),
         params,
+        designationSources: [meta],
       });
 
       return {

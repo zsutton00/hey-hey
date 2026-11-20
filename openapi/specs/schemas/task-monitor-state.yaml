@@ -115,6 +115,67 @@ TaskMonitorLifecycleAction:
       enum: [START, RESUME, PAUSE, STOP]
   description: The owner advertises only currently admitted command mappings; clients retain Start/Pause presentation and use existing signed command admission.
 
+TaskMonitorPendingJudgmentAnswer:
+  type: object
+  additionalProperties: false
+  required: [command, choices]
+  properties:
+    command:
+      type: string
+      enum: [HUMAN_DECISION]
+      description: The signed monitor command that answers this request.
+    choices:
+      type: array
+      items:
+        type: string
+        enum: [APPROVE, DENY]
+  description: How a person answers a pending judgment through existing signed command admission.
+
+TaskMonitorPendingJudgment:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      interventionId,
+      providerActionId,
+      runId,
+      agentSessionId,
+      action,
+      target,
+      fingerprint,
+      reason,
+      answer,
+    ]
+  properties:
+    interventionId:
+      type: string
+      format: uuid
+    providerActionId:
+      type: string
+      minLength: 1
+    runId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    action:
+      type: string
+    target:
+      type: string
+    fingerprint:
+      type: string
+      minLength: 1
+    reason:
+      type: string
+      description: Why a person, not the monitor, must decide this request.
+    answer:
+      $ref: "#/TaskMonitorPendingJudgmentAnswer"
+  description: >-
+    A provider request awaiting the user's judgment, reported as its own outcome and never as a
+    failure. Present only once a person owns the request; a request the monitor is still deciding
+    is not a pending judgment.
+
 TaskMonitorStateProjection:
   type: object
   additionalProperties: false
@@ -125,7 +186,9 @@ TaskMonitorStateProjection:
     failure:
       $ref: "#/TaskMonitorStateFailure"
     pendingJudgment:
-      $ref: "#/TaskMonitorStatePendingJudgment"
+      oneOf:
+        - $ref: "#/TaskMonitorStatePendingJudgment"
+        - $ref: "#/TaskMonitorPendingJudgment"
     availableActions:
       type: array
       items:

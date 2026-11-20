@@ -6,10 +6,22 @@ import type {
   EffectHandler,
   EffectSettlement,
 } from '../../../state-machine';
+import type { TaskMonitorCoordinatorRunner } from '../../../server/monitors/runner';
+import {
+  toTaskMonitorPermissionDecidedMessage,
+  type TaskMonitorPermissionDecisionRecord,
+} from '../task-monitor-decision-message';
+import type { TaskMonitorDecisionStore } from '../task-monitor-decision-store';
 import { toTaskMonitorInterventionMessage } from '../task-monitor-intervention-message';
+import {
+  isTaskMonitorPermissionDecision,
+  type TaskMonitorPermissionDecision,
+} from '../task-monitor-permission-decision';
 import type {
   ApplyTaskMonitorDecisionEffect,
+  DecideTaskMonitorPermissionEffect,
   ProjectTaskMonitorInterventionEffect,
+  RecordTaskMonitorPermissionDecisionEffect,
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
 
@@ -203,10 +215,9 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
       requestId: effect.providerActionId,
       agentType: run.provider,
       decision: effect.providerDecision,
-      reason: effect.operation === 'REJECT_EXACT_ACTION' ? 'Denied by user.' : null,
+      reason: this.denialReason(effect),
       idempotencyToken: execution.effectId,
-      userId: effect.human.userId,
-      deciderUserId: effect.human.userId,
+      ...(effect.human ? { userId: effect.human.userId, deciderUserId: effect.human.userId } : {}),
     });
     this.logger.debug('task_monitor.intervention.decision.owner_call.completed', {
       ...logContext,
@@ -234,6 +245,14 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
       deliveryClassification(delivery.reason),
       delivery.reason,
     );
+  }
+
+  private denialReason(effect: ApplyTaskMonitorDecisionEffect): string | null {
+    if (effect.operation !== 'REJECT_EXACT_ACTION') {
+      return null;
+    }
+
+    return effect.human ? 'Denied by user.' : `Denied by Task Monitor: ${effect.monitorRationale}`;
   }
 
   private classified(
@@ -267,6 +286,245 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
           status: 'uncertain',
           outcome: { type: 'DECISION_APPLICATION_UNCERTAIN', ...common },
         };
+    }
+  }
+}
+
+const MONITOR_DECISION_FAILED_PREFIX = 'The Task Monitor could not decide this request';
+
+/**
+ * Asks the Task Monitor agent to decide one pending provider permission request.
+ * Anything the monitor cannot judge becomes an escalation carrying the reason,
+ * never a silent failure. The supervision record is a separate effect the machine
+ * emits only once it has accepted the outcome.
+ */
+export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler<
+  DecideTaskMonitorPermissionEffect,
+  TaskMonitorMachineEffectOutcome
+> {
+  public readonly recovery = {
+    strategy: 'reconcile' as const,
+    reconcile: (effect: DecideTaskMonitorPermissionEffect) =>
+      Promise.resolve({
+        status: 'uncertain' as const,
+        outcome: this.escalation(
+          effect,
+          `${MONITOR_DECISION_FAILED_PREFIX}: the decision was interrupted before it finished.`,
+        ),
+      }),
+  };
+
+  public constructor(
+    private readonly coordinatorRunner: TaskMonitorCoordinatorRunner,
+    private readonly decisionStore: TaskMonitorDecisionStore,
+    private readonly logger: ServerLogger,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  public async execute(
+    effect: DecideTaskMonitorPermissionEffect,
+    execution: EffectExecutionIdentity,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const logContext = {
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      runId: effect.runId,
+      effectId: execution.effectId,
+    };
+    this.logger.info('task_monitor.permission_decision.started', logContext);
+
+    const outcome = await this.decide(effect, execution, logContext);
+
+    return { status: 'succeeded', outcome };
+  }
+
+  private async decide(
+    effect: DecideTaskMonitorPermissionEffect,
+    execution: EffectExecutionIdentity,
+    logContext: Record<string, string>,
+  ): Promise<TaskMonitorMachineEffectOutcome> {
+    try {
+      const identity = await this.coordinatorRunner.runTaskMonitor(
+        {
+          monitorId: effect.taskMonitorId,
+          cause: 'PERMISSION_REQUEST',
+          correlationId: effect.interventionId,
+          coordinatorAttemptId: execution.effectId,
+          monitoredPermissionRequest: {
+            interventionId: effect.interventionId,
+            providerActionId: effect.providerActionId,
+            runId: effect.runId,
+            agentSessionId: effect.agentSessionId,
+            action: effect.action,
+            target: effect.target,
+            fingerprint: effect.fingerprint,
+            createdAt: effect.createdAt,
+            expiresAt: effect.expiresAt,
+          },
+        },
+        { organizationId: effect.organizationId, projectId: effect.projectId },
+      );
+      if (!identity) {
+        return this.failed(effect, 'the monitor agent could not be started', logContext);
+      }
+
+      const result = await this.decisionStore.wait(identity.runId);
+      if (result.status === 'INVALID') {
+        return this.failed(
+          effect,
+          `the monitor's answer was invalid (${result.reason})`,
+          logContext,
+        );
+      }
+      if (result.status === 'TURN_SETTLED') {
+        return this.failed(
+          effect,
+          `the monitor's turn ended without a decision (${result.terminalOutcome})`,
+          logContext,
+        );
+      }
+      if (!isTaskMonitorPermissionDecision(result.decision)) {
+        return this.failed(
+          effect,
+          `the monitor answered with ${result.decision.action}, which does not decide a permission request`,
+          logContext,
+        );
+      }
+
+      return this.outcomeFor(effect, result.decision);
+    } catch (error) {
+      return this.failed(
+        effect,
+        error instanceof Error ? error.message : String(error),
+        logContext,
+      );
+    }
+  }
+
+  private outcomeFor(
+    effect: DecideTaskMonitorPermissionEffect,
+    decision: TaskMonitorPermissionDecision,
+  ): TaskMonitorMachineEffectOutcome {
+    if (decision.action === 'ESCALATE_PERMISSION') {
+      return this.escalation(effect, decision.rationale);
+    }
+
+    const decidedAt = this.now();
+    const approved = decision.action === 'APPROVE_PERMISSION';
+    return {
+      type: 'MONITOR_PERMISSION_DECIDED',
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      fingerprint: effect.fingerprint,
+      resolution: approved ? 'APPROVE' : 'DENY',
+      providerDecision: approved ? 'approve' : 'deny',
+      rationale: decision.rationale,
+      decidedAt: new Date(decidedAt).toISOString(),
+    };
+  }
+
+  private failed(
+    effect: DecideTaskMonitorPermissionEffect,
+    cause: string,
+    logContext: Record<string, string>,
+  ): TaskMonitorMachineEffectOutcome {
+    this.logger.error('task_monitor.permission_decision.failed', { ...logContext, cause });
+
+    return this.escalation(effect, `${MONITOR_DECISION_FAILED_PREFIX}: ${cause}.`);
+  }
+
+  private escalation(
+    effect: DecideTaskMonitorPermissionEffect,
+    reason: string,
+  ): TaskMonitorMachineEffectOutcome {
+    return {
+      type: 'MONITOR_PERMISSION_ESCALATED',
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      reason,
+    };
+  }
+}
+
+/**
+ * Projects one committed monitor permission outcome as supervision activity.
+ * The machine emits it only after accepting the outcome, so the conversation never
+ * shows a decision the machine rejected. A failed projection is reported back to the
+ * machine with its cause and retried if the process dies before it settles.
+ */
+export class TaskMonitorPermissionRecordEffectHandler implements EffectHandler<
+  RecordTaskMonitorPermissionDecisionEffect,
+  TaskMonitorMachineEffectOutcome
+> {
+  public readonly recovery = { strategy: 'retry' as const };
+
+  public constructor(
+    private readonly poster: MessagePoster,
+    private readonly logger: ServerLogger,
+  ) {}
+
+  public async execute(
+    effect: RecordTaskMonitorPermissionDecisionEffect,
+    execution: EffectExecutionIdentity,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const logContext = {
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      effectId: execution.effectId,
+      decision: effect.decision,
+    };
+    const common = {
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+    };
+
+    if (effect.conversationId === null) {
+      const reason = 'the Task Monitor has no conversation to record the decision in';
+      this.logger.warn('task_monitor.permission_decision.record_skipped', {
+        ...logContext,
+        reason,
+      });
+
+      return {
+        status: 'failed',
+        outcome: { type: 'PERMISSION_DECISION_RECORD_FAILED', ...common, reason },
+      };
+    }
+
+    const record: TaskMonitorPermissionDecisionRecord = {
+      providerActionId: effect.providerActionId,
+      action: effect.action,
+      target: effect.target,
+      decision: effect.decision,
+      rationale: effect.rationale,
+    };
+    try {
+      await this.poster.createOutOfBand({
+        organizationId: effect.organizationId,
+        projectId: effect.projectId,
+        conversationId: effect.conversationId,
+        dto: toTaskMonitorPermissionDecidedMessage(effect.projectId, record),
+        stamp: null,
+      });
+      this.logger.info('task_monitor.permission_decision.recorded', logContext);
+
+      return { status: 'succeeded', outcome: { type: 'PERMISSION_DECISION_RECORDED', ...common } };
+    } catch (error) {
+      const reason = reasonFrom(error);
+      this.logger.error('task_monitor.permission_decision.record_failed', {
+        ...logContext,
+        reason,
+      });
+
+      return {
+        status: 'failed',
+        outcome: { type: 'PERMISSION_DECISION_RECORD_FAILED', ...common, reason },
+      };
     }
   }
 }

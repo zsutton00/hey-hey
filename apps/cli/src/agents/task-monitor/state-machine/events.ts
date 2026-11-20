@@ -189,6 +189,47 @@ export interface TaskMonitorExactActionRequiredEvent {
   readonly fingerprint: string;
   readonly createdAt: string;
   readonly expiresAt: string | null;
+  /** True when an authoritative instruction or the originating tool marks it USER_REQUIRED. */
+  readonly userRequired?: boolean | undefined;
+}
+
+/** The Task Monitor approved or denied the pending request from its own judgment. */
+interface TaskMonitorPermissionDecidedEvent {
+  readonly type: 'MONITOR_PERMISSION_DECIDED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly fingerprint: string;
+  readonly resolution: TaskMonitorHumanDecisionResolution;
+  readonly providerDecision: 'approve' | 'deny';
+  readonly rationale: string;
+  readonly decidedAt: string;
+}
+
+/** The Task Monitor could not decide safely, so the pending request now belongs to the human. */
+interface TaskMonitorPermissionEscalatedEvent {
+  readonly type: 'MONITOR_PERMISSION_ESCALATED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
+}
+
+/** The supervision record of a committed monitor permission outcome was written. */
+interface TaskMonitorPermissionDecisionRecordedEvent {
+  readonly type: 'PERMISSION_DECISION_RECORDED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+}
+
+/** The record could not be written; the committed decision itself is unaffected. */
+interface TaskMonitorPermissionDecisionRecordFailedEvent {
+  readonly type: 'PERMISSION_DECISION_RECORD_FAILED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
 }
 
 interface TaskMonitorInterventionProjectedEvent {
@@ -657,6 +698,10 @@ export type TaskMonitorMachineEvent =
   | TaskMonitorConversationDeliveryFailedEvent
   | TaskMonitorHumanDecisionEvent
   | TaskMonitorExactActionRequiredEvent
+  | TaskMonitorPermissionDecidedEvent
+  | TaskMonitorPermissionEscalatedEvent
+  | TaskMonitorPermissionDecisionRecordedEvent
+  | TaskMonitorPermissionDecisionRecordFailedEvent
   | TaskMonitorInterventionProjectedEvent
   | TaskMonitorInterventionProjectionFailedEvent
   | TaskMonitorDecisionAppliedEvent
@@ -735,6 +780,7 @@ export interface VerifiedTaskMonitorProviderInterventionInput extends AddressedT
   readonly fingerprint: string;
   readonly createdAt: string;
   readonly expiresAt: string | null;
+  readonly userRequired?: boolean | undefined;
 }
 
 export type TaskMonitorExecutionPhase = 'IMPLEMENTATION' | 'REVIEW';
@@ -816,6 +862,7 @@ export const taskMonitorEventFromVerifiedInput = (
         fingerprint: input.fingerprint,
         createdAt: input.createdAt,
         expiresAt: input.expiresAt,
+        userRequired: input.userRequired ?? false,
       };
     case 'EXECUTION_TURN_RELEASED':
       return {

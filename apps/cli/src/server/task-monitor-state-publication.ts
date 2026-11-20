@@ -146,6 +146,39 @@ const pendingJudgmentProjection = (
   return { request: current.request, guidance: PENDING_JUDGMENT_GUIDANCE };
 };
 
+const LEGACY_HUMAN_OWNED_REASON =
+  'This request was raised before the monitor decided requests, so a person must decide it.';
+
+/**
+ * A request waits on the user only once a person owns it. While the monitor is still deciding it
+ * the intervention region reads PENDING too, so ownership comes from the committed request itself.
+ * State persisted before the monitor decided requests carries no owner and is human-owned.
+ */
+const pendingPermissionJudgment = (
+  context: TaskMonitorMachineContext,
+  running: RunningRegions | null,
+): TaskMonitorStateProjection['pendingJudgment'] => {
+  const pending = context.pendingIntervention;
+  if (running?.intervention !== 'PENDING' || pending === null || pending.decision !== null) {
+    return undefined;
+  }
+  if (pending.owner === 'MONITOR') {
+    return undefined;
+  }
+
+  return {
+    interventionId: pending.interventionId,
+    providerActionId: pending.providerActionId,
+    runId: pending.runId,
+    agentSessionId: pending.agentSessionId,
+    action: pending.action,
+    target: pending.target,
+    fingerprint: pending.fingerprint,
+    reason: pending.escalationReason ?? LEGACY_HUMAN_OWNED_REASON,
+    answer: { command: 'HUMAN_DECISION', choices: ['APPROVE', 'DENY'] },
+  };
+};
+
 export const taskMonitorStateProjection = ({
   state,
   context,
@@ -170,7 +203,7 @@ export const taskMonitorStateProjection = ({
     retryableLaunchFailure(context) ??
     unclassifiedFailure(context, availableActions);
 
-  const pendingJudgment = pendingJudgmentProjection(context, running);
+  const pendingJudgment = pendingPermissionJudgment(context, running) ?? pendingJudgmentProjection(context, running);
 
   return {
     execution,

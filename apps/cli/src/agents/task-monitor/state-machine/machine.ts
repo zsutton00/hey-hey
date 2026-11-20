@@ -24,6 +24,7 @@ import type {
   TaskMonitorMachineContext,
   TaskMonitorPendingIntervention,
   TaskMonitorPlanGuidanceProjection,
+  TaskMonitorQueuedIntervention,
   TaskMonitorRequestedLaunchConfig,
   TaskMonitorRetryableLaunch,
   TaskMonitorReviewRequest,
@@ -70,6 +71,15 @@ import { taskMonitorWorkStates } from './states';
 import { toOpenApiMessageId } from '../../../shared/api/identifierAdapters';
 import {
   canOpenExactActionIntervention,
+  canOpenMonitorOwnedIntervention,
+  canOpenUserRequiredIntervention,
+  canQueueExactActionIntervention,
+  hasQueuedMonitorOwnedIntervention,
+  hasQueuedUserRequiredIntervention,
+  pendingInterventionFromRequest,
+  queuedInterventions,
+  matchesPendingMonitorDecision,
+  matchesPendingMonitorEscalation,
   matchesApplyingDecision,
   matchesPendingInterventionProjection,
   matchesPendingHumanDecision,
@@ -268,7 +278,8 @@ const interventionDecisionSchema = z
   .object({
     resolution: z.enum(['APPROVE', 'DENY']),
     decidedAt: z.string().datetime(),
-    human: humanEvidenceSchema,
+    human: humanEvidenceSchema.nullable(),
+    monitorRationale: z.string().nullable().default(null),
   })
   .strict() satisfies z.ZodType<TaskMonitorInterventionDecision>;
 const pendingInterventionSchema = z
@@ -283,10 +294,28 @@ const pendingInterventionSchema = z
     fingerprint: z.string(),
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
+    userRequired: z.boolean().optional(),
+    owner: z.enum(['MONITOR', 'HUMAN']).optional(),
+    escalationReason: z.string().nullable().optional(),
     decision: interventionDecisionSchema.nullable(),
     applicationFailure: z.string().nullable(),
   })
   .strict() satisfies z.ZodType<TaskMonitorPendingIntervention>;
+const queuedInterventionSchema = z
+  .object({
+    interventionId: z.string(),
+    providerActionId: z.string(),
+    providerSessionId: z.string(),
+    runId: z.string(),
+    agentSessionId: z.string(),
+    action: z.string(),
+    target: z.string(),
+    fingerprint: z.string(),
+    createdAt: z.string().datetime(),
+    expiresAt: z.string().datetime().nullable(),
+    userRequired: z.boolean().optional(),
+  })
+  .strict() satisfies z.ZodType<TaskMonitorQueuedIntervention>;
 const settledRunSchema = z
   .object({
     runId: z.string(),
@@ -558,6 +587,7 @@ const taskMonitorContextSchema = z
     retryableLaunch: retryableLaunchSchema.nullable().optional(),
     coordinatorConversationId: z.string().nullable(),
     pendingIntervention: pendingInterventionSchema.nullable(),
+    queuedInterventions: z.array(queuedInterventionSchema).optional(),
     settledRun: settledRunSchema.nullable(),
     reviewRequest: reviewRequestSchema.nullable().default(null),
     input: conversationInputSchema,
@@ -792,7 +822,41 @@ const applyDecisionEffectSchema = z
     target: z.string(),
     fingerprint: z.string(),
     decidedAt: z.string().datetime(),
-    human: humanEvidenceSchema,
+    human: humanEvidenceSchema.nullable(),
+    monitorRationale: z.string().nullable().default(null),
+  })
+  .strict();
+const decideMonitorPermissionEffectSchema = z
+  .object({
+    type: z.literal('DECIDE_TASK_MONITOR_PERMISSION'),
+    taskMonitorId: z.string(),
+    organizationId: z.string(),
+    projectId: z.string(),
+    conversationId: z.string().nullable(),
+    interventionId: z.string(),
+    providerActionId: z.string(),
+    runId: z.string(),
+    agentSessionId: z.string(),
+    action: z.string(),
+    target: z.string(),
+    fingerprint: z.string(),
+    createdAt: z.string().datetime(),
+    expiresAt: z.string().datetime().nullable(),
+  })
+  .strict();
+const recordMonitorPermissionDecisionEffectSchema = z
+  .object({
+    type: z.literal('RECORD_TASK_MONITOR_PERMISSION_DECISION'),
+    taskMonitorId: z.string(),
+    organizationId: z.string(),
+    projectId: z.string(),
+    conversationId: z.string().nullable(),
+    interventionId: z.string(),
+    providerActionId: z.string(),
+    action: z.string(),
+    target: z.string(),
+    decision: z.enum(['APPROVED', 'DENIED', 'ESCALATED']),
+    rationale: z.string(),
   })
   .strict();
 const interventionProjectionEffectSchema = z
@@ -894,6 +958,8 @@ const taskMonitorEffectSchema = z.discriminatedUnion('type', [
   reconcileConversationResponseEffectSchema,
   haltControlEffectSchema,
   interventionProjectionEffectSchema,
+  decideMonitorPermissionEffectSchema,
+  recordMonitorPermissionDecisionEffectSchema,
   settledRunEvaluationEffectSchema,
   deliverReviewEffectSchema,
   applyDecisionEffectSchema,
@@ -1330,6 +1396,45 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('MONITOR_PERMISSION_DECIDED'),
+      taskMonitorId: z.string(),
+      interventionId: z.string(),
+      providerActionId: z.string(),
+      fingerprint: z.string(),
+      resolution: z.enum(['APPROVE', 'DENY']),
+      providerDecision: z.enum(['approve', 'deny']),
+      rationale: z.string(),
+      decidedAt: z.string().datetime(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('MONITOR_PERMISSION_ESCALATED'),
+      taskMonitorId: z.string(),
+      interventionId: z.string(),
+      providerActionId: z.string(),
+      reason: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('PERMISSION_DECISION_RECORDED'),
+      taskMonitorId: z.string(),
+      interventionId: z.string(),
+      providerActionId: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('PERMISSION_DECISION_RECORD_FAILED'),
+      taskMonitorId: z.string(),
+      interventionId: z.string(),
+      providerActionId: z.string(),
+      reason: z.string(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('DECISION_APPLIED'),
       taskMonitorId: z.string(),
       interventionId: z.string(),
@@ -1485,6 +1590,13 @@ const taskMonitorMachine = setup({
       event.cursor === context.retryableLaunch.cursor,
     matchesSelectedLaunch,
     canOpenExactActionIntervention,
+    canOpenMonitorOwnedIntervention,
+    canOpenUserRequiredIntervention,
+    canQueueExactActionIntervention,
+    hasQueuedMonitorOwnedIntervention,
+    hasQueuedUserRequiredIntervention,
+    matchesPendingMonitorDecision,
+    matchesPendingMonitorEscalation,
     matchesPendingHumanDecision,
     matchesPendingInterventionProjection,
     matchesApplyingDecision,
@@ -1673,6 +1785,14 @@ const taskMonitorMachine = setup({
       void arguments_;
       void params;
     },
+    decideTaskMonitorPermission: (arguments_, params: TaskMonitorMachineEffect) => {
+      void arguments_;
+      void params;
+    },
+    recordTaskMonitorPermissionDecision: (arguments_, params: TaskMonitorMachineEffect) => {
+      void arguments_;
+      void params;
+    },
     evaluateTaskMonitorSettledRun: (arguments_, params: TaskMonitorMachineEffect) => {
       void arguments_;
       void params;
@@ -1853,20 +1973,55 @@ const taskMonitorMachine = setup({
     storePendingIntervention: assign({
       pendingIntervention: ({ context, event }) =>
         event.type === 'EXACT_ACTION_REQUIRED'
+          ? pendingInterventionFromRequest(event)
+          : context.pendingIntervention,
+    }),
+    queueExactActionIntervention: assign({
+      queuedInterventions: ({ context, event }) =>
+        event.type === 'EXACT_ACTION_REQUIRED'
+          ? [
+              ...queuedInterventions(context),
+              {
+                interventionId: event.interventionId,
+                providerActionId: event.providerActionId,
+                providerSessionId: event.providerSessionId,
+                runId: event.runId,
+                agentSessionId: event.agentSessionId,
+                action: event.action,
+                target: event.target,
+                fingerprint: event.fingerprint,
+                createdAt: event.createdAt,
+                expiresAt: event.expiresAt,
+                userRequired: event.userRequired === true,
+              },
+            ]
+          : queuedInterventions(context),
+    }),
+    promoteQueuedIntervention: assign(({ context }) => {
+      const [next, ...rest] = queuedInterventions(context);
+      return next === undefined
+        ? {}
+        : { pendingIntervention: pendingInterventionFromRequest(next), queuedInterventions: rest };
+    }),
+    storeMonitorInterventionDecision: assign({
+      pendingIntervention: ({ context, event }) =>
+        event.type === 'MONITOR_PERMISSION_DECIDED' && context.pendingIntervention !== null
           ? {
-              interventionId: event.interventionId,
-              providerActionId: event.providerActionId,
-              providerSessionId: event.providerSessionId,
-              runId: event.runId,
-              agentSessionId: event.agentSessionId,
-              action: event.action,
-              target: event.target,
-              fingerprint: event.fingerprint,
-              createdAt: event.createdAt,
-              expiresAt: event.expiresAt,
-              decision: null,
+              ...context.pendingIntervention,
+              decision: {
+                resolution: event.resolution,
+                decidedAt: event.decidedAt,
+                human: null,
+                monitorRationale: event.rationale,
+              },
               applicationFailure: null,
             }
+          : context.pendingIntervention,
+    }),
+    storeInterventionEscalation: assign({
+      pendingIntervention: ({ context, event }) =>
+        event.type === 'MONITOR_PERMISSION_ESCALATED' && context.pendingIntervention !== null
+          ? { ...context.pendingIntervention, owner: 'HUMAN', escalationReason: event.reason }
           : context.pendingIntervention,
     }),
     storeInterventionDecision: assign({
@@ -1878,6 +2033,7 @@ const taskMonitorMachine = setup({
                 resolution: event.resolution,
                 decidedAt: event.decidedAt,
                 human: event.human,
+                monitorRationale: null,
               },
               applicationFailure: null,
             }
@@ -2017,6 +2173,11 @@ const taskMonitorMachine = setup({
   on: {
     LAUNCH_RECOVERY_PROJECTED: { guard: 'matchesTaskMonitor' },
     LAUNCH_RECOVERY_PROJECTION_FAILED: {
+      guard: 'matchesTaskMonitor',
+      actions: 'storeFailure',
+    },
+    PERMISSION_DECISION_RECORDED: { guard: 'matchesTaskMonitor' },
+    PERMISSION_DECISION_RECORD_FAILED: {
       guard: 'matchesTaskMonitor',
       actions: 'storeFailure',
     },
@@ -2588,6 +2749,8 @@ export const createTaskMonitorDefinition = (): TaskMonitorDefinition =>
         case 'haltTaskMonitorControl':
         case 'applyTaskMonitorDecision':
         case 'projectTaskMonitorIntervention':
+        case 'decideTaskMonitorPermission':
+        case 'recordTaskMonitorPermissionDecision':
         case 'evaluateTaskMonitorSettledRun':
         case 'deliverTaskMonitorReview':
         case 'deliverTaskMonitorConversationMessage':
