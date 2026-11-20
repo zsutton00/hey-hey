@@ -577,6 +577,7 @@ const AgentConversationViewInner = ({
                       conversationId={displayConversation.id}
                       monitorId={codingMonitorId}
                       agentSessionId={agentSessionId}
+                      taskTitle={null}
                     />
                   )
                 }

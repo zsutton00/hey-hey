@@ -2,6 +2,7 @@ import { Alert, LinearProgress, Stack, Typography } from "@mui/material";
 import type { TaskResponseDto } from "../../api";
 import { usePathService } from "../../contexts";
 import { resolveAgentSessionMetadata } from "../AgentSession/resolveAgentSessionMetadata";
+import { MonitorHeldPermissions } from "../AgentSession/MonitorHeldPermissions";
 import { TaskMonitorConversationPane } from "./TaskMonitorConversationPane";
 import { TaskMonitorSessionActivityIndicator } from "./TaskMonitorSessionActivityIndicator";
 import { resolveTaskMonitorInspectorPresentation } from "./taskMonitorInspectorState";
@@ -11,6 +12,7 @@ import { useTaskMonitorConversation } from "./useTaskMonitorSessionReports";
 export interface TaskMonitorInspectorViewProps {
   organizationId: string;
   projectId: string;
+  monitorId: string;
   monitorStatus: TaskResponseDto["status"];
   node: TaskMonitorProjectedNode;
 }
@@ -18,6 +20,7 @@ export interface TaskMonitorInspectorViewProps {
 export const TaskMonitorInspectorView = ({
   organizationId,
   projectId,
+  monitorId,
   monitorStatus,
   node,
 }: TaskMonitorInspectorViewProps) => {
@@ -99,6 +102,19 @@ export const TaskMonitorInspectorView = ({
             projectId={projectId}
             agentSessionId={session?.id ?? null}
           />
+        }
+        monitorId={monitorId}
+        sessionPermissions={
+          session && conversation.conversation ? (
+            <MonitorHeldPermissions
+              organizationId={organizationId}
+              projectId={projectId}
+              monitorId={monitorId}
+              conversationId={conversation.conversation.id}
+              agentSessionId={session.id}
+              taskTitle={node.task.task.name}
+            />
+          ) : null
         }
         testId="task-monitor-current-session"
       />

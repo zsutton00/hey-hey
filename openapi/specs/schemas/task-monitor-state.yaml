@@ -222,6 +222,13 @@ TaskMonitorOutstandingPermission:
     answerable:
       type: boolean
       description: The monitor admits a human answer for this request in its current state.
+    reason:
+      type: string
+      description: Why a person, not the monitor, must decide this request. Omitted while the monitor still holds it.
+    escalatedAt:
+      type: string
+      format: date-time
+      description: When the request went to a person. Omitted while the monitor holds it or when the time was not recorded.
 
 TaskMonitorStateProjection:
   type: object

@@ -236,6 +236,8 @@ export const taskMonitorStateProjection = ({
             pending.decision === null &&
             request.userRequired !== true &&
             request.owner === 'HUMAN'),
+      ...(request.escalationReason ? { reason: request.escalationReason } : {}),
+      ...(request.escalatedAt ? { escalatedAt: request.escalatedAt } : {}),
     })),
     ...(failure ? { failure } : {}),
     ...(pendingJudgment ? { pendingJudgment } : {}),

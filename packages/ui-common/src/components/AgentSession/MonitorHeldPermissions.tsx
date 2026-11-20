@@ -10,12 +10,14 @@ export function MonitorHeldPermissions({
   monitorId,
   conversationId,
   agentSessionId,
+  taskTitle,
 }: {
   organizationId: string;
   projectId: string;
   monitorId: string;
   conversationId: string;
   agentSessionId: string;
+  taskTitle: string | null;
 }) {
   const state = useProjectWorkItemExecutionState(
     organizationId,
@@ -53,7 +55,11 @@ export function MonitorHeldPermissions({
     )
     .map((request) =>
       request.owner === "MONITOR" ? (
-        <Alert severity="info" key={request.interventionId}>
+        <Alert
+          severity="info"
+          key={request.interventionId}
+          data-testid="task-monitor-awaiting-monitor"
+        >
           Awaiting the Task Monitor · {request.action} · {request.target}
         </Alert>
       ) : (
@@ -62,6 +68,8 @@ export function MonitorHeldPermissions({
           data={{
             ...request,
             expiresAt: null,
+            reason: request.reason ?? null,
+            taskTitle,
             response: "",
             choices: ["APPROVE", "DENY"],
           }}

@@ -137,6 +137,7 @@ describe("TaskMonitorInterventionMessage", () => {
         conversationId="conversation-1"
         monitorId={mocks.monitorId()}
         agentSessionId={data.agentSessionId}
+        taskTitle="Ship the release"
       />
     );
     const { rerender } = render(session);
@@ -160,6 +161,58 @@ describe("TaskMonitorInterventionMessage", () => {
       </>,
     );
     expect(screen.getAllByRole("button", { name: "Deny" })).toHaveLength(1);
+  });
+
+  it("shows each escalated request with its Task and the monitor's reason, answerable independently", () => {
+    const first = createIntervention();
+    const second = createIntervention({
+      interventionId: "66666666-6666-4666-8666-666666666666",
+      providerActionId: "provider-action-2",
+      action: "Write outside the Service",
+    });
+    const outstanding = (
+      request: typeof first,
+      owner: "HUMAN" | "MONITOR",
+    ) => ({
+      ...request,
+      providerSessionId: "provider-session",
+      answerable: owner === "HUMAN",
+      owner,
+      reason: `Reason for ${request.providerActionId}`,
+    });
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: {
+        projection: {
+          outstandingPermissions: [
+            outstanding(first, "HUMAN"),
+            outstanding(second, "HUMAN"),
+          ],
+        },
+      },
+    });
+    render(
+      <MonitorHeldPermissions
+        organizationId="organization-1"
+        projectId="project-1"
+        conversationId="conversation-1"
+        monitorId={mocks.monitorId()}
+        agentSessionId={first.agentSessionId}
+        taskTitle="Ship the release"
+      />,
+    );
+
+    expect(
+      screen.getAllByTestId("task-monitor-intervention-task"),
+    ).toHaveLength(2);
+    expect(screen.getByText("Reason for provider-action-1")).toBeVisible();
+    expect(screen.getByText("Reason for provider-action-2")).toBeVisible();
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeEnabled();
+    }
+    expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(2);
   });
 
   it("explains a missing monitor and offers no decision", () => {

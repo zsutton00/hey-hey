@@ -34,7 +34,10 @@ type InterventionCardData = Pick<
   | "choices"
   | "response"
   | "expiresAt"
->;
+> & {
+  reason?: string | null;
+  taskTitle?: string | null;
+};
 
 interface TaskMonitorInterventionMessageProps {
   data: InterventionCardData;
@@ -179,7 +182,7 @@ const OwnedIntervention = ({
   taskMonitorId: string;
   refetchMessages: ReturnType<typeof useConversationMessages>["refetch"];
 }) => {
-  const { activeConversation, project, isReadOnly } = useConversationContext();
+  const { activeConversation, project } = useConversationContext();
   const state = useProjectWorkItemExecutionState(
     project.organizationId,
     project.id,
@@ -193,7 +196,17 @@ const OwnedIntervention = ({
   const outstanding = projection?.outstandingPermissions?.find(
     (request) => request.interventionId === data.interventionId,
   );
-  const judgment = outstanding ?? projection?.pendingJudgment;
+  const pendingJudgment = projection?.pendingJudgment;
+  const judgment =
+    outstanding ??
+    (pendingJudgment && "interventionId" in pendingJudgment
+      ? pendingJudgment
+      : undefined);
+  const escalationReason =
+    data.reason ??
+    (judgment?.interventionId === data.interventionId
+      ? judgment.reason
+      : undefined);
   const actionable =
     outstanding?.answerable !== false &&
     judgment?.interventionId === data.interventionId &&
@@ -245,7 +258,6 @@ const OwnedIntervention = ({
 
   const choices = useMemo(() => Array.from(data.choices), [data.choices]);
   const controlsUnavailable =
-    isReadOnly ||
     !actionable ||
     permissionDecision.isPending ||
     submitMonitorCommand.isPending ||
@@ -370,6 +382,14 @@ const OwnedIntervention = ({
             </MarkdownRenderer>
           </Typography>
         )}
+        {data.taskTitle ? (
+          <Stack spacing={0.5} data-testid="task-monitor-intervention-task">
+            <Typography color="text.secondary" variant="caption">
+              Task
+            </Typography>
+            <Typography>{data.taskTitle}</Typography>
+          </Stack>
+        ) : null}
         <Stack spacing={0.5} data-testid="task-monitor-intervention-action">
           <Typography color="text.secondary" variant="caption">
             Exact action
@@ -390,6 +410,14 @@ const OwnedIntervention = ({
             </MarkdownRenderer>
           </Typography>
         </Stack>
+        {escalationReason ? (
+          <Stack spacing={0.5} data-testid="task-monitor-intervention-reason">
+            <Typography color="text.secondary" variant="caption">
+              Why the monitor did not decide
+            </Typography>
+            <Typography>{escalationReason}</Typography>
+          </Stack>
+        ) : null}
         {data.expiresAt !== null && (
           <Typography color="text.secondary" variant="caption">
             Expires {new Date(data.expiresAt).toLocaleString()}

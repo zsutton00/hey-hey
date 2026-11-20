@@ -755,6 +755,7 @@ export const TaskMonitorWorkspaceView = ({
                 <TaskMonitorInspectorView
                   organizationId={organizationId}
                   projectId={projectId}
+                  monitorId={monitorId}
                   monitorStatus={monitorStatus}
                   node={selectedNode}
                 />

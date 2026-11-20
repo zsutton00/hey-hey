@@ -26,6 +26,7 @@ export interface TaskMonitorConversationPaneProps {
   agentSessionMetadata?: AgentSessionMetadataValues;
   monitorId?: string;
   contentAfter?: ReactNode;
+  sessionPermissions?: ReactNode;
 }
 
 export const TaskMonitorConversationPane = ({
@@ -42,11 +43,12 @@ export const TaskMonitorConversationPane = ({
   agentSessionMetadata,
   monitorId,
   contentAfter,
+  sessionPermissions,
 }: TaskMonitorConversationPaneProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollPolicy = useMemo<ConversationScrollPolicy>(
     () => ({ mode: "owned", ownerRef: scrollContainerRef }),
-    []
+    [],
   );
 
   return (
@@ -125,8 +127,8 @@ export const TaskMonitorConversationPane = ({
                   severity="warning"
                   data-testid={`${testId}-conversation-error`}
                 >
-                  This conversation is temporarily unavailable. The rest of
-                  the Task Monitor remains available.
+                  This conversation is temporarily unavailable. The rest of the
+                  Task Monitor remains available.
                 </Alert>
               }
             >
@@ -135,6 +137,7 @@ export const TaskMonitorConversationPane = ({
                 conversation={conversation}
                 project={project}
                 taskMonitorId={monitorId}
+                sessionPermissions={sessionPermissions}
                 readOnly={readOnly}
                 showNavigation={false}
                 hideAnalysisAction

@@ -415,7 +415,7 @@ describe('committed Task Monitor state projection', () => {
         taskMonitorId: MONITOR_ID,
       });
       const snapshot = projectReconstructed(stopped);
-      expect(snapshot.pendingJudgment?.interventionId).toBe(INTERVENTION_ID);
+      expect(snapshot.pendingJudgment).toMatchObject({ interventionId: INTERVENTION_ID });
       expect(snapshot.outstandingPermissions).toMatchObject([
         { interventionId: INTERVENTION_ID, answerable: true },
       ]);
