@@ -408,7 +408,9 @@ describe("ConversationMessage", () => {
       projectId: mockProject.id,
       entityId: "session-1",
       entityType: "AGENT_SESSION",
-      initialValue: "Nothing confirms this detail.",
+      contextPreview: expect.stringContaining(
+        "Uncertainty: Nothing confirms this detail.",
+      ),
     });
   });
 

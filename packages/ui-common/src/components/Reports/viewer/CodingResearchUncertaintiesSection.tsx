@@ -9,7 +9,7 @@ import { useModal } from "../../../contexts/ModalContext";
 import type { EntityType, TargetEntityType } from "../../../api";
 import {
   UncertaintyItem,
-  buildUncertaintyDiscussSeed,
+  buildUncertaintyDiscussContext,
 } from "../../Uncertainties";
 import { ConversationCardRelatedRows } from "../../Conversation/Card";
 
@@ -88,10 +88,8 @@ export const CodingResearchUncertaintiesSection: React.FC<
                             modal.openModal({
                               type: "discuss",
                               ...discussScope,
-                              initialValue: buildUncertaintyDiscussSeed(
-                                uncertainty.statement,
-                                uncertainty.references,
-                              ),
+                              contextPreview:
+                                buildUncertaintyDiscussContext(uncertainty),
                             })
                         : undefined
                     }

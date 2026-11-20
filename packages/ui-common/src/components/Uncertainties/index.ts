@@ -12,6 +12,7 @@ export {
   type UncertaintyItemProps,
 } from "./UncertaintyItem";
 export {
-  buildUncertaintyDiscussSeed,
+  buildUncertaintyDiscussContext,
   type UncertaintyDiscussReference,
-} from "./uncertaintyDiscussSeed";
+  type UncertaintyDiscussSubject,
+} from "./uncertaintyDiscussContext";

@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { DiscussModal, type DiscussModalSubmitInput } from "./DiscussModal";
 import { useEntityConversationLauncher } from "./useEntityConversationLauncher";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
+import { useAgentSession } from "../../data/hooks/useAgentSession";
 import { EntityType } from "../../api";
 import type { DiscussOpeningRequest } from "../../contexts/types/persistentModalRequest";
 import { normalizeEntityType } from "../entityTypeUtils";
@@ -21,8 +22,9 @@ export function HostedDiscussOwner({
     projectId,
     entityId,
     entityType,
-    entityTitle,
+    entityTitle: requestedEntityTitle,
     initialValue,
+    contextPreview,
   } = request;
   const [goalContextError, setGoalContextError] = useState<{
     code: null;
@@ -45,6 +47,19 @@ export function HostedDiscussOwner({
       enabled: !!organizationId && entityType === EntityType.Task,
     },
   );
+  // A session-scoped discussion is about that session, so title it with the
+  // session rather than leaving the subject blank.
+  const { agentSession } = useAgentSession(
+    organizationId,
+    projectId,
+    entityId,
+    { enabled: entityType === EntityType.AgentSession },
+  );
+  const entityTitle =
+    requestedEntityTitle ??
+    (entityType === EntityType.AgentSession
+      ? agentSession?.title || undefined
+      : undefined);
   const fileReferenceScope = resolveFileReferenceScope(
     workItem?.type,
     entityId,
@@ -94,6 +109,7 @@ export function HostedDiscussOwner({
       const context = {
         entityId,
         entityType,
+        ...(entityTitle ? { entityTitle } : {}),
         ...(entityType === EntityType.Task && currentWorkItem?.type
           ? { entitySubtype: currentWorkItem.type }
           : {}),
@@ -108,7 +124,16 @@ export function HostedDiscussOwner({
       }
       return ok;
     },
-    [entityId, entityType, isFetching, launcher, refetch, workItem, onClose],
+    [
+      entityId,
+      entityTitle,
+      entityType,
+      isFetching,
+      launcher,
+      refetch,
+      workItem,
+      onClose,
+    ],
   );
 
   const clearSubmitError = useCallback(() => {
@@ -131,6 +156,12 @@ export function HostedDiscussOwner({
       walkthroughEntity={walkthroughEntity}
       fileReferenceScope={fileReferenceScope}
       initialValue={initialValue}
+      contextPreview={contextPreview}
+      placeholder={
+        contextPreview
+          ? "Add your own message about this (optional)..."
+          : undefined
+      }
     />
   );
 }

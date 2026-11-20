@@ -248,7 +248,12 @@ describe("CodingResearchReport", () => {
       entityId: FOCAL_TASK_ID,
       entityType: EntityType.Task,
       entityTitle: "Improve CODING_RESEARCH renderer",
-      initialValue: `Two project sources give incompatible behavior.\n\n@[task:${FOCAL_TASK_ID}|Improve CODING_RESEARCH renderer]`,
+      contextPreview: [
+        "The user wants to discuss an uncertainty an agent raised.",
+        "Severity: medium. Category: Conflict.",
+        "Uncertainty: Two project sources give incompatible behavior.",
+        `Related: @[task:${FOCAL_TASK_ID}|Improve CODING_RESEARCH renderer]`,
+      ].join("\n\n"),
     });
   });
 

@@ -53,7 +53,7 @@ import { getInterstitialTiming } from "./interstitialTiming";
 import { useRetryConversationOpenTrigger } from "../../../data/hooks";
 import {
   UncertaintyItem,
-  buildUncertaintyDiscussSeed,
+  buildUncertaintyDiscussContext,
 } from "../../Uncertainties";
 import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
 import { useModal } from "../../../contexts/ModalContext";
@@ -339,7 +339,10 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
               ) : agentUncertaintyData ? (
                 <Box
                   data-testid="conversation-agent-uncertainty-width"
-                  sx={{ maxWidth: SYSTEM_MESSAGE_MAX_WIDTH }}
+                  sx={{
+                    width: "fit-content",
+                    maxWidth: SYSTEM_MESSAGE_MAX_WIDTH,
+                  }}
                 >
                   <UncertaintyItem
                     category={agentUncertaintyData.category}
@@ -355,9 +358,10 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
                               projectId: project.id,
                               entityId: agentSessionId,
                               entityType: EntityType.AgentSession,
-                              initialValue: buildUncertaintyDiscussSeed(
-                                agentUncertaintyData.statement,
-                              ),
+                              contextPreview:
+                                buildUncertaintyDiscussContext(
+                                  agentUncertaintyData,
+                                ),
                             })
                         : undefined
                     }

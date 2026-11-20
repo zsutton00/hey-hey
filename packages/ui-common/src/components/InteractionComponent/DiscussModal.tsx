@@ -62,6 +62,7 @@ import { useDiscussWalkthrough } from "./useDiscussWalkthrough";
 import { EntityIcon } from "../Entity/EntityIcon";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
+import { MarkdownRenderer } from "../shared/MarkdownRenderer";
 
 export type DiscussModalSubmitInput = GraphConversationLaunchInput;
 
@@ -101,6 +102,11 @@ export interface DiscussModalProps {
    * edits.
    */
   initialValue?: string;
+  /**
+   * Message sent automatically ahead of the user's own text. Shown read-only
+   * above the editor so the user sees what the conversation will start from.
+   */
+  contextPreview?: string;
   /**
    * When true, renders the modal inline (no Portal to document.body) and
    * positions it absolutely so it stays within the nearest positioned
@@ -153,6 +159,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
   fileReferenceScope,
   placeholder = DEFAULT_PLACEHOLDER,
   initialValue,
+  contextPreview,
   disablePortal = false,
 }) => {
   const filePicker = useRef<HTMLInputElement>(null);
@@ -295,13 +302,15 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
   });
   const { reportStartConversationOutcome } = walkthrough;
 
+  const canSubmitPrompt = !!contextPreview || prompt.trim().length > 0;
+
   const handleSubmit = useCallback(
     async (
       projectAssistant?: EntityConversationProjectAssistantConfig,
       initiatingAction?: DiscussLaunchAction,
     ) => {
       const trimmed = prompt.trim();
-      if (trimmed.length === 0) {
+      if (!canSubmitPrompt) {
         setValidationError("Please enter a prompt to start the conversation.");
         return;
       }
@@ -339,7 +348,9 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       const submittedAttachments = attachments.references;
       const submittedBrowserTab = stagedBrowser.stagedBrowserTab;
       const launched = await onSubmit({
-        prompt: trimmed,
+        prompt: contextPreview
+          ? [contextPreview, trimmed].filter(Boolean).join("\n\n")
+          : trimmed,
         attachments: submittedAttachments,
         stagedBrowserTab: submittedBrowserTab,
         ...(selectedSkill ? { skillSelection: selectedSkill } : {}),
@@ -377,6 +388,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       canConfigureCodexSystemPrompt,
       disableCodexSystemPrompt,
       fixedServiceScope?.serviceId,
+      canSubmitPrompt,
+      contextPreview,
       onClearSubmitError,
       onSubmit,
       prompt,
@@ -497,6 +510,36 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             </Alert>
           ) : null}
           <AttachmentChips attachments={attachments} />
+          {contextPreview ? (
+            <Box
+              data-testid="discuss-modal-context-preview"
+              sx={{
+                mt: 1,
+                p: 1.5,
+                borderRadius: 1,
+                border: `1px solid ${theme.palette.divider}`,
+                backgroundColor: theme.palette.action.hover,
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mb: 0.5,
+                  fontWeight: 600,
+                  color: "cadetblue",
+                }}
+              >
+                About
+              </Typography>
+              <MarkdownRenderer
+                mentionMode="minimal"
+                sx={{ fontSize: "0.875rem" }}
+              >
+                {contextPreview}
+              </MarkdownRenderer>
+            </Box>
+          ) : null}
           <Box ref={walkthrough.editorTargetRef}>
             <SmarterTextAreaEditor
               context={editorContext}
@@ -773,7 +816,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
           }
           disabled={
             isLoading ||
-            prompt.trim().length === 0 ||
+            !canSubmitPrompt ||
             !selectedMachineId ||
             !selection ||
             attachments.blocked
@@ -802,7 +845,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
           onClick={() => void handleSubmit(undefined, "startConversation")}
           disabled={
             isLoading ||
-            prompt.trim().length === 0 ||
+            !canSubmitPrompt ||
             !selectedMachineId ||
             !selection ||
             attachments.blocked
