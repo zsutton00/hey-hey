@@ -46,7 +46,9 @@ interface EnrichedFeatureSyncAnalyzePromptPayload extends LocalFeatureSyncAnalyz
 export const featureSyncAnalyzeHandler: UserLaunchablePromptTypeHandler<LocalFeatureSyncAnalyzePromptPayload> =
   {
     id: 'feature_sync_analyze',
-    sessionRole: SessionRole.Planning,
+    // Interim: research is the closest existing role for reading and reconciling
+    // against reviewed artifacts. A dedicated sync role will replace it.
+    sessionRole: SessionRole.Research,
     promptType: LocalPromptType.FeatureSyncAnalyze,
     service: 'required',
     launchEntity: 'required',
