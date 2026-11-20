@@ -156,3 +156,24 @@ export const redactAgentEventForLog = (
   }
   return redacted;
 };
+
+const BEARER_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const JWT_SHAPED = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g;
+const EMAIL_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+const HOME_DIRECTORY = /\/(Users|home)\/[^/\s"'\\]+/g;
+const OAUTH_QUERY_PARAMETER =
+  /([?&](?:state|code|code_challenge|client_id|access_token)=)[^&\s"'\\]+/g;
+
+/**
+ * Removes secrets and personal identifiers that appear inside free text: bearer and
+ * JWT-shaped tokens, email addresses, OAuth query parameters and the user name in
+ * absolute home paths. Key-based redaction cannot see these because they sit in
+ * string values (header `value` fields, tool output, stderr).
+ */
+export const redactSensitiveText = (text: string): string =>
+  text
+    .replace(BEARER_TOKEN, `Bearer ${REDACTED_VALUE}`)
+    .replace(JWT_SHAPED, REDACTED_VALUE)
+    .replace(EMAIL_ADDRESS, '[REDACTED_EMAIL]')
+    .replace(OAUTH_QUERY_PARAMETER, `$1${REDACTED_VALUE}`)
+    .replace(HOME_DIRECTORY, '/$1/<user>');
