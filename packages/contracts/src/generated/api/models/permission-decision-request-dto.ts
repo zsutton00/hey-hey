@@ -25,6 +25,12 @@ import type { AdmissionEnvelopeAuthorization } from './admission-envelope-author
  */
 export interface PermissionDecisionRequestDto {
     /**
+     * Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.
+     * @type {string}
+     * @memberof PermissionDecisionRequestDto
+     */
+    'replyConversationId'?: string;
+    /**
      * The user\'s approval decision for the pending permission request.
      * @type {string}
      * @memberof PermissionDecisionRequestDto

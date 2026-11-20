@@ -3948,6 +3948,8 @@ TaskMonitorSupervisionSystemMessageData:
     - $ref: "#/TaskMonitorWaitingSystemMessageData"
     - $ref: "#/TaskMonitorJudgmentRequestedSystemMessageData"
     - $ref: "#/TaskMonitorHaltedSystemMessageData"
+    - $ref: "#/TaskMonitorPermissionDecidedSystemMessageData"
+    - $ref: "#/TaskMonitorPermissionAnswerResultSystemMessageData"
   discriminator:
     propertyName: outcome
     mapping:
@@ -3961,7 +3963,152 @@ TaskMonitorSupervisionSystemMessageData:
       WAITING: "#/TaskMonitorWaitingSystemMessageData"
       JUDGMENT_REQUESTED: "#/TaskMonitorJudgmentRequestedSystemMessageData"
       HALTED: "#/TaskMonitorHaltedSystemMessageData"
+      PERMISSION_DECIDED: "#/TaskMonitorPermissionDecidedSystemMessageData"
+      PERMISSION_ANSWER_RESULT: "#/TaskMonitorPermissionAnswerResultSystemMessageData"
   x-discriminator-value: TASK_MONITOR_SUPERVISION
+
+TaskMonitorPermissionDecidedSystemMessageData:
+  allOf:
+    - $ref: "#/SystemMessageData"
+    - type: object
+      additionalProperties: false
+      description: >-
+        Supervision activity recording the Task Monitor's decision on one
+        provider permission request: what was asked, what was decided and why.
+        An ESCALATED decision means the request was handed to the human.
+      required:
+        [
+          type,
+          response,
+          agentIdentity,
+          outcome,
+          rationale,
+          providerActionId,
+          action,
+          target,
+          decision,
+        ]
+      properties:
+        agentIdentity:
+          type: string
+          enum: [task-monitor-coordinator]
+        outcome:
+          type: string
+          enum: [PERMISSION_DECIDED]
+        providerActionId:
+          type: string
+        action:
+          type: string
+          minLength: 1
+        target:
+          type: string
+          minLength: 1
+        decision:
+          type: string
+          enum: [APPROVED, DENIED, ESCALATED]
+        rationale:
+          type: string
+          minLength: 1
+
+TaskMonitorPermissionAnswerResultSystemMessageData:
+  allOf:
+    - $ref: "#/SystemMessageData"
+    - type: object
+      additionalProperties: false
+      description: >-
+        What happened to one person's answer to a monitored provider permission
+        request. The CLI posts it into the Conversation the answer came from,
+        so a late or duplicate answer from either the Task Monitor workspace or
+        the coding session is reported there even when the other surface
+        settled the request first. It is separate from the control-frame
+        acknowledgement, which only confirms the answer arrived.
+      required:
+        [
+          type,
+          response,
+          agentIdentity,
+          outcome,
+          providerActionId,
+          answer,
+          result,
+          reason,
+        ]
+      oneOf:
+        - properties:
+            result:
+              enum:
+                [
+                  APPLIED,
+                  REFUSED,
+                  UNKNOWN_REQUEST,
+                  NOT_DELIVERED,
+                  DELIVERY_UNCERTAIN,
+                ]
+        - required: [decidedBy, decidedAt]
+          properties:
+            result:
+              enum: [ALREADY_DECIDED]
+            decidedBy:
+              enum: [TASK_MONITOR]
+        - required: [decidedBy, decidedByUserId, decidedAt]
+          properties:
+            result:
+              enum: [ALREADY_DECIDED]
+            decidedBy:
+              enum: [PERSON]
+      properties:
+        type:
+          type: string
+          enum: [TASK_MONITOR_SUPERVISION]
+        response:
+          type: string
+        agentIdentity:
+          type: string
+          enum: [task-monitor-coordinator]
+        outcome:
+          type: string
+          enum: [PERMISSION_ANSWER_RESULT]
+        providerActionId:
+          type: string
+          description: Permission request the person answered.
+        answer:
+          type: string
+          enum: [approve, always_approve, deny, whitelist]
+          description: The answer the person gave.
+        result:
+          type: string
+          enum:
+            [
+              APPLIED,
+              ALREADY_DECIDED,
+              REFUSED,
+              UNKNOWN_REQUEST,
+              NOT_DELIVERED,
+              DELIVERY_UNCERTAIN,
+            ]
+          description: >-
+            APPLIED: the answer settled the request. ALREADY_DECIDED: the
+            request was decided first and this answer was not applied. REFUSED:
+            the Task Monitor cannot take the answer now (it is still deciding
+            the request, or the request waits behind another). UNKNOWN_REQUEST:
+            the Task Monitor has no record of the request and it could not be
+            answered. NOT_DELIVERED: the provider did not receive the answer. DELIVERY_UNCERTAIN: receipt by
+            the provider could not be confirmed.
+        decidedBy:
+          type: string
+          enum: [PERSON, TASK_MONITOR]
+          description: Who decided the request first. Only for ALREADY_DECIDED.
+        decidedByUserId:
+          type: string
+          description: The person who decided first, when decidedBy is PERSON.
+        decidedAt:
+          type: string
+          format: date-time
+          description: When the request was decided first. Only for ALREADY_DECIDED.
+        reason:
+          type: string
+          minLength: 1
+          description: Plain-language explanation shown to the person.
 
 TaskMonitorRequestingReviewSystemMessageData:
   allOf:

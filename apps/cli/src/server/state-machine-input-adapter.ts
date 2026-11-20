@@ -1,11 +1,14 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import type {
   MonitorCommandAcknowledgement,
   MonitorCommandBody1 as MonitorCommandBody,
 } from '@hey-hey/contracts/agent-bridge';
 import {
   findMonitoredRequest,
+  type TaskMonitorInterventionDecision,
   type TaskMonitorMachineContext,
 } from '../agents/task-monitor/state-machine/context';
+import type { ApplyTaskMonitorDecisionEffect } from '../agents/task-monitor/state-machine/effects';
 import type {
   TaskMonitorMachineEffect,
   TaskMonitorMachineEffectOutcome,
@@ -28,6 +31,7 @@ import type {
   RuntimeRejectionCode,
 } from '../state-machine';
 import { AddressedMachineAdmission } from '../state-machine';
+import type { CommittedEffect } from '../state-machine/types';
 import { NOOP_LOGGER, type ServerLogger } from './logger';
 
 export { AddressedMachineAdmission } from '../state-machine';
@@ -66,6 +70,24 @@ export type TaskMonitorVerifiedAdmissionResult = RuntimeEventResult<
   TaskMonitorMachineEffect
 >;
 
+/** What happened to one person's answer, in the terms the person is told. */
+export type PermissionAnswerDisposition =
+  | { readonly result: 'APPLIED' }
+  | {
+      readonly result: 'ALREADY_DECIDED';
+      readonly decidedBy: 'PERSON' | 'TASK_MONITOR';
+      readonly decidedByUserId: string | null;
+      readonly decidedAt: string;
+    }
+  | {
+      readonly result: 'REFUSED' | 'UNKNOWN_REQUEST' | 'NOT_DELIVERED' | 'DELIVERY_UNCERTAIN';
+      readonly reason: string;
+    };
+
+export type TaskMonitorPermissionAdmissionResult = TaskMonitorVerifiedAdmissionResult & {
+  readonly disposition: PermissionAnswerDisposition;
+};
+
 export interface TaskMonitorPermissionDecisionInput {
   readonly taskMonitorId: string;
   readonly runId: string;
@@ -77,6 +99,35 @@ export interface TaskMonitorPermissionDecisionInput {
   readonly authenticatedAt: string;
   readonly ingressId: string;
 }
+
+type PermissionRequestIdentity = Pick<
+  TaskMonitorPermissionDecisionInput,
+  'runId' | 'providerActionId' | 'providerSessionId'
+>;
+
+type PermissionApplication = CommittedEffect<
+  TaskMonitorMachineEffect,
+  TaskMonitorMachineEffectOutcome
+> & { readonly effect: ApplyTaskMonitorDecisionEffect };
+
+// The committed effect outlives the pending prompt and records its original decider.
+const findPermissionApplication = (
+  instance: Awaited<ReturnType<TaskMonitorStateStore['findByInstanceId']>>,
+  request: PermissionRequestIdentity,
+): PermissionApplication | undefined =>
+  instance?.effects.find(
+    (record): record is PermissionApplication =>
+      record.effect.type === 'APPLY_TASK_MONITOR_DECISION' &&
+      record.effect.requestKind !== 'SERVICE_SCOPE' &&
+      record.effect.runId === request.runId &&
+      record.effect.providerSessionId === request.providerSessionId &&
+      record.effect.providerActionId === request.providerActionId,
+  );
+
+const deliveryUncertain = {
+  result: 'DELIVERY_UNCERTAIN',
+  reason: 'We could not confirm whether the coding agent received your answer.',
+} as const;
 
 /** Owns Task Monitor transport translation and acknowledgement mapping. */
 export class TaskMonitorStateMachineInputAdapter {
@@ -180,36 +231,23 @@ export class TaskMonitorStateMachineInputAdapter {
    */
   public async holdsPermissionRequest(
     taskMonitorId: string,
-    runId: string,
-    providerActionId: string,
+    request: PermissionRequestIdentity,
   ): Promise<boolean> {
     if (!this.stateStore) {
-      return false;
+      throw new Error('Task Monitor permission-decision routing requires the durable state store.');
     }
     const instance = await this.stateStore.findByInstanceId(taskMonitorId);
-    const held =
-      instance !== null &&
-      instance.snapshot.identity.machineType === 'TASK_MONITOR' &&
-      findMonitoredRequest(instance.snapshot.context, runId, providerActionId) !== null;
-    this.logger.debug('task_monitor.permission_decision.request_record_lookup', {
-      taskMonitorId,
-      runId,
-      providerActionId,
-      held,
-      state:
-        instance === null
-          ? 'absent'
-          : typeof instance.snapshot.state === 'string'
-            ? instance.snapshot.state
-            : 'RUNNING',
-    });
-
-    return held;
+    return (
+      instance?.snapshot.identity.machineType === 'TASK_MONITOR' &&
+      (findPermissionApplication(instance, request) !== undefined ||
+        findMonitoredRequest(instance.snapshot.context, request.runId, request.providerActionId) !==
+          null)
+    );
   }
 
   public async admitPermissionDecision(
     input: TaskMonitorPermissionDecisionInput,
-  ): Promise<TaskMonitorVerifiedAdmissionResult> {
+  ): Promise<TaskMonitorPermissionAdmissionResult> {
     if (!this.stateStore) {
       throw new Error(
         'Task Monitor permission-decision admission requires the durable state store.',
@@ -232,6 +270,11 @@ export class TaskMonitorStateMachineInputAdapter {
       providerActionId: input.providerActionId,
       ingressId: input.ingressId,
     };
+    const existing = findPermissionApplication(instance, input);
+    if (existing) {
+      return alreadyDecided(existing.effect);
+    }
+
     if (
       !instance ||
       instance.snapshot.identity.machineType !== 'TASK_MONITOR' ||
@@ -248,11 +291,14 @@ export class TaskMonitorStateMachineInputAdapter {
         owner: null,
         cause,
       });
+      const reason =
+        'This request is no longer waiting for an answer: it was already decided or is not held by this Task Monitor.';
+
       return {
         status: 'rejected',
         code: 'input_rejected',
-        reason:
-          'This request is no longer waiting for an answer: it was already decided or is not held by this Task Monitor.',
+        reason,
+        disposition: { result: 'UNKNOWN_REQUEST', reason },
       };
     }
 
@@ -270,15 +316,21 @@ export class TaskMonitorStateMachineInputAdapter {
         owner: hold,
         cause,
       });
+      const reason =
+        hold === 'SETTLED'
+          ? 'This request was already decided, so this answer was not applied.'
+          : hold === 'QUEUED'
+            ? 'This request is waiting behind another one that needs an answer first.'
+            : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.';
+
+      if (hold === 'SETTLED' && 'decision' in pending && pending.decision !== null) {
+        return alreadyDecided(pending.decision);
+      }
       return {
         status: 'rejected',
         code: 'input_rejected',
-        reason:
-          hold === 'SETTLED'
-            ? 'This request was already decided, so this answer was not applied.'
-            : hold === 'QUEUED'
-              ? 'This request is waiting behind another one that needs an answer first.'
-              : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.',
+        reason,
+        disposition: { result: 'REFUSED', reason },
       };
     }
 
@@ -307,6 +359,78 @@ export class TaskMonitorStateMachineInputAdapter {
         authenticatedAt: input.authenticatedAt,
       },
     };
-    return this.admitVerified(verifiedInput);
+    const admission = await this.admitVerified(verifiedInput);
+    const latest = await this.stateStore.findByInstanceId(input.taskMonitorId);
+    const application = findPermissionApplication(latest, input);
+
+    if (admission.status !== 'accepted') {
+      if (application) {
+        return alreadyDecided(application.effect);
+      }
+      const reason =
+        admission.status === 'rejected'
+          ? admission.reason
+          : 'This answer has already been submitted.';
+      return {
+        status: 'rejected',
+        code: 'input_rejected',
+        reason,
+        disposition: { result: 'REFUSED', reason },
+      };
+    }
+
+    if (!application) {
+      return { ...admission, disposition: deliveryUncertain };
+    }
+    return {
+      ...admission,
+      disposition: await this.awaitPermissionApplication(this.stateStore, input, application),
+    };
+  }
+
+  private async awaitPermissionApplication(
+    store: TaskMonitorStateStore,
+    input: TaskMonitorPermissionDecisionInput,
+    application: PermissionApplication,
+  ): Promise<PermissionAnswerDisposition> {
+    const deadline = performance.now() + 10_000;
+    while (application.status !== 'settled' && performance.now() < deadline) {
+      await delay(250);
+      const latest = await store.findByInstanceId(input.taskMonitorId);
+      application = findPermissionApplication(latest, input) ?? application;
+    }
+
+    if (application.status !== 'settled' || application.settlement.status === 'uncertain') {
+      this.logger.warn('task_monitor.permission_decision.delivery_unconfirmed', {
+        taskMonitorId: input.taskMonitorId,
+        runId: input.runId,
+        providerActionId: input.providerActionId,
+        effectId: application.effectId,
+        cause:
+          application.status === 'settled' ? 'uncertain_provider_delivery' : 'delivery_pending',
+      });
+      return deliveryUncertain;
+    }
+    if (application.settlement.outcome.type === 'DECISION_APPLIED') {
+      return { result: 'APPLIED' };
+    }
+    return {
+      result: 'NOT_DELIVERED',
+      reason: 'Your answer could not be delivered to the coding agent.',
+    };
   }
 }
+
+const alreadyDecided = (
+  decision: Pick<TaskMonitorInterventionDecision, 'human' | 'decidedAt'>,
+): TaskMonitorPermissionAdmissionResult => ({
+  status: 'rejected',
+  code: 'input_rejected',
+  reason: 'This request was already decided, so this answer was not applied.',
+  disposition: {
+    result: 'ALREADY_DECIDED',
+    decidedBy: decision.human === null ? 'TASK_MONITOR' : 'PERSON',
+    decidedByUserId: decision.human?.userId ?? null,
+    decidedAt: decision.decidedAt,
+  },
+});

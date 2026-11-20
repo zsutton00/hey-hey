@@ -2798,6 +2798,10 @@ ConversationControlPermissionDecision:
       type: string
       format: uuid
       description: Canonical Agent Session authorization target.
+    replyConversationId:
+      type: string
+      format: uuid
+      description: Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.
     decision:
       type: string
       enum:

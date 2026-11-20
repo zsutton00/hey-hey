@@ -34,6 +34,12 @@ export interface ConversationControlPermissionDecision {
      */
     'agentSessionId': string;
     /**
+     * Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.
+     * @type {string}
+     * @memberof ConversationControlPermissionDecision
+     */
+    'replyConversationId'?: string;
+    /**
      * The user\'s approval decision for the pending permission request.
      * @type {string}
      * @memberof ConversationControlPermissionDecision

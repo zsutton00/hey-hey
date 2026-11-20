@@ -855,7 +855,7 @@ export class AgentSessionController {
   @ApiResponse({ status: 404, description: 'Unknown agent session' })
   async permissionDecision(
     @Param('agentSessionId', ParseUUIDPipe) agentSessionId: string,
-    @Param('projectId', ParseUUIDPipe) _projectId: ProjectId,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
     @Body() dto: PermissionDecisionRequestDto,
     @CurrentOrganization() organizationId: OrganizationId,
     @CurrentUser('userId') userId: UserId,
@@ -895,6 +895,37 @@ export class AgentSessionController {
         HttpStatus.FORBIDDEN,
       );
     }
+    if (dto.replyConversationId !== undefined) {
+      if (!isUuid(dto.replyConversationId)) {
+        this.logger.warn(
+          'Permission answer has an invalid reply conversation ID',
+          { agentSessionId },
+        );
+        throw new BadRequestException('replyConversationId must be a UUID');
+      }
+      if (
+        session.projectId !== projectId ||
+        (dto.replyConversationId !== session.conversationId &&
+          !(await this.agentSessionService.isPermissionReplyConversation(
+            session,
+            organizationId,
+            userId,
+            dto.replyConversationId,
+          )))
+      ) {
+        this.logger.warn(
+          'Permission answer reply conversation is outside the session or its Task Monitor',
+          {
+            agentSessionId,
+            replyConversationId: dto.replyConversationId,
+          },
+        );
+        throw new HttpException(
+          'The reply conversation does not belong to this coding session or its Task Monitor.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
     const executionAdmission =
       await this.executionGrantService.assertAgentSessionAuthorized({
         authorization: dto.authorization,
@@ -926,6 +957,9 @@ export class AgentSessionController {
       organizationId,
       projectId: session.projectId as ProjectId,
       decision: dto.decision,
+      ...(dto.replyConversationId === undefined
+        ? {}
+        : { replyConversationId: dto.replyConversationId }),
       requestId: dto.requestId,
       sessionId: dto.sessionId,
       agentType: dto.agentType,
