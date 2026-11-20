@@ -124,6 +124,29 @@ export function OpenItemsTriageReview({
 
   const { totals } = preview;
   const acceptedCount = selection.accepted.length;
+  const summaryParts = [
+    t(
+      "triage.preview.summaryCount",
+      `${totals.before} → ${totals.after} open items`,
+    ),
+    ...(totals.groupsCreated > 0
+      ? [
+          t(
+            "triage.preview.summaryGroups",
+            `${totals.groupsCreated} new ${totals.groupsCreated === 1 ? "group" : "groups"} (${totals.groupedIntoNew} items)`,
+          ),
+        ]
+      : []),
+    ...(totals.goalsCreated > 0
+      ? [
+          t(
+            "triage.preview.summaryGoals",
+            `${totals.goalsCreated} new ${totals.goalsCreated === 1 ? "Goal" : "Goals"} (${totals.goalMembersLeaving} tracked members leave, ${totals.goalMembersUngrouped} stay ungrouped)`,
+          ),
+        ]
+      : []),
+    t("triage.preview.summaryRemoved", `${totals.removed} removed`),
+  ];
   return (
     <Stack
       spacing={1.5}
@@ -148,23 +171,32 @@ export function OpenItemsTriageReview({
             "If you apply your accepted suggestions:",
           )}
         </b>{" "}
-        {t(
-          "triage.preview.summary",
-          `${totals.before} → ${totals.after} open items · ${totals.groupsCreated} new ${totals.groupsCreated === 1 ? "group" : "groups"} · ${totals.removed} removed`,
-        )}
+        {summaryParts.join(" · ")}{" "}
+        <Box
+          component="span"
+          sx={{ color: "text.secondary", fontSize: 12, ml: 1 }}
+        >
+          {t("triage.preview.nothingYet", "Nothing changes until you apply.")}
+        </Box>
       </Box>
       <Box
         sx={{
           display: "grid",
-          gap: 2,
-          gridTemplateColumns: "260px minmax(0, 1fr)",
+          gap: 1.5,
+          gridTemplateColumns: "220px minmax(0, 1fr)",
           alignItems: "start",
           "@container (max-width: 800px)": { gridTemplateColumns: "1fr" },
         }}
       >
         <Stack
-          spacing={1}
+          spacing={0.75}
           data-testid="triage-suggestion-rail"
+          sx={{
+            borderRight: 1,
+            borderColor: "divider",
+            pr: 1.25,
+            "@container (max-width: 800px)": { borderRight: 0, pr: 0 },
+          }}
           aria-label={t("triage.suggestions", "Suggestions")}
         >
           <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
@@ -186,7 +218,7 @@ export function OpenItemsTriageReview({
               }}
             />
           ))}
-          <Stack direction="row" justifyContent="flex-end">
+          <Stack direction="row" sx={{ pt: 0.5 }}>
             <Button
               data-testid="triage-apply-all"
               variant="contained"
@@ -211,7 +243,7 @@ export function OpenItemsTriageReview({
           >
             {t(
               "triage.applyNote",
-              "Each suggestion is applied independently. Promotion asks you to confirm its name and optional date.",
+              "Each suggestion applies on its own. Promotion still asks you to confirm the Goal name.",
             )}
           </Typography>
         </Stack>

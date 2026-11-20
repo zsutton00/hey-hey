@@ -101,6 +101,7 @@ describe("feature-owned triage results", () => {
     mocks.messages = [reply("output", payload)];
     view.rerender(<OpenItemsTriageResults {...props} />);
     expect(screen.getByText(payload.summary)).toBeInTheDocument();
+    await userEvent.click(screen.getAllByTestId("triage-evidence-toggle")[0]);
     expect(screen.getByText(/No recent views/)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Delivered work" }),

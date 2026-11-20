@@ -187,7 +187,14 @@ describe("triage replay", () => {
       accepted: ["p"],
     });
     expect(preview.unverified).toHaveLength(1);
-    expect(preview.totals).toMatchObject({ before: 3, after: 3, removed: 1 });
+    expect(preview.totals).toMatchObject({
+      before: 3,
+      after: 3,
+      removed: 0,
+      goalsCreated: 1,
+      goalMembersLeaving: 1,
+      goalMembersUngrouped: 1,
+    });
     expect(preview.after.find((r) => r.change === "goal")).toMatchObject({
       title: "Ship",
       pinned: true,
@@ -294,5 +301,142 @@ describe("triage replay", () => {
       hidePending: new Set(["r", "o"]),
     });
     expect(hidden.before).toEqual([]);
+  });
+
+  describe("layout", () => {
+    type Row = ReturnType<typeof replayTriage>["layout"]["before"][number];
+    const describeRow = (row: Row) =>
+      row.kind === "fold"
+        ? `fold ${row.count}`
+        : `${row.depth ? "  " : ""}${row.key} ${row.marker?.kind ?? "-"}`;
+
+    it("folds unchanged runs in original order on both sides and joins them", () => {
+      const preview = replayTriage({
+        items: [row("a"), row("u1"), row("u2"), row("b"), row("u3")],
+        groups: [],
+        suggestions: [remove("r", ["a"]), group("g", ["b"], { name: "New" })],
+        accepted: ["r", "g"],
+      });
+      const { before, after, flows } = preview.layout;
+      expect(before.map(describeRow)).toEqual([
+        "TASK:a remove",
+        "fold 2",
+        "TASK:b group",
+        "fold 1",
+      ]);
+      expect(after.map(describeRow)).toEqual([
+        "fold 2",
+        "group:new-group:g newGroup",
+        "  TASK:b -",
+        "fold 1",
+      ]);
+      // The removed item ends in a ✕; folds and moved rows run across.
+      expect(flows).toEqual(
+        expect.arrayContaining([
+          { from: 0, to: null, tone: "removed", dashed: false },
+          { from: 1, to: 0, tone: "same", dashed: false },
+          { from: 2, to: 2, tone: "moved", dashed: false },
+          { from: 3, to: 3, tone: "same", dashed: false },
+          { from: null, to: 1, tone: "new", dashed: false },
+        ]),
+      );
+    });
+
+    it("pins the provisional Goal first and sends leaving members to it", () => {
+      const preview = replayTriage({
+        items: [
+          row("u"),
+          row("a", { groupId: "g" }),
+          row("b", { groupId: "g" }),
+        ],
+        groups: [{ groupId: "g", name: "Launch" }],
+        suggestions: [
+          {
+            ...base,
+            suggestionId: "p",
+            kind: "promoteGroupToGoal",
+            groupId: "g",
+            groupName: "Launch",
+            goalName: "Ship",
+            affectedMembers: [ref("a")],
+          },
+        ],
+        accepted: ["p"],
+      });
+      const { before, after, flows } = preview.layout;
+      expect(before.map(describeRow)).toEqual([
+        "fold 1",
+        "group:g promoteGroup",
+        "  TASK:a goalLeaves",
+        "  TASK:b ungrouped",
+      ]);
+      expect(after.map(describeRow)).toEqual([
+        "new-goal:p pinnedGoal",
+        "fold 1",
+        "TASK:b ungrouped",
+      ]);
+      expect(flows).toEqual(
+        expect.arrayContaining([
+          { from: 1, to: 0, tone: "goal", dashed: false },
+          { from: 2, to: 0, tone: "goal", dashed: false },
+          { from: 3, to: 2, tone: "moved", dashed: false },
+        ]),
+      );
+    });
+
+    it("labels tracking on the existing row and shows unaccepted work dashed", () => {
+      const preview = replayTriage({
+        items: [row("a"), row("b")],
+        groups: [],
+        suggestions: [
+          {
+            ...base,
+            suggestionId: "t",
+            kind: "trackOnGoal",
+            items: [ref("a")],
+            goal: { kind: "existingGoal", goalId: "goal", title: "Launch" },
+          },
+          remove("r", ["b"]),
+          reopen("o", ["z"]),
+        ],
+        accepted: ["t"],
+      });
+      const { before, after, flows } = preview.layout;
+      expect(before.map(describeRow)).toEqual([
+        "TASK:a tracked",
+        "TASK:b pending",
+      ]);
+      expect(after.map(describeRow)).toEqual([
+        "TASK:a tracked",
+        "TASK:b -",
+        "ghost:TASK:z pending",
+      ]);
+      expect(flows).toEqual(
+        expect.arrayContaining([
+          { from: 1, to: 1, tone: "same", dashed: true },
+          { from: null, to: 2, tone: "new", dashed: true },
+        ]),
+      );
+      expect(preview.totals).toMatchObject({ before: 2, after: 2, removed: 0 });
+    });
+
+    it("keeps every changed row in a 100-item cleanup", () => {
+      const items = many(100);
+      const preview = replayTriage({
+        items,
+        groups: [],
+        suggestions: [
+          remove(
+            "r",
+            items.filter((_, i) => i % 2 === 0).map((r) => r.entityId),
+          ),
+        ],
+        accepted: ["r"],
+      });
+      const changed = preview.layout.before.filter((r) => r.kind === "item");
+      expect(changed).toHaveLength(50);
+      expect(preview.layout.before).toHaveLength(100);
+      expect(preview.totals).toMatchObject({ before: 100, after: 50 });
+    });
   });
 });

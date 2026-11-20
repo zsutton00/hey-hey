@@ -8,6 +8,8 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   OpenItemsTriageItem,
@@ -44,11 +46,7 @@ export function compactTitle(suggestion: OpenItemsTriageSuggestion) {
     case "reopenItems":
       return `Reopen ${plural(suggestion.items.length)}`;
     case "groupOpenItems":
-      return `Group ${plural(suggestion.items.length)} · ${
-        suggestion.group.kind === "existingGroup"
-          ? suggestion.group.name
-          : suggestion.group.newGroupName
-      }`;
+      return `Group ${plural(suggestion.items.length)}`;
     case "trackOnGoal":
       return `Track ${plural(suggestion.items.length)} on ${
         suggestion.goal.kind === "existingGoal"
@@ -56,7 +54,7 @@ export function compactTitle(suggestion: OpenItemsTriageSuggestion) {
           : suggestion.goal.newGoal.name
       }`;
     case "promoteGroupToGoal":
-      return `Promote ${suggestion.groupName} to Goal`;
+      return `Promote group ${suggestion.groupName}`;
   }
 }
 const outcomeLabels = {
@@ -84,24 +82,34 @@ export function OpenItemsTriageSuggestionCard({
       ? suggestion.affectedMembers
       : suggestion.items;
   const disabled = disabledProp || !!unavailableReason;
+  if (compact) {
+    return (
+      <CompactSuggestionCard
+        suggestion={suggestion}
+        outcome={outcome}
+        selected={selected}
+        disabled={disabled}
+        unavailableReason={unavailableReason}
+        onSelect={onSelect}
+        onApply={onApply}
+        itemHref={itemHref}
+      />
+    );
+  }
   const busy = outcome.state === "pending";
   return (
     <Paper
       variant="outlined"
       sx={{
-        p: compact ? 1.25 : 2,
-        ...(compact && selected && { borderColor: "success.main" }),
-        ...(compact &&
-          unavailableReason && { opacity: 0.7, borderStyle: "dashed" }),
+        p: 2,
       }}
       data-testid="triage-suggestion"
       data-suggestion-id={suggestion.suggestionId}
     >
-      <Stack spacing={compact ? 0.75 : 1}>
-        <Stack direction="row" alignItems="center" spacing={compact ? 0.5 : 0}>
+      <Stack spacing={1}>
+        <Stack direction="row" alignItems="center" spacing={0}>
           <Checkbox
-            size={compact ? "small" : "medium"}
-            sx={compact ? { p: 0.25 } : undefined}
+            size={"medium"}
             checked={selected}
             disabled={disabled || busy || outcome.state === "success"}
             onChange={onSelect}
@@ -109,26 +117,21 @@ export function OpenItemsTriageSuggestionCard({
               "aria-label": t("triage.select", "Select suggestion"),
             }}
           />
-          <Typography
-            fontWeight={600}
-            sx={compact ? { fontSize: 13 } : undefined}
-          >
-            {compact
-              ? compactTitle(suggestion)
-              : t(
-                  `triage.kind.${suggestion.kind}`,
-                  operationLabels[suggestion.kind],
-                )}
+          <Typography fontWeight={600}>
+            {t(
+              `triage.kind.${suggestion.kind}`,
+              operationLabels[suggestion.kind],
+            )}
           </Typography>
         </Stack>
-        {!compact && suggestion.kind === "groupOpenItems" && (
+        {suggestion.kind === "groupOpenItems" && (
           <Typography>
             {suggestion.group.kind === "existingGroup"
               ? suggestion.group.name
               : suggestion.group.newGroupName}
           </Typography>
         )}
-        {!compact && suggestion.kind === "trackOnGoal" && (
+        {suggestion.kind === "trackOnGoal" && (
           <Typography>
             {suggestion.goal.kind === "existingGoal"
               ? suggestion.goal.title
@@ -141,65 +144,32 @@ export function OpenItemsTriageSuggestionCard({
           </Typography>
         )}
         {unavailableReason && (
-          <Alert
-            severity="info"
-            data-testid="triage-unavailable"
-            sx={compact ? { py: 0, fontSize: 12 } : undefined}
-          >
+          <Alert severity="info" data-testid="triage-unavailable">
             {unavailableReason}
           </Alert>
         )}
-        <Box
-          sx={
-            compact
-              ? {
-                  display: "flex",
-                  flexWrap: "wrap",
-                  columnGap: 1,
-                  rowGap: 0.25,
-                }
-              : { display: "contents" }
-          }
-        >
+        <Box sx={{ display: "contents" }}>
           {items.map((item) => (
             <Link
               key={`${item.entityType}:${item.entityId}`}
               href={itemHref(item)}
-              sx={compact ? { fontSize: 12 } : undefined}
             >
               {item.title}
             </Link>
           ))}
         </Box>
-        <Typography variant="body2" sx={compact ? { fontSize: 12 } : undefined}>
-          {suggestion.rationale}
-        </Typography>
-        {compact && selected && !unavailableReason && (
-          <Typography
-            variant="caption"
-            color="success.main"
-            fontWeight={600}
-            data-testid="triage-accepted-label"
-          >
-            {t("triage.accepted", "Accepted")}
-          </Typography>
-        )}
+        <Typography variant="body2">{suggestion.rationale}</Typography>
         {suggestion.evidence.length > 0 && (
           <Box
             data-testid="triage-evidence"
             sx={{
               bgcolor: "action.hover",
-              p: compact ? 0.75 : 1,
+              p: 1,
               borderRadius: 1,
             }}
           >
             {suggestion.evidence.map((evidence, index) => (
-              <Typography
-                key={index}
-                variant="body2"
-                color="text.secondary"
-                sx={compact ? { fontSize: 11 } : undefined}
-              >
+              <Typography key={index} variant="body2" color="text.secondary">
                 {t(`triage.evidence.${evidence.kind}`, evidence.kind)}:{" "}
                 {evidence.summary}
               </Typography>
@@ -264,4 +234,195 @@ export function OpenItemsTriageSuggestionCard({
       </Stack>
     </Paper>
   );
+}
+
+/**
+ * Rail card beside the comparison: title, one-line rationale, then
+ * Accepted/Accept, Evidence and Apply on one line. The comparison shows the
+ * items, so the card does not repeat them.
+ */
+function CompactSuggestionCard({
+  suggestion,
+  outcome,
+  selected,
+  disabled,
+  unavailableReason,
+  onSelect,
+  onApply,
+  itemHref,
+}: Omit<OpenItemsTriageSuggestionCardProps, "compact">) {
+  const { t } = useTranslation();
+  const [showEvidence, setShowEvidence] = useState(false);
+  const busy = outcome.state === "pending";
+  const done = outcome.state === "success";
+  const locked = disabled || busy || done;
+
+  return (
+    <Paper
+      variant="outlined"
+      data-testid="triage-suggestion"
+      data-suggestion-id={suggestion.suggestionId}
+      sx={{
+        px: 1,
+        py: 0.875,
+        borderRadius: 1.5,
+        ...(selected && {
+          borderColor: "success.main",
+          bgcolor: (theme) => alpha(theme.palette.success.main, 0.06),
+        }),
+        ...(unavailableReason && { opacity: 0.6, borderStyle: "dashed" }),
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={0.75}>
+        <Checkbox
+          size="small"
+          sx={{ p: 0 }}
+          checked={selected}
+          disabled={locked}
+          onChange={onSelect}
+          inputProps={{ "aria-label": t("triage.select", "Select suggestion") }}
+        />
+        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+          {compactTitle(suggestion)}
+        </Typography>
+      </Stack>
+      <Typography
+        data-testid={unavailableReason ? "triage-unavailable" : undefined}
+        sx={{
+          fontSize: 11,
+          color: "text.secondary",
+          lineHeight: 1.3,
+          mt: 0.375,
+          mb: 0.5,
+        }}
+      >
+        {unavailableReason ?? suggestion.rationale}
+      </Typography>
+      {showEvidence && (
+        <Box data-testid="triage-evidence" sx={{ mb: 0.5 }}>
+          {suggestion.evidence.map((evidence, index) => (
+            <Typography
+              key={index}
+              sx={{ fontSize: 11, color: "text.secondary" }}
+            >
+              {t(`triage.evidence.${evidence.kind}`, evidence.kind)}:{" "}
+              {evidence.summary}
+            </Typography>
+          ))}
+          {suggestionItemsOf(suggestion).map((item) => (
+            <Link
+              key={`${item.entityType}:${item.entityId}`}
+              href={itemHref(item)}
+              sx={{ fontSize: 11, display: "block" }}
+            >
+              {item.title}
+            </Link>
+          ))}
+        </Box>
+      )}
+      <Stack direction="row" alignItems="center" spacing={1}>
+        {selected && !unavailableReason ? (
+          <Typography
+            data-testid="triage-accepted-label"
+            sx={{ fontSize: 11, fontWeight: 600, color: "success.main" }}
+          >
+            {t("triage.accepted", "Accepted")}
+          </Typography>
+        ) : (
+          <Button
+            data-testid="triage-accept"
+            variant="outlined"
+            size="small"
+            disabled={locked}
+            onClick={onSelect}
+            sx={compactButton}
+          >
+            {t("triage.accept", "Accept")}
+          </Button>
+        )}
+        {!unavailableReason && (
+          <Link
+            component="button"
+            type="button"
+            data-testid="triage-evidence-toggle"
+            aria-expanded={showEvidence}
+            onClick={() => setShowEvidence((open) => !open)}
+            sx={{ fontSize: 11 }}
+          >
+            {t("triage.evidenceLink", "Evidence")}
+          </Link>
+        )}
+        {!unavailableReason && (
+          <Button
+            data-testid="triage-apply"
+            variant="outlined"
+            size="small"
+            onClick={onApply}
+            disabled={locked}
+            sx={compactButton}
+          >
+            {outcome.state === "failure"
+              ? t("triage.retry", "Retry unfinished work")
+              : suggestion.kind === "promoteGroupToGoal"
+                ? t("triage.applyWithConfirmation", "Apply…")
+                : t("triage.apply", "Apply")}
+          </Button>
+        )}
+      </Stack>
+      {outcome.state !== "idle" && (
+        <Alert
+          severity={
+            outcome.state === "failure"
+              ? "warning"
+              : outcome.state === "success"
+                ? "success"
+                : "info"
+          }
+          data-testid="triage-outcome"
+          sx={{ mt: 0.75, py: 0, fontSize: 11 }}
+        >
+          {t(`triage.state.${outcome.state}`, outcomeLabels[outcome.state])}
+        </Alert>
+      )}
+      {outcome.error && (
+        <Alert severity="warning" sx={{ mt: 0.5, py: 0, fontSize: 11 }}>
+          {outcome.error}
+        </Alert>
+      )}
+      {outcome.createdGoal && (
+        <Link
+          data-testid="triage-created-goal"
+          href={itemHref(outcome.createdGoal)}
+          sx={{ fontSize: 11, display: "block", mt: 0.5 }}
+        >
+          {t("triage.createdGoal", "Created Goal")}: {outcome.createdGoal.title}
+        </Link>
+      )}
+      {outcome.items
+        .filter((result) => result.state === "failure")
+        .map((result) => (
+          <Typography
+            key={`${result.item.entityType}:${result.item.entityId}`}
+            sx={{ fontSize: 11 }}
+            color="error"
+          >
+            {result.item.title}: {result.error}
+          </Typography>
+        ))}
+    </Paper>
+  );
+}
+
+const compactButton = {
+  minWidth: 0,
+  px: 0.875,
+  py: 0,
+  fontSize: 11,
+  lineHeight: "20px",
+};
+
+function suggestionItemsOf(suggestion: OpenItemsTriageSuggestion) {
+  return suggestion.kind === "promoteGroupToGoal"
+    ? suggestion.affectedMembers
+    : suggestion.items;
 }

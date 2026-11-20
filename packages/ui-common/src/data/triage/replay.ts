@@ -151,10 +151,57 @@ export interface PreviewWarning {
   message: string;
 }
 
+/** The text marker every changed row carries alongside its colour. */
+export type RowMarker =
+  | { kind: "remove" }
+  | { kind: "group" }
+  | { kind: "ungrouped" }
+  | { kind: "reopened" }
+  | { kind: "promoteGroup" }
+  | { kind: "goalLeaves" }
+  | { kind: "tracked"; goal: string }
+  | { kind: "newGroup"; count: number }
+  | { kind: "pinnedGoal" }
+  | { kind: "pending"; verb: OpenItemsTriageSuggestion["kind"] };
+
+export type FlowTone =
+  "same" | "removed" | "moved" | "goal" | "new" | "pending";
+
+/** One drawn row in a column; folds stand for a run of unchanged items. */
+export type LayoutRow =
+  | {
+      kind: "item";
+      key: string;
+      title: string;
+      entityType: string;
+      depth: 0 | 1;
+      change: RowChange;
+      marker: RowMarker | null;
+      isGroup: boolean;
+    }
+  | { kind: "fold"; key: string; count: number };
+
+export interface LayoutFlow {
+  /** Row index in `before`, or null for a row with no earlier row. */
+  from: number | null;
+  /** Row index in `after`, or null when the item ends in a ✕. */
+  to: number | null;
+  tone: FlowTone;
+  dashed: boolean;
+}
+
+export interface PreviewLayout {
+  before: LayoutRow[];
+  after: LayoutRow[];
+  flows: LayoutFlow[];
+}
+
 export interface TriagePreview {
   before: PreviewRow[];
   after: PreviewRow[];
   ribbons: PreviewRibbon[];
+  /** The two columns as drawn, with unchanged runs folded in original order. */
+  layout: PreviewLayout;
   unchangedCount: number;
   warnings: PreviewWarning[];
   /** Projected outcomes the existing reads cannot confirm; never counted as certain. */
@@ -165,7 +212,13 @@ export interface TriagePreview {
     before: number;
     after: number;
     groupsCreated: number;
+    /** Items moved into groups this reply creates. */
+    groupedIntoNew: number;
+    /** Items leaving Open Items for good, not counting promoted members. */
     removed: number;
+    goalsCreated: number;
+    goalMembersLeaving: number;
+    goalMembersUngrouped: number;
   };
 }
 
@@ -221,6 +274,8 @@ export function replayTriage(input: ReplayInput): TriagePreview {
   const addedGoals: ScratchRow[] = [];
   const unverified: { suggestionId: string; message: string }[] = [];
   const promotedKeys = new Set<string>();
+  // In the same order as addedGoals, so each Goal row matches its group.
+  const promotedGroups = new Set<string>();
 
   for (const row of input.items) {
     const key = itemKey(row);
@@ -380,6 +435,7 @@ export function replayTriage(input: ReplayInput): TriagePreview {
       }
     }
     groupNames.delete(suggestion.groupId);
+    promotedGroups.add(suggestion.groupId);
     unverified.push({
       suggestionId: suggestion.suggestionId,
       message: `Which members of "${suggestion.groupName}" can be tracked is confirmed when you apply.`,
@@ -405,6 +461,7 @@ export function replayTriage(input: ReplayInput): TriagePreview {
     createdGroups,
     removedKeys,
     promotedKeys,
+    promotedGroups,
     addedGoals,
     warnings,
     unverified,
@@ -420,6 +477,7 @@ function buildPreview(args: {
   createdGroups: Set<string>;
   removedKeys: Set<string>;
   promotedKeys: Set<string>;
+  promotedGroups: Set<string>;
   addedGoals: ScratchRow[];
   warnings: PreviewWarning[];
   unverified: { suggestionId: string; message: string }[];
@@ -610,10 +668,34 @@ function buildPreview(args: {
       itemKeys: suggestionItems(s).map(itemKey),
     }));
 
+  const removed = [...args.removedKeys].filter(
+    (key) => original.has(key) && !args.promotedKeys.has(key),
+  ).length;
+  const groupedIntoNew = [...scratch.values()].filter((row) =>
+    args.createdGroups.has(row.groupId ?? ""),
+  ).length;
+  const goalMembersUngrouped = order.filter(
+    (key) => changeOf(key) === "ungrouped",
+  ).length;
+
   return {
     before,
     after,
     ribbons,
+    layout: buildLayout({
+      original,
+      scratch,
+      order,
+      originalGroupName,
+      groupNames,
+      createdGroups: args.createdGroups,
+      promotedGroups: args.promotedGroups,
+      addedGoals: args.addedGoals,
+      reopened,
+      ghosts,
+      pendingVerb: pendingVerbOf(input),
+      changeOf,
+    }),
     unchangedCount,
     warnings: args.warnings,
     unverified: args.unverified,
@@ -622,7 +704,360 @@ function buildPreview(args: {
       before: order.length,
       after: scratch.size + args.addedGoals.length,
       groupsCreated: args.createdGroups.size,
-      removed: [...args.removedKeys].filter((key) => original.has(key)).length,
+      groupedIntoNew,
+      removed,
+      goalsCreated: args.addedGoals.length,
+      goalMembersLeaving: args.promotedKeys.size,
+      goalMembersUngrouped,
     },
   };
+}
+
+/** The first not-accepted, still-offered suggestion naming each existing item. */
+function pendingVerbOf(
+  input: ReplayInput,
+): Map<string, OpenItemsTriageSuggestion["kind"]> {
+  const accepted = new Set(input.accepted);
+  const verbs = new Map<string, OpenItemsTriageSuggestion["kind"]>();
+  for (const suggestion of input.suggestions) {
+    if (
+      accepted.has(suggestion.suggestionId) ||
+      input.hidePending?.has(suggestion.suggestionId) ||
+      suggestion.kind === "reopenItems"
+    ) {
+      continue;
+    }
+    for (const item of suggestionItems(suggestion)) {
+      if (!verbs.has(itemKey(item))) {
+        verbs.set(itemKey(item), suggestion.kind);
+      }
+    }
+  }
+  return verbs;
+}
+
+/**
+ * Lays both columns out row by row. Unchanged runs fold into one row at the
+ * same place on both sides, so the before and after columns stay in original
+ * Open Items order and every ribbon joins two fixed-height rows.
+ */
+function buildLayout(args: {
+  original: Map<string, ScratchRow>;
+  scratch: Map<string, ScratchRow>;
+  order: string[];
+  originalGroupName: Map<string, string>;
+  groupNames: Map<string, string>;
+  createdGroups: Set<string>;
+  promotedGroups: Set<string>;
+  addedGoals: ScratchRow[];
+  reopened: string[];
+  ghosts: Map<string, { title: string; entityType: string; note: string }>;
+  pendingVerb: Map<string, OpenItemsTriageSuggestion["kind"]>;
+  changeOf: (key: string) => RowChange;
+}): PreviewLayout {
+  const { original, scratch, order, changeOf, pendingVerb } = args;
+  const before: LayoutRow[] = [];
+  const after: LayoutRow[] = [];
+  const flows: LayoutFlow[] = [];
+  const beforeIndex = new Map<string, number>();
+  const afterIndex = new Map<string, number>();
+
+  const isVisible = (key: string) =>
+    changeOf(key) !== "unchanged" || pendingVerb.has(key);
+
+  // Pinned provisional Goals lead the right column, as Goals pin first.
+  for (const goal of args.addedGoals) {
+    after.push({
+      kind: "item",
+      key: goal.key,
+      title: goal.title,
+      entityType: goal.entityType,
+      depth: 0,
+      change: "goal",
+      marker: { kind: "pinnedGoal" },
+      isGroup: false,
+    });
+  }
+  const goalIndexFor = (groupId: string) =>
+    [...args.promotedGroups].indexOf(groupId);
+
+  // Original structure: each group's members sit together under its header.
+  const units: { groupId: string | null; keys: string[] }[] = [];
+  const unitOf = new Map<string, { groupId: string | null; keys: string[] }>();
+  for (const key of order) {
+    const groupId = original.get(key)!.groupId;
+    if (groupId === null) {
+      units.push({ groupId: null, keys: [key] });
+      continue;
+    }
+    const existing = unitOf.get(groupId);
+    if (existing) {
+      existing.keys.push(key);
+      continue;
+    }
+    const unit = { groupId, keys: [key] };
+    unitOf.set(groupId, unit);
+    units.push(unit);
+  }
+
+  let run = 0;
+  const flushFold = () => {
+    if (run === 0) {
+      return;
+    }
+    const key = `fold:${before.length}`;
+    flows.push({
+      from: before.length,
+      to: after.length,
+      tone: "same",
+      dashed: false,
+    });
+    before.push({ kind: "fold", key, count: run });
+    after.push({ kind: "fold", key, count: run });
+    run = 0;
+  };
+
+  const markerBefore = (key: string): RowMarker | null => {
+    switch (changeOf(key)) {
+      case "removed":
+        return { kind: "remove" };
+      case "promoted":
+        return { kind: "goalLeaves" };
+      case "grouped":
+        return { kind: "group" };
+      case "ungrouped":
+        return { kind: "ungrouped" };
+      case "tracked":
+        return { kind: "tracked", goal: scratch.get(key)!.trackedOn! };
+      default: {
+        const verb = pendingVerb.get(key);
+        return verb ? { kind: "pending", verb } : null;
+      }
+    }
+  };
+
+  const itemRow = (
+    row: ScratchRow,
+    depth: 0 | 1,
+    change: RowChange,
+    marker: RowMarker | null,
+  ): LayoutRow => ({
+    kind: "item",
+    key: row.key,
+    title: row.title,
+    entityType: row.entityType,
+    depth,
+    change,
+    marker,
+    isGroup: false,
+  });
+
+  const shownAfterGroups = new Set<string>();
+  const pushAfterGroupHeader = (groupId: string) => {
+    if (shownAfterGroups.has(groupId)) {
+      return;
+    }
+    shownAfterGroups.add(groupId);
+    const isNew = args.createdGroups.has(groupId);
+    const count = [...scratch.values()].filter(
+      (r) => r.groupId === groupId,
+    ).length;
+    afterIndex.set(`group:${groupId}`, after.length);
+    after.push({
+      kind: "item",
+      key: `group:${groupId}`,
+      title: args.groupNames.get(groupId) ?? "",
+      entityType: "GROUP",
+      depth: 0,
+      change: isNew ? "grouped" : "unchanged",
+      marker: isNew ? { kind: "newGroup", count } : null,
+      isGroup: true,
+    });
+    if (isNew) {
+      flows.push({
+        from: null,
+        to: afterIndex.get(`group:${groupId}`)!,
+        tone: "new",
+        dashed: false,
+      });
+    }
+    // Everything moving into this group converges here, in original order.
+    for (const key of [...order, ...args.reopened]) {
+      const row = scratch.get(key);
+      if (row?.groupId !== groupId || afterIndex.has(key)) {
+        continue;
+      }
+      if (!isVisible(key) && args.original.has(key)) {
+        continue;
+      }
+      afterIndex.set(key, after.length);
+      after.push(
+        itemRow(
+          row,
+          1,
+          changeOf(key),
+          changeOf(key) === "tracked"
+            ? { kind: "tracked", goal: row.trackedOn! }
+            : null,
+        ),
+      );
+    }
+  };
+
+  const placeAfter = (key: string) => {
+    const row = scratch.get(key);
+    if (!row || afterIndex.has(key)) {
+      return;
+    }
+    if (row.groupId !== null) {
+      pushAfterGroupHeader(row.groupId);
+      return;
+    }
+    const change = changeOf(key);
+    afterIndex.set(key, after.length);
+    after.push(
+      itemRow(
+        row,
+        0,
+        change,
+        change === "ungrouped"
+          ? { kind: "ungrouped" }
+          : change === "tracked"
+            ? { kind: "tracked", goal: row.trackedOn! }
+            : change === "reopened"
+              ? { kind: "reopened" }
+              : null,
+      ),
+    );
+  };
+
+  for (const unit of units) {
+    const visibleKeys = unit.keys.filter(isVisible);
+    const promoted =
+      unit.groupId !== null && args.promotedGroups.has(unit.groupId);
+    if (visibleKeys.length === 0 && !promoted) {
+      run += unit.keys.length;
+      continue;
+    }
+    flushFold();
+    if (unit.groupId !== null) {
+      const headerKey = `group:${unit.groupId}`;
+      beforeIndex.set(headerKey, before.length);
+      before.push({
+        kind: "item",
+        key: headerKey,
+        title: args.originalGroupName.get(unit.groupId) ?? "",
+        entityType: "GROUP",
+        depth: 0,
+        change: promoted ? "promoted" : "unchanged",
+        marker: promoted ? { kind: "promoteGroup" } : null,
+        isGroup: true,
+      });
+    }
+    for (const key of unit.keys) {
+      if (!isVisible(key)) {
+        run += 1;
+        continue;
+      }
+      flushFold();
+      beforeIndex.set(key, before.length);
+      before.push(
+        itemRow(
+          original.get(key)!,
+          unit.groupId === null ? 0 : 1,
+          changeOf(key) === "unchanged" ? "pending" : changeOf(key),
+          markerBefore(key),
+        ),
+      );
+      placeAfter(key);
+    }
+    const headerKey = `group:${unit.groupId}`;
+    if (unit.groupId !== null && !promoted && afterIndex.has(headerKey)) {
+      // A group that still exists keeps its header joined across.
+      flows.push({
+        from: beforeIndex.get(headerKey)!,
+        to: afterIndex.get(headerKey)!,
+        tone: "same",
+        dashed: false,
+      });
+    }
+  }
+
+  // Reopened items and not-accepted reopen ghosts sit before the last fold.
+  const trailing = run;
+  run = 0;
+  for (const key of args.reopened) {
+    placeAfter(key);
+  }
+  for (const [key, ghost] of args.ghosts) {
+    const ghostKey = `ghost:${key}`;
+    afterIndex.set(ghostKey, after.length);
+    after.push({
+      kind: "item",
+      key: ghostKey,
+      title: ghost.title,
+      entityType: ghost.entityType,
+      depth: 0,
+      change: "pending",
+      marker: { kind: "pending", verb: "reopenItems" },
+      isGroup: false,
+    });
+    flows.push({
+      from: null,
+      to: afterIndex.get(ghostKey)!,
+      tone: "new",
+      dashed: true,
+    });
+  }
+  for (const key of args.reopened) {
+    const to = afterIndex.get(key);
+    if (to !== undefined) {
+      flows.push({ from: null, to, tone: "new", dashed: false });
+    }
+  }
+  run = trailing;
+  flushFold();
+
+  // Item ribbons: each before row to where it ends up.
+  for (const [key, from] of beforeIndex) {
+    if (key.startsWith("group:")) {
+      const groupId = key.slice("group:".length);
+      if (args.promotedGroups.has(groupId)) {
+        flows.push({
+          from,
+          to: goalIndexFor(groupId),
+          tone: "goal",
+          dashed: false,
+        });
+      }
+      continue;
+    }
+    const change = changeOf(key);
+    if (change === "promoted") {
+      const groupId = original.get(key)!.groupId!;
+      flows.push({
+        from,
+        to: goalIndexFor(groupId),
+        tone: "goal",
+        dashed: false,
+      });
+      continue;
+    }
+    const to = afterIndex.get(key) ?? null;
+    flows.push({
+      from,
+      to,
+      tone:
+        change === "removed"
+          ? "removed"
+          : change === "grouped" || change === "ungrouped"
+            ? "moved"
+            : change === "tracked"
+              ? "goal"
+              : "same",
+      dashed: change === "unchanged" && pendingVerb.has(key),
+    });
+  }
+
+  return { before, after, flows };
 }
