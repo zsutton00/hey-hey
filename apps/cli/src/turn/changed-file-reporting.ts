@@ -140,6 +140,15 @@ export class ChangedFileReporting {
                   },
             );
           } catch (error) {
+            this.logger.warn('runtime.turn.changed_file_reporting.claim_failed', {
+              turnId: this.turnId,
+              serviceId: claim.serviceId,
+              path: claim.path,
+              reason:
+                error instanceof ReportedFileChangeFailure ? error.reason : 'persistence_failed',
+              gitFailure: error instanceof ReportedFileChangeFailure ? error.gitFailure : undefined,
+              error: error instanceof Error ? error.message : String(error),
+            });
             findings.push({
               index,
               status: 'rejected',

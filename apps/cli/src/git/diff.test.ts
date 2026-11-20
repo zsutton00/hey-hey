@@ -11,6 +11,7 @@ import {
   countChangedFilesInPaths,
   captureChangesSinceCommit,
   getGitDiff,
+  listGitChangedFilePaths,
   listGitChangedFilePathsExcludingIgnored,
 } from './diff';
 
@@ -504,5 +505,29 @@ describe('captureChangesSinceCommit', () => {
         await fs.readFile(path.join(repo, changed), 'utf8'),
       );
     }
+  });
+});
+
+describe('dirty paths in a repository with no commits', () => {
+  it('lists staged and untracked files and diffs them', async () => {
+    const repo = await createTempRepo();
+    await fs.mkdir(path.join(repo, 'src'));
+    await fs.writeFile(path.join(repo, 'src', 'staged.ts'), 'a\n');
+    await fs.writeFile(path.join(repo, 'untracked.ts'), 'b\n');
+    await runGit(repo, ['add', 'src/staged.ts']);
+
+    const paths = await listGitChangedFilePaths(repo);
+    expect(paths.sort()).toEqual(['src/staged.ts', 'untracked.ts']);
+
+    const patches = await getGitDiff({ repoPath: repo, paths });
+    expect(patches.map((patch) => patch.filePath).sort()).toEqual(paths.sort());
+  });
+
+  it('does not treat an unresolvable HEAD on a non-branch as an empty repository', async () => {
+    const repo = await createTempRepo();
+    await fs.writeFile(path.join(repo, 'file.ts'), 'a\n');
+    await fs.writeFile(path.join(repo, '.git', 'HEAD'), `${'a'.repeat(40)}\n`);
+
+    await expect(listGitChangedFilePaths(repo)).rejects.toThrow();
   });
 });
