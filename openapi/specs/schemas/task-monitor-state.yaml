@@ -180,6 +180,49 @@ TaskMonitorPendingJudgment:
     failure. Present only once a person owns the request; a request the monitor is still deciding
     is not a pending judgment.
 
+TaskMonitorOutstandingPermission:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      interventionId,
+      runId,
+      agentSessionId,
+      providerActionId,
+      providerSessionId,
+      fingerprint,
+      action,
+      target,
+      answerable,
+    ]
+  properties:
+    interventionId:
+      type: string
+      format: uuid
+    runId:
+      type: string
+      format: uuid
+    agentSessionId:
+      type: string
+      format: uuid
+    providerActionId:
+      type: string
+    providerSessionId:
+      type: string
+    fingerprint:
+      type: string
+    action:
+      type: string
+    target:
+      type: string
+    owner:
+      type: string
+      enum: [MONITOR, HUMAN]
+      description: Current request owner, independent of temporary admission constraints.
+    answerable:
+      type: boolean
+      description: The monitor admits a human answer for this request in its current state.
+
 TaskMonitorStateProjection:
   type: object
   additionalProperties: false
@@ -189,6 +232,11 @@ TaskMonitorStateProjection:
       $ref: "#/TaskMonitorExecutionCondition"
     failure:
       $ref: "#/TaskMonitorStateFailure"
+    outstandingPermissions:
+      type: array
+      description: Undecided active and queued permission requests. Older publishers omit this field.
+      items:
+        $ref: "#/TaskMonitorOutstandingPermission"
     pendingJudgment:
       oneOf:
         - $ref: "#/TaskMonitorStatePendingJudgment"

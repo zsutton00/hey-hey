@@ -190,6 +190,66 @@ export const workItemExecutionStateJsonSchemas = {
                     },
                     "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
                   },
+                  "outstandingPermissions": {
+                    "type": "array",
+                    "description": "Undecided active and queued permission requests. Older publishers omit this field.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "interventionId",
+                        "runId",
+                        "agentSessionId",
+                        "providerActionId",
+                        "providerSessionId",
+                        "fingerprint",
+                        "action",
+                        "target",
+                        "answerable"
+                      ],
+                      "properties": {
+                        "interventionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "runId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "agentSessionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "providerActionId": {
+                          "type": "string"
+                        },
+                        "providerSessionId": {
+                          "type": "string"
+                        },
+                        "fingerprint": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "target": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string",
+                          "enum": [
+                            "MONITOR",
+                            "HUMAN"
+                          ],
+                          "description": "Current request owner, independent of temporary admission constraints."
+                        },
+                        "answerable": {
+                          "type": "boolean",
+                          "description": "The monitor admits a human answer for this request in its current state."
+                        }
+                      }
+                    }
+                  },
                   "pendingJudgment": {
                     "type": "object",
                     "additionalProperties": false,
@@ -415,6 +475,66 @@ export const workItemExecutionStateJsonSchemas = {
                   }
                 },
                 "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
+              },
+              "outstandingPermissions": {
+                "type": "array",
+                "description": "Undecided active and queued permission requests. Older publishers omit this field.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "interventionId",
+                    "runId",
+                    "agentSessionId",
+                    "providerActionId",
+                    "providerSessionId",
+                    "fingerprint",
+                    "action",
+                    "target",
+                    "answerable"
+                  ],
+                  "properties": {
+                    "interventionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "agentSessionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "providerActionId": {
+                      "type": "string"
+                    },
+                    "providerSessionId": {
+                      "type": "string"
+                    },
+                    "fingerprint": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string",
+                      "enum": [
+                        "MONITOR",
+                        "HUMAN"
+                      ],
+                      "description": "Current request owner, independent of temporary admission constraints."
+                    },
+                    "answerable": {
+                      "type": "boolean",
+                      "description": "The monitor admits a human answer for this request in its current state."
+                    }
+                  }
+                }
               },
               "pendingJudgment": {
                 "type": "object",

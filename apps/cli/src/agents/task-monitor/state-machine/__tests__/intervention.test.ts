@@ -872,45 +872,49 @@ describe('Task Monitor permission request deadline', () => {
     ]);
   });
 
-  it('lets the person answer an escalated request that waits behind another escalated one', () => {
-    const { definition, snapshot } = observing();
-    const [first] = transition(definition.machine, snapshot, exactAction);
-    const [queuedBehind] = transition(definition.machine, first, second);
-    const [secondHandedOver] = transition(
-      definition.machine,
-      queuedBehind,
-      reachedDue('provider-action-2', 'ignored-second'),
-    );
-    const [bothHandedOver] = transition(
-      definition.machine,
-      secondHandedOver,
-      reachedDue('provider-action-1'),
-    );
+  it.each([true, false])(
+    'admits the queued answer when the front request has escalated: %s',
+    (frontEscalated) => {
+      const { definition, snapshot } = observing();
+      const [first] = transition(definition.machine, snapshot, exactAction);
+      const [queuedBehind] = transition(definition.machine, first, second);
+      const [secondHandedOver] = transition(
+        definition.machine,
+        queuedBehind,
+        reachedDue('provider-action-2', 'ignored-second'),
+      );
+      const [beforeAnswer] = frontEscalated
+        ? transition(definition.machine, secondHandedOver, reachedDue('provider-action-1'))
+        : [secondHandedOver];
 
-    const [applying, actions] = transition(
-      definition.machine,
-      bothHandedOver,
-      decision({
-        interventionId: 'ignored-second',
-        providerActionId: 'provider-action-2',
-        fingerprint: 'sha256:second-action',
-      }),
-    );
+      const [applying, actions] = transition(
+        definition.machine,
+        beforeAnswer,
+        decision({
+          interventionId: 'ignored-second',
+          providerActionId: 'provider-action-2',
+          fingerprint: 'sha256:second-action',
+        }),
+      );
 
-    expect(applying.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
-    expect(applying.context.pendingIntervention).toMatchObject({
-      providerActionId: 'provider-action-2',
-    });
-    expect(applying.context.queuedInterventions).toEqual([
-      expect.objectContaining({ providerActionId: 'provider-action-1', owner: 'HUMAN' }),
-    ]);
-    expect(effectsOf(definition, actions)).toEqual([
-      expect.objectContaining({
-        type: 'APPLY_TASK_MONITOR_DECISION',
+      expect(applying.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+      expect(applying.context.pendingIntervention).toMatchObject({
         providerActionId: 'provider-action-2',
-      }),
-    ]);
-  });
+      });
+      expect(applying.context.queuedInterventions).toEqual([
+        expect.objectContaining({
+          providerActionId: 'provider-action-1',
+          owner: frontEscalated ? 'HUMAN' : 'MONITOR',
+        }),
+      ]);
+      expect(effectsOf(definition, actions)).toEqual([
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          providerActionId: 'provider-action-2',
+        }),
+      ]);
+    },
+  );
 
   it('keeps a request the person already holds out of the monitor when it reaches the front', () => {
     const { definition, snapshot } = observing();

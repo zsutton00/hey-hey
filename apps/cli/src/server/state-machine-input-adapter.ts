@@ -86,6 +86,7 @@ export type PermissionAnswerDisposition =
 
 export type TaskMonitorPermissionAdmissionResult = TaskMonitorVerifiedAdmissionResult & {
   readonly disposition: PermissionAnswerDisposition;
+  readonly interventionId?: string;
 };
 
 export interface TaskMonitorPermissionDecisionInput {
@@ -272,7 +273,7 @@ export class TaskMonitorStateMachineInputAdapter {
     };
     const existing = findPermissionApplication(instance, input);
     if (existing) {
-      return alreadyDecided(existing.effect);
+      return alreadyDecided(existing.effect, existing.effect.interventionId);
     }
 
     if (
@@ -324,7 +325,7 @@ export class TaskMonitorStateMachineInputAdapter {
             : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.';
 
       if (hold === 'SETTLED' && 'decision' in pending && pending.decision !== null) {
-        return alreadyDecided(pending.decision);
+        return alreadyDecided(pending.decision, pending.interventionId);
       }
       return {
         status: 'rejected',
@@ -365,7 +366,7 @@ export class TaskMonitorStateMachineInputAdapter {
 
     if (admission.status !== 'accepted') {
       if (application) {
-        return alreadyDecided(application.effect);
+        return alreadyDecided(application.effect, application.effect.interventionId);
       }
       const reason =
         admission.status === 'rejected'
@@ -384,6 +385,7 @@ export class TaskMonitorStateMachineInputAdapter {
     }
     return {
       ...admission,
+      interventionId: application.effect.interventionId,
       disposition: await this.awaitPermissionApplication(this.stateStore, input, application),
     };
   }
@@ -423,10 +425,12 @@ export class TaskMonitorStateMachineInputAdapter {
 
 const alreadyDecided = (
   decision: Pick<TaskMonitorInterventionDecision, 'human' | 'decidedAt'>,
+  interventionId: string,
 ): TaskMonitorPermissionAdmissionResult => ({
   status: 'rejected',
   code: 'input_rejected',
   reason: 'This request was already decided, so this answer was not applied.',
+  interventionId,
   disposition: {
     result: 'ALREADY_DECIDED',
     decidedBy: decision.human === null ? 'TASK_MONITOR' : 'PERSON',

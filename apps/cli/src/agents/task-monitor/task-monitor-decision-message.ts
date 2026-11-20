@@ -170,6 +170,7 @@ export const toTaskMonitorPermissionDecidedMessage = (
 };
 
 export interface TaskMonitorPermissionAnswerRecord {
+  readonly interventionId?: string | undefined;
   readonly providerActionId: string;
   readonly answer: 'approve' | 'always_approve' | 'deny' | 'whitelist';
   readonly disposition: PermissionAnswerDisposition;
@@ -182,7 +183,7 @@ const describePermissionAnswerResult = ({
 }: TaskMonitorPermissionAnswerRecord): string => {
   switch (disposition.result) {
     case 'APPLIED':
-      return 'Your answer was applied.';
+      return 'The coding agent applied the answer.';
     case 'ALREADY_DECIDED': {
       if (disposition.decidedByUserId === answeringUserId) {
         return `You already answered this request at ${disposition.decidedAt}.`;
@@ -211,6 +212,7 @@ export const toTaskMonitorPermissionAnswerResultMessage = (
     response: reason,
     agentIdentity: 'task-monitor-coordinator',
     outcome: 'PERMISSION_ANSWER_RESULT',
+    ...(record.interventionId ? { interventionId: record.interventionId } : {}),
     providerActionId: record.providerActionId,
     answer: record.answer,
     result: disposition.result,

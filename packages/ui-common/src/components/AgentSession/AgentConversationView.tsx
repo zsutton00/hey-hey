@@ -43,6 +43,7 @@ import { AgentBridgeRecoveryNotice } from "./AgentBridgeRecoveryNotice";
 import { AgentSessionContinuationCard } from "./AgentSessionContinuationCard";
 import { useAgentSessionContinuationRecovery } from "./useAgentSessionContinuationRecovery";
 import { resolveAgentBridgeRecoveryState } from "./agentBridgeRecoveryState";
+import { MonitorHeldPermissions } from "./MonitorHeldPermissions";
 import { getAgentSessionCurrentStatePresentation } from "./agentSessionCurrentStatePresentation";
 import {
   AgentSessionMetadata,
@@ -272,6 +273,11 @@ const AgentConversationViewInner = ({
     projectId,
     agentSessionId,
   );
+  const sessionConfig = sessionQuery.agentSession?.config;
+  const codingMonitorId =
+    sessionConfig?.type === "CODING_SESSION"
+      ? sessionConfig.taskMonitorId
+      : undefined;
   const attachmentTarget = resolveRunAttachmentTarget(
     sessionQuery.error ? null : sessionQuery.agentSession,
     { organizationId, projectId, agentSessionId, conversationId },
@@ -563,11 +569,26 @@ const AgentConversationViewInner = ({
           projectQuery.data ? (
             <Box data-testid="agent-conversation-viewer">
               <ConversationViewer
+                sessionPermissions={
+                  codingMonitorId && (
+                    <MonitorHeldPermissions
+                      organizationId={organizationId}
+                      projectId={projectId}
+                      conversationId={displayConversation.id}
+                      monitorId={codingMonitorId}
+                      agentSessionId={agentSessionId}
+                    />
+                  )
+                }
                 animationType="minimal"
                 conversation={displayConversation}
                 agentSessionId={agentSessionId}
                 agentSessionCurrentState={platformCurrentState}
-                taskMonitorId={taskMonitorId}
+                taskMonitorId={
+                  sessionConfig?.type === "CODING_SESSION"
+                    ? codingMonitorId
+                    : taskMonitorId
+                }
                 conversationFormResolver={conversationFormResolver}
                 onResponseTargetChange={captureResponseTarget}
                 planId={planId}

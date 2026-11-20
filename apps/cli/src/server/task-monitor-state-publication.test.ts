@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { transition } from 'xstate';
+import { createNoopMessagePoster } from './__tests__/helpers/test-run-registry';
+import { TaskMonitorInterventionProjectionEffectHandler } from '../agents/task-monitor/state-machine/intervention-effect-handlers';
 import type {
   WorkItemExecutionStateObservation,
   WorkItemExecutionStateObservationReceipt,
@@ -191,6 +193,7 @@ describe('committed Task Monitor state projection', () => {
 
     const projection = project(failed);
     expect(projection).toEqual({
+      outstandingPermissions: [],
       execution: {
         lifecycle: 'RUNNING',
         control: 'PAUSING',
@@ -332,9 +335,9 @@ describe('committed Task Monitor state projection', () => {
       expect(projectReconstructed(deciding).pendingJudgment).toBeUndefined();
     });
 
-    it('publishes the human handoff with its reason and how to answer, once the monitor escalates', () => {
+    it('publishes the human handoff with its reason and how to answer, once the monitor escalates', async () => {
       const [deciding] = transition(definition.machine, observing(), exactAction);
-      const [escalated] = transition(definition.machine, deciding, {
+      const [escalated, actions] = transition(definition.machine, deciding, {
         type: 'MONITOR_PERMISSION_ESCALATED',
         taskMonitorId: MONITOR_ID,
         interventionId: INTERVENTION_ID,
@@ -353,10 +356,69 @@ describe('committed Task Monitor state projection', () => {
         answer: { command: 'HUMAN_DECISION', choices: ['APPROVE', 'DENY'] },
       };
 
+      expect(project(deciding).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: false },
+      ]);
+      expect(project(escalated).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: true },
+      ]);
       expect(project(escalated).execution.intervention).toBe('PENDING');
       expect(project(escalated).pendingJudgment).toEqual(expected);
       expect(project(escalated).failure).toBeUndefined();
-      expect(projectReconstructed(escalated).pendingJudgment).toEqual(expected);
+      const effect = actions
+        .flatMap((action) => definition.effectFromAction(action) ?? [])
+        .find((item) => item.type === 'PROJECT_TASK_MONITOR_INTERVENTION');
+      if (!effect) {
+        throw new Error('Expected the handoff to post the intervention');
+      }
+      const poster = createNoopMessagePoster();
+      vi.mocked(poster.createOutOfBand).mockRejectedValue(new Error('Conversation unavailable'));
+      const handler = new TaskMonitorInterventionProjectionEffectHandler(poster, NOOP_LOGGER);
+      const failed = await handler.execute(effect, {
+        machineType: 'TASK_MONITOR',
+        instanceId: MONITOR_ID,
+        effectId: 'post-card',
+      });
+      expect(failed.outcome.type).toBe('INTERVENTION_PROJECTION_FAILED');
+      const [postFailed] = transition(definition.machine, escalated, failed.outcome);
+      expect(projectReconstructed(postFailed).pendingJudgment).toEqual(expected);
+      expect(projectReconstructed(postFailed).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'HUMAN', answerable: true },
+      ]);
+    });
+
+    it('publishes a queued handoff as answerable while the monitor decides the front request', () => {
+      const [front] = transition(definition.machine, observing(), exactAction);
+      const second = {
+        ...exactAction,
+        interventionId: '90000000-0000-4000-8000-000000000007',
+        providerActionId: 'provider-action-2',
+      };
+      const [queued] = transition(definition.machine, front, second);
+      const [handedOver] = transition(definition.machine, queued, {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: second.interventionId,
+        providerActionId: second.providerActionId,
+        reason: ESCALATION_REASON,
+      });
+      expect(projectReconstructed(handedOver).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'MONITOR', answerable: false },
+        { interventionId: second.interventionId, owner: 'HUMAN', answerable: true },
+      ]);
+    });
+
+    it('keeps the human handoff answerable when a stopped monitor is restored', () => {
+      const [deciding] = transition(definition.machine, observing(), exactAction);
+      const [stopped] = transition(definition.machine, deciding, {
+        type: 'STOP',
+        taskMonitorId: MONITOR_ID,
+      });
+      const snapshot = projectReconstructed(stopped);
+      expect(snapshot.pendingJudgment?.interventionId).toBe(INTERVENTION_ID);
+      expect(snapshot.outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: true },
+      ]);
     });
 
     it('publishes a USER_REQUIRED request as the user’s from the start', () => {
@@ -421,6 +483,7 @@ describe('committed Task Monitor state projection', () => {
       });
 
       expect(project(answered).pendingJudgment).toBeUndefined();
+      expect(project(answered).outstandingPermissions).toEqual([]);
     });
   });
 
@@ -534,6 +597,7 @@ describe('committed Task Monitor state projection', () => {
         context: { ...context, executionPlan: [], selectedTaskId: null, cursor: null },
       }),
     ).toEqual({
+      outstandingPermissions: [],
       execution: { lifecycle: 'COMPLETED', control: null, work: null, intervention: null },
       availableActions: [],
     });

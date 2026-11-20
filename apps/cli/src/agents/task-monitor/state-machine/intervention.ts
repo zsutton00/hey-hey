@@ -296,20 +296,10 @@ const queuedHumanHeldFor = ({
   );
 };
 
-/**
- * A person may answer an escalated request that waits behind another escalated one: a request a
- * person holds never waits for promotion. Only a front request a person also holds is moved aside
- * for it, never one the monitor is still deciding.
- */
 export const matchesQueuedHumanDecision = (arguments_: InterventionArguments): boolean => {
   const pending = arguments_.context.pendingIntervention;
   const queued = queuedHumanHeldFor(arguments_);
-  if (
-    pending === null ||
-    pending.decision !== null ||
-    pending.owner !== 'HUMAN' ||
-    queued === null
-  ) {
+  if (pending === null || pending.decision !== null || queued === null) {
     return false;
   }
 

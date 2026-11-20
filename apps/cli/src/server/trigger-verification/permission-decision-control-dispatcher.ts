@@ -56,7 +56,7 @@ export class PermissionDecisionControlDispatcher {
         requestId: input.requestId,
         nonce: input.nonce,
       });
-      if (input.replyConversationId && input.replyConversationId !== input.conversationId) {
+      if (input.replyConversationId) {
         void this.reportResult(input, {
           result: 'UNKNOWN_REQUEST',
           reason: 'The coding run for this permission request could not be found.',
@@ -65,7 +65,7 @@ export class PermissionDecisionControlDispatcher {
       return;
     }
 
-    void this.deliver(runId, input).catch((error: Error) => {
+    void this.deliver(runId, input).catch(async (error: Error) => {
       this.logger.error('trigger-verification.control.permission_decision.dispatch_failed', {
         conversationId: input.conversationId,
         runId,
@@ -73,6 +73,12 @@ export class PermissionDecisionControlDispatcher {
         nonce: input.nonce,
         error,
       });
+      if (input.replyConversationId) {
+        await this.reportResult(input, {
+          result: 'DELIVERY_UNCERTAIN',
+          reason: 'The CLI could not confirm delivery of your answer to the coding run.',
+        });
+      }
     });
   }
 
@@ -84,8 +90,9 @@ export class PermissionDecisionControlDispatcher {
   private async reportResult(
     input: PermissionDecisionControlInput,
     disposition: PermissionAnswerDisposition,
+    interventionId?: string,
+    replyConversationId = input.replyConversationId ?? input.conversationId,
   ): Promise<void> {
-    const replyConversationId = input.replyConversationId ?? input.conversationId;
     const logContext = {
       conversationId: replyConversationId,
       requestId: input.requestId,
@@ -107,6 +114,7 @@ export class PermissionDecisionControlDispatcher {
         conversationId: replyConversationId,
         dto: toTaskMonitorPermissionAnswerResultMessage(input.projectId, {
           providerActionId: input.requestId,
+          interventionId,
           answer: input.decision,
           answeringUserId: input.userId,
           disposition,
@@ -245,7 +253,20 @@ export class PermissionDecisionControlDispatcher {
           },
         );
       }
-      await this.reportResult(input, result.disposition);
+      await this.reportResult(input, result.disposition, result.interventionId);
+      if (
+        result.disposition.result === 'APPLIED' &&
+        result.interventionId &&
+        input.replyConversationId &&
+        input.replyConversationId !== input.conversationId
+      ) {
+        await this.reportResult(
+          input,
+          result.disposition,
+          result.interventionId,
+          input.conversationId,
+        );
+      }
       return;
     }
     this.logger.info('trigger-verification.control.permission_decision.dispatch', {

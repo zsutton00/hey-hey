@@ -3605,6 +3605,34 @@ describe('createTestRouter', () => {
       });
     });
 
+    it('persists a confirmed workspace answer against the same intervention in the coding conversation', async () => {
+      const interventionId = '11111111-1111-4111-8111-111111111111';
+      const post = await answerWith({
+        fromWorkspace: true,
+        admission: {
+          status: 'accepted',
+          effects: [],
+          interventionId,
+          disposition: { result: 'APPLIED' },
+        },
+      });
+      for (const conversationId of [workspaceConversation, runConversation]) {
+        expect(post).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conversationId,
+            dto: expect.objectContaining({
+              data: expect.objectContaining({
+                outcome: 'PERMISSION_ANSWER_RESULT',
+                interventionId,
+                result: 'APPLIED',
+                answer: 'approve',
+              }),
+            }),
+          }),
+        );
+      }
+    });
+
     it('reports who decided a request first and when, instead of applying a late answer', async () => {
       const data = reported(
         await answerWith({

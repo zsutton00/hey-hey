@@ -156,10 +156,10 @@ const LEGACY_HUMAN_OWNED_REASON =
  */
 const pendingPermissionJudgment = (
   context: TaskMonitorMachineContext,
-  running: RunningRegions | null,
+  admitsHumanDecision: boolean,
 ): TaskMonitorStateProjection['pendingJudgment'] => {
   const pending = context.pendingIntervention;
-  if (running?.intervention !== 'PENDING' || pending === null || pending.decision !== null) {
+  if (!admitsHumanDecision || pending === null || pending.decision !== null) {
     return undefined;
   }
   if (pending.owner === 'MONITOR') {
@@ -204,11 +204,39 @@ export const taskMonitorStateProjection = ({
     retryableLaunchFailure(context) ??
     unclassifiedFailure(context, availableActions);
 
-  const pendingJudgment = pendingPermissionJudgment(context, running) ?? pendingJudgmentProjection(context, running);
+  const pending = context.pendingIntervention;
+  const admitsHumanDecision =
+    context.settledRun === null && (state === 'HALTED' || running?.intervention === 'PENDING');
+  const pendingJudgment =
+    pendingPermissionJudgment(context, admitsHumanDecision) ??
+    pendingJudgmentProjection(context, running);
+  const requests = [
+    ...(pending && !pending.decision ? [pending] : []),
+    ...(context.queuedInterventions ?? []),
+  ];
 
   return {
     execution,
     availableActions,
+    outstandingPermissions: requests.map((request) => ({
+      interventionId: request.interventionId,
+      runId: request.runId,
+      agentSessionId: request.agentSessionId,
+      providerActionId: request.providerActionId,
+      providerSessionId: request.providerSessionId,
+      fingerprint: request.fingerprint,
+      action: request.action,
+      target: request.target,
+      owner: request.owner ?? (request === pending || request.userRequired ? 'HUMAN' : 'MONITOR'),
+      answerable:
+        admitsHumanDecision &&
+        (request === pending
+          ? request.owner !== 'MONITOR'
+          : pending !== null &&
+            pending.decision === null &&
+            request.userRequired !== true &&
+            request.owner === 'HUMAN'),
+    })),
     ...(failure ? { failure } : {}),
     ...(pendingJudgment ? { pendingJudgment } : {}),
   };

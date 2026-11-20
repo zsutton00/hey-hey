@@ -4071,6 +4071,10 @@ TaskMonitorPermissionAnswerResultSystemMessageData:
         providerActionId:
           type: string
           description: Permission request the person answered.
+        interventionId:
+          type: string
+          format: uuid
+          description: The durable monitor intervention this answer settles, when recorded by the monitor.
         answer:
           type: string
           enum: [approve, always_approve, deny, whitelist]

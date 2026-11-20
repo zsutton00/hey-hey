@@ -52,6 +52,12 @@ export interface TaskMonitorPermissionAnswerResultSystemMessageDataAllOf {
      */
     'providerActionId': string;
     /**
+     * The durable monitor intervention this answer settles, when recorded by the monitor.
+     * @type {string}
+     * @memberof TaskMonitorPermissionAnswerResultSystemMessageDataAllOf
+     */
+    'interventionId'?: string;
+    /**
      * The answer the person gave.
      * @type {string}
      * @memberof TaskMonitorPermissionAnswerResultSystemMessageDataAllOf
