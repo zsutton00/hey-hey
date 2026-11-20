@@ -1793,6 +1793,9 @@ describe("WorkItemTypeFormPage", () => {
     fireEvent.change(screen.getByLabelText("Planning guidance"), {
       target: { value: "Plan with evidence." },
     });
+    fireEvent.change(screen.getByLabelText("Sync guidance"), {
+      target: { value: "Reconcile against delivered work." },
+    });
     selectTab("Overview");
     mockCreateMutate.mockImplementationOnce(async () => {
       const failure = Object.assign(new Error("Submission failed"), {
@@ -1840,6 +1843,7 @@ describe("WorkItemTypeFormPage", () => {
     ).toEqual({
       implementation: "  Build from reviewed intent.  ",
       planning: "Plan with evidence.",
+      sync: "Reconcile against delivered work.",
     });
   });
 

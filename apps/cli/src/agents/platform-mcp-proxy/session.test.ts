@@ -603,7 +603,7 @@ describe('PlatformMcpProxySession', () => {
             uniqueItems: true,
           },
           purpose: { enum: ['maintenance', 'role'] },
-          sessionRole: { enum: ['implementation', 'research', 'planning', 'review'] },
+          sessionRole: { enum: ['implementation', 'research', 'planning', 'review', 'sync'] },
         },
         required: ['typeKeys', 'purpose'],
       },

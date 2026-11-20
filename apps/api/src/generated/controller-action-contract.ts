@@ -10034,7 +10034,7 @@ export const controllerActionRuntimeSchema = {
       type: 'string',
       description:
         'Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.',
-      enum: ['implementation', 'research', 'planning', 'review'],
+      enum: ['implementation', 'research', 'planning', 'review', 'sync'],
       default: 'implementation',
     },
     AgentSkillSelection: {

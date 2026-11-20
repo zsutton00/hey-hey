@@ -446,6 +446,7 @@ const sessionRoleGuidanceShape = {
   research: z.string().optional(),
   planning: z.string().optional(),
   review: z.string().optional(),
+  sync: z.string().optional(),
 } satisfies ZodShapeFor<WorkItemTypeSessionRoleGuidance>;
 const sessionRoleGuidanceSchema = z
   .object(sessionRoleGuidanceShape)
@@ -456,6 +457,7 @@ const sessionRoleGuidanceSchema = z
       ...(value.research !== undefined ? { research: value.research } : {}),
       ...(value.planning !== undefined ? { planning: value.planning } : {}),
       ...(value.review !== undefined ? { review: value.review } : {}),
+      ...(value.sync !== undefined ? { sync: value.sync } : {}),
     }),
   );
 

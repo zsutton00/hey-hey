@@ -131,6 +131,7 @@ SessionRole:
     - research
     - planning
     - review
+    - sync
   default: implementation
 
 ProjectModeSettings:

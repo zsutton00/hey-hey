@@ -2548,6 +2548,8 @@ WorkItemTypeSessionRoleGuidance:
       type: string
     review:
       type: string
+    sync:
+      type: string
 
 WorkItemTypeRoleGuidanceDto:
   type: object

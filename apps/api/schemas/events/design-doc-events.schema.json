@@ -9646,6 +9646,10 @@
           "type": "string",
           "const": "review"
         },
+        {
+          "type": "string",
+          "const": "sync"
+        },
         {}
       ],
       "description": "Kind of work performed by a mode session, independent of mode identity and work-item-type registry role."
@@ -21226,6 +21230,9 @@
           "type": "string"
         },
         "review": {
+          "type": "string"
+        },
+        "sync": {
           "type": "string"
         }
       },

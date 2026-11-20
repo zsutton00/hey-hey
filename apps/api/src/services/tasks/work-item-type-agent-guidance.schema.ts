@@ -18,6 +18,7 @@ const sessionRoleGuidanceShape = {
   research: z.string().optional(),
   planning: z.string().optional(),
   review: z.string().optional(),
+  sync: z.string().optional(),
 } satisfies Record<SessionRole, z.ZodOptional<z.ZodString>>;
 
 export const workItemTypeSessionRoleGuidanceSchema = z

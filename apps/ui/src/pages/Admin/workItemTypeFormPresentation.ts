@@ -129,7 +129,7 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
   },
   sessionRoleGuidance: {
     label: "Session-role guidance",
-    help: "Optional instructions for implementation, research, planning and review sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards and maintenance advice.",
+    help: "Optional instructions for implementation, research, planning, review and sync (Feature Sync) sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards and maintenance advice.",
   },
   maintenanceGuidance: {
     label: "Maintenance guidance",
