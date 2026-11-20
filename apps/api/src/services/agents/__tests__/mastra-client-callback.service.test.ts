@@ -152,6 +152,7 @@ jest.mock('@prisma/client', () => ({
     CONVERSATION: 'CONVERSATION',
   },
   Prisma: {
+    ...jest.requireActual('@prisma/client').Prisma,
     defineExtension: (extension: unknown) => extension,
   },
   PrismaClient: class {
