@@ -117,7 +117,7 @@ interface TestRouterDependencies {
   restoreRun?: RunReadRestoreCoordinator['restore'];
   taskMonitorId?: string;
   /** Whether the Task Monitor machine is running and can admit decisions; defaults to running. */
-  taskMonitorRunning?: boolean;
+  taskMonitorRecordsRequest?: boolean;
   hostActionAdmission?: HostActionAdmission;
   machineControllerAuthority?: Pick<MachineControllerAuthority, 'applyVerifiedAuthorityReduction'>;
   dropSurfacing?: TestDropSurfacingDependencies;
@@ -264,8 +264,8 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
         message: 'Task Monitor command admission is not configured.',
       })),
   );
-  vi.spyOn(taskMonitorStateMachineInputAdapter, 'isAdmittingPermissionDecisions').mockResolvedValue(
-    dependencies.taskMonitorRunning ?? true,
+  vi.spyOn(taskMonitorStateMachineInputAdapter, 'holdsPermissionRequest').mockResolvedValue(
+    dependencies.taskMonitorRecordsRequest ?? true,
   );
   if (dependencies.admitTaskMonitorPermissionDecision) {
     vi.spyOn(taskMonitorStateMachineInputAdapter, 'admitPermissionDecision').mockImplementation(
@@ -3512,7 +3512,7 @@ describe('createTestRouter', () => {
     ]);
   });
 
-  it('answers a request on the provider path when its Task Monitor is no longer running', async () => {
+  it('answers a request on the provider path when its Task Monitor has no record of it', async () => {
     const verifier = buildVerifier({
       ok: true,
       verified: buildVerifiedPermissionDecisionControl(),
@@ -3536,7 +3536,7 @@ describe('createTestRouter', () => {
         `hey-hey-permission-audit-${randomUUID()}.jsonl`,
       ),
       taskMonitorId: '10000000-0000-4000-8000-000000000001',
-      taskMonitorRunning: false,
+      taskMonitorRecordsRequest: false,
       admitTaskMonitorPermissionDecision,
       logger,
     });
@@ -3547,11 +3547,11 @@ describe('createTestRouter', () => {
     expect(admitTaskMonitorPermissionDecision).not.toHaveBeenCalled();
     expect(submitPermissionDecision).toHaveBeenCalledTimes(1);
     expect(logger.warnCalls).toContainEqual([
-      'trigger-verification.control.permission_decision.monitor_not_running',
+      'trigger-verification.control.permission_decision.no_monitor_record',
       expect.objectContaining({
         requestId: 'req-1',
         owner: 'HUMAN',
-        cause: 'task_monitor_not_running',
+        cause: 'task_monitor_has_no_record_of_request',
       }),
     ]);
   });

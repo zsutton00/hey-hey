@@ -4,6 +4,7 @@ import type {
   TaskMonitorExecutionNode,
   TaskMonitorLaunchDeclaration,
   TaskMonitorLaunchFailure,
+  TaskMonitorPendingIntervention,
   TaskMonitorRequestKind,
   TaskMonitorTerminalPolicy,
   TaskMonitorRequestedLaunchConfig,
@@ -196,6 +197,23 @@ export interface DecideTaskMonitorPermissionEffect {
   readonly requestKind?: TaskMonitorRequestKind | undefined;
   /** Set when the monitor is paused: it is not asked, and the request goes straight to the person. */
   readonly monitorPaused?: true | undefined;
+  /** When the request goes to the person if the monitor has not decided it; absent in older state. */
+  readonly dueAt?: string | undefined;
+}
+
+/**
+ * Hands one monitor-held request to the person once its due time passes, whether it is being
+ * decided or still queued. The machine ignores the outcome when the request is already answered.
+ */
+export interface WatchTaskMonitorPermissionDeadlineEffect {
+  readonly type: 'WATCH_TASK_MONITOR_PERMISSION_DEADLINE';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly runId: string;
+  readonly agentSessionId: string;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
+  readonly dueAt: string;
 }
 
 /** Records one committed monitor permission outcome as supervision activity. */
@@ -284,6 +302,21 @@ export interface ProjectTaskMonitorInterventionEffect {
   readonly fingerprint: string;
   readonly createdAt: string;
   readonly expiresAt: string | null;
+  /** Requests handed to the person together with this one, each shown on its own card. */
+  readonly alsoProject?:
+    | readonly Pick<
+        ProjectTaskMonitorInterventionEffect,
+        | 'interventionId'
+        | 'providerActionId'
+        | 'runId'
+        | 'agentSessionId'
+        | 'action'
+        | 'target'
+        | 'fingerprint'
+        | 'createdAt'
+        | 'expiresAt'
+      >[]
+    | undefined;
 }
 
 export interface ProjectTaskMonitorOutcomeJudgmentEffect {
@@ -313,6 +346,7 @@ export type TaskMonitorMachineEffect =
   | HaltTaskMonitorControlEffect
   | ProjectTaskMonitorInterventionEffect
   | DecideTaskMonitorPermissionEffect
+  | WatchTaskMonitorPermissionDeadlineEffect
   | RecordTaskMonitorPermissionDecisionEffect
   | EvaluateTaskMonitorSettledRunEffect
   | DeliverTaskMonitorReviewEffect
@@ -733,15 +767,20 @@ export const applyTaskMonitorDecisionEffect = (
   };
 };
 
+type PermissionRecordRequest = Pick<
+  TaskMonitorPendingIntervention,
+  'interventionId' | 'providerActionId' | 'action' | 'target'
+>;
+
 export const recordTaskMonitorPermissionDecisionEffect = (
   context: TaskMonitorMachineContext,
   event: Extract<
     TaskMonitorMachineEvent,
     { type: 'MONITOR_PERMISSION_DECIDED' | 'MONITOR_PERMISSION_ESCALATED' }
   >,
+  request: PermissionRecordRequest | null = context.pendingIntervention,
 ): RecordTaskMonitorPermissionDecisionEffect => {
-  const pending = context.pendingIntervention;
-  if (pending === null || context.organizationId === null || context.projectId === null) {
+  if (request === null || context.organizationId === null || context.projectId === null) {
     throw new Error('Task Monitor has no pending request to record a permission outcome for.');
   }
 
@@ -751,10 +790,10 @@ export const recordTaskMonitorPermissionDecisionEffect = (
     organizationId: context.organizationId,
     projectId: context.projectId,
     conversationId: context.conversationId,
-    interventionId: pending.interventionId,
-    providerActionId: pending.providerActionId,
-    action: pending.action,
-    target: pending.target,
+    interventionId: request.interventionId,
+    providerActionId: request.providerActionId,
+    action: request.action,
+    target: request.target,
     decision:
       event.type === 'MONITOR_PERMISSION_ESCALATED'
         ? 'ESCALATED'
@@ -802,8 +841,33 @@ export const decideTaskMonitorPermissionEffect = (
     expiresAt: event.expiresAt,
     ...(event.requestKind ? { requestKind: event.requestKind } : {}),
     ...(options.monitorPaused ? { monitorPaused: true as const } : {}),
+    dueAt: monitorDecisionDueAt(event.createdAt),
   };
 };
+
+/** How long the monitor may take before a request it still holds goes to the person. */
+export const MONITOR_PERMISSION_DECISION_DEADLINE_MS = 5 * 60 * 1000;
+
+/** The due time starts when the request is created, so queueing and startup share one budget. */
+export const monitorDecisionDueAt = (createdAt: string): string =>
+  new Date(Date.parse(createdAt) + MONITOR_PERMISSION_DECISION_DEADLINE_MS).toISOString();
+
+export const watchTaskMonitorPermissionDeadlineEffect = (
+  context: TaskMonitorMachineContext,
+  request: Pick<
+    Extract<TaskMonitorMachineEvent, { type: 'EXACT_ACTION_REQUIRED' }>,
+    'interventionId' | 'providerActionId' | 'runId' | 'agentSessionId' | 'createdAt' | 'requestKind'
+  >,
+): WatchTaskMonitorPermissionDeadlineEffect => ({
+  type: 'WATCH_TASK_MONITOR_PERMISSION_DEADLINE',
+  taskMonitorId: context.taskMonitorId,
+  interventionId: request.interventionId,
+  providerActionId: request.providerActionId,
+  runId: request.runId,
+  agentSessionId: request.agentSessionId,
+  ...(request.requestKind ? { requestKind: request.requestKind } : {}),
+  dueAt: monitorDecisionDueAt(request.createdAt),
+});
 
 type InterventionProjectionRequest = Pick<
   Extract<TaskMonitorMachineEvent, { type: 'EXACT_ACTION_REQUIRED' }>,
@@ -821,6 +885,7 @@ type InterventionProjectionRequest = Pick<
 export const projectTaskMonitorInterventionEffect = (
   context: TaskMonitorMachineContext,
   event: InterventionProjectionRequest,
+  alsoProject: readonly InterventionProjectionRequest[] = [],
 ): ProjectTaskMonitorInterventionEffect => {
   if (
     context.organizationId === null ||
@@ -844,6 +909,21 @@ export const projectTaskMonitorInterventionEffect = (
     fingerprint: event.fingerprint,
     createdAt: event.createdAt,
     expiresAt: event.expiresAt,
+    ...(alsoProject.length > 0
+      ? {
+          alsoProject: alsoProject.map((request) => ({
+            interventionId: request.interventionId,
+            providerActionId: request.providerActionId,
+            runId: request.runId,
+            agentSessionId: request.agentSessionId,
+            action: request.action,
+            target: request.target,
+            fingerprint: request.fingerprint,
+            createdAt: request.createdAt,
+            expiresAt: request.expiresAt,
+          })),
+        }
+      : {}),
   };
 };
 

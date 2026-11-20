@@ -11,10 +11,12 @@ import type {
   ApplyTaskMonitorDecisionEffect,
   DecideTaskMonitorPermissionEffect,
   ProjectTaskMonitorInterventionEffect,
+  WatchTaskMonitorPermissionDeadlineEffect,
 } from '../effects';
 import {
   TaskMonitorDecisionApplicationEffectHandler,
   TaskMonitorInterventionProjectionEffectHandler,
+  TaskMonitorPermissionDeadlineEffectHandler,
   TaskMonitorPermissionDecisionEffectHandler,
   TaskMonitorPermissionRecordEffectHandler,
 } from '../intervention-effect-handlers';
@@ -436,10 +438,11 @@ describe('Task Monitor permission decision', () => {
       createTestRunRegistryWiring().runRegistry,
       NOOP_LOGGER,
       () => Date.parse('2026-08-09T12:00:30.000Z'),
-      20,
     );
 
-    await expect(handler.execute(decideEffect, execution)).resolves.toMatchObject({
+    await expect(
+      handler.execute({ ...decideEffect, dueAt: '2026-08-09T12:00:30.020Z' }, execution),
+    ).resolves.toMatchObject({
       status: 'succeeded',
       outcome: {
         type: 'MONITOR_PERMISSION_ESCALATED',
@@ -478,6 +481,54 @@ describe('Task Monitor permission decision', () => {
       outcome: { type: 'MONITOR_PERMISSION_ESCALATED' },
     });
     expect(JSON.stringify(result)).toContain(cause);
+  });
+});
+
+describe('Task Monitor permission deadline', () => {
+  const watchEffect: WatchTaskMonitorPermissionDeadlineEffect = {
+    type: 'WATCH_TASK_MONITOR_PERMISSION_DEADLINE',
+    taskMonitorId: decideEffect.taskMonitorId,
+    interventionId: decideEffect.interventionId,
+    providerActionId: decideEffect.providerActionId,
+    runId: decideEffect.runId,
+    agentSessionId: decideEffect.agentSessionId,
+    dueAt: '2026-08-09T12:00:30.000Z',
+  };
+
+  it('hands the request to the person at once when its due time passed while nothing ran, such as after a restart', async () => {
+    const handler = new TaskMonitorPermissionDeadlineEffectHandler(
+      createTestRunRegistryWiring().runRegistry,
+      NOOP_LOGGER,
+      () => Date.parse('2026-08-09T12:10:00.000Z'),
+    );
+
+    await expect(handler.execute(watchEffect, execution)).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        interventionId: watchEffect.interventionId,
+        providerActionId: watchEffect.providerActionId,
+        reason: expect.stringContaining('did not decide'),
+        escalatedAt: '2026-08-09T12:10:00.000Z',
+      },
+    });
+  });
+
+  it('hands the request to the person once its due time arrives, whatever the monitor is doing', async () => {
+    let clock = Date.parse('2026-08-09T12:00:29.980Z');
+    const handler = new TaskMonitorPermissionDeadlineEffectHandler(
+      createTestRunRegistryWiring().runRegistry,
+      NOOP_LOGGER,
+      () => {
+        const value = clock;
+        clock += 20;
+        return value;
+      },
+    );
+
+    await expect(handler.execute(watchEffect, execution)).resolves.toMatchObject({
+      outcome: { type: 'MONITOR_PERMISSION_ESCALATED' },
+    });
   });
 });
 

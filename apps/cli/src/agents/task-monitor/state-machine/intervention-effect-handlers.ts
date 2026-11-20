@@ -18,11 +18,14 @@ import {
   isTaskMonitorPermissionDecision,
   type TaskMonitorPermissionDecision,
 } from '../task-monitor-permission-decision';
-import type {
-  ApplyTaskMonitorDecisionEffect,
-  DecideTaskMonitorPermissionEffect,
-  ProjectTaskMonitorInterventionEffect,
-  RecordTaskMonitorPermissionDecisionEffect,
+import {
+  MONITOR_PERMISSION_DECISION_DEADLINE_MS,
+  monitorDecisionDueAt,
+  type ApplyTaskMonitorDecisionEffect,
+  type DecideTaskMonitorPermissionEffect,
+  type ProjectTaskMonitorInterventionEffect,
+  type RecordTaskMonitorPermissionDecisionEffect,
+  type WatchTaskMonitorPermissionDeadlineEffect,
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
 
@@ -79,6 +82,7 @@ export class TaskMonitorInterventionProjectionEffectHandler implements EffectHan
         effectId: execution.effectId,
         messageId,
       });
+      await this.projectAlso(effect, execution);
       return {
         status: 'succeeded',
         outcome: {
@@ -108,6 +112,39 @@ export class TaskMonitorInterventionProjectionEffectHandler implements EffectHan
           reason,
         },
       };
+    }
+  }
+
+  /** Each request handed over together gets its own card; one that fails to post does not hide the rest. */
+  private async projectAlso(
+    effect: ProjectTaskMonitorInterventionEffect,
+    execution: EffectExecutionIdentity,
+  ): Promise<void> {
+    for (const request of effect.alsoProject ?? []) {
+      try {
+        const messageId = await this.poster.createOutOfBand({
+          organizationId: effect.organizationId,
+          projectId: effect.projectId,
+          conversationId: effect.conversationId,
+          dto: toTaskMonitorInterventionMessage(effect.projectId, { ...effect, ...request }),
+          stamp: null,
+        });
+        this.logger.info('task_monitor.intervention.projection.completed', {
+          taskMonitorId: effect.taskMonitorId,
+          interventionId: request.interventionId,
+          providerActionId: request.providerActionId,
+          effectId: execution.effectId,
+          messageId,
+        });
+      } catch (error) {
+        this.logger.error('task_monitor.intervention.projection.failed', {
+          taskMonitorId: effect.taskMonitorId,
+          interventionId: request.interventionId,
+          providerActionId: request.providerActionId,
+          effectId: execution.effectId,
+          reason: reasonFrom(error),
+        });
+      }
     }
   }
 }
@@ -317,9 +354,6 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
 
 const MONITOR_DECISION_FAILED_PREFIX = 'The Task Monitor could not decide this request';
 
-/** How long the monitor may take before a request it still holds goes to the person. */
-export const MONITOR_PERMISSION_DECISION_DEADLINE_MS = 5 * 60 * 1000;
-
 const DEADLINE = Symbol('monitor-decision-deadline');
 
 /**
@@ -350,7 +384,6 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     private readonly runRegistry: RunRegistry,
     private readonly logger: ServerLogger,
     private readonly now: () => number = Date.now,
-    private readonly decisionDeadlineMs: number = MONITOR_PERMISSION_DECISION_DEADLINE_MS,
   ) {}
 
   public async execute(
@@ -440,11 +473,11 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
         return this.failed(effect, 'the monitor agent could not be started', logContext);
       }
 
-      const result = await this.waitWithinDeadline(identity.runId);
+      const result = await this.waitWithinDeadline(identity.runId, effect);
       if (result === DEADLINE) {
         return this.failed(
           effect,
-          `no decision arrived within ${Math.round(this.decisionDeadlineMs / 1000)} seconds`,
+          `no decision arrived within ${Math.round(MONITOR_PERMISSION_DECISION_DEADLINE_MS / 1000)} seconds`,
           logContext,
         );
       }
@@ -480,12 +513,16 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     }
   }
 
+  /** Waits only for what is left of the request's due time, so startup and judgment share one budget. */
   private async waitWithinDeadline(
     runId: string,
+    effect: DecideTaskMonitorPermissionEffect,
   ): Promise<Awaited<ReturnType<TaskMonitorDecisionStore['wait']>> | typeof DEADLINE> {
+    const dueAt = effect.dueAt ?? monitorDecisionDueAt(effect.createdAt);
+    const remainingMs = Math.max(0, Date.parse(dueAt) - this.now());
     let timer: NodeJS.Timeout | undefined;
     const deadline = new Promise<typeof DEADLINE>((resolve) => {
-      timer = setTimeout(() => resolve(DEADLINE), this.decisionDeadlineMs);
+      timer = setTimeout(() => resolve(DEADLINE), remainingMs);
     });
     try {
       return await Promise.race([this.decisionStore.wait(runId), deadline]);
@@ -548,6 +585,79 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
       reason,
       escalatedAt: new Date(this.now()).toISOString(),
     };
+  }
+}
+
+/**
+ * Hands a request the monitor still holds to the person once its due time passes. The due time is
+ * stamped when the request is admitted, so a request waiting behind another, or one whose monitor
+ * never started, reaches a person on the same clock as one being judged. A request already answered
+ * by then is ignored by the machine, and moving a Service scope wait that is no longer the
+ * monitor's is a no-op.
+ */
+export class TaskMonitorPermissionDeadlineEffectHandler implements EffectHandler<
+  WatchTaskMonitorPermissionDeadlineEffect,
+  TaskMonitorMachineEffectOutcome
+> {
+  /** After a restart the watch simply runs again, and fires at once when the due time has passed. */
+  public readonly recovery = { strategy: 'retry' as const };
+
+  public constructor(
+    private readonly runRegistry: RunRegistry,
+    private readonly logger: ServerLogger,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  public async execute(
+    effect: WatchTaskMonitorPermissionDeadlineEffect,
+    execution: EffectExecutionIdentity,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const logContext = {
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      runId: effect.runId,
+      effectId: execution.effectId,
+      dueAt: effect.dueAt,
+    };
+    this.logger.debug('task_monitor.permission_decision.deadline_watch.started', logContext);
+
+    await this.untilDue(effect.dueAt);
+
+    const reason = `The Task Monitor did not decide this request within ${Math.round(MONITOR_PERMISSION_DECISION_DEADLINE_MS / 60000)} minutes, so it is waiting for a person.`;
+    this.logger.warn('task_monitor.permission_decision.deadline_reached', {
+      ...logContext,
+      owner: 'HUMAN',
+      cause: reason,
+    });
+    if (effect.requestKind === 'SERVICE_SCOPE') {
+      this.runRegistry
+        .get(effect.runId)
+        ?.serviceScopeCoordinator.handToHuman(effect.providerActionId, reason);
+    }
+
+    return {
+      status: 'succeeded',
+      outcome: {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: effect.taskMonitorId,
+        interventionId: effect.interventionId,
+        providerActionId: effect.providerActionId,
+        reason,
+        escalatedAt: new Date(this.now()).toISOString(),
+      },
+    };
+  }
+
+  private untilDue(dueAt: string): Promise<void> {
+    const remainingMs = Date.parse(dueAt) - this.now();
+    if (remainingMs <= 0) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      setTimeout(resolve, remainingMs).unref();
+    });
   }
 }
 

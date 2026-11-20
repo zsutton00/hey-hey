@@ -58,8 +58,13 @@ export class PermissionDecisionControlDispatcher {
     });
   }
 
-  /** A request whose monitor is stopped or gone is held by the person, who answers it on the provider path. */
-  private async routeByMonitorAvailability(
+  /**
+   * A monitored Run's request is answered through the Task Monitor machine whenever the machine
+   * records it, running or stopped, so the first answer settles it once. A request the machine has
+   * no record of, such as one raised while the monitor was already stopped, belongs to the person
+   * on the provider path.
+   */
+  private async routeByRecordedOwner(
     owner: PermissionDecisionOwner,
     input: PermissionDecisionControlInput,
     runId: string,
@@ -67,20 +72,22 @@ export class PermissionDecisionControlDispatcher {
     if (owner.kind !== 'task_monitor_intervention') {
       return owner;
     }
-    const admitting = await this.taskMonitorStateMachineInputAdapter.isAdmittingPermissionDecisions(
+    const recorded = await this.taskMonitorStateMachineInputAdapter.holdsPermissionRequest(
       owner.taskMonitorId,
+      runId,
+      input.requestId,
     );
-    if (admitting) {
+    if (recorded) {
       return owner;
     }
 
-    this.logger.warn('trigger-verification.control.permission_decision.monitor_not_running', {
+    this.logger.warn('trigger-verification.control.permission_decision.no_monitor_record', {
       conversationId: input.conversationId,
       runId,
       requestId: input.requestId,
       taskMonitorId: owner.taskMonitorId,
       owner: 'HUMAN',
-      cause: 'task_monitor_not_running',
+      cause: 'task_monitor_has_no_record_of_request',
       nonce: input.nonce,
     });
 
@@ -115,7 +122,7 @@ export class PermissionDecisionControlDispatcher {
       input.idempotencyToken,
       ownedRun.taskMonitorId,
     );
-    const owner = await this.routeByMonitorAvailability(classified, input, runId);
+    const owner = await this.routeByRecordedOwner(classified, input, runId);
     if (owner.kind === 'settled_specialized_request') {
       this.logger.warn(
         'trigger-verification.control.permission_decision.specialized_request_settled',

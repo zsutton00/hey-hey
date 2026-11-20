@@ -9,6 +9,7 @@ import {
   decideTaskMonitorPermissionEffect,
   projectTaskMonitorInterventionEffect,
   recordTaskMonitorPermissionDecisionEffect,
+  watchTaskMonitorPermissionDeadlineEffect,
 } from './effects';
 import type { TaskMonitorMachineEvent } from './events';
 
@@ -81,12 +82,12 @@ export const pendingInterventionFromRequest = (
   expiresAt: request.expiresAt,
   userRequired: request.userRequired === true,
   ...(request.requestKind ? { requestKind: request.requestKind } : {}),
-  owner: request.userRequired === true ? 'HUMAN' : 'MONITOR',
+  owner: request.userRequired === true ? 'HUMAN' : (request.owner ?? 'MONITOR'),
   escalationReason:
     request.userRequired === true
       ? 'The request is marked USER_REQUIRED, so only a person can decide it.'
-      : null,
-  escalatedAt: request.userRequired === true ? request.createdAt : null,
+      : (request.escalationReason ?? null),
+  escalatedAt: request.userRequired === true ? request.createdAt : (request.escalatedAt ?? null),
   decision: null,
   applicationFailure: null,
 });
@@ -107,6 +108,9 @@ export const canQueueExactActionIntervention = (arguments_: InterventionArgument
   );
 };
 
+export const isMonitorOwnedExactAction = ({ event }: InterventionArguments): boolean =>
+  event.type === 'EXACT_ACTION_REQUIRED' && event.userRequired !== true;
+
 export const isServiceScopeExactAction = ({ event }: InterventionArguments): boolean =>
   event.type === 'EXACT_ACTION_REQUIRED' && event.requestKind === 'SERVICE_SCOPE';
 
@@ -121,10 +125,24 @@ const monitorMayDecideServiceScope = (
   isServiceScope: 'isServiceScopeExactAction' | 'nextQueuedIsServiceScope',
 ) => or([not(isServiceScope), stateIn({ RUNNING: { control: 'ACTIVE' } })]);
 
-export const hasQueuedMonitorOwnedIntervention = ({ context }: InterventionArguments): boolean =>
-  context.pendingIntervention === null &&
-  nextQueuedIntervention(context) !== null &&
-  nextQueuedIntervention(context)?.userRequired !== true;
+const isHumanHeldQueued = (request: TaskMonitorQueuedIntervention): boolean =>
+  request.userRequired !== true && request.owner === 'HUMAN';
+
+export const hasQueuedMonitorOwnedIntervention = ({ context }: InterventionArguments): boolean => {
+  const next = nextQueuedIntervention(context);
+  return (
+    context.pendingIntervention === null &&
+    next !== null &&
+    next.userRequired !== true &&
+    !isHumanHeldQueued(next)
+  );
+};
+
+/** A queued request already handed to a person is shown to them, so reaching the front asks nothing more. */
+export const hasQueuedHumanHeldIntervention = ({ context }: InterventionArguments): boolean => {
+  const next = nextQueuedIntervention(context);
+  return context.pendingIntervention === null && next !== null && isHumanHeldQueued(next);
+};
 
 export const hasQueuedUserRequiredIntervention = ({ context }: InterventionArguments): boolean =>
   context.pendingIntervention === null && nextQueuedIntervention(context)?.userRequired === true;
@@ -151,29 +169,60 @@ export const matchesPendingMonitorDecision = ({ context, event }: InterventionAr
   matchesMonitorPermissionOutcome({ context, event }) &&
   event.fingerprint === context.pendingIntervention?.fingerprint;
 
+export const STOP_ESCALATION_REASON =
+  'The Task Monitor was stopped, so this request is waiting for a person.';
+
+const isMonitorHeldProviderRequest = (
+  request: Pick<TaskMonitorQueuedIntervention, 'owner' | 'userRequired' | 'requestKind'>,
+): boolean =>
+  request.userRequired !== true &&
+  request.owner !== 'HUMAN' &&
+  request.requestKind !== 'SERVICE_SCOPE';
+
 /**
- * Stopping the monitor leaves the Running state that answers requests, so a provider request it
- * still holds would have no answerer. The Run already owns a Service scope request's card, and its
- * wait is handed over when the decision turn ends, so only provider permission requests move here.
+ * Stopping the monitor leaves the Running state that answers requests, so every provider request it
+ * still holds, the front one and those queued behind it, would have no answerer. The Run already
+ * owns a Service scope request's card, and its wait is handed over when the decision turn ends, so
+ * only provider permission requests move here.
  */
-export const hasMonitorHeldProviderRequest = ({ context }: InterventionArguments): boolean => {
+export const monitorHeldRequestsOnStop = (
+  context: TaskMonitorMachineContext,
+): readonly (TaskMonitorPendingIntervention | TaskMonitorQueuedIntervention)[] => {
   const pending = context.pendingIntervention;
-  return (
-    pending !== null &&
-    pending.decision === null &&
-    pending.owner === 'MONITOR' &&
-    pending.requestKind !== 'SERVICE_SCOPE'
-  );
+  const front =
+    pending !== null && pending.decision === null && isMonitorHeldProviderRequest(pending)
+      ? [pending]
+      : [];
+
+  return [...front, ...queuedInterventions(context).filter(isMonitorHeldProviderRequest)];
 };
 
+export const hasMonitorHeldProviderRequest = ({ context }: InterventionArguments): boolean =>
+  monitorHeldRequestsOnStop(context).length > 0;
+
+/** One projection hands over every request the stop moves to the person, each on its own card. */
 export const stopProjectionParameters = ({ context }: InterventionArguments) => {
-  const pending = context.pendingIntervention;
-  if (pending === null) {
-    throw new Error('Expected a pending request to hand to a person on stop.');
+  const [first, ...rest] = monitorHeldRequestsOnStop(context);
+  if (first === undefined) {
+    throw new Error('Expected a request to hand to a person on stop.');
   }
 
-  return projectTaskMonitorInterventionEffect(context, pending);
+  return projectTaskMonitorInterventionEffect(context, first, rest);
 };
+
+export const handQueuedRequestsToHumanOnStop = (
+  context: TaskMonitorMachineContext,
+): readonly TaskMonitorQueuedIntervention[] =>
+  queuedInterventions(context).map((request) =>
+    isMonitorHeldProviderRequest(request)
+      ? {
+          ...request,
+          owner: 'HUMAN' as const,
+          escalationReason: STOP_ESCALATION_REASON,
+          escalatedAt: null,
+        }
+      : request,
+  );
 
 export const matchesPendingMonitorEscalation = (arguments_: InterventionArguments): boolean =>
   arguments_.event.type === 'MONITOR_PERMISSION_ESCALATED' &&
@@ -193,35 +242,179 @@ export const matchesFailedServiceScopeApplication = (arguments_: InterventionArg
   matchesApplyingDecision(arguments_) &&
   arguments_.context.pendingIntervention?.requestKind === 'SERVICE_SCOPE';
 
-export const matchesPendingHumanDecision = ({ context, event }: InterventionArguments): boolean => {
-  const pending = context.pendingIntervention;
-  if (
-    event.type !== 'HUMAN_DECISION' ||
-    pending === null ||
-    pending.decision !== null ||
-    pending.owner === 'MONITOR' ||
-    context.settledRun !== null
-  ) {
+const humanDecisionMatches = (
+  { context, event }: InterventionArguments,
+  candidate: TaskMonitorPendingIntervention,
+): boolean => {
+  if (event.type !== 'HUMAN_DECISION' || context.settledRun !== null) {
     return false;
   }
 
-  const createdAt = timestamp(pending.createdAt);
+  const createdAt = timestamp(candidate.createdAt);
   const decidedAt = timestamp(event.decidedAt);
   const authenticatedAt = timestamp(event.human.authenticatedAt);
   return (
     event.taskMonitorId === context.taskMonitorId &&
-    event.interventionId === pending.interventionId &&
-    event.providerActionId === pending.providerActionId &&
-    event.runId === pending.runId &&
-    event.agentSessionId === pending.agentSessionId &&
-    event.fingerprint === pending.fingerprint &&
+    event.interventionId === candidate.interventionId &&
+    event.providerActionId === candidate.providerActionId &&
+    event.runId === candidate.runId &&
+    event.agentSessionId === candidate.agentSessionId &&
+    event.fingerprint === candidate.fingerprint &&
     createdAt !== null &&
     decidedAt !== null &&
     authenticatedAt !== null &&
-    isDecidedAfterCreation(pending, event.decidedAt) &&
+    isDecidedAfterCreation(candidate, event.decidedAt) &&
     authenticatedAt >= createdAt &&
     authenticatedAt <= decidedAt
   );
+};
+
+export const matchesPendingHumanDecision = (arguments_: InterventionArguments): boolean => {
+  const pending = arguments_.context.pendingIntervention;
+  if (pending === null || pending.decision !== null || pending.owner === 'MONITOR') {
+    return false;
+  }
+
+  return humanDecisionMatches(arguments_, pending);
+};
+
+const queuedHumanHeldFor = ({
+  context,
+  event,
+}: InterventionArguments): TaskMonitorQueuedIntervention | null => {
+  if (event.type !== 'HUMAN_DECISION') {
+    return null;
+  }
+
+  return (
+    queuedInterventions(context).find(
+      (request) =>
+        isHumanHeldQueued(request) &&
+        request.interventionId === event.interventionId &&
+        request.providerActionId === event.providerActionId,
+    ) ?? null
+  );
+};
+
+/**
+ * A person may answer an escalated request that waits behind another escalated one: a request a
+ * person holds never waits for promotion. Only a front request a person also holds is moved aside
+ * for it, never one the monitor is still deciding.
+ */
+export const matchesQueuedHumanDecision = (arguments_: InterventionArguments): boolean => {
+  const pending = arguments_.context.pendingIntervention;
+  const queued = queuedHumanHeldFor(arguments_);
+  if (
+    pending === null ||
+    pending.decision !== null ||
+    pending.owner !== 'HUMAN' ||
+    queued === null
+  ) {
+    return false;
+  }
+
+  return humanDecisionMatches(arguments_, pendingInterventionFromRequest(queued));
+};
+
+const matchingQueuedMonitorHeld = ({
+  context,
+  event,
+}: InterventionArguments): TaskMonitorQueuedIntervention | null => {
+  if (
+    event.type !== 'MONITOR_PERMISSION_ESCALATED' ||
+    event.taskMonitorId !== context.taskMonitorId ||
+    context.settledRun !== null
+  ) {
+    return null;
+  }
+
+  return (
+    queuedInterventions(context).find(
+      (request) =>
+        request.userRequired !== true &&
+        !isHumanHeldQueued(request) &&
+        request.interventionId === event.interventionId &&
+        request.providerActionId === event.providerActionId,
+    ) ?? null
+  );
+};
+
+/** A queued request the monitor never got to decide reaches its due time and goes to the person. */
+export const matchesQueuedMonitorEscalation = (arguments_: InterventionArguments): boolean =>
+  matchingQueuedMonitorHeld(arguments_) !== null;
+
+/** The Run already shows a Service scope request to the person, so the machine only drops its copy. */
+export const matchesQueuedServiceScopeEscalation = (arguments_: InterventionArguments): boolean =>
+  matchingQueuedMonitorHeld(arguments_)?.requestKind === 'SERVICE_SCOPE';
+
+const withoutQueued = (
+  context: TaskMonitorMachineContext,
+  request: TaskMonitorQueuedIntervention,
+): readonly TaskMonitorQueuedIntervention[] =>
+  queuedInterventions(context).filter((queued) => queued.interventionId !== request.interventionId);
+
+export const escalateQueuedRequest = (arguments_: InterventionArguments) => {
+  const { context, event } = arguments_;
+  const request = matchingQueuedMonitorHeld(arguments_);
+  if (request === null || event.type !== 'MONITOR_PERMISSION_ESCALATED') {
+    return {};
+  }
+
+  return {
+    queuedInterventions: queuedInterventions(context).map((queued) =>
+      queued.interventionId === request.interventionId
+        ? {
+            ...queued,
+            owner: 'HUMAN' as const,
+            escalationReason: event.reason,
+            escalatedAt: event.escalatedAt ?? null,
+          }
+        : queued,
+    ),
+  };
+};
+
+export const dropQueuedRequest = (arguments_: InterventionArguments) => {
+  const request = matchingQueuedMonitorHeld(arguments_);
+
+  return request === null
+    ? {}
+    : { queuedInterventions: withoutQueued(arguments_.context, request) };
+};
+
+const queuedFromPending = (
+  pending: TaskMonitorPendingIntervention,
+): TaskMonitorQueuedIntervention => ({
+  interventionId: pending.interventionId,
+  providerActionId: pending.providerActionId,
+  providerSessionId: pending.providerSessionId,
+  runId: pending.runId,
+  agentSessionId: pending.agentSessionId,
+  action: pending.action,
+  target: pending.target,
+  fingerprint: pending.fingerprint,
+  createdAt: pending.createdAt,
+  expiresAt: pending.expiresAt,
+  userRequired: pending.userRequired === true,
+  ...(pending.requestKind ? { requestKind: pending.requestKind } : {}),
+  owner: pending.owner ?? 'HUMAN',
+  escalationReason: pending.escalationReason ?? null,
+  escalatedAt: pending.escalatedAt ?? null,
+});
+
+/** The answered request becomes the front one; the request it displaces goes first in the queue. */
+export const swapInAnsweredQueuedRequest = (arguments_: InterventionArguments) => {
+  const { context } = arguments_;
+  const queued = queuedHumanHeldFor(arguments_);
+  const pending = context.pendingIntervention;
+  if (queued === null || pending === null) {
+    return {};
+  }
+
+  return {
+    pendingIntervention: pendingInterventionFromRequest(queued),
+    queuedInterventions: [queuedFromPending(pending), ...withoutQueued(context, queued)],
+  };
 };
 
 export const matchesApplyingDecision = ({ context, event }: InterventionArguments): boolean => {
@@ -294,6 +487,33 @@ const queuedProjectionParameters = ({ context }: InterventionArguments) => {
   return projectTaskMonitorInterventionEffect(context, next);
 };
 
+const watchOpenedParameters = ({ context, event }: InterventionArguments) => {
+  if (event.type !== 'EXACT_ACTION_REQUIRED') throw new Error('Expected EXACT_ACTION_REQUIRED.');
+  return watchTaskMonitorPermissionDeadlineEffect(context, event);
+};
+
+const queuedEscalationRecordParameters = (arguments_: InterventionArguments) => {
+  const { context, event } = arguments_;
+  if (event.type !== 'MONITOR_PERMISSION_ESCALATED') {
+    throw new Error('Expected MONITOR_PERMISSION_ESCALATED.');
+  }
+
+  return recordTaskMonitorPermissionDecisionEffect(
+    context,
+    event,
+    matchingQueuedMonitorHeld(arguments_),
+  );
+};
+
+const queuedEscalationProjectionParameters = (arguments_: InterventionArguments) => {
+  const request = matchingQueuedMonitorHeld(arguments_);
+  if (request === null) {
+    throw new Error('Expected a queued request to hand to a person.');
+  }
+
+  return projectTaskMonitorInterventionEffect(arguments_.context, request);
+};
+
 const recordParameters = ({ context, event }: InterventionArguments) => {
   if (
     event.type !== 'MONITOR_PERMISSION_DECIDED' &&
@@ -303,6 +523,85 @@ const recordParameters = ({ context, event }: InterventionArguments) => {
   }
   return recordTaskMonitorPermissionDecisionEffect(context, event);
 };
+
+/** A request the monitor holds is watched from the moment it is admitted, even while it is queued. */
+const queueExactAction = [
+  {
+    guard: and(['canQueueExactActionIntervention', 'isMonitorOwnedExactAction']),
+    actions: [
+      'queueExactActionIntervention',
+      { type: 'watchTaskMonitorPermissionDeadline', params: watchOpenedParameters },
+    ],
+  },
+  { guard: 'canQueueExactActionIntervention', actions: 'queueExactActionIntervention' },
+] as const;
+
+/** A queued request reaches its due time wherever the front request is, so every state accepts it. */
+const escalateQueuedRequestTransitions = [
+  {
+    guard: 'matchesQueuedServiceScopeEscalation',
+    actions: [
+      { type: 'recordTaskMonitorPermissionDecision', params: queuedEscalationRecordParameters },
+      'dropQueuedRequest',
+    ],
+  },
+  {
+    guard: 'matchesQueuedMonitorEscalation',
+    actions: [
+      { type: 'recordTaskMonitorPermissionDecision', params: queuedEscalationRecordParameters },
+      {
+        type: 'projectTaskMonitorIntervention',
+        params: queuedEscalationProjectionParameters,
+      },
+      'escalateQueuedRequest',
+    ],
+  },
+] as const;
+
+/**
+ * A stopped monitor has no intervention region, but a request it handed to a person is still
+ * answered through the machine: the answer is recorded before it reaches the provider, so the first
+ * answer settles the request and a second one is refused instead of being delivered again.
+ */
+export const taskMonitorHaltedInterventionEvents = {
+  HUMAN_DECISION: [
+    {
+      guard: 'matchesPendingHumanDecision',
+      actions: [
+        'storeInterventionDecision',
+        { type: 'applyTaskMonitorDecision', params: applicationParameters },
+      ],
+    },
+    {
+      guard: 'matchesQueuedHumanDecision',
+      actions: [
+        'swapInAnsweredQueuedRequest',
+        'storeInterventionDecision',
+        { type: 'applyTaskMonitorDecision', params: applicationParameters },
+      ],
+    },
+  ],
+  DECISION_APPLIED: {
+    guard: 'matchesApplyingDecision',
+    actions: ['clearPendingIntervention', 'promoteQueuedIntervention'],
+  },
+  DECISION_APPLICATION_FAILED: {
+    guard: 'matchesApplyingDecision',
+    actions: 'storeInterventionApplicationFailure',
+  },
+  DECISION_APPLICATION_STALE: {
+    guard: 'matchesApplyingDecision',
+    actions: 'storeInterventionApplicationFailure',
+  },
+  DECISION_APPLICATION_CANCELLED: {
+    guard: 'matchesApplyingDecision',
+    actions: 'storeInterventionApplicationFailure',
+  },
+  DECISION_APPLICATION_UNCERTAIN: {
+    guard: 'matchesApplyingDecision',
+    actions: 'storeInterventionApplicationFailure',
+  },
+} as const;
 
 /** Independent intervention-region policy composed by the Task Monitor machine. */
 export const taskMonitorInterventionStates = {
@@ -340,6 +639,12 @@ export const taskMonitorInterventionStates = {
             'promoteQueuedIntervention',
           ],
         },
+        // Already handed to a person and shown to them, so promotion only makes it the front request.
+        {
+          guard: 'hasQueuedHumanHeldIntervention',
+          target: 'PENDING',
+          actions: 'promoteQueuedIntervention',
+        },
       ],
       on: {
         // Every request reaches the monitor first; only USER_REQUIRED goes straight to the human.
@@ -352,6 +657,7 @@ export const taskMonitorInterventionStates = {
             target: 'PENDING',
             actions: [
               'storePendingIntervention',
+              { type: 'watchTaskMonitorPermissionDeadline', params: watchOpenedParameters },
               { type: 'decideTaskMonitorPermission', params: decisionRequestParameters },
             ],
           },
@@ -368,10 +674,7 @@ export const taskMonitorInterventionStates = {
     },
     PENDING: {
       on: {
-        EXACT_ACTION_REQUIRED: {
-          guard: 'canQueueExactActionIntervention',
-          actions: 'queueExactActionIntervention',
-        },
+        EXACT_ACTION_REQUIRED: queueExactAction,
         INTERVENTION_PROJECTED: {
           guard: 'matchesPendingInterventionProjection',
         },
@@ -405,23 +708,33 @@ export const taskMonitorInterventionStates = {
               { type: 'projectTaskMonitorIntervention', params: projectionParameters },
             ],
           },
+          ...escalateQueuedRequestTransitions,
         ],
-        HUMAN_DECISION: {
-          guard: 'matchesPendingHumanDecision',
-          target: 'APPLYING_DECISION',
-          actions: [
-            'storeInterventionDecision',
-            { type: 'applyTaskMonitorDecision', params: applicationParameters },
-          ],
-        },
+        HUMAN_DECISION: [
+          {
+            guard: 'matchesPendingHumanDecision',
+            target: 'APPLYING_DECISION',
+            actions: [
+              'storeInterventionDecision',
+              { type: 'applyTaskMonitorDecision', params: applicationParameters },
+            ],
+          },
+          {
+            guard: 'matchesQueuedHumanDecision',
+            target: 'APPLYING_DECISION',
+            actions: [
+              'swapInAnsweredQueuedRequest',
+              'storeInterventionDecision',
+              { type: 'applyTaskMonitorDecision', params: applicationParameters },
+            ],
+          },
+        ],
       },
     },
     APPLYING_DECISION: {
       on: {
-        EXACT_ACTION_REQUIRED: {
-          guard: 'canQueueExactActionIntervention',
-          actions: 'queueExactActionIntervention',
-        },
+        EXACT_ACTION_REQUIRED: queueExactAction,
+        MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions,
         DECISION_APPLIED: {
           guard: 'matchesApplyingDecision',
           target: 'CLEAR',
@@ -456,9 +769,13 @@ export const taskMonitorInterventionStates = {
         },
       },
     },
-    APPLICATION_FAILED: {},
-    APPLICATION_STALE: {},
-    APPLICATION_CANCELLED: {},
-    APPLICATION_UNCERTAIN: {},
+    APPLICATION_FAILED: { on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions } },
+    APPLICATION_STALE: { on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions } },
+    APPLICATION_CANCELLED: {
+      on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions },
+    },
+    APPLICATION_UNCERTAIN: {
+      on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions },
+    },
   },
 } as const;

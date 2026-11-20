@@ -123,6 +123,41 @@ export const interventionHold = (
   return pending.owner === 'MONITOR' ? 'MONITOR_HELD' : 'HUMAN_HELD';
 };
 
+/** A request the machine records, wherever it sits: at the front, or queued behind another. */
+export interface TaskMonitorRecordedRequest {
+  readonly request: TaskMonitorPendingIntervention | TaskMonitorQueuedIntervention;
+  /** QUEUED: a USER_REQUIRED request that waits behind another and cannot be answered yet. */
+  readonly hold: TaskMonitorInterventionHold | 'QUEUED';
+}
+
+/** Finds the machine's record of one provider request, which is what decides who may answer it. */
+export const findMonitoredRequest = (
+  context: Pick<TaskMonitorMachineContext, 'pendingIntervention' | 'queuedInterventions'>,
+  runId: string,
+  providerActionId: string,
+): TaskMonitorRecordedRequest | null => {
+  const pending = context.pendingIntervention;
+  if (
+    pending !== null &&
+    pending.runId === runId &&
+    pending.providerActionId === providerActionId
+  ) {
+    return { request: pending, hold: interventionHold(pending) };
+  }
+
+  const queued = (context.queuedInterventions ?? []).find(
+    (request) => request.runId === runId && request.providerActionId === providerActionId,
+  );
+  if (queued === undefined) {
+    return null;
+  }
+  if (queued.userRequired === true) {
+    return { request: queued, hold: 'QUEUED' };
+  }
+
+  return { request: queued, hold: queued.owner === 'HUMAN' ? 'HUMAN_HELD' : 'MONITOR_HELD' };
+};
+
 /** Exactly one of `human` (a person decided) or `monitorRationale` (the monitor decided) is set. */
 export interface TaskMonitorInterventionDecision {
   readonly resolution: TaskMonitorHumanDecisionResolution;
@@ -169,6 +204,10 @@ export interface TaskMonitorQueuedIntervention {
   readonly expiresAt: string | null;
   readonly userRequired?: boolean | undefined;
   readonly requestKind?: TaskMonitorRequestKind | undefined;
+  /** Set once the request is handed to a person while it still waits behind another. */
+  readonly owner?: TaskMonitorInterventionOwner | undefined;
+  readonly escalationReason?: string | null | undefined;
+  readonly escalatedAt?: string | null | undefined;
 }
 
 export interface TaskMonitorSettledRun {

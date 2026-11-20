@@ -3,7 +3,7 @@ import type {
   MonitorCommandBody1 as MonitorCommandBody,
 } from '@hey-hey/contracts/agent-bridge';
 import {
-  interventionHold,
+  findMonitoredRequest,
   type TaskMonitorMachineContext,
 } from '../agents/task-monitor/state-machine/context';
 import type {
@@ -174,22 +174,28 @@ export class TaskMonitorStateMachineInputAdapter {
   }
 
   /**
-   * Only a running monitor answers permission requests. A stopped, completed or missing monitor
-   * cannot admit a decision, so its requests are answered on the provider path instead of being
-   * rejected by a machine that no longer handles them.
+   * The machine's recorded request, not whether the monitor is running, decides who may answer. A
+   * stopped monitor keeps the requests it handed to a person, so those are still answered here;
+   * a request the machine has no record of belongs to the provider path.
    */
-  public async isAdmittingPermissionDecisions(taskMonitorId: string): Promise<boolean> {
+  public async holdsPermissionRequest(
+    taskMonitorId: string,
+    runId: string,
+    providerActionId: string,
+  ): Promise<boolean> {
     if (!this.stateStore) {
       return false;
     }
     const instance = await this.stateStore.findByInstanceId(taskMonitorId);
-    const running =
+    const held =
       instance !== null &&
       instance.snapshot.identity.machineType === 'TASK_MONITOR' &&
-      typeof instance.snapshot.state !== 'string';
-    this.logger.debug('task_monitor.permission_decision.monitor_availability', {
+      findMonitoredRequest(instance.snapshot.context, runId, providerActionId) !== null;
+    this.logger.debug('task_monitor.permission_decision.request_record_lookup', {
       taskMonitorId,
-      running,
+      runId,
+      providerActionId,
+      held,
       state:
         instance === null
           ? 'absent'
@@ -198,7 +204,7 @@ export class TaskMonitorStateMachineInputAdapter {
             : 'RUNNING',
     });
 
-    return running;
+    return held;
   }
 
   public async admitPermissionDecision(
@@ -216,7 +222,10 @@ export class TaskMonitorStateMachineInputAdapter {
       ingressId: input.ingressId,
     });
     const instance = await this.stateStore.findByInstanceId(input.taskMonitorId);
-    const pending = instance?.snapshot.context.pendingIntervention ?? null;
+    const found =
+      instance === null
+        ? null
+        : findMonitoredRequest(instance.snapshot.context, input.runId, input.providerActionId);
     const logContext = {
       taskMonitorId: input.taskMonitorId,
       runId: input.runId,
@@ -226,14 +235,12 @@ export class TaskMonitorStateMachineInputAdapter {
     if (
       !instance ||
       instance.snapshot.identity.machineType !== 'TASK_MONITOR' ||
-      pending === null ||
-      pending.runId !== input.runId ||
-      pending.providerActionId !== input.providerActionId ||
-      pending.providerSessionId !== input.providerSessionId
+      found === null ||
+      found.request.providerSessionId !== input.providerSessionId
     ) {
       const cause = !instance
         ? 'machine_not_found'
-        : pending === null
+        : found === null
           ? 'no_pending_intervention'
           : 'pending_intervention_mismatch';
       this.logger.warn('task_monitor.permission_decision.rejected', {
@@ -249,9 +256,14 @@ export class TaskMonitorStateMachineInputAdapter {
       };
     }
 
-    const hold = interventionHold(pending);
+    const { request: pending, hold } = found;
     if (hold !== 'HUMAN_HELD') {
-      const cause = hold === 'SETTLED' ? 'already_settled' : 'held_by_monitor';
+      const cause =
+        hold === 'SETTLED'
+          ? 'already_settled'
+          : hold === 'QUEUED'
+            ? 'queued_behind_another_request'
+            : 'held_by_monitor';
       this.logger.warn('task_monitor.permission_decision.rejected', {
         ...logContext,
         interventionId: pending.interventionId,
@@ -264,7 +276,9 @@ export class TaskMonitorStateMachineInputAdapter {
         reason:
           hold === 'SETTLED'
             ? 'This request was already decided, so this answer was not applied.'
-            : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.',
+            : hold === 'QUEUED'
+              ? 'This request is waiting behind another one that needs an answer first.'
+              : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.',
       };
     }
 

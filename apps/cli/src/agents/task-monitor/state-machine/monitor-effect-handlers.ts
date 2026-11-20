@@ -68,6 +68,9 @@ import type {
 import type {
   TaskMonitorDecisionApplicationEffectHandler,
   TaskMonitorInterventionProjectionEffectHandler,
+  TaskMonitorPermissionDecisionEffectHandler,
+  TaskMonitorPermissionDeadlineEffectHandler,
+  TaskMonitorPermissionRecordEffectHandler,
 } from './intervention-effect-handlers';
 import type { TaskMonitorLaunchRecoveryEffectHandler } from './launch-recovery-effect-handlers';
 import { loadTaskMonitorCanonicalEvidence } from '../task-monitor-evidence';
@@ -1387,6 +1390,9 @@ export class TaskMonitorMachineEffectHandler implements EffectHandler<
     public readonly conversationInput: TaskMonitorConversationInputEffectHandler,
     public readonly interventionProjection: TaskMonitorInterventionProjectionEffectHandler,
     public readonly intervention: TaskMonitorDecisionApplicationEffectHandler,
+    public readonly permissionDecision: TaskMonitorPermissionDecisionEffectHandler,
+    public readonly permissionDeadline: TaskMonitorPermissionDeadlineEffectHandler,
+    public readonly permissionRecord: TaskMonitorPermissionRecordEffectHandler,
     public readonly supervision: TaskMonitorSettledRunEvaluationEffectHandler,
     public readonly reviewDelivery: TaskMonitorReviewDeliveryEffectHandler,
     public readonly launchRecovery: TaskMonitorLaunchRecoveryEffectHandler,
@@ -1475,6 +1481,12 @@ export class TaskMonitorMachineEffectHandler implements EffectHandler<
         return this.intervention.execute(effect, execution);
       case 'PROJECT_TASK_MONITOR_INTERVENTION':
         return this.interventionProjection.execute(effect, execution);
+      case 'DECIDE_TASK_MONITOR_PERMISSION':
+        return this.permissionDecision.execute(effect, execution);
+      case 'WATCH_TASK_MONITOR_PERMISSION_DEADLINE':
+        return this.permissionDeadline.execute(effect, execution);
+      case 'RECORD_TASK_MONITOR_PERMISSION_DECISION':
+        return this.permissionRecord.execute(effect, execution);
       case 'PROJECT_TASK_MONITOR_OUTCOME_JUDGMENT':
         if (!this.outcomeJudgment) throw new Error('Missing Task Monitor recovery judgment owner.');
         return this.outcomeJudgment.execute(effect, execution);
@@ -1513,6 +1525,8 @@ export class TaskMonitorMachineEffectHandler implements EffectHandler<
         return this.conversationInput.recovery.reconcile(effect, execution);
       case 'PROJECT_TASK_MONITOR_INTERVENTION':
         return this.interventionProjection.recovery.reconcile(effect);
+      case 'DECIDE_TASK_MONITOR_PERMISSION':
+        return this.permissionDecision.recovery.reconcile(effect);
       case 'APPLY_TASK_MONITOR_DECISION':
         return this.intervention.recovery.reconcile(effect);
       case 'PROJECT_TASK_MONITOR_OUTCOME_JUDGMENT':

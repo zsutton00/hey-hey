@@ -99,6 +99,13 @@ const monitorDecision = (
     ...overrides,
   }) satisfies TaskMonitorMachineEvent;
 
+const watchingDeadline = (providerActionId: string) =>
+  expect.objectContaining({
+    type: 'WATCH_TASK_MONITOR_PERMISSION_DEADLINE',
+    providerActionId,
+    dueAt: '2026-08-08T12:05:00.000Z',
+  });
+
 const effectsOf = (
   definition: ReturnType<typeof createTaskMonitorDefinition>,
   actions: Parameters<ReturnType<typeof createTaskMonitorDefinition>['effectFromAction']>[0][],
@@ -262,8 +269,10 @@ describe('Task Monitor exact-action intervention', () => {
         snapshot,
         taskMonitorEventFromVerifiedInput(input),
       );
-      // The request reaches the monitor first, with no deadline to reject it for.
+      // The request reaches the monitor first, with no deadline to reject it for. Its due time
+      // starts now, so a monitor that never answers cannot keep it from the person.
       expect(effectsOf(definition, openActions)).toEqual([
+        watchingDeadline('provider-action-1'),
         expect.objectContaining({
           type: 'DECIDE_TASK_MONITOR_PERMISSION',
           providerActionId: 'provider-action-1',
@@ -332,6 +341,7 @@ describe('Task Monitor exact-action intervention', () => {
       },
     });
     expect(effectsOf(definition, actions)).toEqual([
+      watchingDeadline('provider-action-1'),
       expect.objectContaining({
         type: 'DECIDE_TASK_MONITOR_PERMISSION',
         interventionId: INTERVENTION_ID,
@@ -587,9 +597,10 @@ describe('Task Monitor exact-action intervention', () => {
       const { definition, snapshot } = observing();
       const [first] = transition(definition.machine, snapshot, exactAction);
 
-      // While the first is still with the monitor, the second waits without prompting anyone.
+      // While the first is still with the monitor, the second waits without prompting anyone, but
+      // its due time already runs.
       const [queued, queueActions] = transition(definition.machine, first, second);
-      expect(queueActions).toEqual([]);
+      expect(effectsOf(definition, queueActions)).toEqual([watchingDeadline('provider-action-2')]);
       expect(queued.context.pendingIntervention).toMatchObject({
         providerActionId: 'provider-action-1',
         owner: 'MONITOR',
@@ -683,6 +694,7 @@ describe('Task Monitor Service scope request', () => {
     const [pending, opened] = transition(definition.machine, snapshot, serviceScopeRequest);
 
     expect(effectsOf(definition, opened)).toEqual([
+      watchingDeadline('scope-request-1'),
       expect.objectContaining({
         type: 'DECIDE_TASK_MONITOR_PERMISSION',
         providerActionId: 'scope-request-1',
@@ -809,5 +821,200 @@ describe('Task Monitor Service scope request', () => {
 
     expect(next.context.pendingIntervention).toBeNull();
     expect(next.matches({ RUNNING: { intervention: 'CLEAR' } })).toBe(true);
+  });
+});
+
+describe('Task Monitor permission request deadline', () => {
+  const second = {
+    ...exactAction,
+    interventionId: 'ignored-second',
+    providerActionId: 'provider-action-2',
+    fingerprint: 'sha256:second-action',
+    target: 'pnpm build',
+  } satisfies TaskMonitorMachineEvent;
+  const reachedDue = (providerActionId: string, interventionId = INTERVENTION_ID) =>
+    ({
+      type: 'MONITOR_PERMISSION_ESCALATED' as const,
+      taskMonitorId: MONITOR_ID,
+      interventionId,
+      providerActionId,
+      reason: 'The Task Monitor did not decide this request within 5 minutes.',
+      escalatedAt: '2026-08-08T12:05:00.000Z',
+    }) satisfies TaskMonitorMachineEvent;
+
+  it('hands a queued request to the person at its due time without waiting for the one in front', () => {
+    const { definition, snapshot } = observing();
+    const [first] = transition(definition.machine, snapshot, exactAction);
+    const [firstHandedOver] = transition(
+      definition.machine,
+      first,
+      reachedDue('provider-action-1'),
+    );
+    const [queued] = transition(definition.machine, firstHandedOver, second);
+
+    const [escalated, actions] = transition(
+      definition.machine,
+      queued,
+      reachedDue('provider-action-2', 'ignored-second'),
+    );
+
+    expect(escalated.context.queuedInterventions).toEqual([
+      expect.objectContaining({
+        providerActionId: 'provider-action-2',
+        owner: 'HUMAN',
+        escalationReason: 'The Task Monitor did not decide this request within 5 minutes.',
+        escalatedAt: '2026-08-08T12:05:00.000Z',
+      }),
+    ]);
+    expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
+      'RECORD_TASK_MONITOR_PERMISSION_DECISION',
+      'PROJECT_TASK_MONITOR_INTERVENTION',
+    ]);
+  });
+
+  it('lets the person answer an escalated request that waits behind another escalated one', () => {
+    const { definition, snapshot } = observing();
+    const [first] = transition(definition.machine, snapshot, exactAction);
+    const [queuedBehind] = transition(definition.machine, first, second);
+    const [secondHandedOver] = transition(
+      definition.machine,
+      queuedBehind,
+      reachedDue('provider-action-2', 'ignored-second'),
+    );
+    const [bothHandedOver] = transition(
+      definition.machine,
+      secondHandedOver,
+      reachedDue('provider-action-1'),
+    );
+
+    const [applying, actions] = transition(
+      definition.machine,
+      bothHandedOver,
+      decision({
+        interventionId: 'ignored-second',
+        providerActionId: 'provider-action-2',
+        fingerprint: 'sha256:second-action',
+      }),
+    );
+
+    expect(applying.value).toMatchObject({ RUNNING: { intervention: 'APPLYING_DECISION' } });
+    expect(applying.context.pendingIntervention).toMatchObject({
+      providerActionId: 'provider-action-2',
+    });
+    expect(applying.context.queuedInterventions).toEqual([
+      expect.objectContaining({ providerActionId: 'provider-action-1', owner: 'HUMAN' }),
+    ]);
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({
+        type: 'APPLY_TASK_MONITOR_DECISION',
+        providerActionId: 'provider-action-2',
+      }),
+    ]);
+  });
+
+  it('keeps a request the person already holds out of the monitor when it reaches the front', () => {
+    const { definition, snapshot } = observing();
+    const [first] = transition(definition.machine, snapshot, exactAction);
+    const [queuedBehind] = transition(definition.machine, first, second);
+    const [secondHandedOver] = transition(
+      definition.machine,
+      queuedBehind,
+      reachedDue('provider-action-2', 'ignored-second'),
+    );
+    const [applying] = transition(definition.machine, secondHandedOver, monitorDecision());
+
+    const [next, actions] = transition(definition.machine, applying, {
+      type: 'DECISION_APPLIED',
+      taskMonitorId: MONITOR_ID,
+      interventionId: INTERVENTION_ID,
+      providerActionId: 'provider-action-1',
+    });
+
+    expect(next.context.pendingIntervention).toMatchObject({
+      providerActionId: 'provider-action-2',
+      owner: 'HUMAN',
+    });
+    expect(effectsOf(definition, actions)).toEqual([]);
+  });
+
+  it('ignores a due time reached after the monitor already decided the request', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, exactAction);
+    const [applying] = transition(definition.machine, pending, monitorDecision());
+
+    const [after, actions] = transition(
+      definition.machine,
+      applying,
+      reachedDue('provider-action-1'),
+    );
+
+    expect(effectsOf(definition, actions)).toEqual([]);
+    expect(after.context.pendingIntervention).toMatchObject({ owner: 'MONITOR' });
+  });
+
+  it('settles a stopped monitor’s request on the first answer and refuses a second one', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, exactAction);
+    const [halted] = transition(definition.machine, pending, {
+      type: 'STOP' as const,
+      taskMonitorId: MONITOR_ID,
+    });
+
+    const [answered, answeredActions] = transition(definition.machine, halted, decision());
+
+    expect(effectsOf(definition, answeredActions)).toEqual([
+      expect.objectContaining({
+        type: 'APPLY_TASK_MONITOR_DECISION',
+        providerActionId: 'provider-action-1',
+      }),
+    ]);
+    expect(answered.context.pendingIntervention?.decision).toMatchObject({
+      resolution: 'APPROVE',
+    });
+
+    // A second answer, even one with a different token, is not applied to the provider again.
+    const [, secondActions] = transition(
+      definition.machine,
+      answered,
+      decision({ resolution: 'DENY', providerDecision: 'deny' }),
+    );
+    expect(effectsOf(definition, secondActions)).toEqual([]);
+
+    const [settled] = transition(definition.machine, answered, {
+      type: 'DECISION_APPLIED',
+      taskMonitorId: MONITOR_ID,
+      interventionId: INTERVENTION_ID,
+      providerActionId: 'provider-action-1',
+    });
+    expect(settled.context.pendingIntervention).toBeNull();
+  });
+
+  it('hands every request the monitor holds to the person when it is stopped, with a card for each', () => {
+    const { definition, snapshot } = observing();
+    const [first] = transition(definition.machine, snapshot, exactAction);
+    const [queuedBehind] = transition(definition.machine, first, second);
+
+    const [halted, actions] = transition(definition.machine, queuedBehind, {
+      type: 'STOP' as const,
+      taskMonitorId: MONITOR_ID,
+    });
+
+    expect(halted.value).toBe('HALTED');
+    expect(effectsOf(definition, actions)).toEqual([
+      expect.objectContaining({ type: 'HALT_TASK_MONITOR_CONTROL' }),
+      expect.objectContaining({
+        type: 'PROJECT_TASK_MONITOR_INTERVENTION',
+        providerActionId: 'provider-action-1',
+        alsoProject: [expect.objectContaining({ providerActionId: 'provider-action-2' })],
+      }),
+    ]);
+    expect(halted.context.pendingIntervention).toMatchObject({ owner: 'HUMAN' });
+    expect(halted.context.queuedInterventions).toEqual([
+      expect.objectContaining({
+        providerActionId: 'provider-action-2',
+        owner: 'HUMAN',
+        escalationReason: 'The Task Monitor was stopped, so this request is waiting for a person.',
+      }),
+    ]);
   });
 });

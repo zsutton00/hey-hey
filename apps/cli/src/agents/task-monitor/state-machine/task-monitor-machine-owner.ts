@@ -27,6 +27,7 @@ import {
   TaskMonitorDecisionApplicationEffectHandler,
   TaskMonitorInterventionProjectionEffectHandler,
   TaskMonitorPermissionDecisionEffectHandler,
+  TaskMonitorPermissionDeadlineEffectHandler,
   TaskMonitorPermissionRecordEffectHandler,
 } from './intervention-effect-handlers';
 import { TaskMonitorLaunchRecoveryEffectHandler } from './launch-recovery-effect-handlers';
@@ -174,6 +175,10 @@ export class TaskMonitorMachineOwner {
       dependencies.runRegistry,
       dependencies.logger.child({ component: 'task-monitor.machine.permission-decision' }),
     );
+    const permissionDeadline = new TaskMonitorPermissionDeadlineEffectHandler(
+      dependencies.runRegistry,
+      dependencies.logger.child({ component: 'task-monitor.machine.permission-deadline' }),
+    );
     const permissionRecord = new TaskMonitorPermissionRecordEffectHandler(
       dependencies.messagePoster,
       dependencies.logger.child({ component: 'task-monitor.machine.permission-record' }),
@@ -243,6 +248,7 @@ export class TaskMonitorMachineOwner {
       interventionProjection,
       decisionApplication,
       permissionDecision,
+      permissionDeadline,
       permissionRecord,
       this.settledRunEvaluationEffectHandler,
       this.reviewDeliveryEffectHandler,
@@ -257,6 +263,7 @@ export class TaskMonitorMachineOwner {
     this.effectHandlers = {
       PROJECT_TASK_MONITOR_OUTCOME_JUDGMENT: this.effectHandler,
       DECIDE_TASK_MONITOR_PERMISSION: this.effectHandler,
+      WATCH_TASK_MONITOR_PERMISSION_DEADLINE: this.effectHandler,
       RECORD_TASK_MONITOR_PERMISSION_DECISION: this.effectHandler,
       LOAD_TASK_MONITOR: this.effectHandler,
       COORDINATE_TASK_MONITOR_WORK: this.effectHandler,

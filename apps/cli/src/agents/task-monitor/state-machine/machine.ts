@@ -77,8 +77,19 @@ import {
   nextQueuedIsServiceScope,
   canOpenUserRequiredIntervention,
   canQueueExactActionIntervention,
+  hasQueuedHumanHeldIntervention,
   hasQueuedMonitorOwnedIntervention,
   hasQueuedUserRequiredIntervention,
+  isMonitorOwnedExactAction,
+  matchesQueuedHumanDecision,
+  matchesQueuedMonitorEscalation,
+  matchesQueuedServiceScopeEscalation,
+  dropQueuedRequest,
+  escalateQueuedRequest,
+  swapInAnsweredQueuedRequest,
+  handQueuedRequestsToHumanOnStop,
+  stopProjectionParameters,
+  STOP_ESCALATION_REASON,
   pendingInterventionFromRequest,
   queuedInterventions,
   matchesPendingMonitorDecision,
@@ -86,9 +97,9 @@ import {
   matchesPendingMonitorEscalation,
   matchesPendingServiceScopeEscalation,
   matchesApplyingDecision,
-  stopProjectionParameters,
   matchesPendingInterventionProjection,
   matchesPendingHumanDecision,
+  taskMonitorHaltedInterventionEvents,
   taskMonitorInterventionStates,
 } from './intervention';
 import {
@@ -324,6 +335,9 @@ const queuedInterventionSchema = z
     expiresAt: z.string().datetime().nullable(),
     userRequired: z.boolean().optional(),
     requestKind: requestKindSchema.optional(),
+    owner: z.enum(['MONITOR', 'HUMAN']).optional(),
+    escalationReason: z.string().nullable().optional(),
+    escalatedAt: z.string().nullable().optional(),
   })
   .strict() satisfies z.ZodType<TaskMonitorQueuedIntervention>;
 const settledRunSchema = z
@@ -855,6 +869,19 @@ const decideMonitorPermissionEffectSchema = z
     expiresAt: z.string().datetime().nullable(),
     requestKind: requestKindSchema.optional(),
     monitorPaused: z.literal(true).optional(),
+    dueAt: z.string().datetime().optional(),
+  })
+  .strict();
+const watchMonitorPermissionDeadlineEffectSchema = z
+  .object({
+    type: z.literal('WATCH_TASK_MONITOR_PERMISSION_DEADLINE'),
+    taskMonitorId: z.string(),
+    interventionId: z.string(),
+    providerActionId: z.string(),
+    runId: z.string(),
+    agentSessionId: z.string(),
+    requestKind: requestKindSchema.optional(),
+    dueAt: z.string().datetime(),
   })
   .strict();
 const recordMonitorPermissionDecisionEffectSchema = z
@@ -888,6 +915,23 @@ const interventionProjectionEffectSchema = z
     fingerprint: z.string(),
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
+    alsoProject: z
+      .array(
+        z
+          .object({
+            interventionId: z.string(),
+            providerActionId: z.string(),
+            runId: z.string(),
+            agentSessionId: z.string(),
+            action: z.string(),
+            target: z.string(),
+            fingerprint: z.string(),
+            createdAt: z.string().datetime(),
+            expiresAt: z.string().datetime().nullable(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 const settledRunEvaluationEffectSchema = z
@@ -972,6 +1016,7 @@ const taskMonitorEffectSchema = z.discriminatedUnion('type', [
   haltControlEffectSchema,
   interventionProjectionEffectSchema,
   decideMonitorPermissionEffectSchema,
+  watchMonitorPermissionDeadlineEffectSchema,
   recordMonitorPermissionDecisionEffectSchema,
   settledRunEvaluationEffectSchema,
   deliverReviewEffectSchema,
@@ -1613,6 +1658,11 @@ const taskMonitorMachine = setup({
     canQueueExactActionIntervention,
     hasQueuedMonitorOwnedIntervention,
     hasQueuedUserRequiredIntervention,
+    hasQueuedHumanHeldIntervention,
+    isMonitorOwnedExactAction,
+    matchesQueuedMonitorEscalation,
+    matchesQueuedServiceScopeEscalation,
+    matchesQueuedHumanDecision,
     matchesPendingMonitorDecision,
     hasMonitorHeldProviderRequest,
     matchesPendingMonitorEscalation,
@@ -1806,6 +1856,10 @@ const taskMonitorMachine = setup({
       void params;
     },
     decideTaskMonitorPermission: (arguments_, params: TaskMonitorMachineEffect) => {
+      void arguments_;
+      void params;
+    },
+    watchTaskMonitorPermissionDeadline: (arguments_, params: TaskMonitorMachineEffect) => {
       void arguments_;
       void params;
     },
@@ -2024,6 +2078,9 @@ const taskMonitorMachine = setup({
         ? {}
         : { pendingIntervention: pendingInterventionFromRequest(next), queuedInterventions: rest };
     }),
+    escalateQueuedRequest: assign(escalateQueuedRequest),
+    dropQueuedRequest: assign(dropQueuedRequest),
+    swapInAnsweredQueuedRequest: assign(swapInAnsweredQueuedRequest),
     storeMonitorInterventionDecision: assign({
       pendingIntervention: ({ context, event }) =>
         event.type === 'MONITOR_PERMISSION_DECIDED' && context.pendingIntervention !== null
@@ -2057,18 +2114,29 @@ const taskMonitorMachine = setup({
         context.pendingIntervention.escalatedAt === null
           ? { ...context.pendingIntervention, escalatedAt: event.stoppedAt ?? null }
           : context.pendingIntervention,
+      queuedInterventions: ({ context, event }) =>
+        event.type === 'TASK_MONITOR_STOP_SUCCEEDED'
+          ? queuedInterventions(context).map((request) =>
+              request.owner === 'HUMAN' && request.escalatedAt === null
+                ? { ...request, escalatedAt: event.stoppedAt ?? null }
+                : request,
+            )
+          : queuedInterventions(context),
     }),
-    handPendingRequestToHumanOnStop: assign({
+    handRequestsToHumanOnStop: assign({
       pendingIntervention: ({ context }) =>
-        context.pendingIntervention === null
-          ? null
+        context.pendingIntervention === null ||
+        context.pendingIntervention.decision !== null ||
+        context.pendingIntervention.owner === 'HUMAN' ||
+        context.pendingIntervention.requestKind === 'SERVICE_SCOPE'
+          ? context.pendingIntervention
           : {
               ...context.pendingIntervention,
               owner: 'HUMAN',
-              escalationReason:
-                'The Task Monitor was stopped, so this request is waiting for a person.',
+              escalationReason: STOP_ESCALATION_REASON,
               escalatedAt: null,
             },
+      queuedInterventions: ({ context }) => handQueuedRequestsToHumanOnStop(context),
     }),
     storeInterventionDecision: assign({
       pendingIntervention: ({ context, event }) =>
@@ -2276,8 +2344,8 @@ const taskMonitorMachine = setup({
                 type: 'haltTaskMonitorControl',
                 params: haltControlParameters,
               },
-              'handPendingRequestToHumanOnStop',
               { type: 'projectTaskMonitorIntervention', params: stopProjectionParameters },
+              'handRequestsToHumanOnStop',
             ],
           },
           {
@@ -2530,6 +2598,7 @@ const taskMonitorMachine = setup({
     },
     HALTED: {
       on: {
+        ...taskMonitorHaltedInterventionEvents,
         TASK_MONITOR_STOP_SUCCEEDED: {
           guard: 'matchesTaskMonitor',
           actions: 'stampStopEscalationTime',
@@ -2813,6 +2882,7 @@ export const createTaskMonitorDefinition = (): TaskMonitorDefinition =>
         case 'applyTaskMonitorDecision':
         case 'projectTaskMonitorIntervention':
         case 'decideTaskMonitorPermission':
+        case 'watchTaskMonitorPermissionDeadline':
         case 'recordTaskMonitorPermissionDecision':
         case 'evaluateTaskMonitorSettledRun':
         case 'deliverTaskMonitorReview':
