@@ -1,9 +1,16 @@
 import { Box, Stack, Typography } from "@mui/material";
 import type { ChangeWalkthroughReportPayload } from "../../../api";
 import { SyntaxHighlightedCodeBlock } from "../../CodingPlan/SyntaxHighlightedCodeBlock";
+import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { ReportItemCard, ReportLabeledText } from "./reportPrimitives";
 import type { ReportRenderer } from "./rendererContract";
 import { WalkthroughSourceLink } from "./WalkthroughSourceLink";
+
+const WalkthroughMarkdown = ({ text }: { text: string }) => (
+  <MarkdownRenderer mentionMode="minimal" sx={{ fontSize: "0.875rem" }}>
+    {text}
+  </MarkdownRenderer>
+);
 
 export const ChangeWalkthroughReport: ReportRenderer<
   ChangeWalkthroughReportPayload
@@ -13,7 +20,10 @@ export const ChangeWalkthroughReport: ReportRenderer<
     data-testid="change-walkthrough-report"
     sx={{ minWidth: 0 }}
   >
-    <ReportLabeledText label="Summary" value={payload.summary} renderMentions />
+    <ReportLabeledText
+      label="Summary"
+      value={<WalkthroughMarkdown text={payload.summary} />}
+    />
     {payload.groups.map((group, groupIndex) => (
       <ReportItemCard
         key={groupIndex}
@@ -48,8 +58,7 @@ export const ChangeWalkthroughReport: ReportRenderer<
                 >
                   <ReportLabeledText
                     label="Context"
-                    value={change.context}
-                    renderMentions
+                    value={<WalkthroughMarkdown text={change.context} />}
                   />
                 </Box>
                 {change.walkthrough.map((step, stepIndex) => (
@@ -80,15 +89,15 @@ export const ChangeWalkthroughReport: ReportRenderer<
                     )}
                     <ReportLabeledText
                       label="Explanation"
-                      value={step.explanation}
-                      renderMentions
+                      value={<WalkthroughMarkdown text={step.explanation} />}
                     />
                   </Stack>
                 ))}
                 <ReportLabeledText
                   label="Behavioral consequence"
-                  value={change.behavioralConsequence}
-                  renderMentions
+                  value={
+                    <WalkthroughMarkdown text={change.behavioralConsequence} />
+                  }
                 />
               </Stack>
             </li>
