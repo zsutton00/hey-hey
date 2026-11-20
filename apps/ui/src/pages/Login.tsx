@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { Alert, Box, CircularProgress, TextField } from "@mui/material";
 import {
+  BRANDED_FIELD_LABEL_SX,
+  BRANDED_FIELD_SX,
   BrandedButton,
   BrandedCard,
   BrandedDivider,
@@ -21,22 +23,6 @@ import {
 
 const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   "We've sent an email with recovery instructions";
-
-const FIELD_SX = {
-  mb: 2,
-  "& .MuiInputBase-root": {
-    color: "#fff",
-    background: "rgb(255 255 255 / 5%)",
-  },
-  "& .MuiOutlinedInput-notchedOutline": {
-    borderColor: "rgb(255 255 255 / 35%)",
-  },
-  "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline": {
-    borderColor: "rgb(255 255 255 / 70%)",
-  },
-} as const;
-
-const FIELD_LABEL_SX = { color: "#fff", fontWeight: 700, fontSize: "0.85rem" };
 
 const FORGOT_SX = {
   display: "block",
@@ -159,7 +145,7 @@ const Login = () => {
         )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          <Box component="label" htmlFor="email" sx={FIELD_LABEL_SX}>
+          <Box component="label" htmlFor="email" sx={BRANDED_FIELD_LABEL_SX}>
             Email address
           </Box>
           <TextField
@@ -172,9 +158,9 @@ const Login = () => {
             value={formData.email}
             onChange={handleChange}
             disabled={loading}
-            sx={FIELD_SX}
+            sx={BRANDED_FIELD_SX}
           />
-          <Box component="label" htmlFor="password" sx={FIELD_LABEL_SX}>
+          <Box component="label" htmlFor="password" sx={BRANDED_FIELD_LABEL_SX}>
             Password
           </Box>
           <TextField
@@ -187,7 +173,7 @@ const Login = () => {
             value={formData.password}
             onChange={handleChange}
             disabled={loading}
-            sx={FIELD_SX}
+            sx={BRANDED_FIELD_SX}
           />
 
           <BrandedButton type="submit" disabled={loading}>
@@ -253,7 +239,7 @@ const Login = () => {
                   onChange={(event) => setRecoveryEmail(event.target.value)}
                   disabled={loading}
                   inputProps={{ "data-testid": "password-recovery-email" }}
-                  sx={FIELD_SX}
+                  sx={BRANDED_FIELD_SX}
                 />
                 <BrandedButton
                   type="submit"

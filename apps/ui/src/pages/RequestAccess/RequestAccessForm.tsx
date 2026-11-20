@@ -3,12 +3,17 @@ import { Link } from "react-router-dom";
 import {
   Alert,
   Box,
-  Button,
   CircularProgress,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
+import {
+  BRANDED_FIELD_LABEL_SX,
+  BRANDED_FIELD_SX,
+  BRANDED_LINK_SX,
+  BrandedButton,
+} from "@hey-hey/ui-common/components";
 import { privateBetaAccessRequestFieldConstraints } from "@hey-hey/ui-common/clients";
 import {
   requestAccessFieldIds,
@@ -42,6 +47,43 @@ export const RequestAccessForm = ({
       onChange(field, event.target.value);
     };
 
+  const fields: Array<{
+    field: RequestAccessField;
+    id: string;
+    label: string;
+    type?: string;
+    autoComplete: string;
+    value: string;
+    maxLength: number;
+  }> = [
+    {
+      field: "name",
+      id: requestAccessFieldIds.name,
+      label: "Name",
+      autoComplete: "name",
+      value: values.name,
+      maxLength: privateBetaAccessRequestFieldConstraints.name.maxLength,
+    },
+    {
+      field: "workEmail",
+      id: requestAccessFieldIds.workEmail,
+      label: "Email",
+      type: "email",
+      autoComplete: "email",
+      value: values.workEmail,
+      maxLength: privateBetaAccessRequestFieldConstraints.workEmail.maxLength,
+    },
+    {
+      field: "organizationName",
+      id: requestAccessFieldIds.organizationName,
+      label: "Organization name",
+      autoComplete: "organization",
+      value: values.organizationName,
+      maxLength:
+        privateBetaAccessRequestFieldConstraints.organizationName.maxLength,
+    },
+  ];
+
   return (
     <Box
       component="form"
@@ -50,23 +92,23 @@ export const RequestAccessForm = ({
       aria-busy={isSubmitting}
       data-testid="request-access-form"
     >
-      <Stack spacing={{ xs: 3, sm: 3.5 }}>
+      <Stack spacing={3}>
         <Box>
-          <Typography component="h2" variant="h4" gutterBottom>
+          <Typography
+            component="h2"
+            variant="h5"
+            sx={{ color: "#fff", fontWeight: 700 }}
+            gutterBottom
+          >
             Create your beta account
           </Typography>
-          <Typography color="text.secondary">
+          <Typography sx={{ color: "rgb(255 255 255 / 72%)" }}>
             Enter your name, email, and organization. All fields are required.
           </Typography>
         </Box>
 
         {submitError ? (
-          <Alert
-            severity="error"
-            role="alert"
-            aria-live="assertive"
-            sx={{ borderRadius: 2 }}
-          >
+          <Alert severity="error" role="alert" aria-live="assertive">
             {submitError}
           </Alert>
         ) : null}
@@ -75,99 +117,58 @@ export const RequestAccessForm = ({
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-            gap: { xs: 2.5, sm: 3 },
+            columnGap: 3,
           }}
         >
-          <TextField
-            id={requestAccessFieldIds.name}
-            label="Name"
-            value={values.name}
-            onChange={changeField("name")}
-            error={Boolean(errors.name)}
-            helperText={hasAttemptedSubmit ? errors.name : undefined}
-            required
-            fullWidth
-            autoComplete="name"
-            inputProps={{
-              maxLength:
-                privateBetaAccessRequestFieldConstraints.name.maxLength,
-            }}
-          />
-          <TextField
-            id={requestAccessFieldIds.workEmail}
-            label="Work email"
-            type="email"
-            value={values.workEmail}
-            onChange={changeField("workEmail")}
-            error={Boolean(errors.workEmail)}
-            helperText={hasAttemptedSubmit ? errors.workEmail : undefined}
-            required
-            fullWidth
-            autoComplete="email"
-            inputProps={{
-              maxLength:
-                privateBetaAccessRequestFieldConstraints.workEmail.maxLength,
-            }}
-          />
-          <TextField
-            id={requestAccessFieldIds.organizationName}
-            label="Organization name"
-            value={values.organizationName}
-            onChange={changeField("organizationName")}
-            error={Boolean(errors.organizationName)}
-            helperText={
-              hasAttemptedSubmit ? errors.organizationName : undefined
-            }
-            required
-            fullWidth
-            autoComplete="organization"
-            inputProps={{
-              maxLength:
-                privateBetaAccessRequestFieldConstraints.organizationName
-                  .maxLength,
-            }}
-          />
+          {fields.map((entry) => (
+            <Box key={entry.field}>
+              <Box
+                component="label"
+                htmlFor={entry.id}
+                sx={BRANDED_FIELD_LABEL_SX}
+              >
+                {entry.label} *
+              </Box>
+              <TextField
+                id={entry.id}
+                type={entry.type}
+                value={entry.value}
+                onChange={changeField(entry.field)}
+                error={Boolean(errors[entry.field])}
+                helperText={
+                  hasAttemptedSubmit ? errors[entry.field] : undefined
+                }
+                required
+                fullWidth
+                autoComplete={entry.autoComplete}
+                inputProps={{ maxLength: entry.maxLength }}
+                sx={BRANDED_FIELD_SX}
+              />
+            </Box>
+          ))}
         </Box>
 
-        <Button
-          type="submit"
-          variant="contained"
-          size="large"
-          disabled={isSubmitting}
-          sx={{
-            alignSelf: { xs: "stretch", sm: "flex-start" },
-            minWidth: { sm: 160 },
-            textTransform: "none",
-          }}
-        >
+        <BrandedButton type="submit" disabled={isSubmitting}>
           {isSubmitting ? (
-            <>
-              <CircularProgress
-                color="inherit"
-                size={20}
-                aria-label="Submitting request"
-                sx={{ mr: 1 }}
-              />
-              Submitting…
-            </>
+            <CircularProgress
+              color="inherit"
+              size={24}
+              aria-label="Submitting request"
+            />
           ) : submitError ? (
             "Retry"
           ) : (
             "Sign up"
           )}
-        </Button>
+        </BrandedButton>
 
-        <Button
+        <Box
           component={Link}
           to="/login"
-          variant="text"
-          sx={{
-            alignSelf: { xs: "stretch", sm: "flex-start" },
-            textTransform: "none",
-          }}
+          sx={{ ...BRANDED_LINK_SX, alignSelf: "center" }}
         >
           Existing User Sign In
-        </Button>
+        </Box>
       </Stack>
     </Box>
   );

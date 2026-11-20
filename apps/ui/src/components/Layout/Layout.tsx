@@ -48,6 +48,14 @@ import { useKeyboardViewportRecovery } from "../../hooks/useKeyboardViewportReco
 
 const MOBILE_HEADER_ACTION_SIZE = 44;
 
+/** Branded frame screens paint their own full-bleed background, edge to edge. */
+const BRANDED_FRAME_PATHS = [
+  "/login",
+  "/request-access",
+  "/change-password",
+  "/private-beta/disclosure",
+];
+
 const Layout = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -98,7 +106,7 @@ const Layout = () => {
 
   const isOnLandingPage = location.pathname === "/";
   // Branded frame pages paint their own full-bleed background.
-  const isOnLoginPage = location.pathname === "/login";
+  const isOnBrandedFramePage = BRANDED_FRAME_PATHS.includes(location.pathname);
   const isOnPublicMarketingPage =
     isOnLandingPage ||
     location.pathname === "/request-access" ||
@@ -297,15 +305,16 @@ const Layout = () => {
                     paddingBottom:
                       isBottomSpacingSuppressed ||
                       isOnPublicMarketingPage ||
-                      isOnLoginPage
+                      isOnBrandedFramePage
                         ? 0
                         : "100px",
                     marginLeft: isOnProjectPage ? 0 : 0, // Drawer handles its own spacing
-                    marginTop: isOnPublicMarketingPage
-                      ? 0
-                      : LAYOUT_CSS.MAIN_MARGIN_TOP,
+                    marginTop:
+                      isOnPublicMarketingPage || isOnBrandedFramePage
+                        ? 0
+                        : LAYOUT_CSS.MAIN_MARGIN_TOP,
                     bgcolor: "background.default",
-                    ...(isOnLandingPage || isOnLoginPage
+                    ...(isOnLandingPage || isOnBrandedFramePage
                       ? { px: 0 }
                       : MAIN_CONTENT_PADDING_X_SX),
                   }}
