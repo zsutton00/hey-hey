@@ -574,38 +574,6 @@ describe('TaskMonitorCoordinatorRunner', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('rejects an Antigravity coordinator launch before materializing a Run', async () => {
-    const runStore = createTestRunStore();
-    await runStore.initialize();
-    const runner = new TaskMonitorCoordinatorRunner({
-      authProvider: createTestPlatformAuthContext(AUTH),
-      agentService: createTestLocalAgentService({ runStore }),
-      runStore,
-      decisionStore: createDecisionStore(),
-      logger: NOOP_LOGGER,
-    });
-
-    await expect(
-      runner.ensureTaskMonitorRun(
-        {
-          monitorId: '10000000-0000-4000-8000-000000000001',
-          launchConfig: {
-            taskId: 'task-1',
-            method: 'quick',
-            provider: 'antigravity',
-            model: 'gemini-test-model',
-            reasoningEffort: 'high',
-          },
-        },
-        AUTH,
-      ),
-    ).rejects.toMatchObject({
-      code: 'NOT_SUPPORTED',
-      message: 'Antigravity runner not available.',
-    });
-    expect(await runStore.findRunsByPromptType(LocalPromptType.TaskMonitor)).toEqual([]);
-  });
-
   it('owns coordinator identity and sends the requested Task Monitor turn', async () => {
     const ensureRunForMonitor = vi.fn<LocalAgentService['ensureRunForMonitor']>(async () =>
       ensuredResponse({

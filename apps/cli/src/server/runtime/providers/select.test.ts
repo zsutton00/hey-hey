@@ -205,16 +205,23 @@ const resetState = (): void => {
   codexState.createdRunnerDependencies = [];
 };
 
-it('rejects Antigravity before selecting any existing runner', async () => {
+it('owns one Antigravity runner per Run and rejects repository-bound prompts and resumes', async () => {
   resetState();
   const facade = buildFacade();
   const run = buildRun({ provider: 'antigravity' });
-
-  expect(() => facade.forRun(run)).toThrow('Antigravity runner not available');
-  await expect(facade.runPrompt(run, buildRunArgs())).rejects.toThrow(
-    'Antigravity runner not available',
-  );
-  expect(run.setRunner).not.toHaveBeenCalled();
+  const runner = facade.forRun(run);
+  expect(facade.forRun(run)).toBe(runner);
+  expect(run.setRunner).toHaveBeenCalledExactlyOnceWith(runner);
+  const session = stubSession({
+    provider: 'antigravity',
+    services: [{ id: 'service-1', path: '/repo' }],
+  });
+  await expect(facade.runPrompt(run, buildRunArgs({ session }))).rejects.toMatchObject({
+    code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED',
+  });
+  await expect(facade.resumeSession(run, buildResumeArgs({ session }))).rejects.toMatchObject({
+    code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED',
+  });
 });
 
 describe('SessionRunnerFacade — ToolRuleStore ownership', () => {

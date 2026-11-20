@@ -1,3 +1,4 @@
+import { AntigravityAgentSessionRunner } from '../../../agents/providers/antigravity/session-runner-antigravity';
 /**
  * Run-scoped provider selection and runner ownership.
  *
@@ -77,23 +78,6 @@ export interface SessionRunnerFacadeDependencies {
 const firstReportedModel = (providerId: AgentProviderId): string | undefined =>
   providerId === 'opencode' ? undefined : listModels(providerId)[0]?.id;
 
-export function assertProviderRunnerAvailable(
-  providerId: AgentProviderId,
-  logger: ServerLogger,
-  identity: { runId: string } | { agentSessionId: string } | { monitorId: string },
-): asserts providerId is Exclude<AgentProviderId, 'antigravity'> {
-  if (providerId === 'antigravity') {
-    const error = new AgentSessionRunnerError('NOT_SUPPORTED', 'Antigravity runner not available.');
-    logger.warn('select.runner.unavailable', {
-      ...identity,
-      provider: providerId,
-      code: error.code,
-      message: error.message,
-    });
-    throw error;
-  }
-}
-
 export class SessionRunnerFacade {
   private readonly runners = new Map<
     string,
@@ -126,7 +110,6 @@ export class SessionRunnerFacade {
       return;
     }
     const providerId = resolveAgentProviderId(run.provider);
-    assertProviderRunnerAvailable(providerId, this.dependencies.logger, { runId: run.runId });
     this.decidedRuns.add(run.runId);
     let enabled = false;
     try {
@@ -140,11 +123,11 @@ export class SessionRunnerFacade {
     if (!enabled) {
       return;
     }
-    if (providerId === 'opencode') {
+    if (providerId === 'opencode' || providerId === 'antigravity') {
       this.dependencies.logger.info('select.precise_tracking.provider_without_hooks', {
         runId: run.runId,
         provider: providerId,
-        reason: 'OpenCode has no tool hooks, so its edits stay approximate',
+        reason: 'This provider does not support precise execution capture',
       });
       return;
     }
@@ -169,7 +152,6 @@ export class SessionRunnerFacade {
   public forRun(run: Run): AgentSessionRunner {
     const existing = this.runners.get(run.runId);
     const providerId = resolveAgentProviderId(run.provider);
-    assertProviderRunnerAvailable(providerId, this.dependencies.logger, { runId: run.runId });
     if (existing?.providerId === providerId) return existing.runner;
 
     // Provider hooks are sent only for a Run started with precise file change tracking on.
@@ -184,7 +166,12 @@ export class SessionRunnerFacade {
     };
 
     let runner: AgentSessionRunner;
-    if (providerId === 'codex') {
+    if (providerId === 'antigravity') {
+      runner = new AntigravityAgentSessionRunner({
+        ...common,
+        logger: this.dependencies.logger.child({ component: 'runner.antigravity' }),
+      });
+    } else if (providerId === 'codex') {
       runner = new CodexAgentSessionRunner({
         ...common,
         ...(executionRecorder ? { executionRecorder } : {}),
@@ -256,9 +243,6 @@ export class SessionRunnerFacade {
     providerSessionId?: string,
   ): Promise<LocalContextData> {
     const providerId = resolveAgentProviderId(session.provider);
-    assertProviderRunnerAvailable(providerId, this.dependencies.logger, {
-      agentSessionId: session.agentic_session_id,
-    });
     let runner: AgentSessionRunner;
     if (providerId === 'claude') {
       runner = new ClaudeAgentSessionRunner({

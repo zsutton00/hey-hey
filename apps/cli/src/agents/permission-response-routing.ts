@@ -7,6 +7,7 @@ export type PermissionCallbackType =
   | 'claude_control_response'
   | 'codex_exec_approval_response'
   | 'opencode_permission_response'
+  | 'antigravity_permission_response'
   | 'service_scope_decision';
 
 export interface PermissionDecisionRoutingInput {
@@ -86,10 +87,19 @@ interface OpencodePermissionDecisionDispatch {
   routing: PermissionDecisionRoutingMetadata;
 }
 
+interface AntigravityPermissionDecisionDispatch {
+  agentType: 'antigravity';
+  decision: PermissionDecision;
+  callbackType: 'antigravity_permission_response';
+  callbackPayload: { kind: 'allow_once' | 'allow_always' | 'reject_once' };
+  routing: PermissionDecisionRoutingMetadata;
+}
+
 export type AgentPermissionDecisionDispatch =
   | ClaudePermissionDecisionDispatch
   | CodexPermissionDecisionDispatch
-  | OpencodePermissionDecisionDispatch;
+  | OpencodePermissionDecisionDispatch
+  | AntigravityPermissionDecisionDispatch;
 
 const toDenyReason = (reason: string | null): string =>
   reason && reason.trim().length > 0 ? reason : 'Denied by user.';
@@ -157,8 +167,20 @@ export const translatePermissionDecisionToDispatch = (
     };
   }
 
-  if (input.agentType !== 'codex') {
-    throw new Error(`Permission responses are unavailable for provider "${input.agentType}".`);
+  if (input.agentType === 'antigravity') {
+    const kinds = {
+      approve: 'allow_once',
+      always_approve: 'allow_always',
+      whitelist: 'allow_always',
+      deny: 'reject_once',
+    } as const;
+    return {
+      agentType: 'antigravity',
+      decision: input.decision,
+      callbackType: 'antigravity_permission_response',
+      callbackPayload: { kind: kinds[input.decision] },
+      routing,
+    };
   }
 
   return {

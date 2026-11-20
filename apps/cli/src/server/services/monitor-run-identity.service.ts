@@ -53,7 +53,6 @@ import type { ServerLogger } from '../logger';
 import { requestContext } from '../request-context';
 import type { RunCreationCoordinator } from './run-creation-coordinator';
 import { toLocalRun } from './run.service';
-import { assertProviderRunnerAvailable } from '../runtime/providers/select';
 
 export interface PlatformAgentSessionClientDependencies {
   apiBaseUrl: string;
@@ -452,12 +451,6 @@ export class MonitorRunIdentityService {
       runConfig,
       keyBy,
     } = input;
-
-    if (keyBy.mode === 'taskMonitor' && runConfig) {
-      assertProviderRunnerAvailable(runConfig.provider, this.dependencies.logger, {
-        monitorId: keyBy.monitorId,
-      });
-    }
 
     const targetConversationId =
       keyBy.mode === 'targetSession' ? keyBy.targetConversationId : undefined;
