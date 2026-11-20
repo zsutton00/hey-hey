@@ -383,6 +383,43 @@ const TARGETS = [
     ],
   },
   {
+    id: "ui-common-graphql",
+    commands: [
+      [
+        "pnpm",
+        "--dir",
+        "packages/ui-common",
+        "run",
+        "generate:graphql:unlocked",
+      ],
+    ],
+    openapiFiles: ["specs/graphql/web-ui-read.graphql"],
+    inputFiles: ["packages/ui-common/codegen.ts"],
+    graphqlDocumentDirs: ["packages/ui-common/src/data/graphql"],
+    packageScripts: [
+      {
+        path: "packages/ui-common/package.json",
+        names: ["generate:graphql:unlocked"],
+      },
+    ],
+    toolPackages: [
+      {
+        path: "packages/ui-common/package.json",
+        names: [
+          "@graphql-codegen/cli",
+          "@graphql-codegen/client-preset",
+          "graphql",
+          "prettier",
+        ],
+      },
+    ],
+    formatFiles: [
+      "packages/ui-common/.prettierrc",
+      "packages/ui-common/.prettierignore",
+    ],
+    outputs: ["packages/ui-common/src/graphql/generated"],
+  },
+  {
     id: "cli",
     dependsOn: ["contracts-api", "contracts-agent-bridge", "contracts-local"],
     commands: [["pnpm", "--dir", "apps/cli", "run", "generate:all:unlocked"]],
@@ -625,6 +662,23 @@ const rememberArtifact = (target, generated) => {
   }
 };
 
+const listFilesRecursively = (directory) => {
+  if (!fs.existsSync(directory)) {
+    throw new Error(`Generation input directory does not exist: ${directory}`);
+  }
+
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name);
+
+      return entry.isDirectory()
+        ? listFilesRecursively(entryPath)
+        : [entryPath];
+    });
+};
+
 const digestTargetInputs = (
   openapiRoot,
   target,
@@ -687,6 +741,15 @@ const digestTargetInputs = (
       throw new Error(`Generation input does not exist: ${file}`);
     }
     add(`file:${file}`, fs.readFileSync(absolute));
+  }
+  for (const directory of target.graphqlDocumentDirs ?? []) {
+    const documents = listFilesRecursively(
+      path.join(projectRoot, directory),
+    ).filter((file) => file.endsWith(".graphql"));
+    for (const file of documents) {
+      const relative = path.relative(projectRoot, file);
+      add(`file:${relative}`, fs.readFileSync(file));
+    }
   }
   for (const file of target.formatFiles ?? []) {
     const absolute = path.join(projectRoot, file);

@@ -2037,6 +2037,8 @@ export * from './message-created-parent-message.js';
 export * from './message-created-system-message.js';
 export * from './message-created-user-message.js';
 export * from './message-created-user-message-all-of.js';
+export * from './message-cursor-not-found-error-dto.js';
+export * from './message-cursor-not-found-error-dto-all-of.js';
 export * from './message-deleted-event.js';
 export * from './message-deleted-event-all-of.js';
 export * from './message-deleted-event-payload.js';

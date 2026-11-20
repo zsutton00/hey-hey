@@ -67,7 +67,7 @@ export interface GetMessagesQueryDto {
      */
     'mode'?: MessageReadMode;
     /**
-     * Opaque continuation cursor returned by a previous reverse-history page. Requires `mode=REVERSE_HISTORY` and the same conversation scope.
+     * Opaque continuation cursor returned by a previous reverse-history page. Requires `mode=REVERSE_HISTORY` and the same conversation scope; an invalid or other-conversation cursor returns 404.
      * @type {string}
      * @memberof GetMessagesQueryDto
      */

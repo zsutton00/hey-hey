@@ -75,6 +75,8 @@ import type { InitiationType } from '../models.js';
 // @ts-ignore
 import type { LocalOnboardingStepRequest } from '../models.js';
 // @ts-ignore
+import type { MessageCursorNotFoundErrorDto } from '../models.js';
+// @ts-ignore
 import type { MessageReadMode } from '../models.js';
 // @ts-ignore
 import type { MessageType } from '../models.js';

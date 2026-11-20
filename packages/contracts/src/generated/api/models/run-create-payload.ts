@@ -22,6 +22,9 @@ import type { EvalModelSetting } from './eval-model-setting.js';
 import type { EvalRecordedAttempt } from './eval-recorded-attempt.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalRunCaseInput } from './eval-run-case-input.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalRunSettings } from './eval-run-settings.js';
 // May contain unused imports in some cases
 // @ts-ignore
