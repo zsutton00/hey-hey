@@ -21,7 +21,7 @@ describe('ProjectApprovalPolicyService', () => {
     );
 
     expect(policy.requiredApprovals).toBe(1);
-    expect(policy.rules).toHaveLength(16);
+    expect(policy.rules).toHaveLength(17);
     expect(
       policy.rules.map(({ match, config }) => ({ match, config })),
     ).toEqual([
@@ -193,6 +193,18 @@ describe('ProjectApprovalPolicyService', () => {
         true,
         'PROJECT_REQUIRED',
         false,
+      ),
+      rule(
+        undefined,
+        true,
+        'user',
+        'UPDATE',
+        undefined,
+        undefined,
+        undefined,
+        true,
+        'IMMEDIATE',
+        true,
       ),
       rule(
         undefined,

@@ -188,6 +188,17 @@ export const DEFAULT_PROJECT_APPROVAL_POLICY: ProjectApprovalPolicy = {
     },
     {
       match: {
+        entity: { topLevel: true },
+        proposal: { source: 'user', action: 'UPDATE' },
+      },
+      config: {
+        requiresProposal: true,
+        threshold: IMMEDIATE,
+        allowsProposerApproval: true,
+      },
+    },
+    {
+      match: {
         entity: { topLevel: false },
         proposal: { source: 'user' },
       },
