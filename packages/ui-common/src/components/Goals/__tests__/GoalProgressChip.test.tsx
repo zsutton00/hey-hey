@@ -2,7 +2,7 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { GoalProgressChip } from "../GoalProgressChip";
-import { WorkStatus } from "../../../api";
+import { WorkItemStatusMeaning, WorkStatus } from "../../../api";
 
 const NOW = new Date("2026-10-08T12:00:00.000Z");
 
@@ -21,7 +21,7 @@ describe("GoalProgressChip", () => {
             openUndatedCount: 1,
           },
         }}
-      />
+      />,
     );
     const chip = screen.getByTestId("goal-progress-chip");
     expect(chip).toHaveAttribute("data-goal-progress", "at-risk");
@@ -40,20 +40,21 @@ describe("GoalProgressChip", () => {
               targetEntityType: "TASK",
               title: "Done",
               status: WorkStatus.Completed,
+              statusMeaning: WorkItemStatusMeaning.Finished,
             },
           ],
         }}
-      />
+      />,
     );
     expect(screen.getByTestId("goal-progress-chip")).toHaveAttribute(
       "data-goal-progress",
-      "done"
+      "done",
     );
   });
 
   it("renders nothing without tracked-work data", () => {
     const { container } = render(
-      <GoalProgressChip now={NOW} goal={{ dueDate: null }} />
+      <GoalProgressChip now={NOW} goal={{ dueDate: null }} />,
     );
     expect(container).toBeEmptyDOMElement();
   });

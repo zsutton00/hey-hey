@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import type { WorkItemTypeSummaryDto } from '../../../shared/api/index';
 import { toOpenApiProjectId } from '../../../shared/api/identifierAdapters';
 
@@ -17,7 +18,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['tag'],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'BACKLOG',
         'GENERATED',
         'REFINING_DESCRIPTION',
@@ -34,7 +35,7 @@ const workItemTypesFixture = [
         'COMPLETED',
         'CANCELLED',
         'ARCHIVED',
-      ],
+      ]),
       allowedParentTypes: ['STANDARD', 'FEATURE', 'BUG'],
       edgeTargets: [
         {
@@ -122,7 +123,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -150,7 +150,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: ['tag'],
       forbiddenScalars: [],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'ACTIVE',
         'GENERATED',
         'BACKLOG',
@@ -168,7 +168,7 @@ const workItemTypesFixture = [
         'CANCELLED',
         'ARCHIVED',
         'SUPERSEDED',
-      ],
+      ]),
       allowedParentTypes: ['FEATURE', 'BUG'],
       edgeTargets: [
         {
@@ -257,7 +257,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -281,7 +280,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['tag'],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'ACTIVE',
         'GENERATED',
         'BACKLOG',
@@ -298,7 +297,7 @@ const workItemTypesFixture = [
         'COMPLETED',
         'CANCELLED',
         'ARCHIVED',
-      ],
+      ]),
       allowedParentTypes: [],
       edgeTargets: [
         {
@@ -386,7 +385,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: false,
-        hasSetInitialStatus: true,
         rendersInline: false,
       },
     },
@@ -414,7 +412,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['tag'],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'BACKLOG',
         'GENERATED',
         'REFINING_DESCRIPTION',
@@ -432,7 +430,7 @@ const workItemTypesFixture = [
         'CANCELLED',
         'ARCHIVED',
         'SUPERSEDED',
-      ],
+      ]),
       allowedParentTypes: ['STANDARD', 'FEATURE', 'BUG'],
       edgeTargets: [
         {
@@ -521,7 +519,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: true,
         requiresParent: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -549,7 +546,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['tag', 'dueDate'],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'BACKLOG',
         'GENERATED',
         'REFINING_DESCRIPTION',
@@ -567,7 +564,7 @@ const workItemTypesFixture = [
         'CANCELLED',
         'ARCHIVED',
         'SUPERSEDED',
-      ],
+      ]),
       allowedParentTypes: ['STANDARD', 'FEATURE', 'BUG'],
       edgeTargets: [],
       allowedParentEntityTypes: [
@@ -635,7 +632,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: false,
         requiresParent: false,
-        hasSetInitialStatus: false,
         rendersInline: true,
       },
     },
@@ -649,8 +645,7 @@ const workItemTypesFixture = [
       key: 'DIAGRAM_ELEMENT',
       name: 'Diagram Element',
       role: 'project-info',
-      description:
-        'A semantic element in a Diagram with a role and optional canonical reference.',
+      description: 'A semantic element in a Diagram with a role and optional canonical reference.',
       sections: [
         {
           key: 'description',
@@ -659,7 +654,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['tag', 'dueDate'],
-      allowedStatuses: [
+      statuses: legacyStatuses([
         'BACKLOG',
         'GENERATED',
         'REFINING_DESCRIPTION',
@@ -677,7 +672,7 @@ const workItemTypesFixture = [
         'CANCELLED',
         'ARCHIVED',
         'SUPERSEDED',
-      ],
+      ]),
       allowedParentTypes: ['DIAGRAM'],
       edgeTargets: [
         {
@@ -762,7 +757,6 @@ const workItemTypesFixture = [
       capabilities: {
         planEligible: false,
         requiresParent: true,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     },
@@ -788,7 +782,7 @@ const workItemTypesFixture = [
       ],
       requiredScalars: [],
       forbiddenScalars: ['dueDate'],
-      allowedStatuses: ['ACTIVE', 'SUPERSEDED', 'ARCHIVED'],
+      statuses: legacyStatuses(['ACTIVE', 'SUPERSEDED', 'ARCHIVED']),
       allowedParentTypes: ['FEATURE'],
       edgeTargets: [
         {

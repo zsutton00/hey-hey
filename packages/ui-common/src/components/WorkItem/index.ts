@@ -18,6 +18,7 @@ export type {
   WorkItemMetadataFields,
   WorkItemMetadataProps,
 } from "./WorkItemMetadata";
+export { RetainedStatusPanel } from "./RetainedStatusPanel";
 export { StatusActionCompact } from "./StatusActionCompact";
 export type { StatusActionCompactProps } from "./StatusActionCompact";
 export { SupersedeTaskDialog } from "./SupersedeTaskDialog";

@@ -42,6 +42,10 @@ import { useConversation } from "../../../data/hooks/useConversation";
 import { useLatestMessage } from "../../../data/hooks/useLatestMessage";
 import { useWorkItemTypeByKey } from "../../../data/hooks/useWorkItemTypes";
 import { KEYS } from "../../../i18n/keys";
+import {
+  getWorkItemStatusLabel,
+  type WorkItemStatusVocabulary,
+} from "../../../utils/workItemStatusVocabulary";
 import { resolvePreviewEntityType } from "../../../utils/mentionFormatting";
 import {
   decodeHtmlCssSectionContent,
@@ -446,6 +450,7 @@ export const EntityHoverCard: React.FC<EntityHoverCardProps> = ({
         isLatestMessageEnabled={isMessageHoverGateOpen}
         latestMessageProgress={latestMessageProgress}
         taskSectionSelection={taskSectionSelection}
+        taskStatusDefinition={workItemType.workItemTypeDefinition}
         conversationTitle={conversationTitle}
         proposalPreview={proposalPreview}
         titleHref={titleHref}
@@ -488,6 +493,7 @@ const EntityHoverCardContent: React.FC<{
   isLatestMessageEnabled: boolean;
   latestMessageProgress: number;
   taskSectionSelection: ReturnType<typeof selectWorkItemSections>;
+  taskStatusDefinition: WorkItemStatusVocabulary | undefined;
   conversationTitle?: string;
   proposalPreview: TaskPreviewContent;
   titleHref?: string;
@@ -503,6 +509,7 @@ const EntityHoverCardContent: React.FC<{
   isLatestMessageEnabled,
   latestMessageProgress,
   taskSectionSelection,
+  taskStatusDefinition,
   conversationTitle,
   proposalPreview,
   titleHref,
@@ -546,6 +553,7 @@ const EntityHoverCardContent: React.FC<{
           entity={data as TaskResponseDto}
           sectionSelection={taskSectionSelection}
           titleHref={titleHref}
+          statusDefinition={taskStatusDefinition}
         />
       );
     case "service":
@@ -630,14 +638,26 @@ const PreviewDescription: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
+const StatusChip: React.FC<{
+  status?: string;
+  /** Present for work items: the status reads from the item's type. */
+  workItem?: { definition: WorkItemStatusVocabulary | undefined };
+}> = ({ status, workItem }) => {
   if (!status) {
     return null;
   }
 
   return (
     <Box sx={{ mt: 1, mb: 1 }}>
-      <Chip label={status} size="small" variant="outlined" />
+      <Chip
+        label={
+          workItem
+            ? getWorkItemStatusLabel(status, workItem.definition)
+            : status
+        }
+        size="small"
+        variant="outlined"
+      />
     </Box>
   );
 };
@@ -694,7 +714,8 @@ const TaskPreview: React.FC<{
   entity: TaskResponseDto;
   sectionSelection: ReturnType<typeof selectWorkItemSections>;
   titleHref?: string;
-}> = ({ entity, sectionSelection, titleHref }) => {
+  statusDefinition: WorkItemStatusVocabulary | undefined;
+}> = ({ entity, sectionSelection, titleHref, statusDefinition }) => {
   const preview = getTaskPreviewContent(entity, sectionSelection);
 
   return (
@@ -712,7 +733,10 @@ const TaskPreview: React.FC<{
       ) : (
         <PreviewDescription text={preview?.text ?? ""} />
       )}
-      <StatusChip status={entity.status} />
+      <StatusChip
+        status={entity.status}
+        workItem={{ definition: statusDefinition }}
+      />
     </Box>
   );
 };

@@ -267,16 +267,8 @@ const diagramElementInputSchema = z.object({
     .preprocess(repairSections, z.array(workItemSectionInputSchema).optional())
     .describe('Registry-declared sections for the Diagram Element.'),
   status: z
-    .enum([
-      'BACKLOG',
-      'ACTIVE',
-      'ON_HOLD',
-      'VERIFYING',
-      'COMPLETED',
-      'CANCELLED',
-      'ARCHIVED',
-      'SUPERSEDED',
-    ])
+    .string()
+    .min(1)
     .optional()
     .describe('Initial status for the Diagram Element'),
   priority: z
@@ -592,18 +584,7 @@ const CREATE_WORK_ITEM_KEYS = Object.keys(createWorkItemFields);
 
 const updateWorkItemFields = {
   name: z.string().min(1).optional().describe('New name/title for the task'),
-  status: z
-    .enum([
-      'BACKLOG',
-      'ACTIVE',
-      'ON_HOLD',
-      'VERIFYING',
-      'COMPLETED',
-      'CANCELLED',
-      'ARCHIVED',
-    ])
-    .optional()
-    .describe('New status for the task'),
+  status: z.string().min(1).optional().describe('New status for the task'),
   priority: z
     .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
     .optional()
@@ -1370,10 +1351,8 @@ const entityProposalUpdatesSchema = z
       .string()
       .optional()
       .describe(
-        'Updated entity status. Valid values depend on the proposal' +
-          "'s targetEntityType: for TASK/FEATURE proposals use the " +
-          'task user-settable subset (BACKLOG, ACTIVE, ON_HOLD, ' +
-          'VERIFYING, COMPLETED, CANCELLED, ARCHIVED); for DESIGN_DOC ' +
+        'Updated entity status. For TASK/FEATURE proposals use the target type’s ' +
+          'project-effective agent-settable statuses; for DESIGN_DOC ' +
           'use AdrStatus values (e.g. REFINING_CONTENT, IN_REVIEW, ' +
           'READY). Plan and Stage work items use TASK statuses. ' +
           'Never use proposal-lifecycle states ' +
@@ -1892,10 +1871,15 @@ export class ProposalToolsProvider {
         select: { type: true },
       });
       configuredStatuses = task
-        ? this.workItemTypeRegistry.getAgentSettableStatuses(
-            task.type,
-            args.projectId,
-          )
+        ? this.workItemTypeRegistry
+            .getAgentSettableStatuses(task.type, args.projectId)
+            .filter((status) =>
+              this.workItemTypeRegistry.isStatusAllowed(
+                task.type,
+                status,
+                args.projectId,
+              ),
+            )
         : undefined;
     }
     return validateProposalUpdateStatus(

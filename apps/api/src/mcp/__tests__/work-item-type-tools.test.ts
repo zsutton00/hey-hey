@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import { NotFoundException } from '@nestjs/common';
 import {
@@ -8,6 +9,10 @@ import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeLifecycleStatus } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
 import type { ProjectService } from '../../services/project.service';
+import { WorkItemTypeController } from '../../controllers/work-item-type.controller';
+import type { OrganizationId, ProjectId } from '../../types';
+import type { ProposalService } from '../../services/proposal/proposal.service';
+import type { WorkItemTypeImpactService } from '../../services/tasks/work-item-type-impact.service';
 import type { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import {
   getWorkItemTypeOutput,
@@ -36,7 +41,7 @@ const COMPLETE_SUMMARY = {
     ],
     requiredScalars: ['dueDate' as const],
     forbiddenScalars: ['tag' as const],
-    allowedStatuses: ['BACKLOG' as const, 'ACTIVE' as const],
+    statuses: legacyStatuses(['BACKLOG' as const, 'ACTIVE' as const]),
     allowedParentTypes: ['FEATURE'],
     edgeTargets: [
       { edgeType: 'RELATED_TO' as const, targetTypeKeys: ['STANDARD'] },
@@ -98,6 +103,48 @@ function createProvider(
 }
 
 describe('get_work_item_type', () => {
+  it('returns the same status clarification and resolved definition through API and MCP', async () => {
+    const project = {
+      findOne: jest.fn().mockResolvedValue({ id: PROJECT_ID }),
+    } as unknown as ProjectService;
+    const registry = {} as WorkItemTypeRegistryService;
+    const controller = new WorkItemTypeController(
+      registry,
+      {} as ProposalService,
+      {} as WorkItemTypeImpactService,
+      project,
+    );
+    const provider = new WorkItemTypeToolsProvider(registry, project);
+    const request = { purpose: 'Résumé', names: ['Draft', 'Maintained'] };
+    const api = await controller.resolveStatuses(
+      ORG_ID as OrganizationId,
+      PROJECT_ID as ProjectId,
+      request,
+    );
+    const mcp = await provider.resolveStatuses(
+      request,
+      {} as any,
+      makeRequest(),
+    );
+    expect(api).toEqual(mcp);
+    expect(api.state).toBe('CLARIFICATION');
+    const resolvedRequest = { ...request, finishedNames: [] };
+    const apiResolved = await controller.resolveStatuses(
+      ORG_ID as OrganizationId,
+      PROJECT_ID as ProjectId,
+      resolvedRequest,
+    );
+    const mcpResolved = await provider.resolveStatuses(
+      resolvedRequest,
+      {} as any,
+      makeRequest(),
+    );
+    expect(apiResolved).toEqual(mcpResolved);
+    expect(apiResolved.statuses).toEqual([
+      { name: 'Draft', meaning: 'UNFINISHED' },
+      { name: 'Maintained', meaning: 'UNFINISHED' },
+    ]);
+  });
   it('exposes a strict type-key input and the complete generated summary output', () => {
     expect(getWorkItemTypeParameters.parse({ typeKey: 'MARKETING' })).toEqual({
       typeKey: 'MARKETING',

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React, { useEffect } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -125,7 +126,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
         { key: "description", label: "Description" },
         { key: "acceptanceCriteria", label: "Acceptance Criteria" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
     isLoading: false,
     isFetched: true,
@@ -247,7 +248,7 @@ const renderEditor = (): void => {
       workItemId="task-1"
       organizationId="org-1"
       projectId="project-1"
-    />
+    />,
   );
 };
 
@@ -302,7 +303,7 @@ describe("WorkItemEditor save-reason flow", () => {
     await screen.findByTestId("save-reason-modal");
     await userEvent.type(
       screen.getByTestId("save-reason-input"),
-      "  Tightening copy  "
+      "  Tightening copy  ",
     );
     await userEvent.click(screen.getByTestId("save-reason-submit"));
 
@@ -332,11 +333,11 @@ describe("WorkItemEditor save-reason flow", () => {
         _updates: unknown,
         callbacks?: {
           onPendingProposal?: (proposal: unknown, task: unknown) => void;
-        }
+        },
       ) => {
         callbacks?.onPendingProposal?.({ id: "prop-1" }, { id: "task-1" });
         return undefined;
-      }
+      },
     );
 
     renderEditor();
@@ -347,7 +348,7 @@ describe("WorkItemEditor save-reason flow", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("pending-proposal-indicator")
+        screen.getByTestId("pending-proposal-indicator"),
       ).toBeInTheDocument();
     });
   });

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import React from "react";
@@ -11,26 +12,18 @@ import {
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import { WorkStatus } from "../../api";
-import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
-import { useTaskAllowedStatuses } from "../../data/hooks";
+import { useWorkItemTypeByKey } from "../../data/hooks";
+import { getStatusColorMapping } from "../../utils/statusUtils";
 import {
-  getStatusLabel,
-  getStatusColorMapping,
-  getPlanStatusLabel,
-} from "../../utils/statusUtils";
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+} from "../../utils/workItemStatusVocabulary";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
 import { SupersedeTaskDialog } from "../WorkItem/SupersedeTaskDialog";
 
-// Features follow a simple REFINING → READY (Active) flow, so Active reads
-// as "Ready" for them.
-const getFeatureStatusLabel = (status: WorkStatus): string => {
-  if (status === WorkStatus.Active) return "Ready";
-  return getStatusLabel(status);
-};
-
 export interface WorkItemStatusSelectorProps {
-  value: WorkStatus;
-  onChange: (status: WorkStatus) => void;
+  value: TaskResponseDto["status"];
+  onChange: (status: TaskResponseDto["status"]) => void;
   /** Required to resolve the backend per-type allowed status set. */
   organizationId: string;
   projectId: string;
@@ -69,13 +62,11 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
     setSupersedeDialogOpen,
     supersedeDialogOpenOwnerKey,
   ] = useModalState(false);
-  const { getAllowedStatuses, isLoading } = useTaskAllowedStatuses({
-    organizationId,
-    projectId,
-  });
+  const { workItemTypeDefinition: definition, isLoading } =
+    useWorkItemTypeByKey(organizationId, projectId, taskType);
 
-  const handleChange = (event: SelectChangeEvent<WorkStatus>): void => {
-    const next = event.target.value as WorkStatus;
+  const handleChange = (event: SelectChangeEvent): void => {
+    const next = event.target.value;
     // SUPERSEDED never travels the plain status-update path — it requires a
     // named successor, collected in the supersede dialog.
     if (next === WorkStatus.Superseded) {
@@ -85,21 +76,20 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
     onChange(next);
   };
 
-  // The backend per-type set is the source of truth for status validity; the
+  // The type's effective definition owns the choices and their order; the
   // picker still drops system-managed generating/refining states (a user never
-  // picks those) and only offers SUPERSEDED when there is a task to supersede.
-  const allowedStatuses = getAllowedStatuses(taskType).filter(
-    (status) =>
-      !isMachineManagedStatus(status) &&
-      (status !== WorkStatus.Superseded || Boolean(taskId)),
-  );
-  const isFeature = taskType === FEATURE_TASK_TYPE;
-  const resolveLabel = (status: WorkStatus) =>
-    isFeature
-      ? getFeatureStatusLabel(status)
-      : taskType === "PLAN"
-        ? getPlanStatusLabel(status)
-        : getStatusLabel(status);
+  // picks those) and only offers SUPERSEDED when the type supports it and
+  // there is a task to supersede.
+  const allowedStatuses = definition
+    ? [
+        ...getWorkItemStatusChoices(definition),
+        ...(definition.capabilities?.supportsSupersession && taskId
+          ? [WorkStatus.Superseded]
+          : []),
+      ].filter((status) => !isMachineManagedStatus(status))
+    : [];
+  const resolveLabel = (status: TaskResponseDto["status"]): string =>
+    getWorkItemStatusLabel(status, definition);
 
   return (
     <>
@@ -113,8 +103,8 @@ export const WorkItemStatusSelector: React.FC<WorkItemStatusSelectorProps> = ({
           readOnly={readOnly}
           renderValue={(selected) => (
             <Chip
-              label={resolveLabel(selected as WorkStatus)}
-              color={getStatusColorMapping(selected as WorkStatus)}
+              label={resolveLabel(selected)}
+              color={getStatusColorMapping(selected)}
               size="small"
               sx={{ fontWeight: "bold" }}
             />

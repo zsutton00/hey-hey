@@ -1,10 +1,14 @@
-import type { WorkStatus } from "@hey-hey/contracts/api";
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
+
 import {
   TaskList,
   useFilteredWorkItems,
   WorkItemEntityFilters,
 } from "@hey-hey/ui-common";
-import { useWorkItems } from "@hey-hey/ui-common/data";
+import {
+  useWorkItemStatusVocabularies,
+  useWorkItems,
+} from "@hey-hey/ui-common/data";
 import { Box, Typography } from "@mui/material";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +27,9 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("created-desc");
 
   const { workItems, isLoading } = useWorkItems(
@@ -41,11 +47,17 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
     [workItems, userId],
   );
 
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    assignedTasks,
+  );
   const filteredTasks = useFilteredWorkItems(
     assignedTasks,
     searchTerm,
     statusFilter,
     sortBy,
+    definitions,
   );
 
   return (
@@ -55,6 +67,7 @@ export const UserTasksTab: React.FC<UserTasksTabProps> = ({
         onSearchChange={setSearchTerm}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        statusOptions={statusOptions}
         sortBy={sortBy}
         onSortByChange={setSortBy}
       />

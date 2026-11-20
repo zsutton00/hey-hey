@@ -1,5 +1,6 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useMemo } from "react";
-import { type WorkStatus } from "../../api";
+
 import type { WorkItemResponseDto } from "../collections/workItems";
 import {
   PLAN_WORK_ITEM_TYPE,
@@ -10,7 +11,7 @@ import { useWorkItems } from "./useWorkItems";
 
 export interface UseProjectPlansOptions {
   enabled?: boolean;
-  statuses?: WorkStatus[];
+  statuses?: TaskResponseDto["status"][];
 }
 
 export interface UseProjectPlansReturn {
@@ -21,14 +22,14 @@ export interface UseProjectPlansReturn {
 }
 
 const validatePlanList = (
-  workItems: readonly WorkItemResponseDto[]
+  workItems: readonly WorkItemResponseDto[],
 ): { plans: PlanWorkItem[]; error: Error | null } => {
   const plans = workItems.filter(isPlanWorkItem);
   if (plans.length !== workItems.length) {
     return {
       plans: [],
       error: new Error(
-        "The Plan list response contained an item that is not a canonical PLAN."
+        "The Plan list response contained an item that is not a canonical PLAN.",
       ),
     };
   }
@@ -38,7 +39,7 @@ const validatePlanList = (
 export function useProjectPlans(
   organizationId: string | undefined,
   projectId: string | undefined,
-  options: UseProjectPlansOptions = {}
+  options: UseProjectPlansOptions = {},
 ): UseProjectPlansReturn {
   const { enabled = true, statuses } = options;
   const query = useWorkItems(
@@ -50,11 +51,11 @@ export function useProjectPlans(
       enabled: enabled && !!organizationId && !!projectId,
       taskType: PLAN_WORK_ITEM_TYPE,
       status: statuses,
-    }
+    },
   );
   const parsed = useMemo(
     () => validatePlanList(query.workItems),
-    [query.workItems]
+    [query.workItems],
   );
 
   const refetch = async (): Promise<PlanWorkItem[]> => {

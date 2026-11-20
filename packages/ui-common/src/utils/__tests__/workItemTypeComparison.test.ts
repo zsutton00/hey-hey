@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeDefinitionDto } from "../../api";
 import { compareWorkItemTypeDefinitions } from "../workItemTypeComparison";
@@ -10,7 +11,7 @@ const base: WorkItemTypeDefinitionDto = {
     { key: "a", label: "A", writingStandard: "same" },
     { key: "b", label: "B", writingStandard: "same" },
   ],
-  allowedStatuses: ["ACTIVE", "COMPLETED"],
+  statuses: legacyStatuses(["ACTIVE", "COMPLETED"]),
 } as WorkItemTypeDefinitionDto;
 
 const compare = (project: WorkItemTypeDefinitionDto) =>
@@ -51,14 +52,14 @@ describe("compareWorkItemTypeDefinitions", () => {
   it("separates a status-order change from a changed status set", () => {
     const reordered = compare({
       ...base,
-      allowedStatuses: ["COMPLETED", "ACTIVE"],
+      statuses: legacyStatuses(["COMPLETED", "ACTIVE"]),
     } as WorkItemTypeDefinitionDto);
     expect(entryStatus(reordered, "allowedStatuses")).toBe("unchanged");
     expect(entryStatus(reordered, "allowedStatuses.order")).toBe("changed");
 
     const missing = compare({
       ...base,
-      allowedStatuses: ["ACTIVE"],
+      statuses: legacyStatuses(["ACTIVE"]),
     } as WorkItemTypeDefinitionDto);
     expect(entryStatus(missing, "allowedStatuses")).toBe("changed");
   });

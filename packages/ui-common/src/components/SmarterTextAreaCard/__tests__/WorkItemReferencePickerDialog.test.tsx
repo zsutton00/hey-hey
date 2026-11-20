@@ -1,3 +1,5 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
+import type { TaskResponseDto } from "../../../api/api";
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,7 +17,7 @@ const hookState = vi.hoisted(() => ({
   inputs: [] as Array<{
     page: number;
     filter?: string;
-    statuses?: readonly WorkStatus[];
+    statuses?: readonly TaskResponseDto["status"][];
     sortBy?: string;
     sortOrder?: string;
   }>,
@@ -41,7 +43,7 @@ const definition = {
   name: "Contract",
   role: WorkItemTypeRole.ProjectInfo,
   sections: [],
-  allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+  statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
 } satisfies WorkItemTypeDefinitionDto;
 
 const page = {
@@ -96,15 +98,15 @@ describe("WorkItemReferencePickerDialog", () => {
     expect(hookState.inputs.at(-1)?.filter).toBe("");
     await waitFor(() =>
       expect(hookState.inputs.at(-1)).toEqual(
-        expect.objectContaining({ page: 1, filter: "promise" })
-      )
+        expect.objectContaining({ page: 1, filter: "promise" }),
+      ),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Go to page 2" }));
     await waitFor(() =>
       expect(hookState.inputs.at(-1)).toEqual(
-        expect.objectContaining({ page: 2 })
-      )
+        expect.objectContaining({ page: 2 }),
+      ),
     );
   });
 
@@ -122,16 +124,16 @@ describe("WorkItemReferencePickerDialog", () => {
           statuses: [WorkStatus.Active],
           sortBy: "name",
           sortOrder: "asc",
-        })
-      )
+        }),
+      ),
     );
 
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Sort" }));
     fireEvent.click(screen.getByRole("option", { name: "Newest first" }));
     await waitFor(() =>
       expect(hookState.inputs.at(-1)).toEqual(
-        expect.objectContaining({ sortBy: "createdAt", sortOrder: "desc" })
-      )
+        expect.objectContaining({ sortBy: "createdAt", sortOrder: "desc" }),
+      ),
     );
   });
 
@@ -146,12 +148,12 @@ describe("WorkItemReferencePickerDialog", () => {
         {},
         {
           timeout: 700,
-        }
-      )
+        },
+      ),
     ).toHaveTextContent("contract-1");
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Preview Reference promise" })
+      screen.getByRole("button", { name: "Preview Reference promise" }),
     );
     expect(openPreview).toHaveBeenCalledWith({
       entityType: "task",
@@ -165,27 +167,27 @@ describe("WorkItemReferencePickerDialog", () => {
 
     const results = screen.getByTestId("work-item-reference-results");
     const progressSlot = screen.getByTestId(
-      "work-item-reference-update-progress-slot"
+      "work-item-reference-update-progress-slot",
     );
     expect(
       results.compareDocumentPosition(progressSlot) &
-        Node.DOCUMENT_POSITION_FOLLOWING
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).not.toBe(0);
     expect(
       screen.getByRole("progressbar", {
         name: "Updating work-item references",
-      })
+      }),
     ).toBeVisible();
 
     hookState.current = { status: "ready", page, isFetching: false };
     rerender(renderDialogContent());
 
     const settledProgressSlot = screen.getByTestId(
-      "work-item-reference-update-progress-slot"
+      "work-item-reference-update-progress-slot",
     );
     expect(settledProgressSlot).toBeInTheDocument();
     expect(
-      settledProgressSlot.querySelector('[role="progressbar"]')
+      settledProgressSlot.querySelector('[role="progressbar"]'),
     ).not.toBeVisible();
   });
 

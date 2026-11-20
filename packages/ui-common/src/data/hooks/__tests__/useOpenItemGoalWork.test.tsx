@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +7,7 @@ import {
   AgentSessionCurrentState,
   EntityType,
   TaskSource,
+  WorkItemStatusMeaning,
   WorkStatus,
   type AgentSessionDto,
   type TrackedEntitySnapshot,
@@ -18,18 +20,26 @@ import { useOpenItemGoalWork } from "../useOpenItemGoalWork";
 vi.mock("../useWorkItem", () => ({ useWorkItem: vi.fn() }));
 vi.mock("../../../clients", () => ({ dataClient: { request: vi.fn() } }));
 
-const snapshot = (id: string, status: WorkStatus): TrackedEntitySnapshot => ({
+const snapshot = (
+  id: string,
+  status: TaskResponseDto["status"],
+  statusMeaning?: WorkItemStatusMeaning,
+): TrackedEntitySnapshot => ({
   targetEntityType: EntityType.Task,
   targetEntityId: id,
   title: `Work ${id}`,
   status,
+  statusMeaning,
 });
 const tracked = [
-  snapshot("active", WorkStatus.Active),
-  snapshot("backlog", WorkStatus.Backlog),
-  snapshot("idle", WorkStatus.Backlog),
-  snapshot("finished", WorkStatus.Completed),
-  snapshot("cancelled", WorkStatus.Cancelled),
+  snapshot("active", WorkStatus.Active, WorkItemStatusMeaning.InProgress),
+  snapshot("backlog", WorkStatus.Backlog, WorkItemStatusMeaning.NotStarted),
+  snapshot("idle", WorkStatus.Backlog, WorkItemStatusMeaning.NotStarted),
+  snapshot("finished", WorkStatus.Completed, WorkItemStatusMeaning.Finished),
+  snapshot("cancelled", WorkStatus.Cancelled, WorkItemStatusMeaning.Finished),
+  snapshot("testing", "Testing", WorkItemStatusMeaning.InProgress),
+  snapshot("delivered", "Delivered", WorkItemStatusMeaning.Finished),
+  snapshot("removed-status", "Retired"),
 ];
 const ids = (work: TrackedEntitySnapshot[]) =>
   work.map((item) => item.targetEntityId);
@@ -80,7 +90,13 @@ describe("expanded Open Item Goal work", () => {
     expect(useWorkItem).toHaveBeenCalledWith("org", "task", "goal", {
       projectId: "project",
     });
-    expect(ids(result.current.work)).toEqual(["active", "backlog", "idle"]);
+    expect(ids(result.current.work)).toEqual([
+      "active",
+      "backlog",
+      "idle",
+      "testing",
+      "removed-status",
+    ]);
     rerender({ filter: "ALL" });
     expect(ids(result.current.work)).toEqual(ids(tracked));
     rerender({ filter: "NONE" });
@@ -116,7 +132,11 @@ describe("expanded Open Item Goal work", () => {
     }
     rerender({ filter: "ACTIVE" });
     await waitFor(() =>
-      expect(ids(result.current.work)).toEqual(["active", "backlog"]),
+      expect(ids(result.current.work)).toEqual([
+        "active",
+        "backlog",
+        "testing",
+      ]),
     );
     await act(async () => {
       client.setQueryData(
@@ -129,7 +149,12 @@ describe("expanded Open Item Goal work", () => {
       );
     });
     await waitFor(() =>
-      expect(ids(result.current.work)).toEqual(["active", "backlog", "idle"]),
+      expect(ids(result.current.work)).toEqual([
+        "active",
+        "backlog",
+        "idle",
+        "testing",
+      ]),
     );
     const observed = client
       .getQueryCache()
@@ -157,17 +182,22 @@ describe("expanded Open Item Goal work", () => {
   it("discovers sessions only for relevant tracked work and drops observers on unmount", async () => {
     const { result, unmount, client } = setup("ACTIVE");
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(request).toHaveBeenCalledTimes(4);
+    expect(request).toHaveBeenCalledTimes(6);
     expect(
       request.mock.calls.every(
         ([config]) =>
           config.params?.entityType === EntityType.Task &&
-          ["backlog", "idle", "finished", "cancelled"].includes(
-            config.params?.entityId,
-          ),
+          [
+            "backlog",
+            "idle",
+            "finished",
+            "cancelled",
+            "delivered",
+            "removed-status",
+          ].includes(config.params?.entityId),
       ),
     ).toBe(true);
-    expect(ids(result.current.work)).toEqual(["active"]);
+    expect(ids(result.current.work)).toEqual(["active", "testing"]);
     unmount();
     expect(
       client

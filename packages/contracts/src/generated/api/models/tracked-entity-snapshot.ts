@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { EntityType } from './entity-type.js';
-import { WorkStatus } from './work-status.js';
+import { WorkItemStatusMeaning } from './work-item-status-meaning.js';
+import { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -21,7 +22,10 @@ import { WorkStatus } from './work-status.js';
 import type { EntityType } from './entity-type.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { WorkStatus } from './work-status.js';
+import type { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemStatusMeaning } from './work-item-status-meaning.js';
 
 /**
  * Inlined snapshot of an entity referenced by a `TRACKS` edge. Carries the fields needed to render the goal\'s tracked items in a list view without a second hop. `targetEntityId`, `targetEntityType`, and `title` are always present. `status` and `dueDate` are optional and may be null for target types that do not carry them (for example PLAN). Wider than EntityNameDto, which only carries an entity name.
@@ -48,11 +52,23 @@ export interface TrackedEntitySnapshot {
      */
     'title': string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof TrackedEntitySnapshot
      */
-    'status'?: WorkStatus;
+    'status'?: string;
+    /**
+     *
+     * @type {WorkItemStatusMeaning}
+     * @memberof TrackedEntitySnapshot
+     */
+    'statusMeaning'?: WorkItemStatusMeaning;
+    /**
+     *
+     * @type {WorkItemStatusCompletionBehavior}
+     * @memberof TrackedEntitySnapshot
+     */
+    'completionBehavior'?: WorkItemStatusCompletionBehavior;
     /**
      * Target completion date, when the target type carries one.
      * @type {string}
@@ -64,6 +80,8 @@ export interface TrackedEntitySnapshot {
 export namespace TrackedEntitySnapshot {
     export const TargetEntityTypeEnum = EntityType;
     export type TargetEntityTypeEnum = EntityType;
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
+    export const StatusMeaningEnum = WorkItemStatusMeaning;
+    export type StatusMeaningEnum = WorkItemStatusMeaning;
+    export const CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
+    export type CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
 }

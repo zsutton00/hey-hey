@@ -23,9 +23,7 @@ describe('soft workflow step budget guidance migration', () => {
 
   it('requires the abstraction guidance before appending the diagnostic', () => {
     expect(sql).toContain('## Purpose, boundary, and abstraction level');
-    expect(sql).toContain(
-      'canonical workflow abstraction guidance is missing',
-    );
+    expect(sql).toContain('canonical workflow abstraction guidance is missing');
   });
 
   it('sets inclusive root and below-root boundaries', () => {
@@ -49,7 +47,9 @@ describe('soft workflow step budget guidance migration', () => {
 
   it('performs one silent reconsideration without blocking continuation', () => {
     expect(guidance).toContain('make one silent simplification\npass');
-    expect(guidance).toContain("reconsider the workflow's altitude and boundary");
+    expect(guidance).toContain(
+      "reconsider the workflow's altitude and boundary",
+    );
     expect(guidance).toContain('cited child workflow');
     expect(guidance).toContain('not schema validation or proposal admission');
     expect(guidance).toContain(

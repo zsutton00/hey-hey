@@ -1,3 +1,4 @@
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -7,7 +8,6 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
 
 import {
   computeTrackingLinkKey,
@@ -55,7 +55,7 @@ function makeFeatureTarget() {
     name: 'Build login UI',
     type: WORK_ITEM_TYPE_KEYS.Feature,
     projectId: PROJECT_ID,
-    status: WorkStatus.ACTIVE,
+    status: WorkStatus.Active,
     dueDate: new Date('2026-06-01T00:00:00Z'),
   };
 }
@@ -66,7 +66,7 @@ function makePlanTarget() {
     name: 'Q3 launch plan',
     type: 'PLAN',
     projectId: PROJECT_ID,
-    status: WorkStatus.ACTIVE,
+    status: WorkStatus.Active,
     dueDate: null,
   };
 }
@@ -258,7 +258,7 @@ describe('GoalTracksService', () => {
           name: 'Other goal',
           type: WORK_ITEM_TYPE_KEYS.Goal,
           projectId: PROJECT_ID,
-          status: WorkStatus.ACTIVE,
+          status: WorkStatus.Active,
           dueDate: null,
         });
 

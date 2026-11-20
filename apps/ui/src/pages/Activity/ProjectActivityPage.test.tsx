@@ -135,6 +135,10 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useCorrelatedActivity: vi.fn(),
   useProject: vi.fn(),
   useTaskHierarchy: vi.fn(),
+  useWorkItemStatusVocabularies: vi.fn(() => ({
+    definitions: new Map(),
+    statusOptions: [],
+  })),
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({

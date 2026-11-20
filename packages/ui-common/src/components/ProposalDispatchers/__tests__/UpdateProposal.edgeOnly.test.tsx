@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,7 +45,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           key: "STANDARD",
           name: "Task",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         } satisfies WorkItemTypeDefinitionDto,
         status: "ACTIVE",
         projectId: "project-1",

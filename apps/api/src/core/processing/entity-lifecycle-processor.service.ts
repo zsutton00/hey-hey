@@ -1,5 +1,7 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { EntityType, WorkStatus } from '@prisma/client';
+import { EntityType } from '@prisma/client';
 import {
   AdrStatus,
   AgentSessionCreatedEvent,
@@ -41,8 +43,8 @@ export class EntityLifecycleProcessor implements OnModuleInit {
   async handleTaskStatusChanged(params: {
     organizationId: OrganizationId;
     taskId: string;
-    previousStatus: WorkStatus;
-    newStatus: WorkStatus;
+    previousStatus: TaskResponseDto['status'];
+    newStatus: TaskResponseDto['status'];
     projectId?: ProjectId | null;
   }): Promise<void> {
     const { organizationId, taskId, previousStatus, newStatus, projectId } =
@@ -135,8 +137,8 @@ export class EntityLifecycleProcessor implements OnModuleInit {
   async handleInitiativeStatusChanged(params: {
     organizationId: OrganizationId;
     initiativeId: string;
-    previousStatus: WorkStatus;
-    newStatus: WorkStatus;
+    previousStatus: TaskResponseDto['status'];
+    newStatus: TaskResponseDto['status'];
     originatingProjectId?: ProjectId | null;
   }): Promise<void> {
     const {
@@ -149,7 +151,7 @@ export class EntityLifecycleProcessor implements OnModuleInit {
 
     if (
       isRefining(previousStatus) &&
-      newStatus === WorkStatus.BACKLOG &&
+      newStatus === WorkStatus.Backlog &&
       originatingProjectId
     ) {
       await this.triggerSummarization(
@@ -331,13 +333,15 @@ export class EntityLifecycleProcessor implements OnModuleInit {
     update: TaskEventUpdateSnapshot,
     previousData?: Record<string, unknown>,
   ): Promise<boolean> {
-    const previousStatus = previousData?.status as WorkStatus | undefined;
-    const nextStatus = update.status as WorkStatus | undefined;
+    const previousStatus = previousData?.status as
+      | TaskResponseDto['status']
+      | undefined;
+    const nextStatus = update.status as TaskResponseDto['status'] | undefined;
     if (!previousStatus || !nextStatus) {
       return false;
     }
     if (
-      previousStatus === WorkStatus.REFINING_ACCEPTANCE_CRITERIA &&
+      previousStatus === WorkStatus.RefiningAcceptanceCriteria &&
       !isRefining(nextStatus)
     ) {
       const initiative = await this.initiativeService.findOne(

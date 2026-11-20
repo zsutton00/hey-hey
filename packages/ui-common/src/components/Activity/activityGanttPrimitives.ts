@@ -1,11 +1,5 @@
-import {
-  AdrStatus,
-  BrainstormStatus,
-  AgentSessionStatus,
-  DecisionStatus,
-  WorkStatus,
-  type EntityType,
-} from "../../api";
+import type { TaskResponseDto } from "../../api/api";
+import type { EntityType } from "../../api";
 import { formatStatus } from "../../utils/statusUtils";
 
 type Brand<T, TBrand extends string> = T & { readonly __brand: TBrand };
@@ -35,38 +29,8 @@ export const ActivityGanttEntityStatus = {
   Blocked: "BLOCKED",
 } as const;
 
-const ACTIVITY_GANTT_SERVICE_STATUS_VALUES = [
-  "ACTIVE",
-  "ARCHIVED",
-  "DEPRECATED",
-] as const;
-
-export type ActivityGanttEntityStatus =
-  | (typeof ActivityGanttEntityStatus)[keyof typeof ActivityGanttEntityStatus]
-  | WorkStatus
-  | AgentSessionStatus
-  | BrainstormStatus
-  | DecisionStatus
-  | AdrStatus
-  | (typeof ACTIVITY_GANTT_SERVICE_STATUS_VALUES)[number];
-
-const ACTIVITY_GANTT_ENTITY_STATUS_VALUES = new Set<ActivityGanttEntityStatus>([
-  ...Object.values(ActivityGanttEntityStatus),
-  ...Object.values(WorkStatus),
-  ...Object.values(AgentSessionStatus),
-  ...Object.values(BrainstormStatus),
-  ...Object.values(DecisionStatus),
-  ...Object.values(AdrStatus),
-  ...ACTIVITY_GANTT_SERVICE_STATUS_VALUES,
-]);
-
-export const isActivityGanttEntityStatus = (
-  value: string,
-): value is ActivityGanttEntityStatus => {
-  return ACTIVITY_GANTT_ENTITY_STATUS_VALUES.has(
-    value as ActivityGanttEntityStatus,
-  );
-};
+/** Saved entity statuses include arbitrary project-defined work-item names. */
+export type ActivityGanttEntityStatus = TaskResponseDto["status"];
 
 export const ActivityGanttOverallStatus = {
   Ready: "READY",

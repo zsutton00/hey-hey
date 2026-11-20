@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -27,14 +28,14 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
 
 const makeWorkItemType = (
   key: string,
-  name: string
+  name: string,
 ): WorkItemTypeSummaryDto => ({
   definition: {
     key,
     name,
     description: `${name} description`,
     sections: [],
-    allowedStatuses: [WorkStatus.Backlog],
+    statuses: legacyStatuses([WorkStatus.Backlog]),
   },
   isSystem: true,
   status: WorkItemTypeLifecycleStatus.Active,
@@ -57,7 +58,7 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "feature",
-      })
+      }),
     );
 
     expect(result.current.heyHey).toEqual(
@@ -68,7 +69,7 @@ describe("useSlashCommandRegistry", () => {
           kind: "open-picker",
           picker: "feature-tree",
         }),
-      ])
+      ]),
     );
   });
 
@@ -84,7 +85,7 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "skill",
-      })
+      }),
     );
 
     expect(codexResult.current.heyHey).toEqual([
@@ -106,7 +107,7 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "skill",
-      })
+      }),
     );
 
     expect(claudeResult.current.heyHey).toEqual([]);
@@ -125,7 +126,7 @@ describe("useSlashCommandRegistry", () => {
             "Start a Codex conversation to browse installed Skills.",
         },
         query: "skill",
-      })
+      }),
     );
 
     expect(result.current.heyHey).toEqual([
@@ -153,16 +154,16 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "",
-      })
+      }),
     );
 
     expect(result.current.heyHey.map((command) => command.name)).toEqual(
-      expect.arrayContaining(["bug", "search", "feature-tree"])
+      expect.arrayContaining(["bug", "search", "feature-tree"]),
     );
     expect(
       result.current.heyHey.every((command) =>
-        command.id.startsWith("hey-hey-builtin:")
-      )
+        command.id.startsWith("hey-hey-builtin:"),
+      ),
     ).toBe(true);
   });
 
@@ -183,7 +184,7 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "",
-      })
+      }),
     );
 
     expect(result.current.heyHey).toEqual(
@@ -218,19 +219,19 @@ describe("useSlashCommandRegistry", () => {
           typeRef: "DESIGN_DOC",
           typeRefKind: "entity-type",
         }),
-      ])
+      ]),
     );
     expect(result.current.heyHey).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "recent" }),
         expect.objectContaining({ name: "search" }),
         expect.objectContaining({ name: "feature-tree" }),
-      ])
+      ]),
     );
     expect(
       result.current.heyHey.every(
-        (command) => command.kind === "inline-entity-search"
-      )
+        (command) => command.kind === "inline-entity-search",
+      ),
     ).toBe(true);
   });
 
@@ -247,13 +248,13 @@ describe("useSlashCommandRegistry", () => {
           cachedConversationMentionOptions: [],
         },
         query: "bug",
-      })
+      }),
     );
 
     expect(result.current.heyHey).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "bug", typeRef: "BUG" }),
-      ])
+      ]),
     );
   });
 });

@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from "../../api/api";
+import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import {
   Alert,
   Box,
@@ -24,7 +26,6 @@ import {
   WorkItemTypeLifecycleStatus,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
-  type WorkStatus,
 } from "../../api";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
 import { getStatusLabel } from "../../utils/statusUtils";
@@ -84,8 +85,8 @@ export interface WorkItemTypeCreatePreviewModel {
   parentLabels: readonly string[];
   parentExamples: readonly string[];
   sections: ReadonlyArray<{ key: string; label: string; content: string }>;
-  statuses: readonly WorkStatus[];
-  initialStatus?: WorkStatus;
+  statuses: readonly TaskResponseDto["status"][];
+  initialStatus?: TaskResponseDto["status"];
   scalarFields: ReadonlyArray<{ key: string; label: string; value: string }>;
   relationshipGroups: readonly WorkItemTypePreviewRelationshipGroup[];
   trackedByGoal: boolean;
@@ -97,7 +98,6 @@ const CAPABILITY_LABELS: Record<string, string> = {
   requiresParent: "Parent required",
   showsInExplorerSidebar: "Sidebar",
   planEligible: "Plan eligible",
-  hasSetInitialStatus: "Initial status fixed",
   graph: "Graph",
 };
 
@@ -293,8 +293,8 @@ export const buildWorkItemTypeCreatePreviewModel = (
       label: section.label,
       content: PLACEHOLDER_COPY[index % PLACEHOLDER_COPY.length],
     })),
-    statuses: definition.allowedStatuses,
-    initialStatus: definition.allowedStatuses[0],
+    statuses: getWorkItemTypeStatusNames(definition),
+    initialStatus: getWorkItemTypeStatusNames(definition)[0],
     scalarFields,
     relationshipGroups: buildRelationshipGroups(
       definition,
@@ -501,9 +501,9 @@ const PreviewRelationships: React.FC<{
 const WorkItemTypePreview: React.FC<{
   model: WorkItemTypeCreatePreviewModel;
 }> = ({ model }) => {
-  const [selectedStatus, setSelectedStatus] = useState<WorkStatus | "">(
-    model.initialStatus ?? "",
-  );
+  const [selectedStatus, setSelectedStatus] = useState<
+    TaskResponseDto["status"] | ""
+  >(model.initialStatus ?? "");
   const presentation = resolveWorkItemIconPresentation(
     model.typeKey,
     {
@@ -511,7 +511,7 @@ const WorkItemTypePreview: React.FC<{
       name: model.title,
       role: model.role,
       sections: [],
-      allowedStatuses: [],
+      statuses: [],
       iconKey: model.iconKey,
       colorKey: model.colorKey,
     },
@@ -610,7 +610,9 @@ const WorkItemTypePreview: React.FC<{
                   label="Status"
                   value={selectedStatus}
                   onChange={(event) =>
-                    setSelectedStatus(event.target.value as WorkStatus)
+                    setSelectedStatus(
+                      event.target.value as TaskResponseDto["status"],
+                    )
                   }
                   data-testid="work-item-type-preview-status"
                 >

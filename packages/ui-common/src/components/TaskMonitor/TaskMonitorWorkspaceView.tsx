@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { TaskMonitorResponsePresentationContext } from "./TaskMonitorResponsePresentationContext";
 import { useTaskMonitorComposing } from "./useTaskMonitorComposing";
 import { useTaskMonitorDockMotion } from "./useTaskMonitorDockMotion";
+import type { TaskResponseDto } from "../../api/api";
 import {
   Alert,
   Box,
@@ -61,7 +62,7 @@ export interface TaskMonitorWorkspaceViewProps {
   monitorId: string;
   monitorSessionDate: string | null;
   monitorName: string;
-  monitorStatus: WorkStatus | null;
+  monitorStatus: TaskResponseDto["status"] | null;
   definition: TaskMonitorExecutionDefinition | null;
   nodes: readonly TaskMonitorProjectedNode[];
   isLoading: boolean;

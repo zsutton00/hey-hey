@@ -1,4 +1,5 @@
-import type { WorkStatus } from '@hey-hey/contracts/api/models';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorLaunchDeclaration,
@@ -145,7 +146,7 @@ export interface HaltTaskMonitorControlEffect {
   readonly failureContext: string;
 }
 
-export type TaskMonitorControlStatus = Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+export type TaskMonitorControlStatus = TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
 
 export interface ProjectTaskMonitorControlStatusEffect {
   readonly type: 'PROJECT_TASK_MONITOR_CONTROL_STATUS';

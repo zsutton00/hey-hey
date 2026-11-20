@@ -1,4 +1,5 @@
 import { useArchiveNavigation } from "../../navigation/useArchiveNavigation";
+import { getWorkItemTypeStatusNames } from "@hey-hey/ui-common";
 import {
   indexWorkItemTypeDefinitions,
   WORK_ITEM_TYPE_KEYS,
@@ -19,7 +20,6 @@ import {
   type TaskResponseDto,
   type TrackedEntitySnapshot,
   type WorkItemTypeDefinitionDto,
-  WorkStatus,
   WorkflowName,
 } from "@hey-hey/contracts/api";
 import type {
@@ -161,7 +161,7 @@ const trackedEntityFilterStatus = (
     Pick<TaskResponseDto, "type" | "status">
   >,
   workItemTypeDefinitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>,
-): WorkStatus | undefined => {
+): TaskResponseDto["status"] | undefined => {
   if (entity.targetEntityType !== EntityType.Task) {
     return entity.status;
   }
@@ -171,8 +171,8 @@ const trackedEntityFilterStatus = (
   if (
     !task ||
     !definition ||
-    definition.allowedStatuses.length === 0 ||
-    !definition.allowedStatuses.includes(task.status)
+    definition.statuses.length === 0 ||
+    !getWorkItemTypeStatusNames(definition).includes(task.status)
   ) {
     return undefined;
   }
@@ -308,13 +308,12 @@ const trackedStatusFilterStorageKey = (
     ? `${TRACKED_STATUS_FILTER_STORAGE_PREFIX}:${projectId}:${goalId}`
     : null;
 
-const isWorkStatus = (value: unknown): value is WorkStatus =>
-  typeof value === "string" &&
-  Object.values(WorkStatus).includes(value as WorkStatus);
+const isWorkStatus = (value: unknown): value is TaskResponseDto["status"] =>
+  typeof value === "string";
 
 const readTrackedStatusSelection = (
   storageKey: string | null,
-): WorkStatus[] | null => {
+): TaskResponseDto["status"][] | null => {
   if (!storageKey || typeof window === "undefined") return null;
 
   try {
@@ -333,7 +332,7 @@ const readTrackedStatusSelection = (
 
 const writeTrackedStatusSelection = (
   storageKey: string | null,
-  statuses: WorkStatus[],
+  statuses: TaskResponseDto["status"][],
 ): void => {
   if (!storageKey || typeof window === "undefined") return;
 
@@ -420,7 +419,7 @@ const TrackedEntityRow: React.FC<TrackedEntityRowProps> = ({
         entityKindLabel: resolvedKindLabel || "Task",
         entityKindIcon: props.entityKindIcon ?? "task",
         status:
-          resolvedDefinition && resolvedDefinition.allowedStatuses.length > 0
+          resolvedDefinition && resolvedDefinition.statuses.length > 0
             ? props.status
             : undefined,
       };
@@ -982,7 +981,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
     [workItemTypes],
   );
   const trackedStatusOptions = useMemo(() => {
-    const options = new Set<WorkStatus>();
+    const options = new Set<TaskResponseDto["status"]>();
     for (const entity of trackedEntities) {
       const status = trackedEntityFilterStatus(
         entity,
@@ -998,7 +997,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
     [projectId, taskId],
   );
   const [selectedTrackedStatuses, setSelectedTrackedStatuses] = useState<
-    WorkStatus[] | null
+    TaskResponseDto["status"][] | null
   >(() => readTrackedStatusSelection(trackedStatusFilterKey));
   useEffect(() => {
     setSelectedTrackedStatuses(
@@ -1025,12 +1024,12 @@ export const GoalPage: React.FC<GoalPageProps> = ({
       effectiveSelectedTrackedStatuses.includes(status),
     );
   const handleTrackedStatusFilterChange = useCallback(
-    (event: SelectChangeEvent<WorkStatus[]>) => {
+    (event: SelectChangeEvent<TaskResponseDto["status"][]>) => {
       const nextStatuses = [
         ...new Set(
           (typeof event.target.value === "string"
             ? event.target.value.split(",")
-            : event.target.value) as WorkStatus[],
+            : event.target.value) as TaskResponseDto["status"][],
         ),
       ];
       setSelectedTrackedStatuses(nextStatuses);
@@ -1376,7 +1375,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
               <InputLabel id="goal-tracked-status-filter-label">
                 Filter by status
               </InputLabel>
-              <Select<WorkStatus[]>
+              <Select<TaskResponseDto["status"][]>
                 labelId="goal-tracked-status-filter-label"
                 multiple
                 value={effectiveSelectedTrackedStatuses}
@@ -1384,7 +1383,7 @@ export const GoalPage: React.FC<GoalPageProps> = ({
                 data-testid="goal-tracked-status-filter"
                 onChange={handleTrackedStatusFilterChange}
                 input={<OutlinedInput label="Filter by status" />}
-                renderValue={(selected: WorkStatus[]) =>
+                renderValue={(selected: TaskResponseDto["status"][]) =>
                   selected.map(formatStatus).join(", ")
                 }
               >

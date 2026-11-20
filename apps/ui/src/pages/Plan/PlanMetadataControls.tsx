@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useState } from "react";
 import { Alert, Stack } from "@mui/material";
 import { WorkItemMetadata } from "@hey-hey/ui-common/components";
@@ -5,7 +6,6 @@ import {
   useCanonicalPlanMutations,
   type PlanWorkItem,
 } from "@hey-hey/ui-common/data";
-import type { WorkStatus } from "@hey-hey/contracts/api";
 
 export const PlanMetadataControls = ({
   plan,
@@ -21,7 +21,7 @@ export const PlanMetadataControls = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const changeStatus = async (status: WorkStatus) => {
+  const changeStatus = async (status: TaskResponseDto["status"]) => {
     if (saving || readOnly) return;
     setSaving(true);
     setError(null);

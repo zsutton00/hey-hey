@@ -4,7 +4,6 @@ import { WorkItemConfigKind } from './work-item-config-kind.js';
 import { WorkItemIconKey } from './work-item-icon-key.js';
 import { WorkItemColorKey } from './work-item-color-key.js';
 import { WorkItemTypeScalarField } from './work-item-type-scalar-field.js';
-import { WorkStatus } from './work-status.js';
 import { EntityType } from './entity-type.js';
 import { ReportType } from './report-type.js';
 /* tslint:disable */
@@ -57,13 +56,13 @@ import type { WorkItemTypeSectionDefinition } from './work-item-type-section-def
 import type { WorkItemTypeSessionRoleGuidance } from './work-item-type-session-role-guidance.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { WorkItemTypeStatus } from './work-item-type-status.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { WorkItemTypeTracking } from './work-item-type-tracking.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemTypeWritingStandards } from './work-item-type-writing-standards.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * A complete work-item-type definition — the serialized registry config for one type, composed by the agentic drafter or the admin form and submitted as a WORK_ITEM_TYPE proposal. Canonical-seeded and project-authored custom definitions use this same shape and declare the same axes.
@@ -144,11 +143,11 @@ export interface WorkItemTypeDefinitionDto {
      */
     'forbiddenScalars'?: Array<WorkItemTypeScalarField>;
     /**
-     * The work statuses an item of this type may occupy. Reuses the shared WorkStatus enum rather than declaring a type-local status set.
-     * @type {Array<WorkStatus>}
+     * The type\'s ordered ordinary statuses — the authority for which statuses items of this type may be created in and moved between. The first entry is the status new items start in. Each entry carries the internal meaning the platform reads for progress and active filters, and the metadata that preserves legacy labels and completion/cancellation behavior. ARCHIVED is universal and SUPERSEDED is protected and platform-owned (see `capabilities.supportsSupersession`); neither appears in this list.
+     * @type {Array<WorkItemTypeStatus>}
      * @memberof WorkItemTypeDefinitionDto
      */
-    'allowedStatuses': Array<WorkStatus>;
+    'statuses': Array<WorkItemTypeStatus>;
     /**
      * Type keys an item of this type may be parented under. An empty array means the type is top-level only.
      * @type {Array<string>}
@@ -174,11 +173,11 @@ export interface WorkItemTypeDefinitionDto {
      */
     'tracking'?: WorkItemTypeTracking;
     /**
-     * The subset of `allowedStatuses` an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here. Reuses the shared WorkStatus enum.
-     * @type {Array<WorkStatus>}
+     * The subset of the type\'s status names (`statuses`, plus the universal ARCHIVED) an agent may set directly on an item of this type. Statuses the engine reserves for system transitions are absent here.
+     * @type {Array<string>}
      * @memberof WorkItemTypeDefinitionDto
      */
-    'agentSettableStatuses'?: Array<WorkStatus>;
+    'agentSettableStatuses'?: Array<string>;
     /**
      * Report types that may be anchored to an item of this type. Reuses the shared ReportType enum. An empty array means no report type anchors to this type.
      * @type {Array<ReportType>}
@@ -212,12 +211,8 @@ export namespace WorkItemTypeDefinitionDto {
     export type RequiredScalarsEnum = WorkItemTypeScalarField;
     export const ForbiddenScalarsEnum = WorkItemTypeScalarField;
     export type ForbiddenScalarsEnum = WorkItemTypeScalarField;
-    export const AllowedStatusesEnum = WorkStatus;
-    export type AllowedStatusesEnum = WorkStatus;
     export const AllowedParentEntityTypesEnum = EntityType;
     export type AllowedParentEntityTypesEnum = EntityType;
-    export const AgentSettableStatusesEnum = WorkStatus;
-    export type AgentSettableStatusesEnum = WorkStatus;
     export const AnchorableReportTypesEnum = ReportType;
     export type AnchorableReportTypesEnum = ReportType;
 }

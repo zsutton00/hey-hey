@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../../api/api";
 /**
  * Hook for status transition CapsuleAction integration
  *
@@ -32,8 +33,8 @@ import type { Stable } from "../../../types";
  * Describes a status transition: from → to
  */
 export interface StatusTransition {
-  from: WorkStatus;
-  to: WorkStatus;
+  from: TaskResponseDto["status"];
+  to: TaskResponseDto["status"];
   actionId: string;
 }
 
@@ -93,14 +94,13 @@ export interface UseSetReadyCapsuleActionClickResult {
 }
 
 export type UseSetReadyCapsuleActionResult =
-  | UseSetReadyCapsuleActionExpandResult
-  | UseSetReadyCapsuleActionClickResult;
+  UseSetReadyCapsuleActionExpandResult | UseSetReadyCapsuleActionClickResult;
 
 /**
  * Standard tasks: any refining/generating status moves to Backlog (Set Ready);
  * Backlog moves to Active (Set Active); Active moves to Completed (Complete).
  */
-const REFINING_TO_BACKLOG_STATUSES: WorkStatus[] = [
+const REFINING_TO_BACKLOG_STATUSES: TaskResponseDto["status"][] = [
   WorkStatus.RefiningDescription,
   WorkStatus.RefiningDetails,
   WorkStatus.RefiningAcceptanceCriteria,
@@ -111,17 +111,18 @@ const REFINING_TO_BACKLOG_STATUSES: WorkStatus[] = [
   WorkStatus.GeneratingAll,
 ];
 
-const STATUS_TRANSITIONS: Partial<Record<WorkStatus, StatusTransition>> =
-  Object.fromEntries(
-    REFINING_TO_BACKLOG_STATUSES.map((status) => [
-      status,
-      {
-        from: status,
-        to: WorkStatus.Backlog,
-        actionId: "set-ready",
-      } as StatusTransition,
-    ])
-  );
+const STATUS_TRANSITIONS: Partial<
+  Record<TaskResponseDto["status"], StatusTransition>
+> = Object.fromEntries(
+  REFINING_TO_BACKLOG_STATUSES.map((status) => [
+    status,
+    {
+      from: status,
+      to: WorkStatus.Backlog,
+      actionId: "set-ready",
+    } as StatusTransition,
+  ]),
+);
 
 STATUS_TRANSITIONS[WorkStatus.Backlog] = {
   from: WorkStatus.Backlog,
@@ -155,7 +156,7 @@ STATUS_TRANSITIONS[WorkStatus.Active] = {
  * ```
  */
 export const useSetReadyCapsuleAction = (
-  props: UseSetReadyCapsuleActionProps
+  props: UseSetReadyCapsuleActionProps,
 ): UseSetReadyCapsuleActionResult => {
   const {
     workItem,
@@ -182,7 +183,7 @@ export const useSetReadyCapsuleAction = (
     "task",
     projectId,
     undefined,
-    { enabled: false }
+    { enabled: false },
   );
 
   // Feature tasks follow a simple REFINING → READY (Active) flow only
@@ -191,7 +192,7 @@ export const useSetReadyCapsuleAction = (
   // Determine which transition applies to the current status
   const transition = useMemo(() => {
     if (isFeatureTask) {
-      const featureRefiningStatuses: WorkStatus[] = [
+      const featureRefiningStatuses: TaskResponseDto["status"][] = [
         WorkStatus.RefiningDescription,
         WorkStatus.RefiningDetails,
         WorkStatus.RefiningAcceptanceCriteria,
@@ -290,7 +291,7 @@ export const useSetReadyCapsuleAction = (
             onError?.(err);
             setError(err.message);
           },
-        }
+        },
       );
       if (onAfterStatusUpdate) {
         await onAfterStatusUpdate();
@@ -327,7 +328,7 @@ export const useSetReadyCapsuleAction = (
       );
     }
 
-    const getStatusLabel = (status: WorkStatus): string => {
+    const getStatusLabel = (status: TaskResponseDto["status"]): string => {
       if (isFeatureTask && status === WorkStatus.Active) return "Ready";
       switch (status) {
         case WorkStatus.RefiningAcceptanceCriteria:
@@ -353,8 +354,8 @@ export const useSetReadyCapsuleAction = (
           {transition.actionId === "set-ready"
             ? t(KEYS.workItems.actions.setBacklogDescription)
             : transition.actionId === "set-active"
-            ? t(KEYS.workItems.actions.setActiveDescription)
-            : `Update to ${getStatusLabel(transition.to)}`}
+              ? t(KEYS.workItems.actions.setActiveDescription)
+              : `Update to ${getStatusLabel(transition.to)}`}
         </Typography>
 
         {/* Current status */}

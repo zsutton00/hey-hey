@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -55,7 +56,7 @@ vi.mock("../../components/CreatePlanDialog", () => ({
 function buildPlan(
   id: string,
   title: string,
-  status: WorkStatus,
+  status: TaskResponseDto["status"],
 ): PlanWorkItem {
   return {
     id,

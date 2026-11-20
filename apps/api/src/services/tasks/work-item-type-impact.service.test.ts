@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { WorkItemTypeImpactService } from './work-item-type-impact.service';
 import { GoalTracksService } from './goal-tracks.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -271,7 +272,7 @@ describe('WorkItemTypeImpactService', () => {
             name: 'Goal',
             role: 'project-info',
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             tracking: {
               allowedSourceEntityTypes: ['TASK'],
               allowedSourceTaskTypes: ['BUG', 'FEATURE', 'STANDARD'],
@@ -283,7 +284,7 @@ describe('WorkItemTypeImpactService', () => {
           name: 'Goal',
           role: 'project-info',
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           tracking: {
             allowedSourceEntityTypes: ['TASK'],
             allowedSourceTaskTypes: ['FEATURE'],
@@ -312,7 +313,7 @@ describe('WorkItemTypeImpactService', () => {
             name: 'Goal',
             role: 'project-info',
             sections: [],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
             tracking: {
               allowedSourceEntityTypes: ['TASK'],
               allowedSourceTaskTypes: ['BUG', 'FEATURE', 'STANDARD'],
@@ -324,7 +325,7 @@ describe('WorkItemTypeImpactService', () => {
           name: 'Goal',
           role: 'project-info',
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           tracking: {
             allowedSourceEntityTypes: ['TASK'],
             allowedSourceTaskTypes: ['FEATURE'],

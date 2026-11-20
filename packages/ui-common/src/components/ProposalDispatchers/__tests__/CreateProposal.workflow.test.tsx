@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -66,18 +67,22 @@ const workflowDefinitions: Record<string, WorkItemTypeDefinitionDto> = {
     key: "workflow",
     name: "Workflow",
     sections: [{ key: "description", label: "Description" }],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   } as unknown as WorkItemTypeDefinitionDto,
   workflow_step: {
     key: "workflow_step",
     name: "Workflow Step",
     sections: [{ key: "description", label: "Description" }],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   } as unknown as WorkItemTypeDefinitionDto,
 };
 
 vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
-  useWorkItemTypes: () => ({ workItemTypes: [], isLoading: false, error: null }),
+  useWorkItemTypes: () => ({
+    workItemTypes: [],
+    isLoading: false,
+    error: null,
+  }),
   useWorkItemTypeTrackingEligibility: () => ({
     isAllowed: true,
     isReady: true,

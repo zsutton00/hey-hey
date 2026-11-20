@@ -25,7 +25,7 @@ const ORGANIZATION_ID = "storybook-org";
 const PROJECT_ID = "storybook-project";
 
 const makeTask = (
-  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">
+  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto => ({
   id: overrides.id,
   name: overrides.name,
@@ -43,7 +43,7 @@ const makeTask = (
 
 const makeWorkflow = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow" } => ({
   ...makeTask(overrides),
   type: "workflow",
@@ -51,7 +51,7 @@ const makeWorkflow = (
 
 const makeWorkflowStep = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow_step" } => ({
   ...makeTask(overrides),
   type: "workflow_step",
@@ -65,7 +65,7 @@ const makeEdge = (
     Partial<AgentEdgeResponseDto> & {
       sourceNodeName?: string;
       targetNodeName?: string;
-    }
+    },
 ): AgentEdgeResponseDto => ({
   id: overrides.id,
   sourceNodeId: overrides.sourceNodeId,
@@ -210,7 +210,9 @@ const connectedWorkflowData: WorkflowGraphSurfaceData = {
     key: "workflow",
     name: "Workflow",
     sections: [],
-    allowedStatuses: [],
+    statuses: [
+      { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+    ],
     iconKey: "workflow",
   },
 };
@@ -258,7 +260,7 @@ export const EmptyWorkflow: Story = {
 };
 
 const deploymentFixture = DIAGRAM_GROUP_FIXTURE_PAIRS.find(
-  (pair) => pair.key === "aws-gcp-deployment"
+  (pair) => pair.key === "aws-gcp-deployment",
 )!.grouped;
 const groupIdentityData: WorkflowGraphSurfaceData = {
   workflow: makeTask({
@@ -271,7 +273,7 @@ const groupIdentityData: WorkflowGraphSurfaceData = {
         key: "diagramGroups",
         order: 0,
         materializedMarkdown: JSON.stringify(
-          diagramGroupFixtureSection(deploymentFixture)
+          diagramGroupFixtureSection(deploymentFixture),
         ),
       },
     ],
@@ -282,7 +284,7 @@ const groupIdentityData: WorkflowGraphSurfaceData = {
       name: element.title,
       type: "DIAGRAM_ELEMENT",
       parentTaskId: "diagram-group-identities",
-    })
+    }),
   ),
   edges: [],
   layout: {
@@ -298,7 +300,9 @@ export const GroupIdentityLight: Story = {
   args: { graphData: groupIdentityData, allowFullscreen: true },
   decorators: [
     (Story) => (
-      <ThemeProvider theme={createTheme({ palette: createHeyTheme("light").palette })}>
+      <ThemeProvider
+        theme={createTheme({ palette: createHeyTheme("light").palette })}
+      >
         <Story />
       </ThemeProvider>
     ),
@@ -309,7 +313,9 @@ export const GroupIdentityDark: Story = {
   ...GroupIdentityLight,
   decorators: [
     (Story) => (
-      <ThemeProvider theme={createTheme({ palette: createHeyTheme("dark").palette })}>
+      <ThemeProvider
+        theme={createTheme({ palette: createHeyTheme("dark").palette })}
+      >
         <Story />
       </ThemeProvider>
     ),

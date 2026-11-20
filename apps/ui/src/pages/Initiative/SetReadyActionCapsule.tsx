@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { CapsuleAction } from "@hey-hey/ui-common/components";
 import ReadyIcon from "@mui/icons-material/CheckCircleOutline";
 import { WorkStatus, type InitiativeResponseDto } from "@hey-hey/contracts/api";
@@ -21,7 +22,7 @@ export const SetReadyActionCapsule = ({
   disabled = false,
 }: {
   initiative: InitiativeResponseDto;
-  onStatusChange: (status: WorkStatus) => Promise<void>;
+  onStatusChange: (status: TaskResponseDto["status"]) => Promise<void>;
   disabled?: boolean;
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);

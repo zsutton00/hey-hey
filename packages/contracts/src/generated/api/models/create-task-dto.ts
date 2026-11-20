@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 import { TaskSource } from './task-source.js';
 import { TaskPriority } from './task-priority.js';
 import { FeatureTag } from './feature-tag.js';
@@ -38,9 +37,6 @@ import type { TaskSource } from './task-source.js';
 import type { WorkItemConfigV1 } from './work-item-config-v1.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { WorkStatus } from './work-status.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { WorkflowProposalLinkInput } from './workflow-proposal-link-input.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -71,11 +67,11 @@ export interface CreateTaskDto {
      */
     'initiativeId'?: string;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof CreateTaskDto
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      *
      * @type {TaskSource}
@@ -151,8 +147,6 @@ export interface CreateTaskDto {
 }
 
 export namespace CreateTaskDto {
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const SourceEnum = TaskSource;
     export type SourceEnum = TaskSource;
     export const PriorityEnum = TaskPriority;

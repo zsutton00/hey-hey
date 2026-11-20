@@ -56,9 +56,6 @@ import type { TrackedEntitySnapshot } from './tracked-entity-snapshot.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemConfigV1 } from './work-item-config-v1.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * @type UpdateWorkItemContent200ResponseAllOfDataDataWorkItem

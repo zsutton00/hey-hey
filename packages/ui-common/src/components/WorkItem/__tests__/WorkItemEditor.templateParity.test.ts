@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type {
   WorkItemTypeDefinitionDto,
@@ -23,13 +24,13 @@ const buildDefinition = (
   key: string,
   name: string,
   description: string,
-  sections: WorkItemTypeSectionDefinition[]
+  sections: WorkItemTypeSectionDefinition[],
 ): WorkItemTypeDefinitionDto => ({
   key,
   name,
   description,
   sections,
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 });
 
 const STANDARD_DEFINITION = buildDefinition(
@@ -39,7 +40,7 @@ const STANDARD_DEFINITION = buildDefinition(
   [
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
-  ]
+  ],
 );
 
 const BUG_DEFINITION = buildDefinition("BUG", "Bug", "Bug task", [
@@ -57,7 +58,7 @@ const FEATURE_DEFINITION = buildDefinition(
       label: "Requirements",
       writingStandard: REQUIREMENTS_WRITING_STANDARD,
     },
-  ]
+  ],
 );
 
 // Snapshots of the prior switch output. Read by createProgressiveTemplate-callers

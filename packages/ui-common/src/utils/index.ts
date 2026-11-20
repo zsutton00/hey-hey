@@ -1,5 +1,6 @@
 export {
   formatStatus,
+  getWorkItemTypeStatusNames,
   getStatusColorMapping,
   getPlanStatusLabel,
 } from "./statusUtils";
@@ -84,3 +85,14 @@ export type {
   DefinitionComparison,
   FieldLabeler,
 } from "./workItemTypeComparison";
+export {
+  buildWorkItemStatusFilterOptions,
+  matchesWorkItemStatusFilter,
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+  getWorkItemStatusOrder,
+  isReservedWorkItemStatus,
+  isRetainedRemovedStatus,
+  type WorkItemStatusFilterOption,
+  type WorkItemStatusVocabulary,
+} from "./workItemStatusVocabulary";

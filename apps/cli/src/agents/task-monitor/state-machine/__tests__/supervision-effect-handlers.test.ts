@@ -205,10 +205,27 @@ describe('Task Monitor settled-Run evaluation', () => {
           )
         : init?.method === 'PATCH'
           ? new Response(null, { status: 204 })
-          : new Response(JSON.stringify({ status: WorkStatus.Completed }), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            }),
+          : new Response(
+              JSON.stringify(
+                String(_input).includes('/work-item-types/')
+                  ? {
+                      data: {
+                        definition: {
+                          statuses: [
+                            { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+                            {
+                              name: 'COMPLETED',
+                              meaning: 'FINISHED',
+                              completionBehavior: 'COMPLETED',
+                            },
+                          ],
+                        },
+                      },
+                    }
+                  : { data: { type: 'STANDARD', status: WorkStatus.Completed } },
+              ),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
     );
     const completeMonitor = vi.fn().mockResolvedValue(undefined);
     const haltMonitor = vi.fn().mockResolvedValue(undefined);
@@ -251,6 +268,7 @@ describe('Task Monitor settled-Run evaluation', () => {
             new TaskMonitorKind(
               {
                 runtime: {} as never,
+                authContext: createTestPlatformAuthContext(null, 'token'),
                 apiBaseUrl: 'https://api.test',
                 fetchImpl: fetchImpl as never,
                 logger: NOOP_LOGGER,
@@ -398,14 +416,16 @@ describe('Task Monitor settled-Run evaluation', () => {
           rationale: 'The evidence supports requesting canonical completion.',
         },
       );
+      const defaultResponse = fetchImpl.getMockImplementation()!;
       fetchImpl.mockImplementation(async (input, init) => {
         const url = String(input);
-        if (init?.method === 'PATCH') {
-          return new Response(null, {
-            status: url.includes('/work-items/') && completion === 'REJECTED' ? 400 : 204,
-          });
+        if (!url.includes('/work-items/')) {
+          return defaultResponse(input, init);
         }
-        return Response.json({ status: WorkStatus.Verifying });
+        if (init?.method === 'PATCH') {
+          return new Response(null, { status: completion === 'REJECTED' ? 400 : 204 });
+        }
+        return Response.json({ data: { type: 'STANDARD', status: WorkStatus.Verifying } });
       });
       await expect(handler.execute(effect, execution)).resolves.toMatchObject({
         status: 'failed',

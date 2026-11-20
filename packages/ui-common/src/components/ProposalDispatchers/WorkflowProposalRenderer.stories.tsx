@@ -96,7 +96,9 @@ const workflowTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "workflow",
   name: "Workflow",
   sections: [],
-  allowedStatuses: [],
+  statuses: [
+    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+  ],
 };
 
 const containerOnlyUpdates: CreateWorkflowProposalUpdates = {

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import {
   Box,
   FormControl,
@@ -12,13 +13,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "../../i18n/keys";
-import type { WorkStatus } from "../../api";
 
 interface WorkItemFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  statusFilter: WorkStatus | "";
-  onStatusFilterChange: (value: WorkStatus | "") => void;
+  statusFilter: TaskResponseDto["status"] | "";
+  onStatusFilterChange: (value: TaskResponseDto["status"] | "") => void;
   sortBy: string;
   onSortByChange: (value: string) => void;
 }
@@ -74,7 +74,9 @@ export const WorkItemFilters: React.FC<WorkItemFiltersProps> = ({
             <Select
               value={statusFilter}
               onChange={(e) =>
-                onStatusFilterChange(e.target.value as WorkStatus | "")
+                onStatusFilterChange(
+                  e.target.value as TaskResponseDto["status"] | "",
+                )
               }
               label={t(KEYS.initiatives.filters.status)}
             >

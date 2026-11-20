@@ -313,6 +313,29 @@ export const en = {
   "approvalSettings.outcome": "Outcome",
   "approvalSettings.review": "Require human approval",
 
+  "workItemType.status.new": "New status name",
+  "workItemType.status.add": "Add status",
+  "workItemType.status.suggest": "Suggest statuses",
+  "workItemType.status.remove": "Remove status",
+  "workItemType.status.moveUp": "Move status up",
+  "workItemType.status.moveDown": "Move status down",
+  "workItemType.status.finished": "Which of these mean the work is finished?",
+  "workItemType.status.none": "A type can have no finished status.",
+  "workItemType.status.noneOfThese": "None of these",
+  "workItemType.status.name": "Status {{position}}",
+  "workItemType.status.start": "New items start here",
+  "workItemType.status.reserved": "Reserved by the platform",
+  "workItemType.status.reservedArchived": "Archived is always available.",
+  "workItemType.status.reservedSuperseded":
+    "Superseded is applied only when a replacement is approved. It cannot be renamed, removed, chosen as the starting status or set manually.",
+  "workItemType.status.existingItems":
+    "Existing items keep their current statuses.",
+  "workItemType.status.invalidNames":
+    "Give every status a unique name other than Archived or Superseded.",
+  "workItemType.status.answerRequired":
+    "Choose which statuses mean the work is finished, or None of these.",
+  "workItemType.status.required": "Add at least one status.",
+  "workItemType.status.resolveError": "Could not resolve statuses. Try again.",
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",

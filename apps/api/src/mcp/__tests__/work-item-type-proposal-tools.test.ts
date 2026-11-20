@@ -1,3 +1,6 @@
+import { assertProposalStructurallyValid } from '../../services/proposal/proposal-validation.engine';
+import { workItemChangeSetOperationSchema } from '../../services/proposal/work-item-change-set.schema';
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import Ajv from 'ajv';
 import { readFileSync } from 'node:fs';
@@ -111,11 +114,11 @@ const MARKETING_DEFINITION = {
   ],
   requiredScalars: ['dueDate' as const],
   forbiddenScalars: ['tag' as const],
-  allowedStatuses: [
+  statuses: legacyStatuses([
     'BACKLOG' as const,
     'ACTIVE' as const,
     'COMPLETED' as const,
-  ],
+  ]),
   allowedParentTypes: ['FEATURE'],
   edgeTargets: [
     { edgeType: 'RELATED_TO' as const, targetTypeKeys: ['STANDARD'] },
@@ -349,6 +352,33 @@ describe('create_work_item_type', () => {
       targetEntityId: NIL_UUID,
       createdAt: '2026-06-13T00:00:00.000Z',
     });
+  });
+
+  it("keeps the type's current agent-settable statuses when an edit omits them", async () => {
+    const proposalCreate = jest.fn().mockResolvedValue(
+      makeProposal({
+        action: 'UPDATE',
+        targetEntityId: AXIS_COMPLETE_DEFINITION.key,
+      }),
+    );
+    const { provider } = createProvider({
+      proposalCreate,
+      workItemTypeRegistry: {
+        getDefinition: jest.fn().mockReturnValue(makeRegistryDefinition()),
+      } as unknown as WorkItemTypeRegistryService,
+    });
+    const { agentSettableStatuses: _omitted, ...definition } =
+      AXIS_COMPLETE_DEFINITION;
+
+    await provider.editWorkItemType(
+      { typeKey: AXIS_COMPLETE_DEFINITION.key, definition },
+      {} as any,
+      makeRequest(),
+    );
+
+    expect(
+      proposalCreate.mock.calls[0][3].updates.definition.agentSettableStatuses,
+    ).toEqual(['BACKLOG', 'ACTIVE']);
   });
 
   it('preserves the complete canonical admission issue collection', async () => {
@@ -1119,5 +1149,68 @@ describe('guidance definition schema', () => {
     expect(
       createWorkItemTypeParameters.parse(MARKETING_DEFINITION),
     ).not.toHaveProperty('maintenanceGuidance');
+  });
+});
+
+describe('custom status wire boundaries', () => {
+  it('accepts a narrowed custom agent status list for creation and editing', () => {
+    const definition = {
+      ...MARKETING_DEFINITION,
+      statuses: [
+        { name: 'Idea', meaning: 'NOT_STARTED' },
+        { name: 'Testing', meaning: 'IN_PROGRESS' },
+        { name: 'Made', meaning: 'FINISHED' },
+      ],
+      agentSettableStatuses: ['Testing'],
+    };
+    expect(
+      createWorkItemTypeParameters.parse(definition).agentSettableStatuses,
+    ).toEqual(['Testing']);
+    expect(
+      editWorkItemTypeParameters.parse({ typeKey: definition.key, definition })
+        .definition.agentSettableStatuses,
+    ).toEqual(['Testing']);
+  });
+});
+
+describe('custom item status structure', () => {
+  it('accepts custom names in ordinary create and update proposals', () => {
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'CREATE',
+        targetEntityType: 'TASK',
+        targetEntityId: NIL_UUID,
+        updates: { name: 'Soup', type: 'RECIPE', status: 'Testing' },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: PROPOSAL_ID,
+        updates: { status: 'Testing' },
+      }),
+    ).not.toThrow();
+  });
+  it('accepts custom status updates in change sets without opening the reserved replacement transition', () => {
+    const operation = {
+      op: 'workItem.update',
+      ref: { refType: 'existing', id: PROPOSAL_ID },
+      status: 'Testing',
+    };
+    expect(workItemChangeSetOperationSchema.parse(operation)).toMatchObject({
+      status: 'Testing',
+    });
+    expect(() =>
+      assertProposalStructurallyValid({
+        type: 'SINGLE',
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+        targetEntityId: PROPOSAL_ID,
+        updates: { status: 'SUPERSEDED' },
+      }),
+    ).toThrow();
   });
 });
