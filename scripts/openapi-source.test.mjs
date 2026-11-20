@@ -128,6 +128,12 @@ test("a pin outside any Git checkout still reports a content identity", (t) => {
 test("a target fingerprint follows transitive refs without unrelated schemas", (t) => {
   const { checkout } = createFixture(t);
   const openapiRoot = path.join(checkout, "openapi");
+  // The temporary source needs the same installed parser as a real checkout.
+  fs.symlinkSync(
+    fileURLToPath(new URL("../openapi/node_modules", import.meta.url)),
+    path.join(openapiRoot, "node_modules"),
+    "dir",
+  );
   const entry = path.join(openapiRoot, "specs/api/openapi.yaml");
   const referenced = path.join(openapiRoot, "specs/schemas/shared.yaml");
   fs.writeFileSync(
@@ -138,10 +144,10 @@ test("a target fingerprint follows transitive refs without unrelated schemas", (
   fs.writeFileSync(referenced, "Shared: { type: string, enum: [a, b] }\n");
 
   const before = digestSpecClosure(openapiRoot, "specs/api/openapi.yaml");
-  assert.deepEqual(listSpecReferenceClosure(openapiRoot, "specs/api/openapi.yaml"), [
-    "specs/api/openapi.yaml",
-    "specs/schemas/shared.yaml",
-  ]);
+  assert.deepEqual(
+    listSpecReferenceClosure(openapiRoot, "specs/api/openapi.yaml"),
+    ["specs/api/openapi.yaml", "specs/schemas/shared.yaml"],
+  );
 
   fs.writeFileSync(
     path.join(openapiRoot, "specs/schemas/unrelated.yaml"),

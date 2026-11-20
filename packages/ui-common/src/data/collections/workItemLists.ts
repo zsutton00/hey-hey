@@ -6,7 +6,7 @@ import {
   type TaskHierarchyResponseDto,
   type TaskSortBy,
   type TaskSortDir,
-  type WorkStatus,
+  type TaskResponseDto,
 } from "../../api";
 import {
   GetWorkItemDocument,
@@ -41,7 +41,7 @@ export interface WorkItemListParams {
   /** `undefined` = no parent filter; `null` = only items without a parent. */
   parentTaskId?: string | null;
   parentTaskIds?: string[];
-  status?: WorkStatus[];
+  status?: TaskResponseDto["status"][];
   taskIds?: string[];
   includeSectionKeys?: string[];
   includeServiceRelations?: boolean;

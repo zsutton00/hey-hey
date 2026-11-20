@@ -1,4 +1,5 @@
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingVisualPreviewPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
@@ -23,6 +24,7 @@ export const VISUAL_PREVIEW_ALLOWED_TOOLS: readonly string[] = [
 export const planShapingVisualPreviewHandler: UserLaunchablePromptTypeHandler<PlanShapingVisualPreviewPromptPayload> =
   {
     id: 'plan_shaping_visual_preview',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingVisualPreview,
     service: 'optional',
     launchEntity: 'none',

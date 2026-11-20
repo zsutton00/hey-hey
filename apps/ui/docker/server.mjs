@@ -1,4 +1,5 @@
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
+import { connect as netConnect } from "node:net";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -30,6 +31,67 @@ const contentTypes = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
 };
+
+// Opt-in same-origin proxy: the local installation sets API_PROXY_TARGET so
+// the browser reaches pages, API calls and live updates through one address.
+// Hosted deployments never set it and serve exactly as before.
+const apiProxyTarget = process.env.API_PROXY_TARGET
+  ? new URL(process.env.API_PROXY_TARGET)
+  : null;
+const apiProxyPrefixes = ["/api/", "/socket.io/"];
+
+function isProxiedPath(requestPath) {
+  return (
+    apiProxyTarget !== null &&
+    apiProxyPrefixes.some((prefix) => requestPath.startsWith(prefix))
+  );
+}
+
+function proxyHttpRequest(req, res) {
+  const upstream = httpRequest(
+    {
+      hostname: apiProxyTarget.hostname,
+      port: apiProxyTarget.port,
+      path: req.url,
+      method: req.method,
+      headers: req.headers,
+    },
+    (upstreamResponse) => {
+      res.writeHead(
+        upstreamResponse.statusCode || 502,
+        upstreamResponse.headers,
+      );
+      upstreamResponse.pipe(res);
+    },
+  );
+  upstream.on("error", (error) => {
+    log("error", "api_proxy_error", { message: error.message });
+    if (!res.headersSent) {
+      res.statusCode = 502;
+    }
+    res.end();
+  });
+  req.pipe(upstream);
+}
+
+function proxyUpgrade(req, socket, head) {
+  const upstream = netConnect(
+    Number(apiProxyTarget.port),
+    apiProxyTarget.hostname,
+    () => {
+      const headerLines = Object.entries(req.headers).map(
+        ([name, value]) => `${name}: ${value}`,
+      );
+      upstream.write(
+        `${req.method} ${req.url} HTTP/1.1\r\n${headerLines.join("\r\n")}\r\n\r\n`,
+      );
+      upstream.write(head);
+      socket.pipe(upstream).pipe(socket);
+    },
+  );
+  upstream.on("error", () => socket.destroy());
+  socket.on("error", () => upstream.destroy());
+}
 
 function log(level, event, data = {}) {
   const nextLevel = logLevels[level] ?? logLevels.info;
@@ -132,6 +194,7 @@ async function writeRuntimeConfig() {
     explicitWsUrl || buildWsUrl(apiProtocol, apiHost, apiPort, apiBasePath);
 
   const runtimeConfig = {
+    deployment: readRuntimeValue("VITE_DEPLOYMENT", "hosted"),
     apiProtocol,
     apiHost,
     apiPort,
@@ -254,6 +317,11 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${hostHeader}`);
     requestPath = url.pathname;
 
+    if (isProxiedPath(requestPath)) {
+      proxyHttpRequest(req, res);
+      return;
+    }
+
     if (requestPath === "/health") {
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -318,6 +386,15 @@ const server = createServer(async (req, res) => {
     }
     res.end(JSON.stringify({ error: "Internal Server Error" }));
   }
+});
+
+server.on("upgrade", (req, socket, head) => {
+  const requestPath = new URL(req.url || "/", "http://localhost").pathname;
+  if (!isProxiedPath(requestPath)) {
+    socket.destroy();
+    return;
+  }
+  proxyUpgrade(req, socket, head);
 });
 
 server.listen(port, host, () => {

@@ -82,11 +82,15 @@ try {
   run(process.execPath, ['scripts/generate-activity-history-contract.js']);
   run(process.execPath, ['scripts/generate-project-report-schemas.js']);
   run(process.execPath, ['scripts/generate-goal-pm-decision-schema.js']);
+  run(process.execPath, ['scripts/generate-approval-policy-schema.js']);
   run(process.execPath, ['scripts/generate-feature-requirements-schema.js']);
   run(process.execPath, ['scripts/generate-future-revision-schema.js']);
   run(process.execPath, ['scripts/generate-private-beta-access-schema.js']);
   run(process.execPath, ['scripts/generate-demo-sandbox-schema.js']);
   run(process.execPath, ['scripts/generate-open-items-schemas.js']);
+  run(process.execPath, [
+    'scripts/generate-work-item-execution-state-schema.js',
+  ]);
   run(process.execPath, ['scripts/generate-workflow-review-schemas.js']);
   run(process.execPath, ['scripts/generate-diagram-schemas.js']);
   run(process.execPath, [
@@ -106,6 +110,7 @@ try {
     prettierIgnorePath,
     path.join(stagedGeneratedRoot, 'workflow-review.schemas.ts'),
     path.join(stagedGeneratedRoot, 'diagram.schemas.ts'),
+    path.join(stagedGeneratedRoot, 'approval-policy.schema.ts'),
     path.join(stagedGeneratedRoot, 'entity-prompt-template-language.ts'),
     path.join(stagedGeneratedRoot, 'controller-action-contract.ts'),
   ]);

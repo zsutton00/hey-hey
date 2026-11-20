@@ -22,13 +22,16 @@ import { EvalConsumerHandlerKey } from './eval-consumer-handler-key.js';
 import type { EntityType } from './entity-type.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalCaseInputs } from './eval-case-inputs.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConsumerHandlerKey } from './eval-consumer-handler-key.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalTargetHandlerKey } from './eval-target-handler-key.js';
 
 /**
- * Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
+ * Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list.
  * @export
  * @interface EvalCaseTarget
  */
@@ -58,11 +61,11 @@ export interface EvalCaseTarget {
      */
     'supportingItemIds'?: Array<string>;
     /**
-     * The single request that starts the case.
-     * @type {string}
+     *
+     * @type {EvalCaseInputs}
      * @memberof EvalCaseTarget
      */
-    'initiatingRequest': string;
+    'inputs': EvalCaseInputs;
     /**
      *
      * @type {EvalTargetHandlerKey}

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { TaskMonitorLaunchMethod } from "../../api";
 import { PreviewHostProvider } from "../../contexts/PreviewHostContext";
 import { PlanStageTaskMonitorSetupReviewView } from "./PlanStageTaskMonitorSetupReviewView";
 
@@ -113,6 +114,7 @@ const provenance = {
   preparedAt: "2026-07-14T01:02:03.000Z",
 };
 const runtimeProps = {
+  allowedLaunchMethods: Object.values(TaskMonitorLaunchMethod),
   onChangeMethod: vi.fn(),
   onChangeProvider: vi.fn(),
   onChangeModel: vi.fn(),
@@ -162,11 +164,11 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
           onRefreshTaskServices={vi.fn()}
           onConfirm={onConfirm}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
     const visualization = screen.getByTestId(
-      "plan-stage-task-monitor-execution-visualization"
+      "plan-stage-task-monitor-execution-visualization",
     );
     expect(visualization).toHaveTextContent("Prepare foundation");
     expect(visualization).toHaveTextContent("Implement feature");
@@ -174,36 +176,36 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
     expect(
       screen
         .getAllByTestId("mock-service-selector")
-        .every((selector) => selector.dataset.allowEmptySelection === "false")
+        .every((selector) => selector.dataset.allowEmptySelection === "false"),
     ).toBe(true);
     expect(
-      screen.getByTestId("plan-stage-task-monitor-worktree-toggle")
+      screen.getByTestId("plan-stage-task-monitor-worktree-toggle"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("plan-stage-task-monitor-policies")
+      screen.queryByTestId("plan-stage-task-monitor-policies"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getAllByTestId("plan-stage-task-monitor-runtime-effort-select")
+      screen.getAllByTestId("plan-stage-task-monitor-runtime-effort-select"),
     ).toHaveLength(2);
     expect(
       screen
         .getAllByRole("checkbox")
-        .every((selection) => (selection as HTMLInputElement).checked)
+        .every((selection) => (selection as HTMLInputElement).checked),
     ).toBe(true);
     expect(
       visualization.querySelectorAll(
-        '[data-testid="plan-stage-task-monitor-task-launch-configuration"]'
-      )
+        '[data-testid="plan-stage-task-monitor-task-launch-configuration"]',
+      ),
     ).toHaveLength(2);
     expect(
-      screen.getByTestId("plan-stage-task-monitor-launch-configuration")
+      screen.getByTestId("plan-stage-task-monitor-launch-configuration"),
     ).not.toContainElement(
-      screen.getAllByTestId("plan-stage-task-monitor-runtime-effort-select")[0]
+      screen.getAllByTestId("plan-stage-task-monitor-runtime-effort-select")[0],
     );
     expect(screen.getByText("Shared session settings")).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getAllByTestId("plan-stage-task-monitor-task-preview")[1]
+      screen.getAllByTestId("plan-stage-task-monitor-task-preview")[1],
     );
     expect(openPreview).toHaveBeenCalledWith({
       entityType: "task",
@@ -252,11 +254,11 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
           onRefreshTaskServices={vi.fn()}
           onConfirm={vi.fn()}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
     expect(
-      screen.getByTestId("plan-stage-task-monitor-confirm")
+      screen.getByTestId("plan-stage-task-monitor-confirm"),
     ).toBeDisabled();
   });
 
@@ -299,22 +301,22 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
           onRefreshTaskServices={onRefreshTaskServices}
           onConfirm={onConfirm}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
     expect(
-      screen.getAllByTestId("plan-stage-task-monitor-task-services")
+      screen.getAllByTestId("plan-stage-task-monitor-task-services"),
     ).toHaveLength(2);
     expect(
       screen
         .getAllByTestId("mock-service-selector")
-        .every((selector) => selector.dataset.error === "true")
+        .every((selector) => selector.dataset.error === "true"),
     ).toBe(true);
     expect(
-      screen.getByTestId("plan-stage-task-monitor-confirm")
+      screen.getByTestId("plan-stage-task-monitor-confirm"),
     ).toBeDisabled();
     fireEvent.click(
-      screen.getByTestId("plan-stage-task-monitor-refresh-services")
+      screen.getByTestId("plan-stage-task-monitor-refresh-services"),
     );
     expect(onRefreshTaskServices).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
@@ -349,11 +351,11 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
           onRefreshTaskServices={onRefreshTaskServices}
           onConfirm={onConfirm}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
     expect(
-      screen.queryByTestId("plan-stage-task-monitor-missing-services")
+      screen.queryByTestId("plan-stage-task-monitor-missing-services"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("plan-stage-task-monitor-confirm")).toBeEnabled();
   });
@@ -389,11 +391,11 @@ describe("PlanStageTaskMonitorSetupReviewView", () => {
           onRefreshTaskServices={vi.fn()}
           onConfirm={vi.fn()}
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
     expect(
-      screen.getByTestId("plan-stage-task-monitor-confirm")
+      screen.getByTestId("plan-stage-task-monitor-confirm"),
     ).toBeDisabled();
   });
 });

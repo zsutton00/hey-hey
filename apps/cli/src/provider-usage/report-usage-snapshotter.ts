@@ -183,10 +183,11 @@ export class ReportUsageSnapshotter {
         ...(await this.reader.read(child.provider ?? '', child.providerSessionId)),
         ...child.usage,
       };
-    } catch {
+    } catch (error) {
       this.logger.warn('report.usage.child_unavailable', {
         runId: child.runId,
         executionId: child.executionId,
+        error,
       });
       // This child remains visible as partial/unavailable; unrelated entries remain usable.
       return { ...child.usage };

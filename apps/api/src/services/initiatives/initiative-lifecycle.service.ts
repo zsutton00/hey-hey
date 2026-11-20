@@ -1,5 +1,7 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+
 import { Injectable, Logger } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
+
 import {
   ConversationStatus,
   CreateConversationDto,
@@ -52,7 +54,7 @@ export interface InitiativeFinalizationResult {
     id: string;
     draftId: string;
     name: string;
-    status: WorkStatus;
+    status: TaskResponseDto['status'];
   }>;
   conversationUpdated: boolean;
   cleanupCompleted: boolean;

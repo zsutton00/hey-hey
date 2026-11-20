@@ -1,8 +1,16 @@
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { OrganizationGuard } from '../../auth/guards/organization.guard';
+import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
+import * as request from 'supertest';
+import { REPORT_SCHEMAS } from '../../mcp/tools/report-schemas.generated';
 import { ProjectAccessService } from 'src/auth/services/project-access.service';
 import { ProjectResourceAccessService } from 'src/auth/services/project-resource-access.service';
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  type CommitReportPayload,
   FileTouchServiceHistorySortBy,
   FileTouchServiceHistorySortOrder,
   ReportAudience,
@@ -20,6 +28,7 @@ import { ReportService } from '../../services/reports/report.service';
 
 describe('ReportController', () => {
   let controller: ReportController;
+  let testingModule: TestingModule;
   const mockService = {
     create: jest.fn(),
     findAll: jest.fn(),
@@ -50,10 +59,59 @@ describe('ReportController', () => {
           useValue: mockService,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(OrganizationGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(ProjectAccessGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
+    testingModule = module;
     controller = module.get<ReportController>(ReportController);
     jest.clearAllMocks();
+  });
+
+  it('preserves populated COMMIT provenance across the REST boundary and published schema', async () => {
+    const payload = {
+      reportType: 'COMMIT',
+      summary: 'Committed the recorded edits.',
+      files: ['src/change.ts'],
+      hashes: [
+        {
+          service: '11111111-1111-4111-8111-111111111111',
+          hash: 'abc1234',
+          branch: 'main',
+          implementReportIds: ['22222222-2222-4222-8222-222222222222'],
+        },
+      ],
+    } satisfies CommitReportPayload;
+    const ajv = new Ajv({ strict: false });
+    addFormats(ajv);
+    const validate = ajv.compile(REPORT_SCHEMAS.COMMIT.schema);
+    expect(validate(payload)).toBe(true);
+    expect(validate.errors).toBeNull();
+
+    mockService.create.mockImplementationOnce(async (_organizationId, dto) => ({
+      id: 'commit-report',
+      payload: dto.payload,
+    }));
+    const app = testingModule.createNestApplication();
+    await app.init();
+    try {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/organizations/org-1/reports')
+        .send({
+          reportType: ReportType.Commit,
+          audience: ReportAudience.WorkflowOnly,
+          payload,
+        })
+        .expect(201);
+      expect(response.body.payload).toEqual(payload);
+    } finally {
+      await app.close();
+    }
   });
 
   it('delegates create to the service', async () => {
@@ -65,7 +123,7 @@ describe('ReportController', () => {
         audience: ReportAudience.WorkflowOnly,
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'ok',
           analysis: '',
           frame: {},
@@ -237,7 +295,7 @@ describe('ReportController', () => {
       {
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: 'updated',
           analysis: '',
           frame: {},
@@ -252,7 +310,7 @@ describe('ReportController', () => {
     expect(mockService.update).toHaveBeenCalledWith('org-1', 'report-1', {
       payload: {
         reportType: 'CODING_RESEARCH',
-        format: 'STRUCTURED',
+        format: 'SELF_RESEARCH',
         summary: 'updated',
         analysis: '',
         frame: {},

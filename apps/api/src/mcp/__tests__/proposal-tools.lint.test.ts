@@ -815,3 +815,104 @@ describe('proposal-tool lint v1 — telemetry', () => {
     expect(cleanEntry).toContain('recovery=true');
   });
 });
+
+describe('design doc escaped-newline refusal', () => {
+  const ESCAPED = '## Decision\\n\\n- one\\n- two';
+  const REAL = '## Decision\n\n- one\n- two';
+  const CODE_SAMPLE = '## Decision\n\nSplit with `text.split("\\n")`.\n';
+
+  function designDocProvider(action: 'CREATE' | 'UPDATE') {
+    const proposalCreate = jest.fn().mockResolvedValue(
+      makeProposal({
+        action,
+        targetEntityType: 'DESIGN_DOC',
+        targetEntityId: DESIGN_DOC_ID,
+      }),
+    );
+    return { ...createProvider({ proposalCreate }), proposalCreate };
+  }
+
+  const createParams = (content: string) => ({
+    eli5: 'Explains the proposed change.',
+    name: 'A doc',
+    content,
+  });
+
+  it('create_design_doc refuses escaped-only content and persists nothing', async () => {
+    const { provider, proposalCreate } = designDocProvider('CREATE');
+
+    const result = await provider.createDesignDoc(
+      createParams(ESCAPED),
+      {} as any,
+      makeRequest(),
+    );
+
+    expect(result).toMatchObject({
+      status: 'invalid_change_set',
+      issues: [{ field: 'content', code: 'escaped_newlines_only' }],
+    });
+    expect(proposalCreate).not.toHaveBeenCalled();
+  });
+
+  it('create_design_doc accepts real line breaks, including a code sample containing \\n', async () => {
+    for (const content of [REAL, CODE_SAMPLE]) {
+      const { provider, proposalCreate } = designDocProvider('CREATE');
+
+      const result = await provider.createDesignDoc(
+        createParams(content),
+        {} as any,
+        makeRequest(),
+      );
+
+      expect(result).toMatchObject({ status: 'proposed' });
+      expect(proposalCreate).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('edit_design_doc refuses every escaped-only section and persists nothing', async () => {
+    const { provider, proposalCreate } = designDocProvider('UPDATE');
+
+    const result = await provider.editDesignDoc(
+      {
+        eli5: 'Explains the proposed change.',
+        targetEntityId: DESIGN_DOC_ID,
+        sections: [
+          { key: 'context', content: ESCAPED },
+          { key: 'decision', content: REAL },
+          { key: 'status', content: ESCAPED },
+        ],
+      },
+      {} as any,
+      makeRequest(),
+    );
+
+    expect(result).toMatchObject({
+      status: 'invalid_change_set',
+      issues: [
+        { field: 'sections[0].content', code: 'escaped_newlines_only' },
+        { field: 'sections[2].content', code: 'escaped_newlines_only' },
+      ],
+    });
+    expect(proposalCreate).not.toHaveBeenCalled();
+  });
+
+  it('edit_design_doc accepts sections with real line breaks', async () => {
+    const { provider, proposalCreate } = designDocProvider('UPDATE');
+
+    const result = await provider.editDesignDoc(
+      {
+        eli5: 'Explains the proposed change.',
+        targetEntityId: DESIGN_DOC_ID,
+        sections: [
+          { key: 'context', content: REAL },
+          { key: 'decision', content: CODE_SAMPLE },
+        ],
+      },
+      {} as any,
+      makeRequest(),
+    );
+
+    expect(result).toMatchObject({ status: 'proposed' });
+    expect(proposalCreate).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
@@ -24,7 +25,6 @@ const PROJECT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const LEAN_AXES = {
   initialStatusPolicy: {
     initialStatus: WorkStatus.Backlog,
-    hasSetInitialStatus: false,
   },
   sections: [],
   requiredScalars: [],
@@ -77,7 +77,7 @@ function buildRow(o: RowOverrides): WorkItemType {
         : o.sectionDefinitions,
     allowedParentTypes: ['STANDARD'],
     edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: [] }],
-    allowedStatuses: [WorkStatus.Active],
+    statuses: legacyStatuses([WorkStatus.Active]),
     ...LEAN_AXES,
     // The summary projects these closed-enum scalar axes from the lean columns.
     ...(o.requiredScalars === undefined
@@ -262,7 +262,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
   const obsoleteTaskMonitorCapabilities = {
     requiresParent: true,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
     canOwnReports: false,
     canOwnAgentSessions: false,
@@ -302,7 +301,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
       capabilities: {
         requiresParent: true,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     });
@@ -317,7 +315,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
           capabilities: {
             requiresParent: true,
             planEligible: false,
-            hasSetInitialStatus: false,
             rendersInline: false,
           },
         }),
@@ -352,6 +349,39 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
       effectiveSource: 'CANONICAL',
       definition: { name: canonical.name },
     });
+  });
+
+  it('returns a project override next to the unmodified canonical definition', async () => {
+    const canonical = {
+      ...buildRow({
+        typeKey: 'STANDARD',
+        projectId: null,
+        isSystem: true,
+      }),
+      maintenanceGuidance: 'Canonical maintenance.',
+      id: 'canonical-standard',
+      typeKey: 'STANDARD',
+    };
+    const override = projectRow('STANDARD', PROJECT_A, {
+      name: 'Project Standard',
+    });
+    const service = makeService(
+      [override],
+      [canonical],
+      [PROJECT_A, PROJECT_B],
+    );
+    await service.refresh();
+
+    const comparison = service.getCanonicalComparison(PROJECT_A, 'STANDARD');
+    expect(comparison?.effective.definition.name).toBe('Project Standard');
+    expect(comparison?.canonical?.name).toBe(canonical.name);
+    expect(comparison?.canonical?.maintenanceGuidance).toBe(
+      'Canonical maintenance.',
+    );
+    expect(service.getDefinition(PROJECT_A, 'STANDARD')?.definition.name).toBe(
+      'Project Standard',
+    );
+    expect(service.getCanonicalComparison(PROJECT_A, 'NOPE')).toBeUndefined();
   });
 
   it('projects the explicit accepted launch-config policy from the effective definition', async () => {
@@ -403,7 +433,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -430,7 +459,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -463,14 +491,13 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: ['tag'],
         forbiddenScalars: ['dueDate'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['FEATURE'],
         edgeTargets: [{ edgeType: 'DEPENDS_ON', targetTypeKeys: ['CONTRACT'] }],
         writingStandards: providerOwnedStandards,
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },
@@ -517,7 +544,7 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: [],
         forbiddenScalars: ['tag'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['STANDARD'],
         edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: ['FEATURE'] }],
         allowedParentEntityTypes: [],
@@ -534,7 +561,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },

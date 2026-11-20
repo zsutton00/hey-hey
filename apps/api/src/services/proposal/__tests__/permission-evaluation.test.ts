@@ -45,6 +45,12 @@ const TASK_INITIATIVE_ONLY: EntityContext = {
   initiativeId: '00000000-0000-4000-8000-000000000bbb',
 };
 
+const RECIPE_TOP: EntityContext = {
+  type: 'RECIPE',
+  parentTaskId: null,
+  initiativeId: null,
+};
+
 const GOAL: EntityContext = {
   type: 'GOAL',
   parentTaskId: null,
@@ -107,6 +113,7 @@ describe('evaluatePermissions', () => {
       requiredApprovals: 4,
       rules: [
         {
+          source: 'PROJECT',
           match: { entity: { type: 'GOAL' } },
           config: {
             requiresProposal: false,
@@ -132,6 +139,17 @@ describe('evaluatePermissions', () => {
       threshold: AUTO_APPROVED,
       allowsProposerApproval: true,
     });
+  });
+
+  it('rejects a resolved rule without provenance instead of inferring it from its threshold', () => {
+    const policy = createDefaultProjectApprovalPolicy();
+    const rule = policy.rules[0]!;
+    expect(() =>
+      evaluatePermissions(GOAL, userCtx(['status']), {
+        ...policy,
+        rules: [{ ...rule, source: undefined }],
+      }),
+    ).toThrow('Resolved approval rules must carry authoritative provenance');
   });
 
   it('rejects invalid fixed thresholds from a resolved policy', () => {
@@ -420,11 +438,51 @@ describe('evaluatePermissions', () => {
     expect(result.requiresProposal).toBe(true);
   });
 
-  it('TASK orphan (no parent, no initiative) + user → falls through to default (threshold 1, requiresProposal false)', () => {
-    const result = evaluatePermissions(TASK_TOP, userCtx());
-    expect(result.threshold).toBe(1);
+  it('top-level item of a custom type + user → immediate, author may approve', () => {
+    const result = evaluatePermissions(RECIPE_TOP, userCtx(['status']));
+    expect(result.threshold).toBe(AUTO_APPROVED);
+    expect(result.requiresProposal).toBe(true);
+    expect(result.allowsProposerApproval).toBe(true);
+  });
+
+  it('top-level item of a custom type + user stays immediate for a one-member project', () => {
+    const result = evaluatePermissions(RECIPE_TOP, {
+      ...userCtx(['status']),
+      eligibleProjectMemberIds: [authorId],
+    });
+    expect(result.threshold).toBe(AUTO_APPROVED);
+    expect(result.allowsProposerApproval).toBe(true);
+  });
+
+  it('top-level item of a custom type created by a user keeps the fallback policy', () => {
+    const result = evaluatePermissions(RECIPE_TOP, {
+      ...userCtx(),
+      action: 'CREATE',
+    });
     expect(result.requiresProposal).toBe(false);
     expect(result.allowsProposerApproval).toBe(false);
+  });
+
+  it('top-level item of a custom type + agent → one human, agent never counts', () => {
+    const result = evaluatePermissions(RECIPE_TOP, agentCtx(['status']));
+    expect(result.threshold).toBe(1);
+    expect(result.allowsProposerApproval).toBe(false);
+  });
+
+  it('top-level item of a custom type + agent on a one-member project still needs the human', () => {
+    const result = evaluatePermissions(RECIPE_TOP, {
+      ...agentCtx(['status']),
+      eligibleProjectMemberIds: [authorId],
+    });
+    expect(result.threshold).toBe(1);
+    expect(result.allowsProposerApproval).toBe(false);
+  });
+
+  it('TASK orphan (no parent, no initiative) + user → immediate like any top-level item', () => {
+    const result = evaluatePermissions(TASK_TOP, userCtx());
+    expect(result.threshold).toBe(AUTO_APPROVED);
+    expect(result.requiresProposal).toBe(true);
+    expect(result.allowsProposerApproval).toBe(true);
   });
 
   it('TASK orphan + agent → falls through to default', () => {

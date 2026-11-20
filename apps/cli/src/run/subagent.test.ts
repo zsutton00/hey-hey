@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../agents/run-eval/eval-case-inputs.fixture';
 import { evalJudgeHandler, parseEvalJudgeOutput } from '../agents/run-eval/eval-judge.handler';
 import type { EvalRunCaseInput } from '@hey-hey/contracts/api/models';
 import {
@@ -12,7 +13,7 @@ import {
 } from '../agents/prompt-type-handler.test-support';
 import { EntityContextApi, WorkItemTypesApi } from '@hey-hey/contracts/api';
 import { researchHandler } from '../agents/research/research.handler';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 /**
  * Unified `SubAgent` regression test.
  *
@@ -32,13 +33,11 @@ import type {
 } from '../agents/prompt-type-handler';
 import {
   defaultAddUserMessage,
-  USER_MESSAGE_PREAMBLE,
   type UserLaunchablePromptTypeHandler,
 } from '../agents/prompt-type-handler';
 import { intentFirstGuidance, takingShapeGuidance } from '../agents/prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../agents/prompts/render-type-ontology';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../shared/api/index';
-import type { LocalStartupSessionPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
@@ -241,7 +240,7 @@ describe('SubAgent — unified runtime contract', () => {
         target: {
           targetHandler: 'entity_conversation',
           situation: 'Recorded situation',
-          initiatingRequest: 'Recorded request',
+          inputs: oneMessageInputs('Recorded request'),
         },
         grading: { checks: [], rubric: [] },
       };
@@ -371,7 +370,7 @@ describe('SubAgent — unified runtime contract', () => {
             target: {
               targetHandler: 'entity_conversation',
               situation: 'Situation',
-              initiatingRequest: 'Request',
+              inputs: oneMessageInputs('Request'),
             },
             grading: { checks: [], rubric: [] },
           },
@@ -406,6 +405,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -466,6 +466,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -914,6 +915,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -967,101 +969,6 @@ describe('SubAgent — unified runtime contract', () => {
     expect(startConfig.prompt).toContain('hi from the user');
   });
 
-  it('composes the registered coding-plan prompt and userMessage exactly once', async () => {
-    const registeredHandlers = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
-    const registeredCodingPlanHandler = registeredHandlers.get('startup_session');
-    if (!registeredCodingPlanHandler?.subagentConfig) {
-      throw new Error('The registered coding-plan handler must declare subagentConfig.');
-    }
-
-    const startupPromptInput: AgentStartupPromptInputResult = {
-      startupInput: {
-        task: {
-          id: 'task-1',
-          title: 'LEGACY TASK JSON',
-          taskType: 'STANDARD',
-          description: 'LEGACY TASK DESCRIPTION',
-        },
-        adjacentScopeTasks: [],
-        evidenceItems: [],
-      },
-      renderedInput: 'CURRENT ENTITY CONTEXT',
-      loadedEntityContext: {
-        kind: 'entity',
-        focalEntity: { entityType: 'TASK', entityId: 'task-1' },
-        entity: {} as never,
-        context: {} as never,
-      },
-      provenance: {
-        templateKey: 'task',
-        ownershipSource: { scope: 'CANONICAL' },
-        revisionId: 'revision-1',
-        revisionNumber: 1,
-      },
-    };
-    const basePayload = {
-      startupInput: {
-        task: {
-          id: 'task-1',
-          title: 'Consume a startup user message',
-          description: 'LEGACY TASK DESCRIPTION',
-          acceptanceCriteria: 'The user message appears exactly once.',
-          taskType: 'STANDARD',
-        },
-        evidenceItems: [],
-        adjacentScopeTasks: [],
-      },
-    } as unknown as LocalStartupSessionPromptPayload;
-    const uniqueUserMessage = 'UNIQUE-CODING-PLAN-STARTUP-USER-MESSAGE';
-    const cases: ReadonlyArray<{
-      userMessage?: string;
-      expectedMessageCount: number;
-      expectedPreambleCount: number;
-    }> = [
-      { userMessage: uniqueUserMessage, expectedMessageCount: 1, expectedPreambleCount: 0 },
-      { userMessage: '', expectedMessageCount: 0, expectedPreambleCount: 0 },
-      { expectedMessageCount: 0, expectedPreambleCount: 0 },
-    ];
-    for (const testCase of cases) {
-      // SubAgent receives the payload already prepared by Run, including conversational feedback.
-      const payload: import('../agents/coding-plan/coding-plan.handler').EnrichedCodingPlanPromptPayload =
-        {
-          ...basePayload,
-          _recentUserReplies: testCase.userMessage
-            ? [{ messageId: 'reply', text: testCase.userMessage, createdAt: '' }]
-            : [],
-          ...(testCase.userMessage !== undefined ? { userMessage: testCase.userMessage } : {}),
-        };
-      const subagent = makeSubAgent({
-        session: makeSession(),
-        handler: registeredCodingPlanHandler,
-        config: registeredCodingPlanHandler.subagentConfig,
-        payload,
-        touchedFiles: [],
-        onAgentOutput: vi.fn(),
-        oauthClient: makeOauth(),
-        logger: makeLogger(),
-        cwd: '/tmp',
-        priorReports: [],
-        startupPromptInput,
-      });
-
-      await subagent.execute();
-
-      const startCall = startSessionMock.mock.calls[startSessionMock.mock.calls.length - 1];
-      expect(startCall).toBeDefined();
-      const prompt = (startCall?.[0] as unknown as { prompt: string } | undefined)?.prompt;
-      expect(prompt).toBeDefined();
-      expect(prompt?.match(/CURRENT ENTITY CONTEXT/g)).toHaveLength(1);
-      expect(prompt).not.toContain('LEGACY TASK JSON');
-      expect(prompt).not.toContain('LEGACY TASK DESCRIPTION');
-      expect(prompt).not.toContain('## Task Context');
-      expect(prompt).not.toContain('## Startup Context');
-      expect(prompt?.split(uniqueUserMessage)).toHaveLength(testCase.expectedMessageCount + 1);
-      expect(prompt?.split(USER_MESSAGE_PREAMBLE)).toHaveLength(testCase.expectedPreambleCount + 1);
-    }
-  });
-
   it('uses CodexSdkClient, not ClaudeCodeSdkClient, when the session provider is codex', async () => {
     const handler: UserLaunchablePromptTypeHandler<TestPayload> = {
       id: 'commit',
@@ -1069,6 +976,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1158,6 +1066,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1225,6 +1134,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1282,6 +1192,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1321,6 +1232,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1383,6 +1295,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1427,6 +1340,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1473,6 +1387,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1525,6 +1440,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1598,6 +1514,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1659,6 +1576,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'required',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'subagent',
       providerSessionCountsForContext: false,
       reports: [],
@@ -1690,14 +1608,32 @@ describe('SubAgent — unified runtime contract', () => {
 
   describe('context reading before disconnect', () => {
     const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
-    const executeRegistered = (
-      promptType: LocalPromptType,
+    // Subagents that count toward Run context are the ones that are read before
+    // disconnect. No shipped handler is one, so the reading is exercised with a
+    // handler declared here.
+    const contextCountingHandler: PromptTypeHandler<unknown> = {
+      id: 'context-counting-child',
+      promptType: LocalPromptType.ProjectReport,
+      service: 'optional',
+      launchEntity: 'none',
+      implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
+      runnerKind: 'subagent',
+      providerSessionCountsForContext: true,
+      reports: [],
+      subagentConfig: {
+        mcpAllowedTools: [],
+        builtinAllowedTools: ['Read'],
+        adapterId: 'context-counting-child',
+      },
+      buildPrompt: () => 'COUNTED',
+    };
+    const executeHandler = (
+      handler: PromptTypeHandler<unknown>,
       provider: 'claude' | 'codex',
       logger = makeLogger(),
     ) => {
-      const handler = registry.get(promptType);
-      if (!handler?.subagentConfig)
-        throw new Error(`Expected a registered ${promptType} subagent.`);
+      if (!handler.subagentConfig) throw new Error(`Expected ${handler.id} to be a subagent.`);
       return makeSubAgent({
         session: makeSession({ provider }),
         handler,
@@ -1711,15 +1647,24 @@ describe('SubAgent — unified runtime contract', () => {
         priorReports: [],
       }).execute();
     };
+    const executeRegistered = (
+      promptType: LocalPromptType,
+      provider: 'claude' | 'codex',
+      logger = makeLogger(),
+    ) => {
+      const handler = registry.get(promptType);
+      if (!handler) throw new Error(`Expected a registered ${promptType} subagent.`);
+      return executeHandler(handler, provider, logger);
+    };
 
-    it('reads the coding plan session before disconnecting it', async () => {
+    it('reads a context-counting session before disconnecting it', async () => {
       claudeGetSessionIdMock.mockReturnValue('plan-session');
       claudeGetContextUsageMock.mockImplementation(async () => {
         expect(disconnectMock).not.toHaveBeenCalled();
         return { totalTokens: 7_000, maxTokens: 200_000 };
       });
 
-      const result = await executeRegistered(LocalPromptType.StartupSession, 'claude');
+      const result = await executeHandler(contextCountingHandler, 'claude');
 
       expect(result.providerSessionId).toBe('plan-session');
       expect(result.contextReading).toEqual({
@@ -1729,14 +1674,14 @@ describe('SubAgent — unified runtime contract', () => {
       expect(disconnectMock).toHaveBeenCalledTimes(1);
     });
 
-    it('reads a Codex coding plan session before disconnecting it', async () => {
+    it('reads a Codex context-counting session before disconnecting it', async () => {
       codexGetSessionIdMock.mockReturnValue('plan-thread');
       codexGetContextUsageMock.mockImplementation(() => {
         expect(codexDisconnectMock).not.toHaveBeenCalled();
         return { totalTokens: 5_000, maxTokens: 258_000 };
       });
 
-      const result = await executeRegistered(LocalPromptType.StartupSession, 'codex');
+      const result = await executeHandler(contextCountingHandler, 'codex');
 
       expect(result.providerSessionId).toBe('plan-thread');
       expect(result.contextReading).toEqual({
@@ -1754,7 +1699,7 @@ describe('SubAgent — unified runtime contract', () => {
       expect(result).not.toHaveProperty('contextReading');
     });
 
-    it.each([LocalPromptType.StartupSession, LocalPromptType.CodeReview, LocalPromptType.Commit])(
+    it.each([LocalPromptType.CodeReview, LocalPromptType.Commit])(
       'lets the read-only %s helper load deferred tools without being allowed to call off-allowlist ones',
       async (promptType) => {
         const decisions: Record<string, string> = {};
@@ -1794,7 +1739,7 @@ describe('SubAgent — unified runtime contract', () => {
       claudeGetSessionIdMock.mockReturnValue('plan-session');
       claudeGetContextUsageMock.mockRejectedValue(new Error('context unavailable'));
 
-      const result = await executeRegistered(LocalPromptType.StartupSession, 'claude', logger);
+      const result = await executeHandler(contextCountingHandler, 'claude', logger);
 
       expect(result.contextReading).toBeNull();
       expect(disconnectMock).toHaveBeenCalledTimes(1);
@@ -1812,6 +1757,7 @@ describe('SubAgent — unified runtime contract', () => {
       service: 'optional',
       launchEntity: 'none',
       implementationReadiness: 'none',
+      sessionRole: SessionRole.Implementation,
       runnerKind: 'provider_session',
       providerSessionCountsForContext: false,
       reports: [],

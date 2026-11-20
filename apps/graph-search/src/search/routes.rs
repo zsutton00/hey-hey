@@ -165,10 +165,22 @@ fn require_path_tenant(path: &ProjectPath, filters: &SearchFilters) -> Result<()
     Ok(())
 }
 
+/// Resolves, from the API's current policy, the projects this request may search.
+async fn authorized_projects(
+    auth: &Authenticator,
+    principal: &Principal,
+    organization_id: &str,
+    project_id: Option<&str>,
+) -> Result<Vec<String>, Failure> {
+    auth.search_projects(principal, organization_id, project_id)
+        .await
+        .map_err(|_| Failure::Forbidden)
+}
+
 async fn run_search(
     state: &SearchState,
     organization_id: &str,
-    project_id: Option<&str>,
+    projects: &[String],
     search: &Search,
 ) -> Result<SearchResponse, Failure> {
     let vector = match &search.semantic_text {
@@ -185,7 +197,7 @@ async fn run_search(
         &state.pool,
         Retrieval {
             organization_id,
-            project_id,
+            projects,
             filter: &search.filter,
             keyword_text: search.keyword_text.as_deref(),
             title_only: search.title_only,
@@ -232,6 +244,8 @@ async fn run_search(
 
 async fn search_get(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
+    Extension(principal): Extension<Principal>,
     RawQuery(query): RawQuery,
 ) -> Result<Json<SearchResponse>, Failure> {
     let request = parse_get_search(query.as_deref())?;
@@ -239,18 +253,20 @@ async fn search_get(
     let organization_id = request
         .organization_id
         .ok_or_else(|| invalid("organizationId", "is required"))?;
-    let response = run_search(
-        &state,
+    let projects = authorized_projects(
+        &auth,
+        &principal,
         &organization_id,
         request.project_id.as_deref(),
-        &request.search,
     )
     .await?;
+    let response = run_search(&state, &organization_id, &projects, &request.search).await?;
     Ok(Json(response))
 }
 
 async fn search_post(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
     Extension(principal): Extension<Principal>,
     bytes: axum::body::Bytes,
 ) -> Result<Json<SearchResponse>, Failure> {
@@ -268,70 +284,82 @@ async fn search_post(
         .authorize_tenant(&organization_id, filters.project_id.as_deref())
         .map_err(|_| Failure::Forbidden)?;
 
-    let response = run_search(
-        &state,
+    let projects = authorized_projects(
+        &auth,
+        &principal,
         &organization_id,
         filters.project_id.as_deref(),
-        &search,
     )
     .await?;
+    let response = run_search(&state, &organization_id, &projects, &search).await?;
     Ok(Json(response))
 }
 
 async fn project_search_get(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
+    Extension(principal): Extension<Principal>,
     Path(path): Path<ProjectPath>,
     RawQuery(query): RawQuery,
 ) -> Result<Json<SearchResponse>, Failure> {
     let request = parse_get_search(query.as_deref())?;
-    let response = run_search(
-        &state,
+    let projects = authorized_projects(
+        &auth,
+        &principal,
         &path.organization_id,
         Some(&path.project_id),
-        &request.search,
     )
     .await?;
+    let response = run_search(&state, &path.organization_id, &projects, &request.search).await?;
     Ok(Json(response))
 }
 
 async fn project_search_post(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
+    Extension(principal): Extension<Principal>,
     Path(path): Path<ProjectPath>,
     bytes: axum::body::Bytes,
 ) -> Result<Json<SearchResponse>, Failure> {
     let request: SearchRequest = body(&bytes)?;
     let (search, filters) = request.validate()?;
     require_path_tenant(&path, &filters)?;
-    let response = run_search(
-        &state,
+    let projects = authorized_projects(
+        &auth,
+        &principal,
         &path.organization_id,
         Some(&path.project_id),
-        &search,
     )
     .await?;
+    let response = run_search(&state, &path.organization_id, &projects, &search).await?;
     Ok(Json(response))
 }
 
 async fn structured_search(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
+    Extension(principal): Extension<Principal>,
     Path(path): Path<ProjectPath>,
     bytes: axum::body::Bytes,
 ) -> Result<Json<SearchResponse>, Failure> {
     let request: StructuredSearchRequest = body(&bytes)?;
     let (search, filters) = request.validate()?;
     require_path_tenant(&path, &filters)?;
-    let response = run_search(
-        &state,
+    let projects = authorized_projects(
+        &auth,
+        &principal,
         &path.organization_id,
         Some(&path.project_id),
-        &search,
     )
     .await?;
+    let response = run_search(&state, &path.organization_id, &projects, &search).await?;
     Ok(Json(response))
 }
 
 async fn batch_search(
     Extension(state): Extension<SearchState>,
+    Extension(auth): Extension<Authenticator>,
+    Extension(principal): Extension<Principal>,
     Path(path): Path<ProjectPath>,
     bytes: axum::body::Bytes,
 ) -> Result<Json<BatchSearchResponse>, Failure> {
@@ -348,15 +376,16 @@ async fn batch_search(
         searches.push((search, query.query_id));
     }
 
+    let projects = authorized_projects(
+        &auth,
+        &principal,
+        &path.organization_id,
+        Some(&path.project_id),
+    )
+    .await?;
     let mut results = Vec::with_capacity(searches.len());
     for (search, query_id) in searches {
-        let response = run_search(
-            &state,
-            &path.organization_id,
-            Some(&path.project_id),
-            &search,
-        )
-        .await?;
+        let response = run_search(&state, &path.organization_id, &projects, &search).await?;
         results.push(BatchSearchResult {
             query: response.query,
             query_id,

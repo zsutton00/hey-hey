@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -30,6 +30,7 @@ import {
   savedOnboardingRuntime,
 } from "../LocalOnboarding/localOnboardingRuntime";
 import { LocalOnboardingLaunchButton } from "./LocalOnboardingLaunchButton";
+import { buildLowCostSurfaceSelection } from "./lowCostModelDefault";
 import {
   buildLocalOnboardingBinding,
   type LocalOnboardingTarget,
@@ -86,6 +87,7 @@ export function LocalOnboardingStart({
     [organizationId, projectId, machineId],
   );
   const catalog = useRuntimeModelCatalog(catalogSource);
+  const catalogReady = catalog.status === "ready";
   const access =
     useAgentSessionInteractionAccessResolver().getAccess(machineId);
 
@@ -126,6 +128,24 @@ export function LocalOnboardingStart({
       }),
     [],
   );
+  // Onboarding does not need a costly model: with nothing remembered or chosen,
+  // start on the provider's low-cost model once the machine's catalog is known.
+  const lowCostDefault = useMemo(
+    () =>
+      catalogReady && !savedSession && !selection
+        ? buildLowCostSurfaceSelection()
+        : null,
+    // The default is read from the active catalog, which `catalog` stands for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [catalogReady, catalog, savedSession, selection],
+  );
+  useEffect(() => {
+    if (lowCostDefault) {
+      handleSelectionChange(lowCostDefault);
+    }
+  }, [lowCostDefault, handleSelectionChange]);
+  const pickerSelection = selection ?? lowCostDefault;
+
   const handleStarted = useCallback(() => {
     navigate(WebPathService.onboarding({ projectId, isNew: true }));
   }, [navigate, projectId]);
@@ -186,10 +206,10 @@ export function LocalOnboardingStart({
       ) : (
         <RuntimeModelSelector
           disabled={sessions.isLoading}
-          provider={selection?.provider ?? null}
-          model={selection?.model ?? null}
-          reasoningEffort={selection?.reasoningEffort ?? null}
-          fastMode={selection?.fastMode ?? false}
+          provider={pickerSelection?.provider ?? null}
+          model={pickerSelection?.model ?? null}
+          reasoningEffort={pickerSelection?.reasoningEffort ?? null}
+          fastMode={pickerSelection?.fastMode ?? false}
           onProviderChange={(provider) => handleSelectionChange({ provider })}
           onModelChange={(model) => handleSelectionChange({ model })}
           onReasoningEffortChange={(reasoningEffort) =>

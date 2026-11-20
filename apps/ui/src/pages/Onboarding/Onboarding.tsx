@@ -1,12 +1,8 @@
-import { useTranslation } from "react-i18next";
 import { AnimatedConditional, FadeIn } from "@hey-hey/ui-common/animations";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
-  Conversation,
-  DISABLED_CONVERSATION_SCROLL_POLICY,
   determineMessageState,
-  HeyHeyBranding,
   type OnboardingReplySubmission,
 } from "@hey-hey/ui-common/components";
 import { WebPathService } from "@hey-hey/ui-common";
@@ -32,12 +28,12 @@ import {
   useProject,
   useSubmitOnboardingReply,
 } from "@hey-hey/ui-common/data";
-import { Box, Typography, useTheme } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
 import type { ConversationMessage } from "../../types/conversation";
 import { PageBreadcrumbs } from "../../components/Layout";
 import { OnboardingLoadingScreen } from "./components/Loading";
-import { ProjectDetailsForm } from "./components/ProjectDetailsForm";
+import { OnboardingConversation } from "./components/OnboardingConversation";
+import { OnboardingFrame } from "./components/OnboardingFrame";
 
 const ONBOARDING_CONVERSATION_STATUSES: ConversationStatus[] = [
   ConversationStatus.NotStarted,
@@ -86,8 +82,6 @@ const isSelectedExistingWorkIntentAnswer = (answer: unknown): boolean =>
 // Container component for data loading and orchestration
 const OnboardingPageContent = () => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
-  const theme = useTheme();
   // Read the active org from the app-wide OrganizationContext — the same source
   // every other page (and project creation) uses. The JWT's currentOrgId is a
   // stale snapshot from token-issue time and diverges once a multi-org user
@@ -369,52 +363,25 @@ const OnboardingPageContent = () => {
     return null;
   }
 
-  // Debug logging removed to prevent re-render cycles
   const conversationContent =
     project && resolvedOnboardingConversation ? (
-      <>
-        <ProjectDetailsForm project={project} organizationId={currentOrgId!} />
-        <Conversation
-          animationType="minimal"
-          navigationOrientation="vertical"
-          conversation={resolvedOnboardingConversation}
-          project={project}
-          agentSessionId={resolvedAgentSession?.id}
-          agentSessionCurrentState={resolvedAgentSession?.currentState}
-          scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
-          stepCount={-1}
-          showNavigation
-          onSubmitOnboardingReply={handleSubmitOnboardingReply}
-        />
-      </>
+      <OnboardingConversation
+        project={project}
+        conversation={resolvedOnboardingConversation}
+        agentSessionId={resolvedAgentSession?.id}
+        agentSessionCurrentState={resolvedAgentSession?.currentState}
+        onSubmitOnboardingReply={handleSubmitOnboardingReply}
+      />
     ) : null;
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 4, md: 6 }, py: 3 }}>
-      {existingImportBreadcrumbs ? (
-        <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
-      ) : null}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          mb: 3,
-          "& > .MuiTypography-root": {
-            color:
-              theme.palette.mode === "dark" ? "common.white" : "text.primary",
-          },
-        }}
-      >
-        <HeyHeyBranding variant="header" />
-      </Box>
-
-      <Typography
-        color="text.secondary"
-        data-testid="onboarding-model-guidance"
-        sx={{ mb: 2 }}
-      >
-        {t("onboarding.runtime.lowCostGuidance")}
-      </Typography>
+    <OnboardingFrame
+      header={
+        existingImportBreadcrumbs ? (
+          <PageBreadcrumbs sx={{ mb: 2 }} items={existingImportBreadcrumbs} />
+        ) : null
+      }
+    >
       <AnimatedConditional show={!isLoaded} animationType="fade">
         <OnboardingLoadingScreen
           isNew={isNew}
@@ -436,7 +403,7 @@ const OnboardingPageContent = () => {
           </FadeIn>
         )}
       </AnimatedConditional>
-    </Box>
+    </OnboardingFrame>
   );
 };
 

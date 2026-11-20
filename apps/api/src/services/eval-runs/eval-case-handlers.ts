@@ -5,12 +5,14 @@ import {
   EvalTargetHandlerKey,
   WorkStatus,
   type EvalCaseCoding,
+  type EvalCaseInputs,
   type EvalCaseTarget,
   type EvalHandlerConfig,
   type EvalResolvedExecution,
   type ProjectedWorkItem,
 } from '@hey-hey/contracts/api/models';
 import { validateEvalCaseCodingContent } from '../tasks/eval-case-coding.validator';
+import { validateEvalCaseInputsContent } from '../tasks/eval-case-inputs.validator';
 
 const TARGET_HANDLER_KEYS: readonly string[] =
   Object.values(EvalTargetHandlerKey);
@@ -51,10 +53,19 @@ export async function assertApprovedEvalCaseHandlers(
     return;
   }
 
+  const inputs = resolveEvalCaseInputs(
+    root.name,
+    root.sections.find((section) => section.key === 'inputs')?.content,
+  );
   const handlers = resolveEvalCaseHandlers(
     root.name,
     sectionText(root.sections, 'handler'),
     sectionText(root.sections, 'consumerHandler'),
+  );
+  assertConversationFitsHandler(
+    root.name,
+    inputs.inputs.length,
+    handlers.targetHandler,
   );
   const coding = resolveEvalCaseCoding(
     root.name,
@@ -72,6 +83,22 @@ export async function assertApprovedEvalCaseHandlers(
  */
 const PROJECT_ASSISTANT_ALONE_CONSUMER =
   EvalConsumerHandlerKey.EntityConversation;
+
+/**
+ * Project Assistant research is not interactive: it answers once and keeps no
+ * conversation, so a case that sends more than one message cannot run on it.
+ */
+export function assertConversationFitsHandler(
+  caseName: string,
+  messageCount: number,
+  handler: EvalTargetHandlerKey,
+): void {
+  if (handler === EvalTargetHandlerKey.ProjectAssistant && messageCount > 1) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run on ${EvalTargetHandlerKey.ProjectAssistant}: it sends ${messageCount} messages, and Project Assistant research is not interactive. Use one message, or choose a conversational handler.`,
+    );
+  }
+}
 
 /** Launch rejects a run-level handler that is not an evaluable handler key. */
 export function assertEvaluableRunHandler(
@@ -156,6 +183,33 @@ export function resolveEvalCaseHandlers(
     );
   }
   return { targetHandler: handler, consumerHandler: consumer };
+}
+
+/**
+ * The Inputs section must be present and well formed. Shared by approval and
+ * launch; returns the validated inputs object.
+ */
+export function resolveEvalCaseInputs(
+  caseName: string,
+  content: unknown,
+): EvalCaseInputs {
+  const isBlank =
+    content === undefined ||
+    content === null ||
+    (typeof content === 'string' && content.trim() === '');
+  if (isBlank) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Inputs section is missing.`,
+    );
+  }
+
+  const result = validateEvalCaseInputsContent(content);
+  if (!result.success) {
+    throw new BadRequestException(
+      `Eval case "${caseName}" cannot run: its Inputs section is invalid (${result.message}).`,
+    );
+  }
+  return result.value;
 }
 
 /** Whether a Service with this id belongs to the case's project. */

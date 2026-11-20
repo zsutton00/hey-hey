@@ -1,3 +1,9 @@
+import { VALID_PAYLOAD_BY_TYPE } from '../../reports/__tests__/report-payload.fixtures';
+import {
+  ReadPolicyContext,
+  readPolicyFor,
+} from 'src/read-restriction/read-policy';
+import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import {
   BadRequestException,
   ConflictException,
@@ -30,7 +36,11 @@ const caseRecord = {
   name: 'A case',
   sections: [
     { key: 'situation', materializedMarkdown: 'Situation' },
-    { key: 'request', materializedMarkdown: 'Do the thing' },
+    {
+      key: 'inputs',
+      materializedMarkdown:
+        '{"inputs":[{"kind":"text_message","text":"Do the thing"}]}',
+    },
     { key: 'handler', materializedMarkdown: 'entity_conversation' },
     {
       key: 'items',
@@ -48,6 +58,7 @@ function build() {
         findFirst: jest.fn().mockResolvedValue({ id: EVAL_ID, name: 'Eval' }),
         findMany: jest.fn().mockResolvedValue([caseRecord]),
       },
+      $queryRaw: jest.fn(),
       report: { findFirst: jest.fn(), findMany: jest.fn() },
       agentSession: { findUnique: jest.fn() },
       agentOperation: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -361,7 +372,63 @@ describe('EvalRunService.launch', () => {
     expect(runDto.payload.settings).toEqual({
       maxConcurrentAttempts: 5,
       attemptTokenLimit: 20000,
+      repeatsPerAttempt: 1,
     });
+  });
+
+  it('records one fresh attempt per case, setup and repeat, repeat by repeat', async () => {
+    const { service, prisma, reports, sessions } = build();
+    const otherCase = { ...caseRecord, id: crypto.randomUUID() };
+    prisma.db.task.findMany.mockResolvedValue([caseRecord, otherCase]);
+
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      evalCaseIds: [CASE_ID, otherCase.id],
+      settings: { repeatsPerAttempt: 3 },
+    } as never);
+
+    const [runCall, ...attemptCalls] =
+      reports.createWithIdInTransaction.mock.calls;
+    expect(runCall![3].payload.settings).toEqual({
+      maxConcurrentAttempts: 3,
+      repeatsPerAttempt: 3,
+    });
+    const caseIds = runCall![3].payload.cases.map(
+      (caseInput: { id: string }) => caseInput.id,
+    );
+    expect(attemptCalls).toHaveLength(2 * 2 * 3);
+    const attempts = attemptCalls.map(([, , , dto]) => dto.payload);
+    expect(
+      attempts.map((attempt) => [
+        attempt.repeat,
+        attempt.caseInputId,
+        attempt.configuration.id,
+      ]),
+    ).toEqual(
+      [1, 2, 3].flatMap((repeat) =>
+        caseIds.flatMap((caseId: string) =>
+          [CONFIG_A.id, CONFIG_B.id].map((configId) => [
+            repeat,
+            caseId,
+            configId,
+          ]),
+        ),
+      ),
+    );
+    const targetSessions = attempts.map((attempt) => attempt.targetSessionId);
+    expect(new Set(targetSessions).size).toBe(12);
+    expect(sessions.createInTransaction).toHaveBeenCalledTimes(13);
+  });
+
+  it('accepts ten repeats', async () => {
+    const { service, reports } = build();
+    await service.launch(ORG, PROJECT, USER, EVAL_ID, {
+      ...request,
+      settings: { repeatsPerAttempt: 10 },
+    } as never);
+    expect(reports.createWithIdInTransaction.mock.calls).toHaveLength(
+      1 + 2 * 10,
+    );
   });
 
   it('records the trimmed name a run is launched with and none otherwise', async () => {
@@ -649,6 +716,8 @@ describe('EvalRunService.launch', () => {
       'a fractional time limit',
       { ...request, settings: { attemptTimeLimitSeconds: 1.5 } },
     ],
+    ['zero repeats', { ...request, settings: { repeatsPerAttempt: 0 } }],
+    ['eleven repeats', { ...request, settings: { repeatsPerAttempt: 11 } }],
   ])('rejects %s', async (_name, body) => {
     const { service, reports, sessions } = build();
     await expect(
@@ -742,7 +811,15 @@ describe('EvalRunService.assertStartRun', () => {
   const CONVERSATION = 'conversation-1';
   const SETTINGS = { maxConcurrentAttempts: 3, attemptTimeLimitSeconds: 600 };
   const attemptId = '88888888-8888-4888-8888-888888888888';
-  const caseInput = { id: 'case-input-1', title: 'A case' };
+  const caseInput = {
+    id: 'case-input-1',
+    title: 'A case',
+    target: {
+      situation: 'Situation',
+      inputs: { inputs: [{ kind: 'text_message', text: 'Do the thing' }] },
+      targetHandler: 'entity_conversation',
+    },
+  };
   const runRow = {
     id: 'run-1',
     projectId: PROJECT,
@@ -819,6 +896,52 @@ describe('EvalRunService.assertStartRun', () => {
     await expect(service.assertStartRun(input(startRequest()))).resolves.toBe(
       true,
     );
+  });
+
+  it('accepts a start of a repeated run only with each attempt’s recorded repeat', async () => {
+    const { service, prisma } = recorded();
+    const repeatedSettings = { ...SETTINGS, repeatsPerAttempt: 2 };
+    prisma.db.report.findFirst.mockResolvedValue({
+      ...runRow,
+      payload: { ...runRow.payload, settings: repeatedSettings },
+    });
+    const secondId = '99999999-9999-4999-8999-999999999999';
+    prisma.db.report.findMany.mockResolvedValue(
+      [attemptId, secondId].map((id, index) => ({
+        id,
+        payload: {
+          caseInputId: caseInput.id,
+          configuration: CONFIG_A,
+          repeat: index + 1,
+          execution,
+          targetSessionId: `target-session-${index + 1}`,
+          targetConversationId: `target-conversation-${index + 1}`,
+        },
+      })),
+    );
+    const attempts = [attemptId, secondId].map((id, index) => ({
+      ...recordedAttempt,
+      attemptId: id,
+      repeat: index + 1,
+      targetSessionId: `target-session-${index + 1}`,
+      targetConversationId: `target-conversation-${index + 1}`,
+    }));
+
+    await expect(
+      service.assertStartRun(
+        input(startRequest({ settings: repeatedSettings, attempts })),
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      service.assertStartRun(
+        input(
+          startRequest({
+            settings: repeatedSettings,
+            attempts: attempts.slice(0, 1),
+          }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('ignores starts of sessions that are not eval runs', async () => {
@@ -918,4 +1041,103 @@ describe('EvalRunService.assertStartRun', () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+});
+
+describe('EvalRunService.sessionStatuses', () => {
+  const sessionId = '11111111-1111-4111-8111-111111111111';
+  it('reads project-visible coordinator reports and all-attempt aggregates in two bounded reads', async () => {
+    const { service, prisma } = build();
+    const rows = ['run-a', 'run-b'].map((id, index) => ({
+      id,
+      schemaVersion: 1,
+      payload: {
+        ...VALID_PAYLOAD_BY_TYPE.EVAL_RUN,
+        coordinatorAgentSessionId: index === 0 ? sessionId : CASE_ID,
+        status: index === 0 ? 'RUNNING' : 'FINISHED',
+      },
+    }));
+    prisma.db.report.findMany.mockResolvedValue(rows);
+    prisma.db.$queryRaw.mockResolvedValue([
+      { runId: 'run-a', total: 400, ended: 201, errors: 1 },
+      { runId: 'run-b', total: 12, ended: 12, errors: 2 },
+    ]);
+    expect(
+      await service.sessionStatuses(ORG, PROJECT, {
+        agentSessionIds: [sessionId, CASE_ID],
+      }),
+    ).toEqual([
+      {
+        agentSessionId: sessionId,
+        runId: 'run-a',
+        evalId: sessionId,
+        status: 'RUNNING',
+        total: 400,
+        ended: 201,
+        errors: 1,
+      },
+      {
+        agentSessionId: CASE_ID,
+        runId: 'run-b',
+        evalId: sessionId,
+        status: 'FINISHED',
+        total: 12,
+        ended: 12,
+        errors: 2,
+      },
+    ]);
+    expect(prisma.db.report.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.db.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: ORG,
+          projectId: PROJECT,
+          reportType: 'EVAL_RUN',
+          audience: { in: ['PROJECT_VISIBLE', 'ORGANIZATION_VISIBLE'] },
+        }),
+        take: 100,
+      }),
+    );
+    expect(prisma.db.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits non-coordinator sessions without reading attempts', async () => {
+    const { service, prisma } = build();
+    prisma.db.report.findMany.mockResolvedValue([]);
+    expect(
+      await service.sessionStatuses(ORG, PROJECT, {
+        agentSessionIds: [sessionId],
+      }),
+    ).toEqual([]);
+    expect(prisma.db.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('applies report read restrictions before coordinator discovery', async () => {
+    const { service, prisma } = build();
+    prisma.db.report.findMany.mockResolvedValue([]);
+    await ReadPolicyContext.run(readPolicyFor(ReadRestriction.EvalTarget), () =>
+      service.sessionStatuses(ORG, PROJECT, { agentSessionIds: [sessionId] }),
+    );
+    expect(prisma.db.report.findMany.mock.calls[0][0].where).toMatchObject({
+      AND: expect.arrayContaining([
+        expect.objectContaining({
+          reportType: { notIn: expect.arrayContaining(['EVAL_RUN']) },
+        }),
+      ]),
+    });
+  });
+
+  it.each(
+    [[], ['invalid'], Array(101).fill(sessionId)].map((agentSessionIds) => ({
+      agentSessionIds,
+    })),
+  )(
+    'rejects an invalid batch before any database read: %j',
+    async ({ agentSessionIds }) => {
+      const { service, prisma } = build();
+      await expect(
+        service.sessionStatuses(ORG, PROJECT, { agentSessionIds }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.db.report.findMany).not.toHaveBeenCalled();
+    },
+  );
 });

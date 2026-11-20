@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { OrganizationRole } from '@prisma/client';
 import {
   OrganizationProjectEntitlementDto,
@@ -20,13 +16,40 @@ const projectLimitMessage = (limit: number): string =>
 
 @Injectable()
 export class OrganizationProjectEntitlementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(protected readonly prisma: PrismaService) {}
 
   async resolve(
     organizationId: OrganizationId,
     tx: AnyTransactionClient = this.prisma.db,
     options: { lockForProjectCreation?: boolean } = {},
   ): Promise<OrganizationProjectEntitlementDto> {
+    const { policy, usage } = await this.readAndRecordUsage(
+      organizationId,
+      tx,
+      options,
+    );
+
+    const projectLimit = policy?.projectLimitOverride ?? DEFAULT_PROJECT_LIMIT;
+    const canCreateProject = usage.projectCount < projectLimit;
+
+    return {
+      defaultProjectLimit: DEFAULT_PROJECT_LIMIT,
+      projectLimitOverride: policy?.projectLimitOverride ?? null,
+      projectLimit,
+      usage,
+      canCreateProject,
+      creationUnavailableReason: canCreateProject
+        ? null
+        : projectLimitMessage(projectLimit),
+    } satisfies OrganizationProjectEntitlementDto;
+  }
+
+  /** Locks (optionally), reads the stored policy and live counts, and records the usage snapshot. */
+  protected async readAndRecordUsage(
+    organizationId: OrganizationId,
+    tx: AnyTransactionClient,
+    options: { lockForProjectCreation?: boolean },
+  ) {
     if (options.lockForProjectCreation) {
       await tx.$queryRaw`
         SELECT id
@@ -47,9 +70,6 @@ export class OrganizationProjectEntitlementService {
         where: { organizationId, archivedAt: null },
       }),
     ]);
-
-    const projectLimit = policy?.projectLimitOverride ?? DEFAULT_PROJECT_LIMIT;
-    const canCreateProject = projectCount < projectLimit;
     const observedAt = new Date();
 
     await tx.organizationCapacityUsage.upsert({
@@ -59,19 +79,13 @@ export class OrganizationProjectEntitlementService {
     });
 
     return {
-      defaultProjectLimit: DEFAULT_PROJECT_LIMIT,
-      projectLimitOverride: policy?.projectLimitOverride ?? null,
-      projectLimit,
+      policy,
       usage: {
         projectCount,
         workItemCount,
         observedAt: observedAt.toISOString(),
       },
-      canCreateProject,
-      creationUnavailableReason: canCreateProject
-        ? null
-        : projectLimitMessage(projectLimit),
-    } satisfies OrganizationProjectEntitlementDto;
+    };
   }
 
   async updateOverride(
@@ -123,7 +137,7 @@ export class OrganizationProjectEntitlementService {
     });
 
     if (!entitlement.canCreateProject) {
-      throw new ConflictException({
+      throw new ForbiddenException({
         code: PROJECT_LIMIT_REACHED_CODE,
         message: entitlement.creationUnavailableReason,
         entitlement,

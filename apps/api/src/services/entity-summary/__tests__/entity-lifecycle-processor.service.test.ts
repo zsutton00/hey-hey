@@ -1,4 +1,5 @@
-import { EntityType, SummaryCategory, WorkStatus } from '@prisma/client';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+import { EntityType, SummaryCategory } from '@prisma/client';
 import { EntityLifecycleProcessor } from '../../../core/processing/entity-lifecycle-processor.service';
 
 describe('EntityLifecycleProcessor', () => {
@@ -146,10 +147,10 @@ describe('EntityLifecycleProcessor', () => {
       organizationId: 'org-1' as any,
       taskId: 'task-1' as any,
       update: {
-        status: WorkStatus.BACKLOG,
+        status: WorkStatus.Backlog,
       },
       previousData: {
-        status: WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
+        status: WorkStatus.RefiningAcceptanceCriteria,
       },
       initiativeId: 'initiative-1' as any,
       projectId: 'proj-1' as any,
@@ -537,8 +538,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleTaskStatusChanged({
       organizationId: 'org-1' as any,
       taskId: 'task-1',
-      previousStatus: WorkStatus.REFINING_DESCRIPTION,
-      newStatus: WorkStatus.BACKLOG,
+      previousStatus: WorkStatus.RefiningDescription,
+      newStatus: WorkStatus.Backlog,
       projectId: 'proj-1' as any,
     });
 
@@ -549,8 +550,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleTaskStatusChanged({
       organizationId: 'org-1' as any,
       taskId: 'task-1',
-      previousStatus: WorkStatus.REFINING_DESCRIPTION,
-      newStatus: WorkStatus.BACKLOG,
+      previousStatus: WorkStatus.RefiningDescription,
+      newStatus: WorkStatus.Backlog,
       projectId: null,
     });
 
@@ -561,8 +562,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleTaskStatusChanged({
       organizationId: 'org-1' as any,
       taskId: 'task-1',
-      previousStatus: WorkStatus.ACTIVE,
-      newStatus: WorkStatus.ACTIVE,
+      previousStatus: WorkStatus.Active,
+      newStatus: WorkStatus.Active,
       projectId: 'proj-1' as any,
     });
 
@@ -573,8 +574,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleInitiativeStatusChanged({
       organizationId: 'org-1' as any,
       initiativeId: 'init-1',
-      previousStatus: WorkStatus.REFINING_DESCRIPTION,
-      newStatus: WorkStatus.BACKLOG,
+      previousStatus: WorkStatus.RefiningDescription,
+      newStatus: WorkStatus.Backlog,
       originatingProjectId: 'proj-1' as any,
     });
 
@@ -585,8 +586,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleInitiativeStatusChanged({
       organizationId: 'org-1' as any,
       initiativeId: 'init-1',
-      previousStatus: WorkStatus.REFINING_DESCRIPTION,
-      newStatus: WorkStatus.BACKLOG,
+      previousStatus: WorkStatus.RefiningDescription,
+      newStatus: WorkStatus.Backlog,
       originatingProjectId: null,
     });
 
@@ -597,8 +598,8 @@ describe('EntityLifecycleProcessor', () => {
     await processor.handleInitiativeStatusChanged({
       organizationId: 'org-1' as any,
       initiativeId: 'init-1',
-      previousStatus: WorkStatus.ACTIVE,
-      newStatus: WorkStatus.ACTIVE,
+      previousStatus: WorkStatus.Active,
+      newStatus: WorkStatus.Active,
       originatingProjectId: 'proj-1' as any,
     });
 

@@ -53,6 +53,10 @@ const schemas = {
     yaml.load(fs.readFileSync(reports, 'utf8')).CreateReportCompletedAttemptError,
     reports,
   ),
+  CreateReportValidationError: resolve(
+    yaml.load(fs.readFileSync(reports, 'utf8')).CreateReportValidationError,
+    reports,
+  ),
 };
 fs.writeFileSync(
   path.join(__dirname, '../src/shared/api/generated/report-error-schemas.ts'),

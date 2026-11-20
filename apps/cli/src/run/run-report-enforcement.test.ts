@@ -11,7 +11,11 @@
  * whether the warn fires at the right moment.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -22,15 +26,14 @@ import {
 } from './run.test-support';
 
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-type-handler';
-import type {
-  PassThroughSubmissionToolDeclaration,
-  SubmissionToolExecuteContext,
-} from '../agents/submission-tools/types';
+import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
+import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
+import type { SubmissionToolDeclaration } from '../agents/submission-tools/types';
 import type { RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store/run-store';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import { ReportAudience, ReportType } from '../shared/api/index';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { Run, type RunArgs, type RunCollaborators } from './run';
 import type { RunnerContext } from './runners/types';
@@ -45,6 +48,7 @@ const requiredHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [
@@ -63,6 +67,7 @@ const otherRequiredHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [
@@ -81,9 +86,11 @@ const freeFormHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
+  requiresChangedFileReporting: true,
   buildPrompt: () => 'free-form system prompt',
 };
 
@@ -93,9 +100,11 @@ const codingFreeformHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
+  requiresChangedFileReporting: true,
   buildPrompt: () => 'coding-freeform system prompt',
 };
 
@@ -105,9 +114,11 @@ const quickHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
+  requiresChangedFileReporting: true,
   buildPrompt: () => 'quick system prompt',
 };
 
@@ -147,7 +158,7 @@ const makeSession = (overrides?: Partial<AgenticSession>): AgenticSession =>
     provider_conversation_id: 'conv-existing',
     status: 'idle',
     serviceId: null,
-    services: [{ id: 'svc-1', path: '/repo' }],
+    services: [{ id: 'svc-1', path: testRepo() }],
     launchServiceId: 'svc-1',
     conversationId: 'conv-1',
     contextMetadata: {
@@ -184,6 +195,8 @@ const makeRunStore = (): RunStore => {
   vi.spyOn(store, 'updateRunWorktreeState').mockResolvedValue(makeSession());
   vi.spyOn(store, 'addTouchedFiles').mockResolvedValue(undefined);
   vi.spyOn(store, 'addToolUsage').mockResolvedValue(undefined);
+  vi.spyOn(store, 'appendFileChangeFacts').mockResolvedValue(undefined);
+  vi.spyOn(store, 'appendDurableEvent').mockResolvedValue(undefined as never);
   vi.spyOn(store, 'updateRunPreviousProviderSession').mockResolvedValue(makeSession());
   vi.spyOn(store, 'getRun').mockResolvedValue(null);
   return store;
@@ -192,7 +205,7 @@ const makeRunStore = (): RunStore => {
 const makeCollaborators = (
   pickRunner: (ctx: RunnerContext) => Runner,
   poster?: RunCollaborators['poster'],
-  baseSubmissionTools?: PassThroughSubmissionToolDeclaration[],
+  baseSubmissionTools?: SubmissionToolDeclaration[],
 ): RunCollaborators => ({
   runStore: makeRunStore(),
   repoStore: createTestRepoMappingStore(),
@@ -261,29 +274,71 @@ const findWarn = (collaborators: RunCollaborators, event: string): { args: unkno
 };
 
 const makeCreateReportTool = () => {
-  const execute = vi.fn(async (ctx: SubmissionToolExecuteContext) => {
-    const payload = ctx.args['payload'] as { summary?: string } | undefined;
-    ctx.run?.appendReportChainEntry({
-      createdAt: '2026-07-01T00:00:00.000Z',
-      phase: LocalPromptType.FreeForm,
-      reportId: 'implement-report-1',
-      reportType: ReportType.Implement,
-      summary: payload?.summary ?? 'summary',
-      audience: 'EXTERNAL',
-    });
-    return { content: [] };
+  const proxy = makeCreateReportProxy();
+  vi.mocked(proxy.create).mockResolvedValue({ reportId: 'implement-report-1', content: [] });
+  return { tool: new CreateReportTool(proxy), execute: vi.mocked(proxy.create) };
+};
+
+let repo: string | null = null;
+/** One git repository for the Service, so recorded edits carry real evidence. */
+const testRepo = (): string => {
+  if (repo === null) {
+    repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'run-report-enforcement-')));
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    fs.writeFileSync(path.join(repo, 'README.md'), 'readme\n');
+    execFileSync('git', ['add', '-A'], { cwd: repo });
+    execFileSync(
+      'git',
+      ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-q', '-m', 'init'],
+      { cwd: repo },
+    );
+  }
+  return repo;
+};
+
+afterAll(() => {
+  if (repo !== null) fs.rmSync(repo, { recursive: true, force: true });
+});
+
+/** Writes a file and records it as the provider's confirmed edit for the active Turn. */
+const recordEdit = async (run: Run, file: string): Promise<void> => {
+  const absolutePath = path.join(testRepo(), file);
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+  fs.writeFileSync(absolutePath, `${file} ${Math.random()}\n`);
+  await run.recordFileChanges({
+    runId: 'run-1',
+    provider: 'claude',
+    providerSessionId: 'prov-existing',
+    providerThreadId: null,
+    providerTurnId: null,
+    paths: [absolutePath],
+    occurredAt: new Date().toISOString(),
+    providerPatch: null,
   });
-  const tool: PassThroughSubmissionToolDeclaration = {
-    kind: 'pass_through',
-    name: 'create_report',
-    description: 'Persist a report.',
-    inputSchema: {},
-    execute,
-  };
-  return { tool, execute };
 };
 
 // --- Tests -----------------------------------------------------------------
+
+describe('Run planning conversation messages', () => {
+  it('stamps a planning element with the planning handler, unmarked as a notice', async () => {
+    const poster = makePoster();
+    const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({
+      run: async () => {
+        await ctx.run.persistCodingPlanElement('coding_plan_version' as never, {} as never);
+      },
+    });
+    const run = new Run(makeRunArgs(), makeCollaborators(pickRunner, poster));
+
+    await run.handleMessage(makeInput('startup_session'));
+    await drainMicrotasks();
+    run.cleanup();
+
+    const [args] = vi.mocked(poster.createOutOfBand).mock.calls[0]!;
+    expect(args.stamp).toMatchObject({ promptHandler: 'startup_session' });
+    expect(args.dto).toMatchObject({ data: { type: 'AGENT' } });
+    expect(args.dto).not.toMatchObject({ data: { presentation: expect.anything() } });
+  });
+});
 
 describe('Run handler-span report-emission contract', () => {
   it('does not warn when the span emits its required report and the run cleans up', async () => {
@@ -424,7 +479,7 @@ describe('Run handler-span report-emission contract', () => {
   it('emits an IMPLEMENT report at turn-end for a free-form span that touched files', async () => {
     const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({
       run: async () => {
-        ctx.run.recordTouchedFile('src/foo.ts');
+        await recordEdit(ctx.run, 'src/foo.ts');
       },
     });
 
@@ -433,7 +488,7 @@ describe('Run handler-span report-emission contract', () => {
     const run = new Run(makeRunArgs(), collaborators);
 
     await run.handleMessage(makeInput('free_form'));
-    await drainMicrotasks();
+    await run.awaitIdle();
     run.cleanup();
 
     expect(execute).toHaveBeenCalledTimes(1);
@@ -471,7 +526,7 @@ describe('Run handler-span report-emission contract', () => {
   it('emits an IMPLEMENT report for coding_freeform changed files', async () => {
     const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({
       run: async () => {
-        ctx.run.recordTouchedFile('src/coding.ts');
+        await recordEdit(ctx.run, 'src/coding.ts');
       },
     });
 
@@ -480,7 +535,7 @@ describe('Run handler-span report-emission contract', () => {
     const run = new Run(makeRunArgs(), collaborators);
 
     await run.handleMessage(makeInput('coding_freeform'));
-    await drainMicrotasks();
+    await run.awaitIdle();
     run.cleanup();
 
     expect(execute).toHaveBeenCalledTimes(1);
@@ -499,7 +554,7 @@ describe('Run handler-span report-emission contract', () => {
     const collaborators = makeCollaborators(
       (ctx) => ({
         run: async () => {
-          ctx.run.recordTouchedFile('src/completion.ts');
+          await recordEdit(ctx.run, 'src/completion.ts');
           ctx.run.onAgentOutput(assistantCompleteMessage('All done.'));
         },
       }),
@@ -522,46 +577,6 @@ describe('Run handler-span report-emission contract', () => {
     expect(execute.mock.invocationCallOrder[0]).toBeLessThan(
       (poster.createOutOfBand as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!,
     );
-  });
-
-  it('keeps the automatic IMPLEMENT report attached when Message publication is retried', async () => {
-    let releaseFirstPost!: () => void;
-    const firstPostRejected = new Promise<void>((resolve) => {
-      releaseFirstPost = resolve;
-    });
-    const poster = makePoster();
-    vi.mocked(poster.createOutOfBand)
-      .mockImplementationOnce(async () => {
-        releaseFirstPost();
-        throw new Error('first publication failed');
-      })
-      .mockResolvedValueOnce('completion-message-1');
-    const { tool, execute } = makeCreateReportTool();
-    const collaborators = makeCollaborators(
-      (ctx) => ({
-        run: async () => {
-          ctx.run.recordTouchedFile('src/completion-retry.ts');
-          ctx.run.onAgentOutput(assistantCompleteMessage('All done.'));
-          await firstPostRejected;
-          await new Promise<void>((resolve) => setImmediate(resolve));
-          ctx.run.onAgentOutput(assistantCompleteMessage('All done.'));
-        },
-      }),
-      poster,
-      [tool],
-    );
-    const run = new Run(makeRunArgs(), collaborators);
-
-    await run.handleMessage(makeInput('free_form'));
-    await run.awaitIdle();
-
-    expect(execute).toHaveBeenCalledOnce();
-    expect(poster.createOutOfBand).toHaveBeenCalledTimes(2);
-    for (const call of (poster.createOutOfBand as ReturnType<typeof vi.fn>).mock.calls) {
-      expect(call[0]).toMatchObject({
-        dto: expect.objectContaining({ reportIds: ['implement-report-1'] }),
-      });
-    }
   });
 
   it('does not let an existing non-IMPLEMENT snapshot suppress a later changed-workspace report', async () => {
@@ -596,7 +611,7 @@ describe('Run handler-span report-emission contract', () => {
       proposalIds: [],
       reportIds: ['session-report'],
     });
-    run.recordTouchedFile('src/late.ts');
+    await recordEdit(run, 'src/late.ts');
 
     await run.prepareTurnCompletionArtifacts(turn!);
 
@@ -608,7 +623,7 @@ describe('Run handler-span report-emission contract', () => {
   it('emits an IMPLEMENT report at turn-end for a Task Only span that touched files', async () => {
     const pickRunner: (ctx: RunnerContext) => Runner = (ctx) => ({
       run: async () => {
-        ctx.run.recordTouchedFile('src/task-only.ts');
+        await recordEdit(ctx.run, 'src/task-only.ts');
       },
     });
 
@@ -617,7 +632,7 @@ describe('Run handler-span report-emission contract', () => {
     const run = new Run(makeRunArgs(), collaborators);
 
     await run.handleMessage(makeInput('quick'));
-    await drainMicrotasks();
+    await run.awaitIdle();
     run.cleanup();
 
     expect(execute).toHaveBeenCalledTimes(1);

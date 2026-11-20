@@ -6,12 +6,10 @@ import type {
 } from "@hey-hey/ui-common/api";
 import {
   AgentSessionMetadata,
-  Conversation,
-  DISABLED_CONVERSATION_SCROLL_POLICY,
   type OnboardingReplySubmission,
 } from "@hey-hey/ui-common/components";
 
-import { ProjectDetailsForm } from "../Onboarding/components/ProjectDetailsForm";
+import { OnboardingConversation } from "../Onboarding/components/OnboardingConversation";
 import { savedOnboardingRuntime } from "./localOnboardingRuntime";
 import { useLocalOnboardingReply } from "./useLocalOnboardingReply";
 
@@ -56,21 +54,12 @@ export function LocalOnboardingSession({
 
   return (
     <>
-      <ProjectDetailsForm
+      <OnboardingConversation
         project={project}
-        organizationId={project.organizationId}
-      />
-      <Conversation
-        animationType="minimal"
-        navigationOrientation="vertical"
         conversation={conversation}
-        project={project}
         agentSessionId={session.id}
         agentSessionCurrentState={session.currentState}
         showAgentSessionCurrentStateIndicator
-        scrollPolicy={DISABLED_CONVERSATION_SCROLL_POLICY}
-        stepCount={-1}
-        showNavigation
         onSubmitOnboardingReply={handleSubmitOnboardingReply}
       />
       {runtime && (

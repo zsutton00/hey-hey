@@ -7,24 +7,25 @@ export const buildAgentSessionNavigationLineage = ({
   planId,
   stageId,
   taskId,
+  parentAgentSessionId,
 }: {
   routeFamily: "project" | "plan" | "task";
   planId?: string;
   stageId?: string;
   stepId?: string;
   taskId?: string;
+  parentAgentSessionId?: string;
 }): NavigationLineage | null => {
-  if (planId) {
-    return [
-      createNavigationLineageEntry("task", planId),
-      ...(stageId ? [createNavigationLineageEntry("task", stageId)] : []),
-      ...(taskId ? [createNavigationLineageEntry("task", taskId)] : []),
-    ];
-  }
+  const entries = [
+    ...(planId ? [createNavigationLineageEntry("task", planId)] : []),
+    ...(planId && stageId
+      ? [createNavigationLineageEntry("task", stageId)]
+      : []),
+    ...(taskId ? [createNavigationLineageEntry("task", taskId)] : []),
+    ...(parentAgentSessionId
+      ? [createNavigationLineageEntry("agent_session", parentAgentSessionId)]
+      : []),
+  ];
 
-  if (taskId) {
-    return [createNavigationLineageEntry("task", taskId)];
-  }
-
-  return null;
+  return entries.length > 0 ? entries : null;
 };

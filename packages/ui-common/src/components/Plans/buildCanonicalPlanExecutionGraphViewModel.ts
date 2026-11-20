@@ -1,7 +1,8 @@
 import { WorkStatus } from "../../api";
-import type {
-  CanonicalPlanAggregateStage,
-  PlanStageStandardTask,
+import {
+  isPlanStageWorkNotStarted,
+  type CanonicalPlanAggregateStage,
+  type PlanStageStandardTask,
 } from "../../data";
 import type {
   ExecutionGraphNodeState,
@@ -34,7 +35,9 @@ const stateForTask = (
     return "stopped";
   }
   if (task.status === WorkStatus.Blocked) return "blocked";
-  if (task.status === WorkStatus.Active) return "active";
+  // Any other started status (ACTIVE, ON_HOLD, REFINING*, GENERATING_*,
+  // VERIFYING) is work in progress, never newly eligible.
+  if (!isPlanStageWorkNotStarted(task.status)) return "active";
   if (hasUnmetDependencies(dependencies, tasksById)) return "blocked";
   return "eligible";
 };

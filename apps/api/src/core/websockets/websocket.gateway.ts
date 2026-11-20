@@ -11,7 +11,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
 import { PendingTriggerService } from '../../services/workflows/pending-trigger.service';
 import { TriggerEmitter } from './trigger-emitter.service';
 import { AgentOperationDispatchService } from './agent-operation-dispatch.service';
@@ -52,6 +52,9 @@ import {
   WebSocketAgentSessionDeletedEvent,
   WebSocketAgentSessionStatusChangedEvent,
   WebSocketAgentSessionCurrentStateChangedEvent,
+  WebSocketWorkItemExecutionStateChangedEvent,
+  WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+  WorkItemExecutionStateObservationReceipt,
   WebSocketConversationPhaseChangedEvent,
   WebSocketAgentSessionOutputAttentionChangedEvent,
   WebSocketProposalApprovedEvent,
@@ -66,6 +69,7 @@ import {
   WebSocketMachineAuthenticationErrorResponse,
   WebSocketAccessDeniedResponse,
   WebSocketSubscribedResponse,
+  WebSocketDeniedSubscriptionScope,
   WebSocketJoinedResponse,
   WebSocketLeaveRoomRequest,
   WebSocketLeftResponse,
@@ -189,7 +193,17 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { DemoSandboxActivityService } from '../../services/demo-sandbox/demo-sandbox-activity.service';
 import { MachinePresenceService } from './machine-presence.service';
-import { WebsocketAuthorizationService } from './websocket-authorization.service';
+import {
+  WorkItemExecutionStateChange,
+  WorkItemExecutionStateService,
+} from '../../services/work-item-execution-state/work-item-execution-state.service';
+import { ClientConnection } from '../events/types/event.types';
+import {
+  ChildRoomScopeType,
+  DeniedChildRoomScope,
+  GrantedRoomScope,
+  WebsocketAuthorizationService,
+} from './websocket-authorization.service';
 import { WebsocketUserConnectionLifecycleService } from './websocket-user-connection-lifecycle.service';
 import {
   classifyHostAffectingFrame,
@@ -269,6 +283,20 @@ const parseAuthorityReductionAcknowledgement = (
   return value as unknown as AuthorityReductionAcknowledgement;
 };
 
+/**
+ * Client-facing scope names. Organization denials never reach a client:
+ * they deny the whole machine subscription instead.
+ */
+const subscriptionScopeTypes: Record<
+  ChildRoomScopeType,
+  WebSocketDeniedSubscriptionScope.ScopeTypeEnum
+> = {
+  project: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Project,
+  conversation: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Conversation,
+  initiative: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.Initiative,
+  design_doc: WebSocketDeniedSubscriptionScope.ScopeTypeEnum.DesignDoc,
+};
+
 @WebSocketGateway({
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -280,7 +308,7 @@ export class WebsocketGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server!: Server;
+  server!: Namespace;
 
   /**
    * Events emitted by other providers during application bootstrap may arrive
@@ -358,6 +386,8 @@ export class WebsocketGateway
     private prisma?: PrismaService,
     @Optional()
     private demoSandboxActivity?: DemoSandboxActivityService,
+    @Optional()
+    private workItemExecutionState?: WorkItemExecutionStateService,
   ) {
     gateways.add(this);
   }
@@ -426,6 +456,22 @@ export class WebsocketGateway
     this.conversationPhaseProjection?.setTransitionSink((transition) =>
       this.emitConversationPhaseChanged(transition.entry),
     );
+    void this.workItemExecutionState
+      ?.startDelivery({
+        changed: (change) => this.emitWorkItemExecutionStateChanged(change),
+        subscriptionChanged: (state) =>
+          void this.emitWorkItemExecutionStateDeliveryChanged(state),
+        projectDeliveryChanged: (projectId, state) =>
+          void this.emitWorkItemExecutionStateDeliveryChanged(state, [
+            projectId,
+          ]),
+      })
+      .catch((error: unknown) =>
+        this.logger.error('[execution-state] delivery start failed', {
+          code: 'DELIVERY_SUBSCRIBE_FAILED',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
 
     // Flush any events that were queued before the server instance was ready
     if (this.pendingEmits.length > 0) {
@@ -501,6 +547,7 @@ export class WebsocketGateway
           error: error instanceof Error ? error.message : String(error),
         });
       }
+      await this.markExecutionStateOwnerDisconnected(client.id, conn.machineId);
       try {
         await this.conversationPhaseProjection?.disconnect({
           connectionId: client.id,
@@ -663,6 +710,7 @@ export class WebsocketGateway
             initiatives: initiativeIds.length,
             designDocs: designDocIds.length,
           },
+          deniedScopes: roomDecision.deniedScopes,
         });
         await this.clearBrowserAuthenticationState(client.id);
         client.emit('authenticated', this.roomAccessDenied());
@@ -794,6 +842,69 @@ export class WebsocketGateway
       reason: 'authentication_required',
       message: 'Authentication required',
     };
+  }
+
+  /**
+   * Authorize a subscribe request. A verified CLI machine is granted the rooms
+   * it may access and told which it may not, so one stale ID cannot block
+   * every other room. Browser subscriptions stay all-or-nothing.
+   * Returns null when the request is denied as a whole.
+   */
+  private async authorizeSubscriptionScope(
+    client: Socket,
+    connection: ClientConnection,
+    requestedScope: GrantedRoomScope & { organizationIds: OrganizationId[] },
+  ): Promise<{
+    grantedScope: GrantedRoomScope;
+    deniedScopes: DeniedChildRoomScope[];
+  } | null> {
+    if (!connection.userId) {
+      return null;
+    }
+
+    if (connection.clientType === 'cli' && connection.machineId) {
+      const decision =
+        await this.websocketAuthorizationService.authorizeMachine({
+          machineId: connection.machineId,
+          userId: connection.userId,
+          ...requestedScope,
+        });
+      if (!decision.authorized) {
+        this.logger.warn('[WebSocket] Subscription room access denied', {
+          socketId: client.id,
+          userId: connection.userId,
+          machineId: connection.machineId,
+          reason: 'machine_not_authorized',
+        });
+        return null;
+      }
+
+      return {
+        grantedScope: {
+          projectIds: decision.projectIds,
+          conversationIds: decision.conversationIds,
+          initiativeIds: decision.initiativeIds,
+          designDocIds: decision.designDocIds,
+        },
+        deniedScopes: decision.deniedScopes,
+      };
+    }
+
+    const decision = await this.websocketAuthorizationService.authorize({
+      userId: connection.userId,
+      ...requestedScope,
+    });
+    if (!decision.authorized) {
+      this.logger.warn('[WebSocket] Subscription room access denied', {
+        socketId: client.id,
+        userId: connection.userId,
+        clientType: connection.clientType,
+        deniedScopes: decision.deniedScopes,
+      });
+      return null;
+    }
+
+    return { grantedScope: decision.grantedScope, deniedScopes: [] };
   }
 
   private roomAccessDenied(): WebSocketAccessDeniedResponse {
@@ -1046,6 +1157,7 @@ export class WebsocketGateway
       this.logger.warn('[machine-challenge] requested scope denied', {
         socketId: client.id,
         machineId,
+        reason: 'machine_not_authorized',
       });
       client.emit('authenticated', this.roomAccessDenied());
       client.disconnect();
@@ -1079,7 +1191,7 @@ export class WebsocketGateway
       machine.authorizationProtocolVersion === 2 &&
       machine.authorizationState === 'READY'
     ) {
-      for (const conversationId of pending.conversationIds) {
+      for (const conversationId of roomDecision.conversationIds) {
         await this.maybeReplayMachineRepoBindings(client, conversationId);
         await this.maybeReplayConversationPhase(client, conversationId);
       }
@@ -1117,6 +1229,15 @@ export class WebsocketGateway
       // heartbeat path: presence persistence must not gate authentication.
       void this.machineChallengeService.recordLastSeen(machineId);
       void this.machinePresenceService.setPresence(machineId, userId as UserId);
+      void this.workItemExecutionState
+        ?.markMachineConnected(machineId)
+        .catch((error: unknown) => {
+          this.logger.error('[execution-state] connect transition failed', {
+            socketId: client.id,
+            machineId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
 
       // The machine is now in `machine:${machineId}`, so any open trigger we
       // re-publish will actually reach it. Fire-and-forget, matching the
@@ -1291,29 +1412,12 @@ export class WebsocketGateway
         initiativeIds: (initiativeIds as InitiativeId[]) || [],
         designDocIds: (designDocIds as DesignDocId[]) || [],
       };
-      const roomDecision =
-        connection.clientType === 'cli' && connection.machineId
-          ? await this.websocketAuthorizationService.authorizeMachine({
-              machineId: connection.machineId,
-              userId: connection.userId,
-              ...requestedScope,
-            })
-          : await this.websocketAuthorizationService.authorize({
-              userId: connection.userId,
-              ...requestedScope,
-            });
-
-      if (!roomDecision.authorized) {
-        this.logger.warn('[WebSocket] Subscription room access denied', {
-          socketId: client.id,
-          userId: connection.userId,
-          requestedCounts: {
-            projects: projectIds?.length ?? 0,
-            conversations: conversationIds?.length ?? 0,
-            initiatives: initiativeIds?.length ?? 0,
-            designDocs: designDocIds?.length ?? 0,
-          },
-        });
+      const roomGrant = await this.authorizeSubscriptionScope(
+        client,
+        connection,
+        requestedScope,
+      );
+      if (!roomGrant) {
         client.emit('subscribed', this.roomAccessDenied());
         return this.roomAccessDenied();
       }
@@ -1328,20 +1432,26 @@ export class WebsocketGateway
       await this.connectionManager.subscribe(
         client.id,
         eventTypes,
-        (projectIds as ProjectId[]) || [],
-        (conversationIds as ConversationId[]) || [],
-        (initiativeIds as InitiativeId[]) || [],
-        (designDocIds as DesignDocId[]) || [],
+        roomGrant.grantedScope.projectIds,
+        roomGrant.grantedScope.conversationIds,
+        roomGrant.grantedScope.initiativeIds,
+        roomGrant.grantedScope.designDocIds,
+        roomGrant.deniedScopes,
       );
       this.connectionManager.updateActivity(client.id);
 
+      const deniedScopes = roomGrant.deniedScopes.map(
+        ({ scopeType, id }) =>
+          ({
+            scopeType: subscriptionScopeTypes[scopeType],
+            id,
+          }) satisfies WebSocketDeniedSubscriptionScope,
+      );
       const response: WebSocketSubscribedResponse = {
         status: 'success',
         eventTypes,
-        projectIds: projectIds ?? [],
-        conversationIds: conversationIds ?? [],
-        initiativeIds: initiativeIds ?? [],
-        designDocIds: designDocIds ?? [],
+        ...roomGrant.grantedScope,
+        ...(deniedScopes.length > 0 ? { deniedScopes } : {}),
       };
       if (
         this.connectionManager.getConnection(client.id) !== connection ||
@@ -1350,7 +1460,7 @@ export class WebsocketGateway
         return this.roomAccessDenied();
       client.emit('subscribed', response);
 
-      for (const conversationId of conversationIds ?? []) {
+      for (const conversationId of roomGrant.grantedScope.conversationIds) {
         await this.maybeReplayMachineRepoBindings(client, conversationId);
         await this.maybeReplayConversationPhase(client, conversationId);
       }
@@ -1503,10 +1613,12 @@ export class WebsocketGateway
               ...requestedScope,
             });
 
-      if (!roomDecision.authorized) {
+      if (!roomDecision.authorized || roomDecision.deniedScopes.length > 0) {
         this.logger.warn('[WebSocket] Join room access denied', {
           socketId: client.id,
           userId: connection.userId,
+          clientType: connection.clientType,
+          deniedScopes: roomDecision.deniedScopes,
           requestedCounts: {
             project: projectId ? 1 : 0,
             conversation: conversationId ? 1 : 0,
@@ -1703,6 +1815,94 @@ export class WebsocketGateway
       this.logger.warn('[current-state] observation rejected', {
         socketId: client.id,
         agentSessionId: payload.agentSessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Receive a CLI report of a work item's committed execution state. The
+   * authenticated socket supplies the reporting user and machine; scope comes
+   * from the work item. Accepted changes fan out through the change sink.
+   */
+  @SubscribeMessage('work_item.execution_state_observed')
+  async handleWorkItemExecutionStateObserved(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: unknown,
+  ): Promise<WorkItemExecutionStateObservationReceipt> {
+    const connection = this.connectionManager.getConnection(client.id);
+    if (
+      !connection?.userId ||
+      !connection.machineId ||
+      connection.clientType !== 'cli'
+    ) {
+      this.logger.warn('[execution-state] observation rejected', {
+        code: 'UNAUTHENTICATED',
+        socketId: client.id,
+        clientType: connection?.clientType,
+        hasUser: Boolean(connection?.userId),
+        hasMachine: Boolean(connection?.machineId),
+      });
+      return { outcome: 'REJECTED', code: 'UNAUTHENTICATED' };
+    }
+
+    const service = this.workItemExecutionState;
+    if (!service) {
+      this.logger.error('[execution-state] observation failed', {
+        code: 'RECEIVER_UNAVAILABLE',
+        socketId: client.id,
+        machineId: connection.machineId,
+      });
+      return { outcome: 'RECEIVE_FAILED' };
+    }
+
+    try {
+      return await service.observe(
+        { userId: connection.userId, machineId: connection.machineId },
+        payload,
+      );
+    } catch (error) {
+      this.logger.error('[execution-state] observation failed', {
+        code: 'RECEIVE_FAILED',
+        socketId: client.id,
+        machineId: connection.machineId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { outcome: 'RECEIVE_FAILED' };
+    }
+  }
+
+  /**
+   * A machine's retained execution states become last-known once its last
+   * authenticated connection on this instance is gone, or it is revoked.
+   */
+  private async markExecutionStateOwnerDisconnected(
+    socketId: string,
+    machineId: MachineId,
+    { revoked }: { revoked: boolean } = { revoked: false },
+  ): Promise<void> {
+    const executionState = this.workItemExecutionState;
+    if (!executionState) {
+      return;
+    }
+
+    const stillConnected = this.connectionManager
+      .getAllConnections()
+      .some(
+        (connection) =>
+          connection.machineId === machineId && connection.id !== socketId,
+      );
+    if (stillConnected && !revoked) {
+      return;
+    }
+
+    try {
+      await executionState.markMachineDisconnected(machineId);
+    } catch (error) {
+      this.logger.error('[execution-state] disconnect transition failed', {
+        socketId,
+        machineId,
+        revoked,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -2018,6 +2218,11 @@ export class WebsocketGateway
         },
       );
     }
+
+    // A revoked credential ends ownership freshness whatever else is connected.
+    await this.markExecutionStateOwnerDisconnected(client.id, machineId, {
+      revoked: true,
+    });
 
     const cached = await this.machinePresenceService.getBindings(machineId);
     const organizationId = cached?.organizationId ?? conn.organizationIds[0];
@@ -2700,6 +2905,100 @@ export class WebsocketGateway
         currentState: entry.currentState,
       });
     });
+  }
+
+  public emitWorkItemExecutionStateChanged(
+    change: WorkItemExecutionStateChange,
+  ): void {
+    const event: WebSocketWorkItemExecutionStateChangedEvent = {
+      type: WebSocketWorkItemExecutionStateChangedEvent.TypeEnum
+        .WorkItemExecutionStateChanged,
+      timestamp: new Date().toISOString(),
+      organizationId: change.organizationId,
+      projectId: change.projectId,
+      executionState: change.executionState,
+    };
+    this.bufferOrEmit(() => {
+      const projectRoom = `project:${change.projectId}`;
+      this.server
+        .to(projectRoom)
+        .emit(
+          WebSocketSubscriptionRequest.EventTypesEnum
+            .WorkItemExecutionStateChanged,
+          event,
+        );
+      this.logger.debug('[execution-state] project fan-out', {
+        projectRoom,
+        workItemId: change.executionState.workItemId,
+        revision: change.executionState.revision,
+        freshness: change.executionState.freshness.status,
+      });
+    });
+  }
+
+  /**
+   * This instance lost or regained other instances' execution-state changes.
+   * Each locally joined project room is told, so its subscribers treat what
+   * they hold as possibly out of date and re-read after restoration. With
+   * `onlyProjectIds`, only those projects' locally joined rooms are told.
+   */
+  private async emitWorkItemExecutionStateDeliveryChanged(
+    state: 'INTERRUPTED' | 'RESTORED',
+    onlyProjectIds?: string[],
+  ): Promise<void> {
+    // `this.server` is the `/events` Namespace, whose own adapter holds its
+    // rooms; `server.sockets` is its socket Map and has no adapter.
+    const joinedProjectIds = [...(this.server?.adapter?.rooms?.keys() ?? [])]
+      .filter((room) => room.startsWith('project:'))
+      .map((room) => room.slice('project:'.length));
+    const projectIds = onlyProjectIds
+      ? joinedProjectIds.filter((id) => onlyProjectIds.includes(id))
+      : joinedProjectIds;
+    const prisma = this.prisma;
+    if (projectIds.length === 0 || !prisma) {
+      return;
+    }
+
+    try {
+      const projects = await prisma.db.project.findMany({
+        where: { id: { in: projectIds } },
+        select: { id: true, organizationId: true },
+      });
+      const delivery =
+        state === 'INTERRUPTED'
+          ? WebSocketWorkItemExecutionStateDeliveryChangedEvent.DeliveryEnum
+              .Interrupted
+          : WebSocketWorkItemExecutionStateDeliveryChangedEvent.DeliveryEnum
+              .Restored;
+      for (const project of projects) {
+        const event: WebSocketWorkItemExecutionStateDeliveryChangedEvent = {
+          type: WebSocketWorkItemExecutionStateDeliveryChangedEvent.TypeEnum
+            .WorkItemExecutionStateDeliveryChanged,
+          timestamp: new Date().toISOString(),
+          organizationId: project.organizationId,
+          projectId: project.id,
+          delivery,
+        };
+        this.server
+          .to(`project:${project.id}`)
+          .emit(
+            WebSocketSubscriptionRequest.EventTypesEnum
+              .WorkItemExecutionStateDeliveryChanged,
+            event,
+          );
+      }
+      this.logger.warn('[execution-state] delivery change announced', {
+        state,
+        projects: projects.length,
+      });
+    } catch (error) {
+      this.logger.error('[execution-state] delivery change not announced', {
+        code: 'DELIVERY_ANNOUNCE_FAILED',
+        state,
+        projects: projectIds.length,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   public emitAgentSessionContextSizeChanged(entry: {

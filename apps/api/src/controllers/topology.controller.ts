@@ -1,3 +1,4 @@
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
@@ -12,6 +13,7 @@ import {
   Post,
   Query,
   ServiceUnavailableException,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,7 +31,6 @@ import {
   SummaryCategory,
   TopologyConsolidationSchedule,
   TopologyConsolidationScheduleStatus,
-  WorkStatus,
 } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { InjectTemporalClient } from '../prisma/temporal.module';
@@ -47,6 +48,8 @@ import {
   TopologySubfacetDto,
   TopologySubfacetSummarizationRunDto,
   UnifiedGraphSearchResponse,
+  ConnectedEntitiesRequest,
+  ConnectedEntitiesResponse,
 } from '@hey-hey/contracts/api/models';
 import { TopologyGraphResponse } from '../generated/graphs';
 import {
@@ -266,9 +269,9 @@ export class TopologyController {
 
     // Collect entities to re-summarize.
     const targetStatuses = [
-      WorkStatus.BACKLOG,
-      WorkStatus.ACTIVE,
-      WorkStatus.COMPLETED,
+      WorkStatus.Backlog,
+      WorkStatus.Active,
+      WorkStatus.Completed,
     ];
 
     const tasks = await this.prisma.db.task.findMany({
@@ -1761,6 +1764,40 @@ export class TopologyQueryController {
       resolvedProjectId,
       userToken,
     );
+  }
+
+  @Post('connected-entities')
+  @ApiOperation({
+    summary: 'List the entities connected to the given entities',
+    description:
+      'Returns the given entities with everything that links to or mentions them. IDs only.',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  async getConnectedEntities(
+    @CurrentOrganization() organizationIdFromParams: OrganizationId,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @Body() body: ConnectedEntitiesRequest,
+    @AuthToken() userToken: string | null,
+  ): Promise<ConnectedEntitiesResponse> {
+    if (!userToken) {
+      throw new UnauthorizedException('Authentication token not found');
+    }
+
+    const organizationId = this.resolveOrganizationId(
+      organizationIdFromParams,
+      user,
+    );
+    const resolvedProjectId = this.resolveProjectId(projectId);
+
+    const { entityIds } = await this.graphsClientService.resolveSearchExclusion(
+      organizationId,
+      resolvedProjectId,
+      { entityIds: body.entityIds, depth: body.depth },
+      userToken,
+    );
+    return { entityIds };
   }
 
   @Get('entity-graph')

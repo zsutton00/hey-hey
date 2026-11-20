@@ -4,7 +4,7 @@ import {
   PaymentProviderEventProcessingStatus,
   type PaymentProviderEventInbox,
 } from '@prisma/client';
-import { ConflictException } from '@nestjs/common';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { OrganizationId } from '../../types';
 import { AccountEntitlementService } from '../account-entitlement.service';
@@ -534,7 +534,8 @@ describe('PaymentEntitlementReconciliationService', () => {
     expect(transitionInTransaction).not.toHaveBeenCalled();
 
     bindingService.resolveBinding.mockRejectedValueOnce(
-      new ConflictException(
+      new ServerStateException(
+        'PAYMENT_PROVIDER_BINDING_AMBIGUOUS',
         'Payment provider identifiers resolve to multiple bindings',
       ),
     );

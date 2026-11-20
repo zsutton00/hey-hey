@@ -41,6 +41,9 @@ function appliedOf<K extends ApplyOutcome['kind']>(
 export const requestTempRefsRule: ProjectionRule<OperationsScope> = {
   id: 'request.tempRefs',
   appliesTo: (facts) =>
+    facts.request.operations.some(
+      (operation) => operation.op === 'designDoc.create',
+    ) ||
     facts.creates.length > 0 ||
     facts.relationshipOps.some((operation) => operation.op === 'create')
       ? { operations: facts.request.operations }
@@ -50,7 +53,10 @@ export const requestTempRefsRule: ProjectionRule<OperationsScope> = {
     const seenWorkItems = new Set<string>();
     const seenRelationships = new Set<string>();
     scope.operations.forEach((operation, index) => {
-      if (operation.op === 'workItem.create') {
+      if (
+        operation.op === 'workItem.create' ||
+        operation.op === 'designDoc.create'
+      ) {
         const key = nodeKey(operation.ref);
         if (seenWorkItems.has(key)) {
           ctx.addIssue(

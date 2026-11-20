@@ -11,6 +11,7 @@ import {
   useCorrelatedActivity,
   useProject,
   useTaskHierarchy,
+  useWorkItemStatusVocabularies,
 } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import {
@@ -50,7 +51,7 @@ import {
   PageBreadcrumbs,
 } from "../../components/Layout";
 import { normalizeInternalReturnTarget } from "../../utils/authReturnTarget";
-import { getStatusLabel } from "../../utils/statusUtils";
+import { getWorkItemStatusLabel } from "@hey-hey/ui-common/utils";
 import {
   PaginatedCodingSessionsFeed,
   PaginatedSessionFeed,
@@ -61,6 +62,7 @@ import {
 } from "../../components/SegmentedToggle";
 
 const ACTIVITY_DETAIL_LIMIT = 200;
+const NO_ITEMS: readonly never[] = [];
 const ACTIVITY_LIST_MODE_KEY = "activity-mode";
 type ActivityListMode = "tasks" | "coding" | "conversations";
 
@@ -389,6 +391,16 @@ export const ProjectActivityPage: React.FC = () => {
           };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { definitions: typeDefinitions } = useWorkItemStatusVocabularies(
+    currentOrgId,
+    projectId,
+    NO_ITEMS,
+  );
+  const statusLabel = (
+    task: Pick<TaskResponseDto, "status" | "type">,
+  ): string =>
+    getWorkItemStatusLabel(task.status, typeDefinitions.get(task.type));
+
   const { data: project } = useProject(currentOrgId || "", projectId, {
     enabled: !!currentOrgId && !!projectId,
     preferStale: true,
@@ -820,7 +832,7 @@ export const ProjectActivityPage: React.FC = () => {
                       </Typography>
                       <Stack direction="row" flexWrap="wrap" gap={1}>
                         <Chip
-                          label={`Status: ${getStatusLabel(primaryTask.status)}`}
+                          label={`Status: ${statusLabel(primaryTask)}`}
                           size="small"
                           variant="outlined"
                         />
@@ -893,7 +905,7 @@ export const ProjectActivityPage: React.FC = () => {
                             {taskParent.name}
                           </Typography>
                           <Typography color="text.secondary" variant="body2">
-                            Status: {getStatusLabel(taskParent.status)}
+                            Status: {statusLabel(taskParent)}
                           </Typography>
                         </>
                       ) : null}
@@ -916,7 +928,7 @@ export const ProjectActivityPage: React.FC = () => {
                                   color="text.secondary"
                                   variant="caption"
                                 >
-                                  Status: {getStatusLabel(childTask.status)}
+                                  Status: {statusLabel(childTask)}
                                 </Typography>
                               </Paper>
                             ))}
@@ -962,7 +974,7 @@ export const ProjectActivityPage: React.FC = () => {
                             </Typography>
                             <Stack direction="row" flexWrap="wrap" gap={1}>
                               <Chip
-                                label={`Status: ${getStatusLabel(task.status)}`}
+                                label={`Status: ${statusLabel(task)}`}
                                 size="small"
                                 variant="outlined"
                               />

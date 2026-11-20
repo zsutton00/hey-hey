@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { ConflictException } from '@nestjs/common';
 import type { ProposalGroupDependency } from '@prisma/client';
 import type { AuthenticatedUser } from 'src/auth/strategies/jwt.strategy';
@@ -233,7 +234,8 @@ function createFixture(options?: {
   };
   const moduleRef = options?.moduleRef ?? { get: jest.fn() };
   const projectApprovalPolicyService =
-    options?.projectApprovalPolicyService ?? new ProjectApprovalPolicyService();
+    options?.projectApprovalPolicyService ??
+    createTestProjectApprovalPolicyService();
   const service = new ProposalGroupFinalizationService(
     prisma as never,
     validationEngine as never,

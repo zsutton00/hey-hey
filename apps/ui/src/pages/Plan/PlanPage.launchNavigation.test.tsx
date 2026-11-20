@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import type { GetAgentSessionContinuationStatus200Response } from "@hey-hey/ui-common/api";
 import {
   createLaunchHarness,
   launchConfiguration,
@@ -82,6 +83,21 @@ vi.mock("../../hooks/useRemainingViewportHeight", () => ({
 describe("PlanPage launch navigation", () => {
   beforeEach(() => {
     globalThis.mswServer.use(
+      http.get(
+        "*/api/v1/organizations/org-launch/projects/project-launch/agent-sessions/session-launch/continuation",
+        () =>
+          HttpResponse.json({
+            success: true,
+            message: "OK",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            statusCode: 200,
+            data: {
+              sourceState: "UNBOUND",
+              boundMachineId: null,
+              attempt: null,
+            },
+          } satisfies GetAgentSessionContinuationStatus200Response),
+      ),
       http.get("http://localhost:3847/api/local/repos", () =>
         HttpResponse.json({ machineId: "machine-launch", bindings: [] }),
       ),

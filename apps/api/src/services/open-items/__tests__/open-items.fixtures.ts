@@ -39,6 +39,7 @@ export function item(
     revision: 1,
     lineage,
     presentation: { label: `Item ${n}` },
+    lastActivatedAt: T0,
     removedAt: null,
     updatedAt: T0,
     ...rest,

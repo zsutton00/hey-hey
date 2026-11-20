@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import { z } from 'zod';
 import type { WorkItemConfigV1 } from '@hey-hey/contracts/api/models';
 import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
@@ -72,14 +74,17 @@ export function validateWorkItemConfig(value: unknown): WorkItemConfig | null {
  * versions are omitted so a newer config cannot make otherwise readable work
  * items fail; the raw value remains persisted for a future compatible reader.
  * Known kinds and versions still go through strict validation so corruption of
- * the current contract is surfaced as a conflict.
+ * the current contract is surfaced as a server-state error.
  */
 export function readWorkItemConfig(value: unknown): WorkItemConfig | null {
   if (value === undefined || value === null) {
     return null;
   }
   if (!isRecord(value)) {
-    throw new ConflictException('Work-item config must be an object or null.');
+    throw new ServerStateException(
+      'WORK_ITEM_CONFIG_STATE_INCONSISTENT',
+      'Persisted work-item config must be an object or null.',
+    );
   }
   if (
     value.kind !== WorkItemConfigKind.InitialWorktree ||
@@ -89,7 +94,8 @@ export function readWorkItemConfig(value: unknown): WorkItemConfig | null {
   }
   return parseWorkItemConfig(
     value,
-    (message) => new ConflictException(message),
+    (message) =>
+      new ServerStateException('WORK_ITEM_CONFIG_STATE_INCONSISTENT', message),
   );
 }
 

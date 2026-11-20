@@ -8,7 +8,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   AgentSessionStatus as PrismaAgentSessionStatus,
   AgentSessionType as PrismaAgentSessionType,
@@ -16,6 +16,8 @@ import {
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import {
+  EvalSessionStatusesRequest,
+  EvalSessionStatus,
   ReportAudience,
   ReportEntityRelation,
   ReportRelatedEntityType,
@@ -46,19 +48,36 @@ import type {
 import { AgentSessionService } from '../agent-session.service';
 import { ReportService } from '../reports/report.service';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
-import { toEvalRunCaseInput } from './eval-case-input.mapper';
+import {
+  readEvalCaseTarget,
+  readItemMentionIds,
+  toEvalRunCaseInput,
+} from './eval-case-input.mapper';
 import {
   assertEvalCaseMockupExists,
   assertEvalCaseServiceExists,
+  assertConversationFitsHandler,
   assertEvaluableRunHandler,
   resolveEvalExecution,
 } from './eval-case-handlers';
 
+import { restrictReportWhere } from 'src/read-restriction/read-policy';
+import { USER_VISIBLE_PERSISTED_REPORT_AUDIENCES } from '../reports/report-audience';
+import { validateReportPayload } from '../reports/report-payload.validation';
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function assertEvalRunPayload(
+  payload: unknown,
+  schemaVersion: number,
+): asserts payload is EvalRunReportPayload {
+  validateReportPayload({ reportType: 'EVAL_RUN', payload, schemaVersion });
+}
+
 export const EVAL_RUN_HANDLER_PROMPT_TYPE = 'run_eval';
 export const DEFAULT_MAX_CONCURRENT_ATTEMPTS = 3;
+export const MAX_REPEATS_PER_ATTEMPT = 10;
 
 type RecordedRun = {
   runId: string;
@@ -80,6 +99,82 @@ export class EvalRunService {
     @Inject(forwardRef(() => AgentSessionService))
     private readonly sessions: AgentSessionService,
   ) {}
+
+  async sessionStatuses(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    request: EvalSessionStatusesRequest,
+  ): Promise<EvalSessionStatus[]> {
+    const ids = request?.agentSessionIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      ids.length > 100 ||
+      ids.some((id) => typeof id !== 'string' || !UUID_PATTERN.test(id))
+    ) {
+      this.logger.warn(
+        'Eval status batch rejected: invalid coordinator IDs or batch size',
+      );
+      throw new BadRequestException(
+        'Expected 1 to 100 coordinator session UUIDs',
+      );
+    }
+    const runs = await this.prisma.db.report.findMany({
+      where: restrictReportWhere({
+        organizationId,
+        projectId,
+        reportType: 'EVAL_RUN',
+        audience: { in: USER_VISIBLE_PERSISTED_REPORT_AUDIENCES },
+        AND: [
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+          {
+            OR: [...new Set(ids)].map((id) => ({
+              payload: { path: ['coordinatorAgentSessionId'], equals: id },
+            })),
+          },
+        ],
+      }),
+      select: { id: true, payload: true, schemaVersion: true },
+      take: 100,
+    });
+    if (runs.length === 0) {
+      return [];
+    }
+    const counts = await this.prisma.db.$queryRaw<
+      Array<{ runId: string; total: number; ended: number; errors: number }>
+    >(Prisma.sql`
+      SELECT parent_report_id AS "runId", count(*)::int AS total,
+        count(*) FILTER (WHERE payload->>'status' IN ('COMPLETED', 'ERROR', 'STOPPED'))::int AS ended,
+        count(*) FILTER (WHERE payload->>'status' = 'ERROR')::int AS errors
+      FROM reports
+      WHERE organization_id = ${organizationId} AND project_id = ${projectId}
+        AND parent_report_id IN (${Prisma.join(runs.map((run) => run.id))})
+        AND report_type = 'EVAL_ATTEMPT'
+        AND audience IN ('PROJECT_VISIBLE', 'ORGANIZATION_VISIBLE')
+        AND (expires_at IS NULL OR expires_at > now())
+      GROUP BY parent_report_id
+    `);
+    const byRun = new Map(counts.map((count) => [count.runId, count]));
+    return runs.flatMap((run) => {
+      const payload = run.payload;
+      assertEvalRunPayload(payload, run.schemaVersion);
+      if (!payload.coordinatorAgentSessionId) {
+        return [];
+      }
+      const count = byRun.get(run.id);
+      return [
+        {
+          agentSessionId: payload.coordinatorAgentSessionId,
+          runId: run.id,
+          evalId: payload.evalId,
+          status: payload.status,
+          total: count?.total ?? 0,
+          ended: count?.ended ?? 0,
+          errors: count?.errors ?? 0,
+        } satisfies EvalSessionStatus,
+      ];
+    });
+  }
 
   /**
    * Records what is being run and prepares the coordinator session and
@@ -156,10 +251,31 @@ export class EvalRunService {
     const casesById = new Map<string, (typeof cases)[number]>(
       cases.map((candidate) => [candidate.id, candidate]),
     );
+    const mentionedIds = cases.flatMap(readItemMentionIds);
+    const workItems = await this.prisma.db.task.findMany({
+      where: {
+        id: { in: mentionedIds as TaskId[] },
+        organizationId,
+        projectId,
+      },
+      select: { id: true },
+    });
+    const workItemIds = new Set<string>(workItems.map((item) => item.id));
     const caseInputs = request.evalCaseIds.map((id) =>
-      toEvalRunCaseInput(casesById.get(id)!),
+      toEvalRunCaseInput(casesById.get(id)!, workItemIds),
     );
     for (const caseInput of caseInputs) {
+      // The run's chosen handler can replace the case's own, so the fit is checked per setup.
+      for (const configuration of configurations) {
+        assertConversationFitsHandler(
+          caseInput.title,
+          caseInput.target.inputs.inputs.length,
+          resolveEvalExecution(
+            caseInput.target,
+            configuration.target.handlerConfig,
+          ).handler,
+        );
+      }
       await assertEvalCaseServiceExists(
         caseInput.title,
         caseInput.coding,
@@ -184,6 +300,9 @@ export class EvalRunService {
     }
 
     const settings = this.resolveSettings(request.settings);
+    const repeats = settings.repeatsPerAttempt ?? 1;
+    const attemptCount = caseInputs.length * configurations.length * repeats;
+    const repeatSummary = repeats > 1 ? `, ${repeats} repeats each` : '';
 
     const { agentSessionId, conversationId } = await this.prepareSession(
       organizationId,
@@ -198,7 +317,7 @@ export class EvalRunService {
     const runPayload = {
       reportType: ReportType.EvalRun,
       ...(name ? { name } : {}),
-      summary: `Eval run of ${caseInputs.length} case(s) across ${configurations.length} setup(s) on ${evalItem.name}`,
+      summary: `Eval run of ${caseInputs.length} case(s) across ${configurations.length} setup(s)${repeatSummary} on ${evalItem.name}`,
       evalId,
       status: 'QUEUED',
       judgeSetup: request.judgeSetup,
@@ -213,38 +332,43 @@ export class EvalRunService {
       organizationId,
       preparedSessionIds,
       async () => {
+        // Repeat-major order, so early attempts cover every case and setup.
         const attemptPayloads: EvalAttemptReportPayload[] = [];
-        for (const caseInput of caseInputs) {
-          for (const configuration of configurations) {
-            const summary = `${caseInput.title} on ${configuration.target.model}`;
-            const execution = resolveEvalExecution(
-              caseInput.target,
-              configuration.target.handlerConfig,
-            );
-            const target = await this.prepareSession(
-              organizationId,
-              projectId,
-              userId,
-              {
-                title: `Eval attempt: ${summary}`,
-                conversationTitle: 'Eval attempt',
-              },
-              caseInput.target,
-              configuration,
-              execution,
-            );
-            preparedSessionIds.push(target.agentSessionId);
-            attemptPayloads.push({
-              reportType: ReportType.EvalAttempt,
-              summary,
-              caseInputId: caseInput.id,
-              configuration,
-              execution,
-              status: 'QUEUED',
-              measurements: [],
-              targetSessionId: target.agentSessionId,
-              targetConversationId: target.conversationId,
-            } satisfies EvalAttemptReportPayload);
+        for (let repeat = 1; repeat <= repeats; repeat++) {
+          for (const caseInput of caseInputs) {
+            for (const configuration of configurations) {
+              const repeatLabel = repeats > 1 ? ` · repeat ${repeat}` : '';
+              const summary = `${caseInput.title} on ${configuration.target.model}${repeatLabel}`;
+              const execution = resolveEvalExecution(
+                caseInput.target,
+                configuration.target.handlerConfig,
+              );
+              const target = await this.prepareSession(
+                organizationId,
+                projectId,
+                userId,
+                {
+                  title: `Eval attempt: ${summary}`,
+                  conversationTitle: 'Eval attempt',
+                },
+                caseInput.target,
+                configuration,
+                execution,
+              );
+              preparedSessionIds.push(target.agentSessionId);
+              attemptPayloads.push({
+                reportType: ReportType.EvalAttempt,
+                summary,
+                caseInputId: caseInput.id,
+                configuration,
+                repeat,
+                execution,
+                status: 'QUEUED',
+                measurements: [],
+                targetSessionId: target.agentSessionId,
+                targetConversationId: target.conversationId,
+              } satisfies EvalAttemptReportPayload);
+            }
           }
         }
         return this.prisma.db.$transaction(async (client) => {
@@ -274,7 +398,7 @@ export class EvalRunService {
     this.logger.log('Launched eval run', {
       evalId,
       runId,
-      attemptCount: caseInputs.length * configurations.length,
+      attemptCount,
       agentSessionId,
       conversationId,
     });
@@ -435,6 +559,7 @@ export class EvalRunService {
   private resolveSettings(
     requested: LaunchEvalRunRequest['settings'],
   ): EvalRunSettings {
+    const repeats = requested?.repeatsPerAttempt ?? 1;
     const settings: EvalRunSettings = {
       maxConcurrentAttempts:
         requested?.maxConcurrentAttempts ?? DEFAULT_MAX_CONCURRENT_ATTEMPTS,
@@ -444,6 +569,7 @@ export class EvalRunService {
       ...(requested?.attemptTokenLimit !== undefined
         ? { attemptTokenLimit: requested.attemptTokenLimit }
         : {}),
+      repeatsPerAttempt: repeats,
     };
     const isPositiveInteger = (value: number | undefined): boolean =>
       value === undefined || (Number.isInteger(value) && value >= 1);
@@ -454,6 +580,15 @@ export class EvalRunService {
     ) {
       throw new BadRequestException(
         'Run settings must be whole numbers of at least 1',
+      );
+    }
+    if (
+      !Number.isInteger(repeats) ||
+      repeats < 1 ||
+      repeats > MAX_REPEATS_PER_ATTEMPT
+    ) {
+      throw new BadRequestException(
+        `Repeats per case and setup must be a whole number from 1 to ${MAX_REPEATS_PER_ATTEMPT}`,
       );
     }
     return settings;
@@ -607,7 +742,10 @@ export class EvalRunService {
       select: { id: true, payload: true },
     });
     const caseInputs = new Map<string, EvalRunCaseInput>(
-      payload.cases.map((caseInput) => [caseInput.id, caseInput]),
+      payload.cases.map((caseInput) => [
+        caseInput.id,
+        { ...caseInput, target: readEvalCaseTarget(caseInput.target) },
+      ]),
     );
     return {
       runId: run.id,
@@ -625,6 +763,7 @@ export class EvalRunService {
           execution: attempt.execution!,
           targetSessionId: attempt.targetSessionId!,
           targetConversationId: attempt.targetConversationId!,
+          ...(attempt.repeat !== undefined ? { repeat: attempt.repeat } : {}),
         };
       }),
     };

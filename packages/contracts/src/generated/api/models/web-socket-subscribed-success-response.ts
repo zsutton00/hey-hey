@@ -14,6 +14,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WebSocketDeniedSubscriptionScope } from './web-socket-denied-subscription-scope.js';
 
 /**
  *
@@ -57,6 +60,12 @@ export interface WebSocketSubscribedSuccessResponse {
      * @memberof WebSocketSubscribedSuccessResponse
      */
     'designDocIds': Array<string>;
+    /**
+     * Requested IDs a paired CLI machine may not subscribe to. The server grants the remaining IDs and omits these from the accepted lists; the client should stop requesting them. Present only on machine subscriptions that had at least one denied ID.
+     * @type {Array<WebSocketDeniedSubscriptionScope>}
+     * @memberof WebSocketSubscribedSuccessResponse
+     */
+    'deniedScopes'?: Array<WebSocketDeniedSubscriptionScope>;
 }
 
 

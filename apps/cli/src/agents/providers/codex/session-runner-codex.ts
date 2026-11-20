@@ -3,6 +3,7 @@ import {
   CODEX_MCP_ONLY_FEATURE_OVERRIDES,
   CODEX_WORKSPACE_SHELL_FEATURE_OVERRIDES,
 } from './mcp-only-features';
+import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
@@ -10,7 +11,10 @@ import {
   BROWSER_ALLOWED_TOOLS,
   BROWSER_MCP_SERVER_NAME,
 } from '../../browser-tools/mcp-config';
-import { applyCodexSessionReviewerPolicy } from './codex-session-policy';
+import {
+  applyCodexSessionReviewerPolicy,
+  resolveCodexApprovalsReviewer,
+} from './codex-session-policy';
 import { ProviderUsageCapture } from '../../../provider-usage/provider-usage-capture';
 import { ProviderUsageStore } from '../../../provider-usage/provider-usage-store';
 import crypto from 'node:crypto';
@@ -370,7 +374,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   };
   private readonly redactionConfig = loadAgentEventLogRedactionConfig();
   private readonly normalizationConfig = loadProviderEventNormalizationConfig();
-  private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly attachmentContentReader: RunAttachmentContentReader;
   private readonly runStore: RunStore;
   private readonly repoStore: RepoMappingStore;
   private readonly localAgentEndpoint: LocalAgentEndpoint;
@@ -380,7 +384,13 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   private readonly logger: ServerLogger;
   private readonly providerUsageCapture: ProviderUsageCapture;
 
+  public readonly executionRecorder: ExecutionRecorder | undefined;
+
   public constructor(dependencies: CodexAgentSessionRunnerDependencies) {
+    this.attachmentContentReader = new RunAttachmentContentReader(
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
+    this.executionRecorder = dependencies.executionRecorder;
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
@@ -389,7 +399,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     this.agentOutputOwner = dependencies.agentOutputOwner;
     this.logger = dependencies.logger ?? NOOP_LOGGER;
     this.providerUsageCapture = new ProviderUsageCapture(
-      new ProviderUsageStore(undefined, this.logger),
+      new ProviderUsageStore(dependencies.runStore.getDataDirectory(), this.logger),
       this.logger,
     );
     this.executionCapture = dependencies.executionRecorder
@@ -663,12 +673,13 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       prompt,
       attachmentRunId,
       attachments = [],
-      epistemicCalibration,
+      promptDeclarations,
       signal,
       startingMessage,
       readOnlyFilesystem,
       repositoryResearch,
       skipPermissions,
+      providerPermissionMode,
       model,
       reasoningEffort,
       mcpToolUseCase,
@@ -842,6 +853,18 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
         : {}),
     });
     const sandboxMode = codexPermissionPlan.sandboxMode;
+    // The sandbox still confines writes; the automatic reviewer only rules on
+    // escalations Codex raises, and a denial stays a denial.
+    const approvalsReviewer = resolveCodexApprovalsReviewer(providerPermissionMode, sandboxMode);
+    requestContext.log(this.logger, 'info', 'local.runner.codex.permission_mode.resolved', {
+      approvalsReviewer: approvalsReviewer ?? 'user',
+      reason: approvalsReviewer
+        ? 'provider_native_mode'
+        : providerPermissionMode === 'auto'
+          ? 'read_only_requires_user_reviewer'
+          : 'no_native_mode_requested',
+      skipPermissions: skipPermissions ?? false,
+    });
     const runCwd = codexPermissionPlan.cwd;
     const resolvedSkill: CodexSdkSkillTurnInput | null = skillSelection
       ? await this.resolveSkillSelection(
@@ -1689,7 +1712,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           {
             provider: 'codex',
             model: selectedModel,
-            ...(epistemicCalibration ? { epistemicCalibration } : {}),
+            ...promptDeclarations,
           },
           {
             provider: 'codex',
@@ -1699,6 +1722,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
               sessionStartContext.hintsEnabled,
               additionalAllowedTools ?? [],
             ),
+            productDevelopment: sessionStartContext.productDevelopment,
           },
         );
         requestContext.log(this.logger, 'debug', 'local.runner.codex.session_start_context.read', {
@@ -1995,6 +2019,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             : {}),
           ...(resolvedSkill ? { skill: resolvedSkill } : {}),
           ...(sandboxMode ? { sandbox: sandboxMode } : {}),
+          ...(approvalsReviewer ? { approvalsReviewer } : {}),
           ...(extraWritableDirs.length > 0 ? { extraWritableDirs } : {}),
           ...(selectedModel ? { model: selectedModel } : {}),
           ...(config ? { config } : {}),
@@ -2042,6 +2067,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           cwd: runCwd,
           ...(resolvedSkill ? { skill: resolvedSkill } : {}),
           ...(sandboxMode ? { sandbox: sandboxMode } : {}),
+          ...(approvalsReviewer ? { approvalsReviewer } : {}),
           ...(extraWritableDirs.length > 0 ? { extraWritableDirs } : {}),
           ...(selectedModel ? { model: selectedModel } : {}),
           ...(config ? { config } : {}),
@@ -2448,8 +2474,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     model,
     reasoningEffort,
     skipPermissions,
+    providerPermissionMode,
     mcpToolUseCase,
     additionalAllowedTools,
+    readOnlyFilesystem,
     browserMcpMount,
     platformMcpProxyMount,
     workspace,
@@ -2494,10 +2522,14 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),
       ...(skipPermissions !== undefined ? { skipPermissions } : {}),
+      ...(providerPermissionMode ? { providerPermissionMode } : {}),
       ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
       ...(additionalAllowedTools && additionalAllowedTools.length > 0
         ? { additionalAllowedTools }
         : {}),
+      // The resumed thread is configured with the sandbox resolved for this
+      // call, so the read-only posture must be forwarded on every resume.
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
       ...(browserMcpMount ? { browserMcpMount } : {}),
       ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
       ...(skillSelection ? { skillSelection } : {}),

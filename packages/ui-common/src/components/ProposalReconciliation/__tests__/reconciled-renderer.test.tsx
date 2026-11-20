@@ -3,10 +3,18 @@ import React from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderBare,
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+
+const render = (ui: React.ReactElement) =>
+  renderBare(
+    <ThemeProvider theme={createHeyTheme("light")}>{ui}</ThemeProvider>,
+  );
+
 import { describe, expect, it, vi } from "vitest";
 import type {
   DesignDocResponseDto,

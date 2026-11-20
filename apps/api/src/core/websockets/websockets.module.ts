@@ -22,6 +22,10 @@ import { ExecutableFrameAuthorizationService } from './executable-frame-authoriz
 import { AgentOperationDispatchService } from './agent-operation-dispatch.service';
 import { DemoSandboxActivityModule } from '../../services/demo-sandbox/demo-sandbox-activity.module';
 import { WorkflowModule } from '../../services/workflows/workflow.module';
+import { WorkItemExecutionStateRegistry } from '../../services/work-item-execution-state/work-item-execution-state.registry';
+import { WorkItemExecutionStateService } from '../../services/work-item-execution-state/work-item-execution-state.service';
+import { WorkItemExecutionStateDelivery } from '../../services/work-item-execution-state/work-item-execution-state.delivery';
+import { TaskMonitorPublicationPolicyRegistration } from '../../services/work-item-execution-state/task-monitor-publication-policy';
 
 @Module({
   imports: [
@@ -50,6 +54,10 @@ import { WorkflowModule } from '../../services/workflows/workflow.module';
     MachineConnectionEvictionService,
     ExecutableFrameAuthorizationService,
     AgentOperationDispatchService,
+    WorkItemExecutionStateRegistry,
+    WorkItemExecutionStateDelivery,
+    WorkItemExecutionStateService,
+    TaskMonitorPublicationPolicyRegistration,
   ],
   exports: [
     WebsocketConnectionManager,
@@ -69,6 +77,8 @@ import { WorkflowModule } from '../../services/workflows/workflow.module';
     MachineConnectionEvictionService,
     ExecutableFrameAuthorizationService,
     AgentOperationDispatchService,
+    WorkItemExecutionStateRegistry,
+    WorkItemExecutionStateService,
   ],
 })
 export class WebsocketsModule {}

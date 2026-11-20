@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -118,7 +119,9 @@ describe('ProposalGroupDecisionService', () => {
           projectId: 'project-1' as never,
           userId: 'user-1' as never,
         },
-        await new ProjectApprovalPolicyService().resolve('project-1' as never),
+        await createTestProjectApprovalPolicyService().resolve(
+          'project-1' as never,
+        ),
       );
       expect(result.recorded).toBe(true);
       expect(registry.getSectionDefinitions).toHaveBeenCalledWith(
@@ -189,7 +192,7 @@ describe('ProposalGroupDecisionService', () => {
       prisma as never,
       lifecycleEvents as never,
       { get: jest.fn().mockReturnValue(coordinator) } as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -248,7 +251,7 @@ describe('ProposalGroupDecisionService', () => {
       prisma as never,
       lifecycleEvents as never,
       {} as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -341,7 +344,7 @@ describe('ProposalGroupDecisionService', () => {
       prisma as never,
       lifecycleEvents as never,
       moduleRef as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -398,7 +401,7 @@ describe('ProposalGroupDecisionService', () => {
       {
         get: jest.fn().mockReturnValue({ retrySelectedMember }),
       } as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -446,7 +449,7 @@ describe('ProposalGroupDecisionService', () => {
       {
         get: jest.fn().mockReturnValue({ dispatchReadyMembers }),
       } as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -527,7 +530,7 @@ describe('ProposalGroupDecisionService', () => {
         prisma as never,
         lifecycleEvents as never,
         moduleRef as never,
-        new ProjectApprovalPolicyService(),
+        createTestProjectApprovalPolicyService(),
         { assertProjectRole: jest.fn() } as never,
         undefined,
         { assertApplicable: jest.fn() } as never,
@@ -705,7 +708,7 @@ describe('ProposalGroupDecisionService', () => {
         prisma as never,
         {} as never,
         moduleRef as never,
-        new ProjectApprovalPolicyService(),
+        createTestProjectApprovalPolicyService(),
         { assertProjectRole: jest.fn() } as never,
         undefined,
         { assertApplicable: jest.fn() } as never,
@@ -773,7 +776,7 @@ describe('ProposalGroupDecisionService', () => {
         prisma as never,
         {} as never,
         {} as never,
-        new ProjectApprovalPolicyService(),
+        createTestProjectApprovalPolicyService(),
         { assertProjectRole: jest.fn() } as never,
         undefined,
         { assertApplicable: jest.fn() } as never,
@@ -847,7 +850,7 @@ describe('ProposalGroupDecisionService', () => {
       prisma as never,
       {} as never,
       {} as never,
-      new ProjectApprovalPolicyService(),
+      createTestProjectApprovalPolicyService(),
       { assertProjectRole: jest.fn() } as never,
       undefined,
       { assertApplicable: jest.fn() } as never,
@@ -981,7 +984,7 @@ describe('ProposalGroupDecisionService', () => {
           publishInTransaction: jest.fn().mockResolvedValue(undefined),
         } as never,
         { get: jest.fn() } as never,
-        new ProjectApprovalPolicyService(),
+        createTestProjectApprovalPolicyService(),
         { assertProjectRole } as never,
         undefined,
         { assertApplicable: jest.fn() } as never,

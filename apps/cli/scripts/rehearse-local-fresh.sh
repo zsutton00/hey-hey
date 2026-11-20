@@ -16,7 +16,6 @@ WORKTREE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CLI_DIR="$WORKTREE/apps/cli"
 OCI_DIR=/tmp/heyhey-oci
 REGISTRY_IMAGE='registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373'
-MODEL_DIR="${HEYHEY_LOCAL_MODEL_DIR:-/Users/zac/Desktop/code/hey-hey/hey-hey/apps/graph-search/models/snowflake-arctic-embed-s}"
 UI_MARKERS=("local-pairing-screen" "$@")
 RUN="$(date +%H%M%S)"
 
@@ -37,7 +36,6 @@ source_fingerprint() {
 }
 
 command -v skopeo >/dev/null || fail "skopeo is required"
-[ -d "$MODEL_DIR" ] || fail "model directory not found: $MODEL_DIR"
 step "1. Clearing old Hey Hey local install and rehearsal leftovers"
 echo "disk free before: $(df -h /System/Volumes/Data | awk 'NR==2 {print $4}')"
 containers="$(docker ps -aq --filter name=heyhey-local- --filter name=heyhey-rehearsal-)"
@@ -96,8 +94,7 @@ pnpm exec tsx scripts/rehearse-local.ts "$OCI_DIR/rehearsal-sources.json" "/tmp/
 
 step "4. Installing as a new user"
 npm install -g --prefix "/tmp/heyhey-try-$RUN" "/tmp/heyhey-rehearsal-$RUN/hey-hey-cli-$version.tgz"
-export HEYHEY_LOCAL_MODEL_DIR="$MODEL_DIR"
-export HEYHEY_PROFILE="newuser-$RUN"
+export HEYHEY_LOCAL_export HEYHEY_PROFILE="newuser-$RUN"
 export HEYHEY_AUTHORIZATION_DIR="/tmp/heyhey-newuser-$RUN/authorization"
 
 # Verify the running UI once its container is up, while `heyhey local` keeps running.

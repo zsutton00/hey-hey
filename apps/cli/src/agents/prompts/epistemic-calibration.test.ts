@@ -5,8 +5,8 @@ import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../prompt-type-registry.
 import {
   gpt56EpistemicCalibration,
   selectGpt56EpistemicCalibration,
-  type PlatformPromptContext,
 } from './epistemic-calibration';
+import type { PlatformPromptContext } from './platform-prompt-context';
 
 const registry = new PromptTypeRegistry(PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES);
 const codexContextFor = (

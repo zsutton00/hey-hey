@@ -1,16 +1,14 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
+import { Alert, Box, CircularProgress, TextField } from "@mui/material";
 import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Container,
-  TextField,
-  Typography,
-  Alert,
-  CircularProgress,
-} from "@mui/material";
+  BrandedButton,
+  BrandedCard,
+  BrandedDivider,
+  BrandedHeadline,
+  BrandedPage,
+  BrandedWordmark,
+} from "@hey-hey/ui-common/components";
 import { useAuth } from "@hey-hey/ui-common/context";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "@hey-hey/ui-common/i18n";
@@ -23,6 +21,37 @@ import {
 
 const PASSWORD_RECOVERY_ACKNOWLEDGEMENT =
   "We've sent an email with recovery instructions";
+
+const FIELD_SX = {
+  mb: 2,
+  "& .MuiInputBase-root": {
+    color: "#fff",
+    background: "rgb(255 255 255 / 5%)",
+  },
+  "& .MuiOutlinedInput-notchedOutline": {
+    borderColor: "rgb(255 255 255 / 35%)",
+  },
+  "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline": {
+    borderColor: "rgb(255 255 255 / 70%)",
+  },
+} as const;
+
+const FIELD_LABEL_SX = { color: "#fff", fontWeight: 700, fontSize: "0.85rem" };
+
+const FORGOT_SX = {
+  display: "block",
+  mt: "1.75rem",
+  mx: "auto",
+  p: 0,
+  border: 0,
+  background: "none",
+  color: "#3fa7b5",
+  cursor: "pointer",
+  font: "inherit",
+  fontSize: "0.85rem",
+  textTransform: "uppercase",
+  textDecoration: "underline",
+} as const;
 
 const Login = () => {
   const navigate = useNavigate();
@@ -117,158 +146,129 @@ const Login = () => {
 
   // If user is not authenticated, show login form
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <Card sx={{ width: "100%", maxWidth: 400 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Typography
-              component="h1"
-              variant="h4"
-              align="center"
-              gutterBottom
-              sx={{ mb: 3 }}
-            >
-              Welcome Back
-            </Typography>
+    <BrandedPage>
+      <BrandedWordmark>HEY HEY</BrandedWordmark>
+      <BrandedHeadline line="Sign in to continue to your projects">
+        Welcome Back
+      </BrandedHeadline>
+      <BrandedCard>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
-            <Typography
-              variant="body2"
-              align="center"
-              color="text.secondary"
-              sx={{ mb: 3 }}
-            >
-              Sign in to continue to your projects
-            </Typography>
+        <Box component="form" onSubmit={handleSubmit}>
+          <Box component="label" htmlFor="email" sx={FIELD_LABEL_SX}>
+            Email address
+          </Box>
+          <TextField
+            required
+            fullWidth
+            id="email"
+            name="email"
+            autoComplete="username"
+            autoFocus
+            value={formData.email}
+            onChange={handleChange}
+            disabled={loading}
+            sx={FIELD_SX}
+          />
+          <Box component="label" htmlFor="password" sx={FIELD_LABEL_SX}>
+            Password
+          </Box>
+          <TextField
+            required
+            fullWidth
+            name="password"
+            type="password"
+            id="password"
+            autoComplete="current-password"
+            value={formData.password}
+            onChange={handleChange}
+            disabled={loading}
+            sx={FIELD_SX}
+          />
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
+          <BrandedButton type="submit" disabled={loading}>
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              t(KEYS.auth.signIn)
             )}
-
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="email"
-                label="Email Address"
-                name="email"
-                autoComplete="email"
-                autoFocus
-                value={formData.email}
-                onChange={handleChange}
-                disabled={loading}
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                name="password"
-                label="Password"
-                type="password"
-                id="password"
-                autoComplete="current-password"
-                value={formData.password}
-                onChange={handleChange}
-                disabled={loading}
-              />
-
-              <Button
-                type="submit"
-                fullWidth
-                color="actionable"
-                variant="contained"
-                sx={{ mt: 3, mb: 2, py: 1.5 }}
-                disabled={loading}
-              >
-                {loading ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  t(KEYS.auth.signIn)
-                )}
-              </Button>
-              {isPasskeySupported() && (
-                <Button
-                  type="button"
-                  fullWidth
-                  variant="outlined"
-                  sx={{ mb: 1 }}
-                  onClick={() => void handlePasskeySignIn()}
-                  disabled={loading}
-                  data-testid="passkey-sign-in-button"
-                >
-                  Sign in with a passkey
-                </Button>
-              )}
-              <Button
+          </BrandedButton>
+          {isPasskeySupported() && (
+            <>
+              <BrandedDivider label={t(KEYS.auth.or)} />
+              <BrandedButton
                 type="button"
-                fullWidth
-                variant="text"
-                onClick={() => {
-                  setShowRecovery((visible) => !visible);
-                  setRecoveryAcknowledgement("");
-                  setError("");
-                }}
-                aria-expanded={showRecovery}
-                data-testid="forgot-credentials-button"
+                variant="secondary"
+                onClick={() => void handlePasskeySignIn()}
+                disabled={loading}
+                data-testid="passkey-sign-in-button"
               >
-                Forgot credentials?
-              </Button>
-            </Box>
+                Sign in with a passkey
+              </BrandedButton>
+            </>
+          )}
+          <Box
+            component="button"
+            type="button"
+            sx={FORGOT_SX}
+            onClick={() => {
+              setShowRecovery((visible) => !visible);
+              setRecoveryAcknowledgement("");
+              setError("");
+            }}
+            aria-expanded={showRecovery}
+            data-testid="forgot-credentials-button"
+          >
+            Forgot credentials?
+          </Box>
+        </Box>
 
-            {showRecovery && (
-              <Box
-                component="form"
-                onSubmit={handleRecoverySubmit}
-                data-testid="password-recovery-form"
-                sx={{ mt: 2 }}
+        {showRecovery && (
+          <Box
+            component="form"
+            onSubmit={handleRecoverySubmit}
+            data-testid="password-recovery-form"
+            sx={{ mt: 2 }}
+          >
+            {recoveryAcknowledgement ? (
+              <Alert
+                severity="success"
+                data-testid="password-recovery-acknowledgement"
               >
-                {recoveryAcknowledgement ? (
-                  <Alert
-                    severity="success"
-                    data-testid="password-recovery-acknowledgement"
-                  >
-                    {recoveryAcknowledgement}
-                  </Alert>
-                ) : (
-                  <>
-                    <TextField
-                      required
-                      fullWidth
-                      type="email"
-                      label="Email Address"
-                      autoComplete="email"
-                      value={recoveryEmail}
-                      onChange={(event) => setRecoveryEmail(event.target.value)}
-                      disabled={loading}
-                      inputProps={{ "data-testid": "password-recovery-email" }}
-                    />
-                    <Button
-                      type="submit"
-                      fullWidth
-                      variant="outlined"
-                      disabled={loading}
-                      data-testid="password-recovery-submit"
-                      sx={{ mt: 2 }}
-                    >
-                      Send recovery instructions
-                    </Button>
-                  </>
-                )}
-              </Box>
+                {recoveryAcknowledgement}
+              </Alert>
+            ) : (
+              <>
+                <TextField
+                  required
+                  fullWidth
+                  type="email"
+                  label="Email Address"
+                  autoComplete="email"
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  disabled={loading}
+                  inputProps={{ "data-testid": "password-recovery-email" }}
+                  sx={FIELD_SX}
+                />
+                <BrandedButton
+                  type="submit"
+                  variant="secondary"
+                  disabled={loading}
+                  data-testid="password-recovery-submit"
+                >
+                  Send recovery instructions
+                </BrandedButton>
+              </>
             )}
-          </CardContent>
-        </Card>
-      </Box>
-    </Container>
+          </Box>
+        )}
+      </BrandedCard>
+    </BrandedPage>
   );
 };
 

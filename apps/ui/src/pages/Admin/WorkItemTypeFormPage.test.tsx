@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   act,
   fireEvent,
@@ -41,10 +42,12 @@ const mockAnalyzeWorkItemTypeEdit = vi.fn();
 const mockEditMutate = vi.fn();
 const mockArchiveMutate = vi.fn();
 const mockResetMutate = vi.fn();
+const mockUseCanonicalComparison = vi.fn();
 const mockHardDeleteMutate = vi.fn();
 const mockCascadeImpact = vi.fn();
 const mockSectionImpact = vi.fn();
 const mockTrackingImpact = vi.fn();
+const mockResolveStatuses = vi.fn();
 const mockRefetchWorkItemTypes = vi.fn();
 const mockRefetchWorkItemType = vi.fn();
 let mockTypeKey: string | undefined;
@@ -77,6 +80,10 @@ vi.mock("@hey-hey/ui-common/data", async () => {
   >("@hey-hey/ui-common/data");
   return {
     ...actual,
+    useResolveWorkItemTypeStatuses: () => ({
+      mutate: mockResolveStatuses,
+      isPending: false,
+    }),
     analyzeWorkItemTypeEdit: (
       ...args: Parameters<typeof actual.analyzeWorkItemTypeEdit>
     ) => {
@@ -117,6 +124,8 @@ vi.mock("@hey-hey/ui-common/data", async () => {
       capturedHardDeleteOptions = options;
       return { mutate: mockHardDeleteMutate, isPending: false };
     },
+    useWorkItemTypeCanonicalComparison: (...args: unknown[]) =>
+      mockUseCanonicalComparison(...args),
     useWorkItemTypeCascadeImpact: (...args: unknown[]) =>
       mockCascadeImpact(...args),
     useWorkItemTypeSectionContentImpact: (...args: unknown[]) =>
@@ -194,6 +203,9 @@ function activeCustomSummary(
     effectiveSource: WorkItemTypeEffectiveSource.ProjectCustom,
     definition: {
       ...definition,
+      statuses: definition.statuses.length
+        ? definition.statuses
+        : legacyStatuses([WorkStatus.Backlog]),
       tracking: definition.tracking ?? {
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
@@ -230,7 +242,7 @@ function prepareArchivedCustomEdit(): WorkItemTypeSummaryDto {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     }),
     status: WorkItemTypeLifecycleStatus.Archived,
   };
@@ -249,6 +261,17 @@ function prepareArchivedCustomEdit(): WorkItemTypeSummaryDto {
 describe("WorkItemTypeFormPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockResolveStatuses.mockReset();
+    mockResolveStatuses.mockImplementation(async ({ request }) => ({
+      state: "RESOLVED",
+      suggestions: ["BACKLOG"],
+      statuses: (request.names ?? ["BACKLOG"]).map(
+        (name: string) =>
+          request.existingStatuses?.find(
+            (status: { name: string }) => status.name === name,
+          ) ?? { name, meaning: "NOT_STARTED" },
+      ),
+    }));
     capturedCreateOptions = undefined;
     capturedEditOptions = undefined;
     capturedArchiveOptions = undefined;
@@ -433,7 +456,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -593,7 +616,7 @@ describe("WorkItemTypeFormPage", () => {
         iconKey: "bug",
         colorKey: "primary",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -635,7 +658,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         iconKey: "bug",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       effectiveSource,
     };
@@ -654,7 +677,7 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not submit an icon name outside the closed palette", () => {
+  it("does not submit an icon name outside the closed palette", async () => {
     renderForm();
     fillField("wit-form-key", "CUSTOM");
     fillField("wit-form-name", "Custom work");
@@ -663,7 +686,9 @@ describe("WorkItemTypeFormPage", () => {
     const iconInput = iconField.querySelector("input");
     if (!iconInput) throw new Error("Missing work-item icon input");
     fireEvent.change(iconInput, { target: { value: "not-a-work-item-icon" } });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition).not.toHaveProperty(
       "iconKey",
@@ -678,7 +703,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       iconKey: "bug",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -761,6 +786,155 @@ describe("WorkItemTypeFormPage", () => {
     expect(screen.getByTestId("wit-form-add-capability")).toBeInTheDocument();
   });
 
+  it("uses the shared resolver for a custom status and accepts no finished statuses", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses
+      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
+      .mockResolvedValueOnce({
+        state: "RESOLVED",
+        suggestions: [],
+        statuses: [{ name: "Maintained", meaning: "IN_PROGRESS" }],
+      });
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await user.type(
+      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
+      "Maintained",
+    );
+    await user.click(screen.getByTestId("wit-status-add"));
+    await user.click(screen.getByTestId("wit-form-submit"));
+    const question = await screen.findByTestId("wit-status-clarification");
+    expect(
+      within(question).getByText("workItemType.status.finished"),
+    ).toBeInTheDocument();
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    // The answer is required: submitting without one is blocked.
+    await user.click(screen.getByTestId("wit-form-submit"));
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+
+    await user.click(
+      within(question).getByLabelText("workItemType.status.noneOfThese"),
+    );
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
+    expect(mockResolveStatuses).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          names: ["Maintained"],
+          finishedNames: [],
+        }),
+      }),
+    );
+    expect(mockCreateMutate.mock.calls[0][0].definition.statuses).toEqual([
+      { name: "Maintained", meaning: "IN_PROGRESS" },
+    ]);
+  });
+
+  it("lets people rename, reorder and remove statuses while keeping the first as the start", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing", "Made"],
+    });
+    renderForm();
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    await screen.findByDisplayValue("Idea");
+
+    const rows = () => screen.getAllByLabelText("workItemType.status.name");
+    await user.clear(rows()[1]!);
+    await user.type(rows()[1]!, "Tasting");
+    await user.click(
+      screen.getAllByLabelText("workItemType.status.moveUp")[1]!,
+    );
+
+    expect(rows()[0]).toHaveValue("Tasting");
+    expect(screen.getByTestId("wit-status-start")).toBeInTheDocument();
+
+    await user.click(
+      screen.getAllByLabelText("workItemType.status.remove")[0]!,
+    );
+    expect(rows()[0]).toHaveValue("Idea");
+    expect(screen.queryByDisplayValue("Tasting")).not.toBeInTheDocument();
+    expect(screen.getByTestId("wit-status-reserved")).toBeInTheDocument();
+  });
+
+  it("edits only the targeted row while a rename temporarily duplicates another name", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing"],
+    });
+    renderForm();
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    await screen.findByDisplayValue("Idea");
+
+    const rows = () => screen.getAllByLabelText("workItemType.status.name");
+    await user.clear(rows()[1]!);
+    await user.type(rows()[1]!, "Idea");
+    await user.type(rows()[1]!, "s");
+
+    expect(rows()[0]).toHaveValue("Idea");
+    expect(rows()[1]).toHaveValue("Ideas");
+  });
+
+  it("drops the finished question when new suggestions replace the list", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses
+      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
+      .mockResolvedValueOnce({ state: "RESOLVED", suggestions: ["Idea"] })
+      .mockResolvedValueOnce({
+        state: "RESOLVED",
+        suggestions: [],
+        statuses: [{ name: "Idea", meaning: "NOT_STARTED" }],
+      });
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await user.type(
+      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
+      "Maintained",
+    );
+    await user.click(screen.getByTestId("wit-status-add"));
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await screen.findByTestId("wit-status-clarification");
+
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    expect(
+      screen.queryByTestId("wit-status-clarification"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("wit-form-submit"));
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
+  });
+
+  it("requests suggestions for the type purpose", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      state: "RESOLVED",
+      suggestions: ["Idea", "Testing", "Made", "Rejected"],
+    });
+    renderForm();
+    fillField("wit-form-name", "Recipe");
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    expect(mockResolveStatuses).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: { purpose: "Recipe" },
+      }),
+    );
+    expect(
+      await within(screen.getByTestId("wit-form-statuses")).findByDisplayValue(
+        "Idea",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("keeps one draft across tabs and submits visited and unvisited create fields", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -815,7 +989,7 @@ describe("WorkItemTypeFormPage", () => {
       sections: [
         { key: "details", label: "Details", writingStandard: "Be specific." },
       ],
-      allowedStatuses: [],
+      statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
       writingStandards: { create: "Lead with the audience.", edit: "" },
     });
   });
@@ -844,7 +1018,7 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows All for a new relationship and serializes it as any type", () => {
+  it("shows All for a new relationship and serializes it as any type", async () => {
     renderForm();
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
@@ -853,7 +1027,9 @@ describe("WorkItemTypeFormPage", () => {
     expect(screen.getByTestId("wit-form-edge-targets-0")).toHaveTextContent(
       "All",
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition.edgeTargets).toEqual([
       {
@@ -869,7 +1045,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypes.mockReturnValue({
       workItemTypes: [activeType],
@@ -899,7 +1075,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         description: "Current project task",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       isLoading: false,
       error: null,
@@ -927,6 +1103,96 @@ describe("WorkItemTypeFormPage", () => {
     );
   });
 
+  describe("compare with canonical", () => {
+    const overrideDefinition: WorkItemTypeSummaryDto["definition"] = {
+      key: "GOAL",
+      name: "Goal",
+      role: "project-info",
+      sections: [{ key: "description", label: "Description" }],
+      statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
+      sessionRoleGuidance: { planning: "Plan goals with owners." },
+    };
+
+    function openOverrideComparison(
+      canonical: WorkItemTypeSummaryDto["definition"],
+    ): void {
+      mockTypeKey = "GOAL";
+      const effective = canonicalSummary(overrideDefinition);
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: effective,
+        isLoading: false,
+        error: null,
+      });
+      mockUseCanonicalComparison.mockReturnValue({
+        data: { effective, canonical },
+        isLoading: false,
+        error: null,
+      });
+      renderForm();
+      fireEvent.click(screen.getByTestId("wit-form-compare-with-canonical"));
+    }
+
+    it("shows changed and missing parts and collapses unchanged groups", () => {
+      openOverrideComparison({
+        ...overrideDefinition,
+        statuses: legacyStatuses([
+          WorkStatus.Backlog,
+          WorkStatus.Active,
+          WorkStatus.Completed,
+        ]),
+        sessionRoleGuidance: {
+          planning: "Plan goals with owners.",
+          review: "Check due dates.",
+        },
+      });
+
+      expect(screen.queryByTestId("wit-compare-matches")).toBeNull();
+      expect(
+        within(
+          screen.getByTestId("wit-compare-entry-allowedStatuses"),
+        ).getByText("Changed"),
+      ).toBeInTheDocument();
+      expect(
+        within(
+          screen.getByTestId("wit-compare-entry-sessionRoleGuidance.review"),
+        ).getByText("Only in canonical"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("wit-compare-linediff-sessionRoleGuidance.review"),
+      ).toHaveTextContent("Check due dates.");
+      expect(
+        screen.getByTestId("wit-compare-group-Overview"),
+      ).toHaveTextContent("No differences");
+      expect(
+        screen
+          .getByTestId("wit-compare-group-Overview")
+          .querySelector('[aria-expanded="true"]'),
+      ).toBeNull();
+    });
+
+    it("says plainly when the override matches canonical", () => {
+      openOverrideComparison(overrideDefinition);
+
+      expect(screen.getByTestId("wit-compare-matches")).toHaveTextContent(
+        "This override matches the current canonical definition.",
+      );
+    });
+
+    it("offers no comparison for a type that is not an override", () => {
+      mockTypeKey = "CUSTOM";
+      mockUseWorkItemTypeByKey.mockReturnValue({
+        workItemTypeSummary: builtInCanonicalSummary(overrideDefinition),
+        isLoading: false,
+        error: null,
+      });
+      renderForm();
+
+      expect(
+        screen.queryByTestId("wit-form-compare-with-canonical"),
+      ).toBeNull();
+    });
+  });
+
   it("offers reset-to-canonical review for an eligible archived override without enabling edits", () => {
     mockTypeKey = "STANDARD";
     mockUseWorkItemTypeByKey.mockReturnValue({
@@ -937,7 +1203,7 @@ describe("WorkItemTypeFormPage", () => {
           role: "work-item",
           description: "Archived project task",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
         WorkItemTypeLifecycleStatus.Archived,
       ),
@@ -989,7 +1255,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Retired type",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1014,7 +1280,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Active type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const archivedType = {
       ...activeCustomSummary({
@@ -1022,7 +1288,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived type",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1055,14 +1321,14 @@ describe("WorkItemTypeFormPage", () => {
       name: "Allowed source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const disallowedSource = activeCustomSummary({
       key: "DISALLOWED_SOURCE",
       name: "Disallowed source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const archivedSource = {
       ...activeCustomSummary({
@@ -1070,7 +1336,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived source",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -1079,7 +1345,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Tracking target",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["ALLOWED_SOURCE", "ARCHIVED_SOURCE"],
@@ -1129,20 +1395,20 @@ describe("WorkItemTypeFormPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("authors TASK as the only entity kind when tracking sources are selected", () => {
+  it("authors TASK as the only entity kind when tracking sources are selected", async () => {
     const allowedSource = activeCustomSummary({
       key: "GOAL",
       name: "Goal",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const existingTarget = activeCustomSummary({
       key: "FEATURE",
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["GOAL"],
@@ -1164,7 +1430,9 @@ describe("WorkItemTypeFormPage", () => {
     );
     fireEvent.click(screen.getByRole("option", { name: "GOAL" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate.mock.calls[0][0].definition.tracking).toEqual({
       allowedSourceEntityTypes: [EntityType.Task],
@@ -1239,14 +1507,14 @@ describe("WorkItemTypeFormPage", () => {
       name: "Active type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     const deletedType = activeCustomSummary({
       key: "DELETED_TYPE",
       name: "Deleted type",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypes.mockReturnValue({
       workItemTypes: [activeType, deletedType],
@@ -1309,7 +1577,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       allowedParentTypes: ["ARCHIVED_PARENT"],
       edgeTargets: [
         {
@@ -1334,7 +1602,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Active type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -1380,7 +1648,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Message],
         allowedSourceTaskTypes: ["GOAL"],
@@ -1399,7 +1667,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Goal",
           role: "project-info",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -1421,7 +1689,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       allowedParentTypes: ["FEATURE"],
       allowedParentEntityTypes: [],
     });
@@ -1449,13 +1717,15 @@ describe("WorkItemTypeFormPage", () => {
     ).toEqual([EntityType.Task]);
   });
 
-  it("submits an assembled definition with tracking zeroed and writing standards null when left blank", () => {
+  it("submits an assembled definition with tracking zeroed and writing standards null when left blank", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledTimes(1);
     expect(mockCreateMutate).toHaveBeenCalledWith({
@@ -1471,7 +1741,7 @@ describe("WorkItemTypeFormPage", () => {
         sections: [],
         requiredScalars: [],
         forbiddenScalars: [],
-        allowedStatuses: [],
+        statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
         allowedParentTypes: [],
         edgeTargets: [],
         allowedParentEntityTypes: [],
@@ -1479,7 +1749,7 @@ describe("WorkItemTypeFormPage", () => {
           allowedSourceEntityTypes: [],
           allowedSourceTaskTypes: [],
         },
-        agentSettableStatuses: [],
+        agentSettableStatuses: ["BACKLOG", "ARCHIVED"],
         anchorableReportTypes: [],
         // Null because both create/edit standards are blank.
         writingStandards: null,
@@ -1488,7 +1758,7 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-  it("assembles writing standards and description when those fields are filled", () => {
+  it("assembles writing standards and description when those fields are filled", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
@@ -1496,7 +1766,9 @@ describe("WorkItemTypeFormPage", () => {
     fillField("wit-form-description", "Captures go-to-market work.");
     fillField("wit-form-writing-standard-create", "Lead with the audience.");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledTimes(1);
     const variables = mockCreateMutate.mock.calls[0][0];
@@ -1520,6 +1792,9 @@ describe("WorkItemTypeFormPage", () => {
     });
     fireEvent.change(screen.getByLabelText("Planning guidance"), {
       target: { value: "Plan with evidence." },
+    });
+    fireEvent.change(screen.getByLabelText("Sync guidance"), {
+      target: { value: "Reconcile against delivered work." },
     });
     selectTab("Overview");
     mockCreateMutate.mockImplementationOnce(async () => {
@@ -1546,7 +1821,9 @@ describe("WorkItemTypeFormPage", () => {
       capturedCreateOptions?.onError?.(failure);
       throw failure;
     });
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
     await screen.findByText("Submission failed");
     expect(screen.getByRole("tab", { name: "Agent guidance" })).toHaveAttribute(
       "aria-selected",
@@ -1557,13 +1834,16 @@ describe("WorkItemTypeFormPage", () => {
       "  Build from reviewed intent.  ",
     );
     expect(screen.getByLabelText("Review guidance")).toHaveValue("");
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
     expect(mockCreateMutate).toHaveBeenCalledTimes(2);
     expect(
       mockCreateMutate.mock.calls[1][0].definition.sessionRoleGuidance,
     ).toEqual({
       implementation: "  Build from reviewed intent.  ",
       planning: "Plan with evidence.",
+      sync: "Reconcile against delivered work.",
     });
   });
 
@@ -1573,14 +1853,14 @@ describe("WorkItemTypeFormPage", () => {
     { implementation: "  Preserve prose  ", review: "Review" },
   ])(
     "preserves unvisited role fields and allows explicit clearing: %j",
-    (sessionRoleGuidance) => {
+    async (sessionRoleGuidance) => {
       mockTypeKey = "CUSTOM";
       const definition = {
         key: "CUSTOM",
         name: "Custom work",
         role: "work-item" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         ...(sessionRoleGuidance === undefined ? {} : { sessionRoleGuidance }),
       };
       const summary = activeCustomSummary(definition);
@@ -1594,7 +1874,9 @@ describe("WorkItemTypeFormPage", () => {
         isLoading: false,
       });
       renderForm();
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       const submitted = mockEditMutate.mock.calls[0][0].definition;
       expect(Object.hasOwn(submitted, "sessionRoleGuidance")).toBe(
         sessionRoleGuidance !== undefined,
@@ -1608,7 +1890,9 @@ describe("WorkItemTypeFormPage", () => {
         target: { value: "" },
       });
       selectTab("Content");
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       const cleared = mockEditMutate.mock.calls[1][0].definition;
       expect(cleared.sessionRoleGuidance).toEqual(
         sessionRoleGuidance?.review ? { review: "Review" } : undefined,
@@ -1616,7 +1900,7 @@ describe("WorkItemTypeFormPage", () => {
     },
   );
 
-  it("submits maintenance advice as its own optional definition field", () => {
+  it("submits maintenance advice as its own optional definition field", async () => {
     renderForm();
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
@@ -1624,7 +1908,9 @@ describe("WorkItemTypeFormPage", () => {
       "wit-form-maintenance-guidance",
       "  Review campaign previews against approved behavior.  ",
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockCreateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1636,13 +1922,15 @@ describe("WorkItemTypeFormPage", () => {
     );
   });
 
-  it("stays on the form, links the created proposal, and refreshes registry data", () => {
+  it("stays on the form, links the created proposal, and refreshes registry data", async () => {
     renderForm();
 
     fillField("wit-form-key", "marketing");
     fillField("wit-form-name", "Marketing");
 
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(screen.getByTestId("wit-form-proposal-created")).toHaveTextContent(
@@ -1657,7 +1945,15 @@ describe("WorkItemTypeFormPage", () => {
 
   it("blocks submission and surfaces an error when the key collides with an existing type", () => {
     mockUseWorkItemTypes.mockReturnValue({
-      workItemTypes: [{ definition: { key: "MARKETING" } }],
+      workItemTypes: [
+        activeCustomSummary({
+          key: "MARKETING",
+          name: "Marketing",
+          role: "work-item",
+          sections: [],
+          statuses: legacyStatuses([WorkStatus.Backlog]),
+        }),
+      ],
       isLoading: false,
     });
     renderForm();
@@ -1679,7 +1975,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A delivered behavior defect.",
       sections: [],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       tracking: {
         allowedSourceEntityTypes: [],
         allowedSourceTaskTypes: [],
@@ -1722,7 +2018,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       edgeTargets: [
         {
           edgeType: AgentEdgeType.RelatedTo,
@@ -1772,7 +2068,7 @@ describe("WorkItemTypeFormPage", () => {
       ],
       requiredScalars: [],
       forbiddenScalars: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([WorkStatus.Backlog]),
       allowedParentTypes: [],
       edgeTargets: [],
       allowedParentEntityTypes: [],
@@ -1873,7 +2169,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Workflow",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         graph,
         rendersInline: true,
@@ -1924,7 +2220,7 @@ describe("WorkItemTypeFormPage", () => {
         ],
         requiredScalars: [WorkItemTypeScalarField.DueDate],
         forbiddenScalars: [WorkItemTypeScalarField.Tag],
-        allowedStatuses: [WorkStatus.Ready, WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Ready, WorkStatus.Active]),
         allowedParentTypes: ["FEATURE"],
         edgeTargets: [
           {
@@ -1999,7 +2295,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2054,7 +2350,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2098,7 +2394,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Feature",
       role: "project-info",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: { isHierarchyNode: true },
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
@@ -2131,7 +2427,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Capability source",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         requiresParent: false,
         showsInExplorerSidebar: false,
@@ -2178,7 +2474,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       capabilities: {
         requiresParent: false,
         showsInExplorerSidebar: false,
@@ -2228,7 +2524,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Minimal",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([WorkStatus.Backlog]),
     };
     const summary: WorkItemTypeSummaryDto = {
       id: "minimal-type",
@@ -2263,7 +2559,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Custom work",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2304,7 +2600,7 @@ describe("WorkItemTypeFormPage", () => {
     });
   });
 
-  it("submits allowed-status edits for custom definitions", () => {
+  it("preserves remaining status metadata when removing an ordinary status", async () => {
     mockTypeKey = "STATUSFUL";
     const summary: WorkItemTypeSummaryDto = {
       id: "statusful-type",
@@ -2316,7 +2612,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Statusful",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
       },
     };
     mockUseWorkItemTypeByKey.mockReturnValue({
@@ -2332,13 +2628,18 @@ describe("WorkItemTypeFormPage", () => {
     renderForm();
     selectTab("Lifecycle");
     const selector = screen.getByTestId("wit-form-statuses");
-    fireEvent.mouseDown(within(selector).getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: WorkStatus.Active }));
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    fireEvent.click(
+      within(selector).getAllByRole("button", {
+        name: "workItemType.status.remove",
+      })[0],
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
-    expect(mockEditMutate.mock.calls[0][0].definition.allowedStatuses).toEqual([
-      WorkStatus.Active,
-    ]);
+    expect(mockEditMutate.mock.calls[0][0].definition.statuses).toEqual(
+      legacyStatuses([WorkStatus.Active]),
+    );
     expect(
       screen.queryByTestId("wit-form-unsupported-impact"),
     ).not.toBeInTheDocument();
@@ -2351,7 +2652,7 @@ describe("WorkItemTypeFormPage", () => {
       name: "Standard task",
       role: "work-item",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2406,7 +2707,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Editable type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         effectiveSource,
       };
@@ -2446,7 +2747,7 @@ describe("WorkItemTypeFormPage", () => {
         { key: "audience", label: "Audience", writingStandard: null },
         { key: "details", label: "Details", writingStandard: null },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2488,7 +2789,7 @@ describe("WorkItemTypeFormPage", () => {
       role: "work-item",
       description: "A custom type.",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       tracking: {
         allowedSourceEntityTypes: [EntityType.Task],
         allowedSourceTaskTypes: ["BUG", "FEATURE"],
@@ -2507,14 +2808,14 @@ describe("WorkItemTypeFormPage", () => {
           name: "Bug",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         activeCustomSummary({
           key: "FEATURE",
           name: "Feature",
           role: "project-info",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
       ],
       isLoading: false,
@@ -2597,7 +2898,7 @@ describe("WorkItemTypeFormPage", () => {
           { key: "audience", label: "Audience", writingStandard: null },
           { key: "details", label: "Details", writingStandard: null },
         ],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -2636,7 +2937,7 @@ describe("WorkItemTypeFormPage", () => {
           schemaRef: "#/components/schemas/Details",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockUseWorkItemTypeByKey.mockReturnValue({
       workItemTypeSummary: summary,
@@ -2952,7 +3253,7 @@ describe("WorkItemTypeFormPage", () => {
               name: "Custom work",
               role: "work-item",
               sections: [],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           },
           isLoading: false,
@@ -2997,7 +3298,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Custom work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3024,7 +3325,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Custom work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3058,7 +3359,7 @@ describe("WorkItemTypeFormPage", () => {
           role: "work-item",
           description: null,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           tracking: {
             allowedSourceEntityTypes: [],
             allowedSourceTaskTypes: [],
@@ -3094,7 +3395,7 @@ describe("WorkItemTypeFormPage", () => {
         role: "work-item",
         description: "Original description",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([WorkStatus.Backlog]),
         capabilities: { planEligible: false },
       },
     } as WorkItemTypeSummaryDto;
@@ -3135,7 +3436,9 @@ describe("WorkItemTypeFormPage", () => {
     await waitFor(() =>
       expect(screen.getByTestId("wit-form-submit")).not.toBeDisabled(),
     );
-    fireEvent.click(screen.getByTestId("wit-form-submit"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wit-form-submit"));
+    });
 
     expect(mockEditMutate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3201,7 +3504,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Custom work",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([WorkStatus.Backlog]),
       });
       mockUseWorkItemTypeByKey.mockReturnValue({
         workItemTypeSummary: summary,
@@ -3224,7 +3527,9 @@ describe("WorkItemTypeFormPage", () => {
         "wit-form-writing-standard-create",
         "My unsaved writing guidance",
       );
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       await waitFor(() =>
         expect(screen.getByTestId("wit-form-error")).toHaveTextContent(message),
       );
@@ -3250,7 +3555,9 @@ describe("WorkItemTypeFormPage", () => {
           screen.getByTestId("wit-form-writing-standard-create"),
         ).getByRole("textbox"),
       ).toHaveValue("My unsaved writing guidance");
-      fireEvent.click(screen.getByTestId("wit-form-submit"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("wit-form-submit"));
+      });
       expect(mockEditMutate.mock.calls[1][0]).toEqual(submitted);
       expect(mockNavigate).not.toHaveBeenCalled();
     },
@@ -3270,7 +3577,7 @@ describe("WorkItemTypeFormPage", () => {
           writingStandard: "  Preserve this section guidance.  ",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       writingStandards: {
         create: "  Create carefully.  ",
         edit: "  Edit carefully.  ",
@@ -3313,7 +3620,7 @@ describe("WorkItemTypeFormPage", () => {
       ],
       requiredScalars: [WorkItemTypeScalarField.DueDate],
       forbiddenScalars: [],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       allowedParentTypes: [],
       edgeTargets: [],
       allowedParentEntityTypes: [],
@@ -3370,7 +3677,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Foreign work",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       },
       isLoading: false,
@@ -3397,7 +3704,7 @@ describe("WorkItemTypeFormPage", () => {
         name: "Archived custom",
         role: "work-item",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       }),
       status: WorkItemTypeLifecycleStatus.Archived,
     };
@@ -3452,7 +3759,7 @@ describe("WorkItemTypeFormPage", () => {
           name: "Other project type",
           role: "work-item",
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         }),
         projectId: "proj-2",
       },

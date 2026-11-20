@@ -39,4 +39,10 @@ export interface LaunchEvalRunRequestSettings {
      * @memberof LaunchEvalRunRequestSettings
      */
     'attemptTokenLimit'?: number;
+    /**
+     * Separate fresh attempts per case and configuration. Omitted means 1.
+     * @type {number}
+     * @memberof LaunchEvalRunRequestSettings
+     */
+    'repeatsPerAttempt'?: number;
 }

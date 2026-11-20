@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Alert, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { Navigate, useSearchParams } from "react-router-dom";
+import { Local } from "@hey-hey/ui-common/components";
 import { useOrganization } from "@hey-hey/ui-common/context";
 import {
   useConversationByWorkflow,
@@ -78,12 +79,14 @@ export function LocalWelcome() {
       <WelcomeSteps
         cta={
           <Stack spacing={2} sx={{ width: "100%", maxWidth: 720 }}>
-            <Typography
-              data-testid="onboarding-model-guidance"
-              color="text.secondary"
-            >
-              {t("onboarding.runtime.ownPlanGuidance")}
-            </Typography>
+            <Local>
+              <Typography
+                data-testid="onboarding-model-guidance"
+                color="text.secondary"
+              >
+                {t("onboarding.runtime.ownPlanGuidance")}
+              </Typography>
+            </Local>
             {failure && <Alert severity="error">{failure}</Alert>}
             {projects.isReady && !project ? (
               <Alert severity="error">

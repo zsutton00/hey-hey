@@ -12,6 +12,7 @@ import type {
   ResolvedServiceBinding,
   TaskResponseDto,
 } from '../shared/agent-bridge-contract/contract';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type {
   ReviewFileScopeContinuation,
@@ -60,11 +61,15 @@ export interface ProviderSessionHistoryEntry {
  *   (rendered as the sub-section label in the prompt block).
  * - `content` — the rendered memo body.
  * - `writtenAt` — ISO timestamp the memo was appended.
+ * - `handoff` — the memo is the producing phase's handoff to the next phase.
+ *   A new provider session then receives the memo instead of that phase's
+ *   last reply, which only restates it.
  */
 export interface RunMemo {
   source: string;
   content: string;
   writtenAt: string;
+  handoff?: true;
 }
 
 /**
@@ -140,6 +145,8 @@ export interface AgenticSessionEvent {
 interface AgenticSessionBase {
   /** Immutable execution isolation, retained across restoration. */
   readonly inert?: boolean;
+  /** Immutable. What an inert eval attempt's `unified_search` may not reveal about its own case. */
+  readonly searchScope?: EvalSearchScope;
   /** Immutable. An inert Run whose Service path is a dedicated workspace directory it may edit. */
   readonly workspaceBound?: boolean;
   agentic_session_id: string;
@@ -195,6 +202,8 @@ interface AgenticSessionBase {
         providerSession?: { provider: string; sessionId: string | null };
       };
   /** Last committed final answer; retained when provider carryover is consumed. */
+  commitIntent?: import('../agents/commit/commit-intent').CommitIntent;
+  committedFileVersions?: Record<string, string | null>;
   finalAssistantMessage?: {
     turnId: string;
     messageId: string;
@@ -264,6 +273,7 @@ export type AgenticSession = AgenticSessionBase & {
 
 interface CreateAgenticSessionInputBase {
   readonly inert?: boolean;
+  readonly searchScope?: EvalSearchScope;
   readonly workspaceBound?: boolean;
   agentic_session_id?: string;
   entity: RunEntityReference | null;

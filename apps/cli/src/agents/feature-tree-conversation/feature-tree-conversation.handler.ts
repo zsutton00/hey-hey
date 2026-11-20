@@ -1,7 +1,7 @@
 import type { AgenticSession } from '../../session/types';
 import type { AgentEdgeResponseDto, FeatureSkeletonNode } from '@hey-hey/contracts/api/models';
 import { AgentEdgeType } from '@hey-hey/contracts/api/models';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFeatureTreeConversationPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type {
   PrepareResult,
@@ -184,6 +184,7 @@ const buildEdgesByFeatureId = (
 export const featureTreeConversationHandler: UserLaunchablePromptTypeHandler<LocalFeatureTreeConversationPromptPayload> =
   {
     id: 'feature_tree_conversation',
+    sessionRole: SessionRole.Research,
     promptType: LocalPromptType.FeatureTreeConversation,
     service: 'optional',
     launchEntity: 'required',

@@ -1,11 +1,10 @@
 import { machinesClient } from "../../../../clients/serviceClients";
 
 export type MachinePingResult =
-  | { ok: true; acknowledged: boolean }
-  | { ok: false; error: string };
+  { ok: true; acknowledged: boolean } | { ok: false; error: string };
 
 export const submitMachinePingViaPlatform = async (
-  machineId: string
+  machineId: string,
 ): Promise<MachinePingResult> => {
   try {
     const response = await machinesClient.pingMachine({ machineId: machineId });

@@ -1,5 +1,6 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TaskAllowedStatusEntry, WorkStatus } from "../../api";
+import type { TaskAllowedStatusEntry } from "../../api";
 import { tasksClient } from "../../clients/serviceClients";
 
 export interface UseTaskAllowedStatusesParams {
@@ -17,7 +18,7 @@ export interface UseTaskAllowedStatusesReturn {
    * the type is unknown — the status picker is driven entirely off this set
    * and never re-derives validity client-side.
    */
-  getAllowedStatuses: (taskType?: string) => WorkStatus[];
+  getAllowedStatuses: (taskType?: string) => TaskResponseDto["status"][];
 }
 
 /**
@@ -61,7 +62,7 @@ export function useTaskAllowedStatuses({
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to load allowed statuses."
+            : "Failed to load allowed statuses.",
         );
         setIsLoading(false);
       });
@@ -72,16 +73,16 @@ export function useTaskAllowedStatuses({
   }, [organizationId, projectId, enabled]);
 
   const getAllowedStatuses = useCallback(
-    (taskType?: string): WorkStatus[] => {
+    (taskType?: string): TaskResponseDto["status"][] => {
       if (!taskType) return [];
       const entry = entries.find((e) => e.taskType === taskType);
       return entry?.allowedStatuses ?? [];
     },
-    [entries]
+    [entries],
   );
 
   return useMemo(
     () => ({ isLoading, error, getAllowedStatuses }),
-    [isLoading, error, getAllowedStatuses]
+    [isLoading, error, getAllowedStatuses],
   );
 }

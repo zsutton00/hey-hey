@@ -20,6 +20,9 @@ import { StartRunPromptPayloadProviderEnum, StartRunPromptPayloadReasoningEffort
 import type { AgentSessionConfig } from './agent-session-config.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentSessionContinuationMarker1 } from './agent-session-continuation-marker1.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSkillSelection } from './agent-skill-selection.js';
 // May contain unused imports in some cases
 // @ts-ignore

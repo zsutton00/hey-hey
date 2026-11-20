@@ -22,20 +22,20 @@ import type { CodingResearchProvenance } from './coding-research-provenance.js';
 import type { CodingResearchReadinessEvidence } from './coding-research-readiness-evidence.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { CodingResearchStructuredReportPayload } from './coding-research-structured-report-payload.js';
+import type { CodingResearchSelfResearchReportPayload } from './coding-research-self-research-report-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { CodingResearchSubagentParentReportPayload } from './coding-research-subagent-parent-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CodingResearchUncertainty } from './coding-research-uncertainty.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { CodingResearchUpdate } from './coding-research-update.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { CodingResearchWrittenReportPayload } from './coding-research-written-report-payload.js';
 
 /**
  * @type CodingResearchReportPayload
- * Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.
+ * Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).
  * @export
  */
-export type CodingResearchReportPayload = CodingResearchStructuredReportPayload | CodingResearchWrittenReportPayload;
+export type CodingResearchReportPayload = CodingResearchSelfResearchReportPayload | CodingResearchSubagentParentReportPayload;

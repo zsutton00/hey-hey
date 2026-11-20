@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import {
   act,
@@ -546,7 +547,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -1011,7 +1012,7 @@ describe("diagram graph metadata", () => {
       const definition = {
         key: "DIAGRAM_ELEMENT",
         name: "Diagram element",
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [
           {
             key: "diagramElementMetadata",
@@ -1037,7 +1038,7 @@ describe("diagram graph metadata", () => {
         name: "Diagram",
         iconKey: "workflow" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       };
       hookMocks.useWorkItemTypeByKey.mockImplementation(
         (_org, _project, key) => ({
@@ -1079,7 +1080,7 @@ describe("diagram graph metadata", () => {
           name: "Diagram",
           iconKey: "workflow" as const,
           sections: [],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
       };
       const rootIdentity = { refType: "existing", id: diagram.id } as const;
@@ -1326,7 +1327,7 @@ describe("diagram graph metadata", () => {
       const definition = {
         key: "DIAGRAM_ELEMENT",
         name: "Diagram element",
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         sections: [
           {
             key: "diagramElementMetadata",
@@ -1350,7 +1351,7 @@ describe("diagram graph metadata", () => {
                   name: "Diagram",
                   iconKey: "workflow" as const,
                   sections: [],
-                  allowedStatuses: [],
+                  statuses: legacyStatuses([]),
                 }
               : definition,
           isFetched: true,
@@ -1369,7 +1370,7 @@ describe("diagram graph metadata", () => {
               name: "Diagram",
               iconKey: "workflow" as const,
               sections: [],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           }}
           organizationId="org-1"
@@ -1468,7 +1469,7 @@ describe("diagram graph metadata", () => {
                 },
               },
             ],
-            allowedStatuses: [],
+            statuses: legacyStatuses([]),
           },
         }}
       />,
@@ -1493,6 +1494,7 @@ describe("diagram graph metadata", () => {
       { role: "AGENT", label: "Agent", notation: "box" as const },
       { role: "START", label: "Start", notation: "box" as const },
       { role: "END", label: "End", notation: "box" as const },
+      { role: "UI_START", label: "UI Start", notation: "box" as const },
     ].flatMap((entry) =>
       (["view", "edit"] as const).map((mode) => ({ ...entry, mode })),
     ),
@@ -1529,7 +1531,7 @@ describe("diagram graph metadata", () => {
           graphData={{
             workflow: diagram,
             steps:
-              role === "START" || role === "END"
+              role === "START" || role === "END" || role === "UI_START"
                 ? [
                     personElement,
                     {
@@ -1562,7 +1564,7 @@ describe("diagram graph metadata", () => {
                   },
                 },
               ],
-              allowedStatuses: [],
+              statuses: legacyStatuses([]),
             },
           }}
         />,
@@ -1571,20 +1573,24 @@ describe("diagram graph metadata", () => {
 
       const expectSquarePersonCard = (): void => {
         const card = screen.getAllByTestId("workflow-inline-step")[0];
-        if (role === "START" || role === "END") {
+        if (role === "START" || role === "END" || role === "UI_START") {
           expect(screen.getAllByTestId("workflow-inline-step")).toHaveLength(2);
           expect(
             within(card).getByRole("img", { name: `${label} role` }),
           ).toBeInTheDocument();
           expect(
             within(card).getByTestId(
-              role === "START"
-                ? "diagram-element-start-icon"
-                : "diagram-element-end-icon",
+              {
+                START: "diagram-element-start-icon",
+                END: "diagram-element-end-icon",
+                UI_START: "diagram-element-ui-start-icon",
+              }[role],
             ),
           ).toBeInTheDocument();
           expect(screen.getByTestId("diagram-legend")).toHaveTextContent(
-            "parallel paths may continue",
+            role === "UI_START"
+              ? "entrance or primary screen"
+              : "parallel paths may continue",
           );
         }
         expect(card).toHaveAttribute("data-diagram-notation", notation);
@@ -1624,7 +1630,7 @@ describe("diagram graph metadata", () => {
       fireEvent.click(screen.getByTestId("workflow-inline-diagram-size-large"));
       await waitForDiagramArranged();
       expectSquarePersonCard();
-      if (role === "START" || role === "END") {
+      if (role === "START" || role === "END" || role === "UI_START") {
         fireEvent.click(
           screen.getByTestId("workflow-inline-diagram-open-fullscreen"),
         );
@@ -1634,7 +1640,9 @@ describe("diagram graph metadata", () => {
           fullscreen.getAllByRole("img", { name: `${label} role` }),
         ).toHaveLength(2);
         expect(fullscreen.getByTestId("diagram-legend")).toHaveTextContent(
-          "parallel paths may continue",
+          role === "UI_START"
+            ? "entrance or primary screen"
+            : "parallel paths may continue",
         );
       }
     },
@@ -1715,7 +1723,7 @@ describe("diagram graph metadata", () => {
           },
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     } satisfies import("../../../api").WorkItemTypeDefinitionDto;
     const graphData = {
       workflow: diagram,
@@ -1728,7 +1736,7 @@ describe("diagram graph metadata", () => {
         name: "Diagram",
         iconKey: "workflow" as const,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
     } satisfies WorkflowGraphSurfaceData;
     const proposalLink = {
@@ -1763,7 +1771,7 @@ describe("diagram graph metadata", () => {
         name: "Bug",
         iconKey: "bug",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       } satisfies import("../../../api").WorkItemTypeDefinitionDto,
       isLoading: false,
       isFetching: false,
@@ -6943,6 +6951,82 @@ describe("MarkdownRenderer mention rendering", () => {
 });
 
 describe("projected diagram scope", () => {
+  it("anchors a projected UX flow on its start unless positions are authored", () => {
+    const root = { refType: "existing", id: "start-flow" } as const;
+    const start = { refType: "existing", id: "start-screen" } as const;
+    const other = { refType: "existing", id: "other-screen" } as const;
+    const flow: WorkItemGraphProjectionData = {
+      layoutSource: "canonical",
+      projectedRoot: {
+        identity: root,
+        label: "Start flow",
+        name: "Start flow",
+        type: "DIAGRAM",
+        deleted: false,
+        sections: [
+          {
+            key: "diagramMetadata",
+            content: JSON.stringify({ kind: "UX_FLOW", level: "OVERVIEW" }),
+          },
+        ],
+      },
+      children: [
+        {
+          identity: start,
+          label: "Start",
+          name: "Start",
+          type: "DIAGRAM_ELEMENT",
+          parent: root,
+          deleted: false,
+          sections: [
+            {
+              key: "diagramElementMetadata",
+              content: JSON.stringify({ role: "UI_START" }),
+            },
+          ],
+        },
+        {
+          identity: other,
+          label: "Other",
+          name: "Other",
+          type: "DIAGRAM_ELEMENT",
+          parent: root,
+          deleted: false,
+          sections: [],
+        },
+      ],
+      incidentRelationships: [],
+      effectiveLayout: {
+        nodes: [
+          { node: other, position: { x: 0, y: 0 } },
+          { node: start, position: { x: 300, y: 300 } },
+        ],
+      },
+    };
+    const view = render(<WorkflowGraphSurface projection={flow} />, {
+      wrapper: projectWrapper,
+    });
+    const position = (id: string) =>
+      getComputedStyle(
+        view.container.querySelector<HTMLElement>(`[data-step-id="${id}"]`)!,
+      );
+    expect(parseFloat(position(start.id).top)).toBeLessThan(
+      parseFloat(position(other.id).top),
+    );
+
+    view.rerender(
+      <WorkflowGraphSurface
+        projection={{ ...flow, layoutSource: "authored" }}
+      />,
+    );
+    expect(parseFloat(position(start.id).top)).toBeGreaterThan(
+      parseFloat(position(other.id).top),
+    );
+    expect(parseFloat(position(start.id).left)).toBeGreaterThan(
+      parseFloat(position(other.id).left),
+    );
+  });
+
   const rootIdentity = { refType: "existing" as const, id: "scoped-diagram" };
   const elementIdentity = {
     refType: "existing" as const,

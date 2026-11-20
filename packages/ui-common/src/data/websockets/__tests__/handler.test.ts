@@ -1,4 +1,6 @@
 import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
+import { reportKeys } from "../../collections/reports";
+import type { ReportDto, WebSocketSystemNotificationEvent } from "../../../api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createStore } from "jotai";
 import { WebSocketHandler } from "../handler";
@@ -81,6 +83,85 @@ describe("WebSocketHandler", () => {
     logQueryInvalidationSpy = vi
       .spyOn(mockDebugger, "logQueryInvalidation")
       .mockImplementation(() => {});
+  });
+
+  it("refreshes only canonical reports for the signalled selected session", async () => {
+    const client = createQueryClient();
+    const reports: ReportDto[] = [
+      {
+        id: "report-1",
+        organizationId: "org-1",
+        projectId: "project-1",
+        title: "Implementation evidence",
+        reportType: "IMPLEMENT",
+        audience: "PROJECT_VISIBLE",
+        version: 1,
+        schemaVersion: 1,
+        sourceExecutionId: "session-1",
+        createdAt: "2026-11-18T12:00:00Z",
+        expiresAt: null,
+        payload: {
+          reportType: "IMPLEMENT",
+          summary:
+            "The selected task implementation is complete with feature-level checks and recorded limitations.",
+          filesChanged: ["src/feature.ts"],
+        },
+        entities: [
+          {
+            entityType: "AGENT_SESSION",
+            entityId: "session-1",
+            relation: "PRIMARY",
+          },
+        ],
+      },
+    ];
+    const selected = [
+      ...reportKeys.entityList("org-1", "project-1"),
+      { entityType: "AGENT_SESSION", entityId: "session-1" },
+    ];
+    const unrelated = [
+      ...reportKeys.entityList("org-1", "project-1"),
+      { entityType: "AGENT_SESSION", entityId: "session-2" },
+    ];
+    const otherProject = [
+      ...reportKeys.entityList("org-1", "project-2"),
+      { entityType: "AGENT_SESSION", entityId: "session-1" },
+    ];
+    [selected, unrelated, otherProject].forEach((key) =>
+      client.setQueryData(key, reports),
+    );
+    const handler = new WebSocketHandler(createStore(), mockDebugger, client);
+    const event = {
+      type: "system.notification",
+      timestamp: "2026-11-18T12:01:00Z",
+      organizationId: "org-1",
+      projectId: "project-1",
+      notification: {
+        id: "notification-1",
+        entityId: "session-1",
+        entityType: "AGENT_SESSION",
+        entityTitle: "Implement restricted conversations",
+        eventType: "session_report_ready",
+        status: "UNREAD",
+        createdAt: "2026-11-18T12:01:00Z",
+        affectedEntities: [],
+        payload: {
+          sessionId: "session-1",
+          sessionTitle: "Implement restricted conversations",
+          reportId: "report-1",
+          reportTitle: "Implementation evidence",
+          reportType: "IMPLEMENT",
+        },
+      },
+      delivery: { channel: "in-app", transport: "websocket" },
+      clientHints: { shouldBadge: true },
+    } satisfies WebSocketSystemNotificationEvent;
+    handler.handleEvent(event);
+    expect(isInvalidated(client, selected)).toBe(true);
+    expect(isInvalidated(client, unrelated)).toBe(false);
+    expect(isInvalidated(client, otherProject)).toBe(false);
+    expect(client.getQueryData(selected)).toEqual(reports);
+    client.clear();
   });
 
   describe("Agent Session events", () => {

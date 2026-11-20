@@ -30,6 +30,7 @@ const INERT_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'create_design_doc',
   'edit_design_doc',
   'create_plan',
+  'create_plan_from_existing_tasks',
   'create_work_item_type',
   'edit_work_item_type',
   'start_proposal_group',

@@ -362,6 +362,13 @@ const summarizeOperation = (
   const key = `${index}:${operation.op}`;
 
   switch (operation.op) {
+    case "designDoc.create":
+      return {
+        key,
+        kind: "added",
+        title: `Added ${operation.name}`,
+        detail: operation.markdown,
+      };
     case "workItem.create":
       return { key, kind: "added", title: `Added ${operation.name}` };
     case "workItem.update":

@@ -371,6 +371,22 @@ describe("Open Items triage modal", () => {
       expect(mocks.stop).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["close control", () => click("open-items-triage-close")],
+      ["Escape", () => userEvent.keyboard("{Escape}")],
+    ])(
+      "a second dismissal from the %s discards and closes",
+      async (_second, dismissAgain) => {
+        mount();
+        await atResults();
+        await dismiss();
+        await screen.findByTestId("triage-confirm-discard");
+        await dismissAgain();
+        await expectClosed();
+        expect(mocks.stop).not.toHaveBeenCalled();
+      },
+    );
+
     it("Discard and close closes without stopping and keeps the route", async () => {
       mount();
       await atResults();

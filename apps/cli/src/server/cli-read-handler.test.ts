@@ -27,6 +27,8 @@ import { createTestRun as createBaseTestRun, createTestRunStore } from '../run/r
 import { createTestRunRegistryWiring } from './__tests__/helpers/test-run-registry';
 import { CliReadHandler } from './cli-read-handler';
 import { NOOP_LOGGER, type ServerLogger } from './logger';
+import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import { RecordedEditLedger, isSameRecordedEdit } from './recorded-edit-ledger';
 import { RunChangedFilesContextError, RunChangedFilesReader } from './run-changed-files';
 import { RunReadPreparationError, RunReadRestoreCoordinator } from './restore-persisted-runs';
 import { createTestTriggerVerificationRuntime } from './trigger-verification/test-owners.test-support';
@@ -119,6 +121,24 @@ const readBodiesByOperation = {
     runId,
     file: { serviceId, repoPath: '/tmp/repository', filePath: 'src/example.ts' },
   },
+  'run.recorded_edit.read': {
+    requestId,
+    agentSessionId,
+    operation: 'run.recorded_edit.read',
+    runId,
+    serviceId,
+    edit: {
+      path: 'src/example.ts',
+      turnId: 'turn-1',
+      occurredAt: '2026-11-13T12:00:00Z',
+      beforeObjectId: 'a'.repeat(40),
+      afterObjectId: 'b'.repeat(40),
+      beforeRanges: [{ startLine: 1, endLine: 2 }],
+      afterRanges: [{ startLine: 1, endLine: 3 }],
+      approximate: true,
+      versionsRecorded: true,
+    },
+  },
   'run.context_usage.get': {
     requestId,
     agentSessionId,
@@ -162,6 +182,19 @@ const readBodiesByOperation = {
     machineId,
     authorizationRequestId: requestId,
   },
+  'agent_session.continuation.inspect': {
+    requestId,
+    operation: 'agent_session.continuation.inspect',
+    organizationId,
+    projectId,
+    machineId,
+    authorizationRequestId: requestId,
+    agentSessionId,
+    conversationId: requestId,
+    continuationId: requestId,
+    expectedSourceMachineId: requestId,
+    provider: 'claude',
+  },
 } satisfies Record<VerifiedCliReadFrame['body']['operation'], VerifiedCliReadFrame['body']>;
 
 const denialCases = [
@@ -174,6 +207,17 @@ const denialCases = [
   ['unknown', 'SCHEMA_INVALID'],
   ['stale prior authority', 'GRANT_NOT_ACTIVE'],
 ] as const satisfies readonly (readonly [string, ControllerAuthorizationDenialReason])[];
+
+/** Edits the stored IMPLEMENT reports hold for the Run under test. */
+const storedRecordedEdits: ImplementReportEdit[] = [];
+
+const storedRecordedEditLedger = (): RecordedEditLedger => {
+  const ledger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+  vi.spyOn(ledger, 'contains').mockImplementation((_scope, edit) =>
+    Promise.resolve(storedRecordedEdits.some((stored) => isSameRecordedEdit(stored, edit))),
+  );
+  return ledger;
+};
 
 const createSubject = (
   restore: (requestedRunId: string) => Promise<Run>,
@@ -217,7 +261,11 @@ const createSubject = (
   });
   const repoStore = new RepoMappingStore();
   vi.spyOn(repoStore, 'getBinding').mockResolvedValue(null);
-  const runChangedFilesReader = new RunChangedFilesReader(repoStore);
+  const recordedEditLedger = new RecordedEditLedger({ getAccessToken: vi.fn() }, 'http://api.test');
+  vi.spyOn(recordedEditLedger, 'contains').mockImplementation((_scope, edit) =>
+    Promise.resolve(storedRecordedEdits.some((stored) => isSameRecordedEdit(stored, edit))),
+  );
+  const runChangedFilesReader = new RunChangedFilesReader(repoStore, undefined, recordedEditLedger);
   const verifyRead = vi.spyOn(triggerVerificationRuntime, 'verifyCliReadFrame');
   if (subjectOptions.platformVerifier) {
     verifyRead.mockImplementation((raw) =>
@@ -453,7 +501,11 @@ describe('CliReadHandler', () => {
           runStore,
           runRegistry: wiring.runRegistry,
           triggerVerificationRuntime,
-          runChangedFilesReader: new RunChangedFilesReader(repoStore),
+          runChangedFilesReader: new RunChangedFilesReader(
+            repoStore,
+            undefined,
+            storedRecordedEditLedger(),
+          ),
           sessionActivity: { snapshot: vi.fn() },
           isRemoteToolCallViewingEnabled: vi.fn().mockResolvedValue(true),
           logger: NOOP_LOGGER,
@@ -505,6 +557,57 @@ describe('CliReadHandler', () => {
             });
           }
         }
+        const { writeBlob, anchorBlobs } = await import('../git/object-store');
+        const beforeObjectId = await writeBlob(repoPath, 'recorded before\n');
+        const afterObjectId = await writeBlob(repoPath, 'recorded after\n');
+        await anchorBlobs(repoPath, runId, 'history fixture', [beforeObjectId, afterObjectId]);
+        const recordedEdit = {
+          ...readBodiesByOperation['run.recorded_edit.read'].edit,
+          path: 'owned.ts',
+          beforeObjectId,
+          afterObjectId,
+        };
+        storedRecordedEdits.push(recordedEdit);
+        // A fabricated edit that pairs this Run's retained blobs differently is not recorded.
+        verify.mockReturnValue(
+          verifiedRead({
+            requestId,
+            agentSessionId: runId,
+            runId,
+            serviceId,
+            operation: 'run.recorded_edit.read',
+            edit: { ...recordedEdit, beforeObjectId: afterObjectId, afterObjectId: beforeObjectId },
+          }),
+        );
+        await expect(handler.handle({})).resolves.toMatchObject({
+          status: 'error',
+          error: { code: 'INVALID_FILE_MEMBERSHIP' },
+        });
+        verify.mockReturnValue(
+          verifiedRead({
+            requestId,
+            agentSessionId: runId,
+            runId,
+            serviceId,
+            operation: 'run.recorded_edit.read',
+            edit: recordedEdit,
+          }),
+        );
+        await expect(handler.handle({})).resolves.toMatchObject({
+          requestId,
+          operation: 'run.recorded_edit.read',
+          status: 'success',
+          result: {
+            runId,
+            file: {
+              serviceId,
+              repoPath,
+              filePath: 'owned.ts',
+              preContent: 'recorded before\n',
+              postContent: 'recorded after\n',
+            },
+          },
+        });
         verify.mockReturnValue(
           verifiedRead({
             requestId,
@@ -1722,8 +1825,95 @@ describe('workspace catalog admission', () => {
   );
 });
 
+describe('continuation inspection admission', () => {
+  const body = readBodiesByOperation['agent_session.continuation.inspect'];
+
+  it('admits by destination machine and binds the session, continuation and expected binding', async () => {
+    const restore = vi.fn();
+    const admit = vi.fn().mockResolvedValue({ admitted: true });
+    const subject = createSubject(
+      restore,
+      verifiedRead(body),
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { admit },
+    );
+    expect(await subject.handle({})).toMatchObject({
+      operation: 'agent_session.continuation.inspect',
+      status: 'success',
+      result: {
+        agentSessionId,
+        continuationId: body.continuationId,
+        nativeState: 'ABSENT',
+        reason: 'NO_LOCAL_RUN',
+      },
+    });
+    expect(restore).not.toHaveBeenCalled();
+    const admitted = admit.mock.calls[0]![0];
+    expect(admitted).toMatchObject({
+      target: { kind: 'CLI_READ', id: machineId, revision: null },
+      agentSessionId: null,
+    });
+
+    // The authorized action covers the session, continuation and expected
+    // binding: changing any of them changes the payload hash.
+    for (const field of ['agentSessionId', 'continuationId', 'expectedSourceMachineId'] as const) {
+      const changedAdmit = vi.fn().mockResolvedValue({ admitted: true });
+      await createSubject(
+        vi.fn(),
+        verifiedRead({ ...body, [field]: randomUUID() }),
+        undefined,
+        [],
+        undefined,
+        undefined,
+        { admit: changedAdmit },
+      ).handle({});
+      expect(changedAdmit.mock.calls[0]![0].actionPayloadHash).not.toBe(admitted.actionPayloadHash);
+    }
+  });
+
+  it('reads no local state when destination authorization is denied', async () => {
+    const getRunMetadata = vi.spyOn(RunStore.prototype, 'getRunMetadata');
+    const admit = vi.fn().mockResolvedValue({ admitted: false, reason: 'GRANT_NOT_ACTIVE' });
+    const subject = createSubject(
+      vi.fn(),
+      verifiedRead(body),
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { admit },
+    );
+    expect(await subject.handle({})).toBeNull();
+    expect(getRunMetadata).not.toHaveBeenCalled();
+    getRunMetadata.mockRestore();
+  });
+
+  it.each(['organizationId', 'projectId', 'machineId'] as const)(
+    'rejects a mismatched signed %s before admission',
+    async (field) => {
+      const admit = vi.fn();
+      const subject = createSubject(
+        vi.fn(),
+        verifiedRead({ ...body, [field]: serviceId }),
+        undefined,
+        [],
+        undefined,
+        undefined,
+        { admit },
+      );
+      expect(await subject.handle({})).toBeNull();
+      expect(admit).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('fresh controller approval binds delivered session-read inputs', () => {
-  const cases = Object.values(readBodiesByOperation).filter((body) => 'agentSessionId' in body);
+  const cases = Object.values(readBodiesByOperation).filter(
+    (body) => 'agentSessionId' in body && body.operation !== 'agent_session.continuation.inspect',
+  );
 
   it.each(cases)(
     'admits the approved $operation with real controller and platform signatures',
@@ -1826,7 +2016,9 @@ describe('read input field coverage stays aligned with OpenAPI', () => {
     changed: VerifiedCliReadFrame['body'];
   }> = [];
   for (const body of Object.values(readBodiesByOperation)) {
-    if (!('agentSessionId' in body)) continue;
+    // Machine-addressed reads bind their fields through machine-scoped admission.
+    if (!('agentSessionId' in body) || body.operation === 'agent_session.continuation.inspect')
+      continue;
     const variant = variants.find((branch: any) =>
       resolve(branch.properties.operation).enum.includes(body.operation),
     );
@@ -1844,6 +2036,10 @@ describe('read input field coverage stays aligned with OpenAPI', () => {
             continue;
           visit(child, sample[key], [...path, key]);
         }
+        return;
+      }
+      if (node.items && Array.isArray(sample)) {
+        sample.forEach((item, index) => visit(node.items, item, [...path, String(index)]));
         return;
       }
       if (node.enum?.length === 1) return;

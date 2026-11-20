@@ -26,7 +26,6 @@ import type {
   TaskPriority,
   TaskResponseDto,
   UpdateTaskDto,
-  WorkStatus,
 } from "@hey-hey/contracts/api";
 import { KEYS, TERMS } from "@hey-hey/ui-common/i18n";
 
@@ -38,7 +37,7 @@ import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
 interface TaskFormData {
   title: string;
   description: string;
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   type: string;
   priority: Priority;
   estimatedHours: number;
@@ -362,7 +361,7 @@ export const TasksPage: React.FC = () => {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    status: e.target.value as WorkStatus,
+                    status: e.target.value as TaskResponseDto["status"],
                   })
                 }
                 select
@@ -469,7 +468,7 @@ export const TasksPage: React.FC = () => {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    status: e.target.value as WorkStatus,
+                    status: e.target.value as TaskResponseDto["status"],
                   })
                 }
                 select

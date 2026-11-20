@@ -27,7 +27,9 @@ import type { MessageCursorNotFoundErrorDtoAllOf } from './message-cursor-not-fo
  * The `since` cursor does not name a timeline message in the requested conversation, or the `historyCursor` is invalid for it. Unknown, malformed and other-conversation cursors are indistinguishable.
  * @export
  */
-export interface MessageCursorNotFoundErrorDto extends ApiErrorResponse, MessageCursorNotFoundErrorDtoAllOf {}
+export interface MessageCursorNotFoundErrorDto extends ApiErrorResponse, MessageCursorNotFoundErrorDtoAllOf {
+    'code': Exclude<MessageCursorNotFoundErrorDtoAllOf['code'], undefined>;
+}
 
 export namespace MessageCursorNotFoundErrorDto {
     export const CodeEnum = MessageCursorNotFoundErrorDtoAllOfCodeEnum;

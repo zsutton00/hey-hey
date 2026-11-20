@@ -98,4 +98,67 @@ describe('Feature intent conversation handler', () => {
     });
     expect(output.data).toHaveProperty('uiElements.length', 1);
   });
+
+  describe('completion output', () => {
+    const complete = (summary: string) => ({ summary }) as AssistantCompleteEvent;
+    const elements = (
+      summary: string,
+      diagnostics?: Parameters<typeof handler.transformCompletionOutput>[2],
+    ) => handler.transformCompletionOutput(complete(summary), undefined, diagnostics).data;
+
+    it('gives each question its own field and removes the block from the visible text', () => {
+      const data = elements(
+        'I read the import pipeline.\n\n<enrichment_questions>{"questions":["Should a failed stage stop the pipeline?","Who owns retries?","Is the audit trail required?"]}</enrichment_questions>',
+      );
+      expect(data).toMatchObject({
+        response: 'I read the import pipeline.',
+        uiElements: [
+          {
+            type: 'question_group',
+            payload: {
+              questions: [
+                'Should a failed stage stop the pipeline?',
+                'Who owns retries?',
+                'Is the audit trail required?',
+              ],
+              conversationReply: expect.any(Object),
+            },
+          },
+        ],
+      });
+    });
+
+    it('keeps the single reply field when the agent asks no structured questions', () => {
+      const data = elements('Here is my summary of the pending proposals.');
+      expect(data).toMatchObject({
+        response: 'Here is my summary of the pending proposals.',
+        uiElements: [{ type: 'repository_feature_enrichment_reply' }],
+      });
+    });
+
+    it.each([
+      ['malformed JSON', '<enrichment_questions>{"questions":[</enrichment_questions>'],
+      [
+        'too many questions',
+        '<enrichment_questions>{"questions":["a","b","c","d"]}</enrichment_questions>',
+      ],
+      [
+        'a repeated question',
+        '<enrichment_questions>{"questions":["a","a"]}</enrichment_questions>',
+      ],
+      ['an empty question', '<enrichment_questions>{"questions":["a",""]}</enrichment_questions>'],
+    ])('falls back to the reply field and logs the cause for %s', (_name, block) => {
+      const logger = { warn: vi.fn() };
+      const summary = `Which should win?\n${block}`;
+      const data = elements(summary, { runId: 'run-1', logger } as never);
+      expect(data).toMatchObject({
+        response: summary,
+        uiElements: [{ type: 'repository_feature_enrichment_reply' }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        'repository_feature_enrichment.questions_unreadable',
+        expect.objectContaining({ runId: 'run-1', cause: expect.any(String) }),
+      );
+    });
+  });
 });

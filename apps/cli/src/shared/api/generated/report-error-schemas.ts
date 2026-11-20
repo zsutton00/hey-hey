@@ -329,7 +329,7 @@ export const reportErrorSchemas = {
   ActiveGoalDto: {
     type: 'object',
     description:
-      'A goal returned by the active-goals endpoint: a GOAL-typed task that is not done (status not in COMPLETED/CANCELLED/ARCHIVED), not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.\n',
+      'A goal returned by the active-goals endpoint: a GOAL-typed task that has no effective FINISHED meaning and is not ARCHIVED, not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.\n',
     required: ['id', 'name', 'dueDate', 'audience'],
     additionalProperties: false,
     properties: {
@@ -389,6 +389,12 @@ export const reportErrorSchemas = {
         description: 'Request path',
         example: '/api/v1/projects/123',
       },
+      code: {
+        type: 'string',
+        description:
+          'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+        example: 'ORGANIZATION_NOT_FOUND',
+      },
     },
   },
   CreateReportCompletedAttemptError: {
@@ -426,6 +432,12 @@ export const reportErrorSchemas = {
             description: 'Request path',
             example: '/api/v1/projects/123',
           },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
+          },
         },
       },
       {
@@ -455,6 +467,110 @@ export const reportErrorSchemas = {
               reportId: {
                 type: 'string',
                 format: 'uuid',
+              },
+            },
+          },
+        },
+      },
+    ],
+  },
+  CreateReportValidationError: {
+    allOf: [
+      {
+        type: 'object',
+        required: ['success', 'message', 'timestamp', 'statusCode'],
+        properties: {
+          success: {
+            type: 'boolean',
+            description: 'Indicates if the request was successful',
+            example: false,
+          },
+          message: {
+            type: 'string',
+            description: 'Error message',
+            example: 'Resource not found',
+          },
+          data: {
+            description: 'No data for error responses',
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'ISO timestamp of when the response was generated',
+            example: '2023-12-01T12:00:00.000Z',
+          },
+          statusCode: {
+            type: 'integer',
+            description: 'HTTP status code',
+            example: 404,
+          },
+          path: {
+            type: 'string',
+            description: 'Request path',
+            example: '/api/v1/projects/123',
+          },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
+          },
+        },
+      },
+      {
+        type: 'object',
+        required: ['code', 'data'],
+        properties: {
+          code: {
+            type: 'string',
+            enum: ['REPORT_PAYLOAD_INVALID'],
+          },
+          data: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['reportType', 'schemaVersion', 'issues'],
+            properties: {
+              reportType: {
+                type: 'string',
+                description: 'Envelope report type the submission was validated as.',
+              },
+              schemaVersion: {
+                type: 'integer',
+                description: 'Effective schema version the submission was validated against.',
+              },
+              issues: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['path', 'keyword', 'message'],
+                  properties: {
+                    path: {
+                      type: 'string',
+                      description:
+                        'JSON Pointer to the invalid payload location ("/" is the payload root). Names the missing property for `required` failures.',
+                    },
+                    keyword: {
+                      type: 'string',
+                      description:
+                        'JSON Schema keyword that failed, or a report-level code such as `reportTypeMismatch` or `schemaVersion`.',
+                    },
+                    message: {
+                      type: 'string',
+                      description: 'Specific cause of the failure.',
+                    },
+                    missingProperty: {
+                      type: 'string',
+                      description:
+                        'Name of the missing required property, for `required` failures.',
+                    },
+                    allowedValues: {
+                      type: 'array',
+                      items: {},
+                      description: 'Accepted values, for `enum`/`const` failures.',
+                    },
+                  },
+                },
               },
             },
           },

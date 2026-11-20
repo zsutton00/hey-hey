@@ -28,6 +28,12 @@ import type { TaskMonitorLaunchPolicy } from './task-monitor-launch-policy.js';
  */
 export interface TaskMonitorExecutionDefinition {
     /**
+     * Key of the kind this monitor runs, declared in the project-effective monitor type\'s `monitorKinds`. Fixed when the monitor is created.
+     * @type {string}
+     * @memberof TaskMonitorExecutionDefinition
+     */
+    'kind': string;
+    /**
      * Ordered executable task nodes. Array position is the persisted execution order.
      * @type {Array<TaskMonitorExecutionPlanNode>}
      * @memberof TaskMonitorExecutionDefinition

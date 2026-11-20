@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-type.js';
 import { AgentMetaEdgeType } from './agent-meta-edge-type.js';
 import { AgentEdgeDirection } from './agent-edge-direction.js';
 /* tslint:disable */
@@ -19,6 +20,9 @@ import { AgentEdgeDirection } from './agent-edge-direction.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentEdgeDirection } from './agent-edge-direction.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-type.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentMetaEdgeType } from './agent-meta-edge-type.js';
@@ -55,10 +59,22 @@ export interface WorkItemMetaRelationshipCreateOperation {
     'source': WorkItemChangeSetIdentity;
     /**
      *
+     * @type {AgentEdgeEndpointEntityType}
+     * @memberof WorkItemMetaRelationshipCreateOperation
+     */
+    'sourceEntityType'?: AgentEdgeEndpointEntityType;
+    /**
+     *
      * @type {WorkItemChangeSetIdentity}
      * @memberof WorkItemMetaRelationshipCreateOperation
      */
     'target': WorkItemChangeSetIdentity;
+    /**
+     *
+     * @type {AgentEdgeEndpointEntityType}
+     * @memberof WorkItemMetaRelationshipCreateOperation
+     */
+    'targetEntityType'?: AgentEdgeEndpointEntityType;
     /**
      *
      * @type {AgentMetaEdgeType}
@@ -115,6 +131,10 @@ export type WorkItemMetaRelationshipCreateOperationCategoryEnum = typeof WorkIte
 export namespace WorkItemMetaRelationshipCreateOperation {
     export const OpEnum = WorkItemMetaRelationshipCreateOperationOpEnum;
     export type OpEnum = WorkItemMetaRelationshipCreateOperationOpEnum;
+    export const SourceEntityTypeEnum = AgentEdgeEndpointEntityType;
+    export type SourceEntityTypeEnum = AgentEdgeEndpointEntityType;
+    export const TargetEntityTypeEnum = AgentEdgeEndpointEntityType;
+    export type TargetEntityTypeEnum = AgentEdgeEndpointEntityType;
     export const EdgeTypeEnum = AgentMetaEdgeType;
     export type EdgeTypeEnum = AgentMetaEdgeType;
     export const CategoryEnum = WorkItemMetaRelationshipCreateOperationCategoryEnum;

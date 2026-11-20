@@ -71,10 +71,8 @@ const related = (name: string, relationship = 'related-to', reasoning?: string) 
   entityId: `id-${name}`,
   entityType: 'TASK',
   displayName: name,
-  relationship,
   status: 'COMPLETED',
-  via: [{ kind: 'edge' }],
-  ...(reasoning ? { reasoning } : {}),
+  relationships: [{ relationship, via: [{ kind: 'edge' }], ...(reasoning ? { reasoning } : {}) }],
 });
 
 const contextBody = {
@@ -139,6 +137,7 @@ const makeTrimmer = (
     decisionModel: { evaluate },
     focal,
     focalEntityId: overrides.focalEntityId ?? FOCAL_ID,
+    sessionId: 'session-1',
     ...(overrides.ancestorEntityIds ? { ancestorEntityIds: overrides.ancestorEntityIds } : {}),
     logger: log.logger,
   });
@@ -285,9 +284,8 @@ describe('GetContextTrimmer', () => {
         entityType: 'TASK',
         displayName: 'Middle',
         status: 'COMPLETED',
-        relationship: 'mentions',
+        relationships: [{ relationship: 'mentions', summary: 'Mentioned once.' }],
         relationToFocal: 'informs',
-        summary: 'Mentioned once.',
       },
       { entityId: 'id-Low', entityType: 'TASK', displayName: 'Low' },
       { entityId: 'id-Hidden-conflict', entityType: 'TASK', displayName: 'Hidden-conflict' },
@@ -377,6 +375,33 @@ describe('GetContextTrimmer', () => {
       toolResult({ ...contextBody, relatedEntities: [related('High', 'depends-on', 'Edited.')] }),
     );
     expect(evaluate).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps each relationship reason of an abbreviated entity', async () => {
+    const { trimmer } = makeTrimmer(
+      answerFrom({
+        ...scores,
+        'related:0': { implements: 0.2, informs: 0.45 },
+      }),
+    );
+    const twoReasons = {
+      ...related('Two'),
+      relationships: [
+        { relationship: 'depends-on', reasoning: 'Needed first. Detail follows.' },
+        { relationship: 'mentions', reasoning: 'Cited in the plan. More.' },
+      ],
+    };
+
+    const parsed = parsedBody(
+      await trimmer.trimResult(toolResult({ ...contextBody, relatedEntities: [twoReasons] })),
+    );
+
+    expect(
+      (parsed['relatedEntities'] as Array<{ relationships: unknown }>)[0]?.relationships,
+    ).toEqual([
+      { relationship: 'depends-on', summary: 'Needed first.' },
+      { relationship: 'mentions', summary: 'Cited in the plan.' },
+    ]);
   });
 
   it('returns the upstream result and logs the cause when Jev fails', async () => {
@@ -479,6 +504,7 @@ describe('GetContextTrimmer', () => {
         decisionModel: { evaluate },
         focal,
         focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
         logger: log.logger,
         attemptLogDir,
       });
@@ -499,6 +525,7 @@ describe('GetContextTrimmer', () => {
 
       expect(files).toHaveLength(1);
       const record = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8')) as {
+        outcome: string;
         focalEntityId: string;
         rawResultChars: number;
         narrowedResultChars: number;
@@ -508,13 +535,14 @@ describe('GetContextTrimmer', () => {
         jevCalls: Array<{ input: { questions: Record<string, unknown> } }>;
         entries: Array<{ tier: string; judgedByDecisionModel: boolean; text: string }>;
       };
+      expect(record.outcome).toBe('narrowed');
       expect(record.focalEntityId).toBe(FOCAL_ID);
       expect(record.rawResultChars).toBe(JSON.stringify(contextBody).length);
       expect(record.narrowedResultChars).toBe(textOf(result).length);
       expect(record.tierCounts).toEqual({ full: 1, short: 2, index: 3 });
       expect(record.inputTokens).toBe(100);
       expect(record.costUsd).toBeCloseTo(0.0000042, 10);
-      expect(Object.keys(record)[1]).toBe('costUsd');
+      expect(Object.keys(record)[3]).toBe('costUsd');
       expect(record.jevCalls).toHaveLength(1);
       expect(Object.keys(record.jevCalls[0]?.input.questions ?? {})).not.toContainEqual(
         expect.stringContaining('conflict'),
@@ -534,7 +562,7 @@ describe('GetContextTrimmer', () => {
       expect(await readdir(dir)).toHaveLength(2);
     });
 
-    it('writes nothing when the call passes through unchanged or no directory is set', async () => {
+    it('writes why a call passed through unchanged, and nothing when no directory is set', async () => {
       const dir = await newDir();
       const failing = vi.fn(
         (): Promise<JevResult> =>
@@ -543,10 +571,90 @@ describe('GetContextTrimmer', () => {
       const { trimmer } = await tracedTrimmer(dir, failing as ReturnType<typeof answerFrom>);
       const upstream = toolResult(contextBody);
       expect(await trimmer.trimResult(upstream)).toBe(upstream);
-      expect(await readdir(dir)).toHaveLength(0);
+      const files = await readdir(dir);
+      expect(files).toHaveLength(1);
+      const record: unknown = JSON.parse(await readFile(path.join(dir, files[0] ?? ''), 'utf8'));
+      expect(record).toMatchObject({
+        outcome: 'passed_through',
+        focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
 
       const { trimmer: untraced } = await tracedTrimmer(null);
       await expect(untraced.trimResult(toolResult(contextBody))).resolves.toBeDefined();
+    });
+
+    it('writes one get_edges trace per call, narrowed or passed through, with sizes and both results', async () => {
+      const dir = await newDir();
+      const log = makeLogger();
+      const edgesTrimmer = (evaluate: ReturnType<typeof answerFrom>) =>
+        new GetContextTrimmer({
+          decisionModel: { evaluate },
+          focal,
+          focalEntityId: FOCAL_ID,
+          sessionId: 'session-1',
+          logger: log.logger,
+          edgesAttemptLogDir: dir,
+        });
+      const edge = {
+        createdAt: '2026-01-01T00:00:00.000Z',
+        direction: 'out',
+        edgeType: 'RELATED_TO',
+        otherEndpoint: { displayName: 'Edge endpoint', entityId: 'other', entityType: 'TASK' },
+        reasoning: 'Edge rationale text.',
+      };
+      const upstream = {
+        structuredContent: { edgesByEntity: { [FOCAL_ID]: [edge], 'other-seed': [edge] } },
+      } satisfies JsonValue;
+
+      const narrowed = await edgesTrimmer(
+        answerFrom({ 'edge:other-seed:0': { implements: 0.02, informs: 0.03 } }),
+      ).trimEdgesResult(upstream);
+      const failing = vi.fn(
+        (): Promise<JevResult> =>
+          Promise.resolve({ ok: false, failure: { code: 'TIMEOUT', message: 'slow' } }),
+      );
+      await edgesTrimmer(failing as ReturnType<typeof answerFrom>).trimEdgesResult(upstream);
+
+      const files = (await readdir(dir)).sort();
+      expect(files).toHaveLength(2);
+      const records = await Promise.all(
+        files.map(
+          async (file) =>
+            JSON.parse(await readFile(path.join(dir, file), 'utf8')) as Record<string, unknown>,
+        ),
+      );
+      const narrowedRecord = records.find((record) => record['outcome'] === 'narrowed');
+      expect(narrowedRecord).toMatchObject({
+        focalEntityId: FOCAL_ID,
+        sessionId: 'session-1',
+        rawResultChars: JSON.stringify(upstream.structuredContent).length,
+        narrowedResultChars: JSON.stringify(
+          (narrowed as { structuredContent: unknown }).structuredContent,
+        ).length,
+        tierCounts: { full: 1, short: 0, index: 1 },
+        inputTokens: 100,
+        jevCalls: [expect.anything()],
+        rawResult: expect.stringContaining('Edge rationale text.'),
+        entries: [
+          expect.objectContaining({ seedId: FOCAL_ID, judgedByDecisionModel: false }),
+          expect.objectContaining({
+            seedId: 'other-seed',
+            tier: 'index',
+            judgedByDecisionModel: true,
+          }),
+        ],
+      });
+      expect(records.find((record) => record['outcome'] === 'passed_through')).toMatchObject({
+        reason: 'decision_model_failed',
+        fields: { failureCode: 'TIMEOUT' },
+        jevCalls: [expect.anything()],
+      });
+      const logged = JSON.stringify([...log.debug.mock.calls, ...log.warn.mock.calls]);
+      expect(logged).not.toContain('Edge rationale text.');
     });
 
     it('returns the narrowed result with a safe warning when the trace cannot be written', async () => {

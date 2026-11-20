@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import type { ProposalGroupDependency } from '@prisma/client';
 import {
   ProposalGroupReferenceValidation,
@@ -225,7 +226,7 @@ describe('ProposalGroupReferenceValidation', () => {
             key: 'EPIC',
             name: 'Epic',
             sections: [],
-            allowedStatuses: ['ACTIVE'],
+            statuses: legacyStatuses(['ACTIVE']),
           },
           edges: null,
         },
@@ -243,7 +244,7 @@ describe('ProposalGroupReferenceValidation', () => {
             key: 'STORY',
             name: 'Story',
             sections: [],
-            allowedStatuses: ['ACTIVE'],
+            statuses: legacyStatuses(['ACTIVE']),
             allowedParentTypes: ['EPIC'],
           },
           edges: null,

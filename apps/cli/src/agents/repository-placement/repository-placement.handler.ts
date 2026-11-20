@@ -1,4 +1,4 @@
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ExtendedUIFieldType,
   MessageStatus,
@@ -53,6 +53,7 @@ const invalidCompletionAction = (): CompletionAction => ({
 
 export const repositoryPlacementHandler: PromptTypeHandler<RepositoryPlacementPromptPayload> = {
   id: 'repository-placement',
+  sessionRole: SessionRole.Research,
   promptType: LocalPromptType.RepositoryPlacement,
   service: 'required',
   launchEntity: 'none',

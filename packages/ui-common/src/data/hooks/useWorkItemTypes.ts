@@ -1,4 +1,8 @@
 import {
+  buildWorkItemStatusFilterOptions,
+  type WorkItemStatusFilterOption,
+} from "../../utils/workItemStatusVocabulary";
+import {
   useQuery as useTanStackQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -370,4 +374,44 @@ export function useWorkItemTypeByKey(
     workItemTypeSummary,
     workItemTypeDefinition: workItemTypeSummary?.definition,
   };
+}
+
+export interface UseWorkItemStatusVocabulariesReturn {
+  /** Each type's effective definition by type key; empty until the catalog loads. */
+  definitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>;
+  /** Status filter choices for the given items, from their own types. */
+  statusOptions: WorkItemStatusFilterOption[];
+}
+
+/**
+ * Status vocabularies for surfaces that show items of several types. Each
+ * type keeps its own names and order; nothing is merged across types.
+ */
+export function useWorkItemStatusVocabularies(
+  organizationId: string | undefined,
+  projectId: string | undefined,
+  items: readonly { type?: string | null; status?: string | null }[],
+): UseWorkItemStatusVocabulariesReturn {
+  const catalog = useWorkItemTypes(organizationId, { projectId });
+  const definitions = useMemo(
+    () =>
+      new Map(
+        catalog.workItemTypes.map(({ definition }) => [
+          definition.key,
+          definition,
+        ]),
+      ),
+    [catalog.workItemTypes],
+  );
+  const statusOptions = useMemo(
+    () =>
+      buildWorkItemStatusFilterOptions({
+        definitions: [...definitions.values()],
+        items,
+        scopeByType: true,
+      }),
+    [definitions, items],
+  );
+
+  return { definitions, statusOptions };
 }

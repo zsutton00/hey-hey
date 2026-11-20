@@ -35,6 +35,7 @@ import { TaskMonitorStateMachineInputAdapter } from './state-machine-input-adapt
 import type { OperationTimelineRegistry } from './input-admission/operation-timeline';
 
 export interface PlatformApplicationRuntimeDependencies {
+  dataDirectory?: string;
   apiBaseUrl: string;
   apiRuntime: ApiRuntime;
   initialAccessToken: string;
@@ -104,6 +105,8 @@ export class PlatformApplicationRuntime {
         logger: logger.child({ component: 'run-restore' }),
       });
     this.triggerVerificationRuntime = new TriggerVerificationRuntime({
+      ...(dependencies.dataDirectory ? { dataDirectory: dependencies.dataDirectory } : {}),
+      apiBaseUrl: dependencies.apiBaseUrl,
       servicesApi: dependencies.apiRuntime.clients.services,
       ...(dependencies.diagnosticFeed ? { diagnosticFeed: dependencies.diagnosticFeed } : {}),
       keyPairStore: dependencies.keyPairStore,

@@ -48,7 +48,9 @@ export {
   filterEntityStars,
 } from "./collections/entityStars";
 export {
+  attemptRepeat,
   buildRunEvalStartPayload,
+  runRepeats,
   isEvalAttemptReport,
   isEvalHumanReviewReport,
   type EvalAttemptOutput,
@@ -135,6 +137,7 @@ export {
   useRestoreWorkItemType,
   useWorkItemTypeCascadeImpact,
 } from "./hooks/useWorkItemTypeLifecycle";
+export { useWorkItemTypeCanonicalComparison } from "./hooks/useWorkItemTypeCanonicalComparison";
 
 // Export WebSocket debug utilities
 export { useWebSocketDebug, useWebSocketDebugger } from "./websockets/debug";
@@ -149,6 +152,9 @@ export {
   PLAN_CONFIGURATION_SECTION_KEY,
   PLAN_STAGE_WORK_ITEM_TYPE,
   PLAN_WORK_ITEM_TYPE,
+  BUG_WORK_ITEM_TYPE,
+  isPlanStageWorkFinished,
+  isPlanStageWorkNotStarted,
   STANDARD_WORK_ITEM_TYPE,
   buildCanonicalPlanTaskGraph,
   composeCanonicalPlanAggregate,
@@ -185,3 +191,8 @@ export type {
 } from "./triage/application";
 
 export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
+export * from "./hooks/useProviderSessionTranscript";
+
+export { evalRunStatusLabel } from "./evalRunStatusLabel";
+export * from "./hooks/useProjectChanges";
+export * from "./hooks/useRecordedEdit";

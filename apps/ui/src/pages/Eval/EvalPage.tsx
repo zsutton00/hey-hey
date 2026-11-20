@@ -19,7 +19,6 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import {
-  EvalRunStatus,
   TargetEntityType,
   WorkStatus,
   type MaterializedWorkItemSection,
@@ -163,23 +162,17 @@ export const EvalPage: React.FC<EvalPageProps> = ({
     const { status, cases, configurations } = run.payload;
     const runParams = { projectId, evalId, runId: run.id };
     const runHref = WebPathService.evalRun(runParams);
-    const resultsHref =
-      status === EvalRunStatus.Finished || status === EvalRunStatus.Stopped
-        ? WebPathService.evalRunResults(runParams)
-        : null;
-    const handleLinkClick =
-      (href: string) =>
-      (event: React.MouseEvent): void => {
-        if (isNavigationModified(event)) return;
-        event.preventDefault();
-        navigate(href);
-      };
+    const handleRunLinkClick = (event: React.MouseEvent): void => {
+      if (isNavigationModified(event)) return;
+      event.preventDefault();
+      navigate(runHref);
+    };
     return (
       <TableRow key={run.id} data-testid={`eval-run-row-${run.id}`}>
         <TableCell>
           <Link
             href={runHref}
-            onClick={handleLinkClick(runHref)}
+            onClick={handleRunLinkClick}
             data-testid={`eval-run-link-${run.id}`}
           >
             {evalRunName(run, t)}
@@ -188,17 +181,6 @@ export const EvalPage: React.FC<EvalPageProps> = ({
         <TableCell>{t(`eval.page.runs.status.${status}`)}</TableCell>
         <TableCell>{`${cases.length} × ${configurations.length}`}</TableCell>
         <TableCell>{formatStarted(run.createdAt)}</TableCell>
-        <TableCell>
-          {resultsHref && (
-            <Link
-              href={resultsHref}
-              onClick={handleLinkClick(resultsHref)}
-              data-testid={`eval-run-results-link-${run.id}`}
-            >
-              {t("eval.page.runs.results")}
-            </Link>
-          )}
-        </TableCell>
       </TableRow>
     );
   };
@@ -346,7 +328,6 @@ export const EvalPage: React.FC<EvalPageProps> = ({
                       <TableCell>
                         {t("eval.page.runs.columns.started")}
                       </TableCell>
-                      <TableCell />
                     </TableRow>
                   </TableHead>
                   <TableBody>{runs.map(renderRunRow)}</TableBody>

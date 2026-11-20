@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   AccountEntitlement,
   OrganizationAccountLifecycle,
@@ -24,6 +25,7 @@ import {
   OrganizationReactivationDeadlineLostResponseAllOfData as DeadlineLostData,
   OrganizationReactivationSuccess as ReactivationSuccess,
 } from '@hey-hey/contracts/api/models';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import { DomainEventPublisher } from '../core/events/domain-event-publisher';
 import { DOMAIN_EVENT_PUBLISHER_TOKEN } from '../core/events/tokens';
 import { EVENT_TYPES } from '../core/events/types/event.types';
@@ -72,7 +74,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         }),
       ]);
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
       if (!current) {
         return this.toDto(null, entitlement, now);
@@ -111,7 +116,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         where: { organizationId },
       });
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
 
       const current = await tx.organizationAccountLifecycle.findUnique({
@@ -194,7 +202,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         }),
       ]);
       if (!entitlement) {
-        throw new ConflictException('Account entitlement does not exist');
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+          'Account entitlement does not exist',
+        );
       }
       if (!current) {
         throw new ConflictException(
@@ -379,7 +390,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       }),
     ]);
     if (!entitlement) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
     if (existing) {
       throw new ConflictException(
@@ -444,7 +458,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE
     `);
     if (rows.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
     this.logger.debug({
       event: 'organization_account_lifecycle_lock_acquired',
@@ -531,7 +548,10 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       current.lifecycleState !== OrganizationAccountLifecycleState.ACTIVE ||
       current.accessEndsAt !== null
     ) {
-      throw new ConflictException('Account lifecycle state is invalid');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account lifecycle state is invalid',
+      );
     }
     const updated = await tx.organizationAccountLifecycle.updateMany({
       where: {
@@ -684,7 +704,8 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
       !lifecycle.irreversibleClosureAt ||
       lifecycle.irreversibleClosureAt.getTime() > now.getTime()
     ) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
         'Organization closure evidence requires committed irreversible closure',
       );
     }
@@ -713,7 +734,8 @@ export class OrganizationAccountLifecycleService extends OrganizationAccountLife
         existingExecution.deletionDeadline.getTime() !==
           deletionDeadline.getTime()
       ) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
           'Organization closure evidence is inconsistent',
         );
       }

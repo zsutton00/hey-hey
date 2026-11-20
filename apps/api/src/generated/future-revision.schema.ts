@@ -230,29 +230,8 @@ export const futureRevisionMutationSchema = {
                         },
                         "status": {
                           "type": "string",
-                          "enum": [
-                            "GENERATED",
-                            "BACKLOG",
-                            "READY",
-                            "REFINING",
-                            "BLOCKED",
-                            "REFINING_DESCRIPTION",
-                            "REFINING_DETAILS",
-                            "REFINING_ACCEPTANCE_CRITERIA",
-                            "GENERATING_DESCRIPTION",
-                            "GENERATING_DETAILS",
-                            "GENERATING_DESCRIPTION_AND_DETAILS",
-                            "GENERATING_ACCEPTANCE_CRITERIA",
-                            "GENERATING_ALL",
-                            "ACTIVE",
-                            "ON_HOLD",
-                            "VERIFYING",
-                            "COMPLETED",
-                            "CANCELLED",
-                            "ARCHIVED",
-                            "SUPERSEDED"
-                          ],
-                          "description": "Unified work status for initiatives and tasks"
+                          "minLength": 1,
+                          "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                         },
                         "source": {
                           "type": "string",
@@ -791,33 +770,30 @@ export const futureRevisionMutationSchema = {
                                 "anyOf": [
                                   {
                                     "type": "string",
-                                    "enum": [
-                                      "GENERATED",
-                                      "BACKLOG",
-                                      "READY",
-                                      "REFINING",
-                                      "BLOCKED",
-                                      "REFINING_DESCRIPTION",
-                                      "REFINING_DETAILS",
-                                      "REFINING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_DESCRIPTION",
-                                      "GENERATING_DETAILS",
-                                      "GENERATING_DESCRIPTION_AND_DETAILS",
-                                      "GENERATING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_ALL",
-                                      "ACTIVE",
-                                      "ON_HOLD",
-                                      "VERIFYING",
-                                      "COMPLETED",
-                                      "CANCELLED",
-                                      "ARCHIVED",
-                                      "SUPERSEDED"
-                                    ],
-                                    "description": "Unified work status for initiatives and tasks"
+                                    "minLength": 1,
+                                    "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                   },
                                   {
                                     "type": "null"
                                   }
+                                ]
+                              },
+                              "statusMeaning": {
+                                "description": "Effective ordinary status meaning; absent when the stored status is unresolved.",
+                                "type": "string",
+                                "enum": [
+                                  "NOT_STARTED",
+                                  "IN_PROGRESS",
+                                  "UNFINISHED",
+                                  "FINISHED"
+                                ]
+                              },
+                              "completionBehavior": {
+                                "description": "Effective migrated compatibility behavior; never inferred from a name.",
+                                "type": "string",
+                                "enum": [
+                                  "COMPLETED",
+                                  "CANCELLED"
                                 ]
                               },
                               "dueDate": {
@@ -854,12 +830,12 @@ export const futureRevisionMutationSchema = {
                             "completedCount": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Number of tracked targets in COMPLETED status."
+                              "description": "Number of finished tracked targets without cancellation compatibility behavior."
                             },
                             "cancelledCount": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Number of tracked targets in CANCELLED status."
+                              "description": "Number of finished tracked targets with cancellation compatibility behavior."
                             },
                             "pastDueCount": {
                               "type": "integer",
@@ -1039,29 +1015,8 @@ export const futureRevisionMutationSchema = {
                                     },
                                     "status": {
                                       "type": "string",
-                                      "enum": [
-                                        "GENERATED",
-                                        "BACKLOG",
-                                        "READY",
-                                        "REFINING",
-                                        "BLOCKED",
-                                        "REFINING_DESCRIPTION",
-                                        "REFINING_DETAILS",
-                                        "REFINING_ACCEPTANCE_CRITERIA",
-                                        "GENERATING_DESCRIPTION",
-                                        "GENERATING_DETAILS",
-                                        "GENERATING_DESCRIPTION_AND_DETAILS",
-                                        "GENERATING_ACCEPTANCE_CRITERIA",
-                                        "GENERATING_ALL",
-                                        "ACTIVE",
-                                        "ON_HOLD",
-                                        "VERIFYING",
-                                        "COMPLETED",
-                                        "CANCELLED",
-                                        "ARCHIVED",
-                                        "SUPERSEDED"
-                                      ],
-                                      "description": "Unified work status for initiatives and tasks"
+                                      "minLength": 1,
+                                      "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                     },
                                     "priority": {
                                       "type": "string",
@@ -1158,6 +1113,133 @@ export const futureRevisionMutationSchema = {
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "designDocs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "identity",
+                                  "name",
+                                  "markdown",
+                                  "parent"
+                                ],
+                                "properties": {
+                                  "identity": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "markdown": {
+                                    "type": "string"
+                                  },
+                                  "parent": {
+                                    "oneOf": [
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "existing"
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "format": "uuid"
+                                          }
+                                        }
+                                      },
+                                      {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "required": [
+                                          "refType",
+                                          "tempId"
+                                        ],
+                                        "properties": {
+                                          "refType": {
+                                            "type": "string",
+                                            "enum": [
+                                              "temporary"
+                                            ]
+                                          },
+                                          "tempId": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "discriminator": {
+                                      "propertyName": "refType",
+                                      "mapping": {
+                                        "existing": "#/ExistingWorkItemIdentity",
+                                        "temporary": "#/TemporaryWorkItemIdentity"
+                                      }
+                                    },
+                                    "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                                  }
+                                }
+                              }
                             },
                             "children": {
                               "type": "array",
@@ -1299,29 +1381,8 @@ export const futureRevisionMutationSchema = {
                                   },
                                   "status": {
                                     "type": "string",
-                                    "enum": [
-                                      "GENERATED",
-                                      "BACKLOG",
-                                      "READY",
-                                      "REFINING",
-                                      "BLOCKED",
-                                      "REFINING_DESCRIPTION",
-                                      "REFINING_DETAILS",
-                                      "REFINING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_DESCRIPTION",
-                                      "GENERATING_DETAILS",
-                                      "GENERATING_DESCRIPTION_AND_DETAILS",
-                                      "GENERATING_ACCEPTANCE_CRITERIA",
-                                      "GENERATING_ALL",
-                                      "ACTIVE",
-                                      "ON_HOLD",
-                                      "VERIFYING",
-                                      "COMPLETED",
-                                      "CANCELLED",
-                                      "ARCHIVED",
-                                      "SUPERSEDED"
-                                    ],
-                                    "description": "Unified work status for initiatives and tasks"
+                                    "minLength": 1,
+                                    "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                   },
                                   "priority": {
                                     "type": "string",
@@ -2205,29 +2266,8 @@ export const futureRevisionMutationSchema = {
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "GENERATED",
-                          "BACKLOG",
-                          "READY",
-                          "REFINING",
-                          "BLOCKED",
-                          "REFINING_DESCRIPTION",
-                          "REFINING_DETAILS",
-                          "REFINING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_DESCRIPTION",
-                          "GENERATING_DETAILS",
-                          "GENERATING_DESCRIPTION_AND_DETAILS",
-                          "GENERATING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_ALL",
-                          "ACTIVE",
-                          "ON_HOLD",
-                          "VERIFYING",
-                          "COMPLETED",
-                          "CANCELLED",
-                          "ARCHIVED",
-                          "SUPERSEDED"
-                        ],
-                        "description": "Unified work status for initiatives and tasks"
+                        "minLength": 1,
+                        "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                       },
                       "priority": {
                         "type": "string",
@@ -2428,29 +2468,8 @@ export const futureRevisionMutationSchema = {
                       },
                       "status": {
                         "type": "string",
-                        "enum": [
-                          "GENERATED",
-                          "BACKLOG",
-                          "READY",
-                          "REFINING",
-                          "BLOCKED",
-                          "REFINING_DESCRIPTION",
-                          "REFINING_DETAILS",
-                          "REFINING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_DESCRIPTION",
-                          "GENERATING_DETAILS",
-                          "GENERATING_DESCRIPTION_AND_DETAILS",
-                          "GENERATING_ACCEPTANCE_CRITERIA",
-                          "GENERATING_ALL",
-                          "ACTIVE",
-                          "ON_HOLD",
-                          "VERIFYING",
-                          "COMPLETED",
-                          "CANCELLED",
-                          "ARCHIVED",
-                          "SUPERSEDED"
-                        ],
-                        "description": "Unified work status for initiatives and tasks"
+                        "minLength": 1,
+                        "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                       },
                       "priority": {
                         "type": "string",
@@ -2834,6 +2853,25 @@ export const futureRevisionMutationSchema = {
                             },
                             "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                           },
+                          "sourceEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                          },
                           "target": {
                             "oneOf": [
                               {
@@ -2886,6 +2924,25 @@ export const futureRevisionMutationSchema = {
                               }
                             },
                             "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          },
+                          "targetEntityType": {
+                            "type": "string",
+                            "enum": [
+                              "ARTIFACT",
+                              "INITIATIVE",
+                              "PROJECT",
+                              "TASK",
+                              "MESSAGE",
+                              "CONVERSATION",
+                              "DESIGN_DOC",
+                              "AGENT_SESSION",
+                              "VALIDATION_SESSION",
+                              "SERVICE",
+                              "REPORT",
+                              "PROPOSAL",
+                              "IMPLEMENTATION_HINT"
+                            ],
+                            "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                           },
                           "edgeType": {
                             "type": "string",
@@ -4228,6 +4285,108 @@ export const futureRevisionMutationSchema = {
                         "minLength": 1
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+                    "additionalProperties": false,
+                    "required": [
+                      "op",
+                      "ref",
+                      "name",
+                      "markdown",
+                      "parent"
+                    ],
+                    "properties": {
+                      "op": {
+                        "type": "string",
+                        "enum": [
+                          "designDoc.create"
+                        ]
+                      },
+                      "ref": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "refType",
+                          "tempId"
+                        ],
+                        "properties": {
+                          "refType": {
+                            "type": "string",
+                            "enum": [
+                              "temporary"
+                            ]
+                          },
+                          "tempId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                          }
+                        }
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "markdown": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "parent": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "id"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "existing"
+                                ]
+                              },
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          }
+                        ],
+                        "discriminator": {
+                          "propertyName": "refType",
+                          "mapping": {
+                            "existing": "#/ExistingWorkItemIdentity",
+                            "temporary": "#/TemporaryWorkItemIdentity"
+                          }
+                        },
+                        "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                      }
+                    }
                   }
                 ],
                 "discriminator": {
@@ -4242,7 +4401,8 @@ export const futureRevisionMutationSchema = {
                     "relationship.update": "#/WorkItemRelationshipUpdateOperation",
                     "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
                     "layout.replace": "#/WorkItemLayoutReplaceOperation",
-                    "layout.clear": "#/WorkItemLayoutClearOperation"
+                    "layout.clear": "#/WorkItemLayoutClearOperation",
+                    "designDoc.create": "#/WorkItemDesignDocCreateOperation"
                   }
                 }
               }
@@ -4951,29 +5111,8 @@ export const futureRevisionMutationSchema = {
                     },
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "GENERATED",
-                        "BACKLOG",
-                        "READY",
-                        "REFINING",
-                        "BLOCKED",
-                        "REFINING_DESCRIPTION",
-                        "REFINING_DETAILS",
-                        "REFINING_ACCEPTANCE_CRITERIA",
-                        "GENERATING_DESCRIPTION",
-                        "GENERATING_DETAILS",
-                        "GENERATING_DESCRIPTION_AND_DETAILS",
-                        "GENERATING_ACCEPTANCE_CRITERIA",
-                        "GENERATING_ALL",
-                        "ACTIVE",
-                        "ON_HOLD",
-                        "VERIFYING",
-                        "COMPLETED",
-                        "CANCELLED",
-                        "ARCHIVED",
-                        "SUPERSEDED"
-                      ],
-                      "description": "Unified work status for initiatives and tasks"
+                      "minLength": 1,
+                      "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                     },
                     "source": {
                       "type": "string",
@@ -5512,33 +5651,30 @@ export const futureRevisionMutationSchema = {
                             "anyOf": [
                               {
                                 "type": "string",
-                                "enum": [
-                                  "GENERATED",
-                                  "BACKLOG",
-                                  "READY",
-                                  "REFINING",
-                                  "BLOCKED",
-                                  "REFINING_DESCRIPTION",
-                                  "REFINING_DETAILS",
-                                  "REFINING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_DESCRIPTION",
-                                  "GENERATING_DETAILS",
-                                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                                  "GENERATING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_ALL",
-                                  "ACTIVE",
-                                  "ON_HOLD",
-                                  "VERIFYING",
-                                  "COMPLETED",
-                                  "CANCELLED",
-                                  "ARCHIVED",
-                                  "SUPERSEDED"
-                                ],
-                                "description": "Unified work status for initiatives and tasks"
+                                "minLength": 1,
+                                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                               },
                               {
                                 "type": "null"
                               }
+                            ]
+                          },
+                          "statusMeaning": {
+                            "description": "Effective ordinary status meaning; absent when the stored status is unresolved.",
+                            "type": "string",
+                            "enum": [
+                              "NOT_STARTED",
+                              "IN_PROGRESS",
+                              "UNFINISHED",
+                              "FINISHED"
+                            ]
+                          },
+                          "completionBehavior": {
+                            "description": "Effective migrated compatibility behavior; never inferred from a name.",
+                            "type": "string",
+                            "enum": [
+                              "COMPLETED",
+                              "CANCELLED"
                             ]
                           },
                           "dueDate": {
@@ -5575,12 +5711,12 @@ export const futureRevisionMutationSchema = {
                         "completedCount": {
                           "type": "integer",
                           "minimum": 0,
-                          "description": "Number of tracked targets in COMPLETED status."
+                          "description": "Number of finished tracked targets without cancellation compatibility behavior."
                         },
                         "cancelledCount": {
                           "type": "integer",
                           "minimum": 0,
-                          "description": "Number of tracked targets in CANCELLED status."
+                          "description": "Number of finished tracked targets with cancellation compatibility behavior."
                         },
                         "pastDueCount": {
                           "type": "integer",
@@ -5760,29 +5896,8 @@ export const futureRevisionMutationSchema = {
                                 },
                                 "status": {
                                   "type": "string",
-                                  "enum": [
-                                    "GENERATED",
-                                    "BACKLOG",
-                                    "READY",
-                                    "REFINING",
-                                    "BLOCKED",
-                                    "REFINING_DESCRIPTION",
-                                    "REFINING_DETAILS",
-                                    "REFINING_ACCEPTANCE_CRITERIA",
-                                    "GENERATING_DESCRIPTION",
-                                    "GENERATING_DETAILS",
-                                    "GENERATING_DESCRIPTION_AND_DETAILS",
-                                    "GENERATING_ACCEPTANCE_CRITERIA",
-                                    "GENERATING_ALL",
-                                    "ACTIVE",
-                                    "ON_HOLD",
-                                    "VERIFYING",
-                                    "COMPLETED",
-                                    "CANCELLED",
-                                    "ARCHIVED",
-                                    "SUPERSEDED"
-                                  ],
-                                  "description": "Unified work status for initiatives and tasks"
+                                  "minLength": 1,
+                                  "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                                 },
                                 "priority": {
                                   "type": "string",
@@ -5879,6 +5994,133 @@ export const futureRevisionMutationSchema = {
                               "type": "null"
                             }
                           ]
+                        },
+                        "designDocs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "identity",
+                              "name",
+                              "markdown",
+                              "parent"
+                            ],
+                            "properties": {
+                              "identity": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "markdown": {
+                                "type": "string"
+                              },
+                              "parent": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "id"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "existing"
+                                        ]
+                                      },
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "refType",
+                                      "tempId"
+                                    ],
+                                    "properties": {
+                                      "refType": {
+                                        "type": "string",
+                                        "enum": [
+                                          "temporary"
+                                        ]
+                                      },
+                                      "tempId": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                      }
+                                    }
+                                  }
+                                ],
+                                "discriminator": {
+                                  "propertyName": "refType",
+                                  "mapping": {
+                                    "existing": "#/ExistingWorkItemIdentity",
+                                    "temporary": "#/TemporaryWorkItemIdentity"
+                                  }
+                                },
+                                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              }
+                            }
+                          }
                         },
                         "children": {
                           "type": "array",
@@ -6020,29 +6262,8 @@ export const futureRevisionMutationSchema = {
                               },
                               "status": {
                                 "type": "string",
-                                "enum": [
-                                  "GENERATED",
-                                  "BACKLOG",
-                                  "READY",
-                                  "REFINING",
-                                  "BLOCKED",
-                                  "REFINING_DESCRIPTION",
-                                  "REFINING_DETAILS",
-                                  "REFINING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_DESCRIPTION",
-                                  "GENERATING_DETAILS",
-                                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                                  "GENERATING_ACCEPTANCE_CRITERIA",
-                                  "GENERATING_ALL",
-                                  "ACTIVE",
-                                  "ON_HOLD",
-                                  "VERIFYING",
-                                  "COMPLETED",
-                                  "CANCELLED",
-                                  "ARCHIVED",
-                                  "SUPERSEDED"
-                                ],
-                                "description": "Unified work status for initiatives and tasks"
+                                "minLength": 1,
+                                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                               },
                               "priority": {
                                 "type": "string",
@@ -7150,29 +7371,8 @@ export const futureRevisionAuthoringSchema = {
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "GENERATED",
-                              "BACKLOG",
-                              "READY",
-                              "REFINING",
-                              "BLOCKED",
-                              "REFINING_DESCRIPTION",
-                              "REFINING_DETAILS",
-                              "REFINING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_DESCRIPTION",
-                              "GENERATING_DETAILS",
-                              "GENERATING_DESCRIPTION_AND_DETAILS",
-                              "GENERATING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_ALL",
-                              "ACTIVE",
-                              "ON_HOLD",
-                              "VERIFYING",
-                              "COMPLETED",
-                              "CANCELLED",
-                              "ARCHIVED",
-                              "SUPERSEDED"
-                            ],
-                            "description": "Unified work status for initiatives and tasks"
+                            "minLength": 1,
+                            "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                           },
                           "priority": {
                             "type": "string",
@@ -7373,29 +7573,8 @@ export const futureRevisionAuthoringSchema = {
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "GENERATED",
-                              "BACKLOG",
-                              "READY",
-                              "REFINING",
-                              "BLOCKED",
-                              "REFINING_DESCRIPTION",
-                              "REFINING_DETAILS",
-                              "REFINING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_DESCRIPTION",
-                              "GENERATING_DETAILS",
-                              "GENERATING_DESCRIPTION_AND_DETAILS",
-                              "GENERATING_ACCEPTANCE_CRITERIA",
-                              "GENERATING_ALL",
-                              "ACTIVE",
-                              "ON_HOLD",
-                              "VERIFYING",
-                              "COMPLETED",
-                              "CANCELLED",
-                              "ARCHIVED",
-                              "SUPERSEDED"
-                            ],
-                            "description": "Unified work status for initiatives and tasks"
+                            "minLength": 1,
+                            "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
                           },
                           "priority": {
                             "type": "string",
@@ -7779,6 +7958,25 @@ export const futureRevisionAuthoringSchema = {
                                 },
                                 "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                               },
+                              "sourceEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                              },
                               "target": {
                                 "oneOf": [
                                   {
@@ -7831,6 +8029,25 @@ export const futureRevisionAuthoringSchema = {
                                   }
                                 },
                                 "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                              },
+                              "targetEntityType": {
+                                "type": "string",
+                                "enum": [
+                                  "ARTIFACT",
+                                  "INITIATIVE",
+                                  "PROJECT",
+                                  "TASK",
+                                  "MESSAGE",
+                                  "CONVERSATION",
+                                  "DESIGN_DOC",
+                                  "AGENT_SESSION",
+                                  "VALIDATION_SESSION",
+                                  "SERVICE",
+                                  "REPORT",
+                                  "PROPOSAL",
+                                  "IMPLEMENTATION_HINT"
+                                ],
+                                "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                               },
                               "edgeType": {
                                 "type": "string",
@@ -9173,6 +9390,108 @@ export const futureRevisionAuthoringSchema = {
                             "minLength": 1
                           }
                         }
+                      },
+                      {
+                        "type": "object",
+                        "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+                        "additionalProperties": false,
+                        "required": [
+                          "op",
+                          "ref",
+                          "name",
+                          "markdown",
+                          "parent"
+                        ],
+                        "properties": {
+                          "op": {
+                            "type": "string",
+                            "enum": [
+                              "designDoc.create"
+                            ]
+                          },
+                          "ref": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "refType",
+                              "tempId"
+                            ],
+                            "properties": {
+                              "refType": {
+                                "type": "string",
+                                "enum": [
+                                  "temporary"
+                                ]
+                              },
+                              "tempId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                              }
+                            }
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "markdown": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "parent": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "existing"
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "refType",
+                                  "tempId"
+                                ],
+                                "properties": {
+                                  "refType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "temporary"
+                                    ]
+                                  },
+                                  "tempId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                                  }
+                                }
+                              }
+                            ],
+                            "discriminator": {
+                              "propertyName": "refType",
+                              "mapping": {
+                                "existing": "#/ExistingWorkItemIdentity",
+                                "temporary": "#/TemporaryWorkItemIdentity"
+                              }
+                            },
+                            "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                          }
+                        }
                       }
                     ],
                     "discriminator": {
@@ -9187,7 +9506,8 @@ export const futureRevisionAuthoringSchema = {
                         "relationship.update": "#/WorkItemRelationshipUpdateOperation",
                         "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
                         "layout.replace": "#/WorkItemLayoutReplaceOperation",
-                        "layout.clear": "#/WorkItemLayoutClearOperation"
+                        "layout.clear": "#/WorkItemLayoutClearOperation",
+                        "designDoc.create": "#/WorkItemDesignDocCreateOperation"
                       }
                     }
                   }
@@ -10489,29 +10809,8 @@ export const futureWorkItemChangesSchema = {
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "GENERATED",
-                  "BACKLOG",
-                  "READY",
-                  "REFINING",
-                  "BLOCKED",
-                  "REFINING_DESCRIPTION",
-                  "REFINING_DETAILS",
-                  "REFINING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_DESCRIPTION",
-                  "GENERATING_DETAILS",
-                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                  "GENERATING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_ALL",
-                  "ACTIVE",
-                  "ON_HOLD",
-                  "VERIFYING",
-                  "COMPLETED",
-                  "CANCELLED",
-                  "ARCHIVED",
-                  "SUPERSEDED"
-                ],
-                "description": "Unified work status for initiatives and tasks"
+                "minLength": 1,
+                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
               },
               "priority": {
                 "type": "string",
@@ -10712,29 +11011,8 @@ export const futureWorkItemChangesSchema = {
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "GENERATED",
-                  "BACKLOG",
-                  "READY",
-                  "REFINING",
-                  "BLOCKED",
-                  "REFINING_DESCRIPTION",
-                  "REFINING_DETAILS",
-                  "REFINING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_DESCRIPTION",
-                  "GENERATING_DETAILS",
-                  "GENERATING_DESCRIPTION_AND_DETAILS",
-                  "GENERATING_ACCEPTANCE_CRITERIA",
-                  "GENERATING_ALL",
-                  "ACTIVE",
-                  "ON_HOLD",
-                  "VERIFYING",
-                  "COMPLETED",
-                  "CANCELLED",
-                  "ARCHIVED",
-                  "SUPERSEDED"
-                ],
-                "description": "Unified work status for initiatives and tasks"
+                "minLength": 1,
+                "description": "The status a work item currently holds. Either the name of one of its type's ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition's `statuses` is the authority for what a type allows.\n"
               },
               "priority": {
                 "type": "string",
@@ -11118,6 +11396,25 @@ export const futureWorkItemChangesSchema = {
                     },
                     "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
                   },
+                  "sourceEntityType": {
+                    "type": "string",
+                    "enum": [
+                      "ARTIFACT",
+                      "INITIATIVE",
+                      "PROJECT",
+                      "TASK",
+                      "MESSAGE",
+                      "CONVERSATION",
+                      "DESIGN_DOC",
+                      "AGENT_SESSION",
+                      "VALIDATION_SESSION",
+                      "SERVICE",
+                      "REPORT",
+                      "PROPOSAL",
+                      "IMPLEMENTATION_HINT"
+                    ],
+                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
+                  },
                   "target": {
                     "oneOf": [
                       {
@@ -11170,6 +11467,25 @@ export const futureWorkItemChangesSchema = {
                       }
                     },
                     "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+                  },
+                  "targetEntityType": {
+                    "type": "string",
+                    "enum": [
+                      "ARTIFACT",
+                      "INITIATIVE",
+                      "PROJECT",
+                      "TASK",
+                      "MESSAGE",
+                      "CONVERSATION",
+                      "DESIGN_DOC",
+                      "AGENT_SESSION",
+                      "VALIDATION_SESSION",
+                      "SERVICE",
+                      "REPORT",
+                      "PROPOSAL",
+                      "IMPLEMENTATION_HINT"
+                    ],
+                    "description": "Canonical entity type for an agent-edge endpoint. The graph service maps each value to a closed set of Neo4j node labels when resolving or creating missing endpoints for edge writes. `USER` is intentionally excluded because users are not stored as entity-registry graph nodes.\n"
                   },
                   "edgeType": {
                     "type": "string",
@@ -12512,6 +12828,108 @@ export const futureWorkItemChangesSchema = {
                 "minLength": 1
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Creates a design doc beneath an existing or same-change-set work item. The design doc is created with the work items of the same change set, so a reviewed proposal can introduce a work item and its design doc together.",
+            "additionalProperties": false,
+            "required": [
+              "op",
+              "ref",
+              "name",
+              "markdown",
+              "parent"
+            ],
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "designDoc.create"
+                ]
+              },
+              "ref": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refType",
+                  "tempId"
+                ],
+                "properties": {
+                  "refType": {
+                    "type": "string",
+                    "enum": [
+                      "temporary"
+                    ]
+                  },
+                  "tempId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                  }
+                }
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "markdown": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parent": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "id"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "existing"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "refType",
+                      "tempId"
+                    ],
+                    "properties": {
+                      "refType": {
+                        "type": "string",
+                        "enum": [
+                          "temporary"
+                        ]
+                      },
+                      "tempId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Change-set-scoped temporary identifier. It is never converted into a persisted id during projection."
+                      }
+                    }
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "refType",
+                  "mapping": {
+                    "existing": "#/ExistingWorkItemIdentity",
+                    "temporary": "#/TemporaryWorkItemIdentity"
+                  }
+                },
+                "description": "Structurally distinct identity for an existing work item or a change-set-scoped temporary work item."
+              }
+            }
           }
         ],
         "discriminator": {
@@ -12526,7 +12944,8 @@ export const futureWorkItemChangesSchema = {
             "relationship.update": "#/WorkItemRelationshipUpdateOperation",
             "relationship.delete": "#/WorkItemRelationshipDeleteOperation",
             "layout.replace": "#/WorkItemLayoutReplaceOperation",
-            "layout.clear": "#/WorkItemLayoutClearOperation"
+            "layout.clear": "#/WorkItemLayoutClearOperation",
+            "designDoc.create": "#/WorkItemDesignDocCreateOperation"
           }
         }
       }

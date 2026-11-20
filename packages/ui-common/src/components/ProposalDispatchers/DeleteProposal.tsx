@@ -1,3 +1,4 @@
+import { renderApprovalReviews } from "./ProposalApprovalDetails";
 import { Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 import React, { useCallback, useMemo } from "react";
@@ -225,7 +226,7 @@ export const DeleteProposal: React.FC<DeleteProposalProps> = ({
 
   const content = (
     <Stack spacing={1.5}>
-      {proposals.map((proposal) => {
+      {renderApprovalReviews(proposals, renderMode, (proposal) => {
         const status = getState(proposal.id);
         const overrides = getProposalRenderOverrides(
           proposal.targetEntityType,

@@ -1,3 +1,4 @@
+import { DesignDocService } from '../../design-doc/design-doc.service';
 import { randomUUID } from 'node:crypto';
 import { createTestId } from 'src/utils/testUtils';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
@@ -4672,6 +4673,7 @@ function createService(workItemTypeRegistry?: {
       },
     },
   };
+  Object.assign(tx, { proposal: prisma.db.proposal });
   const taskService = {
     createInTransaction: jest.fn().mockResolvedValue({ id: 'task-1' }),
     replaceServiceAssignmentsInTransaction: jest
@@ -5623,5 +5625,123 @@ describe('WorkItemChangeSetMaterializerService dependency injection', () => {
       WorkItemChangeSetMaterializerService,
     ) as unknown[];
     expect(paramTypes).toContain(WorkItemTypeRegistryService);
+  });
+});
+
+describe('generic design-document recovery', () => {
+  it('creates one real document and resumes after a later operation fails', async () => {
+    const { service, prisma, taskService } = createService();
+    const db = prisma.db as any;
+    const documents = new Map<string, any>();
+    db.designDoc = {
+      findUnique: jest.fn(async ({ where }) => documents.get(where.id) ?? null),
+      findFirst: jest.fn(async ({ where }) => documents.get(where.id) ?? null),
+      create: jest.fn(async ({ data }) => {
+        if (documents.has(data.id)) {
+          throw new Error('duplicate design document');
+        }
+        const record = {
+          ...data,
+          sections: data.sections.create.map((section: any, index: number) => ({
+            ...section,
+            id: `section-${index}`,
+          })),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        documents.set(data.id, record);
+        return record;
+      }),
+    };
+    db.$queryRaw = jest.fn().mockResolvedValue([]);
+    db.$transaction.mockImplementation(async (callback: any) => callback(db));
+    (service as any).designDocService = new DesignDocService(
+      prisma as any,
+      { publishInTransaction: jest.fn() } as any,
+      {} as any,
+      {} as any,
+    );
+    const request = {
+      root: { refType: 'temporary', tempId: 'plan' },
+      operations: [
+        {
+          op: 'designDoc.create',
+          ref: { refType: 'temporary', tempId: 'doc' },
+          name: 'Delivery design',
+          markdown: '# Design\n\n' + 'Reviewed decisions.\n'.repeat(300),
+          parent: { refType: 'temporary', tempId: 'plan' },
+        },
+      ],
+    } as const;
+    const params = {
+      proposalId: '11111111-1111-4111-8111-111111111111',
+      organizationId: createTestId.organization(),
+      projectId: createTestId.project(),
+    };
+    const mappings = (service as any).allocateIdentityMappings(
+      request,
+      undefined,
+      params.proposalId,
+    );
+    const freshMappings = (service as any).allocateIdentityMappings(
+      request,
+      undefined,
+      params.proposalId,
+    );
+    expect(freshMappings.workItems['temporary:doc']).toBe(
+      mappings.workItems['temporary:doc'],
+    );
+    await (service as any).applyOperation(
+      params,
+      'materialization-1',
+      request.operations[0],
+      mappings,
+      0,
+      'claim-1',
+    );
+    // A later failure leaves the document committed. Reloaded work reuses its stable identity.
+    taskService.updateInTransaction.mockRejectedValueOnce(
+      new Error('later operation failed'),
+    );
+    const next = {
+      op: 'workItem.update',
+      ref: { refType: 'existing', id: 'existing-task' },
+      parent: { refType: 'temporary', tempId: 'plan' },
+    };
+    mappings.workItems['existing:existing-task'] = 'existing-task';
+    await expect(
+      (service as any).applyOperation(
+        params,
+        'materialization-1',
+        next,
+        mappings,
+        1,
+        'claim-1',
+      ),
+    ).rejects.toThrow('later operation failed');
+    await (service as any).applyOperation(
+      params,
+      'materialization-1',
+      request.operations[0],
+      mappings,
+      0,
+      'claim-1',
+    );
+    expect(documents.size).toBe(1);
+    expect(db.designDoc.create).toHaveBeenCalledTimes(1);
+    expect(
+      await (service as any).verifyOperationPostcondition(
+        params,
+        request.operations[0],
+        mappings,
+        [],
+        0,
+      ),
+    ).toBe(true);
+    const doc = [...documents.values()][0];
+    expect(doc.parentEntityId).toBe(mappings.workItems['temporary:plan']);
+    expect(doc.sections[0].materializedMarkdown).toBe(
+      request.operations[0].markdown,
+    );
   });
 });

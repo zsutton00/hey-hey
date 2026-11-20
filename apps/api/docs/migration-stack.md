@@ -101,6 +101,58 @@ JWT-key volume, and succeeds when the stack is already absent:
 pnpm migration-stack destroy --name migration-one
 ```
 
+A stack that should be reused later is paused with `stop` and brought back with
+`resume`. `stop` stops the containers and keeps every volume (PostgreSQL, Neo4j,
+Vespa, Redis, the JWT-key volume), `runtime.env`, ports and the stack hostname.
+`resume` restarts the existing containers in dependency order (data stores,
+then Temporal and the Graph and Embeddings consumers, then API and UI) and waits
+for readiness. It never builds, copies the bootstrap, runs Flyway, runs the
+data-import one-shots or replays history, and it never falls back to `up` or
+`reset`.
+
+```bash
+pnpm migration-stack stop --name evals
+pnpm migration-stack resume --name evals
+```
+
+`resume` refuses, without changing anything, when the stack has no `runtime.env`,
+is missing its PostgreSQL, Neo4j or Vespa container or volume, was never marked
+provisioned, or its bootstrap checksum no longer matches the one recorded.
+Provisioning is recorded once, after any rebuild has been verified:
+
+```bash
+pnpm migration-stack mark-provisioned --name evals --replay-completed \
+  --revision api=<sha> --revision graphs=<sha>
+```
+
+This writes `provisioned.env` (bootstrap checksum, optional source revisions and
+the replay-completed marker, no secrets) into the stack's state directory.
+`destroy` and the remote `down` remove it with the rest of the stack.
+
+### Provisioning a lasting stack from a backup
+
+A backup contains PostgreSQL only, so Neo4j and Vespa start empty. Build the
+stack once, with the API down the whole time, so copied pending work cannot run:
+
+```bash
+mstack provision evals          # stores + Graph and Embeddings consumers; API only created
+mstack replay evals --dry-run   # counts replayable events, publishes nothing
+mstack replay evals             # republish PUBLISHED outbox events, oldest first
+# reconcile Neo4j and Vespa against PostgreSQL, then:
+mstack mark-provisioned evals --replay-completed --revision api=<sha>
+mstack resume evals             # first API start
+```
+
+`replay` publishes the stored `PUBLISHED` outbox events to the Redis channels the
+consumers subscribe to, as stored (so `ragEnabled` travels unchanged and each
+consumer enforces its own exclusion). `PENDING`, `SCHEDULED` and `FAILED` rows are
+copied pending work and are never replayed. It refuses while the API runs and
+after the rebuild is marked completed. Redis pub/sub is not acknowledged, so the
+script's output is a record of what was sent, not proof of processing: only
+reconciliation against PostgreSQL establishes completeness. `--skip N` resumes at
+a position printed by an interrupted run. Do not run the SSH session unattended
+without keepalive; the full history is over a million events.
+
 The destructive reset is explicit:
 
 ```bash
@@ -358,7 +410,10 @@ Use the explicit subcommands when a test run owns the stack. `up` syncs the
 selected sources, builds and starts the remote stack, waits for API and UI
 readiness, and exits. `down` tears down that stack's Compose project and
 volumes, removes its remote staging directory, and is safe to repeat after a
-successful teardown. These commands do not require a local Docker daemon:
+successful teardown. Remote `down` is destructive; use `stop` to keep the stack.
+`mstack stop NAME` and `mstack resume NAME [--timeout SEC]` act only on the
+named stack, keep its remote staging directory and volumes, and do not sync
+sources or touch other stacks. These commands do not require a local Docker daemon:
 
 ```bash
 mstack up nightly-20261005 --timeout 600
@@ -575,7 +630,9 @@ port and credential namespace, so it can remain running alongside local stacks.
 ## Data and contract notes
 
 - A reset restores PostgreSQL from the shared bootstrap. Neo4j and Vespa start
-  empty and are repopulated by their normal stack initialization paths.
+  empty. On a backup-initialized stack they are rebuilt once from the stored
+  PostgreSQL events and then kept by `stop` and `resume`; nothing repopulates
+  them automatically, and `resume` never replays.
 - Database schema changes are applied only through Flyway.
 - Redis and Temporal must be isolated along with PostgreSQL; database isolation
   alone is insufficient.

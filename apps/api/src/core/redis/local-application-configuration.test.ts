@@ -4,6 +4,7 @@ import { RedisService } from './redis.service';
 import { RedisMessageBus } from '../events/redis-message-bus.service';
 import { composeConfiguration } from '../../../../cli/src/local-app/compose';
 import { parseReleaseManifest } from '../../../../cli/src/release/release-manifest';
+import { DEFAULT_LOCAL_WEB_PORT } from '../../../../cli/src/local-app/local-port';
 
 it('routes API RedisService, event publisher/subscriber and graph/search to the same private Redis', async () => {
   const image = {
@@ -35,6 +36,7 @@ it('routes API RedisService, event publisher/subscriber and graph/search to the 
       signingKey: 'fixture-signing-key',
     },
     4100,
+    DEFAULT_LOCAL_WEB_PORT,
   );
   const clients: Redis[] = [];
   // Keep the actual ioredis configuration parser; replace only connection I/O.

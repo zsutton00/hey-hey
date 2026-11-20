@@ -167,6 +167,8 @@ OrganizationProjectEntitlementDto:
     projectLimit:
       type: integer
       minimum: 0
+      nullable: true
+      description: The effective project limit. Null means the organization has no project limit (local installations).
     usage:
       $ref: "#/OrganizationProjectEntitlementUsageDto"
     canCreateProject:

@@ -16,7 +16,7 @@
 
 
 /**
- * Lifecycle of one case x configuration attempt.
+ * Lifecycle of one attempt at a case, configuration and repeat.
  * @export
  * @enum {string}
  */

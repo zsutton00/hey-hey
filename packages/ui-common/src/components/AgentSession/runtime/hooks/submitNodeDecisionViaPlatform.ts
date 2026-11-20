@@ -17,7 +17,7 @@ const log = (action: string, data?: Record<string, unknown>) => {
 const logError = (
   action: string,
   error: unknown,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   console.error(`${LOG_PREFIX} ${action}`, { error, ...data });
 };
@@ -43,8 +43,7 @@ export interface SubmitNodeDecisionViaPlatformInput {
 }
 
 export type SubmitNodeDecisionResult =
-  | { ok: true }
-  | { ok: false; error: string };
+  { ok: true } | { ok: false; error: string };
 
 /**
  * Authors a node-decision (QUESTIONS field action — Approve/Reject/etc.) as a

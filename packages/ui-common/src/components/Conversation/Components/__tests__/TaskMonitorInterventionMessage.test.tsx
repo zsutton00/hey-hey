@@ -1,10 +1,29 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { TaskMonitorResponsePresentationContext } from "../../../TaskMonitor/TaskMonitorResponsePresentationContext";
+import { ThemeProvider } from "@mui/material/styles";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskMonitorInterventionSystemMessageData } from "../../../../api";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { TaskMonitorInterventionMessage } from "../TaskMonitorInterventionMessage";
+
+const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>
+    <TaskMonitorResponsePresentationContext.Provider value={mocks.onAnswered}>
+      {children}
+    </TaskMonitorResponsePresentationContext.Provider>
+  </ThemeProvider>
+);
+const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: HeyTheme });
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
+  onAnswered: vi.fn(),
   refetchConversation: vi.fn(),
   refetchMessages: vi.fn(),
 }));
@@ -37,7 +56,7 @@ vi.mock("../../../../data/hooks/useConversation", () => ({
 }));
 
 const createIntervention = (
-  overrides: Partial<TaskMonitorInterventionSystemMessageData> = {}
+  overrides: Partial<TaskMonitorInterventionSystemMessageData> = {},
 ): TaskMonitorInterventionSystemMessageData => ({
   type: "TASK_MONITOR_INTERVENTION",
   response: "An exact action requires a human decision.",
@@ -66,7 +85,7 @@ describe("TaskMonitorInterventionMessage", () => {
     render(<TaskMonitorInterventionMessage data={createIntervention()} />);
 
     expect(
-      screen.getByText("An exact action requires a human decision.")
+      screen.getByText("An exact action requires a human decision."),
     ).toBeVisible();
     expect(screen.getByText("Delete the production deployment")).toBeVisible();
     expect(screen.getByText(/Production deployment/)).toBeVisible();
@@ -83,6 +102,7 @@ describe("TaskMonitorInterventionMessage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByText("Network response was lost.");
+    expect(mocks.onAnswered).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Retry approve" }));
 
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(2));
@@ -129,14 +149,17 @@ describe("TaskMonitorInterventionMessage", () => {
     await waitFor(() => {
       expect(mocks.refetchConversation).toHaveBeenCalledTimes(1);
       expect(mocks.refetchMessages).toHaveBeenCalledTimes(1);
+      expect(mocks.onAnswered).toHaveBeenCalledWith(
+        "55555555-5555-4555-8555-555555555555",
+      );
     });
     expect(
-      screen.getByTestId("task-monitor-intervention-message")
+      screen.getByTestId("task-monitor-intervention-message"),
     ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Retry deny" }));
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(2));
     expect(mocks.mutate.mock.calls[1][0].request).toBe(
-      mocks.mutate.mock.calls[0][0].request
+      mocks.mutate.mock.calls[0][0].request,
     );
   });
 
@@ -150,16 +173,35 @@ describe("TaskMonitorInterventionMessage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
-    expect(await screen.findByText("The intervention has expired.")).toBeVisible();
+    expect(
+      await screen.findByText("The intervention has expired."),
+    ).toBeVisible();
     expect(mocks.refetchConversation).toHaveBeenCalledTimes(1);
     expect(mocks.refetchMessages).toHaveBeenCalledTimes(1);
+    expect(mocks.onAnswered).not.toHaveBeenCalled();
+  });
+
+  it("allows a human decision when the provider sets no deadline", async () => {
+    mocks.mutate.mockResolvedValue({ status: "ADMITTED", replayed: false });
+    render(
+      <TaskMonitorInterventionMessage
+        data={createIntervention({ expiresAt: null })}
+      />,
+    );
+    expect(screen.queryByText(/^Expires /)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(mocks.mutate).toHaveBeenCalledOnce());
+    expect(mocks.mutate.mock.calls[0][0].request.command.resolution).toBe(
+      "APPROVE",
+    );
+    await waitFor(() => expect(mocks.refetchMessages).toHaveBeenCalledOnce());
   });
 
   it("leaves expiry admission to the canonical Task Monitor state", () => {
     render(
       <TaskMonitorInterventionMessage
         data={createIntervention({ expiresAt: "2020-01-01T00:00:00.000Z" })}
-      />
+      />,
     );
 
     expect(screen.getByText("Action required")).toBeVisible();
@@ -170,7 +212,7 @@ describe("TaskMonitorInterventionMessage", () => {
   it("replaces retry state when canonical data identifies a new intervention", async () => {
     mocks.mutate.mockRejectedValue(new Error("Network response was lost."));
     const { rerender } = render(
-      <TaskMonitorInterventionMessage data={createIntervention()} />
+      <TaskMonitorInterventionMessage data={createIntervention()} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByRole("button", { name: "Retry approve" });
@@ -181,21 +223,23 @@ describe("TaskMonitorInterventionMessage", () => {
           interventionId: "66666666-6666-4666-8666-666666666666",
           action: "Publish the production deployment",
         })}
-      />
+      />,
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
     );
     expect(screen.getByText("Publish the production deployment")).toBeVisible();
-    expect(screen.queryByText("Network response was lost.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Network response was lost."),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(2));
     expect(mocks.mutate.mock.calls[1][0].request).not.toBe(
-      mocks.mutate.mock.calls[0][0].request
+      mocks.mutate.mock.calls[0][0].request,
     );
     expect(mocks.mutate.mock.calls[1][0].request.command.interventionId).toBe(
-      "66666666-6666-4666-8666-666666666666"
+      "66666666-6666-4666-8666-666666666666",
     );
   });
 
@@ -205,10 +249,10 @@ describe("TaskMonitorInterventionMessage", () => {
       () =>
         new Promise((_, reject) => {
           rejectDelivery = reject;
-        })
+        }),
     );
     const { rerender } = render(
-      <TaskMonitorInterventionMessage data={createIntervention()} />
+      <TaskMonitorInterventionMessage data={createIntervention()} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
@@ -218,13 +262,17 @@ describe("TaskMonitorInterventionMessage", () => {
           interventionId: "66666666-6666-4666-8666-666666666666",
           action: "Publish the production deployment",
         })}
-      />
+      />,
     );
     rejectDelivery(new Error("The old decision failed."));
 
     await waitFor(() =>
-      expect(screen.getByText("Publish the production deployment")).toBeVisible()
+      expect(
+        screen.getByText("Publish the production deployment"),
+      ).toBeVisible(),
     );
-    expect(screen.queryByText("The old decision failed.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("The old decision failed."),
+    ).not.toBeInTheDocument();
   });
 });

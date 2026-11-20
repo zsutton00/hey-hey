@@ -7,30 +7,56 @@ import { useService } from "@hey-hey/ui-common/data";
 import { SavedPatchDiffViewer } from "@hey-hey/ui-common/components";
 
 import type { CodingResults } from "./evalResultsView";
+import { OpenAttemptOutput } from "./OpenAttemptOutput";
 import { shortSha } from "./shortSha";
 
-/** Where the attempt started: the Service and the pinned commit. */
+/**
+ * Where the attempt started (the Service and the pinned commit) and, when the
+ * case names one, the target it was judged against, both as recorded on the
+ * run.
+ */
 export const CodingStartPoint: React.FC<{
   organizationId: string;
   startPoint: CodingResults["startPoint"];
-}> = ({ organizationId, startPoint }) => {
+  target: CodingResults["target"];
+}> = ({ organizationId, startPoint, target }) => {
   const { t } = useTranslation();
   const { data: service } = useService(organizationId, startPoint.serviceId);
 
   return (
-    <Typography
-      variant="body2"
-      sx={{ mt: 0.5 }}
-      data-testid="eval-coding-start-point"
-    >
-      {t("eval.results.coding.startedFrom", {
-        service: service?.name ?? startPoint.serviceId,
-        sha: shortSha(startPoint.sha),
-      })}{" "}
-      <Typography component="span" variant="caption" color="text.secondary">
-        {startPoint.shortMessage}
+    <>
+      <Typography
+        variant="body2"
+        sx={{ mt: 0.5 }}
+        data-testid="eval-coding-start-point"
+      >
+        {t("eval.results.coding.startedFrom", {
+          service: service?.name ?? startPoint.serviceId,
+          sha: shortSha(startPoint.sha),
+        })}{" "}
+        <Typography component="span" variant="caption" color="text.secondary">
+          {startPoint.shortMessage}
+        </Typography>
       </Typography>
-    </Typography>
+      {target ? (
+        <Typography
+          variant="body2"
+          sx={{ mt: 0.5 }}
+          data-testid="eval-coding-target"
+        >
+          <b>{t("eval.results.coding.target")}:</b>{" "}
+          <span data-testid="eval-coding-target-kind">
+            {t(`eval.case.coding.target.kind.${target.kind}`)}
+          </span>
+          {target.path ? (
+            <>
+              {" · "}
+              <code data-testid="eval-coding-target-path">{target.path}</code>
+            </>
+          ) : null}
+        </Typography>
+      ) : null}
+    </>
   );
 };
 
@@ -59,7 +85,15 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
           label={t(`eval.results.coding.${FILE_TAG[file.status]}`)}
           sx={FILE_TAG_COLORS[file.status]}
         />
-        <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: "monospace",
+            flex: "1 1 auto",
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
           {file.path}
         </Typography>
         <Typography variant="caption" color="text.secondary">
@@ -70,7 +104,11 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
             { added: file.additions, removed: file.deletions },
           )}
         </Typography>
-        <Button size="small" onClick={() => setOpen((value) => !value)}>
+        <Button
+          size="small"
+          sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+          onClick={() => setOpen((value) => !value)}
+        >
           {open
             ? t("eval.results.coding.hideDiff")
             : t("eval.results.coding.showDiff")}
@@ -91,9 +129,11 @@ const ChangedFile: React.FC<{ file: EvalRecordedFileChange }> = ({ file }) => {
  * What a coding attempt changed, read from what the runner saved before the
  * workspace was removed. Commands the agent ran are in its session.
  */
-export const CodingAttemptResults: React.FC<{ coding: CodingResults }> = ({
-  coding,
-}) => {
+export const CodingAttemptResults: React.FC<{
+  coding: CodingResults;
+  organizationId: string;
+  attemptId: string;
+}> = ({ coding, organizationId, attemptId }) => {
   const { t } = useTranslation();
   const { changes, ended } = coding;
 
@@ -131,6 +171,17 @@ export const CodingAttemptResults: React.FC<{ coding: CodingResults }> = ({
             )}
           </Stack>
         )}
+        {ended ? (
+          <Box sx={{ mt: 1 }}>
+            <OpenAttemptOutput
+              organizationId={organizationId}
+              attemptName={`attempt-${attemptId.slice(0, 8)}`}
+              startPoint={coding.startPoint}
+              target={coding.target}
+              changes={changes}
+            />
+          </Box>
+        ) : null}
       </Box>
     </Stack>
   );

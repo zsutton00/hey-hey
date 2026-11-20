@@ -2,6 +2,28 @@ import { Frame } from '../tui/components/frame';
 import { ink } from '../tui/ink';
 import { row, sanitize, wrapText } from '../tui/text';
 import type { LocalState } from './local-application';
+import { describeDownload, type DownloadDetail } from './pull-progress';
+import { PROMPT_WINDOW_LINES, promptRows } from './troubleshooting-prompt';
+import { TROUBLESHOOT_COMMAND } from './troubleshooting-prompt-owner';
+
+/** The active step's label, with live download status or elapsed time when there is any. */
+export function progressLabel(
+  current: string,
+  detail: DownloadDetail | undefined,
+  elapsedMs: number | undefined,
+): string {
+  if (detail?.kind === 'model') {
+    return describeDownload(
+      `Downloading ${detail.label ?? 'search model'}`,
+      detail,
+      elapsedMs ?? 0,
+    );
+  }
+  if (detail) {
+    return describeDownload('Downloading application images', detail, elapsedMs ?? 0);
+  }
+  return elapsedMs && elapsedMs >= 2000 ? describeDownload(current, undefined, elapsedMs) : current;
+}
 
 export function LocalScreen({
   state,
@@ -9,29 +31,65 @@ export function LocalScreen({
   onSelect,
   onConfirm,
   onCancel,
+  onTroubleshoot,
+  onScroll,
+  onCopy,
 }: {
   state: LocalState;
   selected: number;
   onSelect: (index: number) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** When given, recovery and prerequisite screens offer the troubleshooting prompt. */
+  onTroubleshoot?: (() => void) | undefined;
+  onScroll?: (delta: number) => void;
+  onCopy?: () => void;
 }): React.JSX.Element {
   const { useInput } = ink();
-  const actionable = ['installation', 'prerequisite', 'recovery', 'stop', 'update'].includes(
-    state.kind,
-  );
-  useInput((_input, key) => {
+  const actionable = [
+    'installation',
+    'prerequisite',
+    'recovery',
+    'stop',
+    'update',
+    'docker-repair',
+    'troubleshooting',
+  ].includes(state.kind);
+  const offersPrompt =
+    onTroubleshoot !== undefined && (state.kind === 'recovery' || state.kind === 'prerequisite');
+  const choiceCount = offersPrompt ? 3 : 2;
+  useInput((input, key) => {
     if (!actionable) {
       return;
     }
-    if (key.upArrow || key.downArrow) {
-      onSelect(selected === 0 ? 1 : 0);
+    if (state.kind === 'troubleshooting') {
+      if (key.upArrow || key.downArrow) {
+        onScroll?.(key.upArrow ? -1 : 1);
+      } else if (key.pageUp || key.pageDown) {
+        onScroll?.(key.pageUp ? -PROMPT_WINDOW_LINES : PROMPT_WINDOW_LINES);
+      } else if (key.escape) {
+        onCancel();
+      } else if (key.return || input === 'c') {
+        onCopy?.();
+      }
+      return;
+    }
+    if (key.upArrow) {
+      onSelect((selected + choiceCount - 1) % choiceCount);
+    }
+    if (key.downArrow) {
+      onSelect((selected + 1) % choiceCount);
     }
     if (key.escape) {
       onCancel();
     }
     if (key.return) {
-      if (selected === (state.kind === 'stop' || state.kind === 'update' ? 0 : 1)) {
+      if (offersPrompt && selected === 2) {
+        onTroubleshoot();
+      } else if (
+        selected ===
+        (state.kind === 'stop' || state.kind === 'update' || state.kind === 'docker-repair' ? 0 : 1)
+      ) {
         onCancel();
       } else {
         onConfirm();
@@ -45,7 +103,7 @@ export function LocalScreen({
     case 'stop':
       title = 'Stop local Hey Hey?';
       lines = [
-        `${state.activeCount} sessions are active, including other terminals.`,
+        `${String(state.activeCount)} sessions are active, including other terminals.`,
         'Stopping will interrupt them. Your local data will be kept.',
       ];
       choices = [
@@ -104,16 +162,52 @@ export function LocalScreen({
     case 'prerequisite':
       title = 'Docker needs attention';
       lines = [state.message];
-      choices = ['Retry', 'Cancel'];
+      choices = ['Retry', 'Cancel', ...(offersPrompt ? ['Get troubleshooting prompt'] : [])];
       break;
     case 'progress':
-      lines = [...state.steps.map((step) => `✓ ${step}`), `⋯ ${state.current}`];
+      lines = [
+        ...state.steps.map((step) => `✓ ${step}`),
+        `⋯ ${progressLabel(state.current, state.detail, state.elapsedMs)}`,
+      ];
+      break;
+    case 'docker-repair':
+      title = 'Share the managed model with Docker?';
+      lines = [
+        state.message,
+        '',
+        `Repair adds the model share and restarts Colima profile ${state.profile}.`,
+        'Restarting this VM stops its other containers. Existing shares, their options, installation data and volumes are kept. A configuration backup is saved before changes.',
+      ];
+      choices = ['Keep configuration unchanged', 'Repair and restart this VM'];
       break;
     case 'recovery':
       title = "Hey Hey couldn't start";
       lines = [state.message, '', 'Your existing installation and data are preserved.'];
-      choices = ['Retry', 'Exit'];
+      choices = ['Retry', 'Exit', ...(offersPrompt ? ['Get troubleshooting prompt'] : [])];
       break;
+    case 'troubleshooting': {
+      const rows = promptRows(state.prompt.text);
+      const start = Math.min(state.offset, Math.max(0, rows.length - PROMPT_WINDOW_LINES));
+      const end = start + PROMPT_WINDOW_LINES;
+      title = '!! Hey Hey could not start';
+      lines = [
+        state.prompt.headline,
+        '',
+        'Want help? Copy this into your coding agent and it will try to help you fix it. Hey Hey sends nothing anywhere.',
+        'It contains local paths, which include your account name; check it before pasting it into a remote chat.',
+        '',
+        start > 0 ? `↑ ${start} more line(s) above` : '',
+        ...rows.slice(start, end),
+        end < rows.length ? `↓ ${rows.length - end} more line(s) below` : '',
+        '',
+        state.notice ??
+          (state.prompt.savedPath
+            ? `Saved to ${state.prompt.savedPath}. Show it again with: ${TROUBLESHOOT_COMMAND}`
+            : `Not saved (${state.prompt.saveFailure ?? 'unknown reason'}). Show it again with: ${TROUBLESHOOT_COMMAND}`),
+      ];
+      choices = ['Copy to clipboard'];
+      break;
+    }
     case 'ready':
       title = 'Local application is ready';
       lines = [
@@ -133,7 +227,10 @@ export function LocalScreen({
     row(''),
     ...lines.flatMap((line) => wrapText(sanitize(line), 90).map((text) => row(text))),
     row(''),
-    ...choices.map((choice, index) => ({ ...row(choice), selected: index === selected })),
+    ...choices.map((choice, index) => ({
+      ...row(choice),
+      selected: state.kind === 'troubleshooting' || index === selected,
+    })),
   ];
   return (
     <Frame
@@ -141,9 +238,12 @@ export function LocalScreen({
         title: 'HEY HEY',
         aside: 'LOCAL',
         body,
-        footer: actionable
-          ? '↑ ↓ choose   Enter confirm'
-          : 'Existing installations keep their data.',
+        footer:
+          state.kind === 'troubleshooting'
+            ? '↑ ↓ scroll   c or Enter copy   Esc back'
+            : actionable
+              ? '↑ ↓ choose   Enter confirm'
+              : 'Existing installations keep their data.',
       }}
       color={true}
       columns={100}

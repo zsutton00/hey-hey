@@ -4,7 +4,10 @@
 
 import { SystemMessageDataTypeEnum } from '../../shared/api/index';
 import type { UpdateMessageDto, AgentSystemMessageData } from '../../shared/api/index';
-import type { PromptTypeHandler } from '../../agents/prompt-type-handler';
+import type {
+  CompletionOutputDiagnostics,
+  PromptTypeHandler,
+} from '../../agents/prompt-type-handler';
 import type { AssistantDeltaEvent, AssistantCompleteEvent, MessageStamp } from '../types';
 import type { Run } from '../run';
 import type { Turn } from '../../turn/turn';
@@ -57,7 +60,8 @@ export const buildCompletionData = (
   event: AssistantCompleteEvent,
   handler: PromptTypeHandler<unknown> | null,
   payload?: unknown,
+  diagnostics?: CompletionOutputDiagnostics,
 ): UpdateMessageDto => {
-  const transformed = handler?.transformCompletionOutput?.(event, payload);
+  const transformed = handler?.transformCompletionOutput?.(event, payload, diagnostics);
   return transformed ?? buildUpdateData(event, handler);
 };

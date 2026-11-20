@@ -25,8 +25,14 @@ SetAccountDefaultOrganizationDto:
 LocalBootstrapResponseDto:
   type: object
   additionalProperties: false
-  required: [handoffToken, expiresInSeconds]
+  required: [handoffToken, expiresInSeconds, accountHasPasskey]
   properties:
+    accountHasPasskey:
+      type: boolean
+      description: >-
+        True when the local account already has a live passkey. The CLI offers
+        its one-time local approval only for a genuine first passkey; otherwise
+        pairing is confirmed at the terminal.
     handoffToken:
       type: string
       minLength: 40
@@ -74,6 +80,32 @@ LocalNameRequestDto:
       maxLength: 100
       description: Display name only; not a login identifier or authentication factor.
 
+LocalPasskeyRepairState:
+  type: string
+  enum: [NONE, REQUESTED, DECLINED, COMPLETED]
+  description: >-
+    NONE: no repair was asked for. REQUESTED: the setup page asked and the
+    terminal has not answered. DECLINED: the person said no at the terminal and
+    nothing changed. COMPLETED: the old passkeys were revoked and the setup
+    session may enroll a new first passkey.
+
+LocalPasskeyRepairStatusDto:
+  type: object
+  additionalProperties: false
+  required: [state]
+  properties:
+    state:
+      $ref: "#/LocalPasskeyRepairState"
+
+LocalPasskeyRepairDecisionRequestDto:
+  type: object
+  additionalProperties: false
+  required: [approved]
+  properties:
+    approved:
+      type: boolean
+      description: What the person answered at the terminal.
+
 LocalCodingAgentAvailability:
   type: string
   enum: [installed, not-found, check-failed]
@@ -105,6 +137,10 @@ LocalSetupStatusDto:
       setupProjectId,
     ]
   properties:
+    pairingState:
+      type: string
+      enum: [WAITING, ACTIVE, REJECTED, EXPIRED, UNAVAILABLE]
+      description: Present when enrollmentId is supplied. Reports only an enrollment claimed by this local account in its current organization. ACTIVE means enrollment activated, not that the CLI is connected; terminal states require a new CLI pairing. Unknown and other-account enrollments are indistinguishable.
     nameComplete:
       type: boolean
     browserSession:

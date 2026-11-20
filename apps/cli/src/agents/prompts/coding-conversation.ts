@@ -1,5 +1,8 @@
 import { buildActivityResponsibilities } from './knowledge-responsibilities';
-import { buildCompletionReconciliationPromptFor } from '../completion-reconciliation/prompts/common';
+import {
+  buildCompletionReconciliationPromptFor,
+  type CompletionReconciliationInput,
+} from '../completion-reconciliation/prompts/common';
 import type {
   LocalCodingFreeformPromptPayload,
   LocalFreeFormPromptPayload,
@@ -177,9 +180,7 @@ const buildReadinessClarification = (
 ): string => `## Readiness clarification
 
 Your earlier readiness check on this Run is waiting on the user, and their message is their answer.${
-  finding
-    ? ` The open problem was: ${describeOpenFinding(finding)}`
-    : ''
+  finding ? ` The open problem was: ${describeOpenFinding(finding)}` : ''
 }
 
 Reassess with their answer before using code-capable tools. If no consequential decision remains unresolved, call \`submit_implementation_readiness\` with a \`CLEAR\` disposition (the canonical source binding below, \`finding: null\`, \`resolution: { "kind": "NONE" }\`), then continue with the request. Otherwise follow the preflight below with a new \`REVIEW_REQUIRED\` finding.`;
@@ -254,7 +255,7 @@ A readiness response replaces the completion JSON below for that turn.`;
 export const buildCodingConversationPrompt = (
   payload: CodingConversationPreparedPayload,
   mode: CodingConversationMode,
-  startedPromptTypes: ReadonlySet<string> = new Set(),
+  completion: CompletionReconciliationInput = { startedPromptTypes: new Set(), focalTask: true },
 ): string => {
   const sections: string[] = [];
 
@@ -286,6 +287,6 @@ export const buildCodingConversationPrompt = (
     sections.push(buildReadinessPreflight(mode.implementationReadinessSourceSnapshot));
   }
 
-  sections.push(buildCompletionReconciliationPromptFor(startedPromptTypes));
+  sections.push(buildCompletionReconciliationPromptFor(completion));
   return sections.join('\n\n');
 };

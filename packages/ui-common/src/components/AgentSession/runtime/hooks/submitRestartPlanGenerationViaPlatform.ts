@@ -16,7 +16,7 @@ const log = (action: string, data?: Record<string, unknown>) => {
 const logError = (
   action: string,
   error: unknown,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   console.error(`${LOG_PREFIX} ${action}`, { error, ...data });
 };
@@ -33,7 +33,7 @@ const logError = (
  */
 export interface PlatformRestartPoster {
   restartPlanGeneration: (
-    request: AgentSessionsApiRestartPlanGenerationRequest
+    request: AgentSessionsApiRestartPlanGenerationRequest,
   ) => Promise<{ data: RestartPlanGenerationResponseDto }>;
 }
 
@@ -45,8 +45,7 @@ export interface SubmitRestartPlanGenerationViaPlatformInput {
 }
 
 export type SubmitRestartPlanGenerationResult =
-  | { ok: true; conversationId: string }
-  | { ok: false; error: string };
+  { ok: true; conversationId: string } | { ok: false; error: string };
 
 /**
  * Hands the restart request to the platform. The platform tears down the
@@ -111,7 +110,7 @@ export const submitRestartPlanGenerationViaPlatform = async ({
       logError(
         "restart returned without a conversationId",
         new Error("missing conversationId"),
-        { agentSessionId, restarted }
+        { agentSessionId, restarted },
       );
       return {
         ok: false,

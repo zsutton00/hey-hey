@@ -70,3 +70,31 @@ export const extractCredentialLookupFromErrorMessage = (
     accountId,
   };
 };
+
+/** A permission mode a provider runs natively, so it decides routine requests itself. */
+export type ProviderPermissionMode = 'auto';
+
+/**
+ * The native automation mode each provider supports, or null when it has none.
+ * Claude Code 2.1.327 lists `auto` among its `--permission-mode` choices
+ * (checked with `claude --help`); the classifier still denies what its policy
+ * or managed settings deny. Codex 0.170.0 routes approvals to its automatic
+ * reviewer with `approvalsReviewer: "auto_review"` on `thread/start` and
+ * `thread/resume` (checked in its app-server schema and `--approve-for-me`).
+ * OpenCode has no equivalent.
+ *
+ * `minimumVersion` is the oldest installation whose support was verified; an
+ * older or unreadable installation gets no native mode (see
+ * native-permission-mode.ts).
+ */
+export const NATIVE_PERMISSION_MODES: Readonly<
+  Record<AgentProviderId, { mode: ProviderPermissionMode; minimumVersion: string } | null>
+> = {
+  claude: { mode: 'auto', minimumVersion: '2.1.327' },
+  codex: { mode: 'auto', minimumVersion: '0.170.0' },
+  opencode: null,
+};
+
+export const nativePermissionModeFor = (
+  providerId: AgentProviderId,
+): ProviderPermissionMode | null => NATIVE_PERMISSION_MODES[providerId]?.mode ?? null;

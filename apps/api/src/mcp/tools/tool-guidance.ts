@@ -79,6 +79,20 @@ Product: A user asks to save restaurant dishes as favorites and revisit them. Ac
 );
 
 /**
+ * Stage-grouping advice shared by both Plan entry points so the rule has one home.
+ */
+const PLAN_STAGE_GROUPING_GUIDANCE = [
+  'Group work into the fewest coherent delivery-outcome stages. Each stage should',
+  'help a reviewer understand an outcome the work delivers, not mirror the number',
+  'of tasks. A single stage is acceptable when the work delivers one outcome. One',
+  'stage per task is a warning sign: reconsider the grouping, though it is not a',
+  'forbidden configuration or a numerical limit. Task order and real prerequisites',
+  'belong in task prerequisites, not in extra stages. Independent work and',
+  'prerequisites owned outside the plan stay as they are; stage order keeps its',
+  'existing meaning, and each task belongs to exactly one stage.',
+];
+
+/**
  * Backticked, comma-joined render of the canonical agent edge vocabulary,
  * inlined into the proposal-edges guidance below so adding or retiring a
  * type in {@link AGENT_EDGE_TYPES} updates the rendered guidance with no
@@ -153,6 +167,12 @@ export const FEATURE_REQUIREMENT_CONCISION_GUIDANCE = [
   '## Concise requirements',
   '',
   'Keep each requirement as concise as possible. Make its first sentence a self-contained summary of the promised behavior, and keep further detail only where it changes what is delivered. Cite the owning task, design doc or Contract instead of restating its content. Split a requirement that bundles several independent rules into separate requirements, or move the detail to the fulfilling task.',
+].join('\n');
+
+export const FEATURE_SPLIT_CUE_GUIDANCE = [
+  '## Oversized features',
+  '',
+  'While creating or editing a feature, notice when it is becoming too large to read cheaply when pulled in whole: roughly 16–20 or more requirements, a very long description, or more than one coherent product capability. When it is, tell the user and ask whether to split it. Wait for the answer; never split, block, or truncate the feature on your own, and do not ask when the feature is comfortably small. If the user agrees, propose smaller capability-focused child features under it, keep a short parent body that links to them, and reparent or link the affected tasks.',
 ].join('\n');
 
 const FLOW_RELATIONSHIP_VARIANT_GUIDANCE = [
@@ -450,7 +470,9 @@ function buildWorkItemGuidanceBody(
           '4. Create the Diagram the same way. For each screen element, set',
           '   its `diagramElementMetadata` section to',
           '   `{ "role": "UI", "canonicalReference": { "entityType": "TASK",',
-          '   "entityId": "<that Mockup\'s reservedEntityId>" } }` — this is',
+          '   "entityId": "<that Mockup\'s reservedEntityId>" } }`, using',
+          "   role `UI_START` instead of `UI` for the flow's entrance or",
+          '   primary screen — this is',
           '   how a screen names its Mockup, not a `diagramElements[].edges`',
           '   link. The project-effective element reference policy must',
           '   allow a Mockup target for this role. Update `expectedRevision`',
@@ -509,13 +531,17 @@ function buildWorkItemGuidanceBody(
 
   // Canonical standards carry this block once the migration has run; the
   // tool-level reminder covers project overrides without repeating it.
-  const featureRequirementConcisionGuidance = (
+  const featureStandardsGuidance = (
     typeKey: string,
     cfg: WorkItemTypeRules,
   ): string[] =>
-    typeKey === 'FEATURE' &&
-    !cfg.writingStandards[mode].includes(FEATURE_REQUIREMENT_CONCISION_GUIDANCE)
-      ? ['', FEATURE_REQUIREMENT_CONCISION_GUIDANCE]
+    typeKey === 'FEATURE'
+      ? [
+          FEATURE_REQUIREMENT_CONCISION_GUIDANCE,
+          FEATURE_SPLIT_CUE_GUIDANCE,
+        ].flatMap((block) =>
+          cfg.writingStandards[mode].includes(block) ? [] : ['', block],
+        )
       : [];
 
   const planStageCreateDependencyGuidance = (typeKey: string): string[] =>
@@ -822,7 +848,7 @@ function buildWorkItemGuidanceBody(
         ...graphEditGuidance(cfg),
         ...diagramProposalEdgeGuidance(typeKey),
         ...standardTaskDependencyGuidance(typeKey),
-        ...featureRequirementConcisionGuidance(typeKey, cfg),
+        ...featureStandardsGuidance(typeKey, cfg),
         ...serviceScopeGuidance,
         '',
         cfg.writingStandards[mode],
@@ -929,9 +955,15 @@ export const TOOL_GUIDANCE = {
         '  when this type should retain a typed launch default. Omit or use an',
         '  empty array for types that do not accept one; never infer acceptance',
         '  from the type key, role, or another capability.',
-        '- **Lifecycle:** define ordered `allowedStatuses`. Agents may propose',
-        '  every allowed status by default: omit `agentSettableStatuses` unless',
-        '  the user deliberately wants to restrict agents to a narrower list.',
+        '- **Lifecycle:** define ordered `statuses` entries with `name`, `meaning`,',
+        '  and optional `label` and `completionBehavior`. The first ordinary name',
+        '  initializes new items. ARCHIVED is universal and SUPERSEDED is protected.',
+        '  Call `resolve_work_item_type_statuses` for suggestions and meanings. Preserve',
+        '  existing statuses when editing; if it asks which names mean finished, ask',
+        '  that question and pass the answer, including an empty list for none.',
+        '  `agentSettableStatuses` entries must be ordinary status names or ARCHIVED.',
+        '  On create, omitting it allows all of them; on edit, omitting it keeps the',
+        "  type's current list. When renaming a status, update its entry there too.",
         '  `SUPERSEDED` is always reached through the supersede transition, never',
         '  an ordinary status edit. Do not use capability flags to stand in for',
         '  lifecycle policy.',
@@ -1092,6 +1124,10 @@ export const TOOL_GUIDANCE = {
         'and interfaces rather than inventing missing schemas, events, or sequencing.',
         '```',
         '',
+        '## Grouping work into stages',
+        '',
+        ...PLAN_STAGE_GROUPING_GUIDANCE,
+        '',
         ...PLAN_SCOPE_AND_JUDGMENT_GUIDANCE,
         '',
         '## Do NOT pre-materialize a design doc proposal',
@@ -1116,6 +1152,84 @@ export const TOOL_GUIDANCE = {
         'from the `create_plan` call. Do not try to look it up synchronously.',
       ].join('\n'),
     ),
+  },
+  create_plan_from_existing_tasks: {
+    description:
+      "When and how to propose a plan built from a feature's existing tasks via create_plan_from_existing_tasks.",
+    body: [
+      '# create_plan_from_existing_tasks — agent guidance',
+      '',
+      '## When to use it',
+      '',
+      "Use this tool only when the feature's tasks already exist and the user wants",
+      'them structured into a plan: grouped into stages, ordered, and reviewed',
+      'together under one design doc. If the work still needs tasks, use',
+      '`create_plan` instead. This tool never creates tasks, stages, a plan, or a',
+      'design doc; it only creates one proposal for the user to review.',
+      '',
+      '## Fix the task set first',
+      '',
+      'Know the exact set of task IDs before you call. Read the feature and its',
+      'tasks. Tasks can come from anywhere in the project and may have any status',
+      'except ARCHIVED or SUPERSEDED. If the set looks',
+      'incomplete (work the feature describes has no task, or a task you expected',
+      'is missing), stop and tell the user so they can create the missing tasks',
+      'first. Do not guess, and do not call this tool with a partial set hoping to',
+      'add tasks later.',
+      '',
+      '## Draft the design doc from the feature and the tasks',
+      '',
+      '`designDocMarkdown` is built from two sources: the parent feature says what',
+      'was wanted, and the tasks say how it was done. Write it as a record of how',
+      'the work was delivered. Later changes in direction belong on the feature, not',
+      'in this document. The doc travels inside the proposal; it is not a separate',
+      'artifact to maintain.',
+      '',
+      'Make it a substantial PRD-style document, not a summary: explain the',
+      "feature's intended outcome and the experience it gives users, and how the",
+      'selected tasks deliver it, in enough depth for a meaningful review. Use the',
+      'section template from `get_tool_guidance` for `create_plan` as the single',
+      'outline (its eight headings and four technical subsections); do not invent',
+      'a second template. Ground responsibilities, shared decisions, and interfaces',
+      'in the selected work and leave routine code choices to implementation.',
+      'Scope exclusions are a short part of the document, never its bulk. Follow the',
+      'plan scope and judgment discipline in that guidance: no invented metrics or',
+      'speculative scope, and acceptance criteria only summarize behavior the work',
+      'already establishes.',
+      '',
+      '## Decide what the plan is about, then group',
+      '',
+      'Before grouping, read the feature and every selected task, understand what',
+      'the work delivers, and decide what the plan is about.',
+      '',
+      ...PLAN_STAGE_GROUPING_GUIDANCE,
+      '',
+      '## Stages and prerequisites',
+      '',
+      '- `stages` is ordered: array order is stage order, and each stage follows the',
+      '  one before it. Every stage lists at least one task ID.',
+      '- A task appears in exactly one stage; the task set is the union of all',
+      '  stage `taskIds`.',
+      '- List order never implies a dependency between tasks. State any task',
+      '  prerequisites explicitly as `{ taskId, dependsOnTaskId }` entries in',
+      '  `taskPrerequisites`. The source task must be adopted; its prerequisite',
+      '  may be another existing task in the project outside the plan.',
+      '',
+      '## One entry point',
+      '',
+      'Do not call `create_design_doc` or `create_work_item` for the plan, its',
+      'stages, or the design doc. This proposal is the single entry. Nothing is',
+      'created until the user approves the one proposal.',
+      '',
+      '## Rejections',
+      '',
+      'The call is rejected, with every problem listed, when the task list is empty,',
+      'the parent feature or any listed task does not exist (named by ID), a task is',
+      'listed twice, or a stage has no tasks. Approval also rechecks eligibility:',
+      'only STANDARD tasks outside existing Plans can be adopted, excluding',
+      'ARCHIVED and SUPERSEDED tasks; prerequisites must be valid and acyclic.',
+      'Fix the listed issues and call again.',
+    ].join('\n'),
   },
   create_work_item: {
     description:
@@ -1160,6 +1274,12 @@ export const TOOL_GUIDANCE = {
         'Canonical writing standards live on @[feature:b551cf45-e5b1-413d-9163-541e0a5c9bc3|Design Doc Tools].',
         'Read that feature for the full rule set: lead-with-the-decision,',
         "reference-don't-restate, one-decision-per-doc, signal-to-noise.",
+        '',
+        '## Line breaks',
+        '',
+        'Write `content` with real line breaks. Never type the two characters',
+        'backslash and n as a newline: a body with no real line breaks is',
+        'refused and must be resent.',
         '',
         '## Section shape (within `content`)',
         '',
@@ -1246,6 +1366,12 @@ export const TOOL_GUIDANCE = {
         'The discipline that governs `create_design_doc` applies symmetrically',
         'here. Canonical writing standards live on @[feature:b551cf45-e5b1-413d-9163-541e0a5c9bc3|Design Doc Tools].',
         'Edit paths cannot be a back door for rules a creation path enforces.',
+        '',
+        '## Line breaks',
+        '',
+        'Write section content with real line breaks. Never type the two',
+        'characters backslash and n as a newline: a section with no real line',
+        'breaks is refused and must be resent.',
         '',
         '## One update per entity',
         '',

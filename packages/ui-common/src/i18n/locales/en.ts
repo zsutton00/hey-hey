@@ -14,6 +14,101 @@ import { KEYS } from "../keys";
 import { compose, patterns } from "../compose";
 
 export const en = {
+  "projectNavigation.overview": "Overview",
+  "projectNavigation.sessions": "Sessions",
+  "projectNavigation.work": "Work",
+  "projectNavigation.proposals": "Proposals",
+  "projectNavigation.knowledge": "Knowledge",
+  "projectNavigation.settings": "Settings",
+  "projectNavigation.admin": "Admin",
+  "projectNavigation.help": "Help",
+  "openItems.rename.action": "Rename",
+  "openItems.rename.heading": "Rename conversation",
+  "openItems.rename.title": "Conversation title",
+  "openItems.rename.help": "Use 3–80 characters.",
+  "openItems.rename.cancel": "Cancel",
+  "openItems.rename.save": "Save",
+  "openItems.rename.retry": "Try again",
+  "openItems.rename.review": "Review latest title",
+  "openItems.rename.latest": "Latest title: {{title}}",
+  "openItems.rename.read":
+    "Could not load this conversation. Please try again.",
+  "openItems.rename.failed":
+    "Could not rename this conversation. Your entered name is retained. Please try again.",
+  "openItems.rename.conflict":
+    "This conversation was renamed while you were editing. Review the latest title before saving your draft again.",
+  "openItems.rename.refresh":
+    "The conversation was renamed, but its Open Items label could not be updated. Try again to update the label.",
+
+  "proposals.existingPlan.existingTask": "Existing task",
+  "proposals.existingPlan.loading": "Loading task…",
+  "proposals.existingPlan.readFailed": "Could not read this task.",
+  "proposals.existingPlan.unavailable": "This task is unavailable.",
+  "proposals.existingPlan.deliveryOrder": "Stages in delivery order",
+  "proposals.existingPlan.prerequisites": "Explicit task prerequisites",
+  "proposals.existingPlan.orderIsNotDependency":
+    "Stage and task list order do not imply task dependencies.",
+  "proposals.existingPlan.noPrerequisites": "No task prerequisites declared.",
+  "proposals.existingPlan.dependsOn": "Depends on",
+  "proposals.existingPlan.parentFeature": "Parent Feature",
+  "proposals.existingPlan.resultUnavailable":
+    "Adoption completed, but its Plan link is unavailable.",
+  "proposals.existingPlan.approve": "Approve",
+  "changes.title": "Changes",
+  "changes.service": "Service",
+  "changes.task": "Task",
+  "changes.feature": "Feature",
+  "changes.commitStatus": "Commit status",
+  "changes.all": "All",
+  "changes.committed": "Committed",
+  "changes.uncommitted": "Uncommitted",
+  "changes.approximate": "Approximate",
+  "changes.loading": "Loading\u2026",
+  "changes.loadFailed": "Unable to load changes.",
+  "changes.empty": "No changes match these filters.",
+  "changes.previous": "Previous",
+  "changes.next": "Next",
+  "changes.close": "Close",
+  "changes.contextUnavailable": "Context unavailable",
+  "changes.subtitle": "What coding agents changed, newest first",
+  "changes.exact": "Exact",
+  "changes.approximateHint": "Another change may have landed in the same lines",
+  "changes.versionsNotRecorded": "Versions not recorded",
+  "changes.pageRange": "{{from}}\u2013{{to}}",
+  "changes.viewSession": "View session",
+  "changes.commitHashTooltip": "Git commit hash: {{hash}}",
+  "changes.fileCount_one": "{{count}} file",
+  "changes.fileCount_other": "{{count}} files",
+  "changes.editCount_one": "{{count}} edit",
+  "changes.editCount_other": "{{count}} edits",
+  "changes.fileEditSummary": "{{files}}, {{edits}}",
+  "changes.clearService": "Clear Service filter",
+  "changes.clearTask": "Clear task filter",
+  "changes.clearFeature": "Clear feature filter",
+  "changes.retry": "Retry",
+  "changes.dialogContext":
+    "{{service}} \u00b7 Before \u2192 after this edit \u00b7 {{time}}",
+  "changes.dialogHeading": "This edit can't be shown right now.",
+  "changes.reason.offline":
+    "The computer that ran this session is offline. The record stays in the list; open it again once that computer is connected.",
+  "changes.reason.tooLarge": "This file is too large to show here.",
+  "changes.reason.versionsGone":
+    "The saved versions of this file can no longer be read on the computer that ran the session.",
+  "changes.reason.notInRecord":
+    "This edit is not part of the session's recorded changes.",
+  "changes.reason.denied":
+    "Access to the computer that ran this session was denied.",
+  "changes.reason.sessionUnavailable": "The session could not be loaded.",
+  "changes.reason.generic": "Something went wrong reading this edit.",
+
+  "localLogin.title": "Welcome back",
+  "localLogin.note": "Use your passkey to continue where you left off.",
+  "localLogin.continuing": "Continuing where you left off…",
+  "localLogin.signIn": "Sign in with passkey",
+  "localLogin.failed": "Passkey sign-in failed. Please try again.",
+  "localLogin.unsupported":
+    "This browser does not support passkeys. Open Hey Hey in a browser that supports passkeys.",
+
   "localSetup.pairing.eyebrow": "LOCAL SETUP · CONNECT",
   "localSetup.pairing.signInNote":
     "This passkey is also your Hey Hey sign-in passkey. Removing it later also disconnects this computer.",
@@ -53,18 +148,41 @@ export const en = {
   "localSetup.pairing.createPasskey": "Create passkey",
   "localSetup.pairing.tryAgain": "Try creating passkey again",
   "localSetup.pairing.cancel": "Cancel",
+  "localSetup.pairing.returning.title": "Reconnect this computer",
+  "localSetup.pairing.returning.purpose":
+    "You've set up Hey Hey on this computer before. Use the passkey you created then to reconnect it. Your projects and work are still here.",
+  "localSetup.pairing.returning.note":
+    "This computer was set up before. Your browser will ask for the passkey you created then.",
+  "localSetup.pairing.returning.usePasskey": "Use your passkey",
+  "localSetup.pairing.terminalConfirmation":
+    "After the passkey step, confirm once in the terminal where heyhey local is running.",
+  "localSetup.repair.explanation":
+    "You've set up Hey Hey on this computer before, but we can't use that passkey here. Repair sets up a new passkey for this computer and keeps all your projects and work.",
+  "localSetup.repair.action": "Repair",
+  "localSetup.repair.confirmInTerminal":
+    "Confirm the repair in the terminal where heyhey local is running. This page continues on its own.",
+  "localSetup.repair.declined":
+    "The repair was cancelled in the terminal. Nothing was changed.",
+  "localSetup.repair.completed":
+    "The repair is done. Create a new passkey for this computer; your projects and work are still here.",
+  "localSetup.progress.confirmInTerminal":
+    "Your passkey worked. Now confirm in the terminal where heyhey local is running, and keep it open.",
   "localSetup.progress.title": "Connecting your computer",
   "localSetup.progress.explanation":
     "Hey Hey is getting set up on this computer. This page continues on its own.",
   "localSetup.progress.terminalHint":
     "If your terminal asks you to confirm, confirm it there. Keep it open.",
   "localSetup.progress.failed":
-    "We couldn't finish connecting your computer. Try again, and if it keeps happening run heyhey local again.",
-  "localSetup.progress.retry": "Try again",
+    "The computer has not connected yet. Keep heyhey local running in your terminal. If it stopped or reported an error, run heyhey local again; your projects and work are kept.",
+  "localSetup.progress.retry": "Check connection",
+  "localSetup.progress.rejected":
+    "Pairing was declined or could not be completed. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.expired":
+    "This pairing expired before it finished. Run heyhey local again to start a new pairing. Your projects and work are kept.",
+  "localSetup.progress.unavailable":
+    "This pairing is no longer available. Run heyhey local again to start a new pairing. Your projects and work are kept.",
   "onboarding.local.runtimeUnavailable":
     "The saved runtime is unavailable on this computer. Restore that provider to resume onboarding.",
-  "onboarding.runtime.lowCostGuidance":
-    "A low-cost model is enough for onboarding.",
   "onboarding.runtime.ownPlanGuidance":
     "Choose which machine and model will run onboarding. It uses your own coding plan; a low-cost model is enough.",
   "onboarding.runtime.loading": "Preparing your project…",
@@ -127,6 +245,97 @@ export const en = {
   "usageTrends.error": "Usage trends could not be loaded.",
   "usageTrends.empty":
     "No agent executions with usage measurements match this period and these filters.",
+  "approvalSettings.type": "Type",
+  "approvalSettings.featureContent": "Feature content changed",
+  "approvalSettings.topLevel": "At top level",
+  "approvalSettings.authoringTool": "Authoring operation",
+
+  "approvalSettings.retry": "Try again",
+  "approvalSettings.ruleCount": "Rules",
+  "approvalSettings.user": "User",
+  "approvalSettings.agent": "Agent",
+  "approvalSettings.createAction": "Create",
+  "approvalSettings.updateAction": "Update",
+  "approvalSettings.deleteAction": "Delete",
+  "approvalSettings.statusOnly": "Status only",
+  "approvalSettings.contentChange": "Content changes",
+
+  "approvalSettings.priority": "Global priority",
+  "approvalSettings.projectSource": "Project configuration",
+  "approvalSettings.fixedSource": "Built-in \u00b7 Fixed",
+  "approvalSettings.fixedRow":
+    "Always requires exactly {{count}} human approval(s). The project's approval setting does not change it.",
+  "approvalSettings.builtin": "Built-in",
+  "approvalSettings.tabs": "Approval rule sections",
+  "approvalSettings.projectRulesTab": "Project rules",
+  "approvalSettings.builtinRulesTab": "Built-in rules",
+  "approvalSettings.builtinIntro":
+    "These rules come with Hey Hey and are locked.",
+  "approvalSettings.fixedCounts": "Fixed approval counts",
+  "approvalSettings.fixedCountsHelp":
+    "The number of human approvals is set by Hey Hey. The project approval setting does not change it.",
+  "approvalSettings.standardDefaults": "Standard defaults",
+  "approvalSettings.standardDefaultsHelp":
+    "Built-in rules that apply when no project rule matches.",
+  "approvalSettings.any": "Any",
+  "approvalSettings.immediate": "Apply immediately",
+  "approvalSettings.count": "Human approvals",
+  "approvalSettings.credit": "Allow eligible user proposer approval",
+  "approvalSettings.yes": "Yes",
+  "approvalSettings.no": "No",
+  "approvalSettings.loadError": "Could not load approval settings.",
+  "approvalSettings.loading": "Loading approval settings",
+  "approvalSettings.defaultGroup": "Default \u00b7 All types",
+  "approvalSettings.title": "Approval rules",
+  "approvalSettings.intro":
+    "Choose when changes apply immediately and when people review them.",
+  "approvalSettings.restore": "Restore defaults",
+  "approvalSettings.orderHelp":
+    "Rules are checked in priority order and the first matching rule wins. Priority numbers run across both tabs: fixed built-in rules first, then your project rules, then the remaining built-in rules. Restore defaults replaces your project rules only; built-in rules never change.",
+  "approvalSettings.refreshError": "Could not refresh settings.",
+  "approvalSettings.conflict":
+    "Someone saved newer settings. Review the latest settings before changing them.",
+  "approvalSettings.reviewLatest": "Review latest settings",
+  "approvalSettings.groups": "Rule groups",
+  "approvalSettings.unknownGroup":
+    "This type is no longer in the registry. Choose another group.",
+  "approvalSettings.add": "Add rule",
+  "approvalSettings.historical": "Unavailable type",
+  "approvalSettings.fallback": "When no rule matches",
+  "approvalSettings.proposalRequired": "Proposal required",
+  "approvalSettings.noProposal": "No proposal required",
+  "approvalSettings.permissionHelp":
+    "Only governance managers can edit. Agent authorship earns no human approval. Immediate changes retain a proposal audit record.",
+  "approvalSettings.author": "Author",
+  "approvalSettings.action": "Action",
+  "approvalSettings.change": "Changes",
+  "approvalSettings.delete": "Delete rule",
+  "approvalSettings.outcome": "Outcome",
+  "approvalSettings.review": "Require human approval",
+
+  "workItemType.status.new": "New status name",
+  "workItemType.status.add": "Add status",
+  "workItemType.status.suggest": "Suggest statuses",
+  "workItemType.status.remove": "Remove status",
+  "workItemType.status.moveUp": "Move status up",
+  "workItemType.status.moveDown": "Move status down",
+  "workItemType.status.finished": "Which of these mean the work is finished?",
+  "workItemType.status.none": "A type can have no finished status.",
+  "workItemType.status.noneOfThese": "None of these",
+  "workItemType.status.name": "Status {{position}}",
+  "workItemType.status.start": "New items start here",
+  "workItemType.status.reserved": "Reserved by the platform",
+  "workItemType.status.reservedArchived": "Archived is always available.",
+  "workItemType.status.reservedSuperseded":
+    "Superseded is applied only when a replacement is approved. It cannot be renamed, removed, chosen as the starting status or set manually.",
+  "workItemType.status.existingItems":
+    "Existing items keep their current statuses.",
+  "workItemType.status.invalidNames":
+    "Give every status a unique name other than Archived or Superseded.",
+  "workItemType.status.answerRequired":
+    "Choose which statuses mean the work is finished, or None of these.",
+  "workItemType.status.required": "Add at least one status.",
+  "workItemType.status.resolveError": "Could not resolve statuses. Try again.",
   "demo.start.checking": "Checking for your demo…",
   "demo.start.resumeError":
     "We couldn't check for your demo. Please try again.",
@@ -287,8 +496,6 @@ export const en = {
   [KEYS.common.yes]: "Yes",
   [KEYS.common.no]: "No",
   [KEYS.common.unknown]: "Unknown",
-  [KEYS.common.retry]: "Retry",
-  [KEYS.common.retrying]: "Retrying...",
   [KEYS.common.noItemsFound]: "No items found",
   [KEYS.common.notAvailable]: "Not available",
   [KEYS.common.active]: "Active",
@@ -781,6 +988,7 @@ export const en = {
   [KEYS.auth.mustChangePassword]:
     "You must set a new password before continuing",
   [KEYS.auth.setNewPassword]: "Set New Password",
+  [KEYS.auth.or]: "OR",
 
   // Beta onboarding translations
   [KEYS.betaOnboarding.title]: "Beta User Onboarding",
@@ -1424,11 +1632,20 @@ export const en = {
   "eval.run.setup.judgeIncomplete":
     "Choose a provider, model and reasoning effort for the judge.",
   "eval.run.setup.cases": "Approved cases in this run",
+  "eval.run.setup.messages_one": "1 message, judged on the last",
+  "eval.run.setup.messages_other": "{{count}} messages, judged on the last",
   "eval.run.setup.noCases":
     "This Eval has no approved cases yet. Approve cases on the Eval before running it.",
   "eval.run.setup.casesError": "Couldn't load the approved cases.",
   "eval.run.setup.attemptCount":
     "{{cases}} × {{configurations}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.attemptCountRepeats":
+    "{{cases}} × {{configurations}} × {{repeats}} = {{attempts}}, each in a fresh session.",
+  "eval.run.setup.runAttempts": "Run {{attempts}}",
+  "eval.run.setup.liveProjectNoteRepeats":
+    "Runs against the project as it is now, so later repeats may see items that changed during the run. The cases, items, and settings used are saved with the run; the rest of the project is not.",
+  "eval.run.repeats_one": "{{count}} repeat",
+  "eval.run.repeats_other": "{{count}} repeats",
   "eval.run.setup.runsOn": "Runs on",
   "eval.run.setup.liveProjectNote":
     "Runs against the project as it is now. The cases, items, and settings used are saved with the run; the rest of the project is not.",
@@ -1445,6 +1662,9 @@ export const en = {
   "eval.run.setup.dialog.cancel": "Cancel",
   "eval.run.settings.title": "Run settings",
   "eval.run.settings.concurrency": "Attempts at once",
+  "eval.run.settings.repeats": "Repeats per case and setup",
+  "eval.run.settings.repeatsNote":
+    "Each repeat is a separate fresh attempt that can't see the others. Up to 10. The run page shows how often each setup got it right and how much its scores varied.",
   "eval.run.settings.timeLimit": "Time limit per attempt",
   "eval.run.settings.tokenLimit": "Token limit per attempt",
   "eval.run.settings.noLimit": "No limit",
@@ -1466,6 +1686,7 @@ export const en = {
   "eval.run.handler.entity_conversation": "Entity conversation",
   "eval.run.handler.feature_sync_analyze": "Feature sync",
   "eval.run.handler.agent_search": "Agent search",
+  "eval.run.handler.free_form": "Coding (free form)",
   "eval.run.settings.projectAssistant":
     "Project Assistant prepares the handler",
   "eval.run.settings.projectAssistantNote":
@@ -1475,11 +1696,18 @@ export const en = {
   "eval.run.page.attempts": "Attempts",
   "eval.run.page.progressSummary":
     "{{cases}} × {{configurations}} · {{ended}} of {{total}} ended",
+  "eval.run.page.statusRunning": "Running · {{ended}} of {{total}} ended",
+  "eval.run.page.statusFinished": "Finished",
+  "eval.run.page.statusFinishedWithErrors_one": "Finished with {{count}} error",
+  "eval.run.page.statusFinishedWithErrors_other":
+    "Finished with {{count}} errors",
+  "eval.run.page.statusStopped": "Stopped",
   "eval.run.page.backgroundHint":
     "You can leave this page; the run keeps going.",
   "eval.run.page.stop": "Stop run",
   "eval.run.page.settingsSummary":
     "{{concurrency}} at once · Time limit: {{time}} · Token limit: {{tokens}} · Handler: {{handler}} · Project Assistant: {{projectAssistant}}",
+  "eval.run.page.repeatsSummary": "{{count}} repeats per case and setup",
   "eval.run.page.projectAssistantOn": "on",
   "eval.run.page.projectAssistantOff": "off",
   "eval.run.page.projectAssistantAlone": "research only",
@@ -1495,6 +1723,7 @@ export const en = {
   "eval.run.page.loadError": "Couldn't load this run: {{message}}",
   "eval.run.page.notFound": "This run doesn't exist.",
   "eval.run.page.case": "Case",
+  "eval.run.sessionTitle": "Eval run",
   "eval.run.cell.queued": "Waiting",
   "eval.run.cell.running": "Running · {{elapsed}}",
   "eval.run.cell.phase.preparing": "starting agent",
@@ -1515,30 +1744,16 @@ export const en = {
   "eval.run.cell.missing": "Not recorded",
   "eval.run.cell.proposals_one": "{{count}} proposal",
   "eval.run.cell.proposals_other": "{{count}} proposals",
+  "eval.run.cell.repeatsEnded": "{{ended}} of {{total}} ended",
+  "eval.run.cell.repeatsRunning": "{{count}} running",
+  "eval.run.cell.repeatsQueued": "Waiting · {{count}} repeats queued",
+  "eval.run.cell.repeatRunning": "Repeat {{repeat}} · {{status}}",
+  "eval.run.cell.correctSoFar": "{{correct}} / {{assessed}} correct so far",
+  "eval.run.cell.repeatDetail": "Repeat {{repeat}} · {{detail}}",
   "eval.run.cell.reports_one": "{{count}} report",
   "eval.run.cell.reports_other": "{{count}} reports",
-  "eval.run.progress.title": "Progress",
-  "eval.run.progress.empty": "No attempts have started yet.",
-  "eval.run.progress.started": "{{setup}} on “{{case}}” started.",
-  "eval.run.progress.finished": "{{setup}} on “{{case}}” finished.",
-  "eval.run.progress.error":
-    "{{setup}} on “{{case}}” ended with an error: {{message}}. Other attempts continue.",
-  "eval.run.progress.errorNoMessage":
-    "{{setup}} on “{{case}}” ended with an error. Other attempts continue.",
-  "eval.run.progress.stopped.USER":
-    "{{setup}} on “{{case}}” stopped: the run was stopped.",
-  "eval.run.progress.stopped.TIME_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} time limit.",
-  "eval.run.progress.stopped.TOKEN_LIMIT":
-    "{{setup}} on “{{case}}” stopped: reached {{limit}} token limit.",
   "eval.output.badge": "Evaluation output · can't be approved",
-  "eval.run.page.viewResults": "View results",
-  "eval.page.runs.results": "Results",
-  "eval.results.crumb": "Results",
   "eval.results.title": "Compare setups",
-  "eval.results.notFinished":
-    "This run hasn't finished yet. Results appear here once every attempt has ended.",
-  "eval.results.backToRun": "Back to run",
   "eval.results.notReported": "not reported",
   "eval.results.partial": "{{value}} ({{reported}} of {{total}} reported)",
   "eval.results.averagesNote":
@@ -1555,9 +1770,29 @@ export const en = {
   "eval.results.columns.cost": "Cost per attempt",
   "eval.results.errors_one": "{{count}} error",
   "eval.results.errors_other": "{{count}} errors",
-  "eval.results.overhead": "Coordinator: {{coordinator}} (not included above)",
-  "eval.results.overheadMeasures":
-    "{{elapsed}} · {{tokens}} tokens · {{toolCalls}} tool calls",
+  "eval.results.stopped_one": "{{count}} stopped",
+  "eval.results.stopped_other": "{{count}} stopped",
+  "eval.results.qualitySpread": "{{mean}} ± {{spread}}",
+  "eval.results.repeats.correct": "{{recognized}} / {{assessed}} correct",
+  "eval.results.repeats.label": "Repeat {{repeat}}",
+  "eval.results.repeats.help":
+    "Each row is one case run with one setup, summarised over its repeats: correct out of finished attempts, average quality ± spread (standard deviation), and checks passed. Errored and stopped repeats are named and left out of the averages. The arrow lists every repeat; select one to see its specifics and review it.",
+  "eval.results.repeats.excludedError":
+    "Repeat {{repeat}} errored: {{message}}",
+  "eval.results.repeats.excludedErrorNoMessage": "Repeat {{repeat}} errored",
+  "eval.results.repeats.excludedStopped":
+    "Repeat {{repeat}} stopped ({{reason}})",
+  "eval.results.repeats.stopReason.USER": "the run was stopped",
+  "eval.results.repeats.stopReason.TIME_LIMIT": "time limit",
+  "eval.results.repeats.stopReason.TOKEN_LIMIT": "token limit",
+  "eval.results.repeats.leftOut": "left out of averages",
+  "eval.results.repeats.col.repeat": "Repeat",
+  "eval.results.repeats.col.session": "Session",
+  "eval.results.repeats.openSession": "Open session",
+  "eval.results.repeats.weak": "Stands out as weak",
+  "eval.results.repeats.expand": "Show repeat {{repeat}}",
+  "eval.results.repeats.collapse": "Hide repeat {{repeat}}",
+  "eval.results.repeats.stopped": "Stopped",
   "eval.results.cases.title": "Cases",
   "eval.results.cases.help":
     "Each row is one case run with one setup. The case name opens that attempt's session; the arrow opens the specifics. Recognition says whether the agent correctly decided what the case needed, including correctly doing nothing when no work was needed.",
@@ -1585,6 +1820,7 @@ export const en = {
   "eval.results.detail.noResult": "The judge hasn't assessed this attempt.",
   "eval.results.detail.openEvalCase": "Open the Eval Case",
   "eval.results.coding.startedFrom": "Started from {{service}} at {{sha}}",
+  "eval.results.coding.target": "Target",
   "eval.results.coding.changes": "Changes made",
   "eval.results.coding.savedNote": "Saved before the workspace was removed.",
   "eval.results.coding.noChanges": "The attempt changed no files.",
@@ -1598,6 +1834,23 @@ export const en = {
   "eval.results.coding.linesAdded": "+{{added}}",
   "eval.results.coding.showDiff": "Show diff",
   "eval.results.coding.hideDiff": "Hide diff",
+  "eval.results.coding.openOutput.button": "Open output",
+  "eval.results.coding.openOutput.none":
+    "Nothing to open: no changes were saved for this attempt.",
+  "eval.results.coding.openOutput.source": "{{service}} at {{sha}}",
+  "eval.results.coding.openOutput.opening.file": "open the file",
+  "eval.results.coding.openOutput.opening.directory": "opens at",
+  "eval.results.coding.openOutput.opening.unknown": "target",
+  "eval.results.coding.openOutput.noPatch":
+    "No text change in this attempt can be applied as a patch, so there is nothing to check out or apply.",
+  "eval.results.coding.openOutput.download": "Download {{name}}",
+  "eval.results.coding.openOutput.copy": "Copy commands",
+  "eval.results.coding.openOutput.note":
+    "Gives the files only. Run your own command to start the service or tests. Run these commands in a clone of the Service.",
+  "eval.results.coding.openOutput.binary":
+    "Binary files differ and will not apply, so they are not included: {{paths}}",
+  "eval.results.coding.openOutput.olderAttempts":
+    "Attempts saved before patches were kept whole may not apply cleanly.",
   "eval.results.coding.errorCell": "Error · {{message}}",
   "eval.results.coding.othersContinued": "Other attempts continued",
   "eval.case.coding.heading": "Coding",
@@ -1617,12 +1870,35 @@ export const en = {
   "eval.case.coding.checklist.heading": "Mockup checklist",
   "eval.case.coding.checklist.from": "From",
   "eval.case.coding.checklist.openMockup": "Open Mockup",
-  "eval.case.coding.checklist.kind.NEW": "new",
-  "eval.case.coding.checklist.kind.UPDATE": "update",
-  "eval.case.coding.checklist.note.NEW": "every control is checked.",
-  "eval.case.coding.checklist.note.UPDATE":
-    "only the changed parts are checked, and anything that used to work and now breaks is flagged.",
+  "eval.case.coding.target": "Target",
+  "eval.case.coding.target.kind.NEW": "New",
+  "eval.case.coding.target.kind.EXISTING": "Existing",
+  "eval.case.coding.target.checklistNote.NEW":
+    "Every control in the Mockup is checked.",
+  "eval.case.coding.target.checklistNote.EXISTING":
+    "Only the changed parts of the Mockup are checked, and anything that used to work and now breaks is flagged.",
   "eval.case.coding.invalid": "The Coding section can't be read.",
+  "eval.case.inputs.invalid": "The Inputs section can't be read.",
+  "eval.case.inputs.request": "Request",
+  "eval.case.inputs.singleNote":
+    "The agent's reply to this message is what is judged.",
+  "eval.case.inputs.listNote":
+    "The messages are sent to the agent in order, and it answers each one. The agent's reply to the last message is what is judged.",
+  "eval.case.inputs.judged": "Judged",
+  "eval.case.inputs.moveUp": "Move up",
+  "eval.case.inputs.moveDown": "Move down",
+  "eval.case.inputs.edit": "Edit",
+  "eval.case.inputs.remove": "Remove",
+  "eval.case.inputs.add": "+ Add message",
+  "eval.case.inputs.done": "Done",
+  "eval.case.inputs.cancel": "Cancel",
+  "eval.case.inputs.textareaLabel": "Message text",
+  "eval.case.inputs.unsupported": "Unsupported input ({{kind}}), kept as is.",
+  "eval.case.inputs.minimum":
+    "A case needs at least one message: the only message can't be removed.",
+  "eval.run.inputs.heading": "Messages this run sent",
+  "eval.run.inputs.frozenNote":
+    "As the run used them, frozen at launch. Editing the Eval Case later does not change this.",
   "eval.results.work.scope": "Work done",
   "eval.results.usage.cacheRead": "Cache read: {{value}}",
   "eval.results.usage.cacheCreation": "Cache creation: {{value}}",
@@ -1631,16 +1907,44 @@ export const en = {
   "eval.results.work.TARGET_PREPARATION":
     "Project Assistant research (not in the figures above)",
   "eval.results.work.TARGET_HANDLER": "Handler (the tested work)",
+  "eval.results.toolCalls.title": "Tool calls the agent made",
+  "eval.results.toolCalls.unavailable":
+    "Tool calls could not be collected for this attempt. That does not mean the agent made none.",
+  "eval.results.toolCalls.truncated": "arguments cut",
+  "eval.results.toolCalls.omitted": "{{count}} further calls are not shown.",
   "eval.results.attempt.produced": "What this attempt produced",
   "eval.results.attempt.savedNote":
     "Shown read-only, as saved when the attempt ran.",
   "eval.results.sessions.target": "Attempt session (what the handler did)",
   "eval.results.sessions.noTarget": "No attempt session was recorded.",
+  "eval.results.sessions.title": "Provider Sessions",
+  "eval.results.sessions.agent": "Agent",
   "eval.results.sessions.judge": "Judge",
-  "eval.results.sessions.info": "Info",
-  "eval.results.sessions.attemptProvider": "Attempt provider id",
   "eval.results.sessions.openJudge": "Open judge session",
-  "eval.results.sessions.judged": "Given to the judge ({{count}} characters)",
+  "eval.results.sessions.viewInput": "View input",
+  "eval.results.sessions.inputModalTitle": "Input given to the judge",
+  "eval.results.sessions.copyCommand": "Copy resume command",
+  "eval.results.sessions.readSession": "Read session",
+  "eval.results.sessions.transcriptTitle": "Provider session",
+  "eval.results.sessions.transcriptLoading":
+    "Reading the session from this computer…",
+  "eval.results.sessions.transcriptTruncated":
+    "This session is larger than the size limit, so only its beginning is shown.",
+  "eval.results.sessions.transcriptCopy": "Copy session text",
+  "eval.results.sessions.viewReadable": "Readable",
+  "eval.results.sessions.viewRaw": "Raw file",
+  "eval.results.sessions.unavailable.PROVIDER_NOT_SUPPORTED":
+    "Reading this provider's session is not supported yet.",
+  "eval.results.sessions.unavailable.SESSION_NOT_IN_RUN":
+    "This session does not belong to the attempt's Run on this computer.",
+  "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND":
+    "The provider's stored session was not found on this computer. It may have been deleted, or the attempt ran elsewhere.",
+  "eval.results.sessions.unavailable.SESSION_FILE_UNREADABLE":
+    "The provider's stored session could not be read.",
+  "eval.results.sessions.unavailable.NOT_ON_THIS_COMPUTER":
+    "The CLI that ran this attempt is not on this computer, so its session cannot be read here.",
+  "eval.results.sessions.unavailable.READ_FAILED":
+    "The session could not be read. Try again.",
   "eval.results.sessions.judgedNone":
     "Nothing was given to the judge: the attempt ended before judging started.",
   "eval.results.attempt.ran":
@@ -1675,11 +1979,24 @@ export const en = {
   "eval.results.assessment.checklistHit": "Hit",
   "eval.results.assessment.checklistMissed": "Missed",
   "eval.results.assessment.checklistUnanswered": "Not judged",
+  "eval.results.turns.title": "Conversation",
+  "eval.results.turns.progress":
+    "{{completed}} of {{planned}} messages finished ({{started}} started).",
+  "eval.results.turns.judged": "Message {{message}} was judged.",
+  "eval.results.turns.notJudged": "Not judged.",
+  "eval.results.turns.message": "Message {{message}}",
+  "eval.results.turns.unavailable": "Not reported",
+  "eval.results.turns.partial": "(partly attributed)",
+  "eval.results.turns.state.STARTED": "Running",
+  "eval.results.turns.state.COMPLETED": "Finished",
+  "eval.results.turns.state.FAILED": "Failed",
+  "eval.results.turns.state.STOPPED": "Stopped",
   "eval.results.assessment.regressions": "Broken by this change:",
   "eval.results.assessment.noRegressions":
     "Nothing that worked before is broken.",
   "eval.results.cases.checklistCount": "Checklist {{hits}} / {{total}}",
   "eval.results.review.title": "Your review",
+  "eval.results.review.titleRepeat": "Your review of repeat {{repeat}}",
   "eval.results.review.score": "Score out of 5",
   "eval.results.review.scoreValue": "{{score}} / 5",
   "eval.results.review.comment": "Comment",
@@ -1720,4 +2037,78 @@ export const en = {
   "admin.demo.template.repositoryHelp":
     "For example https://github.com/owner/repository",
   "admin.demo.template.save": "Set template",
+  "agentSession.continuation.title": "Your conversation can continue",
+  "agentSession.continuation.offer.body":
+    "The previous computer is no longer paired. Choose where to continue this conversation.",
+  "agentSession.continuation.offer.destinationLabel": "Computer",
+  "agentSession.continuation.offer.action": "Continue on {{name}}",
+  "agentSession.continuation.offer.checking": "Checking {{name}}…",
+  "agentSession.continuation.offer.continuing": "Continuing on {{name}}…",
+  "agentSession.continuation.unready.body":
+    "The previous computer is no longer paired. Your other paired computers need attention before they can continue this conversation.",
+  "agentSession.continuation.pair.body":
+    "The previous computer is no longer paired, and no other computer is paired yet. Your conversation is still available.",
+  "agentSession.continuation.pair.action": "Pair a computer to continue",
+  "agentSession.continuation.pair.note":
+    "After pairing you return to this conversation.",
+  "agentSession.continuation.savedHistory.title":
+    "Continue using saved history",
+  "agentSession.continuation.savedHistory.body":
+    "The original agent session isn’t available on this computer. Start a new agent session using this conversation’s saved history.",
+  "agentSession.continuation.savedHistory.confirm":
+    "Continue with saved history",
+  "agentSession.continuation.savedHistory.resumeRejected":
+    "The original agent session could not be resumed on this computer.",
+  "agentSession.continuation.attempt.failedBody":
+    "Continuing on {{name}} did not finish ({{code}}). Your conversation is still here, and you can try {{name}} again.",
+  "agentSession.continuation.attempt.retry": "Try again on {{name}}",
+  "agentSession.continuation.attempt.chooseAnother":
+    "Continue on another computer",
+  "agentSession.continuation.attempt.uncertainBody":
+    "{{name}} received this conversation but has not confirmed that its agent started. Checking again asks {{name}} for the result without starting a second agent.",
+  "agentSession.continuation.attempt.checkAgain": "Check again on {{name}}",
+  "agentSession.continuation.attempt.destinationUnready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.attempt.unnamed": "the selected computer",
+  "agentSession.continuation.failure.attempt_unresolved":
+    "An earlier continuation of this conversation is still unresolved. Resolve it first.",
+  "agentSession.continuation.cancel": "Cancel",
+  "agentSession.continuation.retry": "Retry",
+  "agentSession.continuation.pending.title": "Preparing this conversation",
+  "agentSession.continuation.pending.body":
+    "Waiting for {{name}} to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.pending.bodyUnnamed":
+    "Waiting for the selected computer to confirm its agent can start. You can reply once it does.",
+  "agentSession.continuation.outcome.resumed":
+    "Continued on {{name}} with the original agent session.",
+  "agentSession.continuation.outcome.savedHistory":
+    "Continued on {{name}} from saved history. A new agent session starts with your next message.",
+  "agentSession.continuation.failure.binding_changed":
+    "This session’s computer changed while you were continuing. Review the current state and try again.",
+  "agentSession.continuation.failure.not_eligible":
+    "This session can no longer be continued on another computer.",
+  "agentSession.continuation.failure.destination_not_ready":
+    "{{name}} is not ready. Make sure its CLI is running and this browser is authorized for it.",
+  "agentSession.continuation.failure.authorization_denied":
+    "{{name}} did not authorize this continuation. Nothing was changed.",
+  "agentSession.continuation.failure.inspection_failed":
+    "{{name}} could not be checked. Nothing was changed.",
+  "agentSession.continuation.failure.ambiguous":
+    "Hey Hey could not confirm whether this step finished. Retry continues the same request without repeating it.",
+  "agentSession.continuation.reason.NO_LOCAL_RUN":
+    "This computer has no saved agent session for this conversation.",
+  "agentSession.continuation.reason.NO_PROVIDER_SESSION":
+    "This computer never started an agent session for this conversation.",
+  "agentSession.continuation.reason.PROVIDER_TRANSCRIPT_MISSING":
+    "The agent session’s saved data is no longer on this computer.",
+  "agentSession.continuation.reason.PROVIDER_MISMATCH":
+    "The agent session on this computer belongs to a different provider.",
+  "agentSession.continuation.reason.CONVERSATION_MISMATCH":
+    "The agent session on this computer belongs to a different conversation.",
+  "agentSession.continuation.reason.PROVIDER_RESUME_UNSUPPORTED":
+    "This provider’s saved sessions can’t be resumed here.",
+  "agentSession.continuation.reason.LOCAL_STATE_UNREADABLE":
+    "The agent session saved on this computer couldn’t be read.",
+  "agentSession.continuation.reason.PROVIDER_STATE_PRESENT":
+    "The original agent session is available on this computer.",
 } as const;

@@ -14,7 +14,6 @@ import {
   setPathService,
   type PathService,
 } from "@hey-hey/ui-common/services";
-import { usePlatformAdminAccess } from "@hey-hey/ui-common/data";
 import { ProjectNotificationCenter } from "./ProjectNotificationCenter";
 import type {
   PullRequestMergedToastItem,
@@ -38,10 +37,6 @@ vi.mock("@hey-hey/ui-common/context", async () => {
 
 vi.mock("../../hooks/useProjectNotificationActivity", () => ({
   useProjectNotificationActivity: vi.fn(),
-}));
-
-vi.mock("@hey-hey/ui-common/data", () => ({
-  usePlatformAdminAccess: vi.fn(),
 }));
 
 vi.mock("@hey-hey/ui-common/components/Notifications", () => ({
@@ -132,7 +127,6 @@ import { useProjectNotificationActivity } from "../../hooks/useProjectNotificati
 const useProjectNotificationActivityMock = vi.mocked(
   useProjectNotificationActivity,
 );
-const usePlatformAdminAccessMock = vi.mocked(usePlatformAdminAccess);
 
 const setMatchMediaMatches = (matches: boolean): void => {
   Object.defineProperty(window, "matchMedia", {
@@ -259,10 +253,6 @@ const buildPullRequestMergedToast = (): PullRequestMergedToastItem => ({
 describe("ProjectNotificationCenter", () => {
   beforeEach(() => {
     openPreviewMock.mockReset();
-    usePlatformAdminAccessMock.mockReturnValue({
-      isPlatformAdmin: true,
-      isResolved: true,
-    });
     useProjectNotificationActivityMock.mockReturnValue(buildHookReturn());
     resetPathService();
   });
@@ -273,7 +263,7 @@ describe("ProjectNotificationCenter", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Activity and Daily Session buttons with visible labels on desktop", () => {
+  it("renders a single Sessions link with a visible label on desktop", () => {
     setMatchMediaMatches(false);
     render(
       <MemoryRouter>
@@ -285,16 +275,13 @@ describe("ProjectNotificationCenter", () => {
     );
 
     expect(screen.getByTestId("coding-link")).toBeInTheDocument();
-    expect(screen.getByTestId("daily-session-link")).toBeInTheDocument();
-    expect(screen.getByText("Activity")).toBeInTheDocument();
-    expect(screen.getByText("Daily Session")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Daily Session" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sessions" })).toBeInTheDocument();
+    expect(screen.queryByTestId("daily-session-link")).not.toBeInTheDocument();
+    expect(screen.queryByText("Daily Session")).not.toBeInTheDocument();
+    expect(screen.queryByText("Activity")).not.toBeInTheDocument();
   });
 
-  it("renders only the icon-only Activity link on mobile", () => {
+  it("renders only the icon-only Sessions link on mobile", () => {
     setMatchMediaMatches(true);
     render(
       <MemoryRouter>
@@ -307,17 +294,12 @@ describe("ProjectNotificationCenter", () => {
 
     expect(screen.getByTestId("coding-link")).toBeInTheDocument();
     expect(screen.queryByTestId("daily-session-link")).not.toBeInTheDocument();
-    expect(screen.queryByText("Activity")).not.toBeInTheDocument();
-    expect(screen.queryByText("Daily Session")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
+    expect(screen.queryByText("Sessions")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sessions" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Daily Session" })).toBeNull();
   });
 
-  it("hides the Daily Session entry and toast without debug access", () => {
-    usePlatformAdminAccessMock.mockReturnValue({
-      isPlatformAdmin: false,
-      isResolved: true,
-    });
+  it("shows no Daily Session control or toast, even when a daily report is ready", () => {
     useProjectNotificationActivityMock.mockReturnValue(
       buildHookReturn({
         currentDailySessionReportReadyToast: buildToastItem({
@@ -337,11 +319,7 @@ describe("ProjectNotificationCenter", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId("coding-link")).toBeInTheDocument();
     expect(screen.queryByTestId("daily-session-link")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("daily-session-report-ready-toast"),
-    ).not.toBeInTheDocument();
     expect(screen.queryByText("Daily Session")).not.toBeInTheDocument();
   });
 
@@ -365,7 +343,7 @@ describe("ProjectNotificationCenter", () => {
     );
   });
 
-  it("Activity button links to the Project Page Agents Coding view", () => {
+  it("Sessions button links to the Project Page Agents Coding view", () => {
     render(
       <MemoryRouter>
         <ProjectNotificationCenter
@@ -382,7 +360,7 @@ describe("ProjectNotificationCenter", () => {
     );
   });
 
-  it("uses the injected Path Service for the Activity destination", () => {
+  it("uses the injected Path Service for the Sessions destination", () => {
     const basePathService = getPathService();
     const override: PathService = {
       ...basePathService,
@@ -403,23 +381,6 @@ describe("ProjectNotificationCenter", () => {
     expect(screen.getByTestId("coding-link")).toHaveAttribute(
       "href",
       "/custom/projects/project-1?destination=agents-coding",
-    );
-  });
-
-  it("Daily Session button links to project page with daily-session view", () => {
-    render(
-      <MemoryRouter>
-        <ProjectNotificationCenter
-          organizationId="org-1"
-          projectId="project-1"
-        />
-      </MemoryRouter>,
-    );
-
-    const dailySessionLink = screen.getByTestId("daily-session-link");
-    expect(dailySessionLink).toHaveAttribute(
-      "href",
-      "/projects/project-1?tab=project&view=daily-session",
     );
   });
 
@@ -512,35 +473,6 @@ describe("ProjectNotificationCenter", () => {
     expect(resetPullRequestMergedIndicator).toHaveBeenCalledTimes(1);
   });
 
-  it("highlights Daily Session and renders its dedicated toast for a DAILY_SESSION report", () => {
-    const toast = buildToastItem({
-      reportType: "DAILY_SESSION",
-      sessionTitle: "Daily Session",
-    });
-    useProjectNotificationActivityMock.mockReturnValue(
-      buildHookReturn({
-        currentDailySessionReportReadyToast: toast,
-        hasUnseenDailySessionReportReady: true,
-      }),
-    );
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1?tab=project"]}>
-        <ProjectNotificationCenter
-          organizationId="org-1"
-          projectId="project-1"
-        />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByTestId("daily-session-link")).toHaveStyle({
-      color: "rgb(25, 118, 210)",
-    });
-    expect(
-      screen.getByTestId("daily-session-report-ready-toast"),
-    ).toBeInTheDocument();
-  });
-
   it("suppresses toast and indicator when the user is currently viewing the session that produced the report", () => {
     useProjectNotificationActivityMock.mockReturnValue(
       buildHookReturn({
@@ -596,32 +528,6 @@ describe("ProjectNotificationCenter", () => {
     expect(resetSessionReportReadyIndicator).toHaveBeenCalledTimes(1);
   });
 
-  it("clicking the highlighted Daily Session entry clears its unseen state", () => {
-    const resetDailySessionReportReadyIndicator = vi.fn();
-    useProjectNotificationActivityMock.mockReturnValue(
-      buildHookReturn({
-        currentDailySessionReportReadyToast: buildToastItem({
-          reportType: "DAILY_SESSION",
-        }),
-        hasUnseenDailySessionReportReady: true,
-        resetDailySessionReportReadyIndicator,
-      }),
-    );
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1?tab=project"]}>
-        <ProjectNotificationCenter
-          organizationId="org-1"
-          projectId="project-1"
-        />
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(screen.getByTestId("daily-session-link"));
-
-    expect(resetDailySessionReportReadyIndicator).toHaveBeenCalledTimes(1);
-  });
-
   it("clicking the toast navigates to the agent session resolver route for that session", () => {
     const dismissNotification = vi.fn().mockResolvedValue(undefined);
     const popCurrentSessionReportReadyToast = vi.fn();
@@ -669,65 +575,6 @@ describe("ProjectNotificationCenter", () => {
     expect(popCurrentSessionReportReadyToast).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("probe").textContent).toBe(
       "/projects/project-1/resolve-agent-session-by-id/session-other",
-    );
-  });
-
-  it("clicking a Daily Session report toast acknowledges it and opens Daily Session", () => {
-    const dismissNotification = vi.fn().mockResolvedValue(undefined);
-    const popCurrentDailySessionReportReadyToast = vi.fn();
-    const resetDailySessionReportReadyIndicator = vi.fn();
-    const toast = buildToastItem({
-      notificationId: "notif-daily",
-      reportType: "DAILY_SESSION",
-      sessionTitle: "Daily Session",
-    });
-
-    useProjectNotificationActivityMock.mockReturnValue(
-      buildHookReturn({
-        currentDailySessionReportReadyToast: toast,
-        dismissNotification,
-        hasUnseenDailySessionReportReady: true,
-        popCurrentDailySessionReportReadyToast,
-        resetDailySessionReportReadyIndicator,
-      }),
-    );
-
-    const LocationProbe: React.FC = () => {
-      const location = useLocation();
-      return (
-        <div data-testid="probe">
-          {location.pathname}
-          {location.search}
-        </div>
-      );
-    };
-
-    render(
-      <MemoryRouter initialEntries={["/projects/project-1?tab=project"]}>
-        <Routes>
-          <Route
-            path="/projects/:projectId/*"
-            element={
-              <>
-                <ProjectNotificationCenter
-                  organizationId="org-1"
-                  projectId="project-1"
-                />
-                <LocationProbe />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(screen.getByTestId("notification-item-notif-daily"));
-
-    expect(dismissNotification).toHaveBeenCalledWith("notif-daily");
-    expect(popCurrentDailySessionReportReadyToast).toHaveBeenCalledTimes(1);
-    expect(resetDailySessionReportReadyIndicator).toHaveBeenCalled();
-    expect(screen.getByTestId("probe")).toHaveTextContent(
-      "/projects/project-1?tab=project&view=daily-session",
     );
   });
 

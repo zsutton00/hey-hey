@@ -69,14 +69,47 @@ describe('platform system prompt', () => {
   });
 
   it('matches captured graph-Hints prompts for read and write access', () => {
-    const promptFor = (hints: 'read' | 'write') =>
+    const promptFor = (hints: 'read' | 'write', productDevelopment = false) =>
       buildPlatformSystemPrompt(builtInTypes, undefined, {
         intentFirst: false,
         maturity: ProjectMaturity.Established,
         hints,
+        productDevelopment,
       });
 
     expect({ read: promptFor('read'), write: promptFor('write') }).toMatchSnapshot();
+  });
+
+  it('adds the product-defect rule once, only where Hey Hey is developed', () => {
+    const withRule = buildPlatformSystemPrompt(builtInTypes, undefined, {
+      intentFirst: false,
+      maturity: ProjectMaturity.Established,
+      hints: 'write',
+      productDevelopment: true,
+    });
+
+    expect(withRule).toMatchSnapshot();
+    expect(withRule.match(/correct how Hey Hey itself behaves/g)).toHaveLength(1);
+  });
+
+  it('adds the own-code boundary rule once to every staging or local prompt, with or without hint tools', () => {
+    const heading = "## Hey Hey's own code is not this project's knowledge";
+    const promptFor = (hints: 'none' | 'read' | 'write', productDevelopment: boolean) =>
+      buildPlatformSystemPrompt(builtInTypes, undefined, {
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints,
+        productDevelopment,
+      });
+
+    for (const hints of ['none', 'read', 'write'] as const) {
+      expect(promptFor(hints, true).split(heading)).toHaveLength(2);
+      expect(promptFor(hints, false)).not.toContain(heading);
+    }
+    expect({
+      production: promptFor('none', false),
+      stagingOrLocal: promptFor('none', true),
+    }).toMatchSnapshot();
   });
 
   it('excludes archived references from usable context', () => {

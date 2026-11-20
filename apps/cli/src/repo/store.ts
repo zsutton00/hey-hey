@@ -117,9 +117,8 @@ export class RepoMappingStore {
   private readonly listeners = new Set<() => void>();
 
   constructor(options: RepoMappingStoreOptions = {}) {
-    const baseDir = resolveBaseDir();
-    this.mappingPath = options.mappingPath ?? path.join(baseDir, 'repos.json');
-    this.lockPath = options.lockPath ?? path.join(baseDir, 'repos.lock');
+    this.mappingPath = options.mappingPath ?? path.join(resolveBaseDir(), 'repos.json');
+    this.lockPath = options.lockPath ?? path.join(resolveBaseDir(), 'repos.lock');
     this.now = options.now ?? (() => new Date());
     this.randomId = options.randomId ?? (() => crypto.randomUUID());
     this.lockTimeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;

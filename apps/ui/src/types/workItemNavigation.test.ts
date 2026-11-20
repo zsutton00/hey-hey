@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   WorkItemTypeRole,
   type WorkItemTypeDefinitionDto,
@@ -19,7 +20,7 @@ const definition = (
     name,
     role,
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   }) as WorkItemTypeDefinitionDto;
 
 describe("workItemNavigation", () => {

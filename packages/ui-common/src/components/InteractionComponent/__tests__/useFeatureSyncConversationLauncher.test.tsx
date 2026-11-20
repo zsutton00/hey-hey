@@ -117,7 +117,9 @@ describe("fresh feature verification", () => {
     async (prompt) => {
       const { result } = renderLauncher();
       await act(async () => {
-        expect(await result.current.launch({ ...input, prompt })).toBe(true);
+        expect(await result.current.launch({ ...input, prompt })).toEqual({
+          agentSessionId: "fresh-session",
+        });
       });
       const payload: RunCreatePayloadVerifyFeature =
         mocks.start.mock.calls[0]![0].intent.payload;
@@ -175,7 +177,7 @@ describe("fresh feature verification", () => {
           serviceIds: ["one", "two"],
           launchServiceId: "two",
         }),
-      ).toBe(true);
+      ).toEqual({ agentSessionId: "fresh-session" });
     });
 
     expect(mocks.access).toHaveBeenCalledWith("machine");
@@ -306,7 +308,7 @@ describe("fresh feature verification", () => {
       const { result } = renderLauncher();
 
       await act(async () => {
-        expect(await result.current.launch(input)).toBe(false);
+        expect(await result.current.launch(input)).toBeNull();
       });
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeTruthy();
@@ -314,7 +316,9 @@ describe("fresh feature verification", () => {
 
       mocks.start.mockResolvedValue({ state: "succeeded" });
       await act(async () => {
-        expect(await result.current.launch(input)).toBe(true);
+        expect(await result.current.launch(input)).toEqual({
+          agentSessionId: "fresh-session",
+        });
       });
       expect(result.current.error).toBeNull();
       expect(mocks.navigate).toHaveBeenCalledTimes(1);
@@ -329,14 +333,14 @@ describe("fresh feature verification", () => {
       }),
     );
     const { result } = renderLauncher();
-    let pending!: Promise<boolean>;
+    let pending!: Promise<unknown>;
 
     await act(async () => {
       pending = result.current.launch(input);
     });
     expect(result.current.isLoading).toBe(true);
     await act(async () => {
-      expect(await result.current.launch(input)).toBe(false);
+      expect(await result.current.launch(input)).toBeNull();
     });
     expect(mocks.create).toHaveBeenCalledTimes(1);
 

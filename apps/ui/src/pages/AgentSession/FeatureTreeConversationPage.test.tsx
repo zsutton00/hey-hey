@@ -11,6 +11,12 @@ const agentSession = {
   conversationId: "conversation-1",
   projectId: "project-1",
 } as never;
+const buildPresentationMock = vi.hoisted(() =>
+  vi.fn(() => ({ kind: "agent_session" })),
+);
+const useConversationMock = vi.hoisted(() =>
+  vi.fn(() => ({ data: { title: "Reviewed conversation title" } })),
+);
 const useAcknowledgeOnOpenMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@hey-hey/ui-common/data", () => ({
@@ -20,6 +26,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     isLoading: false,
     isFetched: true,
   }),
+  useConversation: useConversationMock,
   useProject: () => ({ data: { name: "Project" } }),
 }));
 
@@ -45,7 +52,7 @@ vi.mock("../../components/Layout", () => ({
 }));
 
 vi.mock("./agentSessionPresentation", () => ({
-  buildAgentSessionPresentation: () => ({ kind: "agent_session" }),
+  buildAgentSessionPresentation: buildPresentationMock,
 }));
 
 vi.mock("./AgentSessionDiscussActionCapsule", () => ({
@@ -88,6 +95,12 @@ describe("FeatureTreeConversationPage", () => {
       />,
     );
 
+    expect(buildPresentationMock).toHaveBeenCalledWith(
+      agentSession,
+      undefined,
+      undefined,
+      "Reviewed conversation title",
+    );
     expect(screen.getByTestId("agent-session-discuss")).toHaveAttribute(
       "data-session-id",
       "session-1",
@@ -114,6 +127,13 @@ describe("FeatureTreeConversationPage", () => {
       />,
     );
 
+    expect(useConversationMock).toHaveBeenCalledWith(
+      "org-1",
+      "project-1",
+      { conversationId: "conversation-1" },
+      { enabled: false, enablePolling: false },
+    );
+    expect(buildPresentationMock).not.toHaveBeenCalled();
     expect(
       screen.queryByTestId("agent-session-discuss"),
     ).not.toBeInTheDocument();

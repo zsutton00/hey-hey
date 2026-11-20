@@ -33,6 +33,8 @@ import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesGet200Res
 // @ts-ignore
 import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost201Response } from '../models.js';
 // @ts-ignore
+import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet200Response } from '../models.js';
+// @ts-ignore
 import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet200Response } from '../models.js';
 // @ts-ignore
 import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGet200Response } from '../models.js';
@@ -43,7 +45,11 @@ import type { OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTr
 // @ts-ignore
 import type { ProposalApprovalFailureErrorResponse } from '../models.js';
 // @ts-ignore
+import type { ResolveWorkItemTypeStatuses200Response } from '../models.js';
+// @ts-ignore
 import type { SessionRole } from '../models.js';
+// @ts-ignore
+import type { WorkItemStatusAuthoringRequest } from '../models.js';
 // @ts-ignore
 import type { WorkItemTypeArchiveRequestDto } from '../models.js';
 // @ts-ignore
@@ -266,6 +272,52 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Return the project\'s effective definition and the current canonical definition for the same key, both complete and unmodified, so a caller can show how the override differs. Read-only: nothing is merged, created, or changed. Only available for a type whose effective source is a canonical override.
+         * @summary Read a canonical override next to the current canonical definition
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} typeKey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet: async (organizationId: string, projectId: string, typeKey: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet', 'projectId', projectId)
+            // verify required parameter 'typeKey' is not null or undefined
+            assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet', 'typeKey', typeKey)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/canonical-comparison`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"typeKey"}}`, encodeURIComponent(String(typeKey)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Return the current number of active and archived work items owned by the project-owned custom type and the number of distinct agent-authored graph edges incident on those items. This operation is read-only and does not archive or delete the type, its items, or its edges. A canonical-seeded type is not eligible for hard deletion and is rejected.
          * @summary Read work-item type cascade-delete impact
          * @param {string} organizationId The ID of the organization that owns the project.
@@ -377,7 +429,7 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning-project, canonical template key, accepted template revision, latest available template revision, and schema-backed section metadata such as `kind` and `schemaRef`.
+         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning project, effective source, and schema-backed section metadata such as `kind` and `schemaRef`.
          * @summary Get a work-item type by key
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
@@ -626,6 +678,54 @@ export const WorkItemTypesApiAxiosParamCreator = function (configuration?: Confi
                 options: localVarRequestOptions,
             };
         },
+        /**
+         *
+         * @summary Suggest and resolve work-item statuses
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {WorkItemStatusAuthoringRequest} workItemStatusAuthoringRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resolveWorkItemTypeStatuses: async (organizationId: string, projectId: string, workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'projectId', projectId)
+            // verify required parameter 'workItemStatusAuthoringRequest' is not null or undefined
+            assertParamExists('resolveWorkItemTypeStatuses', 'workItemStatusAuthoringRequest', workItemStatusAuthoringRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(workItemStatusAuthoringRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -699,6 +799,21 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Return the project\'s effective definition and the current canonical definition for the same key, both complete and unmodified, so a caller can show how the override differs. Read-only: nothing is merged, created, or changed. Only available for a type whose effective source is a canonical override.
+         * @summary Read a canonical override next to the current canonical definition
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} typeKey
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(organizationId: string, projectId: string, typeKey: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(organizationId, projectId, typeKey, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Return the current number of active and archived work items owned by the project-owned custom type and the number of distinct agent-authored graph edges incident on those items. This operation is read-only and does not archive or delete the type, its items, or its edges. A canonical-seeded type is not eligible for hard deletion and is rejected.
          * @summary Read work-item type cascade-delete impact
          * @param {string} organizationId The ID of the organization that owns the project.
@@ -733,7 +848,7 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning-project, canonical template key, accepted template revision, latest available template revision, and schema-backed section metadata such as `kind` and `schemaRef`.
+         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning project, effective source, and schema-backed section metadata such as `kind` and `schemaRef`.
          * @summary Get a work-item type by key
          * @param {string} organizationId The ID of the organization that owns the project.
          * @param {string} projectId The ID of the project the work-item type belongs to.
@@ -810,6 +925,21 @@ export const WorkItemTypesApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         *
+         * @summary Suggest and resolve work-item statuses
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {WorkItemStatusAuthoringRequest} workItemStatusAuthoringRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async resolveWorkItemTypeStatuses(organizationId: string, projectId: string, workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ResolveWorkItemTypeStatuses200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.resolveWorkItemTypeStatuses(organizationId, projectId, workItemStatusAuthoringRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['WorkItemTypesApi.resolveWorkItemTypeStatuses']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -861,6 +991,16 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
             return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemTypesPost(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemTypeDefinitionDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Return the project\'s effective definition and the current canonical definition for the same key, both complete and unmodified, so a caller can show how the override differs. Read-only: nothing is merged, created, or changed. Only available for a type whose effective source is a canonical override.
+         * @summary Read a canonical override next to the current canonical definition
+         * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet200Response> {
+            return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Return the current number of active and archived work items owned by the project-owned custom type and the number of distinct agent-authored graph edges incident on those items. This operation is read-only and does not archive or delete the type, its items, or its edges. A canonical-seeded type is not eligible for hard deletion and is rejected.
          * @summary Read work-item type cascade-delete impact
          * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGetRequest} requestParameters Request parameters.
@@ -881,7 +1021,7 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
             return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyDelete(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.cascade, requestParameters.confirmedItemCount, requestParameters.confirmedEdgeCount, requestParameters.workItemTypeArchiveRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
-         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning-project, canonical template key, accepted template revision, latest available template revision, and schema-backed section metadata such as `kind` and `schemaRef`.
+         * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning project, effective source, and schema-backed section metadata such as `kind` and `schemaRef`.
          * @summary Get a work-item type by key
          * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGetRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -929,6 +1069,16 @@ export const WorkItemTypesApiFactory = function (configuration?: Configuration, 
          */
         organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet200Response> {
             return localVarFp.organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.revokedTrackingSourceTypeKeys, options).then((request) => request(axios, basePath));
+        },
+        /**
+         *
+         * @summary Suggest and resolve work-item statuses
+         * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResolveWorkItemTypeStatuses200Response> {
+            return localVarFp.resolveWorkItemTypeStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemStatusAuthoringRequest, options).then((request) => request(axios, basePath));
         },
     };
 };
@@ -980,6 +1130,16 @@ export interface WorkItemTypesApiInterface {
     organizationsOrganizationIdProjectsProjectIdWorkItemTypesPost(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost201Response>;
 
     /**
+     * Return the project\'s effective definition and the current canonical definition for the same key, both complete and unmodified, so a caller can show how the override differs. Read-only: nothing is merged, created, or changed. Only available for a type whose effective source is a canonical override.
+     * @summary Read a canonical override next to the current canonical definition
+     * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApiInterface
+     */
+    organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet200Response>;
+
+    /**
      * Return the current number of active and archived work items owned by the project-owned custom type and the number of distinct agent-authored graph edges incident on those items. This operation is read-only and does not archive or delete the type, its items, or its edges. A canonical-seeded type is not eligible for hard deletion and is rejected.
      * @summary Read work-item type cascade-delete impact
      * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGetRequest} requestParameters Request parameters.
@@ -1000,7 +1160,7 @@ export interface WorkItemTypesApiInterface {
     organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyDelete(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost201Response>;
 
     /**
-     * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning-project, canonical template key, accepted template revision, latest available template revision, and schema-backed section metadata such as `kind` and `schemaRef`.
+     * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning project, effective source, and schema-backed section metadata such as `kind` and `schemaRef`.
      * @summary Get a work-item type by key
      * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -1048,6 +1208,16 @@ export interface WorkItemTypesApiInterface {
      * @memberof WorkItemTypesApiInterface
      */
     organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet200Response>;
+
+    /**
+     *
+     * @summary Suggest and resolve work-item statuses
+     * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApiInterface
+     */
+    resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ResolveWorkItemTypeStatuses200Response>;
 
 }
 
@@ -1175,6 +1345,34 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
      * @memberof WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesPost
      */
     readonly workItemTypeDefinitionDto: WorkItemTypeDefinitionDto
+}
+
+/**
+ * Request parameters for organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet operation in WorkItemTypesApi.
+ * @export
+ * @interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest
+ */
+export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+     */
+    readonly typeKey: string
 }
 
 /**
@@ -1423,6 +1621,34 @@ export interface WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWor
 }
 
 /**
+ * Request parameters for resolveWorkItemTypeStatuses operation in WorkItemTypesApi.
+ * @export
+ * @interface WorkItemTypesApiResolveWorkItemTypeStatusesRequest
+ */
+export interface WorkItemTypesApiResolveWorkItemTypeStatusesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {WorkItemStatusAuthoringRequest}
+     * @memberof WorkItemTypesApiResolveWorkItemTypeStatuses
+     */
+    readonly workItemStatusAuthoringRequest: WorkItemStatusAuthoringRequest
+}
+
+/**
  * WorkItemTypesApi - object-oriented interface
  * @export
  * @class WorkItemTypesApi
@@ -1478,6 +1704,18 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
     }
 
     /**
+     * Return the project\'s effective definition and the current canonical definition for the same key, both complete and unmodified, so a caller can show how the override differs. Read-only: nothing is merged, created, or changed. Only available for a type whose effective source is a canonical override.
+     * @summary Read a canonical override next to the current canonical definition
+     * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApi
+     */
+    public organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGetRequest, options?: RawAxiosRequestConfig) {
+        return WorkItemTypesApiFp(this.configuration).organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Return the current number of active and archived work items owned by the project-owned custom type and the number of distinct agent-authored graph edges incident on those items. This operation is read-only and does not archive or delete the type, its items, or its edges. A canonical-seeded type is not eligible for hard deletion and is rejected.
      * @summary Read work-item type cascade-delete impact
      * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGetRequest} requestParameters Request parameters.
@@ -1502,7 +1740,7 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
     }
 
     /**
-     * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning-project, canonical template key, accepted template revision, latest available template revision, and schema-backed section metadata such as `kind` and `schemaRef`.
+     * Retrieve a single work-item type available in the project by its key, with the same materialized definition-plus-registry-metadata shape the list endpoint returns. This registry-backed read is the source of truth for opening the edit page: callers use the generated WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly, including lifecycle, owning project, effective source, and schema-backed section metadata such as `kind` and `schemaRef`.
      * @summary Get a work-item type by key
      * @param {WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -1559,5 +1797,17 @@ export class WorkItemTypesApi extends BaseAPI implements WorkItemTypesApiInterfa
      */
     public organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGetRequest, options?: RawAxiosRequestConfig) {
         return WorkItemTypesApiFp(this.configuration).organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyTrackingLinkRevocationImpactGet(requestParameters.organizationId, requestParameters.projectId, requestParameters.typeKey, requestParameters.revokedTrackingSourceTypeKeys, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     *
+     * @summary Suggest and resolve work-item statuses
+     * @param {WorkItemTypesApiResolveWorkItemTypeStatusesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof WorkItemTypesApi
+     */
+    public resolveWorkItemTypeStatuses(requestParameters: WorkItemTypesApiResolveWorkItemTypeStatusesRequest, options?: RawAxiosRequestConfig) {
+        return WorkItemTypesApiFp(this.configuration).resolveWorkItemTypeStatuses(requestParameters.organizationId, requestParameters.projectId, requestParameters.workItemStatusAuthoringRequest, options).then((request) => request(this.axios, this.basePath));
     }
 }

@@ -4,7 +4,6 @@ import {
   EntityContextService,
   type ListGoalsResponseDto,
 } from '../../services/entity-context/entity-context.service';
-import { WorkStatus } from '@hey-hey/contracts/api/models';
 import * as TestUtils from '../../utils/testUtils';
 
 const { testIds } = TestUtils;
@@ -122,14 +121,14 @@ describe('ListGoalsToolsProvider', () => {
   });
 
   describe('status filter mapping', () => {
-    it('maps simplified IN_PROGRESS to [WorkStatus.Active] before calling the service', async () => {
+    it('passes the simplified status group to the service, which resolves it from the Goal type', async () => {
       entityContextService.listGoals.mockResolvedValue(makeListResponse());
 
       await provider.listGoals(
         {
           limit: 50,
           offset: 0,
-          status: 'IN_PROGRESS',
+          status: 'DONE',
           projectId: testIds.project,
         },
         {} as any,
@@ -141,31 +140,8 @@ describe('ListGoalsToolsProvider', () => {
         testIds.project,
         50,
         0,
-        [WorkStatus.Active],
+        'DONE',
       );
-    });
-
-    it('maps BACKLOG to the full set of pre-active workflow statuses', async () => {
-      entityContextService.listGoals.mockResolvedValue(makeListResponse());
-
-      await provider.listGoals(
-        {
-          limit: 50,
-          offset: 0,
-          status: 'BACKLOG',
-          projectId: testIds.project,
-        },
-        {} as any,
-        makeRequest(),
-      );
-
-      const callStatuses = entityContextService.listGoals.mock.calls[0]?.[4];
-      // Sanity check a couple of representative statuses; the full mapping
-      // mirrors search-tools.provider.ts so duplicating the entire list here
-      // would be testing the constant, not the wiring.
-      expect(callStatuses).toContain(WorkStatus.Backlog);
-      expect(callStatuses).toContain(WorkStatus.OnHold);
-      expect(callStatuses).toContain(WorkStatus.Generated);
     });
 
     it('omits the status filter when none is provided', async () => {

@@ -1,3 +1,6 @@
+import { SharedBrowserSettingsStore } from '../browser/shared-browser-settings';
+import { join } from 'node:path';
+import { CliState } from '../credentials/cli-state';
 import { createServer, type Server as HttpServer } from 'node:http';
 import {
   createBrowserApiRuntime,
@@ -12,6 +15,7 @@ import {
   OAuthClient,
   type MachineReadinessSnapshot,
 } from '../auth';
+import { createDefaultMachineControllerManagementClient } from '../auth/machine-controller-management';
 import { createUiCommonAuthAdapter } from '../auth/ui-common-auth-adapter';
 import { ProjectBrowserManager } from '../browser/project-browser-manager';
 import { ControllerRegistryStore, KeyPairStore } from '../credentials';
@@ -38,6 +42,7 @@ import {
 } from './startup-readiness';
 
 export interface LocalAgentInfrastructureOptions {
+  state?: CliState;
   apiBaseUrl?: string;
   writeLogLine?: (line: string) => void;
   /** A Debug feed created before startup, so terminal capture can record startup output. */
@@ -64,6 +69,9 @@ export class LocalAgentInfrastructure {
   public readonly controllerAssertionVerifier: ControllerAssertionVerifier;
   public readonly hostActionAdmission: HostActionAdmission;
   public readonly machineControllerAuthority: MachineControllerAuthority;
+  public readonly machineControllerManagementClient: ReturnType<
+    typeof createDefaultMachineControllerManagementClient
+  >;
   public readonly platformWebSocketManager: PlatformWebSocketManager;
   public readonly monitorProjectContext: MonitorProjectContext;
   public readonly platformAuthContext: PlatformAuthContext;
@@ -78,6 +86,7 @@ export class LocalAgentInfrastructure {
   private disposed = false;
 
   public constructor(options: LocalAgentInfrastructureOptions = {}) {
+    const state = options.state ?? new CliState();
     this.apiBaseUrl =
       options.apiBaseUrl ?? process.env['HEYHEY_API_URL']?.trim() ?? 'https://heyhey.dev';
     this.normalizedApiBaseUrl = this.apiBaseUrl.endsWith('/api/v1')
@@ -89,9 +98,23 @@ export class LocalAgentInfrastructure {
       sink: fanOutLogSinks(this.logRingBuffer, this.diagnosticFeed),
       ...(options.writeLogLine ? { writeLine: options.writeLogLine } : {}),
     }).child({ component: 'local-server' });
-    this.processFailureReporter = new ProcessFailureReporter(this.logger, this.diagnosticFeed);
+    this.processFailureReporter = new ProcessFailureReporter(
+      this.logger,
+      this.diagnosticFeed,
+      state.directory,
+    );
     this.httpServer = createServer();
     this.runStore = new RunStore({
+      ...(state.directory
+        ? {
+            paths: {
+              baseDir: state.directory,
+              runsDir: join(state.directory, 'runs'),
+              indexPath: join(state.directory, 'runs', 'run-index.json'),
+              preferencesPath: join(state.directory, 'preferences.json'),
+            },
+          }
+        : {}),
       onCompatibilityDiagnostic: (diagnostic) => {
         this.logger.debug('run_store.compatibility.failed', {
           ...diagnostic,
@@ -120,24 +143,27 @@ export class LocalAgentInfrastructure {
         reportLargeRead(this.logger, 'run_store.large_event_log_read', read.byteCount, { ...read });
       },
     });
-    this.repoStore = new RepoMappingStore(options.repoMappingStoreOptions);
-    this.toolRuleStore = new ToolRuleStore();
-    this.oauthClient = new OAuthClient();
+    this.repoStore = new RepoMappingStore(
+      state.directory
+        ? {
+            mappingPath: join(state.directory, 'repo-mappings.json'),
+            lockPath: join(state.directory, 'repo-mappings.lock'),
+          }
+        : options.repoMappingStoreOptions,
+    );
+    this.toolRuleStore = state.directory
+      ? new ToolRuleStore(join(state.directory, 'tool-rules.json'))
+      : new ToolRuleStore();
+    this.oauthClient = state.oauthClient;
     this.apiRuntime = createBrowserApiRuntime({
       baseUrl: this.normalizedApiBaseUrl,
       authAdapter: createUiCommonAuthAdapter(this.oauthClient),
     });
     registerApiRuntime(this.apiRuntime);
-    this.keyPairStore = new KeyPairStore();
-    this.controllerRegistryStore = new ControllerRegistryStore({ keyPairStore: this.keyPairStore });
-    this.executionGrantStore = new ExecutionGrantStore({
-      keyPairStore: this.keyPairStore,
-      logger: this.logger,
-    });
-    this.authorizationReplayStore = new AuthorizationReplayStore({
-      logger: this.logger,
-      keyPairStore: this.keyPairStore,
-    });
+    this.keyPairStore = state.keyPairStore;
+    this.controllerRegistryStore = state.controllerRegistryStore;
+    this.executionGrantStore = state.executionGrantStore;
+    this.authorizationReplayStore = state.authorizationReplayStore;
     const controllerOrigin =
       process.env['HEYHEY_CONTROLLER_ORIGIN']?.trim() ??
       this.apiBaseUrl.replace(/\/api\/v1$/u, '').replace(/\/$/u, '');
@@ -154,11 +180,16 @@ export class LocalAgentInfrastructure {
       grantStore: this.executionGrantStore,
       replayStore: this.authorizationReplayStore,
     });
+    this.machineControllerManagementClient = createDefaultMachineControllerManagementClient(
+      this.keyPairStore,
+      this.oauthClient,
+    );
     this.machineControllerAuthority = new MachineControllerAuthority({
       keyPairStore: this.keyPairStore,
       controllerRegistryStore: this.controllerRegistryStore,
       executionGrantStore: this.executionGrantStore,
       machineDirectory: this.apiRuntime.clients.machines,
+      managementClient: this.machineControllerManagementClient,
       enrollmentConfirmationClient: createDefaultMachineEnrollmentClient(),
       log: (message) => this.logger.info('machine-controller.authority', { message }),
       logError: (message) => this.logger.error('machine-controller.authority.error', { message }),
@@ -188,6 +219,14 @@ export class LocalAgentInfrastructure {
     );
     this.projectBrowsers = new ProjectBrowserManager({
       logger: this.logger.child({ component: 'shared-browser' }),
+      ...(state.directory
+        ? {
+            profileRoot: join(state.directory, 'browser'),
+            settings: new SharedBrowserSettingsStore({
+              filePath: join(state.directory, 'shared-browser-settings.json'),
+            }),
+          }
+        : {}),
     });
     this.agentSessionReader = new AgentSessionReader({
       apiBaseUrl: this.normalizedApiBaseUrl,

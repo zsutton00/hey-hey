@@ -13,7 +13,6 @@ import {
   Logger,
   HttpCode,
   HttpStatus,
-  Headers,
 } from '@nestjs/common';
 import { SkipTransform } from '../common/decorators/skip-transform.decorator';
 import { Request, Response } from 'express';
@@ -33,9 +32,6 @@ import {
   PasswordRecoveryRequestDto,
   RefreshBrowserSessionDto,
   RegisterDto,
-  LocalBootstrapResponseDto,
-  LocalCliCredentialsResponseDto,
-  LocalSetupStatusDto,
 } from '@hey-hey/contracts/api/models';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -54,14 +50,6 @@ import {
 import { CorsConfig } from '../common/config/cors.config';
 import { clearDemoBindingCookie } from '../services/demo-sandbox/demo-binding-cookie';
 import { OrganizationId } from '../types';
-import { z } from 'zod';
-
-const localHandoffBodySchema = z
-  .object({ handoffToken: z.string().regex(/^[A-Za-z0-9_-]{40,64}$/) })
-  .strict();
-const localNameBodySchema = z
-  .object({ name: z.string().trim().min(1).max(100) })
-  .strict();
 
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
@@ -69,83 +57,6 @@ export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
   constructor(private authService: AuthService) {}
-
-  @Public()
-  @Post('local/bootstrap')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Prepare local account access' })
-  @ApiResponse({ status: 200, type: Object })
-  async localBootstrap(
-    @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
-  ): Promise<LocalBootstrapResponseDto> {
-    return this.authService.createLocalHandoff(installationSecret);
-  }
-
-  @Public()
-  @Post('local/cli-credentials')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Issue local CLI credentials' })
-  @ApiResponse({ status: 200, type: Object })
-  async localCliCredentials(
-    @Headers('x-heyhey-local-secret') installationSecret: string | undefined,
-  ): Promise<LocalCliCredentialsResponseDto> {
-    return this.authService.issueLocalCliCredentials(installationSecret);
-  }
-
-  @Public()
-  @Post('local/handoff')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Exchange one-time local browser handoff' })
-  @ApiResponse({ status: 200, type: Object })
-  async localHandoff(
-    @Body() body: unknown,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<BrowserSessionResponseDto> {
-    this.assertLocalBrowserOrigin(request);
-    const parsedBody = localHandoffBodySchema.safeParse(body);
-    if (!parsedBody.success) {
-      throw new BadRequestException('Invalid local browser handoff');
-    }
-    const session = await this.authService.completeLocalHandoff(
-      parsedBody.data.handoffToken,
-      browserSessionRequestMetadata(request),
-    );
-    setBrowserSessionCookies(response, session);
-    return session.response;
-  }
-
-  @Patch('local/name')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Save the local account display name' })
-  @ApiResponse({ status: 200, type: Object })
-  async saveLocalDisplayName(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() body: unknown,
-    @Req() request: Request,
-  ): Promise<LocalSetupStatusDto> {
-    this.assertLocalBrowserOrigin(request);
-    const parsedBody = localNameBodySchema.safeParse(body);
-    if (!parsedBody.success) {
-      throw new BadRequestException('Name must contain 1 to 100 characters');
-    }
-    return this.authService.updateLocalDisplayName(
-      user.userId,
-      parsedBody.data.name,
-    );
-  }
-
-  @Get('local/status')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary: 'Read local account, connection and execution status',
-  })
-  @ApiResponse({ status: 200, type: Object })
-  async getLocalStatus(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<LocalSetupStatusDto> {
-    return this.authService.getLocalStatus(user.userId);
-  }
 
   @Get('account-default-organization')
   @UseGuards(JwtAuthGuard)
@@ -273,6 +184,10 @@ export class AuthController {
     try {
       const refreshSecret = request.cookies?.[REFRESH_COOKIE_NAME];
       if (typeof refreshSecret !== 'string' || refreshSecret.length === 0) {
+        this.logger.warn('Browser session renewal refused', {
+          event: 'browser_session.refresh_refused',
+          reasonCode: 'refresh_cookie_missing',
+        });
         throw new UnauthorizedException('Browser session is not authenticated');
       }
 
@@ -287,8 +202,16 @@ export class AuthController {
           : await this.authService.refreshToken(refreshSecret, requestMetadata);
 
       setBrowserSessionCookies(response, session);
+      this.logger.log('Browser renewal cookies set', {
+        event: 'browser_session.refresh_cookies_set',
+        sessionId: session.sessionId,
+      });
       return session.response;
     } catch (error) {
+      this.logger.warn('Browser renewal cookies cleared after failure', {
+        event: 'browser_session.refresh_cookies_cleared',
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+      });
       this.clearBrowserSessionCookies(response);
       throw error;
     }
@@ -506,18 +429,6 @@ export class AuthController {
       throw new UnauthorizedException(
         'Browser session mutation is not allowed',
       );
-    }
-  }
-
-  private assertLocalBrowserOrigin(request: Request): void {
-    const fetchSite = request.headers['sec-fetch-site'];
-    if (
-      request.headers.origin !== 'http://localhost:5173' ||
-      (fetchSite !== undefined &&
-        fetchSite !== 'same-site' &&
-        fetchSite !== 'same-origin')
-    ) {
-      throw new UnauthorizedException('Local browser origin is not trusted');
     }
   }
 

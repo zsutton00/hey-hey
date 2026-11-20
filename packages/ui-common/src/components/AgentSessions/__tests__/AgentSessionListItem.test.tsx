@@ -5,11 +5,14 @@ import {
   MessageStatus,
   MessageType,
   type PaginatedAgentSessionItemDto,
+  type FeatureSyncReportPayload,
+  FeatureSyncReportSourceType,
 } from "../../../api";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../../../utils/logger";
 import { AgentSessionListItem } from "../AgentSessionListItem";
 
 const mocks = vi.hoisted(() => ({
@@ -41,12 +44,32 @@ vi.mock("../../AgentSession/agentSessionCurrentStatePresentation", () => ({
   },
 }));
 
-vi.mock("../../Conversation/Components/SystemMessage", () => ({
-  SystemMessage: (props: { text: string }) => {
-    mocks.systemMessage(props);
-    return <div data-testid="system-message">{props.text || "Reports"}</div>;
+vi.mock(
+  "../../Conversation/Components/SystemMessage",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../Conversation/Components/SystemMessage")
+      >();
+    return {
+      SystemMessage: (
+        props: React.ComponentProps<typeof actual.SystemMessage>,
+      ) => {
+        if (
+          props.inlineReports?.some(
+            (report) => report.reportType === "FEATURE_SYNC",
+          )
+        ) {
+          return <actual.SystemMessage {...props} />;
+        }
+        mocks.systemMessage(props);
+        return (
+          <div data-testid="system-message">{props.text || "Reports"}</div>
+        );
+      },
+    };
   },
-}));
+);
 
 vi.mock("../../Entity/EntityListItem", () => ({
   EntityListItem: (props: {
@@ -98,7 +121,7 @@ vi.mock("../../LlmForms/Registry/InterstitialField", () => ({
     uiElements?: { type: string }[];
   }) =>
     messageData.uiElements?.some(
-      (element) => element.type === "interstitial"
+      (element) => element.type === "interstitial",
     ) === true,
   splitInterstitialThoughts: (body: string) =>
     mocks.splitInterstitialThoughts(body),
@@ -123,7 +146,7 @@ const makeItem = (
   messageData: Record<string, unknown> = {
     response: "Completed",
     type: "AGENT",
-  }
+  },
 ): PaginatedAgentSessionItemDto => ({
   agentSession: {
     id: "session-1",
@@ -182,6 +205,185 @@ describe("AgentSessionListItem", () => {
     mocks.splitInterstitialThoughts.mockReturnValue(["Final thought"]);
   });
 
+  it.each(["coding", "conversations"] as const)(
+    "isolates message preparation failures in %s rows",
+    (variant) => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const logError = vi.spyOn(logger, "error");
+      const item = makeItem({
+        type: "AGENT",
+        response: "Broken message",
+        uiElements: {},
+      });
+      const healthy = makeItem({ type: "AGENT", response: "Healthy message" });
+      healthy.agentSession = { ...healthy.agentSession, id: "session-2" };
+      const navigate = vi.fn();
+      const view = () => (
+        <MemoryRouter>
+          {[item, healthy].map((row) => (
+            <AgentSessionListItem
+              key={row.agentSession.id}
+              item={row}
+              projectId="project-1"
+              variant={variant}
+              onSessionNavigate={navigate}
+            />
+          ))}
+        </MemoryRouter>
+      );
+      const { rerender } = render(view());
+      expect(
+        screen.getByTestId("session-latest-message-unavailable"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Healthy message")).toBeInTheDocument();
+      expect(logError).toHaveBeenCalledWith(
+        "ui",
+        expect.any(String),
+        expect.objectContaining({
+          code: "SESSION_LATEST_MESSAGE_RENDER_FAILED",
+          agentSessionId: "session-1",
+          messageId: "message-1",
+          reportTypes: ["IMPLEMENT"],
+          errorName: "TypeError",
+          reason: expect.any(String),
+        }),
+      );
+      const prefix = variant === "coding" ? "coding-session" : "conversation";
+      fireEvent.click(screen.getByTestId(`${prefix}-container-session-1`));
+      expect(navigate).toHaveBeenCalledOnce();
+      const replacement = makeItem({
+        type: "AGENT",
+        response: "Recovered message",
+      });
+      item.lastMessage = { ...replacement.lastMessage!, id: "message-2" };
+      rerender(view());
+      expect(
+        screen.queryByTestId("session-latest-message-unavailable"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Recovered message")).toBeInTheDocument();
+      logError.mockRestore();
+      consoleError.mockRestore();
+    },
+  );
+
+  it.each(["coding", "conversations"] as const)(
+    "isolates malformed reports in %s rows and recovers when the report changes",
+    (variant) => {
+      const logError = vi.spyOn(logger, "error");
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const navigate = vi.fn();
+      const item = makeItem();
+      const validPayload = {
+        reportType: "FEATURE_SYNC",
+        summary: "Reviewed activity and session presentation requirements.",
+        discrepancies: [
+          {
+            sourceType: FeatureSyncReportSourceType.Task,
+            source: {
+              entityType: FeatureSyncReportSourceType.Task,
+              entityId: "9594d19d-240a-4abf-8f91-01f94508f50c",
+              title: "Isolate unavailable latest messages",
+            },
+            description:
+              "Session latest-message failures must remain isolated.",
+          },
+        ],
+        reconciliationOptions: [
+          {
+            description:
+              "Contain message rendering failures within the session preview.",
+            discrepancyIndices: [0],
+          },
+        ],
+      } satisfies FeatureSyncReportPayload;
+      item.reports = [
+        {
+          ...item.reports[0],
+          reportType: "FEATURE_SYNC",
+          title: "Feature reconciliation",
+          payload: { ...validPayload, discrepancies: undefined },
+        },
+      ];
+      const healthy = makeItem({
+        type: "AGENT",
+        response: "Other session remains readable",
+      });
+      healthy.agentSession = { ...healthy.agentSession, id: "session-2" };
+      const view = () => (
+        <MemoryRouter>
+          {[item, healthy].map((row) => (
+            <AgentSessionListItem
+              key={row.agentSession.id}
+              item={row}
+              projectId="project-1"
+              variant={variant}
+              onSessionNavigate={navigate}
+            />
+          ))}
+        </MemoryRouter>
+      );
+      const { rerender } = render(view());
+      expect(
+        screen.getByTestId("session-latest-message-unavailable"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Other session remains readable"),
+      ).toBeInTheDocument();
+      expect(logError).toHaveBeenCalledWith(
+        "ui",
+        expect.any(String),
+        expect.objectContaining({
+          code: "SESSION_LATEST_MESSAGE_RENDER_FAILED",
+          agentSessionId: "session-1",
+          messageId: "message-1",
+          reportTypes: ["FEATURE_SYNC"],
+          errorName: "TypeError",
+          reason: expect.any(String),
+        }),
+      );
+      const prefix = variant === "coding" ? "coding-session" : "conversation";
+      const brokenRow = screen.getByTestId(`${prefix}-container-session-1`);
+      expect(
+        within(brokenRow).getByTestId("entity-list-item"),
+      ).toBeInTheDocument();
+      fireEvent.click(brokenRow);
+      expect(navigate).toHaveBeenCalledOnce();
+
+      item.reports = [
+        {
+          ...item.reports[0],
+          version: 2,
+          payload: {
+            ...validPayload,
+            reconciliationOptions: undefined,
+          },
+        },
+      ];
+      rerender(view());
+      expect(
+        screen.getByTestId("session-latest-message-unavailable"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Other session remains readable"),
+      ).toBeInTheDocument();
+
+      item.reports = [
+        { ...item.reports[0], version: 3, payload: validPayload },
+      ];
+      rerender(view());
+      expect(
+        screen.queryByTestId("session-latest-message-unavailable"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText(validPayload.summary)).toBeInTheDocument();
+      consoleError.mockRestore();
+      logError.mockRestore();
+    },
+  );
+
   it("renders coding rows with lifecycle, current state, latest message, and metadata", () => {
     const item = makeItem();
     render(
@@ -191,7 +393,7 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="coding"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.entityListItem).toHaveBeenCalledWith(
@@ -199,7 +401,7 @@ describe("AgentSessionListItem", () => {
         status: "Completed",
         statusLeadingAdornment: expect.anything(),
         tags: undefined,
-      })
+      }),
     );
     expect(mocks.currentStateIndicator).toHaveBeenCalledWith({
       currentState: AgentSessionCurrentState.Thinking,
@@ -209,10 +411,12 @@ describe("AgentSessionListItem", () => {
       expect.objectContaining({
         inlineReports: item.reports,
         text: "Completed",
-      })
+      }),
     );
     expect(mocks.metadataDisclosure).toHaveBeenCalledWith(
-      expect.objectContaining({ rows: [{ label: "Provider", value: "Codex" }] })
+      expect.objectContaining({
+        rows: [{ label: "Provider", value: "Codex" }],
+      }),
     );
   });
 
@@ -237,7 +441,7 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="coding"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.entityConversationTitle).toHaveBeenCalledWith({
@@ -255,7 +459,7 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="conversations"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.entityListItem).toHaveBeenCalledWith(
@@ -264,10 +468,10 @@ describe("AgentSessionListItem", () => {
         status: AgentSessionCurrentState.Thinking,
         tags: ["Coding", "Launch service: API"],
         statusLeadingAdornment: undefined,
-      })
+      }),
     );
     expect(mocks.currentStatePresentation).toHaveBeenCalledWith(
-      AgentSessionCurrentState.Thinking
+      AgentSessionCurrentState.Thinking,
     );
     expect(screen.queryByTestId("metadata-disclosure")).not.toBeInTheDocument();
   });
@@ -290,7 +494,7 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="conversations"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.entityConversationTitle).toHaveBeenCalledWith({
@@ -317,7 +521,7 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="conversations"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.entityConversationTitle).toHaveBeenCalledWith({
@@ -342,15 +546,15 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="coding"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mocks.interstitialThought).toHaveBeenCalledWith(
-      expect.objectContaining({ thought: "Final thought" })
+      expect.objectContaining({ thought: "Final thought" }),
     );
     expect(screen.getByRole("link")).toHaveAttribute(
       "href",
-      "/custom-session-path"
+      "/custom-session-path",
     );
     expect(mocks.systemMessage).not.toHaveBeenCalled();
   });
@@ -369,19 +573,19 @@ describe("AgentSessionListItem", () => {
             projectId="project-1"
             variant={variant}
           />
-        </MemoryRouter>
+        </MemoryRouter>,
       );
 
       const itemName = variant === "coding" ? "coding-session" : "conversation";
       expect(
-        screen.getByTestId(`${itemName}-message-content-session-1`)
+        screen.getByTestId(`${itemName}-message-content-session-1`),
       ).toHaveTextContent("Can we ship this?");
       expect(screen.getByTestId("user-message")).toBeInTheDocument();
       expect(screen.getByRole("link")).toContainElement(
-        screen.getByTestId("user-message")
+        screen.getByTestId("user-message"),
       );
       expect(mocks.systemMessage).not.toHaveBeenCalled();
-    }
+    },
   );
 
   it.each([
@@ -400,11 +604,11 @@ describe("AgentSessionListItem", () => {
           projectId="project-1"
           variant="conversations"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByTestId("conversation-message-session-1")
+      screen.queryByTestId("conversation-message-session-1"),
     ).not.toBeInTheDocument();
     expect(mocks.systemMessage).not.toHaveBeenCalled();
   });

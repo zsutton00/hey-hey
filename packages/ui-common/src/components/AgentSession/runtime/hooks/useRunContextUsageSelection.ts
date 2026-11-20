@@ -3,7 +3,7 @@ import type { ProviderSessionChoice } from "../../RunContextUsageCapsules";
 
 export function useRunContextUsageSelection(
   scope: string,
-  sessions: readonly ProviderSessionChoice[]
+  sessions: readonly ProviderSessionChoice[],
 ) {
   const [selection, setSelection] = useState<{
     scope: string;

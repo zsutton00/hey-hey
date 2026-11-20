@@ -7,6 +7,7 @@ import type { RunEventPublisher } from '../server/run-event-publisher';
 import type { AgenticSession } from '../session/types';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { SubAgentContextReading } from './subagent';
+import type { SystemMessageDataNoticeSeverityEnum as NoticeSeverity } from '../shared/api/index';
 import type { Turn } from '../turn/turn';
 
 /** The only way `RunCompaction` sees the Run that owns it. */
@@ -22,7 +23,11 @@ export interface RunCompactionDeps {
   session(): AgenticSession;
   activeTurn(): Pick<Turn, 'turnId' | 'subagentProviderSessionId'> | null;
   contextProviderSessionId(): string | null;
-  postAgentSystemMessage(response: string, session: AgenticSession): Promise<void>;
+  postRuntimeNotice(
+    response: string,
+    severity: NoticeSeverity,
+    session: AgenticSession,
+  ): Promise<void>;
 }
 
 /**
@@ -67,17 +72,17 @@ export class RunCompaction {
     }
     const session = this.deps.session();
 
-    if (!options?.silent) await this.deps.postAgentSystemMessage('Starting compact…', session);
+    if (!options?.silent) await this.deps.postRuntimeNotice('Starting compact…', 'info', session);
     try {
       await runner.compact();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       if (!options?.silent) {
-        await this.deps.postAgentSystemMessage(`Compact failed: ${reason}`, session);
+        await this.deps.postRuntimeNotice(`Compact failed: ${reason}`, 'warning', session);
       }
       throw error;
     }
-    if (!options?.silent) await this.deps.postAgentSystemMessage('Finished compact…', session);
+    if (!options?.silent) await this.deps.postRuntimeNotice('Finished compact…', 'info', session);
   }
 
   /**

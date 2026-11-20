@@ -17,10 +17,10 @@ export const renderCodingResearchMemo = (
   report: CodingResearchReportPayload,
   additionalEvidence?: ResearchMemoEvidence,
 ): string => {
-  const hasStructuredEvidence = report.format !== 'WRITTEN';
+  const hasSelfResearchEvidence = report.format === 'SELF_RESEARCH';
   const evidence =
     additionalEvidence ??
-    (report.format !== 'WRITTEN'
+    (report.format === 'SELF_RESEARCH'
       ? {
           frame: report.frame,
           updates: report.updates,
@@ -35,11 +35,11 @@ export const renderCodingResearchMemo = (
         });
 
   return [
-    report.format === 'WRITTEN' ? '## Research report' : '## Research frame',
-    ...(report.format === 'WRITTEN'
+    report.format === 'SUBAGENT_PARENT' ? '## Research report' : '## Research frame',
+    ...(report.format === 'SUBAGENT_PARENT'
       ? [`Summary: ${report.summary}`, '', report.analysis]
       : ['```json', JSON.stringify(report.frame, null, 2), '```', '', report.analysis]),
-    ...(hasStructuredEvidence || additionalEvidence
+    ...(hasSelfResearchEvidence || additionalEvidence
       ? [
           '',
           '## Reconciliation updates',
@@ -53,23 +53,13 @@ export const renderCodingResearchMemo = (
           '```',
         ]
       : []),
-    ...(additionalEvidence
-      ? [
-          '',
-          '## Research evidence from child handoffs',
-          '```json',
-          JSON.stringify(evidence.frame, null, 2),
-          '```',
-        ]
+    // A subagent-parent report carries no frame of its own, so the producer's frame is
+    // rendered here once. A self-research report already printed its frame first.
+    ...(report.format === 'SUBAGENT_PARENT' && additionalEvidence
+      ? ['', '## Research frame', '```json', JSON.stringify(evidence.frame, null, 2), '```']
       : []),
-    ...(report.format === 'STRUCTURED'
-      ? [
-          '',
-          '## Structured uncertainties',
-          '```json',
-          JSON.stringify(evidence.uncertainties, null, 2),
-          '```',
-        ]
+    ...(report.format === 'SELF_RESEARCH'
+      ? ['', '## Uncertainties', '```json', JSON.stringify(evidence.uncertainties, null, 2), '```']
       : []),
   ].join('\n');
 };

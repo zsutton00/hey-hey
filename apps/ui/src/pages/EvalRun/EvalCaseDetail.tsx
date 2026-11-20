@@ -28,6 +28,7 @@ import {
 import {
   CreateProposal,
   DeleteProposal,
+  EvalCaseInputsSection,
   isPlaceholderEntityId,
   Report,
   UpdateProposal,
@@ -40,7 +41,9 @@ import {
 import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptExecutionSummary } from "./AttemptExecutionSummary";
+import { AttemptTurns } from "./AttemptTurns";
 import { AttemptSessions } from "./AttemptSessions";
+import { AttemptToolCalls } from "./AttemptToolCalls";
 
 import { CodingAttemptResults, CodingStartPoint } from "./CodingAttemptResults";
 import { EvalHumanReviewForm } from "./EvalHumanReviewForm";
@@ -470,25 +473,31 @@ const WorkBreakdown: React.FC<{ rows: WorkBreakdownRow[] }> = ({ rows }) => {
 const ExpectedVersusResult: React.FC<{
   row: CaseRow;
   organizationId: string;
-}> = ({ row, organizationId }) => {
+  projectId: string;
+  /** A repeat sits under its case, which already shows what was expected. */
+  isRepeat: boolean;
+}> = ({ row, organizationId, projectId, isRepeat }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 2 }} data-testid="eval-expected-vs-result">
-      <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-        <b>{t("eval.results.detail.expected")}:</b>{" "}
-        {row.expectation ?? t("eval.results.detail.noExpectation")}
-      </Typography>
+      {!isRepeat && (
+        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+          <b>{t("eval.results.detail.expected")}:</b>{" "}
+          {row.expectation ?? t("eval.results.detail.noExpectation")}
+        </Typography>
+      )}
       {row.coding && (
         <CodingStartPoint
           organizationId={organizationId}
           startPoint={row.coding.startPoint}
+          target={row.coding.target}
         />
       )}
       <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: "pre-wrap" }}>
         <b>{t("eval.results.detail.result")}:</b>{" "}
         {row.recognitionExplanation ?? t("eval.results.detail.noResult")}
       </Typography>
-      {row.evalCaseHref && (
+      {!isRepeat && row.evalCaseHref && (
         <Box sx={{ mt: 0.5 }}>
           <SpaLink
             href={row.evalCaseHref}
@@ -496,6 +505,15 @@ const ExpectedVersusResult: React.FC<{
           >
             {t("eval.results.detail.openEvalCase")}
           </SpaLink>
+        </Box>
+      )}
+      {!isRepeat && row.inputs && (
+        <Box sx={{ mt: 1 }}>
+          <EvalCaseInputsSection
+            content={row.inputs}
+            surface="run"
+            mentionConfig={{ organizationId, projectId }}
+          />
         </Box>
       )}
     </Box>
@@ -508,6 +526,8 @@ export interface EvalCaseDetailProps {
   run: EvalRunReport;
   attempt: EvalAttemptReport;
   row: CaseRow;
+  /** Which repeat this is when the run made several; null otherwise. */
+  repeat: number | null;
 }
 
 /** The specifics of one case attempt, shown when its row is expanded. */
@@ -517,16 +537,37 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
   run,
   attempt,
   row,
+  repeat,
 }) => (
   <Box sx={{ p: 2 }} data-testid={`eval-attempt-detail-${attempt.id}`}>
     <AttemptExecutionSummary attempt={attempt} />
-    <ExpectedVersusResult row={row} organizationId={organizationId} />
-    {row.coding && <CodingAttemptResults coding={row.coding} />}
+    <ExpectedVersusResult
+      row={row}
+      organizationId={organizationId}
+      projectId={projectId}
+      isRepeat={repeat !== null}
+    />
+    {row.coding && (
+      <CodingAttemptResults
+        coding={row.coding}
+        organizationId={organizationId}
+        attemptId={attempt.id}
+      />
+    )}
+    <AttemptTurns
+      attempt={attempt}
+      plannedMessages={
+        run.payload.cases.find((c) => c.id === attempt.payload.caseInputId)
+          ?.target.inputs.inputs.length ?? 1
+      }
+    />
     <AttemptSessions
       attempt={attempt}
       judgeSessionHref={row.judgeSessionHref}
+      judgeProvider={run.payload.judgeSetup.provider}
     />
     <WorkBreakdown rows={row.breakdown} />
+    <AttemptToolCalls attempt={attempt} />
     <Grid container spacing={2}>
       {!row.coding && (
         <Grid size={{ xs: 12, md: 6 }}>
@@ -545,6 +586,7 @@ export const EvalCaseDetail: React.FC<EvalCaseDetailProps> = ({
             projectId={projectId}
             evalId={run.payload.evalId}
             attempt={attempt}
+            repeat={repeat}
           />
         </Stack>
       </Grid>

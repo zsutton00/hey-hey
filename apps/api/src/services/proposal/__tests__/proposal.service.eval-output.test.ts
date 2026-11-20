@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { mockProposalAdmission } from './mock-proposal-admission';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -121,7 +122,10 @@ describe('ProposalService eval target output', () => {
       providers: [
         ProposalService,
         ProjectAccessService,
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         {
           provide: WorkItemTypeRegistryService,
           useValue: { getDefinitions: jest.fn().mockReturnValue([]) },

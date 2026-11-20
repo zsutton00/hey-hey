@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
 import type {
   CoordinateTaskMonitorWorkEffect,
@@ -8,7 +9,6 @@ import type {
   TaskMonitorJudgmentResponse,
   TaskMonitorLaunchConfig,
 } from '@hey-hey/contracts/agent-bridge';
-import type { WorkStatus } from '@hey-hey/contracts/api/models';
 import type {
   TaskMonitorExecutionNode,
   TaskMonitorHumanDecisionEvidence,
@@ -188,7 +188,7 @@ export interface TaskMonitorExactActionRequiredEvent {
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 interface TaskMonitorInterventionProjectedEvent {
@@ -349,6 +349,17 @@ interface TaskMonitorOutcomeJudgmentRequiredEvent {
   readonly runId: string;
   readonly agentSessionId: string;
   readonly reason: string;
+  /** The posted request; absent only from outcomes settled before the CLI recorded it. */
+  readonly requestMessageId?: string | undefined;
+}
+
+/** Supervision could not complete an operation; a person must act, but no judgment was requested. */
+interface TaskMonitorSupervisionFailedEvent {
+  readonly type: 'SUPERVISION_FAILED';
+  readonly taskMonitorId: string;
+  readonly runId: string;
+  readonly agentSessionId: string;
+  readonly reason: string;
 }
 
 interface TaskMonitorSupervisionHaltedEvent {
@@ -375,6 +386,8 @@ export interface TaskMonitorLoadedEvent {
   readonly cursor: number;
   readonly worktree: TaskMonitorWorktree | null;
   readonly terminalPolicy: TaskMonitorTerminalPolicy;
+  /** The monitor's recorded kind key; null only in an outcome persisted before keys existed. */
+  readonly kindKey: string | null;
 }
 
 interface TaskMonitorLoadFailedEvent {
@@ -505,12 +518,12 @@ interface TaskMonitorStopUncertainEvent {
 interface TaskMonitorControlStatusProjectedEvent {
   readonly type: 'TASK_MONITOR_CONTROL_STATUS_PROJECTED';
   readonly taskMonitorId: string;
-  readonly status: Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+  readonly status: TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
 }
 
 interface TaskMonitorControlStatusProjectionFailure {
   readonly taskMonitorId: string;
-  readonly status: Extract<WorkStatus, 'ACTIVE' | 'ON_HOLD'>;
+  readonly status: TaskResponseDto['status'] & ('ACTIVE' | 'ON_HOLD');
   readonly reason: string;
 }
 
@@ -667,6 +680,7 @@ export type TaskMonitorMachineEvent =
   | TaskMonitorOutcomeJudgmentProjectionEvent
   | TaskMonitorOutcomeJudgmentProjectionFailedEvent
   | TaskMonitorOutcomeJudgmentRequiredEvent
+  | TaskMonitorSupervisionFailedEvent
   | TaskMonitorSupervisionHaltedEvent
   | TaskMonitorSupervisionCompletedEvent
   | TaskMonitorLoadedEvent
@@ -720,7 +734,7 @@ export interface VerifiedTaskMonitorProviderInterventionInput extends AddressedT
   readonly target: string;
   readonly fingerprint: string;
   readonly createdAt: string;
-  readonly expiresAt: string;
+  readonly expiresAt: string | null;
 }
 
 export type TaskMonitorExecutionPhase = 'IMPLEMENTATION' | 'REVIEW';

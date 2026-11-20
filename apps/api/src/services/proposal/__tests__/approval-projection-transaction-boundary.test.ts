@@ -12,7 +12,7 @@ import { WorkItemChangeSetMaterializerService } from '../work-item-change-set-ma
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { ProposalService } from '../proposal.service';
 import { PhaseBreakdownMaterializationService } from '../../plan/phase-breakdown-materialization.service';
-import * as permissionEvaluation from '../permission-evaluation';
+import type { ProjectApprovalPolicy } from '../project-approval-policy.service';
 import * as permissionEvaluationContext from '../permission-evaluation-context';
 
 const organizationId = '11111111-1111-4111-8111-111111111111' as OrganizationId;
@@ -105,6 +105,19 @@ function proposalRow(overrides: Record<string, unknown> = {}) {
     createdAt: new Date('2026-10-13T00:00:00.000Z'),
     updatedAt: new Date('2026-10-13T00:00:00.000Z'),
     ...overrides,
+  };
+}
+
+/** Every proposal falls through to one fallback rule needing `approvals` approvals. */
+function policyRequiring(approvals: number): ProjectApprovalPolicy {
+  return {
+    requiredApprovals: approvals,
+    rules: [],
+    fallback: {
+      requiresProposal: true,
+      allowsProposerApproval: true,
+      threshold: { policy: 'FIXED_REQUIRED', requiredApprovals: approvals },
+    },
   };
 }
 
@@ -296,7 +309,9 @@ describe('approval projection transaction boundary', () => {
       } as never,
       materializer,
       {} as never,
-      { resolve: jest.fn().mockResolvedValue({}) } as never,
+      {
+        resolve: jest.fn().mockResolvedValue(policyRequiring(1)),
+      } as never,
       { assertProjectRole: jest.fn() } as never,
       reconciliation as never,
     );
@@ -313,11 +328,15 @@ describe('approval projection transaction boundary', () => {
       .spyOn(permissionEvaluationContext, 'resolvePermissionEvaluationContext')
       .mockResolvedValue({
         entity: {},
-        proposal: { source: 'user', eligibleProjectMemberIds: [userId] },
+        proposal: {
+          source: 'user',
+          action: 'UPDATE',
+          authorId: userId,
+          eligibleProjectMemberIds: [userId, 'second-reviewer'],
+          toolName: null,
+          changedFields: [],
+        },
       } as never);
-    jest
-      .spyOn(permissionEvaluation, 'evaluatePermissions')
-      .mockReturnValue({ threshold: 1, allowsProposerApproval: true } as never);
 
     return {
       db,
@@ -460,7 +479,7 @@ describe('approval projection transaction boundary', () => {
       projectId,
       userId,
       dto,
-      {},
+      policyRequiring(1),
     );
     await context.db.$transaction((tx: unknown) =>
       proposals.maybeApplyOnCreate(
@@ -469,7 +488,7 @@ describe('approval projection transaction boundary', () => {
         organizationId,
         projectId,
         dto,
-        {},
+        policyRequiring(1),
         applyOnCreate,
       ),
     );
@@ -504,21 +523,12 @@ describe('approval projection transaction boundary', () => {
         updates: proposal.updates,
         requestorContext: proposal.requestorContext,
       };
-      if (scenario === 'new eligibility') {
-        jest
-          .mocked(permissionEvaluation.evaluatePermissions)
-          .mockReturnValueOnce({
-            requiresProposal: true,
-            threshold: 2,
-            allowsProposerApproval: true,
-          });
-      }
       const prepared = await proposals.prepareApplyOnCreate(
         organizationId,
         projectId,
         userId,
         dto,
-        {},
+        policyRequiring(scenario === 'new eligibility' ? 2 : 1),
       );
       if (scenario === 'changed write') {
         proposal.updates = {
@@ -536,7 +546,7 @@ describe('approval projection transaction boundary', () => {
             organizationId,
             projectId,
             dto,
-            {},
+            policyRequiring(1),
             prepared,
           ),
         ),

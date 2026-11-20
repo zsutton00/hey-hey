@@ -1,5 +1,6 @@
 export * from "./ActionsCapsule";
 export * from "./Auth";
+export * from "./BrandedFrame";
 export * from "./Card";
 export * from "./Activity";
 export * from "./Adr";
@@ -23,6 +24,7 @@ export * from "./MemberList";
 export * from "./InteractionComponent";
 export * from "./Integrations";
 export * from "./Library";
+export * from "./Local";
 export * from "./LlmForms";
 export * from "./MiniDemoPlayer";
 export * from "./Modals";
@@ -121,3 +123,5 @@ export type {
 } from "./shared/WorkItemReadView";
 export * from "./shared";
 export * from "./EntityPromptTemplateEditor";
+
+export { ProjectApprovalSettings } from "./ProjectApprovalSettings/ProjectApprovalSettings";

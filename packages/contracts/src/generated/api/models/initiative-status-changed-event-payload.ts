@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { PayloadType } from './payload-type.js';
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -28,9 +27,6 @@ import type { InitiativeStatusChangedEventPayloadAllOf } from './initiative-stat
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PayloadType } from './payload-type.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  * @type InitiativeStatusChangedEventPayload
@@ -41,8 +37,4 @@ export interface InitiativeStatusChangedEventPayload extends ExecutionContext, I
 export namespace InitiativeStatusChangedEventPayload {
     export const PayloadTypeEnum = PayloadType;
     export type PayloadTypeEnum = PayloadType;
-    export const PreviousStatusEnum = WorkStatus;
-    export type PreviousStatusEnum = WorkStatus;
-    export const NewStatusEnum = WorkStatus;
-    export type NewStatusEnum = WorkStatus;
 }

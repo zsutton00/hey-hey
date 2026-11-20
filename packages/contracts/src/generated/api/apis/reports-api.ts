@@ -27,6 +27,8 @@ import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
 import type { CreateReport201Response } from '../models.js';
 // @ts-ignore
+import type { CreateReport400Response } from '../models.js';
+// @ts-ignore
 import type { CreateReport409Response } from '../models.js';
 // @ts-ignore
 import type { CreateReportDto } from '../models.js';
@@ -38,6 +40,8 @@ import type { FileTouchServiceHistorySortOrder } from '../models.js';
 import type { GetProjectReportUsageTrends200Response } from '../models.js';
 // @ts-ignore
 import type { LaunchEvalRun201Response } from '../models.js';
+// @ts-ignore
+import type { ListProjectChanges200Response } from '../models.js';
 // @ts-ignore
 import type { ListProjectReports200Response } from '../models.js';
 // @ts-ignore
@@ -277,6 +281,83 @@ export const ReportsApiAxiosParamCreator = function (configuration?: Configurati
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+         * @summary List historical agent changes across project sessions
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} [agentSessionId]
+         * @param {string} [serviceId]
+         * @param {string} [taskId]
+         * @param {string} [featureId]
+         * @param {boolean} [committed]
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectChanges: async (organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listProjectChanges', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listProjectChanges', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/reports/changes`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (agentSessionId !== undefined) {
+                localVarQueryParameter['agentSessionId'] = agentSessionId;
+            }
+
+            if (serviceId !== undefined) {
+                localVarQueryParameter['serviceId'] = serviceId;
+            }
+
+            if (taskId !== undefined) {
+                localVarQueryParameter['taskId'] = taskId;
+            }
+
+            if (featureId !== undefined) {
+                localVarQueryParameter['featureId'] = featureId;
+            }
+
+            if (committed !== undefined) {
+                localVarQueryParameter['committed'] = committed;
+            }
+
+            if (limit !== undefined) {
+                localVarQueryParameter['limit'] = limit;
+            }
+
+            if (offset !== undefined) {
+                localVarQueryParameter['offset'] = offset;
+            }
 
 
 
@@ -896,6 +977,27 @@ export const ReportsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+         * @summary List historical agent changes across project sessions
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} [agentSessionId]
+         * @param {string} [serviceId]
+         * @param {string} [taskId]
+         * @param {string} [featureId]
+         * @param {boolean} [committed]
+         * @param {number} [limit]
+         * @param {number} [offset]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listProjectChanges(organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectChanges200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectChanges(organizationId, projectId, agentSessionId, serviceId, taskId, featureId, committed, limit, offset, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ReportsApi.listProjectChanges']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * List reports scoped to a single project, optionally filtered by one or more report types. Sorted by createdAt DESC by default; limit defaults to 50 (max 200), offset defaults to 0.
          * @summary List reports for a project
          * @param {string} organizationId Organization ID
@@ -1095,6 +1197,16 @@ export const ReportsApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.getReport(requestParameters.organizationId, requestParameters.reportId, options).then((request) => request(axios, basePath));
         },
         /**
+         * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+         * @summary List historical agent changes across project sessions
+         * @param {ReportsApiListProjectChangesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectChanges(requestParameters: ReportsApiListProjectChangesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectChanges200Response> {
+            return localVarFp.listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
+        },
+        /**
          * List reports scoped to a single project, optionally filtered by one or more report types. Sorted by createdAt DESC by default; limit defaults to 50 (max 200), offset defaults to 0.
          * @summary List reports for a project
          * @param {ReportsApiListProjectReportsRequest} requestParameters Request parameters.
@@ -1222,6 +1334,16 @@ export interface ReportsApiInterface {
      * @memberof ReportsApiInterface
      */
     getReport(requestParameters: ReportsApiGetReportRequest, options?: RawAxiosRequestConfig): AxiosPromise<LaunchEvalRun201Response>;
+
+    /**
+     * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+     * @summary List historical agent changes across project sessions
+     * @param {ReportsApiListProjectChangesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApiInterface
+     */
+    listProjectChanges(requestParameters: ReportsApiListProjectChangesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectChanges200Response>;
 
     /**
      * List reports scoped to a single project, optionally filtered by one or more report types. Sorted by createdAt DESC by default; limit defaults to 50 (max 200), offset defaults to 0.
@@ -1436,6 +1558,76 @@ export interface ReportsApiGetReportRequest {
      * @memberof ReportsApiGetReport
      */
     readonly reportId: string
+}
+
+/**
+ * Request parameters for listProjectChanges operation in ReportsApi.
+ * @export
+ * @interface ReportsApiListProjectChangesRequest
+ */
+export interface ReportsApiListProjectChangesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly agentSessionId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly serviceId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly taskId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly featureId?: string
+
+    /**
+     *
+     * @type {boolean}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly committed?: boolean
+
+    /**
+     *
+     * @type {number}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly limit?: number
+
+    /**
+     *
+     * @type {number}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly offset?: number
 }
 
 /**
@@ -1918,6 +2110,18 @@ export class ReportsApi extends BaseAPI implements ReportsApiInterface {
      */
     public getReport(requestParameters: ReportsApiGetReportRequest, options?: RawAxiosRequestConfig) {
         return ReportsApiFp(this.configuration).getReport(requestParameters.organizationId, requestParameters.reportId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+     * @summary List historical agent changes across project sessions
+     * @param {ReportsApiListProjectChangesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApi
+     */
+    public listProjectChanges(requestParameters: ReportsApiListProjectChangesRequest, options?: RawAxiosRequestConfig) {
+        return ReportsApiFp(this.configuration).listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

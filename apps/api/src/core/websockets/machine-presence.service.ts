@@ -66,6 +66,52 @@ export class MachinePresenceService {
     return count === 1;
   }
 
+  /**
+   * Presence of several machines in one Redis round trip. Repeated ids are
+   * checked once and an empty set makes no request. A command that failed is
+   * reported in `failed` with its cause; the others keep their own results.
+   * Throws only when the pipeline as a whole could not run.
+   */
+  async arePresent(machineIds: readonly MachineId[]): Promise<{
+    present: Set<MachineId>;
+    failed: Map<MachineId, string>;
+  }> {
+    const present = new Set<MachineId>();
+    const failed = new Map<MachineId, string>();
+    const distinct = [...new Set(machineIds)];
+    if (distinct.length === 0) {
+      return { present, failed };
+    }
+
+    const pipeline = this.redisService.getClient().pipeline();
+    distinct.forEach((machineId) =>
+      pipeline.exists(`machine:presence:${machineId}`),
+    );
+    const results = await pipeline.exec();
+    if (!results) {
+      throw new Error('Redis pipeline returned no results');
+    }
+
+    distinct.forEach((machineId, index) => {
+      const [error, count] = results[index] ?? [
+        new Error('Redis pipeline returned no result for this command'),
+        0,
+      ];
+      if (error) {
+        failed.set(machineId, error.message);
+      } else if (count === 1) {
+        present.add(machineId);
+      }
+    });
+    this.logger.verbose('[presence] batch checked', {
+      checked: distinct.length,
+      present: present.size,
+      failed: failed.size,
+    });
+
+    return { present, failed };
+  }
+
   async getBindings(machineId: MachineId): Promise<{
     bindings: ServiceRepoBinding[];
     organizationId: string;

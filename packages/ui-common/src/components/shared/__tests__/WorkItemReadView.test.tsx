@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -464,7 +465,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -1000,7 +1001,7 @@ describe("WorkItemReadView requirements section", () => {
         key: "FEATURE",
         name: "Feature",
         sections: sectionSelections.FEATURE.sections,
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "feature",
       },
       isFetched: true,
@@ -1227,6 +1228,31 @@ describe("WorkItemReadView requirements section", () => {
       screen.getByTestId("feature-requirements-invalid"),
     ).toBeInTheDocument();
     expect(section.textContent ?? "").not.toContain(requirements);
+  });
+
+  it("shows the empty state for empty requirements even when the section definition declares no schema", () => {
+    const undeclaredSchemaFeature: WorkItemSectionSelection = {
+      status: "resolved",
+      typeKey: "FEATURE",
+      sections: [
+        { key: "description", label: "Description" },
+        { key: "requirements", label: "Requirements" },
+      ],
+    };
+    render(
+      <WorkItemReadView
+        {...makeReadViewProps(undeclaredSchemaFeature, {
+          requirements: JSON.stringify({ records: [] }),
+        })}
+      />,
+      { wrapper },
+    );
+
+    const section = screen.getByTestId("feature-requirements-section");
+    expect(
+      screen.queryByTestId("feature-requirements-invalid"),
+    ).not.toBeInTheDocument();
+    expect(section.textContent ?? "").not.toContain('"records"');
   });
 
   it("shows helper text explaining the boundary with acceptanceCriteria", () => {

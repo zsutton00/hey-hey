@@ -19,3 +19,10 @@ export const resolveEvalTargetEntity = (target: EvalCaseTarget): RunEntityRefere
 
 export const EVAL_TARGET_HANDLER_IDS: readonly string[] = Object.values(EvalTargetHandlerKey);
 export const EVAL_CONSUMER_HANDLER_IDS: readonly string[] = Object.values(EvalConsumerHandlerKey);
+
+/**
+ * The text of the message a case is judged on: its last input. The API reads
+ * runs recorded before inputs existed as a one-message list.
+ */
+export const finalEvalInputText = (target: EvalCaseTarget): string =>
+  target.inputs.inputs[target.inputs.inputs.length - 1]!.text;

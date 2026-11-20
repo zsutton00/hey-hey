@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { ProposalReconciliationGroupService } from '../proposal-reconciliation-group.service';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { mockProposalAdmission } from './mock-proposal-admission';
@@ -154,7 +155,10 @@ describe('ProposalService.update', () => {
           useValue: { captureAuthoring: jest.fn() },
         },
         { provide: ProposalReconciliationGroupService, useValue: {} },
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         {
           provide: WorkItemTypeRegistryService,
           useValue: createMockWorkItemTypeRegistry(),
@@ -1173,7 +1177,10 @@ describe('ProposalService.create — origin influence stamping', () => {
           useValue: { captureAuthoring: jest.fn() },
         },
         { provide: ProposalReconciliationGroupService, useValue: {} },
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         {
           provide: WorkItemTypeRegistryService,
           useValue: createMockWorkItemTypeRegistry(),
@@ -1978,6 +1985,20 @@ describe('ProposalService.create — apply-on-create', () => {
     service = module.get<ProposalService>(ProposalService);
   });
 
+  function setApprovalConfig(config: permissionEvaluation.ApprovalConfig) {
+    projectApprovalPolicyService.resolve.mockResolvedValue({
+      requiredApprovals: Math.max(1, config.threshold),
+      rules: [],
+      fallback: {
+        ...config,
+        threshold:
+          config.threshold === 0
+            ? { policy: 'IMMEDIATE' }
+            : { policy: 'FIXED_REQUIRED', requiredApprovals: config.threshold },
+      },
+    });
+  }
+
   function makeUserRequestorContext(): RequestorContext {
     return {
       source: 'user',
@@ -2031,7 +2052,7 @@ describe('ProposalService.create — apply-on-create', () => {
   }
 
   it('materializes an auto-approved workflow graph change set only after the create transaction commits', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 0,
       allowsProposerApproval: false,
@@ -2102,10 +2123,12 @@ describe('ProposalService.create — apply-on-create', () => {
       approvalService.queueGenericWorkItemChangeSetInTransaction,
     ).toHaveBeenCalledWith(
       mockPrisma.db,
-      draftProposal,
+      expect.objectContaining({ id: draftProposal.id }),
       testIds.organization,
       testIds.project,
       prepared,
+      undefined,
+      expect.objectContaining({ evidence: 'CAPTURED' }),
     );
     expect(approvalService.applyInTransaction).not.toHaveBeenCalled();
     expect(
@@ -2150,7 +2173,7 @@ describe('ProposalService.create — apply-on-create', () => {
   });
 
   it('projects a FEATURE create with initialRequirements once before the transaction and replays its minted requirement IDs', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 1,
       allowsProposerApproval: true,
@@ -2266,7 +2289,7 @@ describe('ProposalService.create — apply-on-create', () => {
   });
 
   it('never projects a create whose proposer approval stays below the threshold', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 2,
       allowsProposerApproval: true,
@@ -2308,7 +2331,7 @@ describe('ProposalService.create — apply-on-create', () => {
   });
 
   it('prepares below-threshold FEATURE requirements only inside the create transaction', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 2,
       allowsProposerApproval: true,
@@ -2401,7 +2424,7 @@ describe('ProposalService.create — apply-on-create', () => {
     beforeEach(() => {
       preparerCalls.length = 0;
       transactionStarted = false;
-      jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+      setApprovalConfig({
         requiresProposal: true,
         threshold: 1,
         allowsProposerApproval: true,
@@ -2535,7 +2558,12 @@ describe('ProposalService.create — apply-on-create', () => {
       expect.objectContaining({ id: draftProposal.id }),
       testIds.organization,
       testIds.project,
-      { onImmediateEdgeCreated: expect.any(Function) },
+      expect.objectContaining({
+        onImmediateEdgeCreated: expect.any(Function),
+        approvalDecisionEvidence: expect.objectContaining({
+          evidence: 'CAPTURED',
+        }),
+      }),
     );
     expect(result.status).toBe('APPROVED');
     expect(result.approvals).toEqual([
@@ -2580,41 +2608,86 @@ describe('ProposalService.create — apply-on-create', () => {
     expect(approvalService.applyInTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it('enacts a user-authored GOAL status update in a multi-member project', async () => {
-    const draftProposal = makeStoredProposal({
-      action: 'UPDATE',
-      status: 'DRAFT',
-      updates: { status: 'COMPLETED' },
-      requestorContext: makeUserRequestorContext(),
-    });
-    (mockPrisma.db as any).proposal.create.mockResolvedValue(draftProposal);
-    (mockPrisma.db as any).task.findFirst = jest.fn().mockResolvedValue({
-      type: 'GOAL',
-      parentTaskId: null,
-      initiativeId: null,
-    });
-    approvalService.applyInTransaction.mockResolvedValue({
-      proposal: { ...draftProposal, status: 'APPROVED' },
-      resultingEntityId: testIds.task,
-      materializableEdges: [],
-      runPostCommit: jest.fn(),
-    });
-
-    const result = await service.create(
-      testIds.organization,
-      testIds.project,
-      approvingUserId,
-      {
-        ...updateBaseDto,
+  it.each(['GOAL', 'MARKETING'])(
+    'applies a user-authored %s status-only update immediately in a multi-member project',
+    async (type) => {
+      if (type === 'MARKETING') {
+        const policy = createDefaultProjectApprovalPolicy();
+        projectApprovalPolicyService.resolve.mockResolvedValue({
+          ...policy,
+          rules: [
+            {
+              source: 'PROJECT',
+              match: {
+                entity: { type },
+                proposal: {
+                  source: 'user',
+                  action: 'UPDATE',
+                  statusOnlyChange: true,
+                },
+              },
+              config: {
+                requiresProposal: true,
+                threshold: { policy: 'IMMEDIATE' },
+                allowsProposerApproval: true,
+              },
+            },
+            ...policy.rules,
+          ],
+        });
+      }
+      const draftProposal = makeStoredProposal({
+        action: 'UPDATE',
+        status: 'DRAFT',
         updates: { status: 'COMPLETED' },
         requestorContext: makeUserRequestorContext(),
-      },
-    );
+      });
+      (mockPrisma.db as any).proposal.create.mockResolvedValue(draftProposal);
+      (mockPrisma.db as any).task.findFirst = jest.fn().mockResolvedValue({
+        type,
+        parentTaskId: null,
+        initiativeId: null,
+      });
+      approvalService.applyInTransaction.mockResolvedValue({
+        proposal: { ...draftProposal, status: 'APPROVED' },
+        resultingEntityId: testIds.task,
+        materializableEdges: [],
+        runPostCommit: jest.fn(),
+      });
 
-    expect(result.status).toBe('APPROVED');
-    expect(result.approvals).toHaveLength(1);
-    expect(approvalService.applyInTransaction).toHaveBeenCalledTimes(1);
-  });
+      const result = await service.create(
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+        {
+          ...updateBaseDto,
+          updates: { status: 'COMPLETED' },
+          requestorContext: makeUserRequestorContext(),
+        },
+      );
+
+      expect(result.status).toBe('APPROVED');
+      expect(result.approvals).toHaveLength(1);
+      expect(approvalService.applyInTransaction).toHaveBeenCalledTimes(1);
+      expect(approvalService.applyInTransaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        testIds.organization,
+        testIds.project,
+        expect.objectContaining({
+          approvalDecisionEvidence: expect.objectContaining({
+            evidence: 'CAPTURED',
+            requirement: { category: 'IMMEDIATE', requiredApprovals: 0 },
+            changedFieldClassification: {
+              statusOnlyChange: true,
+              contentChange: false,
+              featureContentChange: false,
+            },
+          }),
+        }),
+      );
+    },
+  );
 
   it('leaves an agent-authored GOAL update pending in a single-member project', async () => {
     (mockPrisma.db as any).projectMember.findMany.mockResolvedValue([
@@ -2647,7 +2720,10 @@ describe('ProposalService.create — apply-on-create', () => {
   it('resolves one project policy and reuses it for creation evaluation and response mapping', async () => {
     const projectPolicy = createDefaultProjectApprovalPolicy(3);
     projectApprovalPolicyService.resolve.mockResolvedValue(projectPolicy);
-    const evaluateSpy = jest.spyOn(permissionEvaluation, 'evaluatePermissions');
+    const evaluateSpy = jest.spyOn(
+      permissionEvaluation,
+      'evaluateApprovalPolicy',
+    );
     const draftProposal = makeStoredProposal({
       action: 'UPDATE',
       status: 'DRAFT',
@@ -2776,7 +2852,7 @@ describe('ProposalService.create — apply-on-create', () => {
   });
 
   it('counts an eligible user author once and leaves the proposal DRAFT below threshold', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 3,
       allowsProposerApproval: true,
@@ -2813,7 +2889,7 @@ describe('ProposalService.create — apply-on-create', () => {
   });
 
   it('does not count a user author when proposer approval is prohibited', async () => {
-    jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
+    setApprovalConfig({
       requiresProposal: true,
       threshold: 1,
       allowsProposerApproval: false,
@@ -3105,7 +3181,10 @@ describe('ProposalService.create — entity title snapshotting', () => {
           useValue: { captureAuthoring: jest.fn() },
         },
         { provide: ProposalReconciliationGroupService, useValue: {} },
-        ProjectApprovalPolicyService,
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
+        },
         {
           provide: WorkItemTypeRegistryService,
           useValue: createMockWorkItemTypeRegistry(),

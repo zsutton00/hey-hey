@@ -99,6 +99,15 @@ export class EntityContextController {
       'Defaults to one hop.',
   })
   @ApiQuery({
+    name: 'groupRelationships',
+    required: false,
+    type: Boolean,
+    description:
+      'Agent view: adds groupedRelatedEntities (one entry per entity with ' +
+      'all its relationships) and lists each feature once per relationship ' +
+      'type and direction. Defaults to false.',
+  })
+  @ApiQuery({
     name: 'includeFeatureHierarchy',
     required: false,
     type: Boolean,
@@ -147,6 +156,7 @@ export class EntityContextController {
     @Query('includeAvailableMcpTools') includeAvailableMcpTools?: string,
     @Query('proposalDetail') proposalDetail?: string,
     @Query('includePlan') includePlan?: string,
+    @Query('groupRelationships') groupRelationships?: string,
   ): Promise<FullEntityContextDto> {
     const entityType = this.parseEntityType(entityTypeRaw);
 
@@ -159,6 +169,7 @@ export class EntityContextController {
         includeAvailableMcpTools,
       ),
       relatedEntityDepth: this.parseRelatedEntityDepth(relatedEntityDepth),
+      groupRelationships: this.parseBooleanQuery(groupRelationships),
       proposalDetail: this.parseProposalDetail(proposalDetail),
     };
 

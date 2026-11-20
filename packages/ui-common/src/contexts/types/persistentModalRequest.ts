@@ -18,6 +18,8 @@ const discuss = z
     ]),
     entityTitle: z.string().optional(),
     initialValue: z.string().optional(),
+    /** Message sent automatically ahead of the user's own text, shown read-only. */
+    contextPreview: z.string().optional(),
   })
   .strict();
 const triage = z.object({ type: z.literal("triage"), ...scope }).strict();

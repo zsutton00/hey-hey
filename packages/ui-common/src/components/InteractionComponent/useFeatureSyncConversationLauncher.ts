@@ -56,6 +56,10 @@ const buildServiceScope = ({
       : {}),
 });
 
+export interface FeatureSyncLaunchResult {
+  agentSessionId: string;
+}
+
 export function useFeatureSyncConversationLauncher({
   organizationId,
   projectId,
@@ -77,8 +81,10 @@ export function useFeatureSyncConversationLauncher({
   const [error, setError] = useState<string | null>(null);
   const clearError = useCallback(() => setError(null), []);
   const launch = useCallback(
-    async (input: FeatureSyncLaunchInput): Promise<boolean> => {
-      if (pending.current) return false;
+    async (
+      input: FeatureSyncLaunchInput,
+    ): Promise<FeatureSyncLaunchResult | null> => {
+      if (pending.current) return null;
       pending.current = true;
       setIsLoading(true);
       setError(null);
@@ -86,7 +92,7 @@ export function useFeatureSyncConversationLauncher({
         const access = accessResolver.getAccess(input.machineId);
         if (!access.isDeviceEnabled) {
           setError(access.unavailable.message);
-          return false;
+          return null;
         }
         const scope = buildServiceScope(input);
         const model = input.model ?? DEFAULT_MODEL;
@@ -187,7 +193,7 @@ export function useFeatureSyncConversationLauncher({
               ? "Verification launch was cancelled."
               : result.message,
           );
-          return false;
+          return null;
         }
         navigate(
           paths.entityConversation({
@@ -198,12 +204,12 @@ export function useFeatureSyncConversationLauncher({
             entityType: input.check.feature.entityType,
           }),
         );
-        return true;
+        return { agentSessionId: session.id };
       } catch (failure) {
         setError(
           getErrorMessage(failure, "Could not start feature verification."),
         );
-        return false;
+        return null;
       } finally {
         pending.current = false;
         setIsLoading(false);

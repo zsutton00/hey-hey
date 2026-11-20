@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import type {
   PrivateBetaAccessProvisioningOutcomeDto,
   PrivateBetaAccessRequestDecisionInputDto,
@@ -95,6 +96,12 @@ export class PrivateBetaAccessDecisionService {
         );
         return this.toDecisionResult(claimed.request, input.decision);
       } catch (error) {
+        // Our own stored state is broken, not the provisioning attempt: keep
+        // the approved request as is and let the filter answer 500 and log it.
+        if (error instanceof ServerStateException) {
+          throw error;
+        }
+
         return this.persistProvisioningFailure(
           requestId,
           operatorId,

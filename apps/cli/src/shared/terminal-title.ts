@@ -1,6 +1,6 @@
-export type TerminalEnvironment = 'production' | 'staging' | 'local';
+import type { PlatformEnvironment } from './platform-environment-flags';
 
-export const formatTerminalTitle = (environment: TerminalEnvironment, profile?: string): string => {
+export const formatTerminalTitle = (environment: PlatformEnvironment, profile?: string): string => {
   const context = [environment === 'production' ? undefined : environment, profile]
     .filter((part): part is string => Boolean(part))
     .join(' · ');
@@ -9,7 +9,7 @@ export const formatTerminalTitle = (environment: TerminalEnvironment, profile?: 
 };
 
 export const setTerminalTitle = (
-  environment: TerminalEnvironment,
+  environment: PlatformEnvironment,
   profile: string | undefined,
   stdout: Pick<NodeJS.WriteStream, 'isTTY' | 'write'> = process.stdout,
   registerExit: (handler: () => void) => void = (handler) => process.once('exit', handler),

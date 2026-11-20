@@ -1182,6 +1182,28 @@ export class WorkItemChangeSetProjectorService {
       organizationId: params.organizationId,
       projectId: params.projectId,
       ids: existingIds,
+      documentIds: new Set(
+        params.request.operations.flatMap((operation) => {
+          if (
+            operation.op !== 'relationship.create' &&
+            operation.op !== 'relationship.update'
+          ) {
+            return [];
+          }
+          return [
+            ...('sourceEntityType' in operation &&
+            operation.sourceEntityType === 'DESIGN_DOC' &&
+            operation.source?.refType === 'existing'
+              ? [operation.source.id]
+              : []),
+            ...('targetEntityType' in operation &&
+            operation.targetEntityType === 'DESIGN_DOC' &&
+            operation.target?.refType === 'existing'
+              ? [operation.target.id]
+              : []),
+          ];
+        }),
+      ),
       deletionIds: new Set(
         params.request.operations.flatMap((operation) =>
           operation.op === 'workItem.delete' &&
@@ -1327,6 +1349,12 @@ export class WorkItemChangeSetProjectorService {
     state: ProjectionState,
     basis: ProjectedWorkItemChangeSetResponse,
   ): void {
+    state.designDocs = new Map(
+      (basis.designDocs ?? []).map((doc) => [
+        this.identityKey(doc.identity),
+        structuredClone(doc),
+      ]),
+    );
     const root = this.identityKey(basis.projectedRoot.identity);
     const owned = new Set([
       root,
@@ -1477,6 +1505,7 @@ export class WorkItemChangeSetProjectorService {
     ids: string[];
     state: ProjectionState;
     deletionIds?: ReadonlySet<string>;
+    documentIds?: ReadonlySet<string>;
     db?: AnyTransactionClient;
   }): Promise<
     Pick<ProjectionFindings, 'namedMissing' | 'namedUnavailable'> & {
@@ -1507,7 +1536,41 @@ export class WorkItemChangeSetProjectorService {
       },
       include,
     });
+    const documentIds = [...(params.documentIds ?? [])];
+    const documents: Prisma.DesignDocGetPayload<{
+      include: { sections: true };
+    }>[] =
+      documentIds.length > 0
+        ? await (params.db ?? this.prisma.db).designDoc.findMany({
+            where: {
+              id: { in: documentIds },
+              organizationId: params.organizationId,
+              projectId: params.projectId,
+              archivedAt: null,
+            },
+            include: { sections: { orderBy: { order: 'asc' } } },
+          })
+        : [];
+    params.state.designDocs ??= new Map();
+    for (const doc of documents) {
+      if (doc.parentEntityType !== 'TASK' || !doc.parentEntityId) {
+        continue;
+      }
+      const identity = { refType: 'existing', id: doc.id } as const;
+      params.state.designDocs.set(this.identityKey(identity), {
+        identity,
+        name: doc.name,
+        markdown:
+          doc.sections.find((section) => section.key === 'content')
+            ?.materializedMarkdown ?? '',
+        parent: { refType: 'existing', id: doc.parentEntityId },
+      });
+      params.state.identityLabels[this.identityKey(identity)] = doc.name;
+    }
     const found = new Set<string>([
+      ...[...params.state.designDocs.values()].flatMap((doc) =>
+        doc.identity.refType === 'existing' ? [doc.identity.id] : [],
+      ),
       ...tasks.map((task: ProjectedTaskRecord) => task.id),
       ...[...params.state.nodes.values()]
         .filter((node) => node.identity.refType === 'existing')
@@ -1683,6 +1746,18 @@ export class WorkItemChangeSetProjectorService {
           return;
         }
         switch (operation.op) {
+          case 'designDoc.create': {
+            state.designDocs ??= new Map();
+            state.designDocs.set(this.identityKey(operation.ref), {
+              identity: operation.ref,
+              name: operation.name,
+              markdown: operation.markdown,
+              parent: operation.parent,
+            });
+            state.identityLabels[this.identityKey(operation.ref)] =
+              operation.name;
+            break;
+          }
           case 'workItem.create':
             this.applyCreate(operation, state);
             break;
@@ -1723,6 +1798,7 @@ export class WorkItemChangeSetProjectorService {
     index: number;
   }): string {
     const order: Record<WorkItemChangeSetOperation['op'], number> = {
+      'designDoc.create': 0,
       'workItem.create': 0,
       'workItem.update': 1,
       'section.replace': 2,
@@ -1899,9 +1975,15 @@ export class WorkItemChangeSetProjectorService {
       identity: operation.ref,
       label: operation.edgeType,
       source: operation.source,
-      sourceEntityType: AgentEdgeEndpointEntityType.Task,
+      sourceEntityType:
+        'sourceEntityType' in operation
+          ? (operation.sourceEntityType ?? AgentEdgeEndpointEntityType.Task)
+          : AgentEdgeEndpointEntityType.Task,
       target: operation.target,
-      targetEntityType: AgentEdgeEndpointEntityType.Task,
+      targetEntityType:
+        'targetEntityType' in operation
+          ? (operation.targetEntityType ?? AgentEdgeEndpointEntityType.Task)
+          : AgentEdgeEndpointEntityType.Task,
       edgeType: operation.edgeType,
       category: operation.category,
       direction:
@@ -1937,11 +2019,13 @@ export class WorkItemChangeSetProjectorService {
     if (!edge) return;
     if (operation.source) {
       edge.source = operation.source;
-      edge.sourceEntityType = AgentEdgeEndpointEntityType.Task;
+      edge.sourceEntityType =
+        operation.sourceEntityType ?? AgentEdgeEndpointEntityType.Task;
     }
     if (operation.target) {
       edge.target = operation.target;
-      edge.targetEntityType = AgentEdgeEndpointEntityType.Task;
+      edge.targetEntityType =
+        operation.targetEntityType ?? AgentEdgeEndpointEntityType.Task;
     }
     if (operation.edgeType) {
       edge.edgeType = operation.edgeType;
@@ -2102,7 +2186,22 @@ export class WorkItemChangeSetProjectorService {
         deleted: true,
       } satisfies ProjectedNode);
     const children = [...state.nodes.values()]
-      .filter((node) => this.identityKey(node.parent) === rootKey)
+      .filter((node) => {
+        const seen = new Set<string>();
+        let parent = node.parent;
+        while (parent) {
+          const key = this.identityKey(parent);
+          if (key === rootKey) {
+            return true;
+          }
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          parent = state.nodes.get(key)?.parent;
+        }
+        return false;
+      })
       .sort((a, b) =>
         this.identityKey(a.identity).localeCompare(
           this.identityKey(b.identity),
@@ -2130,6 +2229,7 @@ export class WorkItemChangeSetProjectorService {
     return {
       valid: state.issues.length === 0,
       projectedRoot: rootNode,
+      designDocs: [...(state.designDocs?.values() ?? [])],
       children,
       sections: rootNode.sections,
       incidentRelationships,

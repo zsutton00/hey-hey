@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -84,7 +85,7 @@ const definition = (
   key,
   name,
   sections,
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 });
 
 const proposal = (

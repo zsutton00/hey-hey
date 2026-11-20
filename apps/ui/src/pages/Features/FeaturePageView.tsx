@@ -1,5 +1,6 @@
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
+import { useWorkItemStatusVocabularies } from "@hey-hey/ui-common/data";
 import { CreateFeaturePlanButton } from "../../components/Plans/CreateFeaturePlanButton";
 import {
   Box,
@@ -334,9 +335,9 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
   const isStandardTaskTab = activeChildTypeKey === WORK_ITEM_TYPE_KEYS.Standard;
 
   const [childSearchTerm, setChildSearchTerm] = useState("");
-  const [childStatusFilter, setChildStatusFilter] = useState<WorkStatus | "">(
-    "",
-  );
+  const [childStatusFilter, setChildStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [childSortBy, setChildSortBy] = useState("status");
   const [titleDraft, setTitleDraft] = useState(task.name);
 
@@ -355,11 +356,26 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
     [onTitleChange, task.name],
   );
 
+  // Status choices come from the type of the open tab even before any item has
+  // loaded; loaded items only add statuses their type no longer defines.
+  const statusScope = useMemo(
+    () =>
+      activeChildTypeKey
+        ? [{ type: activeChildTypeKey }, ...children]
+        : children,
+    [activeChildTypeKey, children],
+  );
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    statusScope,
+  );
   const locallyFilteredChildren = useFilteredWorkItems<TaskResponseDto>(
     children,
     childSearchTerm,
     childStatusFilter,
     childSortBy,
+    definitions,
   );
   const visibleChildren = isStandardTaskTab
     ? children.filter((child) =>
@@ -383,33 +399,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
       type: "select",
       key: "status",
       label: t("tasks.filters.status", "Status"),
-      options: [
-        {
-          value: WorkStatus.Backlog,
-          label: t("tasks.status.backlog", "Backlog"),
-        },
-        { value: WorkStatus.Active, label: t("tasks.status.active", "Active") },
-        {
-          value: WorkStatus.OnHold,
-          label: t("tasks.status.onHold", "On Hold"),
-        },
-        {
-          value: WorkStatus.Verifying,
-          label: t("tasks.status.verifying", "Verifying"),
-        },
-        {
-          value: WorkStatus.Completed,
-          label: t("tasks.status.completed", "Completed"),
-        },
-        {
-          value: WorkStatus.Cancelled,
-          label: t("tasks.status.cancelled", "Cancelled"),
-        },
-        {
-          value: WorkStatus.RefiningAcceptanceCriteria,
-          label: t("tasks.status.refining", "Refining"),
-        },
-      ],
+      options: statusOptions,
     },
   ];
   const taskSortOptions = [
@@ -685,9 +675,6 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                           content: { p: 3, pb: 6 },
                           sidebar: {
                             alignSelf: "stretch",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
                             p: 3,
                           },
                         }}
@@ -836,6 +823,7 @@ export const FeaturePageView: React.FC<FeaturePageViewProps> = ({
                             onSearchChange={setChildSearchTerm}
                             statusFilter={childStatusFilter}
                             onStatusFilterChange={setChildStatusFilter}
+                            statusOptions={statusOptions}
                             sortBy={childSortBy}
                             onSortByChange={setChildSortBy}
                           />

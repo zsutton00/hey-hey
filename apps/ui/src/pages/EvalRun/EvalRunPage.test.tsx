@@ -1,5 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type React from "react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EvalAttemptReport, EvalRunReport } from "@hey-hey/ui-common/data";
 
@@ -8,8 +16,21 @@ const mockUseEvalRun = vi.fn();
 const mockUseEvalAttemptOutput = vi.fn();
 const mockStart = vi.fn();
 const mockStop = vi.fn();
+const mockUseEvalHumanReviews = vi.fn();
+const mockSaveReview = vi.fn();
+const mockUpdateProposal = vi.fn();
+const mockReport = vi.fn();
 let mockSessionError: string | null = null;
 let mockLocationState: unknown = null;
+let mockSelectedAttempt: string | null = null;
+
+const mockReadTranscript = vi.fn();
+const RAW_SESSION = JSON.stringify({
+  type: "user",
+  uuid: "11111111-1111-4111-8111-111111111111",
+  message: { role: "user", content: "Fix the bug" },
+});
+const mockTranscripts: Record<string, unknown> = {};
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
@@ -17,7 +38,16 @@ vi.mock("react-router-dom", () => ({
   useParams: () => ({ projectId: "p1", evalId: "eval-1", runId: "run-1" }),
 }));
 
+vi.mock("nuqs", async () => {
+  const { useState } = await vi.importActual<typeof import("react")>("react");
+  return {
+    parseAsString: {},
+    useQueryState: () => useState<string | null>(mockSelectedAttempt),
+  };
+});
+
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => undefined },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
       options ? `${key} ${JSON.stringify(options)}` : key,
@@ -25,19 +55,39 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
-  useUserIdentity: () => ({ currentOrgId: "org" }),
+  useUserIdentity: () => ({ currentOrgId: "org", userId: "user" }),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
   WebPathService: {
     agentSession: (p: { projectId: string; agentSessionId: string }) =>
       `/projects/${p.projectId}/resolve-agent-session-by-id/${p.agentSessionId}`,
-    evalRunResults: (p: { projectId: string; evalId: string; runId: string }) =>
-      `/projects/${p.projectId}/evals/${p.evalId}/runs/${p.runId}/results`,
+    proposal: (p: { projectId: string; proposalId: string }) =>
+      `/projects/${p.projectId}/proposals/${p.proposalId}`,
+    task: (p: { projectId: string; taskId: string }) =>
+      `/projects/${p.projectId}/tasks/${p.taskId}`,
+    designDoc: (p: { projectId: string; designDocId: string }) =>
+      `/projects/${p.projectId}/design-docs/${p.designDocId}`,
   },
 }));
 
-vi.mock("@hey-hey/ui-common/components", () => ({
+vi.mock("@hey-hey/ui-common/components", async (importActual) => ({
+  // The frozen-messages block is the behaviour under test, so it stays real.
+  EvalCaseInputsSection: (
+    await importActual<typeof import("@hey-hey/ui-common/components")>()
+  ).EvalCaseInputsSection,
+  CreateProposal: () => <div data-testid="create-proposal" />,
+  DeleteProposal: () => <div data-testid="delete-proposal" />,
+  UpdateProposal: (props: { renderMode?: string }) => {
+    mockUpdateProposal(props);
+    return <div data-testid="update-proposal">{props.renderMode}</div>;
+  },
+  Report: (props: { evaluationOutput?: boolean }) => {
+    mockReport(props);
+    return <div data-testid="report" />;
+  },
+  isPlaceholderEntityId: (id: string) =>
+    !id || id === "00000000-0000-0000-0000-000000000000",
   useMachineResolution: () => ({
     machines: [],
     isReady: true,
@@ -47,9 +97,26 @@ vi.mock("@hey-hey/ui-common/components", () => ({
   }),
   resolveAgentBridgeRecoveryState: () => ({ type: "loading" }),
   ModelSelectorMachineSelection: () => <div data-testid="machine-picker" />,
+  FunctionalDialog: ({
+    open,
+    children,
+    "data-testid": testId,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+    "data-testid"?: string;
+  }) => (open ? <div data-testid={testId}>{children}</div> : null),
 }));
 
-vi.mock("@hey-hey/ui-common/data", () => ({
+vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
+  evalRunStatusLabel: (
+    await importOriginal<typeof import("@hey-hey/ui-common/data")>()
+  ).evalRunStatusLabel,
+  runRepeats: (await importOriginal<typeof import("@hey-hey/ui-common/data")>())
+    .runRepeats,
+  attemptRepeat: (
+    await importOriginal<typeof import("@hey-hey/ui-common/data")>()
+  ).attemptRepeat,
   evalRunName: (run: { payload: { name?: string } }) =>
     run.payload.name ?? "generated name",
   useRenameEvalRun: () => ({ mutate: vi.fn(), isPending: false }),
@@ -61,6 +128,29 @@ vi.mock("@hey-hey/ui-common/data", () => ({
   useEvalRun: (...args: unknown[]) => mockUseEvalRun(...args),
   useEvalAttemptOutput: (...args: unknown[]) =>
     mockUseEvalAttemptOutput(...args),
+  useEvalHumanReviews: (...args: unknown[]) => mockUseEvalHumanReviews(...args),
+  useSaveEvalHumanReview: () => ({
+    mutate: mockSaveReview,
+    isPending: false,
+    error: null,
+  }),
+  useService: () => ({ data: { name: "hey-hey" } }),
+  useProviderSessionTranscript: () => {
+    const [state, setState] = useState<unknown>({ status: "idle" });
+    return {
+      state,
+      read: (target: { providerSessionId: string }) => {
+        mockReadTranscript(target);
+        setState(
+          mockTranscripts[target.providerSessionId] ?? {
+            status: "unavailable",
+            reason: "SESSION_FILE_NOT_FOUND",
+          },
+        );
+      },
+      reset: () => setState({ status: "idle" }),
+    };
+  },
   useEvalRunSession: () => ({
     start: mockStart,
     stop: mockStop,
@@ -116,8 +206,37 @@ const run = (
       status,
       judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
       cases: [
-        { id: "case-1", title: "Maintenance case" },
-        { id: "case-2", title: "Mobile view" },
+        {
+          id: "case-1",
+          evalCaseId: "eval-case-1",
+          title: "Maintenance case",
+          target: {
+            inputs: {
+              inputs: [
+                { kind: "text_message", text: "Open the maintenance task." },
+                { kind: "text_message", text: "Now update its mockup." },
+              ],
+            },
+          },
+          grading: {
+            expectations: "Update the existing mockup.",
+            checks: [{ id: "no-direct", description: "No direct changes" }],
+            rubric: [],
+          },
+        },
+        {
+          id: "case-2",
+          evalCaseId: "eval-case-2",
+          title: "Mobile view",
+          target: {
+            inputs: {
+              inputs: [
+                { kind: "text_message", text: "Open the maintenance task." },
+              ],
+            },
+          },
+          grading: { expectations: "Do nothing.", checks: [], rubric: [] },
+        },
       ],
       configurations: [setupA, setupB, setupC],
       settings,
@@ -172,6 +291,32 @@ const mixedAttempts = [
   attempt("waiting", "case-2", setupC, { status: "QUEUED" }),
 ];
 
+const endedAttempts = [
+  attempt("finished", "case-1", setupA, {
+    status: "COMPLETED",
+    judgedOutput: "SAVED-OUTPUT",
+    attemptProviderSessionIds: ["provider-first"],
+    judgeProviderSessionId: "judge-provider-session",
+    automatedAssessment: {
+      judgeSessionId: "judge-agent-session",
+      checkResults: [{ checkId: "no-direct", passed: true }],
+      recognition: { recognized: true, explanation: "Found the mockup." },
+      quality: [],
+      createdAt: "2026-10-22T10:20:00.000Z",
+    },
+    measurements: [
+      {
+        scope: "TARGET_HANDLER",
+        elapsedMs: 400_000,
+        inputTokens: 100_000,
+        outputTokens: 12_000,
+        toolCalls: 35,
+      },
+    ],
+  }),
+  attempt("unmeasured", "case-1", setupB, { status: "COMPLETED" }),
+];
+
 const givenRun = (
   report: EvalRunReport,
   attempts: EvalAttemptReport[],
@@ -193,15 +338,26 @@ describe("EvalRunPage", () => {
     vi.clearAllMocks();
     mockSessionError = null;
     mockLocationState = null;
+    mockSelectedAttempt = null;
     mockUseEvalAttemptOutput.mockReturnValue({
       data: {
         messages: [],
-        proposals: [{ id: "proposal" }],
+        proposals: [
+          {
+            id: "proposal",
+            action: "UPDATE",
+            targetEntityType: "TASK",
+            targetEntityId: "mockup-1",
+            applicationEligible: false,
+          },
+        ],
         reports: [{ id: "report" }],
       },
       error: null,
       hasRecordedConversation: true,
     });
+    mockUseEvalHumanReviews.mockReturnValue({ data: [] });
+    mockSaveReview.mockResolvedValue({ id: "review-1" });
     mockStop.mockResolvedValue(true);
     mockStart.mockResolvedValue({ ok: true });
   });
@@ -261,20 +417,20 @@ describe("EvalRunPage", () => {
     expect(screen.getByTestId("eval-run-background-hint")).toBeInTheDocument();
   });
 
-  it("logs each attempt start and end in the progress list", () => {
+  it("is the progress itself: no log, comparison or results link while running", () => {
     givenRun(run("RUNNING"), mixedAttempts);
     render(<EvalRunPage />);
+    expect(screen.getByTestId("eval-run-stop")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-progress-summary")).toHaveTextContent(
+      "eval.run.page.statusRunning",
+    );
+    expect(screen.queryByTestId("eval-run-progress")).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("eval-run-progress-started-finished"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("eval-results-comparison"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("eval-run-progress-error-failed"),
-    ).toHaveTextContent("provider unavailable");
-    expect(
-      screen.getByTestId("eval-run-progress-stopped-time-limited"),
-    ).toHaveTextContent("eval.run.progress.stopped.TIME_LIMIT");
-    expect(
-      screen.queryByTestId("eval-run-progress-started-waiting"),
+      screen.queryByTestId("eval-run-view-results"),
     ).not.toBeInTheDocument();
   });
 
@@ -289,35 +445,412 @@ describe("EvalRunPage", () => {
     );
   });
 
-  it("shows a stopped run's unfinished attempts as stopped, without Stop run", () => {
-    givenRun(run("STOPPED"), [
-      attempt("finished", "case-1", setupA, { status: "COMPLETED" }),
-      attempt("halted", "case-1", setupB, {
-        status: "STOPPED",
-        stopReason: "USER",
-      }),
-    ]);
+  it("shows an ended run's comparison above its case rows on the same page", () => {
+    givenRun(run("STOPPED"), endedAttempts);
     render(<EvalRunPage />);
-    expect(cell("case-1", "setup-b")).toHaveAttribute("data-state", "stopped");
-    expect(cell("case-1", "setup-b")).toHaveTextContent(
-      "eval.run.cell.stopped.USER",
-    );
+
     expect(screen.queryByTestId("eval-run-stop")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("eval-run-background-hint"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("eval-run-view-results"));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/p1/evals/eval-1/runs/run-1/results",
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(screen.queryByTestId("eval-attempt-grid")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("eval-results-overhead")).toBeNull();
+
+    const comparison = screen.getByTestId("eval-results-comparison");
+    const cases = screen.getByTestId("eval-case-toggle-finished");
+    expect(
+      comparison.compareDocumentPosition(cases) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("eval-results-setup-setup-a-recognition"),
+    ).toHaveTextContent("1 / 1");
+  });
+
+  it("shows anything not reported as not reported, never 0", () => {
+    givenRun(run("FINISHED"), endedAttempts);
+    render(<EvalRunPage />);
+    expect(
+      screen.getByTestId("eval-results-setup-setup-b-tokens"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      screen.getByTestId("eval-results-setup-setup-b-tool-calls"),
+    ).toHaveTextContent("eval.results.notReported");
+  });
+
+  it("expands a case row to its session ids, links and read-only evaluation output", () => {
+    givenRun(run("FINISHED"), endedAttempts);
+    render(<EvalRunPage />);
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    expect(
+      within(detail).getByTestId("eval-attempt-sessions"),
+    ).toHaveTextContent("provider-first");
+    expect(
+      within(detail).getByTestId("eval-open-judge-session"),
+    ).toHaveAttribute("href", expect.stringContaining("judge-agent-session"));
+    expect(screen.getByTestId("update-proposal")).toHaveTextContent(
+      "evaluation-output",
+    );
+    expect(mockReport).toHaveBeenCalledWith(
+      expect.objectContaining({ evaluationOutput: true }),
+    );
+    expect(
+      screen.getByTestId("eval-output-live-item-proposal"),
+    ).toHaveAttribute("href", "/projects/p1/tasks/mockup-1");
+    expect(screen.getByTestId("eval-rubric-recognition")).toHaveTextContent(
+      "Found the mockup.",
+    );
+    expect(screen.getByTestId("eval-check-no-direct")).toHaveTextContent(
+      "No direct changes",
     );
   });
 
-  it("offers results only once the run has ended", () => {
-    givenRun(run("RUNNING"), mixedAttempts);
+  it("shows each coding attempt's recorded target beside where it started, with or without a path", () => {
+    const base = run("FINISHED");
+    const codingCase = (
+      id: string,
+      target: { kind: string; path?: string } | undefined,
+    ) => ({
+      id,
+      evalCaseId: `eval-${id}`,
+      title: `Coding ${id}`,
+      target: {
+        inputs: {
+          inputs: [{ kind: "text_message", text: "Add stage estimates." }],
+        },
+      },
+      grading: { expectations: "Names the source.", checks: [], rubric: [] },
+      coding: {
+        serviceId: "svc-1",
+        pinnedCommit: {
+          sha: "7d9a5ac5c".padEnd(40, "0"),
+          shortMessage: "Start",
+        },
+        ...(target ? { target } : {}),
+      },
+    });
+    const codingRun = {
+      ...base,
+      payload: {
+        ...base.payload,
+        cases: [
+          codingCase("pathed", {
+            kind: "EXISTING",
+            path: "apps/ui/src/pages/Plan/PlanStageHeader.tsx",
+          }),
+          codingCase("kind-only", { kind: "NEW" }),
+          codingCase("untargeted", undefined),
+        ],
+      },
+    } as unknown as EvalRunReport;
+    givenRun(codingRun, [
+      attempt("pathed", "pathed", setupA, { status: "COMPLETED" }),
+      attempt("kind-only", "kind-only", setupA, { status: "COMPLETED" }),
+      attempt("untargeted", "untargeted", setupA, { status: "COMPLETED" }),
+    ]);
     render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-pathed"));
+    const pathed = screen.getByTestId("eval-attempt-detail-pathed");
+    expect(within(pathed).getByTestId("eval-coding-start-point")).toBeTruthy();
     expect(
-      screen.queryByTestId("eval-run-view-results"),
+      within(pathed).getByTestId("eval-coding-target-kind"),
+    ).toHaveTextContent("eval.case.coding.target.kind.EXISTING");
+    expect(
+      within(pathed).getByTestId("eval-coding-target-path"),
+    ).toHaveTextContent("apps/ui/src/pages/Plan/PlanStageHeader.tsx");
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-kind-only"));
+    const kindOnly = screen.getByTestId("eval-attempt-detail-kind-only");
+    expect(
+      within(kindOnly).getByTestId("eval-coding-target-kind"),
+    ).toHaveTextContent("eval.case.coding.target.kind.NEW");
+    expect(
+      within(kindOnly).queryByTestId("eval-coding-target-path"),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-untargeted"));
+    const untargeted = screen.getByTestId("eval-attempt-detail-untargeted");
+    expect(
+      within(untargeted).getByTestId("eval-coding-start-point"),
+    ).toBeTruthy();
+    expect(within(untargeted).queryByTestId("eval-coding-target")).toBeNull();
+  });
+
+  it("shows the messages frozen on the run, numbered with the last judged, and one message plainly", () => {
+    givenRun(run("FINISHED"), mixedAttempts);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    const list = within(detail).getByTestId("run-inputs-list");
+    expect(list).toHaveTextContent("Open the maintenance task.");
+    expect(list).toHaveTextContent("Now update its mockup.");
+    expect(
+      within(detail).getAllByTestId("run-input-judged-badge"),
+    ).toHaveLength(1);
+  });
+
+  it("shows a single recorded message without numbering or a judged marker", () => {
+    const base = run("FINISHED");
+    const singleMessageRun = {
+      ...base,
+      payload: {
+        ...base.payload,
+        cases: [
+          {
+            id: "case-1",
+            evalCaseId: "eval-case-1",
+            title: "One",
+            target: {
+              inputs: {
+                inputs: [{ kind: "text_message", text: "Just this." }],
+              },
+            },
+            grading: { expectations: "x", checks: [], rubric: [] },
+          },
+        ],
+      },
+    } as unknown as EvalRunReport;
+    givenRun(singleMessageRun, [mixedAttempts[0]]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+    const detail = screen.getByTestId("eval-attempt-detail-finished");
+    expect(
+      within(detail).getByTestId("run-inputs-single-note"),
+    ).toHaveTextContent("Just this.");
+    expect(within(detail).queryByTestId("run-inputs-list")).toBeNull();
+    expect(within(detail).queryByTestId("run-input-judged-badge")).toBeNull();
+  });
+
+  it("lists provider sessions as rows with resume commands, not-reported ids and the judge input modal", () => {
+    const sessionsRun = {
+      id: "run-2",
+      organizationId: "org",
+      projectId: "p1",
+      title: "Run sessions",
+      createdAt: "2026-10-22T10:00:00.000Z",
+      payload: {
+        reportType: "EVAL_RUN",
+        evalId: "eval-1",
+        status: "FINISHED",
+        judgeSetup: { provider: "claude", model: "claude-opus-5-5" },
+        cases: [
+          {
+            id: "case-1",
+            evalCaseId: "eval-case-1",
+            title: "Case",
+            target: {
+              inputs: {
+                inputs: [
+                  { kind: "text_message", text: "Open the maintenance task." },
+                ],
+              },
+            },
+            grading: { expectations: "Do the thing.", checks: [], rubric: [] },
+          },
+        ],
+        configurations: [
+          {
+            id: "setup-rotated",
+            target: { provider: "claude", model: "opus" },
+          },
+          {
+            id: "setup-no-command",
+            target: { provider: "opencode", model: "m" },
+          },
+          { id: "setup-bare", target: { provider: "codex", model: "m" } },
+        ],
+        settings: { maxConcurrentAttempts: 3 },
+        coordinatorAgentSessionId: "coordinator",
+        coordinatorConversationId: "coordinator-conversation",
+      },
+    } as unknown as EvalRunReport;
+    const [setupRotated, setupNoCommand, setupBare] =
+      sessionsRun.payload.configurations;
+
+    const rotated = attempt("rotated", "case-1", setupRotated, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-b", "pending_c"],
+      judgeProviderSessionId: "judge-session-1",
+      judgedOutput: "WHAT THE JUDGE SAW",
+      automatedAssessment: {
+        judgeSessionId: "judge-agent-rotated",
+        checkResults: [],
+        recognition: { recognized: true, explanation: "ok" },
+        quality: [],
+        createdAt: "2026-10-22T10:20:00.000Z",
+      },
+    });
+    const noCommand = attempt("no-command", "case-1", setupNoCommand, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-opencode"],
+    });
+    const bare = attempt("bare", "case-1", setupBare, {
+      status: "COMPLETED",
+    });
+
+    givenRun(sessionsRun, [rotated, noCommand, bare]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-rotated"));
+    const rotatedDetail = screen.getByTestId("eval-attempt-detail-rotated");
+    expect(rotatedDetail).toHaveTextContent("provider-a");
+    expect(rotatedDetail).toHaveTextContent("provider-b");
+    expect(rotatedDetail).not.toHaveTextContent("pending_c");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-a");
+    expect(rotatedDetail).toHaveTextContent("claude --resume provider-b");
+    expect(rotatedDetail).toHaveTextContent("claude --resume judge-session-1");
+
+    fireEvent.click(within(rotatedDetail).getByTestId("eval-judge-view-input"));
+    expect(screen.getByTestId("eval-judge-input-modal")).toHaveTextContent(
+      "WHAT THE JUDGE SAW",
+    );
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-no-command"));
+    const noCommandDetail = screen.getByTestId(
+      "eval-attempt-detail-no-command",
+    );
+    expect(noCommandDetail).toHaveTextContent("provider-opencode");
+    expect(noCommandDetail).not.toHaveTextContent("resume");
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-bare"));
+    const bareDetail = screen.getByTestId("eval-attempt-detail-bare");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-sessions"),
+    ).toHaveTextContent("eval.results.notReported");
+    expect(
+      within(bareDetail).getByTestId("eval-attempt-judged-none"),
+    ).toBeInTheDocument();
+    expect(
+      within(bareDetail).queryByTestId("eval-judge-view-input"),
     ).not.toBeInTheDocument();
+  });
+
+  it("reads one provider session's raw text on demand and explains an unavailable one", () => {
+    mockTranscripts["provider-a"] = {
+      status: "available",
+      text: RAW_SESSION,
+      truncated: false,
+    };
+    const readable = attempt("readable", "case-1", setupA, {
+      status: "COMPLETED",
+      attemptProviderSessionIds: ["provider-a", "provider-missing"],
+    });
+    givenRun(run("FINISHED"), [readable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-readable"));
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-0"));
+    expect(mockReadTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runId: "session-readable",
+        providerSessionId: "provider-a",
+      }),
+    );
+    const content = () =>
+      screen.getByTestId("eval-session-transcript-content").textContent;
+    expect(content()).toBe("> Fix the bug");
+
+    fireEvent.click(screen.getByTestId("eval-session-view-raw"));
+    expect(content()).toBe(RAW_SESSION);
+
+    fireEvent.click(screen.getByTestId("eval-attempt-read-session-1"));
+    expect(
+      screen.getByTestId("eval-session-transcript-unavailable"),
+    ).toHaveTextContent(
+      "eval.results.sessions.unavailable.SESSION_FILE_NOT_FOUND",
+    );
+    expect(
+      screen.getByTestId("eval-attempt-read-session-0"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the tool calls an attempt made, and says so when they could not be collected", () => {
+    const withCalls = attempt("with-calls", "case-1", setupA, {
+      status: "COMPLETED",
+      recordedToolCalls: {
+        state: "COLLECTED",
+        calls: [
+          {
+            toolName: "unified_search",
+            arguments: '{"queries":["alpha"]}',
+            origin: "RUN_OBSERVED",
+            truncated: false,
+          },
+          {
+            toolName: "get_full_entity",
+            arguments: '{"id":"x"}',
+            origin: "RUN_OBSERVED",
+            truncated: true,
+          },
+        ],
+        omittedCalls: 3,
+      },
+    });
+    const unreadable = attempt("unreadable", "case-1", setupB, {
+      status: "COMPLETED",
+      recordedToolCalls: { state: "UNAVAILABLE", calls: [] },
+    });
+    givenRun(run("FINISHED"), [withCalls, unreadable]);
+    render(<EvalRunPage />);
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-with-calls"));
+    const detail = screen.getByTestId("eval-attempt-detail-with-calls");
+    const calls = within(detail).getAllByTestId("eval-tool-call");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toHaveTextContent("1. unified_search");
+    expect(calls[0]).toHaveTextContent('{"queries":["alpha"]}');
+    expect(calls[1]).toHaveTextContent("2. get_full_entity");
+    expect(
+      within(detail).getByTestId("eval-tool-calls-omitted"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("eval-case-toggle-unreadable"));
+    const unavailable = screen.getByTestId("eval-attempt-detail-unreadable");
+    expect(
+      within(unavailable).getByTestId("eval-tool-calls-unavailable"),
+    ).toBeInTheDocument();
+    expect(within(unavailable).queryAllByTestId("eval-tool-call")).toHaveLength(
+      0,
+    );
+  });
+
+  it("saves a person's review beside the automated assessment", async () => {
+    givenRun(run("FINISHED"), endedAttempts);
+    render(<EvalRunPage />);
+    fireEvent.click(screen.getByTestId("eval-case-toggle-finished"));
+
+    fireEvent.click(screen.getByRole("radio", { name: /3 Stars/i }));
+    fireEvent.click(screen.getByTestId("eval-human-review-save"));
+
+    await waitFor(() =>
+      expect(mockSaveReview).toHaveBeenCalledWith(
+        expect.objectContaining({ attemptId: "finished", score: 3 }),
+      ),
+    );
+    expect(screen.getByTestId("eval-rubric-recognition")).toBeInTheDocument();
+  });
+
+  it("brings the comparison in on the same page when the run ends", () => {
+    givenRun(run("RUNNING"), endedAttempts);
+    const { rerender } = render(<EvalRunPage />);
+    expect(screen.getByTestId("eval-run-stop")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("eval-results-comparison"),
+    ).not.toBeInTheDocument();
+
+    givenRun(run("FINISHED"), endedAttempts);
+    rerender(<EvalRunPage />);
+
+    expect(screen.getByTestId("eval-results-comparison")).toBeInTheDocument();
+    expect(screen.queryByTestId("eval-run-stop")).not.toBeInTheDocument();
+    expect(screen.getByTestId("eval-run-rename")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("offers to start a recorded run that never started, with the earlier error", async () => {
@@ -335,10 +868,123 @@ describe("EvalRunPage", () => {
       fireEvent.click(screen.getByTestId("eval-run-start-recorded"));
     });
     expect(mockStart).toHaveBeenCalledWith({
+      userId: "user",
+      lineage: [{ entityType: "task", entityId: "eval-1" }],
       organizationId: "org",
       projectId: "p1",
       runId: "run-1",
       machineId: "machine-1",
+    });
+  });
+
+  describe("with repeats", () => {
+    const repeated = (status: string) =>
+      run(status, { maxConcurrentAttempts: 3, repeatsPerAttempt: 3 });
+    const judgedRepeat = (id: string, repeat: number, recognized: boolean) =>
+      attempt(id, "case-1", setupA, {
+        repeat,
+        status: "COMPLETED",
+        automatedAssessment: {
+          checkResults: [{ checkId: "no-direct", passed: recognized }],
+          recognition: { recognized, explanation: "" },
+          quality: [{ key: "q", name: "Q", score: recognized ? 4 : 2 }],
+          createdAt: "2026-10-22T10:20:00.000Z",
+        },
+      });
+
+    it("counts every repeat while running and shows a cell's progress through them", () => {
+      givenRun(repeated("RUNNING"), [
+        judgedRepeat("r1", 1, true),
+        attempt("r2", "case-1", setupA, {
+          repeat: 2,
+          status: "RUNNING",
+          startedAt: "2026-10-22T10:20:00.000Z",
+        }),
+        attempt("r3", "case-1", setupA, {
+          repeat: 3,
+          status: "ERROR",
+          error: { message: "provider unavailable" },
+        }),
+      ]);
+      render(<EvalRunPage />);
+
+      expect(screen.getByTestId("eval-run-progress-summary")).toHaveTextContent(
+        '"ended":2,"total":18',
+      );
+      expect(screen.getByTestId("eval-run-settings-summary")).toHaveTextContent(
+        'eval.run.page.repeatsSummary {"count":3}',
+      );
+      expect(cell("case-1", "setup-a")).toHaveAttribute("data-state", "error");
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        '"ended":2,"total":3',
+      );
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        '"correct":1,"assessed":1',
+      );
+      expect(cell("case-1", "setup-a")).toHaveTextContent(
+        "provider unavailable",
+      );
+      expect(
+        screen.getByTestId("eval-attempt-cell-case-1-setup-a-open-session-3"),
+      ).toHaveAttribute("href", expect.stringContaining("session-r3"));
+    });
+
+    it("summarises each case's repeats and opens any repeat with its own review", () => {
+      givenRun(repeated("FINISHED"), [
+        judgedRepeat("r1", 1, true),
+        judgedRepeat("r2", 2, false),
+        attempt("r3", "case-1", setupA, {
+          repeat: 3,
+          status: "STOPPED",
+          stopReason: "TIME_LIMIT",
+        }),
+      ]);
+      render(<EvalRunPage />);
+
+      const row = "eval-repeat-case-setup-a-case-1";
+      expect(screen.getByTestId(`${row}-recognition`)).toHaveTextContent(
+        '"recognized":1,"assessed":2',
+      );
+      expect(screen.getByTestId(`${row}-quality`)).toHaveTextContent(
+        'eval.results.qualitySpread {"mean":"3.0","spread":"1.0"}',
+      );
+      expect(screen.getByTestId(`${row}-checks`)).toHaveTextContent("1 / 2");
+      expect(screen.getByTestId(`${row}-excluded`)).toHaveTextContent(
+        'eval.results.repeats.excludedStopped {"repeat":3',
+      );
+      expect(
+        screen.getByTestId("eval-results-setup-setup-a-stopped"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId(`${row}-toggle`));
+      expect(screen.getByTestId("eval-repeat-row-r2")).toHaveAttribute(
+        "data-weak",
+        "true",
+      );
+      expect(screen.getByTestId("eval-repeat-open-session-r1")).toHaveAttribute(
+        "href",
+        expect.stringContaining("session-r1"),
+      );
+
+      fireEvent.click(screen.getByTestId("eval-repeat-row-r2"));
+      expect(screen.getByTestId("eval-attempt-detail-r2")).toBeInTheDocument();
+      expect(screen.getByTestId("eval-human-review-form")).toHaveTextContent(
+        'eval.results.review.titleRepeat {"repeat":2}',
+      );
+    });
+
+    it("opens the repeat a deep link names, with its review headed by repeat", () => {
+      mockSelectedAttempt = "r2";
+      givenRun(repeated("FINISHED"), [
+        judgedRepeat("r1", 1, true),
+        judgedRepeat("r2", 2, false),
+      ]);
+      render(<EvalRunPage />);
+
+      expect(screen.getByTestId("eval-attempt-detail-r2")).toBeInTheDocument();
+      expect(screen.getByTestId("eval-human-review-form")).toHaveTextContent(
+        'eval.results.review.titleRepeat {"repeat":2}',
+      );
     });
   });
 

@@ -64,6 +64,12 @@ export interface CodexSdkSessionConfig {
    */
   sandbox?: CodexSdkSandboxMode | undefined;
   /**
+   * Who reviews approval requests on this thread. `auto_review` sends them to
+   * Codex's automatic reviewer, which can still deny; omitted keeps the user.
+   * Forwarded as `approvalsReviewer` on `thread/start` / `thread/resume`.
+   */
+  approvalsReviewer?: 'auto_review' | undefined;
+  /**
    * Codex model id. Forwarded as `model` on the `thread/start` /
    * `thread/resume` ClientRequest params; the codex app-server's user-configured
    * default is used when omitted.
@@ -388,6 +394,7 @@ export class CodexSdkClient {
         cwd: config.cwd,
         ...(config.baseInstructions ? { baseInstructions: config.baseInstructions } : {}),
         ...(config.sandbox ? { sandbox: config.sandbox } : {}),
+        ...(config.approvalsReviewer ? { approvalsReviewer: config.approvalsReviewer } : {}),
         ...(config.model ? { model: config.model } : {}),
         ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
         ...(configOverrides ? { config: configOverrides } : {}),
@@ -417,6 +424,7 @@ export class CodexSdkClient {
       const requestId = this.writeRequest('thread/resume', {
         threadId,
         ...(config.sandbox ? { sandbox: config.sandbox } : {}),
+        ...(config.approvalsReviewer ? { approvalsReviewer: config.approvalsReviewer } : {}),
         ...(config.model ? { model: config.model } : {}),
         ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
         ...(configOverrides ? { config: configOverrides } : {}),
@@ -467,6 +475,8 @@ export class CodexSdkClient {
         const requestId = this.writeRequest('thread/resume', {
           threadId,
           ...(config.sandbox ? { sandbox: config.sandbox } : {}),
+          ...(config.approvalsReviewer ? { approvalsReviewer: config.approvalsReviewer } : {}),
+          ...(config.approvalsReviewer ? { approvalsReviewer: config.approvalsReviewer } : {}),
           ...(config.model ? { model: config.model } : {}),
           ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
           ...(configOverrides ? { config: configOverrides } : {}),
@@ -669,7 +679,12 @@ export class CodexSdkClient {
 
   private spawnProcess(config: CodexSdkSessionConfig): void {
     const targetCommand = this.commandOverride ? process.execPath : 'codex';
-    const targetArgs = this.commandOverride ? [this.commandOverride] : ['app-server'];
+    const configOverrides = (config.toolExecutionHooks?.configOverrides ?? []).flatMap(
+      (override) => ['-c', override],
+    );
+    const targetArgs = this.commandOverride
+      ? [this.commandOverride]
+      : ['app-server', ...configOverrides];
 
     console.debug('[CodexSdkClient] process spawn started', {
       command: targetCommand,

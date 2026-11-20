@@ -1,4 +1,4 @@
-import type { PromptTypeHandler } from '../prompt-type-handler';
+import type { SessionPromptDeclarations } from './platform-prompt-context';
 
 export const graphResearchGuidance = `## Widening graph research
 
@@ -14,6 +14,10 @@ Apply particular care to claims about implementation ownership, execution locati
 
 If relevant evidence still cannot be found because the area is new, incomplete, or not yet represented in the graph, say so explicitly. Distinguish established facts, reasonable inferences, and unresolved product or implementation choices, and frame any proposal accordingly rather than presenting assumptions as existing project truth.`;
 
+/**
+ * Selected from the session's declarations when the platform system prompt is
+ * composed, so a declaring handler receives it once per provider session.
+ */
 export const selectGraphResearchGuidance = (
-  handler: Pick<PromptTypeHandler<unknown>, 'graphResearchGuidance'>,
-): string | null => (handler.graphResearchGuidance ? graphResearchGuidance : null);
+  declarations: Pick<SessionPromptDeclarations, 'graphResearchGuidance'>,
+): string | null => (declarations.graphResearchGuidance ? graphResearchGuidance : null);

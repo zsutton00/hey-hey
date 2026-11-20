@@ -20,6 +20,8 @@ import {
   TIME_LIMIT_PRESETS_MINUTES,
   TOKEN_LIMIT_PRESETS,
   formatTokenCount,
+  MAX_REPEATS,
+  isValidRepeats,
   type LimitChoice,
   type RunSettingsDraft,
 } from "./evalRunView";
@@ -161,6 +163,28 @@ export const RunSettingsFields: React.FC<RunSettingsFieldsProps> = ({
           }}
           sx={{ width: 160 }}
         />
+        <TextField
+          size="small"
+          type="number"
+          label={t("eval.run.settings.repeats")}
+          disabled={disabled}
+          value={value.repeats ?? ""}
+          error={!isValidRepeats(value.repeats)}
+          onChange={(event) =>
+            onChange({
+              ...value,
+              repeats: parsePositiveInteger(event.target.value),
+            })
+          }
+          slotProps={{
+            htmlInput: {
+              min: 1,
+              max: MAX_REPEATS,
+              "data-testid": "eval-run-setting-repeats",
+            },
+          }}
+          sx={{ width: 220 }}
+        />
         <LimitField
           id="eval-run-setting-time-limit"
           label={t("eval.run.settings.timeLimit")}
@@ -180,6 +204,14 @@ export const RunSettingsFields: React.FC<RunSettingsFieldsProps> = ({
           onChange={(tokenLimit) => onChange({ ...value, tokenLimit })}
         />
       </Box>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ mt: 0.5 }}
+        data-testid="eval-run-repeats-note"
+      >
+        {t("eval.run.settings.repeatsNote")}
+      </Typography>
       <FormControl
         size="small"
         sx={{ mt: 2, minWidth: 280 }}

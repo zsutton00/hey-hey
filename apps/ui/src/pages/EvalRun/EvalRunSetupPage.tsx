@@ -1,3 +1,4 @@
+import type { NavigationLineage } from "@hey-hey/ui-common";
 import {
   useModalState,
   ModalWorkOwner,
@@ -59,6 +60,7 @@ import {
   toConfiguration,
   toLaunchSettings,
   type RunSettingsDraft,
+  plannedMessageCount,
 } from "./evalRunView";
 
 /** State the setup page hands the run page when the start did not go through. */
@@ -206,12 +208,16 @@ const AddConfigurationDialog: React.FC<AddConfigurationDialogProps> = ({
 };
 
 interface EvalRunSetupProps {
+  userId: string;
+  lineage: NavigationLineage;
   organizationId: string;
   projectId: string;
   evalId: string;
 }
 
 const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
+  userId,
+  lineage,
   organizationId,
   projectId,
   evalId,
@@ -266,7 +272,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     ),
     t,
   );
-  const attemptCount = approvedCases.length * selectedSetups.length;
+  const repeats = settings.repeats ?? 1;
+  const attemptCount = approvedCases.length * selectedSetups.length * repeats;
   const canRun =
     !isSubmitting &&
     selectedSetups.length > 0 &&
@@ -328,6 +335,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     // The run is recorded; it starts from what the server saved, and a start
     // that does not go through stays retryable on the run's own page.
     const started = await session.start({
+      userId,
+      lineage,
       organizationId,
       projectId,
       runId,
@@ -338,6 +347,8 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
       : { startError: started.error };
     navigate(WebPathService.evalRun({ projectId, evalId, runId }), { state });
   }, [
+    userId,
+    lineage,
     approvedCases,
     canRun,
     evalId,
@@ -360,6 +371,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
     count: selectedSetups.length,
   });
   const attemptsLabel = t("eval.run.attempts", { count: attemptCount });
+  const repeated = repeats > 1;
 
   return (
     <>
@@ -481,7 +493,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           <Box component="ul" data-testid="eval-run-cases" sx={{ m: 0, pl: 3 }}>
             {approvedCases.map((evalCase) => (
               <li key={evalCase.id}>
-                <Typography variant="body2">{evalCase.name}</Typography>
+                <Typography variant="body2">
+                  {evalCase.name}
+                  {plannedMessageCount(evalCase.sections) !== null &&
+                    ` · ${t("eval.run.setup.messages", { count: plannedMessageCount(evalCase.sections) ?? 0 })}`}
+                </Typography>
               </li>
             ))}
           </Box>
@@ -492,11 +508,18 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           sx={{ mt: 1 }}
           data-testid="eval-run-attempt-count"
         >
-          {t("eval.run.setup.attemptCount", {
-            cases: casesLabel,
-            configurations: configurationsLabel,
-            attempts: attemptsLabel,
-          })}
+          {repeated
+            ? t("eval.run.setup.attemptCountRepeats", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                repeats: t("eval.run.repeats", { count: repeats }),
+                attempts: attemptsLabel,
+              })
+            : t("eval.run.setup.attemptCount", {
+                cases: casesLabel,
+                configurations: configurationsLabel,
+                attempts: attemptsLabel,
+              })}
         </Typography>
       </Box>
 
@@ -524,7 +547,11 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
             sx={{ mb: 1 }}
             data-testid="eval-run-live-project-note"
           >
-            {t("eval.run.setup.liveProjectNote")}
+            {t(
+              repeated
+                ? "eval.run.setup.liveProjectNoteRepeats"
+                : "eval.run.setup.liveProjectNote",
+            )}
           </Alert>
           <Alert
             severity="info"
@@ -544,7 +571,7 @@ const EvalRunSetup: React.FC<EvalRunSetupProps> = ({
           disabled={!canRun}
           data-testid="eval-run-start"
         >
-          {t("eval.run.setup.run")}
+          {t("eval.run.setup.runAttempts", { attempts: attemptsLabel })}
         </Button>
       </Box>
       {launchError && (
@@ -595,8 +622,10 @@ export const EvalRunSetupPage: React.FC = () => {
       crumbLabel={t("eval.run.setup.crumb")}
       testId="eval-run-setup-page"
     >
-      {() => (
+      {(_evalTask, lineage) => (
         <EvalRunSetup
+          userId={identity?.userId ?? ""}
+          lineage={lineage}
           organizationId={organizationId}
           projectId={projectId}
           evalId={evalId}

@@ -19,6 +19,9 @@
 import type { AgentEdgeDirection } from './agent-edge-direction.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentEdgeEndpointEntityType } from './agent-edge-endpoint-entity-type.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { TemporaryRelationshipIdentity } from './temporary-relationship-identity.js';
 // May contain unused imports in some cases
 // @ts-ignore

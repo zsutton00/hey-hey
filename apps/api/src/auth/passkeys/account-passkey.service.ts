@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
+  Optional,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -45,6 +47,16 @@ import {
   type AccountRemovalRevocation,
 } from '../../services/controller-management/controller-management.service';
 import { isLocalApplication } from '../../deployment-environment';
+import {
+  AccountProofFailedException,
+  AccountProofRequiredException,
+  BrowserSessionEndedException,
+  PasskeyAlreadyRegisteredException,
+} from './account-passkey.exceptions';
+import {
+  FIRST_PASSKEY_AUTHORITY,
+  type FirstPasskeyAuthority,
+} from './first-passkey-authority';
 
 /** Ceremony lifetime for every account passkey challenge. */
 export const ACCOUNT_PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -95,12 +107,20 @@ export class AccountPasskeyService {
     private readonly browserSessionService: BrowserSessionService,
     private readonly proofThrottle: AccountProofThrottleService,
     private readonly controllerManagement: ControllerManagementService,
+    @Optional()
+    @Inject(FIRST_PASSKEY_AUTHORITY)
+    private readonly firstPasskeyAuthority?: FirstPasskeyAuthority,
   ) {
     this.rpId = requiredConfig(configService, 'ACCOUNT_PASSKEY_RP_ID');
     this.origin = requiredConfig(configService, 'ACCOUNT_PASSKEY_ORIGIN');
     if (new URL(this.origin).origin !== this.origin) {
       throw new Error('ACCOUNT_PASSKEY_ORIGIN must be an origin');
     }
+  }
+
+  /** True only where local composition registered the first-passkey rule. */
+  get acceptsFirstPasskeyWithoutProof(): boolean {
+    return this.firstPasskeyAuthority !== undefined;
   }
 
   async list(userId: UserId): Promise<AccountPasskeyListDto> {
@@ -283,7 +303,7 @@ export class AccountPasskeyService {
     actor: AccountPasskeyActor,
     credential: SharedEnrollmentCredential,
     name: string,
-    proof: AccountProofDto,
+    proof: AccountProofDto | undefined,
     requestMetadata: BrowserSessionRequestMetadata,
     stageControllerEnrollment: (
       tx: AnyTransactionClient,
@@ -320,22 +340,28 @@ export class AccountPasskeyService {
       aaguid: string;
     },
     name: string,
-    proof: AccountProofDto,
+    proof: AccountProofDto | undefined,
     requestMetadata: BrowserSessionRequestMetadata,
     afterCreate?: (
       tx: AnyTransactionClient,
       accountPasskeyId: string,
     ) => Promise<void>,
   ): Promise<EstablishedBrowserSession> {
-    const proofPasskey = await this.verifyAccountProof(actor, proof, {
-      purpose: AccountPasskeyChallengePurpose.ProofRegister,
-    });
+    const authority =
+      proof === undefined ? this.requiredFirstPasskeyAuthority() : undefined;
+    const proofPasskey =
+      proof === undefined
+        ? undefined
+        : await this.verifyAccountProof(actor, proof, {
+            purpose: AccountPasskeyChallengePurpose.ProofRegister,
+          });
 
-    return this.replaceSessionsAfterChange(
+    const session = await this.replaceSessionsAfterChange(
       actor,
       'passkey_added',
       requestMetadata,
       async (tx) => {
+        await authority?.assertFirstPasskeyAllowed(tx, actor);
         if (proofPasskey) {
           await this.recordPasskeyUse(
             tx,
@@ -361,13 +387,22 @@ export class AccountPasskeyService {
           });
         } catch (error) {
           if (isUniqueViolation(error)) {
-            throw new BadRequestException('Passkey is already registered');
+            throw new PasskeyAlreadyRegisteredException();
           }
           throw error;
         }
         await afterCreate?.(tx, created.id);
       },
     );
+    await authority?.firstPasskeyEnrolled(actor);
+    return session;
+  }
+
+  private requiredFirstPasskeyAuthority(): FirstPasskeyAuthority {
+    if (!this.firstPasskeyAuthority) {
+      throw new AccountProofRequiredException();
+    }
+    return this.firstPasskeyAuthority;
   }
 
   async remove(
@@ -422,6 +457,72 @@ export class AccountPasskeyService {
       revocations,
     );
     return session;
+  }
+
+  /**
+   * Revokes every live passkey of an account together with all controller
+   * authority linked to them, and ends every browser session except
+   * `keepSessionId`. It only reduces authority and verifies no proof, so the
+   * caller owns the decision; no hosted route reaches it.
+   */
+  async revokeAllForAccount(
+    userId: UserId,
+    keepSessionId: string,
+  ): Promise<{ revokedPasskeyCount: number; revokedSessionCount: number }> {
+    const committed = await this.prisma.db.$transaction(async (tx) => {
+      await this.lockActiveUser(tx, userId);
+
+      const revokedAt = new Date();
+      const live = await tx.accountPasskey.findMany({
+        where: { userId, revokedAt: null },
+        select: { id: true },
+      });
+      await tx.accountPasskey.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt },
+      });
+
+      const revocations: AccountRemovalRevocation[] = [];
+      for (const passkey of live) {
+        revocations.push(
+          ...(await this.revokeLinkedControllerAuthority(
+            tx,
+            passkey.id,
+            revokedAt,
+          )),
+        );
+      }
+
+      const sessions =
+        await this.browserSessionService.revokeAllForUserInTransaction(
+          tx,
+          userId,
+          revokedAt,
+          'passkey_removed',
+          keepSessionId,
+        );
+
+      return { revokedPasskeyCount: live.length, revocations, sessions };
+    });
+
+    this.browserSessionService.invalidateRevokedSessions(
+      committed.sessions.revokedSessionIds,
+    );
+    await this.controllerManagement.publishAccountRemovalReductions(
+      committed.revocations,
+    );
+    this.logger.log('Account passkeys revoked', {
+      eventType: 'ACCOUNT_PASSKEYS_REVOKED',
+      userId,
+      revokedPasskeyCount: committed.revokedPasskeyCount,
+      revokedControllerCount: committed.revocations.length,
+      revokedSessionCount: committed.sessions.revokedSessionIds.length,
+    });
+
+    return {
+      revokedPasskeyCount: committed.revokedPasskeyCount,
+      revokedSessionCount: committed.sessions.revokedSessionIds.length,
+    };
   }
 
   /**
@@ -548,6 +649,13 @@ export class AccountPasskeyService {
       };
     });
 
+    this.logger.log('Publishing passkey session replacement invalidation', {
+      event: 'browser_session.replacement_invalidation',
+      reasonCode: reason,
+      sessionId: committed.session.sessionId,
+      revokedSessionCount: committed.revocation.revokedSessionIds.length,
+      authorizationRevision: committed.revision,
+    });
     this.browserSessionService.invalidateRevokedSessions(
       committed.revocation.revokedSessionIds,
     );
@@ -556,6 +664,7 @@ export class AccountPasskeyService {
       committed.revision,
     );
     this.logger.log('Account passkey change committed', {
+      event: 'browser_session.passkey_change_committed',
       eventType:
         reason === 'passkey_added'
           ? 'ACCOUNT_PASSKEY_ADDED'
@@ -593,7 +702,7 @@ export class AccountPasskeyService {
       FOR UPDATE
     `;
     if (!sessions[0] || sessions[0].revokedAt !== null) {
-      throw new UnauthorizedException('Browser session is no longer active');
+      throw new BrowserSessionEndedException();
     }
   }
 
@@ -677,7 +786,7 @@ export class AccountPasskeyService {
           userId: actor.userId,
           method: 'password',
         });
-        throw new UnauthorizedException('Account proof failed');
+        throw new AccountProofFailedException();
       }
       const user = await this.prisma.db.user.findUnique({
         where: { id: actor.userId },
@@ -691,7 +800,7 @@ export class AccountPasskeyService {
           userId: actor.userId,
           method: 'password',
         });
-        throw new UnauthorizedException('Account proof failed');
+        throw new AccountProofFailedException();
       }
       return undefined;
     }
@@ -724,7 +833,7 @@ export class AccountPasskeyService {
         userId: actor.userId,
         method: 'passkey',
       });
-      throw new UnauthorizedException('Account proof failed');
+      throw new AccountProofFailedException();
     }
   }
 

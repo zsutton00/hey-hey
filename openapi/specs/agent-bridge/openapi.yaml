@@ -6,6 +6,40 @@ info:
     Transport-neutral schemas consumed by the paired Agent Bridge runtime. This source contains signed platform
     triggers, CLI run execution and response models, authorized remote reads, and Task Monitor validation contracts.
 paths:
+  /local-startup/events:
+    post:
+      tags: [LocalStartup]
+      operationId: recordLocalStartupEvent
+      description: >-
+        An ephemeral loopback-only diagnostic listener, available only while heyhey local runs.
+        The CLI-opened fragment carries a fresh capability for this invocation. The listener
+        requires that capability and the exact local web Origin, accepts at most 120 events
+        per attempt and 2048 bytes per request. Structured events preserve browser sequence and observation time. It grants no controller or account authority.
+      parameters:
+        - in: header
+          name: X-HeyHey-Diagnostic
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalStartupBrowserRecord"
+          text/plain:
+            schema:
+              $ref: "#/components/schemas/LocalStartupBrowserEvent"
+      responses:
+        "204":
+          description: Diagnostic event accepted
+        "400":
+          description: Unknown event
+        "403":
+          description: Origin or diagnostic capability refused
+        "413":
+          description: Event too large
+        "429":
+          description: Attempt event limit reached
   /local-lifecycle/work:
     get:
       tags: [LocalLifecycle]
@@ -50,6 +84,121 @@ paths:
           description: Invalid machine-local authority
 components:
   schemas:
+    LocalStartupBrowserEvent:
+      type: string
+      description: Closed vocabulary; no arbitrary messages, user content or secret values.
+      enum:
+        - mounted
+        - unmounted
+        - handoff_started
+        - handoff_accepted
+        - handoff_failed
+        - handoff_missing
+        - status_failed
+        - name_saving
+        - name_saved
+        - name_failed
+        - connection_timeout
+        - repair_requested
+        - repair_offered
+        - repair_failed
+        - passkey_failed
+        - setup_view
+        - setup_status
+        - passkey_inventory
+        - auth_state
+        - auth_renewal_started
+        - auth_renewal_succeeded
+        - auth_renewal_failed
+        - auth_cleared
+        - socket_renewal_started
+        - socket_renewal_failed
+        - passkey_registration_started
+        - passkey_registration_succeeded
+        - passkey_registration_failed
+        - replacement_session_accepted
+        - setup_redirect
+    LocalStartupBrowserRecord:
+      type: object
+      additionalProperties: false
+      required: [event, sequence, observedAt]
+      properties:
+        event:
+          $ref: "#/components/schemas/LocalStartupBrowserEvent"
+        sequence: { type: integer, minimum: 1 }
+        observedAt: { type: string, format: date-time }
+        facts:
+          type: object
+          additionalProperties: false
+          properties:
+            authenticated: { type: boolean }
+            loading: { type: boolean }
+            handoffPending: { type: boolean }
+            nameSaved: { type: boolean }
+            machineConnected: { type: boolean }
+            hasProjects: { type: boolean }
+            setupUnfinished: { type: boolean }
+            replacementSession: { type: boolean }
+            passkeyCount: { type: integer, minimum: 0 }
+            status: { type: integer, minimum: 100, maximum: 599 }
+            errorName:
+              type: string
+              enum:
+                [
+                  Error,
+                  TypeError,
+                  SyntaxError,
+                  AxiosError,
+                  AbortError,
+                  TimeoutError,
+                  SecurityError,
+                  InvalidStateError,
+                  NotAllowedError,
+                  NotSupportedError,
+                  WebAuthnCancelledError,
+                  WebAuthnUnsupportedError,
+                  PasskeyCeremonyCancelledError,
+                  PasskeyUnsupportedError,
+                  MachineEnrollmentClaimError,
+                  UnknownError,
+                ]
+            transportCode:
+              type: string
+              enum:
+                [
+                  ERR_NETWORK,
+                  ERR_BAD_REQUEST,
+                  ERR_BAD_RESPONSE,
+                  ECONNABORTED,
+                  ETIMEDOUT,
+                  ERR_CANCELED,
+                ]
+            elapsedMs: { type: number, minimum: 0 }
+            view:
+              type: string
+              enum:
+                [
+                  loading,
+                  name,
+                  error,
+                  passkey-step,
+                  continuing,
+                  missing-pairing-details,
+                  waiting-for-cli,
+                ]
+            destination:
+              type: string
+              enum: [login, welcome, home]
+            reason:
+              type: string
+              enum:
+                [
+                  unauthenticated,
+                  connected,
+                  terminal_socket_auth,
+                  request_failed,
+                  unknown_failure,
+                ]
     LocalLifecycleWork:
       type: object
       additionalProperties: false
@@ -259,6 +408,8 @@ components:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentDecisionCompletion
     RepositoryFeatureEnrichmentQuestions:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestions
+    RepositoryFeatureEnrichmentQuestionGroup:
+      $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentQuestionGroup
     RepositoryFeatureEnrichmentSuccess:
       $ref: ../schemas/repository-grounding.yaml#/RepositoryFeatureEnrichmentSuccess
     RepositoryFeatureEnrichmentSuccessDecision:
@@ -3364,6 +3515,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountRequest"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditRequest"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetRequest"
         - $ref: "#/components/schemas/CliReadRunSkillsListRequest"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
@@ -3375,6 +3527,7 @@ components:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountRequest"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryRequest"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailRequest"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditRequest"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetRequest"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListRequest"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnRequest"
@@ -3388,6 +3541,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -3395,12 +3549,14 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
       discriminator:
         propertyName: operation
         mapping:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountEnvelopeBody"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryEnvelopeBody"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailEnvelopeBody"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditEnvelopeBody"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetEnvelopeBody"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
@@ -3408,6 +3564,7 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectEnvelopeBody"
     CliReadResponseDto:
       oneOf:
         - $ref: "#/components/schemas/CliReadSuccessResponseDto"
@@ -3420,6 +3577,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -3427,12 +3585,14 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
       discriminator:
         propertyName: operation
         mapping:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountSuccessResponseDto"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventorySuccessResponseDto"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailSuccessResponseDto"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetSuccessResponseDto"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
@@ -3440,11 +3600,13 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectSuccessResponseDto"
     CliReadErrorResponseDto:
       oneOf:
         - $ref: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -3452,12 +3614,14 @@ components:
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
       discriminator:
         propertyName: operation
         mapping:
           run.changed_files.count: "#/components/schemas/CliReadRunChangedFilesCountErrorResponseDto"
           run.changed_files.inventory: "#/components/schemas/CliReadRunChangedFilesInventoryErrorResponseDto"
           run.changed_files.detail: "#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+          run.recorded_edit.read: "#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
           run.context_usage.get: "#/components/schemas/CliReadRunContextUsageGetErrorResponseDto"
           run.skills.list: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
@@ -3465,6 +3629,7 @@ components:
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
+          agent_session.continuation.inspect: "#/components/schemas/CliReadAgentSessionContinuationInspectErrorResponseDto"
     CliReadErrorCode:
       type: string
       enum:
@@ -3709,6 +3874,31 @@ components:
         authorization:
           $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
       additionalProperties: false
+    CliReadRunRecordedEditRequest:
+      type: object
+      required:
+        - operation
+        - runId
+        - serviceId
+        - edit
+        - authorization
+      properties:
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+      additionalProperties: false
     CliReadRunContextUsageGetRequest:
       type: object
       required:
@@ -3911,6 +4101,38 @@ components:
           description: Persisted CLI Run identity whose selected changed file is requested.
         file:
           $ref: "#/components/schemas/CliReadChangedFileIdentity"
+      additionalProperties: false
+    CliReadRunRecordedEditEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - agentSessionId
+        - operation
+        - runId
+        - serviceId
+        - edit
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        agentSessionId:
+          type: string
+          format: uuid
+          description: Canonical Agent Session authorization target.
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
+        runId:
+          type: string
+          format: uuid
+          description: Persisted CLI Run identity whose selected changed file is requested.
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
       additionalProperties: false
     CliReadRunContextUsageGetEnvelopeBody:
       type: object
@@ -4142,6 +4364,28 @@ components:
           type: string
           enum:
             - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadChangedFileDetailResult"
+      additionalProperties: false
+    CliReadRunRecordedEditSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
         status:
           type: string
           enum:
@@ -4524,6 +4768,28 @@ components:
           type: string
           enum:
             - run.changed_files.detail
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+    CliReadRunRecordedEditErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - run.recorded_edit.read
         status:
           type: string
           enum:
@@ -5211,6 +5477,168 @@ components:
           type: string
           format: date-time
           nullable: true
+      additionalProperties: false
+    AgentSessionContinuationMode:
+      type: string
+      enum:
+        - NATIVE_RESUME
+        - SAVED_HISTORY
+      description: >-
+        NATIVE_RESUME continues the provider session found on the destination. SAVED_HISTORY starts a new provider
+        session inside the same Run from the conversation's saved history, only after the person confirmed it.
+    AgentSessionContinuationMarker:
+      type: object
+      additionalProperties: false
+      required: [continuationId, mode]
+      properties:
+        continuationId:
+          type: string
+          format: uuid
+        mode:
+          $ref: "#/components/schemas/AgentSessionContinuationMode"
+      description: >-
+        Carried on a continuation's materialize-only start_run. It selects which provider session the destination uses
+        and carries no authority.
+    AgentSessionContinuationNativeState:
+      type: string
+      enum:
+        - USABLE
+        - ABSENT
+        - UNUSABLE
+      description: >-
+        Destination-local provider state for a continuation. USABLE: the Run, its provider session and the provider's
+        persisted conversation exist and the provider can resume it. ABSENT: no native state exists (for example a
+        different or wiped computer); continuation needs a new provider session from saved history. UNUSABLE: state
+        exists but cannot be resumed, or could not be read; the reason names the actual cause and is never reported as
+        absence.
+    AgentSessionContinuationInspectionReason:
+      type: string
+      enum:
+        - PROVIDER_STATE_PRESENT
+        - NO_LOCAL_RUN
+        - NO_PROVIDER_SESSION
+        - PROVIDER_TRANSCRIPT_MISSING
+        - PROVIDER_MISMATCH
+        - CONVERSATION_MISMATCH
+        - PROVIDER_RESUME_UNSUPPORTED
+        - LOCAL_STATE_UNREADABLE
+      description: Safe cause code for an inspection outcome. It carries no paths, transcript content or credentials.
+    CliReadAgentSessionContinuationInspectEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - operation
+        - organizationId
+        - projectId
+        - machineId
+        - authorizationRequestId
+        - agentSessionId
+        - conversationId
+        - continuationId
+        - expectedSourceMachineId
+        - provider
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+          description: Destination machine addressed by this inspection.
+        authorizationRequestId:
+          type: string
+          format: uuid
+        agentSessionId:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        continuationId:
+          type: string
+          format: uuid
+        expectedSourceMachineId:
+          type: string
+          format: uuid
+          description: Session binding the authorization was prepared against; part of the authorized action.
+        provider:
+          type: string
+          minLength: 1
+          description: Provider persisted on the Agent Session; local state for another provider is not usable.
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectResult:
+      type: object
+      required:
+        - agentSessionId
+        - continuationId
+        - nativeState
+        - reason
+      properties:
+        agentSessionId:
+          type: string
+          format: uuid
+        continuationId:
+          type: string
+          format: uuid
+        nativeState:
+          $ref: "#/components/schemas/AgentSessionContinuationNativeState"
+        reason:
+          $ref: "#/components/schemas/AgentSessionContinuationInspectionReason"
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadAgentSessionContinuationInspectResult"
+      additionalProperties: false
+    CliReadAgentSessionContinuationInspectErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - agent_session.continuation.inspect
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
       additionalProperties: false
     CliReadRuntimeModelCatalogResult:
       type: object

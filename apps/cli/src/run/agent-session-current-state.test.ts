@@ -122,3 +122,57 @@ describe('AgentSessionCurrentStateOwner local effective state', () => {
     expect(owner.effectiveState?.currentState).toBe('AWAITING_APPROVAL');
   });
 });
+
+describe('AgentSessionCurrentStateOwner approval hold', () => {
+  const states = (publisher: ReturnType<typeof createTestRunEventPublisher>) =>
+    vi
+      .mocked(publisher.emitAgentSessionCurrentStateObservation)
+      .mock.calls.map(([observation]) => observation.currentState);
+
+  it('keeps AWAITING_APPROVAL through provider activity and heartbeat replays until the decision is delivered', () => {
+    const { owner, publisher } = makeOwner();
+
+    owner.observeProviderPhase('writing');
+    owner.observeProviderPhase('awaiting_approval');
+    owner.observeProviderPhase('thinking');
+    owner.observeProviderPhase('writing');
+    owner.replay();
+
+    expect(states(publisher)).toEqual(['WRITING', 'AWAITING_APPROVAL', 'AWAITING_APPROVAL']);
+
+    owner.resolveApproval('decision_delivered');
+
+    expect(states(publisher).at(-1)).toBe('THINKING');
+    owner.observeProviderPhase('writing');
+    expect(states(publisher).at(-1)).toBe('WRITING');
+  });
+
+  it.each([
+    [
+      'a new turn',
+      (o: AgentSessionCurrentStateOwner) => o.observeProviderPhase('starting'),
+      'STARTING',
+    ],
+    ['turn settlement', (o: AgentSessionCurrentStateOwner) => o.settleTurn(), 'IDLE'],
+    ['cleanup', (o: AgentSessionCurrentStateOwner) => o.cleanup(true), 'IDLE'],
+  ])('releases the hold on %s', (_name, end, expected) => {
+    const { owner, publisher } = makeOwner();
+
+    owner.observeProviderPhase('awaiting_approval');
+    end(owner);
+    expect(states(publisher).at(-1)).toBe(expected);
+
+    owner.observeProviderPhase('thinking');
+    expect(states(publisher).at(-1)).toBe('THINKING');
+  });
+
+  it('keeps the hold when the turn settles while a request is still open', () => {
+    const { owner, publisher } = makeOwner();
+
+    owner.observeProviderPhase('awaiting_approval');
+    owner.settleTurn(true);
+    owner.observeProviderPhase('thinking');
+
+    expect(states(publisher).at(-1)).toBe('AWAITING_APPROVAL');
+  });
+});

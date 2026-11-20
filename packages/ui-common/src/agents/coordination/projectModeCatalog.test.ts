@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import type { WorkItemTypeSummaryDto } from "../../api";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
@@ -42,7 +43,7 @@ const modeTypeSummary = {
     name: "Project mode",
     role: "project-info",
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   },
 } as WorkItemTypeSummaryDto;
 

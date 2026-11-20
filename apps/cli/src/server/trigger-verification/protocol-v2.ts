@@ -1,3 +1,4 @@
+import { recordedEditSchema } from './recorded-edit-schema';
 import { taskMonitorLaunchConfigInputSchema as taskMonitorLaunchConfigV2Schema } from './task-monitor-launch-config';
 import { z } from 'zod';
 import {
@@ -568,6 +569,16 @@ export const CLI_READ_OPERATION_SCHEMAS = {
         .strict(),
     })
     .strict(),
+  'run.recorded_edit.read': z
+    .object({
+      requestId: z.string().uuid(),
+      agentSessionId: z.string().uuid(),
+      operation: z.literal('run.recorded_edit.read'),
+      runId: z.string().uuid(),
+      serviceId: z.string().uuid(),
+      edit: recordedEditSchema,
+    })
+    .strict(),
   'run.context_usage.get': z
     .object({
       requestId: z.string().uuid(),
@@ -623,6 +634,21 @@ export const CLI_READ_OPERATION_SCHEMAS = {
       operation: z.literal('runtime.model_catalog.get'),
     })
     .strict(),
+  'agent_session.continuation.inspect': z
+    .object({
+      requestId: uuid,
+      authorizationRequestId: uuid,
+      organizationId: uuid,
+      projectId: uuid,
+      machineId: uuid,
+      agentSessionId: uuid,
+      conversationId: uuid,
+      continuationId: uuid,
+      expectedSourceMachineId: uuid,
+      provider: z.string().min(1),
+      operation: z.literal('agent_session.continuation.inspect'),
+    })
+    .strict(),
 } satisfies { [TOperation in CliReadOperation]: CliReadBodySchema<TOperation> };
 
 const cliReadBodyV2Schema = z.union([
@@ -630,12 +656,14 @@ const cliReadBodyV2Schema = z.union([
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.count'],
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.inventory'],
   CLI_READ_OPERATION_SCHEMAS['run.changed_files.detail'],
+  CLI_READ_OPERATION_SCHEMAS['run.recorded_edit.read'],
   CLI_READ_OPERATION_SCHEMAS['run.context_usage.get'],
   CLI_READ_OPERATION_SCHEMAS['run.skills.list'],
   CLI_READ_OPERATION_SCHEMAS['run.tool_calls.latest_turn'],
   CLI_READ_OPERATION_SCHEMAS['project.session_costs.list'],
   CLI_READ_OPERATION_SCHEMAS['provider.usage.get'],
   CLI_READ_OPERATION_SCHEMAS['runtime.model_catalog.get'],
+  CLI_READ_OPERATION_SCHEMAS['agent_session.continuation.inspect'],
 ]) satisfies z.ZodType<unknown, z.ZodTypeDef, ZodCompatibleInput<CliReadEnvelopeBody>>;
 
 export const PROTECTED_CLI_READ_OPERATIONS = Object.freeze(

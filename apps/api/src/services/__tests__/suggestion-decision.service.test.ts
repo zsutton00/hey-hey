@@ -192,4 +192,89 @@ describe('SuggestionDecisionService', () => {
       sourceMessageId: testIds.message,
     });
   });
+  describe('Verify Feature decisions', () => {
+    const verifyFeatureRow = (agentSessionId: string) => ({
+      organizationId: testIds.organization,
+      suggestionId: `${testIds.message}:verify-feature`,
+      type: 'verify_feature',
+      accepted: true,
+      decidedBy: testIds.user,
+      sourceConversationId: testIds.conversation,
+      sourceMessageId: testIds.message,
+      metadata: { kind: 'VERIFY_FEATURE', agentSessionId },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    it('returns the stored decision with its session beside other decisions, and none for an older conversation', async () => {
+      const findMany = prisma.db.suggestionDecision.findMany as jest.Mock;
+      findMany.mockResolvedValueOnce([
+        {
+          ...verifyFeatureRow('stored-session'),
+        },
+        {
+          ...verifyFeatureRow('unused'),
+          suggestionId: 'other-message:task-1',
+          type: 'task_content_apply',
+          metadata: { kind: 'CREATE_SUGGESTED_TASK', workflowId: 'wf-1' },
+        },
+      ]);
+      findMany.mockResolvedValueOnce([]);
+
+      const populated = await service.listDecisions({
+        organizationId: testIds.organization,
+        sourceConversationId: testIds.conversation,
+      });
+      const older = await service.listDecisions({
+        organizationId: testIds.organization,
+        sourceConversationId:
+          'older-conversation' as typeof testIds.conversation,
+      });
+
+      expect(
+        populated.find((decision) => decision.type === 'verify_feature'),
+      ).toMatchObject({
+        id: `${testIds.message}:verify-feature`,
+        accepted: true,
+        sourceMessageId: testIds.message,
+        metadata: { kind: 'VERIFY_FEATURE', agentSessionId: 'stored-session' },
+      });
+      expect(older).toEqual([]);
+    });
+
+    it('keeps one decision per suggestion, pointing at the latest session', async () => {
+      const upsert = prisma.db.suggestionDecision.upsert as jest.Mock;
+      upsert
+        .mockResolvedValueOnce(verifyFeatureRow('first-session'))
+        .mockResolvedValueOnce(verifyFeatureRow('second-session'));
+      const input = {
+        organizationId: testIds.organization,
+        type: 'verify_feature' as const,
+        suggestionId: `${testIds.message}:verify-feature`,
+        accepted: true,
+        sourceConversationId: testIds.conversation,
+        sourceMessageId: testIds.message,
+      };
+
+      await service.recordDecision({
+        ...input,
+        metadata: { kind: 'VERIFY_FEATURE', agentSessionId: 'first-session' },
+      });
+      const latest = await service.recordDecision({
+        ...input,
+        metadata: { kind: 'VERIFY_FEATURE', agentSessionId: 'second-session' },
+      });
+
+      const [first, second] = upsert.mock.calls.map(([args]) => args);
+      expect(second.where).toEqual(first.where);
+      expect(second.update.metadata).toEqual({
+        kind: 'VERIFY_FEATURE',
+        agentSessionId: 'second-session',
+      });
+      expect(latest.metadata).toEqual({
+        kind: 'VERIFY_FEATURE',
+        agentSessionId: 'second-session',
+      });
+    });
+  });
 });

@@ -211,9 +211,9 @@ export const resolveSessionMachineId = ({
   machinesReady: boolean;
 }): string | null => {
   const explicitMachineId = [
+    persistedMachineId,
     routeMachineId,
     submittedMachineId,
-    persistedMachineId ?? null,
   ].find((machineId): machineId is string => Boolean(machineId?.trim()));
 
   if (explicitMachineId) return explicitMachineId;

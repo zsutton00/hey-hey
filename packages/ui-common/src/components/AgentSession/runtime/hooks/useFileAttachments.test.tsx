@@ -69,6 +69,10 @@ describe("transient file staging", () => {
     expect(result.current.references).toEqual([
       { attachmentId: "good.txt", fileName: "good.txt" },
     ]);
+    expect(result.current.entries[0]).toMatchObject({
+      status: "ready",
+      file: expect.objectContaining({ name: "good.txt" }),
+    });
     act(() => result.current.remove(result.current.entries[1].key));
     expect(result.current.blocked).toBe(false);
     act(() => result.current.clearSubmitted(result.current.references));

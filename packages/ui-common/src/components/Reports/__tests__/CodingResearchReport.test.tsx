@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { render as baseRender, screen, within } from "@testing-library/react";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import userEvent from "@testing-library/user-event";
 import type { PropsWithChildren } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -16,11 +18,23 @@ import { CodingResearchReport } from "../viewer/CodingResearchReport";
 import { buildCodingResearchDiscussionPrompt } from "../viewer/CodingResearchDiscussionAction";
 import { CodingResearchUpdatesSection } from "../viewer/CodingResearchUpdatesSection";
 
+const render = (ui: React.ReactElement) =>
+  baseRender(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+    ),
+  });
+
 const launcherMock = vi.hoisted(() => ({
   launch: vi.fn(),
   isLoading: false,
   error: null as { code: string | null; message: string } | null,
   clearError: vi.fn(),
+}));
+
+const openModal = vi.hoisted(() => vi.fn());
+vi.mock("../../../contexts/ModalContext", () => ({
+  useModal: () => ({ openModal }),
 }));
 
 vi.mock("../../InteractionComponent/useEntityConversationLauncher", () => ({
@@ -86,7 +100,7 @@ const buildReport = (payload: CodingResearchReportPayload): ReportDto =>
 
 const fullPayload: CodingResearchReportPayload = {
   reportType: "CODING_RESEARCH",
-  format: "STRUCTURED",
+  format: "SELF_RESEARCH",
   summary:
     "The renderer remains typed and keeps its human-readable handoff visible.",
   analysis:
@@ -217,6 +231,66 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
+  it("opens Discuss on the report's focal entity, seeded with the statement and references", async () => {
+    renderReport(fullPayload, "research");
+
+    const card = screen.getByTestId(
+      "research-coding-research-uncertainty-conflict-0",
+    );
+    await userEvent.click(
+      within(card).getByTestId("uncertainty-discuss-control"),
+    );
+
+    expect(openModal).toHaveBeenCalledWith({
+      type: "discuss",
+      organizationId: "org-1",
+      projectId: "project-1",
+      entityId: FOCAL_TASK_ID,
+      entityType: EntityType.Task,
+      entityTitle: "Improve CODING_RESEARCH renderer",
+      contextPreview: [
+        "The user wants to discuss an uncertainty an agent raised.",
+        "Severity: medium. Category: Conflict.",
+        "Uncertainty: Two project sources give incompatible behavior.",
+        `Related: @[task:${FOCAL_TASK_ID}|Improve CODING_RESEARCH renderer]`,
+      ].join("\n\n"),
+    });
+  });
+
+  it("lists several references on one uncertainty as related-item rows", () => {
+    const payload: CodingResearchReportPayload = {
+      ...fullPayload,
+      uncertainties: [
+        {
+          category: "conflict",
+          severity: "high",
+          statement: "Two sources disagree.",
+          references: [
+            {
+              entityType: EntityType.Task,
+              entityId: FOCAL_TASK_ID,
+              title: "First source",
+            },
+            {
+              entityType: EntityType.Task,
+              entityId: "22222222-2222-4222-8222-222222222222",
+              title: "Second source",
+            },
+          ],
+        },
+      ],
+    };
+    renderReport(payload, "research");
+
+    const card = screen.getByTestId(
+      "research-coding-research-uncertainty-conflict-0",
+    );
+    const rows = within(card).getAllByTestId("conversation-card-related-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("First source");
+    expect(rows[1]).toHaveTextContent("Second source");
+  });
+
   it("shows structured open questions below analysis with severity and canonical references", () => {
     renderReport(fullPayload, "research");
 
@@ -237,7 +311,7 @@ describe("CodingResearchReport", () => {
     expect(
       screen.getByTestId("research-coding-research-analysis-toggle"),
     ).toHaveAttribute("aria-expanded", "false");
-    expect(section).toHaveTextContent("Open questions");
+    expect(section).not.toHaveTextContent("Open questions");
     expect(
       screen.getByTestId("research-coding-research-analysis")
         .nextElementSibling,
@@ -247,7 +321,7 @@ describe("CodingResearchReport", () => {
   it("renders written open questions below analysis and removes recognized entries from analysis", () => {
     const writtenPayload: CodingResearchReportPayload = {
       reportType: "CODING_RESEARCH",
-      format: "WRITTEN",
+      format: "SUBAGENT_PARENT",
       summary:
         "The parent reviewed the research evidence and wrote this report.",
       analysis: [
@@ -275,7 +349,7 @@ describe("CodingResearchReport", () => {
       screen.getByTestId("written-coding-research-analysis-toggle"),
     ).toHaveAttribute("aria-expanded", "false");
     expect(analysis.nextElementSibling).toBe(openQuestions);
-    expect(openQuestions).toHaveTextContent("Open questions");
+    expect(openQuestions).not.toHaveTextContent("Open questions");
     expect(screen.getByTestId("written-coding-research-summary")).toBeVisible();
   });
 

@@ -122,9 +122,12 @@ export class ProposalReconciliationGroupService {
       const completedTemporaryIds = new Set(
         completed.flatMap((checkpoint) => {
           const operation = previous.operations[checkpoint.operationIndex]!;
-          return operation.op === 'workItem.create' ||
+          return operation.op === 'designDoc.create' ||
+            operation.op === 'workItem.create' ||
             operation.op === 'relationship.create'
-            ? [`${operation.op}:${operation.ref.tempId}`]
+            ? [
+                `${operation.op === 'designDoc.create' ? 'workItem.create' : operation.op}:${operation.ref.tempId}`,
+              ]
             : [];
         }),
       );

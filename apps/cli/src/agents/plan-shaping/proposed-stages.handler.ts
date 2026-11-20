@@ -9,6 +9,7 @@
 import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
 
 import {
+  SessionRole,
   LocalPromptType,
   type PlanShapingProposedStagesPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
@@ -49,6 +50,7 @@ export const PLAN_SHAPING_ALLOWED_TOOLS: readonly string[] = [
 export const planShapingProposedStagesHandler: UserLaunchablePromptTypeHandler<PlanShapingProposedStagesPromptPayload> =
   {
     id: 'plan_shaping_proposed_stages',
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingProposedStages,
     service: 'optional',
     launchEntity: 'required',

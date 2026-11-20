@@ -1,5 +1,8 @@
 export { CodingResearchReport } from "./CodingResearchReport";
-export { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
+export {
+  CodingResearchUncertaintiesSection,
+  getCodingResearchUncertaintyDiscussScope,
+} from "./CodingResearchUncertaintiesSection";
 
 export { CommitReport } from "./CommitReport";
 
@@ -41,6 +44,7 @@ export { RollupProposalReport } from "./RollupProposalReport";
 export { SessionSummaryReport } from "./SessionSummaryReport";
 
 export { SessionMonitorDeferralReport } from "./SessionMonitorDeferralReport";
+export { MonitorNodeResultReport } from "./MonitorNodeResultReport";
 
 export { ReportSection } from "./ReportSection";
 export { ReportUsageBar } from "./ReportUsageBar";

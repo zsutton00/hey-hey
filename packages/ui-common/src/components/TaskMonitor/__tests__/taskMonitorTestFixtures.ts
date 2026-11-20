@@ -20,6 +20,7 @@ export const sessionId = "33333333-3333-4333-8333-333333333333";
 
 export const createTaskMonitorDefinition =
   (): TaskMonitorExecutionDefinition => ({
+    kind: "task",
     executionPlan: [
       {
         taskId: firstTaskId,
@@ -52,7 +53,7 @@ export const createTaskMonitorDefinition =
 export const createTask = (
   id: string,
   name: string,
-  status: WorkStatus = WorkStatus.Ready,
+  status: TaskResponseDto["status"] = WorkStatus.Ready,
 ): TaskResponseDto => ({
   id,
   name,

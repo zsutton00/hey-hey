@@ -57,6 +57,8 @@ export interface ProjectAgentsCodingParams {
   projectId: string;
 }
 
+export type ProjectChangesFilters = Record<string, string>;
+
 export interface ProjectDocumentEditParams {
   projectId: string;
   documentId: string;
@@ -307,7 +309,6 @@ export interface PathService {
   goal(params: GoalParams): string;
   evalRunSetup(params: EvalRunSetupParams): string;
   evalRun(params: EvalRunParams): string;
-  evalRunResults(params: EvalRunParams): string;
   feature(params: FeatureParams): string;
   designDoc(params: DesignDocParams): string;
   agentSession(params: AgentSessionParams): string;
@@ -346,6 +347,7 @@ export interface PathService {
   projectInitiatives(params: ProjectInitiativesParams): string;
   projectLanding(params: ProjectLandingParams): string;
   projectAgentsCoding(params: ProjectAgentsCodingParams): string;
+  projectChanges(projectId: string, filters?: ProjectChangesFilters): string;
   projectDocumentEdit(params: ProjectDocumentEditParams): string;
   scratchpad(projectId: string): string;
   recentlyViewed(params: ProjectLandingParams): string;
@@ -446,10 +448,6 @@ const defaultPathService: PathService = {
 
   evalRun(params: EvalRunParams): string {
     return `/projects/${params.projectId}/evals/${params.evalId}/runs/${params.runId}`;
-  },
-
-  evalRunResults(params: EvalRunParams): string {
-    return `${this.evalRun(params)}/results`;
   },
 
   feature(params: FeatureParams): string {
@@ -741,6 +739,19 @@ const defaultPathService: PathService = {
     return `${this.project(params.projectId)}${buildQueryString(searchParams)}`;
   },
 
+  projectChanges(
+    projectId: string,
+    filters: ProjectChangesFilters = {},
+  ): string {
+    const searchParams = new URLSearchParams();
+    searchParams.set("tab", "agents");
+    searchParams.set("agentsSubTab", "changes");
+    for (const [key, value] of Object.entries(filters)) {
+      searchParams.set(key, value);
+    }
+    return `${this.project(projectId)}${buildQueryString(searchParams)}`;
+  },
+
   projectDocumentEdit(params: ProjectDocumentEditParams): string {
     return `/projects/${params.projectId}/documents/${params.documentId}/edit`;
   },
@@ -833,13 +844,6 @@ export class WebPathService {
   }
 
   /**
-   * Generate the path of one finished Eval run's results page
-   */
-  static evalRunResults(params: EvalRunParams): string {
-    return getPathService().evalRunResults(params);
-  }
-
-  /**
    * Generate feature detail path
    */
   static feature(params: FeatureParams): string {
@@ -915,6 +919,13 @@ export class WebPathService {
    */
   static createProjectReport(projectId: string): string {
     return getPathService().createProjectReport(projectId);
+  }
+
+  static projectChanges(
+    projectId: string,
+    filters: ProjectChangesFilters = {},
+  ): string {
+    return getPathService().projectChanges(projectId, filters);
   }
 
   static projectReportHistory(projectId: string): string {

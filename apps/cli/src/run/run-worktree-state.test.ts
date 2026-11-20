@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,6 +36,7 @@ const handlerStub: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -769,9 +771,10 @@ describe('Run worktree workspace state', () => {
     };
     vi.mocked(resolveRunWorkspace).mockResolvedValue(workspace);
     const captured: RunnerContext[] = [];
+    const store = makeRunStore();
     const run = new Run(
       makeRunArgs({ provider: 'claude' }),
-      makeCollaborators(makeRunStore(), (ctx) => {
+      makeCollaborators(store, (ctx) => {
         captured.push(ctx);
         return {
           run: async () => {
@@ -787,6 +790,8 @@ describe('Run worktree workspace state', () => {
     await run.awaitIdle();
 
     expect(captured).toHaveLength(2);
+    const dataHome = captured[0]?.workspaceWriteBoundary?.processContainment().env['XDG_DATA_HOME'];
+    expect(dataHome?.startsWith(join(store.getDataDirectory(), 'provider-state') + '/')).toBe(true);
     expect(captured[0]!.workspaceWriteBoundary).toBeDefined();
     expect(captured[1]!.workspaceWriteBoundary).toBe(captured[0]!.workspaceWriteBoundary);
     expect(captured[0]!.workspaceWriteBoundary?.allowedRepositoryRoots).toEqual([

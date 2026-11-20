@@ -4,6 +4,7 @@ import type {
 } from '@hey-hey/contracts/api/models';
 import type { RunEventPublisher } from '../server/run-event-publisher';
 import type { ServerLogger } from '../server/logger';
+import type { ApprovalReleaseReason } from './agent-session-current-state';
 import type { ProviderPhase } from './types';
 
 export const createConversationPhaseObservation = (input: {
@@ -38,12 +39,26 @@ export class ConversationPhaseOwner {
       return;
     }
 
+    if (this.phase === 'awaiting_approval') {
+      if (phase === 'idle' || phase === 'starting') {
+        this.logRelease(phase === 'idle' ? 'turn_settled' : 'new_turn', phase);
+        this.publish(phase);
+        return;
+      }
+      this.logger.debug('local.run.conversation_phase.provider_phase_ignored_during_approval', {
+        runId: this.runId,
+        conversationId: this.conversationId,
+        providerPhase: phase,
+      });
+      return;
+    }
+
     if (phase === 'idle') {
       this.publish(phase);
       return;
     }
 
-    if (this.reviewTurn && (this.phase === 'reviewing' || this.phase === 'awaiting_approval')) {
+    if (this.reviewTurn && this.phase === 'reviewing') {
       this.logger.debug('local.run.conversation_phase.provider_phase_preserved', {
         runId: this.runId,
         conversationId: this.conversationId,
@@ -59,11 +74,24 @@ export class ConversationPhaseOwner {
 
   public observeReviewing(): void {
     this.reviewTurn = true;
+    if (this.phase === 'awaiting_approval') {
+      this.logger.debug('local.run.conversation_phase.provider_phase_ignored_during_approval', {
+        runId: this.runId,
+        conversationId: this.conversationId,
+        providerPhase: 'reviewing',
+      });
+      return;
+    }
     this.publish('reviewing');
   }
 
-  public resumeAfterApproval(): void {
-    this.publish(this.reviewTurn ? 'reviewing' : 'thinking');
+  /** Ends the approval hold and publishes the resumed phase without waiting for the provider. */
+  public resolveApproval(reason: 'decision_delivered' | 'question_answered'): void {
+    const nextPhase = this.reviewTurn ? 'reviewing' : 'thinking';
+    if (this.phase === 'awaiting_approval') {
+      this.logRelease(reason, nextPhase);
+    }
+    this.publish(nextPhase);
   }
 
   public replay(): void {
@@ -78,17 +106,35 @@ export class ConversationPhaseOwner {
       return;
     }
 
+    if (this.phase === 'awaiting_approval') {
+      this.logRelease('turn_settled', 'idle');
+    }
     this.publish('idle');
     this.phase = null;
     this.reviewTurn = false;
   }
 
   public cleanup(runtimeStateActive: boolean): void {
+    if (this.phase === 'awaiting_approval') {
+      this.logRelease('cleanup', 'idle');
+    }
     if (runtimeStateActive || this.phase !== null) {
       this.publish('idle');
     }
     this.phase = null;
     this.reviewTurn = false;
+  }
+
+  private logRelease(
+    reason: ApprovalReleaseReason,
+    nextPhase: ProviderPhase | ConversationPhase,
+  ): void {
+    this.logger.info('local.run.conversation_phase.awaiting_approval_released', {
+      runId: this.runId,
+      conversationId: this.conversationId,
+      reason,
+      nextPhase,
+    });
   }
 
   private publish(phase: ConversationPhase): void {

@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Projects</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        color: #1d1d1f;
+        background: #fafafa;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      /* Header: title + count left, New project right, one row */
+      .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .page-header__title {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      .page-header h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .page-header__count {
+        color: #6b6b70;
+      }
+
+      .button {
+        padding: 6px 12px;
+        border: 1px solid #c7c7cc;
+        border-radius: 6px;
+        background: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .button--primary {
+        border-color: #223344;
+        background: #223344;
+        color: #fff;
+      }
+
+      /* Filter bar: tabs left, search then sort right */
+      .filter-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 16px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 4px;
+      }
+
+      .tabs button {
+        padding: 4px 10px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        background: none;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .tabs button[aria-selected="true"] {
+        border-bottom-color: #223344;
+        font-weight: 600;
+      }
+
+      .filter-bar__right {
+        display: flex;
+        gap: 8px;
+      }
+
+      .filter-bar__right input {
+        width: 200px;
+        padding: 5px 8px;
+      }
+
+      /* Grid: three equal columns */
+      .project-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        background: #fff;
+        border: 1px solid #d0d0d5;
+        border-radius: 10px;
+      }
+
+      .card__header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .card__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .card__name {
+        flex: 1;
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .card__menu {
+        border: 0;
+        background: none;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      .card__description {
+        margin: 0;
+        color: #4a4a50;
+      }
+
+      .card__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .avatars {
+        display: flex;
+      }
+
+      .avatars span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        margin-left: -6px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: #dcdce0;
+        font-size: 10px;
+      }
+
+      .avatars span:first-child {
+        margin-left: 0;
+      }
+
+      .progress {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+      }
+
+      .progress__bar {
+        width: 80px;
+        height: 6px;
+        border-radius: 3px;
+        background: #eee;
+      }
+
+      .progress__bar span {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: #44aa77;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .tags span {
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eaeaf8;
+        font-size: 11px;
+      }
+
+      /* Editing state */
+      .card--editing {
+        border-color: #5588cc;
+      }
+
+      .card--editing input,
+      .card--editing textarea {
+        width: 100%;
+        padding: 6px;
+        font: inherit;
+      }
+
+      .card--editing input {
+        font-size: 15px;
+      }
+
+      .card--editing textarea {
+        min-height: 64px;
+        resize: vertical;
+      }
+
+      .card__edit-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page" data-hh-id="projects-page">
+      <header class="page-header" data-hh-id="page-header">
+        <div class="page-header__title">
+          <h1 data-hh-id="page-title">Projects</h1>
+          <span class="page-header__count" data-hh-id="project-count"
+            >12 projects</span
+          >
+        </div>
+        <div class="card__edit-actions" data-hh-id="edit-actions">
+          <button class="button" type="button" data-hh-id="edit-cancel">
+            Cancel
+          </button>
+          <button
+            class="button button--primary"
+            type="button"
+            data-hh-id="edit-save"
+          >
+            Save
+          </button>
+        </div>
+        <button
+          class="button button--primary"
+          type="button"
+          data-hh-id="new-project"
+        >
+          + New project
+        </button>
+      </header>
+
+      <div class="filter-bar" data-hh-id="filter-bar">
+        <div class="tabs" role="tablist" data-hh-id="filter-tabs">
+          <button role="tab" aria-selected="true" data-hh-id="tab-all">
+            All
+          </button>
+          <button role="tab" aria-selected="false" data-hh-id="tab-active">
+            Active
+          </button>
+          <button role="tab" aria-selected="false" data-hh-id="tab-archived">
+            Archived
+          </button>
+        </div>
+        <div class="filter-bar__right">
+          <input
+            type="search"
+            placeholder="Search projects"
+            aria-label="Search projects"
+            data-hh-id="search"
+          />
+          <select aria-label="Sort" data-hh-id="sort">
+            <option>Recently updated</option>
+            <option>Name</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="project-grid" data-hh-id="project-grid">
+        <article class="card" data-hh-id="project-card">
+          <div class="card__header" data-hh-id="card-header">
+            <span class="card__dot" style="background: #44aa77"></span>
+            <h3 class="card__name" data-hh-id="card-name">Website relaunch</h3>
+            <button
+              class="card__menu"
+              type="button"
+              aria-label="Project actions"
+              data-hh-id="card-menu"
+            >
+              ⋯
+            </button>
+          </div>
+          <p class="card__description" data-hh-id="card-description">
+            New marketing site with pricing and docs.
+          </p>
+          <div class="card__footer" data-hh-id="card-footer">
+            <div class="avatars" data-hh-id="avatar-stack">
+              <span>AL</span><span>GH</span><span>+3</span>
+            </div>
+            <div class="progress" data-hh-id="progress">
+              <span>64%</span>
+              <div class="progress__bar"><span style="width: 64%"></span></div>
+            </div>
+          </div>
+          <div class="tags" data-hh-id="card-tags">
+            <span>Marketing</span><span>Q4</span><span>Design</span>
+          </div>
+        </article>
+
+        <article class="card card--editing" data-hh-id="project-card-editing">
+          <input
+            type="text"
+            aria-label="Project name"
+            value="Billing migration"
+            data-hh-id="edit-name"
+          />
+          <textarea aria-label="Description" data-hh-id="edit-description">
+Move all plans to the new billing provider.</textarea
+          >
+        </article>
+
+        <article class="card">
+          <div class="card__header">
+            <span class="card__dot" style="background: #cc8844"></span>
+            <h3 class="card__name">Mobile onboarding</h3>
+            <button
+              class="card__menu"
+              type="button"
+              aria-label="Project actions"
+            >
+              ⋯
+            </button>
+          </div>
+          <p class="card__description">Shorter sign-up and first-run tour.</p>
+          <div class="card__footer">
+            <div class="avatars"><span>KJ</span></div>
+            <div class="progress">
+              <span>20%</span>
+              <div class="progress__bar"><span style="width: 20%"></span></div>
+            </div>
+          </div>
+          <div class="tags">
+            <span>Mobile</span><span>Growth</span><span>Experiment</span
+            ><span>Q1</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card__header">
+            <span class="card__dot" style="background: #5588cc"></span>
+            <h3 class="card__name">Data warehouse</h3>
+            <button
+              class="card__menu"
+              type="button"
+              aria-label="Project actions"
+            >
+              ⋯
+            </button>
+          </div>
+          <p class="card__description">
+            Nightly exports into the analytics store.
+          </p>
+          <div class="card__footer">
+            <div class="avatars"><span>MR</span><span>TS</span></div>
+            <div class="progress">
+              <span>88%</span>
+              <div class="progress__bar"><span style="width: 88%"></span></div>
+            </div>
+          </div>
+          <div class="tags"><span>Infra</span></div>
+        </article>
+      </div>
+    </div>
+  </body>
+</html>

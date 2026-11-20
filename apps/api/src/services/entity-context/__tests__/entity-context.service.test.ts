@@ -1,4 +1,7 @@
+import { ok } from 'node:assert/strict';
 import { ProposalReconciliationService } from '../../proposal/proposal-reconciliation.service';
+import { ProjectApprovalPolicyService } from 'src/services/proposal/project-approval-policy.service';
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { PlanDependenciesService } from '../../plan/plan-dependencies.service';
 import {
   WORK_ITEM_TYPE_KEYS,
@@ -31,10 +34,10 @@ jest.mock('../../proposal/proposal-response-policy', () => {
       _tx: AnyTransactionClient,
       proposal: ProposalWithApprovals,
     ) => toProposalResponseDto(proposal, 1),
-    mapProposalResponses: async (
-      _tx: AnyTransactionClient,
-      proposals: ProposalWithApprovals[],
-    ) => proposals.map((proposal) => toProposalResponseDto(proposal, 1)),
+    mapProposalResponses: jest.fn(
+      async (_tx: AnyTransactionClient, proposals: ProposalWithApprovals[]) =>
+        proposals.map((proposal) => toProposalResponseDto(proposal, 1)),
+    ),
   };
 });
 
@@ -238,11 +241,29 @@ describe('EntityContextService', () => {
         {
           provide: ProposalReconciliationService,
           useValue: {
-            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
+            decisionsForProposals: jest.fn(
+              (_tx: unknown, proposals: readonly { id: string }[]) =>
+                Promise.resolve(
+                  new Map(
+                    proposals.map((proposal) => [
+                      proposal.id,
+                      {
+                        kind: 'NOT_REQUIRED' as const,
+                        differences: [],
+                        differingPaths: [],
+                      },
+                    ]),
+                  ),
+                ),
+            ),
           } satisfies Pick<
             ProposalReconciliationService,
             'decisionsForProposals'
           >,
+        },
+        {
+          provide: ProjectApprovalPolicyService,
+          useValue: createTestProjectApprovalPolicyService(),
         },
         {
           provide: PlanDependenciesService,
@@ -281,6 +302,87 @@ describe('EntityContextService', () => {
   });
 
   describe('getEntityContext', () => {
+    it.each(['summary', 'full'] as const)(
+      'keeps healthy pending and historical proposals in %s context beside corrupt evidence',
+      async (proposalDetail) => {
+        Object.assign(mockPrisma.db.proposal, {
+          update: jest.fn(),
+          delete: jest.fn(),
+        });
+        const { mapProposalResponses } = await import(
+          '../../proposal/proposal-response-policy'
+        );
+        const actual = jest.requireActual(
+          '../../proposal/proposal-response-policy',
+        );
+        jest
+          .mocked(mapProposalResponses)
+          .mockImplementationOnce(actual.mapProposalResponses);
+        mockPrisma.db.projectMember.findMany.mockResolvedValue([
+          { userId: testIds.user },
+        ] as never);
+        Object.assign(mockPrisma.db.task, {
+          findFirst: jest.fn().mockResolvedValue({
+            type: 'STANDARD',
+            parentTaskId: null,
+            initiativeId: null,
+            lastAppliedProposalId: null,
+          }),
+        });
+        const legacyId = '123e4567-e89b-42d3-a456-426614174052';
+        const records = [
+          makeStoredProposal({
+            id: proposalIdA,
+            status: 'DRAFT',
+            groupMembership: null,
+            approvalDecisionEvidence: null,
+          }),
+          makeStoredProposal({
+            id: proposalIdB,
+            groupMembership: null,
+            approvalDecisionEvidence: {
+              evidence: 'CAPTURED',
+              secret: 'must-not-log',
+            },
+          }),
+          makeStoredProposal({
+            id: legacyId,
+            groupMembership: null,
+            approvalDecisionEvidence: null,
+          }),
+        ];
+        mockPrisma.db.proposal.findMany.mockResolvedValue(records as never);
+        mockPrisma.db.proposal.findFirst.mockResolvedValue(null);
+        const result = await service.getEntityContext(
+          testIds.organization,
+          'TASK' as EntityType,
+          entityId,
+          { proposalDetail },
+        );
+        expect(result.proposals?.map((item) => item.id)).toEqual([
+          proposalIdA,
+          legacyId,
+        ]);
+        expect(result.proposals?.[0]).toMatchObject({
+          status: 'DRAFT',
+          requiredApprovals: 1,
+          approvalExplanation: { evidence: 'LIVE' },
+        });
+        expect(result.proposals?.[1]).toMatchObject({
+          requiredApprovals: null,
+          approvalExplanation: { evidence: 'UNAVAILABLE', requirement: null },
+        });
+        expect(mockPrisma.db.proposal.update).not.toHaveBeenCalled();
+        expect(mockPrisma.db.proposal.delete).not.toHaveBeenCalled();
+        expect(records[1]).toMatchObject({
+          approvalDecisionEvidence: {
+            evidence: 'CAPTURED',
+            secret: 'must-not-log',
+          },
+        });
+      },
+    );
+
     it('should return proposals for a TASK entity via reverse lookup', async () => {
       const proposals = [
         makeStoredProposal({
@@ -3888,6 +3990,203 @@ describe('EntityContextService', () => {
     //
     // Canonical Task and DesignDoc seeds carry their own content body.
 
+    describe('archived items in the agent view', () => {
+      const featureId = '123e4567-e89b-42d3-a456-426614174d00';
+      const archivedPlanId = '123e4567-e89b-42d3-a456-426614174d01';
+      const completedPlanId = '123e4567-e89b-42d3-a456-426614174d02';
+      const supersededTaskId = '123e4567-e89b-42d3-a456-426614174d03';
+      const archivedSessionId = '123e4567-e89b-42d3-a456-426614174d04';
+      const liveSessionId = '123e4567-e89b-42d3-a456-426614174d05';
+      const archivedFeatureId = '123e4567-e89b-42d3-a456-426614174d06';
+      const liveFeatureId = '123e4567-e89b-42d3-a456-426614174d07';
+      const archivedIds = new Set([
+        archivedPlanId,
+        archivedSessionId,
+        archivedFeatureId,
+      ]);
+
+      const citation = (entityId: string, title: string) => ({
+        entityType: 'TASK',
+        entityId,
+        entityTitle: title,
+      });
+      const storedRequirements = JSON.stringify({
+        records: [
+          {
+            id: '123e4567-e89b-42d3-a456-426614174d10',
+            statement: 'Only archived fulfills this',
+            designedBy: [],
+            fulfilledBy: [citation(archivedPlanId, 'Archived plan')],
+            contracts: [],
+          },
+          {
+            id: '123e4567-e89b-42d3-a456-426614174d11',
+            statement: 'Mixed fulfillers',
+            designedBy: [],
+            fulfilledBy: [
+              citation(archivedPlanId, 'Archived plan'),
+              citation(completedPlanId, 'Completed plan'),
+            ],
+            contracts: [],
+          },
+        ],
+      });
+
+      const related = (entityId: string, status: string) => ({
+        entityId,
+        entityType: 'PLAN',
+        displayName: `plan ${entityId}`,
+        status,
+        relationship: 'mentions' as const,
+      });
+      const hierarchyEntry = (id: string) => ({
+        id,
+        name: `feature ${id}`,
+        relationshipType: 'structural' as const,
+        relationship: 'ancestor' as const,
+        distance: 1,
+      });
+
+      function arrange(relatedEntities = defaultRelated) {
+        mockTaskService.findPersistedByOrganization.mockResolvedValue(
+          makeSeedRow({ id: featureId, type: WORK_ITEM_TYPE_KEYS.Feature }),
+        );
+        (mockPrisma.db as any).taskSection.findMany.mockResolvedValue([
+          {
+            key: 'requirements',
+            order: 0,
+            materializedMarkdown: storedRequirements,
+          },
+        ]);
+        (mockPrisma.db.task.findMany as jest.Mock).mockImplementation(
+          async (args: { where: { archivedAt?: unknown; id?: any } }) =>
+            args.where.archivedAt && args.where.id
+              ? (args.where.id.in as string[])
+                  .filter((id) => archivedIds.has(id))
+                  .map((id) => ({ id }))
+              : [],
+        );
+        (mockPrisma.db.designDoc.findMany as jest.Mock).mockResolvedValue([]);
+        (mockPrisma.db.service.findMany as jest.Mock).mockResolvedValue([]);
+        mockGraphsClient.getEntityNeighborhood.mockResolvedValue(
+          makeNeighborhood({
+            relatedEntities,
+            agentSessions: [
+              {
+                entityId: archivedSessionId,
+                entityType: 'AGENT_SESSION',
+                displayName: 'archived session',
+                status: 'COMPLETED',
+              },
+              {
+                entityId: liveSessionId,
+                entityType: 'AGENT_SESSION',
+                displayName: 'live session',
+                status: 'COMPLETED',
+              },
+            ],
+          }),
+        );
+        jest
+          .spyOn(service as any, 'buildFeatureHierarchy')
+          .mockResolvedValue([
+            hierarchyEntry(archivedFeatureId),
+            hierarchyEntry(liveFeatureId),
+          ]);
+      }
+
+      const defaultRelated = [
+        related(archivedPlanId, 'ARCHIVED'),
+        related(completedPlanId, 'COMPLETED'),
+        related(supersededTaskId, 'SUPERSEDED'),
+      ];
+
+      const read = (flags: Record<string, unknown>) =>
+        service.getFullEntityContext(
+          testIds.organization,
+          testIds.project,
+          'TASK' as EntityType,
+          featureId,
+          'test-token',
+          flags,
+        );
+
+      it('hides archived neighbors and citations but keeps other statuses', async () => {
+        arrange();
+
+        const result = await read({ groupRelationships: true });
+
+        const relatedIds = result.relatedEntities?.map((e) => e.entityId);
+        expect(relatedIds).toEqual(
+          expect.arrayContaining([completedPlanId, supersededTaskId]),
+        );
+        expect(relatedIds).not.toContain(archivedPlanId);
+        expect(result.agentSessions?.map((s) => s.entityId)).toEqual([
+          liveSessionId,
+        ]);
+        expect(result.featureHierarchy?.map((f) => f.id)).toEqual([
+          liveFeatureId,
+        ]);
+
+        const [onlyArchived, mixed] =
+          result.content!.requirementsSection!.records;
+        ok(onlyArchived);
+        ok(mixed);
+        expect(onlyArchived.statement).toBe('Only archived fulfills this');
+        expect(onlyArchived.fulfilledBy).toEqual([]);
+        expect(mixed.fulfilledBy.map((c) => c.entityId)).toEqual([
+          completedPlanId,
+        ]);
+        const serializedRequirements = result.content!.sections!.requirements;
+        ok(serializedRequirements);
+        expect(JSON.parse(serializedRequirements)).toEqual(
+          result.content!.requirementsSection,
+        );
+      });
+
+      it('leaves the UI read unfiltered and the stored section unchanged', async () => {
+        arrange();
+
+        const result = await read({});
+
+        expect(result.relatedEntities?.map((e) => e.entityId)).toContain(
+          archivedPlanId,
+        );
+        expect(result.agentSessions?.map((s) => s.entityId)).toContain(
+          archivedSessionId,
+        );
+        expect(result.featureHierarchy?.map((f) => f.id)).toContain(
+          archivedFeatureId,
+        );
+        expect(result.content!.sections!.requirements).toBe(storedRequirements);
+        const firstRequirement =
+          result.content!.requirementsSection!.records[0];
+        ok(firstRequirement);
+        expect(firstRequirement.fulfilledBy).toHaveLength(1);
+      });
+
+      it('does not let archived items use up the selection limit', async () => {
+        const liveIds = Array.from(
+          { length: 2 },
+          (_, i) => `123e4567-e89b-42d3-a456-4266141750${i}0`,
+        );
+        arrange([
+          related(archivedPlanId, 'ARCHIVED'),
+          ...liveIds.map((id) => related(id, 'ACTIVE')),
+        ]);
+
+        const result = await read({
+          groupRelationships: true,
+          relatedEntitySelection: { maxEntities: 2 },
+        });
+
+        expect(result.relatedEntities?.map((e) => e.entityId).sort()).toEqual(
+          [...liveIds].sort(),
+        );
+        expect(result.relatedEntitySelection?.omittedEntityCount).toBe(0);
+      });
+    });
+
     describe('canonical content body', () => {
       const stepId = '123e4567-e89b-42d3-a456-426614174c00';
       const backingTaskId = '123e4567-e89b-42d3-a456-426614174c01';
@@ -5753,12 +6052,16 @@ describe('EntityContextService', () => {
       });
     });
 
-    it('passes statuses through as a Prisma `in` filter on both findMany and count', async () => {
+    it('resolves a status group to its statuses as a Prisma `in` filter on both findMany and count', async () => {
       setGoals([]);
 
-      await service.listGoals(testIds.organization, testIds.project, 200, 0, [
-        'ACTIVE',
-      ]);
+      await service.listGoals(
+        testIds.organization,
+        testIds.project,
+        200,
+        0,
+        'IN_PROGRESS',
+      );
 
       expect(mockPrisma.db.task.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -5991,6 +6294,61 @@ describe('EntityContextService', () => {
           where: expect.objectContaining({
             status: { notIn: ['COMPLETED', 'CANCELLED', 'ARCHIVED'] },
           }),
+        }),
+      );
+    });
+
+    it('excludes a custom finished status from active goals', async () => {
+      setActiveGoals([]);
+      jest
+        .spyOn((service as any).workItemTypeRegistry, 'getRulesForProject')
+        .mockReturnValue({
+          statuses: [
+            { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+            {
+              name: 'DELIVERED',
+              label: 'Delivered',
+              meaning: 'FINISHED',
+              completionBehavior: 'COMPLETED',
+            },
+          ],
+        });
+
+      await service.getActiveGoals(
+        testIds.organization,
+        testIds.project,
+        callerUserId,
+        30,
+      );
+
+      expect(mockPrisma.db.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { notIn: ['DELIVERED', 'ARCHIVED'] },
+          }),
+        }),
+      );
+    });
+
+    it('logs the type key and project when the Goal type cannot be resolved', async () => {
+      setActiveGoals([]);
+      jest
+        .spyOn((service as any).workItemTypeRegistry, 'getRulesForProject')
+        .mockReturnValue(undefined);
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.getActiveGoals(
+        testIds.organization,
+        testIds.project,
+        callerUserId,
+        30,
+      );
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          typeKey: WORK_ITEM_TYPE_KEYS.Goal,
+          projectId: testIds.project,
         }),
       );
     });

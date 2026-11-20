@@ -17,6 +17,7 @@ import type { SystemMessageData } from "../../../api";
 import type { ReportDto } from "../../../api";
 import type { MessageRetryState } from "../../../types/conversation";
 import { ReportViewer } from "../../Reports";
+import { ReportOpenQuestions } from "../../Reports/ReportViewer";
 import { SystemMessageError } from "../../SystemMessageError";
 import { ThinkingIndicator } from "../../ThinkingIndicator";
 import { ThinkingText } from "./ThinkingText";
@@ -33,6 +34,13 @@ import {
   MarkdownRenderer,
   renderWithMentions,
 } from "../../shared/MarkdownRenderer";
+
+import {
+  SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR,
+  SYSTEM_MESSAGE_INLINE_CODE_BG_VAR,
+  SYSTEM_MESSAGE_LINK_COLOR_VAR,
+} from "./systemMessageStyleVars";
+import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
 
 const MermaidCodeBlock = React.lazy(() =>
   import("../../shared/MermaidCodeBlock").then((mod) => ({
@@ -167,7 +175,7 @@ const SystemMessageAnchor = ({
         target="_blank"
         rel="noopener noreferrer"
         style={{
-          color: theme.palette.primary.contrastText,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -204,7 +212,7 @@ const SystemMessageAnchor = ({
         data-testid="system-message-source-link"
         data-source-path={sourceReference.path}
         style={{
-          color: theme.palette.primary.contrastText,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -355,14 +363,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
               <Typography
                 component="div"
                 className="system-message-markdown"
-                sx={(theme) => ({
-                  color: "inherit",
-                  // Preview card titles are links; on the system message
-                  // surface they read as white.
-                  '& [data-testid="mention-artifact-card"] h2 button': {
-                    color: theme.palette.common.white,
-                  },
-                })}
+                sx={{ color: "inherit" }}
               >
                 <MarkdownRenderer
                   components={markdownComponents}
@@ -378,13 +379,24 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
             <Stack spacing={2} sx={{ mt: displayText ? 2 : 0 }}>
               {resolvedInlineReports.map((report) => (
                 <Box key={report.id}>
-                  <ReportViewer report={report} renderHeader={false} />
+                  <ReportViewer
+                    report={report}
+                    renderHeader={false}
+                    renderOpenQuestions={false}
+                  />
                 </Box>
               ))}
             </Stack>
           )}
         </Box>
       )}
+      {resolvedInlineReports.map((report) => (
+        <ReportOpenQuestions
+          key={report.id}
+          report={report}
+          testId={`report-viewer-${report.id}`}
+        />
+      ))}
     </FadeIn>
   );
 };
@@ -470,7 +482,7 @@ function getStyles(
     base: {
       display: "inline-flex",
       minWidth: "120px",
-      maxWidth: "min(100%, max(600px, 90%))",
+      maxWidth: SYSTEM_MESSAGE_MAX_WIDTH,
       boxSizing: "border-box",
       flexDirection: "column",
       p: { xs: 1.25, sm: 2 },
@@ -554,20 +566,22 @@ function getStyles(
           marginBottom: 2,
         },
         "& pre": {
-          backgroundColor:
+          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${
             theme.palette.mode === "dark"
               ? theme.palette.grey[900]
-              : theme.palette.grey[100],
+              : theme.palette.grey[100]
+          })`,
           borderRadius: 1,
           padding: 1,
           overflowX: "auto",
           whiteSpace: "pre-wrap",
         },
         "& code": {
-          backgroundColor:
+          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${
             theme.palette.mode === "dark"
               ? "rgba(255, 255, 255, 0.04)"
-              : "rgba(0, 0, 0, 0.04)",
+              : "rgba(0, 0, 0, 0.04)"
+          })`,
           borderRadius: "4px",
           padding: "0 4px",
           fontSize: "0.95em",

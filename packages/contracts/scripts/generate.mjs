@@ -231,7 +231,7 @@ if (selectedTargets.some((target) => target.id === "agent-bridge")) {
         "agent-bridge/local-lifecycle-runtime-schema.ts",
       ),
     ],
-    ["LocalLifecycleWork"],
+    ["LocalLifecycleWork", "LocalStartupBrowserRecord"],
     "localLifecycleRuntimeSchema",
     "./models.js",
   );

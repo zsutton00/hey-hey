@@ -22,7 +22,7 @@
  */
 export interface ImplementReportPayloadAllOfLocation {
     /**
-     * Repo-relative path of the file the decision lives in.
+     * Repo-relative path of the file the decision lives in. It names a path in this report\'s `edits`.
      * @type {string}
      * @memberof ImplementReportPayloadAllOfLocation
      */

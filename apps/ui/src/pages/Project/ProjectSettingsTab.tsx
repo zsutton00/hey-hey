@@ -1,7 +1,11 @@
 import { Box, Tab, Tabs } from "@mui/material";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import React from "react";
-import { ProjectMembersPanel } from "@hey-hey/ui-common/components";
+import { useTranslation } from "react-i18next";
+import {
+  ProjectApprovalSettings,
+  ProjectMembersPanel,
+} from "@hey-hey/ui-common/components";
 import type { MetadataItem } from "../../components/Layout";
 import { IntegrationsTab, ServicesTab } from "../../components/Tabs";
 import {
@@ -18,6 +22,7 @@ const projectSettingsViews = [
   "integrations",
   "members",
   "types",
+  "approval-rules",
   "administration",
 ] as const;
 type ProjectSettingsView = (typeof projectSettingsViews)[number];
@@ -47,6 +52,14 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({
   organizationId,
   projectId,
 }) => {
+  const { t } = useTranslation();
+  const segments = [
+    ...projectSettingsSegments,
+    {
+      value: "approval-rules" as const,
+      label: t("approvalSettings.title", "Approval rules"),
+    },
+  ];
   const [settingsView, setSettingsView] = useQueryState(
     "settingsSubTab",
     parseAsStringLiteral(projectSettingsViews).withDefault("services"),
@@ -70,7 +83,7 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({
     <Box data-testid="project-settings-tab" sx={{ mt: 2 }}>
       <Box sx={{ mb: 3, maxWidth: "100%", minWidth: 0 }}>
         <SegmentedToggle
-          segments={projectSettingsSegments}
+          segments={segments}
           value={activeView}
           onChange={(value) => void setSettingsView(value, { history: "push" })}
           mobileDropdown
@@ -123,6 +136,13 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({
             />
           )}
         </TabContainer>
+      )}
+      {activeView === "approval-rules" && (
+        <ProjectApprovalSettings
+          key={`${organizationId}:${projectId}`}
+          organizationId={organizationId}
+          projectId={projectId}
+        />
       )}
       {activeView === "administration" && (
         <ProjectAdminTab

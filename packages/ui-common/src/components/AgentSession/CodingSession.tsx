@@ -1,7 +1,6 @@
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { RunAttachmentReference } from "../../api";
-import CommitIcon from "@mui/icons-material/Commit";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import { Box, Alert, Button, Stack } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
@@ -83,17 +82,12 @@ import {
   type StartRunWorktree,
 } from "./useLaunchRunOrchestration";
 import { useSubmitCodeReviewPrompt } from "./useSubmitCodeReviewPrompt";
-import { useSubmitCommitPrompt } from "./useSubmitCommitPrompt";
+import { CommitCapsuleAction } from "./CommitCapsuleAction";
 import { useSubmitFollowupByText } from "./useSubmitFollowupByText";
-import type { AgentSessionInteractionAccess } from "./operations/AgentOperationCoordinator";
 import { useAgentSessionInteractionAccess } from "./operations/useAgentSessionInteractionAccess";
 import { requestSessionMessageInteraction } from "./operations/AgentOperationProvider";
 import { useAutoAdvanceFeatureSyncIterate } from "./useAutoAdvanceFeatureSyncIterate";
-import {
-  CODE_REVIEW_SURFACE_ID,
-  COMMIT_SURFACE_ID,
-} from "./surfaceSelectionMemory";
-import type { RemoteChangedFilesCountState } from "./runtime/hooks/useRemoteChangedFilesCount";
+import { CODE_REVIEW_SURFACE_ID } from "./surfaceSelectionMemory";
 import type { UnavailableOutcome } from "./codingSessionFeedback";
 
 type CodingSessionStickyTop =
@@ -124,28 +118,7 @@ const codingSessionConversationRegionSx = (theme: Theme) => ({
   },
 });
 
-const resolveCommitBlockedReason = (
-  interactionAccess: AgentSessionInteractionAccess,
-  changedFiles: RemoteChangedFilesCountState,
-): string | null => {
-  if (!interactionAccess.isDeviceEnabled) {
-    return interactionAccess.unavailable.message;
-  }
-
-  if (changedFiles.status === "success") {
-    return changedFiles.count === 0
-      ? "There are no changed files available to commit."
-      : null;
-  }
-
-  if (changedFiles.status === "unavailable") {
-    return changedFiles.error;
-  }
-
-  return "Changed files are still being checked. Please wait before committing.";
-};
-
-type FollowupActionName = "review" | "commit";
+type FollowupActionName = "review";
 
 interface ActionFailureState {
   readonly action: FollowupActionName;
@@ -395,8 +368,6 @@ const CodingSessionActive = memo(
       useState<ActionFailureState | null>(null);
     const actionFailureGenerationRef = useRef(0);
     const [reviewModalOpen, setReviewModalOpen, reviewModalOpenOwnerKey] =
-      useModalState(false);
-    const [commitModalOpen, setCommitModalOpen, commitModalOpenOwnerKey] =
       useModalState(false);
     const stepContext = useMemo<StepContext>(
       () => ({
@@ -763,20 +734,6 @@ const CodingSessionActive = memo(
       interactionAccess,
     });
 
-    const submitCommitPrompt = useSubmitCommitPrompt({
-      runId,
-      providerRunId,
-      provider,
-      setSubmittingPrompt,
-      setSubmittingFollowupAction,
-      agentSessionId,
-      conversationId,
-      projectId,
-      organizationId,
-      trackSubmitPromptTelemetry,
-      interactionAccess,
-    });
-
     const runFollowupAction = useCallback(
       async (
         action: FollowupActionName,
@@ -799,9 +756,7 @@ const CodingSessionActive = memo(
           const generation = ++actionFailureGenerationRef.current;
           const reason = toErrorMessage(
             error,
-            action === "review"
-              ? "Code review could not be submitted."
-              : "Commit could not be submitted.",
+            "Code review could not be submitted.",
           );
           setActionFailure({
             action,
@@ -929,33 +884,19 @@ const CodingSessionActive = memo(
     const deviceBlockedReason = interactionAccess.isDeviceEnabled
       ? null
       : interactionAccess.unavailable.message;
-    const commitBlockedReason = resolveCommitBlockedReason(
-      interactionAccess,
-      remoteChangedFiles,
-    );
     const retryFollowupAction = useCallback(() => {
       if (!actionFailure) return;
-      const submit =
-        actionFailure.action === "review"
-          ? submitCodeReviewPrompt
-          : submitCommitPrompt;
-      const blockedReason =
-        actionFailure.action === "review"
-          ? deviceBlockedReason
-          : commitBlockedReason;
       void runFollowupAction(
         actionFailure.action,
         actionFailure.submission,
-        submit,
-        blockedReason,
+        submitCodeReviewPrompt,
+        deviceBlockedReason,
       );
     }, [
       actionFailure,
-      commitBlockedReason,
       deviceBlockedReason,
       runFollowupAction,
       submitCodeReviewPrompt,
-      submitCommitPrompt,
     ]);
     const reviewFeedback =
       actionFailure?.action === "review"
@@ -965,22 +906,6 @@ const CodingSessionActive = memo(
             reason: deviceBlockedReason ?? actionFailure.reason,
             errorCode: null,
             retryable: actionFailure.retryable && deviceBlockedReason === null,
-            failureIdentity: actionFailure.failureIdentity,
-            retry: retryFollowupAction,
-            isRetrying: actionFailure.isRetrying,
-          } satisfies Extract<
-            UnavailableOutcome,
-            { presentationScope: "action" }
-          >)
-        : undefined;
-    const commitFeedback =
-      actionFailure?.action === "commit"
-        ? ({
-            status: "unavailable",
-            presentationScope: "action",
-            reason: commitBlockedReason ?? actionFailure.reason,
-            errorCode: null,
-            retryable: actionFailure.retryable && commitBlockedReason === null,
             failureIdentity: actionFailure.failureIdentity,
             retry: retryFollowupAction,
             isRetrying: actionFailure.isRetrying,
@@ -1003,22 +928,6 @@ const CodingSessionActive = memo(
         );
       },
       [deviceBlockedReason, runFollowupAction, submitCodeReviewPrompt],
-    );
-
-    const handleCommit = useCallback(() => {
-      if (commitBlockedReason === null) setCommitModalOpen(true);
-    }, [commitBlockedReason]);
-    const handleCommitSubmit = useCallback(
-      (submission: FollowupActionSubmission) => {
-        setCommitModalOpen(false);
-        void runFollowupAction(
-          "commit",
-          submission,
-          submitCommitPrompt,
-          commitBlockedReason,
-        );
-      },
-      [commitBlockedReason, runFollowupAction, submitCommitPrompt],
     );
 
     const combinedError =
@@ -1048,7 +957,11 @@ const CodingSessionActive = memo(
                   pb: 1,
                 }}
               >
-                <TaskPreviewCard task={taskData} defaultExpanded={false} />
+                <TaskPreviewCard
+                  task={taskData}
+                  defaultExpanded={false}
+                  collapseOnEscape
+                />
               </Box>
             ) : null}
             {runId ? (
@@ -1144,7 +1057,11 @@ const CodingSessionActive = memo(
                 pb: 1,
               }}
             >
-              <TaskPreviewCard task={taskData} defaultExpanded={false} />
+              <TaskPreviewCard
+                task={taskData}
+                defaultExpanded={false}
+                collapseOnEscape
+              />
             </Box>
           ) : null}
 
@@ -1161,17 +1078,22 @@ const CodingSessionActive = memo(
             tier="page"
             order={20}
           />
-          <CapsuleAction
-            behavior="click"
-            id="commit"
-            disabled={!commitFeedback && commitBlockedReason !== null}
-            label="Commit"
-            icon={CommitIcon}
-            onClick={handleCommit}
-            feedback={commitFeedback}
-            inProgress={requestingCommit}
-            actionGroup="page"
-            tier="page"
+          <CommitCapsuleAction
+            runId={runId}
+            providerRunId={providerRunId}
+            provider={provider}
+            organizationId={organizationId}
+            projectId={projectId}
+            agentSessionId={agentSessionId}
+            conversationId={conversationId}
+            interactionAccess={interactionAccess}
+            catalogSource={followupCatalogSource}
+            changedFiles={remoteChangedFiles}
+            showAction
+            requestingCommit={requestingCommit}
+            setSubmittingPrompt={setSubmittingPrompt}
+            setSubmittingFollowupAction={setSubmittingFollowupAction}
+            trackSubmitPromptTelemetry={trackSubmitPromptTelemetry}
             order={30}
           />
           <OpenBrowserCapsuleAction
@@ -1224,20 +1146,6 @@ const CodingSessionActive = memo(
               submitLabel="Review"
               submittingLabel="Reviewing..."
               placeholder="Add any specific focus areas or instructions for the review... (optional)"
-            />
-          </ModalWorkOwner.Provider>
-          <ModalWorkOwner.Provider value={commitModalOpenOwnerKey}>
-            <FollowupActionModal
-              open={commitModalOpen}
-              surfaceId={COMMIT_SURFACE_ID}
-              catalogSource={followupCatalogSource}
-              onClose={() => setCommitModalOpen(false)}
-              onSubmit={handleCommitSubmit}
-              submitting={requestingCommit}
-              title="Commit Changes"
-              submitLabel="Commit"
-              submittingLabel="Committing..."
-              placeholder="Add any specific commit instructions... (optional)"
             />
           </ModalWorkOwner.Provider>
           <Box

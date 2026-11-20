@@ -25,7 +25,7 @@ import {
   resolveMcpToolNames,
   type McpSessionContext,
 } from './mcp-server-config';
-import { CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS } from './coding-plan/coding-plan.handler';
+import { codingPlanHandler } from './coding-plan/coding-plan.handler';
 import { featureSyncAnalyzeHandler } from './feature-sync/analyze.handler';
 import { featureSyncIterateHandler } from './feature-sync/iterate.handler';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../auth/oauth-client.test-support';
@@ -419,6 +419,7 @@ describe('buildMcpServerConfig', () => {
           expect(tools).toContain(tool);
         }
         expect(tools).not.toContain('create_plan');
+        expect(tools).not.toContain('create_plan_from_existing_tasks');
       }
     });
 
@@ -499,7 +500,12 @@ describe('buildMcpServerConfig', () => {
         GENERAL_MCP_TOOLS,
         PLANNING_MCP_TOOLS,
         RESEARCH_MCP_TOOLS,
-        CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS,
+        CODING_PLAN_TOOLS: resolveMcpToolNames({
+          ...(codingPlanHandler.mcpToolUseCase
+            ? { useCase: codingPlanHandler.mcpToolUseCase }
+            : {}),
+          additionalTools: codingPlanHandler.additionalAllowedTools ?? [],
+        }),
       };
       for (const tools of Object.values(surfaces)) {
         for (const tool of LEGACY_IMPLEMENTATION_HINT_TOOLS) {
@@ -617,6 +623,7 @@ describe('buildMcpServerConfig', () => {
         'create_step',
         'update_step',
         'create_plan',
+        'create_plan_from_existing_tasks',
         'create_edge',
         'update_edge',
         'delete_edge',
@@ -758,17 +765,19 @@ describe('buildMcpServerConfig', () => {
 
   describe('Plan intake tool scoping', () => {
     it('exposes create_plan only to general conversations', async () => {
-      expect(GENERAL_MCP_TOOLS).toContain('create_plan');
-      expect(CODING_MCP_TOOLS).not.toContain('create_plan');
-      expect(PLANNING_MCP_TOOLS).not.toContain('create_plan');
-      expect(PLAN_SHAPING_MCP_TOOLS).not.toContain('create_plan');
-      expect(RESEARCH_MCP_TOOLS).not.toContain('create_plan');
-      expect(SESSION_MONITOR_MCP_TOOLS).not.toContain('create_plan');
-      expect(TASK_MONITOR_MCP_TOOLS).not.toContain('create_plan');
-
       const client = createMockOAuthClient({ success: true, data: TEST_TOKEN });
       const general = await buildMcpServerConfig(client, {}, { useCase: 'general' });
-      expect(general.allowedTools).toContain('mcp__heyhey-platform__create_plan');
+
+      for (const tool of ['create_plan', 'create_plan_from_existing_tasks']) {
+        expect(GENERAL_MCP_TOOLS).toContain(tool);
+        expect(CODING_MCP_TOOLS).not.toContain(tool);
+        expect(PLANNING_MCP_TOOLS).not.toContain(tool);
+        expect(PLAN_SHAPING_MCP_TOOLS).not.toContain(tool);
+        expect(RESEARCH_MCP_TOOLS).not.toContain(tool);
+        expect(SESSION_MONITOR_MCP_TOOLS).not.toContain(tool);
+        expect(TASK_MONITOR_MCP_TOOLS).not.toContain(tool);
+        expect(general.allowedTools).toContain(`mcp__heyhey-platform__${tool}`);
+      }
 
       for (const useCase of [
         undefined,
@@ -784,6 +793,9 @@ describe('buildMcpServerConfig', () => {
           useCase === undefined ? {} : { useCase },
         );
         expect(result.allowedTools).not.toContain('mcp__heyhey-platform__create_plan');
+        expect(result.allowedTools).not.toContain(
+          'mcp__heyhey-platform__create_plan_from_existing_tasks',
+        );
       }
     });
   });

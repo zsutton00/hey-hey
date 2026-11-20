@@ -184,7 +184,7 @@ describe(ExternalAgentCompletionService.name, () => {
 
   it('rejects a session not bound to the admitted machine before workflow lookup', async () => {
     (prisma.db.agentSession.findFirst as jest.Mock).mockResolvedValue(null);
-    await expect(submit()).rejects.toMatchObject({ status: 409 });
+    await expect(submit()).rejects.toMatchObject({ status: 422 });
     expect(
       flowExecutionService.findActiveByConversation,
     ).not.toHaveBeenCalled();
@@ -197,7 +197,7 @@ describe(ExternalAgentCompletionService.name, () => {
     ).mockResolvedValue({
       triggerMessageId: '00000000-0000-4000-8000-000000000010',
     });
-    await expect(submit()).rejects.toMatchObject({ status: 409 });
+    await expect(submit()).rejects.toMatchObject({ status: 422 });
     expect(messageService.addMessage).not.toHaveBeenCalled();
   });
 

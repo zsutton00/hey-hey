@@ -157,6 +157,7 @@ ReportType:
     - FEATURE_TREE_ANALYSIS
     - COMPETITIVE_ANALYSIS
     - SESSION_MONITOR_DEFERRAL
+    - MONITOR_NODE_RESULT
     - EVAL_RUN
     - EVAL_ATTEMPT
     - EVAL_HUMAN_REVIEW
@@ -1075,9 +1076,9 @@ CodingResearchUncertainty:
       items:
         $ref: "#/CodingResearchUncertaintyReference"
 
-CodingResearchStructuredReportPayload:
+CodingResearchSelfResearchReportPayload:
   type: object
-  description: Structured Project Assistant research result.
+  description: Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.
   required:
     - reportType
     - format
@@ -1096,7 +1097,7 @@ CodingResearchStructuredReportPayload:
     format:
       type: string
       enum:
-        - STRUCTURED
+        - SELF_RESEARCH
     summary:
       type: string
       minLength: 1
@@ -1126,9 +1127,9 @@ CodingResearchStructuredReportPayload:
       items:
         $ref: "#/CodingResearchUncertainty"
 
-CodingResearchWrittenReportPayload:
+CodingResearchSubagentParentReportPayload:
   type: object
-  description: Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
+  description: Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.
   required:
     - reportType
     - format
@@ -1143,7 +1144,7 @@ CodingResearchWrittenReportPayload:
     format:
       type: string
       enum:
-        - WRITTEN
+        - SUBAGENT_PARENT
     summary:
       type: string
       minLength: 1
@@ -1155,11 +1156,12 @@ CodingResearchWrittenReportPayload:
 
 CodingResearchReportPayload:
   description: >
-    Payload for CODING_RESEARCH reports. The `format` discriminator selects
-    structured output or the strict written summary/analysis handoff.
+    Payload for CODING_RESEARCH reports. The `format` discriminator records whether
+    Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of
+    research subagents (`SUBAGENT_PARENT`).
   oneOf:
-    - $ref: "#/CodingResearchStructuredReportPayload"
-    - $ref: "#/CodingResearchWrittenReportPayload"
+    - $ref: "#/CodingResearchSelfResearchReportPayload"
+    - $ref: "#/CodingResearchSubagentParentReportPayload"
 
 SnapshotReportPayload:
   description: Placeholder payload for SNAPSHOT reports.
@@ -1205,6 +1207,13 @@ CommitReportPayload:
               - branch
             additionalProperties: false
             properties:
+              implementReportIds:
+                type: array
+                uniqueItems: true
+                description: Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports.
+                items:
+                  type: string
+                  format: uuid
               service:
                 type: string
                 description: Session service id of the repository this commit landed in.
@@ -1488,10 +1497,23 @@ ImplementReportPayload:
             - IMPLEMENT
         filesChanged:
           type: array
-          description: Repo-relative paths of files modified during the run.
+          description: >
+            Repo-relative paths of files modified during the turn, derived from
+            `edits`: the sorted unique paths. Kept for readers that only need
+            which files changed.
           items:
             type: string
             minLength: 1
+        edits:
+          type: array
+          description: >
+            Every recorded edit to this report's Service during the turn, in the
+            order they occurred. Built by the CLI from the Run's canonical
+            file-change facts, never authored by the agent. Carries no file
+            content: versions are git object ids kept in the repository that ran
+            the session. Absent on reports written before edits were recorded.
+          items:
+            $ref: "#/ImplementReportEdit"
         decisions:
           type: array
           description: Notable decisions made during implementation.
@@ -1522,13 +1544,99 @@ ImplementReportPayload:
                   file:
                     type: string
                     minLength: 1
-                    description: Repo-relative path of the file the decision lives in.
+                    description: >
+                      Repo-relative path of the file the decision lives in. It
+                      names a path in this report's `edits`.
                   startLine:
                     type: integer
                     description: Post-edit start line (new-file side of the diff).
                   endLine:
                     type: integer
                     description: Post-edit end line (new-file side of the diff).
+
+ImplementReportLineRange:
+  type: object
+  description: A 1-based, inclusive range of lines in one version of a file.
+  required:
+    - startLine
+    - endLine
+  properties:
+    startLine:
+      type: integer
+      minimum: 1
+    endLine:
+      type: integer
+      minimum: 1
+
+ImplementReportEdit:
+  type: object
+  description: >
+    One recorded edit to a file. Line ranges are measured against the exact
+    before and after versions, so later edits never invalidate them. Edits to
+    one file form a chain: an edit whose `beforeObjectId` is another edit's
+    `afterObjectId` came after it.
+  required:
+    - path
+    - occurredAt
+    - turnId
+    - beforeObjectId
+    - afterObjectId
+    - beforeRanges
+    - afterRanges
+    - approximate
+    - versionsRecorded
+  properties:
+    path:
+      type: string
+      minLength: 1
+      description: Repo-relative path of the edited file.
+    occurredAt:
+      type: string
+      format: date-time
+      description: When the edit was recorded.
+    turnId:
+      type: string
+      minLength: 1
+      description: The Turn that made the edit.
+    beforeObjectId:
+      type: string
+      nullable: true
+      description: >
+        Git object id of the file before the edit. When `versionsRecorded` is
+        true, null means the file did not exist before the edit.
+    afterObjectId:
+      type: string
+      nullable: true
+      description: >
+        Git object id of the file after the edit. When `versionsRecorded` is
+        true, null means the edit deleted the file.
+    beforeRanges:
+      type: array
+      description: Changed line ranges in the before version.
+      items:
+        $ref: "#/ImplementReportLineRange"
+    afterRanges:
+      type: array
+      description: Changed line ranges in the after version.
+      items:
+        $ref: "#/ImplementReportLineRange"
+    approximate:
+      type: boolean
+      description: >
+        True when Hey Hey could not establish that the ranges hold only this
+        session's lines. Another session, a script or the person's editor may
+        have changed the same file between the two versions, and the ranges
+        then cover everything observed between them. Hey Hey currently reads
+        each file only after the edit has run, so every edit is approximate.
+    versionsRecorded:
+      type: boolean
+      description: >
+        True when both versions of the edit were recorded, so a null object id
+        means the file did not exist on that side. False when Hey Hey could not
+        keep one or both versions, for example a binary file, a file git could
+        not read, or a failed write to the repository's object store. A null
+        object id then means the version is unknown, the ranges are empty, and
+        the edit is always approximate.
 
 ReviewReportDisposition:
   type: string
@@ -1734,13 +1842,30 @@ FeatureSyncDecisionChoice:
       type: boolean
       description: Exactly one choice in each group must be true; validated before creation.
 
+FeatureSyncDecisionAffectedEntity:
+  description: >
+    An entity a V2 decision group affects: the source reference plus an optional
+    one-line reason saying why the decision affects it. Display-only.
+  allOf:
+    - $ref: "#/FeatureSyncReportSourceRef"
+    - type: object
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: >
+            One-line, display-only explanation of why the decision affects this
+            entity.
+
 FeatureSyncDecisionGroup:
   type: object
   description: >
     One independent decision, not an entity-set bucket. Group ids are unique
     within the report; choice ids and typed targets are unique within a group.
     Independent groups may share targets. Producers validate these identities
-    and exactly one no-change choice before persistence.
+    and exactly one no-change choice before persistence. An affected entity's
+    optional reason is display-only: it plays no part in group identity, target
+    uniqueness or the user's response.
   required: [id, affectedEntities, title, summary, choices]
   properties:
     id:
@@ -1750,7 +1875,7 @@ FeatureSyncDecisionGroup:
       type: array
       minItems: 1
       items:
-        $ref: "#/FeatureSyncReportSourceRef"
+        $ref: "#/FeatureSyncDecisionAffectedEntity"
     title:
       type: string
       minLength: 1
@@ -1907,6 +2032,50 @@ SessionMonitorDeferralReportPayload:
           description: >
             The monitor's substantive reasoning for why the user needs to
             review instead of the session continuing automatically.
+
+MonitorNodeResultOutcome:
+  type: string
+  enum:
+    - ACCEPTED
+    - FAILED
+  description: >
+    The normalized verdict on one monitor node: accept it, or fail it. Only
+    ACCEPTED makes the node done under a normalized-result monitor kind.
+
+MonitorNodeResultReportPayload:
+  description: >
+    Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a
+    monitor node's session records on itself, accept or fail with a reason.
+    The report is linked to the node's Agent Session, and the monitor reads it
+    to accept the node directly, to satisfy later nodes' dependencies, and to
+    restore progress after a restart. Kind-specific detail, such as a Test
+    report, lives in its own report; the monitor reads only this verdict.
+  allOf:
+    - $ref: "#/BaseReportPayload"
+    - type: object
+      required:
+        - reportType
+        - nodeId
+        - outcome
+        - reason
+      additionalProperties: false
+      properties:
+        reportType:
+          type: string
+          enum:
+            - MONITOR_NODE_RESULT
+        nodeId:
+          type: string
+          format: uuid
+          description: Work item of the monitor node this verdict settles.
+        outcome:
+          $ref: "#/MonitorNodeResultOutcome"
+        reason:
+          type: string
+          minLength: 1
+          description: >
+            Why the node was accepted or failed. A failure's reason is shown
+            when the monitor halts.
 
 FeatureSyncHandoffReportNote:
   type: object
@@ -2194,6 +2363,7 @@ ReportPayload:
     - $ref: "#/FeatureSyncDecisionReportPayload"
     - $ref: "#/DecisionNeededReportPayload"
     - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/MonitorNodeResultReportPayload"
     - $ref: "#/PhaseGroundingReportPayload"
     - $ref: "#/ValidationWalkthroughReportPayload"
     - $ref: "#/FeatureTreeAnalysisReportPayload"
@@ -2223,6 +2393,7 @@ ReportPayload:
       FEATURE_SYNC_DECISION: "#/FeatureSyncDecisionReportPayload"
       DECISION_NEEDED: "#/DecisionNeededReportPayload"
       SESSION_MONITOR_DEFERRAL: "#/SessionMonitorDeferralReportPayload"
+      MONITOR_NODE_RESULT: "#/MonitorNodeResultReportPayload"
       PHASE_GROUNDING: "#/PhaseGroundingReportPayload"
       VALIDATION_WALKTHROUGH: "#/ValidationWalkthroughReportPayload"
       FEATURE_TREE_ANALYSIS: "#/FeatureTreeAnalysisReportPayload"
@@ -2251,6 +2422,7 @@ OtherReportPayload:
     - $ref: "#/FeatureSyncHandoffReportPayload"
     - $ref: "#/DecisionNeededReportPayload"
     - $ref: "#/SessionMonitorDeferralReportPayload"
+    - $ref: "#/MonitorNodeResultReportPayload"
     - $ref: "#/PhaseGroundingReportPayload"
     - $ref: "#/ValidationWalkthroughReportPayload"
     - $ref: "#/FeatureTreeAnalysisReportPayload"
@@ -2422,6 +2594,7 @@ CreateReportDtoOther:
               FEATURE_TREE_ANALYSIS,
               COMPETITIVE_ANALYSIS,
               SESSION_MONITOR_DEFERRAL,
+              MONITOR_NODE_RESULT,
               EVAL_RUN,
               EVAL_ATTEMPT,
               EVAL_HUMAN_REVIEW,
@@ -2764,6 +2937,7 @@ ReportDtoOther:
               FEATURE_TREE_ANALYSIS,
               COMPETITIVE_ANALYSIS,
               SESSION_MONITOR_DEFERRAL,
+              MONITOR_NODE_RESULT,
               EVAL_RUN,
               EVAL_ATTEMPT,
               EVAL_HUMAN_REVIEW,
@@ -2891,6 +3065,56 @@ CreateReportCompletedAttemptError:
           enum: [PROJECT_REPORT_ATTEMPT_COMPLETED]
         data:
           $ref: "#/CreateReportCompletedAttempt"
+
+CreateReportValidationIssue:
+  type: object
+  additionalProperties: false
+  required: [path, keyword, message]
+  properties:
+    path:
+      type: string
+      description: JSON Pointer to the invalid payload location ("/" is the payload root). Names the missing property for `required` failures.
+    keyword:
+      type: string
+      description: JSON Schema keyword that failed, or a report-level code such as `reportTypeMismatch` or `schemaVersion`.
+    message:
+      type: string
+      description: Specific cause of the failure.
+    missingProperty:
+      type: string
+      description: Name of the missing required property, for `required` failures.
+    allowedValues:
+      type: array
+      items: {}
+      description: Accepted values, for `enum`/`const` failures.
+
+CreateReportValidationFailure:
+  type: object
+  additionalProperties: false
+  required: [reportType, schemaVersion, issues]
+  properties:
+    reportType:
+      type: string
+      description: Envelope report type the submission was validated as.
+    schemaVersion:
+      type: integer
+      description: Effective schema version the submission was validated against.
+    issues:
+      type: array
+      items:
+        $ref: "#/CreateReportValidationIssue"
+
+CreateReportValidationError:
+  allOf:
+    - $ref: "./common.yaml#/ApiErrorResponse"
+    - type: object
+      required: [code, data]
+      properties:
+        code:
+          type: string
+          enum: [REPORT_PAYLOAD_INVALID]
+        data:
+          $ref: "#/CreateReportValidationFailure"
 
 ChangeWalkthroughWorkspaceSource:
   type: object
@@ -3181,3 +3405,37 @@ ReportUsageTrends:
         $ref: "#/ReportUsageTrendBucket"
     options:
       $ref: "#/ReportUsageTrendOptions"
+
+ProjectChangeRecord:
+  type: object
+  required: [report, commits]
+  properties:
+    report:
+      $ref: "#/ReportDto"
+    commits:
+      type: array
+      items:
+        $ref: "#/ChangeRecordCommit"
+ChangeRecordCommit:
+  type: object
+  required: [reportId, service, hash, branch]
+  properties:
+    reportId:
+      type: string
+      format: uuid
+    service:
+      type: string
+    hash:
+      type: string
+    branch:
+      type: string
+ProjectChangesPage:
+  type: object
+  required: [records, hasMore]
+  properties:
+    records:
+      type: array
+      items:
+        $ref: "#/ProjectChangeRecord"
+    hasMore:
+      type: boolean

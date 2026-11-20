@@ -6,6 +6,7 @@ import {
 } from '../completion-reconciliation/message-mapper';
 import {
   EntityType,
+  SessionRole,
   type LocalEntityConversationPromptPayload,
   type LocalEntityConversationEntity,
 } from '@hey-hey/contracts/agent-bridge';
@@ -40,6 +41,8 @@ export const ENTITY_CONVERSATION_ALLOWED_TOOLS: readonly string[] = [
   'propose_future_revision',
   'create_design_doc',
   'edit_design_doc',
+  // Lets the agent look up the Service ID that `report_changed_files` and scope requests need.
+  'list_services',
   ...ENTITY_CONVERSATION_HELP_TOOLS,
 ];
 
@@ -240,6 +243,7 @@ export interface EntityConversationHandlerDependencies {
 
 export class EntityConversationHandler implements UserLaunchablePromptTypeHandler<LocalEntityConversationPromptPayload> {
   public readonly id = 'entity_conversation';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = 'entity_conversation' as const;
   public readonly service = 'optional';
   public readonly launchEntity = 'required';

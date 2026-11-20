@@ -1,3 +1,4 @@
+import { collectLocalPairingDiagnostics } from '../local-app/local-pairing-diagnostics';
 import { writeFile } from 'node:fs/promises';
 import type { DiagnosticFeedSnapshot, DiagnosticMetadata } from './diagnostic-feed';
 
@@ -28,6 +29,7 @@ export const diagnosticExportFilename = (now: Date): string =>
 export const writeDiagnosticExport = async (
   snapshot: DiagnosticFeedSnapshot,
   path: string,
+  includeLocalPairing = false,
 ): Promise<DiagnosticFeedExport> => {
   const metadata = {
     kind: 'diagnostic_metadata',
@@ -41,9 +43,11 @@ export const writeDiagnosticExport = async (
     repetitionCount: snapshot.repetitionCount,
     retainedCount: snapshot.records.length,
   } satisfies DiagnosticExportMetadata;
+  const localPairing = includeLocalPairing ? await collectLocalPairingDiagnostics() : [];
   const contents = [
     JSON.stringify(metadata),
     ...snapshot.records.map((record) => JSON.stringify(record)),
+    ...localPairing.map((record) => JSON.stringify(record)),
   ].join('\n');
 
   // The save dialog already asked the user before replacing an existing file.

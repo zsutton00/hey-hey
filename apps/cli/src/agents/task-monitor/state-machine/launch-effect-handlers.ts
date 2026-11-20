@@ -15,10 +15,8 @@ import {
 import type { TaskMonitorPlanGuidance } from '@hey-hey/contracts/agent-bridge';
 import {
   buildTaskMonitorRunEffectPayload,
-  taskMonitorConversationWorkflow,
   toCreateProvider,
   toTaskMonitorSessionConfig,
-  toTaskPromptType,
   type TaskMonitorCodingSessionLaunchInput,
 } from '../../../commands/agent-session-starter';
 import { MachineEffectProofSigner } from '../../../auth/machine-effect-proof';
@@ -26,6 +24,7 @@ import type { KeyPairStore } from '../../../credentials';
 import type { RunStore } from '../../../run-store';
 import { SessionValidationError } from '../../../session/errors';
 import type { ServerLogger } from '../../../server/logger';
+import type { TaskMonitorStartRuntime } from '../../../server/task-monitor-start';
 import type { TaskMonitorLaunchDeclaration } from './context';
 import type {
   CreateTaskMonitorAgentSessionEffect,
@@ -137,10 +136,9 @@ const failedSettlement = (
 });
 
 /** Owns the platform Agent Session create and exact-id reconciliation boundary. */
-export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
-  CreateTaskMonitorAgentSessionEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorAgentSessionEffectHandler
+  implements EffectHandler<CreateTaskMonitorAgentSessionEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorAgentSessionEffect, execution: EffectExecutionIdentity) =>
@@ -159,7 +157,6 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
     const input = taskMonitorLaunchInputFromDeclaration(effect.launch);
     const operationId = execution.effectId;
     try {
-      toTaskPromptType(input.task.type);
       const launchServiceId = input.task.serviceIds[0];
       if (!launchServiceId) {
         throw new SessionValidationError('Task Monitor task is missing its launch service.');
@@ -274,10 +271,9 @@ export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
 }
 
 /** Owns canonical Conversation discovery and creation on the Agent Session owner. */
-export class TaskMonitorConversationEffectHandler implements EffectHandler<
-  CreateTaskMonitorConversationEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorConversationEffectHandler
+  implements EffectHandler<CreateTaskMonitorConversationEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorConversationEffect) => this.reconcile(effect),
@@ -286,6 +282,7 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
   public constructor(
     private readonly apiRuntime: ApiRuntime,
     private readonly logger: ServerLogger,
+    private readonly startRuntime: TaskMonitorStartRuntime,
   ) {}
 
   public async execute(
@@ -300,16 +297,23 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
         taskId: input.task.id,
         agentSessionId: effect.agentSessionId,
       });
+      const kind = await this.startRuntime.kindFor({
+        organizationId: effect.launch.organizationId,
+        projectId: effect.launch.projectId,
+        taskMonitorId: effect.launch.taskMonitorId,
+        kindKey: effect.launch.kindKey ?? null,
+      });
+      const target = kind.conversationTarget(input.method, input.task.id);
       const response = await this.apiRuntime.clients.agentSessions.createAgentSessionConversation({
         organizationId: input.organizationId,
         projectId: input.projectId,
         agentSessionId: effect.agentSessionId,
         createAgentSessionConversationDto: {
-          workflowType: taskMonitorConversationWorkflow(input.method),
+          workflowType: target.workflowType,
           workflowAboutType: 'agent-session',
           workflowAboutId: effect.agentSessionId,
-          entityType: 'task',
-          entityId: input.task.id,
+          entityType: target.entityType,
+          entityId: target.entityId,
           title: input.task.name,
         },
       });
@@ -398,10 +402,9 @@ export class TaskMonitorConversationEffectHandler implements EffectHandler<
 }
 
 /** Owns start-run dispatch and reconciles against the host-owned Run index. */
-export class TaskMonitorRunEffectHandler implements EffectHandler<
-  StartTaskMonitorRunEffect,
-  TaskMonitorMachineEffectOutcome
-> {
+export class TaskMonitorRunEffectHandler
+  implements EffectHandler<StartTaskMonitorRunEffect, TaskMonitorMachineEffectOutcome>
+{
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: StartTaskMonitorRunEffect) => this.reconcile(effect),
@@ -474,7 +477,16 @@ export class TaskMonitorRunEffectHandler implements EffectHandler<
         },
       );
       if (!response.ok) {
-        throw new Error(`Task Monitor run effect failed with status ${String(response.status)}.`);
+        const failure = new Error(
+          `Task Monitor run effect failed with status ${String(response.status)}.`,
+        );
+        // A 422 means the request does not match the admitted effect; resending
+        // it cannot succeed, so surface it to failedSettlement as terminal.
+        // Other statuses stay retryable here, as before.
+        if (response.status === 422) {
+          throw Object.assign(failure, { response: { status: response.status } });
+        }
+        throw failure;
       }
       const responseBody: unknown = await response.json();
       const responseData = runEffectResponseSchema.parse(responseBody);

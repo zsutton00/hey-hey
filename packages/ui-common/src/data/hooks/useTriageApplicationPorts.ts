@@ -44,6 +44,10 @@ export function useTriageApplicationPorts(
           collection.groups.some((group) => group.groupId === groupId)
         );
       },
+      openCount: () => {
+        const collection = adapter.collection();
+        return collection?.state === "PRESENT" ? collection.items.length : 0;
+      },
       remove: async (item, key) => {
         await adapter.mutateWithResult({
           kind: "removeOpenItem",
@@ -56,13 +60,16 @@ export function useTriageApplicationPorts(
           },
         });
       },
-      reopen: async (item, key) => {
+      reopen: async (item, key, recheck) => {
         const request = await triageReopenRequest(
           graphqlClient,
           { organizationId, projectId },
           item,
           key,
         );
+        if (!(await recheck())) {
+          return;
+        }
         await adapter.mutateWithResult({
           kind: "activateOpenItem",
           parameters: { activateOpenItemRequest: request },

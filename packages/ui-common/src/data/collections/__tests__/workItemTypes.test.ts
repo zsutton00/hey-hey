@@ -1,4 +1,5 @@
 import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -42,7 +43,7 @@ const standard: WorkItemTypeSummaryDto = {
     name: "Task",
     role: "work-item",
     sections: [],
-    allowedStatuses: ["ACTIVE"],
+    statuses: legacyStatuses(["ACTIVE"]),
   },
 } as WorkItemTypeSummaryDto;
 const archived: WorkItemTypeSummaryDto = {

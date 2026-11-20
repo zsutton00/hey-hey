@@ -5,13 +5,21 @@ import type { Proposal, ProposalFuture } from '@prisma/client';
 import type { ProposalOutOfDateStatus } from '@hey-hey/contracts/api/models';
 import type { AnyTransactionClient } from 'src/prisma/prisma.service';
 import type { OrganizationId, ProjectId } from 'src/types';
-import { evaluatePermissions } from './permission-evaluation';
+import {
+  evaluateApprovalPolicy,
+  type ApprovalEvaluation,
+} from './permission-evaluation';
+import type { ProposalApprovalExplanation } from 'src/generated';
+import { EventContextManager } from 'src/core/events/observable-event.context';
+import {
+  readApprovalEvidence,
+  unavailableApprovalExplanation,
+} from './approval-explanation';
 import {
   ProjectApprovalPolicyService,
   type ProjectApprovalPolicy,
 } from './project-approval-policy.service';
 import {
-  resolvePermissionEvaluationContext,
   resolvePermissionEvaluationContextWithEligibleMembers,
   type ProposalSourceContext,
 } from './permission-evaluation-context';
@@ -28,6 +36,12 @@ import {
 } from './future-revision';
 import type { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 
+import {
+  ProjectPolicyMissingError,
+  ProposalTargetUnresolvedError,
+  logApprovalPolicyReadFailure,
+} from './approval-policy-read-diagnostic';
+
 const logger = new Logger('ProposalResponsePolicy');
 
 type ProposalPolicyFields = Pick<
@@ -41,7 +55,11 @@ type ProposalPolicyFields = Pick<
   | 'targetEntityId'
   | 'targetEntityType'
   | 'updates'
+  | 'status'
+  | 'approvalDecisionEvidence'
+  | 'applicationEligible'
 > &
+  Pick<ProposalWithApprovals, 'approvalRecords'> &
   Pick<ProposalWithApprovals, 'groupMembership'>;
 
 export async function resolveProposalOutOfDateStatuses(
@@ -198,155 +216,227 @@ export async function readProposalReviewedFutures(
   );
 }
 
+interface ResolvedProposalPolicy {
+  requiredApprovals: number | null;
+  explanation?: ProposalApprovalExplanation;
+}
+
 export async function resolveRequiredApprovals(
   tx: AnyTransactionClient,
   proposal: ProposalPolicyFields,
   projectPolicy: ProjectApprovalPolicy,
   options: { workItemTypeRegistry?: WorkItemTypeRegistryService } = {},
 ): Promise<number> {
-  const frozenRequiredApprovals = proposal.groupMembership?.requiredApprovals;
-  if (
-    frozenRequiredApprovals !== null &&
-    frozenRequiredApprovals !== undefined
-  ) {
-    return frozenRequiredApprovals;
-  }
-
-  const evaluationContext = await resolvePermissionEvaluationContext(
+  const result = await resolveProposalPolicies(
     tx,
-    proposal.organizationId as OrganizationId,
-    proposal.projectId as ProjectId,
-    {
-      targetEntityType: proposal.targetEntityType,
-      action: proposal.action,
-      targetEntityId: proposal.targetEntityId,
-      updates: proposal.updates,
-    },
-    deriveProposalSourceContext(proposal),
-    options.workItemTypeRegistry,
-  );
-
-  return evaluatePermissions(
-    evaluationContext.entity,
-    evaluationContext.proposal,
+    [proposal],
     projectPolicy,
-  ).threshold;
+    options,
+  );
+  const resolved = result.get(proposal.id);
+  if (!resolved || resolved.requiredApprovals === null) {
+    throw new Error('Proposal approval policy is unavailable');
+  }
+  return resolved.requiredApprovals;
 }
 
 export async function resolveRequiredApprovalsByProposalId(
   tx: AnyTransactionClient,
   proposals: readonly ProposalPolicyFields[],
-  projectPolicies:
-    | ProjectApprovalPolicy
-    | ReadonlyMap<string, ProjectApprovalPolicy>,
+  policies: ProjectApprovalPolicy | ReadonlyMap<string, ProjectApprovalPolicy>,
   options: {
     omitUnresolvableTargets?: boolean;
     workItemTypeRegistry?: WorkItemTypeRegistryService;
   } = {},
 ): Promise<ReadonlyMap<string, number | null>> {
-  const frozenEntries = proposals.flatMap((proposal) => {
-    const frozenRequiredApprovals = proposal.groupMembership?.requiredApprovals;
-    return frozenRequiredApprovals === null ||
-      frozenRequiredApprovals === undefined
-      ? []
-      : [[proposal.id, frozenRequiredApprovals] as const];
-  });
-  const livePolicyProposals = proposals.filter(
-    (proposal) =>
-      proposal.groupMembership?.requiredApprovals === null ||
-      proposal.groupMembership?.requiredApprovals === undefined,
+  const resolved = await resolveProposalPolicies(
+    tx,
+    proposals,
+    policies,
+    options,
   );
+  return new Map(
+    [...resolved].map(([id, value]) => [id, value?.requiredApprovals ?? null]),
+  );
+}
+
+async function resolveProposalPolicies(
+  tx: AnyTransactionClient,
+  proposals: readonly ProposalPolicyFields[],
+  policies: ProjectApprovalPolicy | ReadonlyMap<string, ProjectApprovalPolicy>,
+  options: {
+    omitUnresolvableTargets?: boolean;
+    workItemTypeRegistry?: WorkItemTypeRegistryService;
+    viewerId?: string;
+  } = {},
+): Promise<ReadonlyMap<string, ResolvedProposalPolicy | null>> {
+  const resolved = new Map<string, ResolvedProposalPolicy | null>();
   const groups = new Map<string, ProposalPolicyFields[]>();
-  for (const proposal of livePolicyProposals) {
+  for (const proposal of proposals) {
+    // Group lifecycle and frozen decisions remain with the group owner.
+    if (proposal.groupMembership?.requiredApprovals != null) {
+      resolved.set(proposal.id, {
+        requiredApprovals: proposal.groupMembership.requiredApprovals,
+      });
+      continue;
+    }
+    if (
+      proposal.action !== 'VERSIONED_UPDATE' &&
+      (proposal.status === 'APPROVED' || proposal.status === 'REJECTED')
+    ) {
+      try {
+        const explanation =
+          readApprovalEvidence(proposal.approvalDecisionEvidence) ??
+          unavailableApprovalExplanation();
+        resolved.set(proposal.id, {
+          requiredApprovals: explanation.requirement?.requiredApprovals ?? null,
+          explanation,
+        });
+      } catch (error) {
+        if (!options.omitUnresolvableTargets) {
+          throw error;
+        }
+        logApprovalPolicyReadFailure(
+          logger,
+          error,
+          'DECISION_EVIDENCE_INVALID',
+          { projectId: proposal.projectId, proposalId: proposal.id },
+        );
+        resolved.set(proposal.id, null);
+      }
+      continue;
+    }
     const key = `${proposal.organizationId}:${proposal.projectId}`;
     groups.set(key, [...(groups.get(key) ?? []), proposal]);
   }
-
-  const groupedEntries = await Promise.all(
+  const viewerId =
+    options.viewerId ??
+    EventContextManager.getInstance().getCurrentContext()?.userId;
+  await Promise.all(
     [...groups.values()].map(async (group) => {
       const seed = group[0];
-      if (!seed) return [];
-      const projectPolicy = policyForProject(projectPolicies, seed.projectId);
-
-      const eligibleMembers = await tx.projectMember.findMany({
-        where: {
-          projectId: seed.projectId,
-          user: {
-            isActive: true,
-            memberships: {
-              some: {
-                organizationId: seed.organizationId,
-                isActive: true,
+      if (!seed) {
+        return;
+      }
+      try {
+        const policy = policyForProject(policies, seed.projectId);
+        const members = await tx.projectMember.findMany({
+          where: {
+            projectId: seed.projectId,
+            user: {
+              isActive: true,
+              memberships: {
+                some: { organizationId: seed.organizationId, isActive: true },
               },
             },
           },
-        },
-        select: { userId: true },
-      });
-      const eligibleProjectMemberIds = eligibleMembers.map(
-        (member: { userId: string }) => member.userId,
-      );
-
-      return Promise.all(
-        group.map(async (proposal) => {
-          try {
-            const evaluationContext =
-              await resolvePermissionEvaluationContextWithEligibleMembers(
-                tx,
-                {
-                  targetEntityType: proposal.targetEntityType,
-                  action: proposal.action,
-                  targetEntityId: proposal.targetEntityId,
-                  updates: proposal.updates,
-                },
-                deriveProposalSourceContext(proposal),
-                eligibleProjectMemberIds,
-                {
-                  organizationId: proposal.organizationId as OrganizationId,
-                  projectId: proposal.projectId as ProjectId,
-                  workItemTypeRegistry: options.workItemTypeRegistry,
-                },
+          select: { userId: true },
+        });
+        const eligibleIds = members.map(
+          (member: { userId: string }) => member.userId,
+        );
+        await Promise.all(
+          group.map(async (proposal) => {
+            try {
+              const context =
+                await resolvePermissionEvaluationContextWithEligibleMembers(
+                  tx,
+                  proposal,
+                  deriveProposalSourceContext(proposal),
+                  eligibleIds,
+                  {
+                    organizationId: proposal.organizationId as OrganizationId,
+                    projectId: proposal.projectId as ProjectId,
+                    workItemTypeRegistry: options.workItemTypeRegistry,
+                  },
+                );
+              const evaluation = evaluateApprovalPolicy(
+                context.entity,
+                context.proposal,
+                policy,
               );
-            return [
-              proposal.id,
-              evaluatePermissions(
-                evaluationContext.entity,
-                evaluationContext.proposal,
-                projectPolicy,
-              ).threshold,
-            ] as const;
-          } catch (error) {
-            if (
-              options.omitUnresolvableTargets &&
-              error instanceof NotFoundException
-            ) {
-              logger.warn(
-                'Omitting proposal with an unresolvable target from a collection response',
-                {
-                  proposalId: proposal.id,
-                  targetEntityId: proposal.targetEntityId,
-                  targetEntityType: proposal.targetEntityType,
-                },
+              const explanation = liveApprovalExplanation(
+                evaluation,
+                proposal,
+                viewerId,
               );
-              return [proposal.id, null] as const;
+              resolved.set(proposal.id, {
+                requiredApprovals: evaluation.config.threshold,
+                explanation,
+              });
+            } catch (error) {
+              if (!options.omitUnresolvableTargets) {
+                throw error;
+              }
+              logApprovalPolicyReadFailure(logger, error, 'EVALUATION_FAILED', {
+                projectId: proposal.projectId,
+                proposalId: proposal.id,
+              });
+              resolved.set(proposal.id, null);
             }
-            throw error;
-          }
-        }),
-      );
+          }),
+        );
+      } catch (error) {
+        if (!options.omitUnresolvableTargets) {
+          throw error;
+        }
+        logApprovalPolicyReadFailure(
+          logger,
+          error,
+          'POLICY_STORAGE_UNAVAILABLE',
+          { projectId: seed.projectId },
+        );
+        for (const proposal of group) {
+          resolved.set(proposal.id, null);
+        }
+      }
     }),
   );
+  return resolved;
+}
 
-  return new Map([...frozenEntries, ...groupedEntries.flat()]);
+function liveApprovalExplanation(
+  evaluation: ApprovalEvaluation,
+  proposal: ProposalPolicyFields,
+  viewerId?: string | null,
+): ProposalApprovalExplanation {
+  return {
+    ...evaluation.explanation,
+    evidence: 'LIVE',
+    creditedProposerApprovals:
+      evaluation.proposal.source === 'user' &&
+      (proposal.approvalRecords ?? []).some(
+        (record) =>
+          record.userId === proposal.requestorId && record.type === 'APPROVAL',
+      )
+        ? 1
+        : 0,
+    viewerEligibility: {
+      eligibleToApprove:
+        !!viewerId &&
+        evaluation.proposal.eligibleProjectMemberIds.includes(viewerId) &&
+        proposal.applicationEligible !== false &&
+        !(proposal.approvalRecords ?? []).some(
+          (record) => record.userId === viewerId,
+        ) &&
+        (evaluation.proposal.source !== 'user' ||
+          proposal.requestorId !== viewerId ||
+          evaluation.config.allowsProposerApproval),
+    },
+  };
 }
 
 export async function mapProposalResponse(
   tx: AnyTransactionClient,
   proposal: ProposalWithApprovals,
-  projectPolicy: ProjectApprovalPolicy,
+  projectPolicy:
+    | ProjectApprovalPolicy
+    | ReadonlyMap<string, ProjectApprovalPolicy>,
   options: {
     reconciliation: ProposalReconciliationService;
     requiredApprovals?: number;
+    evaluation?: ApprovalEvaluation;
+    viewerId?: string;
     workItemTypeRegistry?: WorkItemTypeRegistryService;
   },
 ): Promise<TypedProposalResponse> {
@@ -382,11 +472,38 @@ export async function mapProposalResponse(
     );
   }
 
-  const requiredApprovals =
-    options.requiredApprovals ??
-    (await resolveRequiredApprovals(tx, proposalWithApprovals, projectPolicy, {
-      workItemTypeRegistry: options.workItemTypeRegistry,
-    }));
+  const terminal =
+    !proposalWithApprovals.groupMembership &&
+    proposalWithApprovals.action !== 'VERSIONED_UPDATE' &&
+    (proposalWithApprovals.status === 'APPROVED' ||
+      proposalWithApprovals.status === 'REJECTED');
+  const policyResult =
+    options.evaluation && !terminal
+      ? {
+          requiredApprovals: options.evaluation.config.threshold,
+          explanation: liveApprovalExplanation(
+            options.evaluation,
+            proposalWithApprovals,
+            options.viewerId ??
+              EventContextManager.getInstance().getCurrentContext()?.userId,
+          ),
+        }
+      : options.requiredApprovals !== undefined &&
+          proposalWithApprovals.groupMembership &&
+          !terminal
+        ? { requiredApprovals: options.requiredApprovals }
+        : (
+            await resolveProposalPolicies(
+              tx,
+              [proposalWithApprovals],
+              projectPolicy,
+              options,
+            )
+          ).get(proposal.id);
+  if (!policyResult) {
+    throw new Error('Proposal approval policy is unavailable');
+  }
+  const requiredApprovals = policyResult.requiredApprovals;
   const reviewedFuturesByProposalId = await readProposalReviewedFutures(
     tx,
     options.workItemTypeRegistry,
@@ -406,6 +523,7 @@ export async function mapProposalResponse(
     reviewedFuturesByProposalId.get(proposal.id) ?? null,
     outOfDateStatus,
     dependencyPresentation.get(proposal.id),
+    policyResult.explanation,
   );
 }
 
@@ -480,7 +598,7 @@ export async function mapProposalResponses(
       (proposal) => proposal.groupMembership === null,
     ).length,
   });
-  const requiredById = await resolveRequiredApprovalsByProposalId(
+  const policyById = await resolveProposalPolicies(
     tx,
     withMembership,
     projectPolicies,
@@ -493,11 +611,24 @@ export async function mapProposalResponses(
   );
 
   const resolvableProposals = withMembership.filter(
-    (proposal) => requiredById.get(proposal.id) !== null,
+    (proposal) => policyById.get(proposal.id) !== null,
   );
   const outOfDateStatuses = await Promise.all(
     resolvableProposals.map((proposal) =>
-      resolveProposalOutOfDateStatus(tx, proposal, options.reconciliation),
+      resolveProposalOutOfDateStatus(
+        tx,
+        proposal,
+        options.reconciliation,
+      ).catch((error) => {
+        if (!options.omitUnresolvableTargets) {
+          throw error;
+        }
+        logApprovalPolicyReadFailure(logger, error, 'TARGET_UNRESOLVED', {
+          projectId: proposal.projectId,
+          proposalId: proposal.id,
+        });
+        return null;
+      }),
     ),
   );
 
@@ -506,8 +637,9 @@ export async function mapProposalResponses(
     resolvableProposals,
   );
   return resolvableProposals.flatMap((proposal, index) => {
-    const requiredApprovals = requiredById.get(proposal.id);
-    if (requiredApprovals === null) {
+    const policyResult = policyById.get(proposal.id);
+    const requiredApprovals = policyResult?.requiredApprovals;
+    if (policyResult === null) {
       return [];
     }
     if (requiredApprovals === undefined) {
@@ -517,7 +649,7 @@ export async function mapProposalResponses(
     }
     const outOfDateStatus = outOfDateStatuses[index];
     if (!outOfDateStatus) {
-      throw new Error(`Missing out-of-date status for proposal ${proposal.id}`);
+      return [];
     }
     return [
       toProposalResponseDto(
@@ -526,6 +658,7 @@ export async function mapProposalResponses(
         reviewedFuturesByProposalId.get(proposal.id) ?? null,
         outOfDateStatus,
         dependencyPresentation.get(proposal.id),
+        policyResult?.explanation,
       ),
     ];
   });
@@ -535,7 +668,7 @@ export async function resolveProjectApprovalPolicies(
   projectApprovalPolicyService: Pick<ProjectApprovalPolicyService, 'resolve'>,
   proposals: readonly Pick<
     ProposalPolicyFields,
-    'projectId' | 'groupMembership'
+    'projectId' | 'groupMembership' | 'status' | 'action'
   >[],
 ): Promise<ReadonlyMap<string, ProjectApprovalPolicy>> {
   const projectIds = [
@@ -543,22 +676,37 @@ export async function resolveProjectApprovalPolicies(
       proposals
         .filter(
           (proposal) =>
-            proposal.groupMembership?.requiredApprovals === null ||
-            proposal.groupMembership?.requiredApprovals === undefined,
+            (proposal.action === 'VERSIONED_UPDATE' ||
+              (proposal.status !== 'APPROVED' &&
+                proposal.status !== 'REJECTED')) &&
+            proposal.groupMembership?.requiredApprovals == null,
         )
         .map((proposal) => proposal.projectId),
     ),
   ];
   return new Map(
-    await Promise.all(
-      projectIds.map(
-        async (projectId) =>
-          [
-            projectId,
-            await projectApprovalPolicyService.resolve(projectId as ProjectId),
-          ] as const,
-      ),
-    ),
+    (
+      await Promise.all(
+        projectIds.map(async (projectId) => {
+          try {
+            return [
+              projectId,
+              await projectApprovalPolicyService.resolve(
+                projectId as ProjectId,
+              ),
+            ] as const;
+          } catch (error) {
+            logApprovalPolicyReadFailure(
+              logger,
+              error,
+              'POLICY_STORAGE_UNAVAILABLE',
+              { projectId },
+            );
+            return null;
+          }
+        }),
+      )
+    ).filter((entry) => entry !== null),
   );
 }
 
@@ -571,7 +719,7 @@ function policyForProject(
   }
   const policy = policies.get(projectId);
   if (!policy) {
-    throw new Error(
+    throw new ProjectPolicyMissingError(
       `Missing resolved approval policy for project ${projectId}`,
     );
   }

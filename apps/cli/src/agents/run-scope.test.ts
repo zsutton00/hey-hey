@@ -14,6 +14,7 @@ import {
 const createWorktreeMock = vi.hoisted(() => vi.fn());
 const attachWorktreeMock = vi.hoisted(() => vi.fn());
 const getBranchWorktreeStateMock = vi.hoisted(() => vi.fn());
+const switchWorktreeToBranchMock = vi.hoisted(() => vi.fn());
 const accessMock = vi.hoisted(() => vi.fn());
 
 vi.mock('node:fs/promises', () => ({
@@ -30,6 +31,8 @@ vi.mock('../git/index', async () => {
     attachWorktree: (...args: Parameters<typeof attachWorktreeMock>) => attachWorktreeMock(...args),
     getBranchWorktreeState: (...args: Parameters<typeof getBranchWorktreeStateMock>) =>
       getBranchWorktreeStateMock(...args),
+    switchWorktreeToBranch: (...args: Parameters<typeof switchWorktreeToBranchMock>) =>
+      switchWorktreeToBranchMock(...args),
   };
 });
 
@@ -88,8 +91,16 @@ beforeEach(() => {
   createWorktreeMock.mockReset();
   attachWorktreeMock.mockReset();
   getBranchWorktreeStateMock.mockReset();
+  switchWorktreeToBranchMock.mockReset();
   accessMock.mockReset();
 
+  switchWorktreeToBranchMock.mockImplementation(
+    async (options: { repoPath: string; worktreePath: string; branch: string }) => ({
+      repoPath: options.repoPath,
+      worktreePath: options.worktreePath,
+      branch: options.branch,
+    }),
+  );
   createWorktreeMock.mockImplementation(
     async (options: { repoPath: string; worktreePath: string; branch?: string }) => ({
       repoPath: options.repoPath,
@@ -331,6 +342,54 @@ describe('resolveRunWorkspace', () => {
         serviceId: 'svc-a',
         worktreePath: '/repos/service-a/.worktrees/feature-branch',
       }),
+    );
+  });
+
+  it('puts the session worktree back on its branch when the branch was switched away inside it', async () => {
+    const logger = makeLogger();
+    getBranchWorktreeStateMock.mockResolvedValue({
+      branchExists: true,
+      checkedOutWorktree: null,
+      worktrees: [
+        {
+          worktreePath: '/repos/service-a/.worktrees/feature-branch',
+          head: 'abc',
+          branch: 'release/feature',
+          bare: false,
+          prunable: false,
+        },
+      ],
+    });
+
+    const result = await resolveRunWorkspace({
+      session: makeSession({
+        services: [{ id: 'svc-a', path: '/repos/service-a' }],
+        worktree: { enabled: true, branch: 'feature/branch' },
+        worktreeState: {
+          'svc-a': {
+            repoPath: '/repos/service-a',
+            worktreePath: '/repos/service-a/.worktrees/feature-branch',
+            branch: 'feature/branch',
+          },
+        },
+      }),
+      repoStore: makeRepoStore(),
+      logger,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(attachWorktreeMock).not.toHaveBeenCalled();
+    expect(switchWorktreeToBranchMock).toHaveBeenCalledWith({
+      repoPath: '/repos/service-a',
+      worktreePath: '/repos/service-a/.worktrees/feature-branch',
+      branch: 'feature/branch',
+    });
+    expect(result.cwd).toBe('/repos/service-a/.worktrees/feature-branch');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'local.run_scope.worktree.service.branch_drift_detected',
+      expect.objectContaining({ currentBranch: 'release/feature' }),
     );
   });
 

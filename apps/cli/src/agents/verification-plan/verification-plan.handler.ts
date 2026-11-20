@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalVerificationPlanPromptPayload } from '../../shared/agent-bridge-contract/index';
 import {
   defaultAddUserMessage,
@@ -10,6 +11,7 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
 export const verificationPlanHandler: UserLaunchablePromptTypeHandler<LocalVerificationPlanPromptPayload> =
   {
     id: 'verification_plan',
+    sessionRole: SessionRole.Planning,
     promptType: 'verification_plan',
     service: 'required',
     launchEntity: 'none',

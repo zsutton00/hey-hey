@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCompletionReconciliationPromptFor,
+  changedFileReportingPrompt,
   featureSyncRan,
   verifyFeatureCompletionPrompt,
 } from '../prompts/common';
@@ -43,31 +44,59 @@ describe('shared completion prompt composition', () => {
     expect(prompt).not.toContain('Before responding to the user, call get_context');
   });
 
-  describe('Verify Feature suggestion', () => {
-    const noFeatureSync = buildCompletionReconciliationPromptFor(new Set());
-    const afterFeatureSync = buildCompletionReconciliationPromptFor(
-      new Set([LocalPromptType.PlanShapingFeatureSyncAnalyze]),
-    );
+  describe('session-matched completion duties', () => {
+    const conversationAbout = (entityType: 'PROJECT' | 'TASK', taskType?: string): string =>
+      buildEntityConversationPrompt({
+        entity: {
+          entityType,
+          entityId: '3782302e-54ad-4908-b168-0b2260a89b3c',
+          title: 'Focal item',
+          ...(taskType ? { taskType } : {}),
+        },
+        userMessage: 'Discuss this.',
+      });
+    const taskJudgment = 'judge the completed work against the prepared canonical task context';
 
-    it('tells the agent to raise a concern once, with the specific discrepancy', () => {
-      for (const prompt of [noFeatureSync, afterFeatureSync]) {
-        expect(prompt).toContain('suggest_feature_verification');
-        expect(prompt).toContain('do not suggest it again');
-        expect(prompt).not.toContain('featureUpdateSyncCheck');
+    it('gives a project-focused conversation only changed-file reporting', () => {
+      const prompt = conversationAbout('PROJECT');
+      expect(prompt).toContain(changedFileReportingPrompt);
+      expect(prompt).not.toContain(taskJudgment);
+    });
+    it('keeps the task judgment for a task-focused conversation only', () => {
+      expect(conversationAbout('TASK', 'STANDARD')).toContain(taskJudgment);
+      expect(conversationAbout('TASK', 'FEATURE')).not.toContain(taskJudgment);
+    });
+    it('never claims the session holds Diagrams, Mockups or Project Assistant context', () => {
+      // Those duties arrive through session-role guidance for the types actually in context.
+      for (const startedPromptTypes of [
+        new Set<string>(),
+        new Set<string>([LocalPromptType.ProjectAssistant]),
+      ]) {
+        const prompt = buildCompletionReconciliationPromptFor({
+          startedPromptTypes,
+          focalTask: true,
+        });
+        expect(prompt).not.toContain('You hold');
+        expect(prompt).not.toContain('Project Assistant');
       }
     });
-    it('raises governing Mockups and Diagrams in impactedEntities, not background ones', () => {
-      for (const prompt of [noFeatureSync, afterFeatureSync]) {
-        expect(prompt).toContain('governing Mockup or Diagram');
-        expect(prompt).toContain('`impactedEntities`');
-        expect(prompt).toContain('only as background, history or exploration does not trigger');
-      }
+  });
+
+  describe('Feature Sync history', () => {
+    const noFeatureSync = buildCompletionReconciliationPromptFor({
+      startedPromptTypes: new Set(),
+      focalTask: true,
     });
-    it('renders only the variant that matches whether Feature Sync ran on the Run', () => {
+    const afterFeatureSync = buildCompletionReconciliationPromptFor({
+      startedPromptTypes: new Set([LocalPromptType.PlanShapingFeatureSyncAnalyze]),
+      focalTask: true,
+    });
+
+    it('holds back concerns Feature Sync already handled only when it ran on the Run', () => {
       expect(afterFeatureSync).toContain('Feature Sync ran in this session');
-      expect(afterFeatureSync).not.toContain('Feature Sync did not run');
-      expect(noFeatureSync).toContain('Feature Sync did not run in this session');
-      expect(noFeatureSync).not.toContain('Feature Sync ran in this session');
+      expect(afterFeatureSync).toContain('suggest_feature_verification');
+      expect(noFeatureSync).not.toContain('Feature Sync');
+      expect(noFeatureSync).not.toContain('suggest_feature_verification');
     });
     it('treats only Feature Sync handlers as Feature Sync having run', () => {
       expect(featureSyncRan(new Set([LocalPromptType.FeatureSyncAnalyze]))).toBe(true);
@@ -76,9 +105,9 @@ describe('shared completion prompt composition', () => {
       expect(featureSyncRan(new Set([LocalPromptType.ProjectAssistant, 'implement']))).toBe(false);
       expect(featureSyncRan(new Set())).toBe(false);
     });
-    it('never offers the tool to the mode that investigates a raised concern', () => {
+    it('never mentions the tool to the mode that investigates a raised concern', () => {
       expect(verifyFeatureCompletionPrompt).not.toContain('suggest_feature_verification');
-      expect(noFeatureSync.startsWith(verifyFeatureCompletionPrompt.slice(0, 400))).toBe(true);
+      expect(verifyFeatureCompletionPrompt).toBe(noFeatureSync);
     });
   });
 });

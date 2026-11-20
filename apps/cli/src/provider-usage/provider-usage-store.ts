@@ -58,10 +58,11 @@ export class ProviderUsageStore {
             status: reading.status,
           });
           return reading;
-        } catch {
+        } catch (error) {
           this.logger.warn('provider_usage.read.failed', {
             provider,
             reason: 'unexpected_read_failure',
+            error,
           });
           return { status: 'storage_failure', provider };
         }

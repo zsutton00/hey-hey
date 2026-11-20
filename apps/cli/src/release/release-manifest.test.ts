@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   RELEASE_PLATFORMS,
   parseManifestForVersion,
@@ -25,8 +29,31 @@ const manifest = (): ReleaseManifest => ({
 });
 
 describe('release manifest', () => {
+  it('pack verification accepts pinned images independently of the package version', () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'manifest-verification-'));
+    const manifestFile = path.join(directory, 'release-manifest.json');
+    writeFileSync(manifestFile, JSON.stringify(manifest()));
+    try {
+      execFileSync(
+        process.execPath,
+        ['--import', 'tsx', 'scripts/verify-release-manifest.ts', manifestFile],
+        { cwd: path.resolve(__dirname, '../..') },
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it('accepts a complete digest-pinned release covering both platforms', () => {
     expect(parseReleaseManifest(JSON.stringify(manifest()))).toEqual(manifest());
+  });
+
+  it.each(RELEASE_PLATFORMS)('accepts a single-platform manifest for %s', (platform) => {
+    const release = manifest();
+    for (const image of Object.values(release.images)) {
+      image.platforms = [platform];
+    }
+
+    expect(parseReleaseManifest(JSON.stringify(release))).toEqual(release);
   });
 
   it('rejects an image that is only pinned by tag', () => {
@@ -36,18 +63,18 @@ describe('release manifest', () => {
     expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow(/sha256 digest/);
   });
 
-  it('rejects an image missing either required platform', () => {
+  it('rejects an image with no declared platform', () => {
     const release = manifest();
-    release.images.redis.platforms = ['linux/amd64'];
+    release.images.redis.platforms = [];
 
-    expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow(/linux\/arm64/);
+    expect(() => parseReleaseManifest(JSON.stringify(release))).toThrow();
   });
 
-  it('accepts a manifest only for the package version being published', () => {
+  it('reuses pinned images with the CLI package version being run or published', () => {
     const json = JSON.stringify(manifest());
 
     expect(parseManifestForVersion(json, '4.3.0')).toEqual(manifest());
-    expect(() => parseManifestForVersion(json, '4.3.1')).toThrow(/for CLI 4\.3\.0/);
+    expect(parseManifestForVersion(json, '4.3.1')).toEqual({ ...manifest(), cliVersion: '4.3.1' });
   });
 
   it('rejects images outside the release set, such as Agents', () => {

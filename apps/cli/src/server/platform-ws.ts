@@ -1,5 +1,8 @@
 import { DeterministicE2EEvidence } from '../run/runners/deterministic-e2e-evidence';
-import type { TaskMonitorStateObservation } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemExecutionStateObservation,
+  WorkItemExecutionStateObservationReceipt,
+} from '@hey-hey/contracts/api/models';
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type { ServerLogger } from './logger';
 import type { OAuthClient } from '../auth/oauth-client';
@@ -8,6 +11,7 @@ import {
   authResponseRevokedReasonSchema,
   machineChallengeFrameSchema,
   PLATFORM_WS_NON_TRIGGER_SCHEMAS,
+  workItemExecutionStateReceiptSchema,
 } from './platform-ws-schemas';
 import { MachineChallengeSigner } from './machine-challenge';
 import { guardCliReadResponse, MAX_CLI_READ_ACK_BYTES } from './cli-read-response-size-guard';
@@ -21,7 +25,11 @@ import type {
   AuthorityReductionAcknowledgement,
   MonitorCommandAcknowledgement,
 } from '@hey-hey/contracts/api/models';
-import type { CliSettingsResponseDto } from '@hey-hey/contracts/api/models';
+import type {
+  CliSettingsResponseDto,
+  WebSocketDeniedSubscriptionScope,
+  WebSocketSubscribedResponse,
+} from '@hey-hey/contracts/api/models';
 import type { CliReadHandler } from './cli-read-handler';
 import type { MachineControllerAuthority } from '../auth/machine-controller-authority';
 
@@ -89,6 +97,15 @@ const pickEventIdentifiers = (
 };
 
 /** Base shape shared by all platform WebSocket events. */
+
+const EXECUTION_STATE_RECEIPT_TIMEOUT_MS = 10_000;
+
+/** What became of one execution-state report at the platform boundary. */
+export type WorkItemExecutionStateReport =
+  | { kind: 'SKIPPED' }
+  | { kind: 'NO_RECEIPT'; reason: string }
+  | { kind: 'RECEIPT'; receipt: WorkItemExecutionStateObservationReceipt };
+
 export interface PlatformWebSocketEvent {
   type: string;
   timestamp: string;
@@ -1089,38 +1106,38 @@ export class PlatformWebSocketManager {
         },
       );
 
-      sock.on(
-        'subscribed',
-        (response: {
-          status: string;
-          message?: string;
-          eventTypes?: string[];
-          conversationIds?: string[];
-        }) => {
-          if (response.status === 'success') {
-            const serverEventTypes = response.eventTypes ?? [];
-            const missingEventTypes = SUBSCRIBED_EVENT_TYPES.filter(
-              (type) => !serverEventTypes.includes(type),
-            );
-            this.logger.info('conversation-updated.subscription.upstream.subscribed_ack', {
-              socketId: sock.id,
-              serverEventTypes,
-              serverConversationIds: response.conversationIds,
-              missingEventTypes,
-            });
-            if (missingEventTypes.length > 0) {
-              this.logger.warn('conversation-updated.subscription.upstream.event_types_missing', {
-                missingEventTypes,
-                serverEventTypes,
-              });
-            }
-          } else {
-            this.logger.error('conversation-updated.subscription.upstream.subscribe_nack', {
-              message: response.message,
-            });
-          }
-        },
-      );
+      sock.on('subscribed', (response: WebSocketSubscribedResponse) => {
+        if (response.status !== 'success') {
+          this.logger.error('conversation-updated.subscription.upstream.subscribe_nack', {
+            socketId: sock.id,
+            reason: response.reason,
+            message: response.message,
+            requestedConversationIds: [...this.conversationIds],
+            requestedProjectIds: [...this.projectIds],
+          });
+          return;
+        }
+
+        const serverEventTypes = response.eventTypes;
+        const missingEventTypes = SUBSCRIBED_EVENT_TYPES.filter(
+          (type) => !serverEventTypes.includes(type),
+        );
+        this.logger.info('conversation-updated.subscription.upstream.subscribed_ack', {
+          socketId: sock.id,
+          serverEventTypes,
+          serverConversationIds: response.conversationIds,
+          serverProjectIds: response.projectIds,
+          missingEventTypes,
+        });
+        if (missingEventTypes.length > 0) {
+          this.logger.warn('conversation-updated.subscription.upstream.event_types_missing', {
+            missingEventTypes,
+            serverEventTypes,
+          });
+        }
+
+        this.dropDeniedSubscriptions(response.deniedScopes ?? []);
+      });
 
       sock.on('disconnect', (reason: string) => {
         this.logger.warn('conversation-updated.subscription.upstream.disconnected', {
@@ -1205,6 +1222,35 @@ export class PlatformWebSocketManager {
         activeReconnectAttemptId: this.activeReconnectAttemptId,
         error: error instanceof Error ? error.message : String(error),
       });
+    });
+  };
+
+  /**
+   * The platform granted every other room and named these as ones this user
+   * may no longer reach (deleted, or access removed). Stop requesting them so
+   * later subscribes do not keep carrying a stale ID.
+   */
+  private readonly dropDeniedSubscriptions = (
+    deniedScopes: readonly WebSocketDeniedSubscriptionScope[],
+  ): void => {
+    if (deniedScopes.length === 0) {
+      return;
+    }
+
+    for (const denied of deniedScopes) {
+      if (denied.scopeType === 'project') {
+        this.projectIds.delete(denied.id);
+      }
+
+      if (denied.scopeType === 'conversation') {
+        this.conversationIds.delete(denied.id);
+      }
+    }
+
+    this.logger.warn('conversation-updated.subscription.upstream.scopes_denied', {
+      deniedScopes,
+      remainingConversations: this.conversationIds.size,
+      remainingProjects: this.projectIds.size,
     });
   };
 
@@ -1342,9 +1388,68 @@ export class PlatformWebSocketManager {
     this.socket.emit('daily_session.updated', payload);
   };
 
-  public emitTaskMonitorStateObservation(observation: TaskMonitorStateObservation): void {
-    if (!this.socket?.connected) return;
-    this.socket.emit('task_monitor.state_observed', observation);
+  /**
+   * The one seam through which any participating work-item type reports its
+   * committed execution state. The platform orders and retains it and answers
+   * with a receipt that certifies only what it retained. A report skipped
+   * while disconnected is recovered by the producer's reconnect replay.
+   */
+  public async reportWorkItemExecutionStateObservation(
+    observation: WorkItemExecutionStateObservation,
+  ): Promise<WorkItemExecutionStateReport> {
+    const logPayload = {
+      workItemId: observation.workItemId,
+      stateType: observation.state.type,
+      sourceRevision: observation.sourceRevision,
+    };
+    const socket = this.socket;
+    if (!socket?.connected) {
+      this.logger.debug('platform-ws.report-work-item-execution-state.skipped', {
+        hasSocket: !!socket,
+        ...logPayload,
+      });
+      return { kind: 'SKIPPED' };
+    }
+
+    this.logger.trace('platform-ws.report-work-item-execution-state.sent', logPayload);
+    let response: unknown;
+    try {
+      response = await socket
+        .timeout(EXECUTION_STATE_RECEIPT_TIMEOUT_MS)
+        .emitWithAck('work_item.execution_state_observed', observation);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn('platform-ws.report-work-item-execution-state.no-receipt', {
+        ...logPayload,
+        reason,
+      });
+      return { kind: 'NO_RECEIPT', reason };
+    }
+
+    const parsed = workItemExecutionStateReceiptSchema.safeParse(response);
+    if (
+      !parsed.success ||
+      parsed.data.workItemId !== observation.workItemId ||
+      parsed.data.sourceRevision !== observation.sourceRevision
+    ) {
+      this.logger.warn('platform-ws.report-work-item-execution-state.no-receipt', {
+        ...logPayload,
+        reason: 'RECEIPT_INVALID',
+        issues: parsed.success
+          ? ['identity']
+          : parsed.error.issues.map(({ path }) => path.join('.')),
+      });
+      return { kind: 'NO_RECEIPT', reason: 'RECEIPT_INVALID' };
+    }
+
+    const { code, revision, ...answer } = parsed.data;
+    const receipt: WorkItemExecutionStateObservationReceipt = {
+      ...answer,
+      ...(code ? { code } : {}),
+      ...(revision === undefined ? {} : { revision }),
+    };
+
+    return { kind: 'RECEIPT', receipt };
   }
 
   public readonly emitAgentSessionCurrentStateObservation = (

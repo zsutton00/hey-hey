@@ -106,6 +106,8 @@ export * from './searchBoosts';
 export * from './searchBoostsEntityIdsInner';
 export * from './searchBoostsEntityTypesInner';
 export * from './searchDirection';
+export * from './searchExclusionRequest';
+export * from './searchExclusionResponse';
 export * from './searchFilters';
 export * from './searchFiltersDateRange';
 export * from './searchFiltersUpdatedAtRange';

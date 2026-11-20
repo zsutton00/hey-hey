@@ -419,7 +419,59 @@ describe('MachineEnrollmentConfirmation', () => {
     );
   });
 
-  it('waits the saved server interval before the first poll after restart', async () => {
+  it('finishes fresh pairing after a minute waiting for the browser and an early poll', async () => {
+    const harness = makeHarness(true);
+    await harness.keyPairStore.storePrivateKey(MACHINE_ID, harness.generated.privateKeyPem);
+    let elapsedMs = 0;
+    const start = Date.parse('2026-08-12T21:00:00.000Z');
+    harness.poll.mockImplementation(async () => {
+      if (elapsedMs < 65000) {
+        return { state: 'pending' };
+      }
+      if (elapsedMs === 65000) {
+        throw Object.assign(new Error('early poll'), {
+          isAxiosError: true,
+          response: { status: 429, data: { retryAfterSeconds: 1 } },
+        });
+      }
+      return pending();
+    });
+    const confirmation = new MachineEnrollmentConfirmation({
+      keyPairStore: harness.keyPairStore,
+      controllerRegistryStore: harness.registryStore,
+      client: { pollMachineEnrollment: harness.poll, confirmMachineEnrollment: harness.confirm },
+      prompter: { confirm: harness.promptConfirm },
+      now: () => start + elapsedMs,
+      sleep: async (ms) => {
+        elapsedMs += ms;
+      },
+      log: harness.log,
+      logError: harness.logError,
+    });
+    await expect(
+      confirmation.run({
+        enrollmentId: ENROLLMENT_ID,
+        machineId: MACHINE_ID,
+        deviceSecret: DEVICE_SECRET,
+        pollingIntervalSeconds: 5,
+        expiresAt: '2026-08-12T22:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({ outcome: 'confirmed' });
+    expect(elapsedMs).toBe(66000);
+    expect(harness.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [429, { retryAfterSeconds: 1 }, 1000],
+    [
+      409,
+      {
+        code: 'MACHINE_ENROLLMENT_INVALID_TRANSITION',
+        message: 'Unable to transition this enrollment.',
+      },
+      5000,
+    ],
+  ] as const)('resumes the same enrollment after HTTP %i', async (status, data, retryDelay) => {
     const harness = makeHarness(true);
     const sleep = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue(undefined);
     await harness.keyPairStore.storePrivateKey(MACHINE_ID, harness.generated.privateKeyPem);
@@ -448,57 +500,24 @@ describe('MachineEnrollmentConfirmation', () => {
       logError: harness.logError,
     });
 
+    harness.poll.mockRejectedValueOnce(
+      Object.assign(new Error('early poll'), {
+        isAxiosError: true,
+        response: { status, data },
+      }),
+    );
     await expect(confirmation.resumePendingEnrollment(ENROLLMENT_ID)).resolves.toMatchObject({
       outcome: 'confirmed',
     });
-    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep.mock.calls).toEqual([[5000], [retryDelay]]);
+    expect(harness.poll.mock.calls).toEqual([
+      [ENROLLMENT_ID, DEVICE_SECRET],
+      [ENROLLMENT_ID, DEVICE_SECRET],
+    ]);
     expect(sleep).toHaveBeenCalledWith(5000);
     expect(sleep.mock.invocationCallOrder[0]).toBeLessThan(
       harness.poll.mock.invocationCallOrder[0]!,
     );
-  });
-
-  it('clears a server-rejected saved enrollment after the restart delay', async () => {
-    const harness = makeHarness(true);
-    const sleep = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue(undefined);
-    const poll = vi
-      .fn<MachineEnrollmentConfirmationClient['pollMachineEnrollment']>()
-      .mockRejectedValue(
-        Object.assign(new Error('rejected enrollment'), {
-          isAxiosError: true,
-          response: { status: 409 },
-        }),
-      );
-    await harness.keyPairStore.storePendingEnrollmentId(ENROLLMENT_ID);
-    await harness.keyPairStore.storePendingEnrollmentSecret(ENROLLMENT_ID, DEVICE_SECRET);
-    await harness.keyPairStore.storePendingEnrollmentMetadata(
-      ENROLLMENT_ID,
-      JSON.stringify({
-        enrollmentId: ENROLLMENT_ID,
-        machineId: MACHINE_ID,
-        expiresAt: '2026-08-12T22:00:00.000Z',
-        pollingIntervalSeconds: 5,
-      }),
-    );
-    const confirmation = new MachineEnrollmentConfirmation({
-      keyPairStore: harness.keyPairStore,
-      controllerRegistryStore: harness.registryStore,
-      client: { pollMachineEnrollment: poll, confirmMachineEnrollment: harness.confirm },
-      prompter: { confirm: vi.fn() },
-      sleep,
-      now: () => Date.parse('2026-08-12T21:00:00.000Z'),
-      log: harness.log,
-      logError: harness.logError,
-    });
-
-    await expect(confirmation.resumePendingEnrollment(ENROLLMENT_ID)).resolves.toEqual({
-      outcome: 'terminal',
-    });
-    expect(sleep).toHaveBeenCalledWith(5000);
-    await expect(harness.keyPairStore.loadPendingEnrollmentId()).resolves.toBeNull();
-    await expect(
-      harness.keyPairStore.loadPendingEnrollmentSecret(ENROLLMENT_ID),
-    ).resolves.toBeNull();
   });
 
   it('fails closed when terminal enrollment cleanup is incomplete', async () => {

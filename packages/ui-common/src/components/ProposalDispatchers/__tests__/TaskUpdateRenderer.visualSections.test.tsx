@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -155,7 +156,7 @@ const definition: WorkItemTypeDefinitionDto = {
     htmlDefinition,
     mockupDefinition,
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const existing = {
@@ -343,6 +344,20 @@ describe("TaskUpdateRenderer visual section review", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("html-css-preview")).toHaveLength(1);
     expect(screen.getAllByTestId("structured-mockup-preview")).toHaveLength(1);
+    const screenFirst = screen.getByTestId("mockup-proposal-screen-first");
+    expect(
+      within(screenFirst).getAllByTestId("visual-proposal-comparison-controls"),
+    ).toHaveLength(2);
+    fireEvent.click(
+      within(screenFirst).getAllByTestId(
+        "visual-proposal-comparison-before",
+      )[0],
+    );
+    expect(
+      within(screenFirst).getAllByTestId(
+        "visual-proposal-comparison-preview",
+      )[0],
+    ).toHaveAttribute("data-comparison-state", "before");
     expect(
       within(details).getByTestId("ordinary-section-diff"),
     ).not.toBeVisible();
@@ -441,7 +456,7 @@ describe("TaskUpdateRenderer visual section review", () => {
           schemaRef: "#/components/schemas/ProjectModeApplicabilityV1",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const modeExisting = {
       ...existing,
@@ -537,7 +552,7 @@ describe("TaskUpdateRenderer visual section review", () => {
       key: "MODE",
       name: "Project Mode",
       sections: [{ key: "files", label: "Files", kind: "json" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const modeProposal = {
       ...proposal,

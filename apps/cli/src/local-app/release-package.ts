@@ -6,9 +6,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod/v4';
+import { StructuredServerLogger } from '../server/logger';
 import { parseManifestForVersion, type ReleaseManifest } from '../release/release-manifest';
 
 const exec = promisify(execFile);
+const logger = new StructuredServerLogger({}, { component: 'local-release-package' });
 async function execute(
   command: string,
   args: string[],
@@ -16,9 +18,11 @@ async function execute(
 ): Promise<{ stdout: string }> {
   try {
     return await exec(command, args, options);
-  } catch {
+  } catch (error) {
+    logger.error('local.release_package.command_failed', { command, args, error });
     throw new Error(
       `${command} could not complete the release operation. Check npm access, permissions and disk space, then retry. Your local data is preserved.`,
+      { cause: error },
     );
   }
 }
@@ -31,12 +35,7 @@ export class ReleasePackage {
   private target: ReleaseManifest | undefined;
 
   async newerThan(current: string): Promise<ReleaseManifest | undefined> {
-    const { stdout } = await execute(
-      'npm',
-      ['view', `${packageName}@latest`, 'version', '--json'],
-      { timeout: 30_000 },
-    );
-    const version = versionSchema.parse(JSON.parse(stdout));
+    const version = await this.latestVersion();
     const numeric = (value: string) => value.split('-')[0]!.split('.').map(Number);
     const left = numeric(version),
       right = numeric(current);
@@ -45,6 +44,20 @@ export class ReleasePackage {
       return undefined;
     }
     return this.read(version);
+  }
+
+  /** The pinned image set of the latest published release. Reads the package; installs nothing. */
+  async latest(): Promise<ReleaseManifest> {
+    return this.read(await this.latestVersion());
+  }
+
+  private async latestVersion(): Promise<string> {
+    const { stdout } = await execute(
+      'npm',
+      ['view', `${packageName}@latest`, 'version', '--json'],
+      { timeout: 30_000 },
+    );
+    return versionSchema.parse(JSON.parse(stdout));
   }
 
   async read(version: string): Promise<ReleaseManifest> {

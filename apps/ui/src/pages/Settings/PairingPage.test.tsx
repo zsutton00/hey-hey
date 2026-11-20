@@ -52,6 +52,47 @@ const LocationState = () => {
 };
 
 describe("PairingPage", () => {
+  it("returns to the conversation the person was continuing after pairing", () => {
+    const returnTo = "/projects/p1/agent-sessions/s1?tab=chat";
+    render(
+      <MemoryRouter
+        initialEntries={[`/pairing?returnTo=${encodeURIComponent(returnTo)}`]}
+      >
+        <PairingPage />
+        <LocationState />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to conversation" }),
+    );
+    expect(screen.getByTestId("location-state")).toHaveTextContent(
+      "/projects/p1/agent-sessions/s1",
+    );
+  });
+
+  it.each([
+    "https://evil.example/x",
+    "//evil.example/x",
+    "/pairing?returnTo=/x",
+  ])(
+    "ignores a return target %s that is not an in-app conversation path",
+    (returnTo) => {
+      render(
+        <MemoryRouter
+          initialEntries={[`/pairing?returnTo=${encodeURIComponent(returnTo)}`]}
+        >
+          <PairingPage />
+          <LocationState />
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Go to projects" }));
+      expect(screen.getByTestId("location-state")).toHaveTextContent(
+        "/projects",
+      );
+    },
+  );
+
   it("opens a target-specific browser authorization journey", () => {
     render(
       <MemoryRouter

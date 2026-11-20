@@ -1,4 +1,6 @@
-import { WorkStatus } from '@prisma/client';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
+
 import { PlanHierarchyRollupService } from '../plan-hierarchy-rollup.service';
 import { createPlanHierarchyFakeTx } from './plan-hierarchy-fake-tx';
 
@@ -9,93 +11,123 @@ describe('PlanHierarchyRollupService', () => {
 
   describe('stage lifecycle projection', () => {
     it('keeps an empty stage in BACKLOG and a shaping stage in REFINING', () => {
-      expect(service.computeStageStatus(WorkStatus.BACKLOG, [])).toBe(
-        WorkStatus.BACKLOG,
+      expect(service.computeStageStatus(WorkStatus.Backlog, [])).toBe(
+        WorkStatus.Backlog,
       );
       expect(
-        service.computeStageStatus(WorkStatus.REFINING, [WorkStatus.ACTIVE]),
-      ).toBe(WorkStatus.REFINING);
+        service.computeStageStatus(WorkStatus.Refining, [WorkStatus.Active]),
+      ).toBe(WorkStatus.Refining);
     });
 
     it('treats completed, cancelled and superseded children as terminal', () => {
       expect(
-        service.computeStageStatus(WorkStatus.ACTIVE, [
-          WorkStatus.COMPLETED,
-          WorkStatus.CANCELLED,
-          WorkStatus.SUPERSEDED,
+        service.computeStageStatus(WorkStatus.Active, [
+          WorkStatus.Completed,
+          WorkStatus.Cancelled,
+          WorkStatus.Superseded,
         ]),
-      ).toBe(WorkStatus.COMPLETED);
+      ).toBe(WorkStatus.Completed);
       expect(
-        service.computeStageStatus(WorkStatus.ACTIVE, [
-          WorkStatus.CANCELLED,
-          WorkStatus.SUPERSEDED,
+        service.computeStageStatus(WorkStatus.Active, [
+          WorkStatus.Cancelled,
+          WorkStatus.Superseded,
         ]),
-      ).toBe(WorkStatus.COMPLETED);
+      ).toBe(WorkStatus.Completed);
+    });
+
+    it('keeps a stage open while a Bug is unfinished or verifying, and completes when Tasks and Bugs are finished', () => {
+      for (const bugStatus of [
+        WorkStatus.Active,
+        WorkStatus.Verifying,
+        WorkStatus.GeneratingDetails,
+      ]) {
+        expect(
+          service.computeStageStatus(WorkStatus.Completed, [
+            WorkStatus.Completed,
+            bugStatus,
+          ]),
+        ).toBe(WorkStatus.Active);
+      }
+      expect(
+        service.computeStageStatus(WorkStatus.Active, [
+          WorkStatus.Completed,
+          WorkStatus.Completed,
+        ]),
+      ).toBe(WorkStatus.Completed);
+    });
+
+    it('treats a freshly generated Bug as not started', () => {
+      expect(
+        service.computeStageStatus(WorkStatus.Backlog, [
+          WorkStatus.Backlog,
+          WorkStatus.Generated,
+        ]),
+      ).toBe(WorkStatus.Backlog);
     });
 
     it('keeps a stage open while a non-terminal child remains beside superseded work', () => {
       expect(
-        service.computeStageStatus(WorkStatus.ACTIVE, [
-          WorkStatus.SUPERSEDED,
-          WorkStatus.ACTIVE,
+        service.computeStageStatus(WorkStatus.Active, [
+          WorkStatus.Superseded,
+          WorkStatus.Active,
         ]),
-      ).toBe(WorkStatus.ACTIVE);
+      ).toBe(WorkStatus.Active);
     });
 
     it('projects explicit blocking before ordinary active work', () => {
       expect(
-        service.computeStageStatus(WorkStatus.ACTIVE, [
-          WorkStatus.ACTIVE,
-          WorkStatus.BLOCKED,
+        service.computeStageStatus(WorkStatus.Active, [
+          WorkStatus.Active,
+          WorkStatus.Blocked,
         ]),
-      ).toBe(WorkStatus.BLOCKED);
+      ).toBe(WorkStatus.Blocked);
     });
 
     it('reopens a completed stage when non-terminal work appears', () => {
       expect(
-        service.computeStageStatus(WorkStatus.COMPLETED, [
-          WorkStatus.COMPLETED,
-          WorkStatus.BACKLOG,
+        service.computeStageStatus(WorkStatus.Completed, [
+          WorkStatus.Completed,
+          WorkStatus.Backlog,
         ]),
-      ).toBe(WorkStatus.ACTIVE);
+      ).toBe(WorkStatus.Active);
       expect(
-        service.computeStageStatus(WorkStatus.COMPLETED, [WorkStatus.BACKLOG]),
-      ).toBe(WorkStatus.ACTIVE);
+        service.computeStageStatus(WorkStatus.Completed, [WorkStatus.Backlog]),
+      ).toBe(WorkStatus.Active);
     });
   });
 
   describe('plan lifecycle projection', () => {
     it('holds a fully executed plan in VERIFYING for explicit completion', () => {
       expect(
-        service.computePlanStatus(WorkStatus.ACTIVE, [
-          WorkStatus.COMPLETED,
-          WorkStatus.COMPLETED,
+        service.computePlanStatus(WorkStatus.Active, [
+          WorkStatus.Completed,
+          WorkStatus.Completed,
         ]),
-      ).toBe(WorkStatus.VERIFYING);
+      ).toBe(WorkStatus.Verifying);
     });
 
     it('projects blocking and active stage state', () => {
       expect(
-        service.computePlanStatus(WorkStatus.READY, [WorkStatus.BLOCKED]),
-      ).toBe(WorkStatus.BLOCKED);
+        service.computePlanStatus(WorkStatus.Ready, [WorkStatus.Blocked]),
+      ).toBe(WorkStatus.Blocked);
       expect(
-        service.computePlanStatus(WorkStatus.READY, [WorkStatus.REFINING]),
-      ).toBe(WorkStatus.ACTIVE);
+        service.computePlanStatus(WorkStatus.Ready, [WorkStatus.Refining]),
+      ).toBe(WorkStatus.Active);
     });
 
     it('keeps a generated idle plan READY', () => {
       expect(
-        service.computePlanStatus(WorkStatus.READY, [WorkStatus.BACKLOG]),
-      ).toBe(WorkStatus.READY);
+        service.computePlanStatus(WorkStatus.Ready, [WorkStatus.Backlog]),
+      ).toBe(WorkStatus.Ready);
     });
 
     it('reopens a completed plan when non-terminal work appears', () => {
       expect(
-        service.computePlanStatus(WorkStatus.COMPLETED, [WorkStatus.BACKLOG]),
-      ).toBe(WorkStatus.ACTIVE);
+        service.computePlanStatus(WorkStatus.Completed, [WorkStatus.Backlog]),
+      ).toBe(WorkStatus.Active);
       expect(
-        service.computePlanStatus(WorkStatus.VERIFYING, [WorkStatus.BACKLOG]),
-      ).toBe(WorkStatus.ACTIVE);
+        service.computePlanStatus(WorkStatus.Verifying, [WorkStatus.Backlog]),
+      ).toBe(WorkStatus.Active);
     });
   });
 });
@@ -116,19 +148,19 @@ describe('Graph predecessor activation', () => {
         {
           id: 'plan',
           type: 'PLAN',
-          status: WorkStatus.ACTIVE,
+          status: WorkStatus.Active,
           parentTaskId: null,
         },
         {
           id: 'stage',
           type: 'PLAN_STAGE',
-          status: WorkStatus.BACKLOG,
+          status: WorkStatus.Backlog,
           parentTaskId: 'plan',
         },
         {
           id: 'step',
           type: 'STANDARD',
-          status: WorkStatus.ACTIVE,
+          status: WorkStatus.Active,
           parentTaskId: 'stage',
         },
       ]);
@@ -151,13 +183,13 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
   const service = new PlanHierarchyRollupService({
     outgoing: jest.fn().mockResolvedValue([]),
   } as any);
-  const plan = (status: WorkStatus) => ({
+  const plan = (status: TaskResponseDto['status']) => ({
     id: 'plan',
     type: 'PLAN',
     status,
     parentTaskId: null,
   });
-  const stage = (id: string, status: WorkStatus) => ({
+  const stage = (id: string, status: TaskResponseDto['status']) => ({
     id,
     type: 'PLAN_STAGE',
     status,
@@ -166,9 +198,9 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
 
   it('rolls a directly completed stage up to a VERIFYING plan, never COMPLETED', async () => {
     const { tx, rows } = createPlanHierarchyFakeTx([
-      plan(WorkStatus.ACTIVE),
-      stage('stage-1', WorkStatus.COMPLETED),
-      stage('stage-2', WorkStatus.COMPLETED),
+      plan(WorkStatus.Active),
+      stage('stage-1', WorkStatus.Completed),
+      stage('stage-2', WorkStatus.Completed),
     ]);
 
     const transitions = await service.rollUpFrom(tx, 'stage-2');
@@ -176,44 +208,44 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
     expect(transitions).toEqual([
       expect.objectContaining({
         taskId: 'plan',
-        previousStatus: WorkStatus.ACTIVE,
-        newStatus: WorkStatus.VERIFYING,
+        previousStatus: WorkStatus.Active,
+        newStatus: WorkStatus.Verifying,
       }),
     ]);
-    expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
-    expect(rows.get('stage-2')?.status).toBe(WorkStatus.COMPLETED);
+    expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
+    expect(rows.get('stage-2')?.status).toBe(WorkStatus.Completed);
   });
 
   it('moves a VERIFYING plan back to ACTIVE when a stage is reopened', async () => {
     const { tx, rows } = createPlanHierarchyFakeTx([
-      plan(WorkStatus.VERIFYING),
-      stage('stage-1', WorkStatus.COMPLETED),
-      stage('stage-2', WorkStatus.ACTIVE),
+      plan(WorkStatus.Verifying),
+      stage('stage-1', WorkStatus.Completed),
+      stage('stage-2', WorkStatus.Active),
     ]);
 
     await service.rollUpFrom(tx, 'stage-2');
 
-    expect(rows.get('plan')?.status).toBe(WorkStatus.ACTIVE);
+    expect(rows.get('plan')?.status).toBe(WorkStatus.Active);
   });
 
   it('excludes archived steps and archived stages from rollup inputs', async () => {
     const { tx, rows } = createPlanHierarchyFakeTx([
-      plan(WorkStatus.ACTIVE),
-      stage('stage-1', WorkStatus.ACTIVE),
+      plan(WorkStatus.Active),
+      stage('stage-1', WorkStatus.Active),
       {
-        ...stage('stage-archived', WorkStatus.ACTIVE),
+        ...stage('stage-archived', WorkStatus.Active),
         archivedAt: new Date(),
       },
       {
         id: 'done',
         type: 'STANDARD',
-        status: WorkStatus.COMPLETED,
+        status: WorkStatus.Completed,
         parentTaskId: 'stage-1',
       },
       {
         id: 'deleted',
         type: 'STANDARD',
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         parentTaskId: 'stage-1',
         archivedAt: new Date(),
       },
@@ -221,25 +253,25 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
 
     await service.rollUpParent(tx, 'stage-1');
 
-    expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-    expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+    expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+    expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
   });
 
   it('recalculates both stages and the shared plan once when a step moves between stages', async () => {
     const { tx, rows, task } = createPlanHierarchyFakeTx([
-      plan(WorkStatus.ACTIVE),
-      stage('stage-1', WorkStatus.ACTIVE),
-      stage('stage-2', WorkStatus.COMPLETED),
+      plan(WorkStatus.Active),
+      stage('stage-1', WorkStatus.Active),
+      stage('stage-2', WorkStatus.Completed),
       {
         id: 'done',
         type: 'STANDARD',
-        status: WorkStatus.COMPLETED,
+        status: WorkStatus.Completed,
         parentTaskId: 'stage-1',
       },
       {
         id: 'moved',
         type: 'STANDARD',
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         parentTaskId: 'stage-2',
       },
     ]);
@@ -249,9 +281,9 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
       formerParentTaskId: 'stage-1',
     });
 
-    expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-    expect(rows.get('stage-2')?.status).toBe(WorkStatus.ACTIVE);
-    expect(rows.get('plan')?.status).toBe(WorkStatus.ACTIVE);
+    expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+    expect(rows.get('stage-2')?.status).toBe(WorkStatus.Active);
+    expect(rows.get('plan')?.status).toBe(WorkStatus.Active);
     const planReads = task.findUnique.mock.calls.filter(
       ([args]) => args.where.id === 'plan',
     );
@@ -263,7 +295,7 @@ describe('PlanHierarchyRollupService.rollUpFrom', () => {
       {
         id: 'feature',
         type: 'FEATURE',
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         parentTaskId: null,
       },
     ]);

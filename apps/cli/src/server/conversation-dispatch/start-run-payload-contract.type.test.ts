@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../../agents/run-eval/eval-case-inputs.fixture';
 import { describe, expect, it } from 'vitest';
 import type {
   RunContextMetadata,
@@ -261,6 +262,7 @@ describe('StartRunPromptPayload compile-time contract', () => {
       evalRunId: '22222222-2222-4222-8222-222222222222',
       judgeSetup: { provider: 'claude', model: 'sonnet' },
       settings: { maxConcurrentAttempts: 3 },
+      cases: [],
       attempts: [
         {
           attemptId: '33333333-3333-4333-8333-333333333333',
@@ -281,7 +283,7 @@ describe('StartRunPromptPayload compile-time contract', () => {
             title: 'Recognises a stale requirement',
             target: {
               situation: 'A requirement no longer matches the shipped behaviour.',
-              initiatingRequest: 'Update the feature.',
+              inputs: oneMessageInputs('Update the feature.'),
               targetHandler: 'entity_conversation',
             },
             grading: { checks: [], rubric: [] },

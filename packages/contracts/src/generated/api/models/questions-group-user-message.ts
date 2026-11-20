@@ -30,4 +30,10 @@ export interface QuestionsGroupUserMessage {
      * @memberof QuestionsGroupUserMessage
      */
     'clarifyingAnswers'?: Array<QuestionsGroupUserMessageClarifyingAnswersInner>;
+    /**
+     * Free-form note added alongside the answers
+     * @type {string}
+     * @memberof QuestionsGroupUserMessage
+     */
+    'note'?: string;
 }

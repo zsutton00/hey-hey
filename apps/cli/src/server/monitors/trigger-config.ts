@@ -97,8 +97,9 @@ const mergeConfig = (defaults: TriggerConfig, partial: Partial<TriggerConfig>): 
  * Load monitor config from the user's data directory. Falls back to defaults
  * when the file doesn't exist or is unparseable.
  */
-export const loadTriggerConfig = async (): Promise<TriggerConfig> => {
-  const configPath = resolveConfigPath();
+export const loadTriggerConfig = async (
+  configPath = resolveConfigPath(),
+): Promise<TriggerConfig> => {
   try {
     const raw = await fs.readFile(configPath, 'utf-8');
     const parsed = JSON.parse(raw) as Partial<TriggerConfig>;

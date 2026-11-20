@@ -607,3 +607,73 @@ describe('future Diagram graph round trip through the generic projector', () => 
     ).toEqual({ kind: 'PROCESS', level: 'OVERVIEW' });
   });
 });
+
+it('round trips a created design document and its typed relationship through future graph compilation', () => {
+  const root = { refType: 'existing', id: randomUUID() } as const;
+  const doc = { refType: 'temporary', tempId: 'doc' } as const;
+  const before = {
+    valid: true,
+    projectedRoot: {
+      identity: root,
+      name: 'Plan',
+      label: 'Plan',
+      type: 'PLAN',
+      sections: [],
+      deleted: false,
+    },
+    children: [],
+    sections: [],
+    incidentRelationships: [],
+    identityLabels: {},
+    issues: [],
+    warnings: [],
+  };
+  const after = {
+    ...before,
+    designDocs: [
+      {
+        identity: doc,
+        name: 'Design',
+        markdown: '# Reviewed design',
+        parent: root,
+      },
+    ],
+    incidentRelationships: [
+      {
+        identity: { refType: 'temporary', tempId: 'doc-edge' } as const,
+        source: root,
+        target: doc,
+        edgeType: 'DERIVES_FROM' as const,
+        label: 'Design origin',
+        sourceEntityType: 'TASK' as const,
+        targetEntityType: 'DESIGN_DOC' as const,
+        deleted: false,
+      },
+    ],
+  };
+  const request = graphChangeSet(before, after);
+  expect(request.operations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        op: 'designDoc.create',
+        markdown: '# Reviewed design',
+      }),
+      expect.objectContaining({
+        op: 'relationship.create',
+        targetEntityType: 'DESIGN_DOC',
+      }),
+    ]),
+  );
+  const id = randomUUID();
+  const mapped = remapGraphProjection(
+    after,
+    { 'temporary:doc': id },
+    { 'temporary:doc-edge': randomUUID() },
+  );
+  expect(mapped.designDocs?.[0]?.identity).toEqual({ refType: 'existing', id });
+  expect(mapped.incidentRelationships[0]?.target).toEqual({
+    refType: 'existing',
+    id,
+  });
+  expect(graphContentBasis(before)).not.toEqual(graphContentBasis(after));
+});

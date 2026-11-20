@@ -1,3 +1,4 @@
+import type { TaskMonitorPermissionAdmission } from '../agents/task-monitor/state-machine/provider-event-adapter';
 /**
  * Core types for the runtime event system.
  *
@@ -69,6 +70,7 @@ type NormalizedEventKind =
   | 'diff'
   | 'permission'
   | 'permission_decision_recorded'
+  | 'permission_group_item_added'
   | 'agent_question'
   | 'question_answered'
   | 'tool_use'
@@ -165,6 +167,7 @@ export interface DiffEvent extends NormalizedEventBase {
 
 export interface PermissionEvent extends NormalizedEventBase {
   kind: 'permission';
+  taskMonitorAdmission: TaskMonitorPermissionAdmission;
   files: string[];
   itemId?: string;
 }
@@ -204,6 +207,15 @@ export interface PermissionDecisionRecordedEvent extends NormalizedEventBase {
   userId?: string;
 }
 
+/** A same-tool request joined an open permission card. */
+export interface PermissionGroupItemAddedEvent extends NormalizedEventBase {
+  kind: 'permission_group_item_added';
+  cardRequestId: string;
+  cardDescription: string;
+  requestId: string;
+  description: string;
+}
+
 export interface AgentQuestionEvent extends NormalizedEventBase {
   kind: 'agent_question';
   requestId: string;
@@ -231,6 +243,7 @@ export type NormalizedEvent =
   | DiffEvent
   | PermissionEvent
   | PermissionDecisionRecordedEvent
+  | PermissionGroupItemAddedEvent
   | AgentQuestionEvent
   | QuestionAnsweredEvent
   | ToolUseEvent
@@ -264,6 +277,13 @@ export interface ReportChainEntry {
   readonly summary: string;
   readonly audience: 'EXTERNAL' | 'INTERNAL';
   readonly serviceId?: string;
+  readonly sourceRunId?: string;
+  readonly commitHashes?: ReadonlyArray<
+    Omit<
+      import('@hey-hey/contracts/api/models').CommitReportPayload['hashes'][number],
+      'implementReportIds'
+    > & { readonly implementReportIds?: readonly string[] }
+  >;
   /**
    * PHASE_GROUNDING-only payload slice. Present iff `reportType ===
    * 'PHASE_GROUNDING'`; absent on every other report type. The

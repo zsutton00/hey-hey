@@ -38,6 +38,7 @@ function setup() {
     addHintConnection: jest.fn(),
     getHint: jest.fn(),
     retireHint: jest.fn(),
+    updateHintText: jest.fn(),
     findHintsByConnectedItems: jest.fn(),
   };
   const resourceAccess = {
@@ -160,6 +161,35 @@ describe('HintService', () => {
       ForbiddenException,
     );
     expect(graphsClient.retireHint).not.toHaveBeenCalled();
+  });
+
+  it('corrects the text of a hint whose connected items are all visible', async () => {
+    const { service, graphsClient } = setup();
+    const hint = makeHint('h1', [visibleTask]);
+    graphsClient.getHint.mockResolvedValue(hint);
+    graphsClient.updateHintText.mockResolvedValue({ ...hint, text: 'fixed' });
+    const view = await service.updateHintText(requestor, 'h1', 'fixed');
+    expect(graphsClient.updateHintText).toHaveBeenCalledWith(
+      'org-1',
+      'project-1',
+      'h1',
+      'fixed',
+      'token',
+    );
+    expect(view.text).toBe('fixed');
+    expect(view.connections).toHaveLength(1);
+    expect(view.origin.entityId).toBe(sessionId);
+  });
+
+  it('refuses to correct a hint connected to an item the caller cannot see', async () => {
+    const { service, graphsClient } = setup();
+    graphsClient.getHint.mockResolvedValue(
+      makeHint('h1', [visibleTask, hiddenTask]),
+    );
+    await expect(
+      service.updateHintText(requestor, 'h1', 'fixed'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(graphsClient.updateHintText).not.toHaveBeenCalled();
   });
 
   it('lets graph errors surface', async () => {

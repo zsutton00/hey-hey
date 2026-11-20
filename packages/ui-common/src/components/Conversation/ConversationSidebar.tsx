@@ -7,6 +7,14 @@ import { SlideRight, ProgressBar, StaggerChildren } from "../../animations";
 import { type ConversationStepData } from "./ConversationStep";
 import { ConversationStep } from "./ConversationStep";
 import { type MessageResponseDto } from "../../api";
+import {
+  BRANDED_CARD_FILL,
+  BRANDED_NESTED_HEADER_FILL,
+  BRANDED_RULE_COLOR,
+  BRANDED_TEAL,
+  BrandedCardTitle,
+  useBrandedAppearance,
+} from "../BrandedFrame";
 
 export interface ConversationSidebarProps {
   steps: ConversationStepData[];
@@ -27,7 +35,7 @@ export const ConversationSidebar = ({
 }: ConversationSidebarProps) => {
   const stepsToRender = useMemo(
     () => combineSteps(steps, combineSameSections),
-    [steps, combineSameSections]
+    [steps, combineSameSections],
   );
 
   const handleStepClick = (step: ConversationStepData) => {
@@ -41,11 +49,105 @@ export const ConversationSidebar = ({
     }
   };
 
+  const isBranded = useBrandedAppearance();
   const isIndeterminate = stepCount === -1;
   const completedSteps = stepsToRender.filter(
-    (step) => step.isCompleted
+    (step) => step.isCompleted,
   ).length;
   const totalSteps = stepsToRender.length;
+
+  if (isBranded) {
+    return (
+      <Box
+        component="aside"
+        aria-labelledby="conversation-progress-title"
+        data-testid="conversation-progress-card"
+        className={className}
+        sx={{
+          boxSizing: "border-box",
+          width: "100%",
+          p: "1.5rem",
+          border: `1px solid ${BRANDED_RULE_COLOR}`,
+          borderRadius: "10px",
+          bgcolor: BRANDED_CARD_FILL,
+        }}
+      >
+        <BrandedCardTitle id="conversation-progress-title">
+          Conversation progress
+        </BrandedCardTitle>
+        <Box
+          component="ol"
+          sx={{
+            listStyle: "none",
+            m: 0,
+            p: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 0.5,
+          }}
+        >
+          {stepsToRender.map((step) => (
+            <li key={step.id}>
+              <ButtonBase
+                onClick={
+                  step.isCompleted ? () => handleStepClick(step) : undefined
+                }
+                disabled={!step.isCompleted}
+                aria-current={step.isActive ? "step" : undefined}
+                sx={{
+                  width: "100%",
+                  justifyContent: "flex-start",
+                  textAlign: "left",
+                  gap: "0.6rem",
+                  px: "0.8rem",
+                  py: "0.6rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${step.isActive ? "#fff" : BRANDED_RULE_COLOR}`,
+                  bgcolor: step.isActive
+                    ? BRANDED_NESTED_HEADER_FILL
+                    : "transparent",
+                  fontWeight: 700,
+                  fontSize: "0.9rem",
+                  color: "#fff",
+                  "&.Mui-disabled": {
+                    color: "#fff",
+                    opacity: step.isActive ? 1 : 0.6,
+                  },
+                }}
+              >
+                <Box
+                  aria-hidden="true"
+                  sx={{
+                    flex: "none",
+                    width: "0.6rem",
+                    height: "0.6rem",
+                    borderRadius: "50%",
+                    bgcolor: BRANDED_TEAL,
+                    opacity: step.isCompleted || step.isActive ? 1 : 0.35,
+                  }}
+                />
+                <span>{step.title}</span>
+                {step.isActive ? (
+                  <Box
+                    component="span"
+                    sx={{
+                      position: "absolute",
+                      width: 1,
+                      height: 1,
+                      overflow: "hidden",
+                      clipPath: "inset(50%)",
+                    }}
+                  >
+                    (current)
+                  </Box>
+                ) : null}
+              </ButtonBase>
+            </li>
+          ))}
+        </Box>
+      </Box>
+    );
+  }
 
   if (sidebarMode === "minimal") {
     return (
@@ -255,7 +357,7 @@ export const ConversationSidebar = ({
 
 const combineSteps = (
   steps: ConversationStepData[],
-  combineSameSections: boolean
+  combineSameSections: boolean,
 ): ConversationStepData[] => {
   if (!combineSameSections) {
     return steps;

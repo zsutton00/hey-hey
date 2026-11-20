@@ -1,13 +1,17 @@
 import { z } from 'zod';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
-  EvalCaseMockupChecklistKindEnum,
+  EvalCaseCodingTargetKindEnum,
   ReadRestriction,
+  type EvalAttemptTurn,
   type EvalAutomatedAssessment,
   type EvalCaseCoding,
+  type EvalRecordedToolCalls,
   type EvalRunCaseInput,
 } from '@hey-hey/contracts/api/models';
 import type { PromptTypeHandler } from '../prompt-type-handler';
+import { finalEvalInputText } from './eval-targets';
+import { toolCallsEvidenceText } from './eval-recorded-tool-calls';
 
 export const EVAL_JUDGE_HANDLER_ID = 'eval_judge';
 
@@ -18,6 +22,14 @@ export interface EvalJudgePayload {
    * changes, never the chat reply. The judge never sees the target's context.
    */
   outputText: string;
+  /** The tested agent's own tool calls, in order, without results. Absent when not collected. */
+  toolCalls?: EvalRecordedToolCalls;
+  /**
+   * Set when the case is a scripted conversation. The earlier messages and
+   * their replies explain the situation; only `judgedTurn` is assessed, and
+   * `outputText` and `toolCalls` are that message's alone.
+   */
+  conversation?: { earlierTurns: EvalAttemptTurn[]; judgedTurn: EvalAttemptTurn };
 }
 
 const judgeOutputSchema = z.object({
@@ -38,6 +50,10 @@ const judgeOutputSchema = z.object({
     .optional(),
   regressions: z.array(z.string()).optional(),
 });
+
+/** Whether the case changes an existing screen or component, so regressions are judged. */
+const changesExisting = (caseInput: EvalRunCaseInput): boolean =>
+  caseInput.coding?.target?.kind === EvalCaseCodingTargetKindEnum.Existing;
 
 const sameIds = (expected: readonly string[], answered: readonly string[]): boolean =>
   [...expected].sort().join('\n') === [...answered].sort().join('\n');
@@ -81,9 +97,7 @@ export const parseEvalJudgeOutput = (
   return {
     ...assessed,
     checklistResults,
-    ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
-      ? { regressions: regressions ?? [] }
-      : {}),
+    ...(changesExisting(caseInput) ? { regressions: regressions ?? [] } : {}),
     createdAt,
   };
 };
@@ -112,11 +126,31 @@ const buildReferenceExamplesSection = (coding: EvalCaseCoding): string[] => {
   ];
 };
 
+/** What the case is about, for the judge only. */
+const buildTargetSection = (coding: EvalCaseCoding): string[] => {
+  if (!coding.target) {
+    return [];
+  }
+
+  const kind =
+    coding.target.kind === EvalCaseCodingTargetKindEnum.New
+      ? 'a new screen or component'
+      : 'a change to an existing screen or component';
+  return [
+    '',
+    '## Target',
+    `- Kind: ${kind}`,
+    ...(coding.target.path ? [`- Path: ${coding.target.path}`] : []),
+  ];
+};
+
 const buildCodingJudgeSections = (caseInput: EvalRunCaseInput): string[] => {
   const checklist = caseInput.coding?.mockupChecklist;
   if (!caseInput.coding) {
     return [];
   }
+
+  const existing = changesExisting(caseInput);
 
   return [
     '',
@@ -127,16 +161,17 @@ const buildCodingJudgeSections = (caseInput: EvalRunCaseInput): string[] => {
     ...(checklist
       ? [
           '- A checklist item is a hit only if the changes implement it. Judge from the changes, not from appearance or intent.',
-          ...(checklist.kind === EvalCaseMockupChecklistKindEnum.Update
+          ...(existing
             ? [
                 '- Regressions: list anything that worked before and the changes now break. Use an empty list if none.',
               ]
             : []),
           '',
-          `## Mockup checklist (${checklist.kind === EvalCaseMockupChecklistKindEnum.New ? 'new Mockup' : 'updated Mockup'})`,
+          `## Mockup checklist (${existing ? 'updated Mockup' : 'new Mockup'})`,
           ...checklist.items.map((item) => `- ${item.id}: ${item.description}`),
         ]
       : []),
+    ...buildTargetSection(caseInput.coding),
     ...buildReferenceExamplesSection(caseInput.coding),
   ];
 };
@@ -147,14 +182,34 @@ const checklistShape = (caseInput: EvalRunCaseInput): string => {
     return '';
   }
 
-  const regressions =
-    checklist.kind === EvalCaseMockupChecklistKindEnum.Update ? ',"regressions":[""]' : '';
+  const regressions = changesExisting(caseInput) ? ',"regressions":[""]' : '';
 
   return `,"checklistResults":[{"itemId":"","hit":true,"explanation":""}]${regressions}`;
 };
 
+const buildEarlierConversationSection = (
+  conversation: EvalJudgePayload['conversation'],
+): string[] => {
+  if (!conversation) {
+    return [];
+  }
+
+  return [
+    '',
+    '## Earlier conversation (context only)',
+    `The agent had already exchanged ${conversation.earlierTurns.length} message(s) with the user before the message under test. Use them to understand what the agent knew and how the conversation went. Nothing the agent did or said here can satisfy a check or earn credit: judge only message ${conversation.judgedTurn.index + 1}.`,
+    ...conversation.earlierTurns.flatMap((turn) => [
+      '',
+      `Message ${turn.index + 1} (${turn.state.toLowerCase()})`,
+      `User: ${turn.input}`,
+      `Agent: ${turn.reply ?? '[no reply]'}`,
+      `Tool calls: ${toolCallsEvidenceText(turn.recordedToolCalls)}`,
+    ]),
+  ];
+};
+
 const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
-  const { caseInput, outputText } = payload;
+  const { caseInput, outputText, toolCalls, conversation } = payload;
   const { target, grading } = caseInput;
   return [
     'You are judging one attempt from an agent evaluation. You have no tools. Judge only the evidence below.',
@@ -162,10 +217,12 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
     '## Case',
     `Title: ${caseInput.title}`,
     `Situation: ${target.situation}`,
-    `Request the agent received: ${target.initiatingRequest}`,
+    `${conversation ? 'Message under test' : 'Request the agent received'}: ${finalEvalInputText(target)}`,
     ...(grading.expectations
       ? ['', '## Expected and forbidden behaviour', grading.expectations]
       : []),
+    '',
+    ...buildEarlierConversationSection(conversation),
     '',
     '## Checks',
     ...grading.checks.map((check) => `- ${check.id}: ${check.description}`),
@@ -175,8 +232,14 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
       (dimension) => `- ${dimension.key} (${dimension.name}): ${dimension.description}`,
     ),
     '',
-    "## The agent's output",
+    conversation ? "## The agent's output for the message under test" : "## The agent's output",
     outputText,
+    '',
+    conversation
+      ? '## Tool calls the agent made for the message under test'
+      : '## Tool calls the agent made',
+    'Evidence of what the agent did, in order, with arguments and without results. No particular tool or sequence is required or preferred; equivalent routes are equally valid. Use it to see whether the agent noticed what the situation called for.',
+    toolCallsEvidenceText(toolCalls),
     '',
     '## How to judge',
     '- Answer every check: passed or not, with a short explanation citing the output.',
@@ -194,6 +257,7 @@ const buildEvalJudgePrompt = (payload: EvalJudgePayload): string => {
 /** Child-only judge for eval attempts: may record uncertainty, returns one JSON assessment. */
 export const evalJudgeHandler: PromptTypeHandler<EvalJudgePayload> = {
   id: EVAL_JUDGE_HANDLER_ID,
+  sessionRole: SessionRole.Review,
   promptType: LocalPromptType.RunEval,
   service: 'optional',
   launchEntity: 'none',

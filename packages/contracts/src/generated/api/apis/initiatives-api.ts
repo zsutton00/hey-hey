@@ -50,8 +50,6 @@ import type { StartInitiativeRefinement200Response } from '../models.js';
 import type { StartInitiativeRefinementRequest } from '../models.js';
 // @ts-ignore
 import type { UpdateInitiativeDto } from '../models.js';
-// @ts-ignore
-import type { WorkStatus } from '../models.js';
 /**
  * InitiativesApi - axios parameter creator
  * @export
@@ -354,7 +352,7 @@ export const InitiativesApiAxiosParamCreator = function (configuration?: Configu
          * @summary Get all initiatives in organization
          * @param {string} organizationId Organization ID
          * @param {string} [projectId] Filter by project ID
-         * @param {Array<WorkStatus>} [status] Filter by initiative statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by initiative statuses (comma-separated)
          * @param {Priority} [priority] Filter by initiative priority
          * @param {Array<string>} [tags] Filter by tags (comma-separated)
          * @param {Array<string>} [includeSectionKeys] When provided, include only the requested section keys in each initiative response
@@ -363,7 +361,7 @@ export const InitiativesApiAxiosParamCreator = function (configuration?: Configu
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getOrganizationInitiatives: async (organizationId: string, projectId?: string, status?: Array<WorkStatus>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getOrganizationInitiatives: async (organizationId: string, projectId?: string, status?: Array<string>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getOrganizationInitiatives', 'organizationId', organizationId)
             const localVarPath = `/organizations/{organizationId}/initiatives`
@@ -760,7 +758,7 @@ export const InitiativesApiFp = function(configuration?: Configuration) {
          * @summary Get all initiatives in organization
          * @param {string} organizationId Organization ID
          * @param {string} [projectId] Filter by project ID
-         * @param {Array<WorkStatus>} [status] Filter by initiative statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by initiative statuses (comma-separated)
          * @param {Priority} [priority] Filter by initiative priority
          * @param {Array<string>} [tags] Filter by tags (comma-separated)
          * @param {Array<string>} [includeSectionKeys] When provided, include only the requested section keys in each initiative response
@@ -769,7 +767,7 @@ export const InitiativesApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getOrganizationInitiatives(organizationId: string, projectId?: string, status?: Array<WorkStatus>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetOrganizationInitiatives200Response>> {
+        async getOrganizationInitiatives(organizationId: string, projectId?: string, status?: Array<string>, priority?: Priority, tags?: Array<string>, includeSectionKeys?: Array<string>, page?: number, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetOrganizationInitiatives200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.getOrganizationInitiatives(organizationId, projectId, status, priority, tags, includeSectionKeys, page, limit, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['InitiativesApi.getOrganizationInitiatives']?.[localVarOperationServerIndex]?.url;
@@ -1308,10 +1306,10 @@ export interface InitiativesApiGetOrganizationInitiativesRequest {
 
     /**
      * Filter by initiative statuses (comma-separated)
-     * @type {Array<WorkStatus>}
+     * @type {Array<string>}
      * @memberof InitiativesApiGetOrganizationInitiatives
      */
-    readonly status?: Array<WorkStatus>
+    readonly status?: Array<string>
 
     /**
      * Filter by initiative priority

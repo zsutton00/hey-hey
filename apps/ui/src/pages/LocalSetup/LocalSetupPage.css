@@ -1,53 +1,8 @@
-.local-setup {
-  box-sizing: border-box;
-  min-height: 100vh;
-  padding: clamp(2rem, 6vw, 5rem) 1.5rem;
-  background: #333;
-  color: #fff;
-  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.local-setup__wordmark {
-  margin: 0 0 1.5rem;
-  color: #3fa7b5;
-  font-family: Monoton, "Arial Black", Arial, sans-serif;
-  font-size: 2.2rem;
-  font-weight: 400;
-  letter-spacing: 0.05em;
-}
-
 .local-setup__eyebrow {
   margin: 0 0 1rem;
   color: #ccc;
   font-size: 0.8rem;
   letter-spacing: 0.14em;
-}
-
-.local-setup h1 {
-  margin: 0 auto 2rem;
-  font-family: "Work Sans", "Arial Black", Arial, sans-serif;
-  font-size: clamp(1.8rem, 4.6vw, 2.9rem);
-  font-weight: 900;
-  line-height: 1.1;
-}
-
-.local-setup__intro {
-  max-width: 32rem;
-  margin: 0 auto 2rem;
-  color: #ddd;
-}
-
-.local-setup__card {
-  box-sizing: border-box;
-  max-width: 31rem;
-  margin: 0 auto;
-  padding: clamp(1.25rem, 4vw, 2rem);
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 8%);
-  text-align: left;
 }
 
 .local-setup__card h2 {

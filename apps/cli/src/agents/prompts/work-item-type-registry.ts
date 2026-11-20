@@ -24,8 +24,13 @@ import {
   WorkItemTypeRole,
   WorkItemTypeScalarField,
   WorkItemTypeSectionDefinitionKindEnum,
+  WorkItemStatusMeaning,
+  WorkItemStatusCompletionBehavior,
   WorkStatus,
   WorkItemConfigKind,
+  TaskMonitorLaunchMethod,
+  TaskMonitorLaunchProvider,
+  TaskMonitorReasoningEffort,
 } from '../../shared/api/index';
 import { Configuration, WorkItemTypesApi } from '../../shared/api/index';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
@@ -51,6 +56,10 @@ import type {
   WorkItemTypeSummaryDto,
   WorkItemTypeTracking,
   WorkItemTypeWritingStandards,
+  WorkItemTypeMonitorKind,
+  WorkItemTypeMonitorKindDonePolicy,
+  WorkItemTypeMonitorKindStartPolicy,
+  WorkItemTypeMonitorKindSupervisionPolicy,
 } from '../../shared/api/index';
 
 type ContractValue<T extends object, K extends keyof T> =
@@ -354,13 +363,58 @@ const graphCapabilitySchema = z
     }),
   );
 
+const monitorKindStartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('STATUS_TRANSITION'), status: z.nativeEnum(WorkStatus) }).strict(),
+  z.object({ type: z.literal('NO_STATUS_CHANGE') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindStartPolicy>;
+const monitorKindDoneSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('ITEM_STATUS'), status: z.nativeEnum(WorkStatus) }).strict(),
+  z.object({ type: z.literal('NORMALIZED_RESULT') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindDonePolicy>;
+const monitorKindSupervisionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('COORDINATOR_REVIEW') }).strict(),
+  z.object({ type: z.literal('DIRECT_ACCEPTANCE') }).strict(),
+]) satisfies z.ZodType<WorkItemTypeMonitorKindSupervisionPolicy>;
+
+const monitorKindShape = {
+  key: z.string().min(1),
+  allowedNodeTypes: z.array(z.string()).min(1),
+  allowedLaunchMethods: z.array(z.nativeEnum(TaskMonitorLaunchMethod)).min(1),
+  allowedRuntimeProviders: z.array(z.nativeEnum(TaskMonitorLaunchProvider)).min(1),
+  allowedReasoningEfforts: z.array(z.nativeEnum(TaskMonitorReasoningEffort)).min(1),
+  start: monitorKindStartSchema.optional(),
+  done: monitorKindDoneSchema.optional(),
+  supervision: monitorKindSupervisionSchema.optional(),
+  acceptance: z
+    .object({ type: z.enum(['COMPLETE_ITEM', 'NO_STATUS_CHANGE']) })
+    .strict()
+    .optional(),
+} satisfies ZodShapeFor<WorkItemTypeMonitorKind>;
+const monitorKindSchema = z
+  .object(monitorKindShape)
+  .strict()
+  .transform(
+    (value): WorkItemTypeMonitorKind => ({
+      key: value.key,
+      allowedNodeTypes: value.allowedNodeTypes,
+      allowedLaunchMethods: value.allowedLaunchMethods,
+      allowedRuntimeProviders: value.allowedRuntimeProviders,
+      allowedReasoningEfforts: value.allowedReasoningEfforts,
+      ...(value.acceptance !== undefined ? { acceptance: value.acceptance } : {}),
+      ...(value.start !== undefined ? { start: value.start } : {}),
+      ...(value.done !== undefined ? { done: value.done } : {}),
+      ...(value.supervision !== undefined ? { supervision: value.supervision } : {}),
+    }),
+  );
+
 const capabilitiesShape = {
   requiresParent: z.boolean().optional(),
   planEligible: z.boolean().optional(),
-  hasSetInitialStatus: z.boolean().optional(),
+  supportsSupersession: z.boolean().optional(),
   rendersInline: z.boolean().optional(),
   showsInExplorerSidebar: z.boolean().optional(),
   graph: graphCapabilitySchema.optional(),
+  monitorKinds: z.array(monitorKindSchema).min(1).optional(),
 } satisfies ZodShapeFor<WorkItemTypeCapabilities>;
 const capabilitiesSchema = z
   .object(capabilitiesShape)
@@ -369,14 +423,15 @@ const capabilitiesSchema = z
     (value): WorkItemTypeCapabilities => ({
       ...(value.requiresParent !== undefined ? { requiresParent: value.requiresParent } : {}),
       ...(value.planEligible !== undefined ? { planEligible: value.planEligible } : {}),
-      ...(value.hasSetInitialStatus !== undefined
-        ? { hasSetInitialStatus: value.hasSetInitialStatus }
+      ...(value.supportsSupersession !== undefined
+        ? { supportsSupersession: value.supportsSupersession }
         : {}),
       ...(value.rendersInline !== undefined ? { rendersInline: value.rendersInline } : {}),
       ...(value.showsInExplorerSidebar !== undefined
         ? { showsInExplorerSidebar: value.showsInExplorerSidebar }
         : {}),
       ...(value.graph !== undefined ? { graph: value.graph } : {}),
+      ...(value.monitorKinds !== undefined ? { monitorKinds: value.monitorKinds } : {}),
     }),
   );
 
@@ -391,6 +446,7 @@ const sessionRoleGuidanceShape = {
   research: z.string().optional(),
   planning: z.string().optional(),
   review: z.string().optional(),
+  sync: z.string().optional(),
 } satisfies ZodShapeFor<WorkItemTypeSessionRoleGuidance>;
 const sessionRoleGuidanceSchema = z
   .object(sessionRoleGuidanceShape)
@@ -401,6 +457,7 @@ const sessionRoleGuidanceSchema = z
       ...(value.research !== undefined ? { research: value.research } : {}),
       ...(value.planning !== undefined ? { planning: value.planning } : {}),
       ...(value.review !== undefined ? { review: value.review } : {}),
+      ...(value.sync !== undefined ? { sync: value.sync } : {}),
     }),
   );
 
@@ -417,12 +474,30 @@ const definitionShape = {
   sections: z.array(sectionSchema),
   requiredScalars: z.array(z.nativeEnum(WorkItemTypeScalarField)).optional(),
   forbiddenScalars: z.array(z.nativeEnum(WorkItemTypeScalarField)).optional(),
-  allowedStatuses: z.array(z.nativeEnum(WorkStatus)),
+  statuses: z
+    .array(
+      z
+        .object({
+          name: z.string().min(1),
+          label: z.string().optional(),
+          meaning: z.nativeEnum(WorkItemStatusMeaning),
+          completionBehavior: z.nativeEnum(WorkItemStatusCompletionBehavior).optional(),
+        })
+        .transform((value): WorkItemTypeDefinitionDto['statuses'][number] => ({
+          name: value.name,
+          meaning: value.meaning,
+          ...(value.label === undefined ? {} : { label: value.label }),
+          ...(value.completionBehavior === undefined
+            ? {}
+            : { completionBehavior: value.completionBehavior }),
+        })),
+    )
+    .min(1),
   allowedParentTypes: z.array(z.string()).optional(),
   edgeTargets: z.array(edgeTargetSchema).optional(),
   allowedParentEntityTypes: z.array(z.nativeEnum(EntityType)).optional(),
   tracking: trackingSchema.optional(),
-  agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
+  agentSettableStatuses: z.array(z.string()).optional(),
   anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
   writingStandards: writingStandardsSchema.nullable().optional(),
   capabilities: capabilitiesSchema.optional(),
@@ -450,7 +525,7 @@ const definitionSchema = z
       sections: value.sections,
       ...(value.requiredScalars !== undefined ? { requiredScalars: value.requiredScalars } : {}),
       ...(value.forbiddenScalars !== undefined ? { forbiddenScalars: value.forbiddenScalars } : {}),
-      allowedStatuses: value.allowedStatuses,
+      statuses: value.statuses,
       ...(value.allowedParentTypes !== undefined
         ? { allowedParentTypes: value.allowedParentTypes }
         : {}),
@@ -520,3 +595,14 @@ export const readActiveWorkItemTypeDefinitions = async (
 
   return summaries.map((summary) => summary.definition);
 };
+
+const summaryEnvelopeSchema = z.object({ data: summarySchema }).passthrough();
+
+/**
+ * Validates a single-type read (`GET .../work-item-types/{typeKey}`) at the
+ * boundary and returns its project-effective definition. The API has already
+ * resolved canonical inheritance, any complete project override and legacy
+ * omissions, so callers use the result as-is and never merge it locally.
+ */
+export const parseEffectiveWorkItemTypeDefinition = (payload: unknown): WorkItemTypeDefinitionDto =>
+  summaryEnvelopeSchema.parse(payload).data.definition;

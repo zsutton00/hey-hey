@@ -50,7 +50,13 @@ export const CodingPlanDiscrepancySchema = z.intersection(
       category: z.enum(['implementation', 'project_context']).optional(),
       userDirection: z.string().optional(),
       disposition: z
-        .enum(['open', 'accepted', 'repair_planned', 'withdrawn'])
+        .enum([
+          'open',
+          'accepted',
+          'changes_existing_behavior',
+          'repair_planned',
+          'withdrawn',
+        ])
         .optional(),
       implementationFollowThrough: z.string().optional(),
       withdrawalEvidence: z.string().optional(),
@@ -113,7 +119,12 @@ export const CodingPlanEmittedDiscrepancySchema = z.intersection(
     .object({
       findingId: z.string().min(1),
       category: z.enum(['implementation', 'project_context']),
-      disposition: z.enum(['open', 'accepted', 'repair_planned', 'withdrawn']),
+      disposition: z.enum([
+        'open',
+        'accepted',
+        'changes_existing_behavior',
+        'withdrawn',
+      ]),
     })
     .passthrough(),
 );

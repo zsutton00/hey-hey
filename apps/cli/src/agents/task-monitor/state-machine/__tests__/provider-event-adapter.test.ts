@@ -1,3 +1,4 @@
+import { createTestRun } from '../../../../run/run.test-support';
 import { describe, expect, it, vi } from 'vitest';
 
 import { mapCodexEvent } from '../../../providers/codex/codex-event-mapper';
@@ -70,52 +71,67 @@ const owner = {
 const observedDuringValidity = (): number => Date.parse('2026-08-08T12:01:00.000Z');
 
 describe('Task Monitor provider event adapter', () => {
-  it('connects Task Monitor-owned live Run output to addressed machine admission', async () => {
-    const registry = createTestRunRegistryWiring().runRegistry;
-    vi.spyOn(registry, 'get').mockReturnValue({
-      agentSessionId: owner.agentSessionId,
-      taskMonitorId: owner.taskMonitorId,
-      session: { contextMetadata: { taskMonitorId: owner.taskMonitorId } },
-    } as never);
-    const inputAdapter = Object.create(
-      TaskMonitorStateMachineInputAdapter.prototype,
-    ) as TaskMonitorStateMachineInputAdapter;
-    const admitVerified = vi.spyOn(inputAdapter, 'admitVerified').mockResolvedValue({
-      status: 'accepted',
-      ingressId: 'provider-action',
-      snapshot: {} as never,
-      effects: [],
-    });
-    const events = new AgentOutputEvents();
-    const admission = new TaskMonitorProviderEventAdmission(
-      registry,
-      inputAdapter,
-      NOOP_LOGGER,
-      observedDuringValidity,
-    );
-    admission.start(events);
-    const { runId, ...envelope } = realCodexPermissionEvent();
+  it.each(['accepted', 'rejected', 'failed'] as const)(
+    'reports actual %s admission to the owning Run',
+    async (outcome) => {
+      const registry = createTestRunRegistryWiring().runRegistry;
+      const run = createTestRun();
+      vi.spyOn(run, 'agentSessionId', 'get').mockReturnValue(owner.agentSessionId);
+      vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue(owner.taskMonitorId);
+      vi.spyOn(registry, 'get').mockReturnValue(run);
+      const inputAdapter = Object.create(
+        TaskMonitorStateMachineInputAdapter.prototype,
+      ) as TaskMonitorStateMachineInputAdapter;
+      const admitVerified = vi.spyOn(inputAdapter, 'admitVerified').mockResolvedValue({
+        status: 'accepted',
+        ingressId: 'provider-action',
+        snapshot: {} as never,
+        effects: [],
+      });
+      if (outcome === 'rejected') {
+        admitVerified.mockResolvedValue({
+          status: 'rejected',
+          code: 'transition_rejected',
+          reason: 'Another intervention is pending',
+        });
+      } else if (outcome === 'failed') {
+        admitVerified.mockRejectedValue(new Error('Admission store unavailable'));
+      }
+      const events = new AgentOutputEvents();
+      const admission = new TaskMonitorProviderEventAdmission(
+        registry,
+        inputAdapter,
+        NOOP_LOGGER,
+        observedDuringValidity,
+      );
+      admission.start(events);
+      const { runId, ...envelope } = realCodexPermissionEvent();
 
-    events.publish({ kind: 'agent_output', runId, envelope });
-    await vi.waitFor(() => expect(admitVerified).toHaveBeenCalledOnce());
-    expect(admitVerified).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: 'PROVIDER_INTERVENTION',
-        identity: { machineType: 'TASK_MONITOR', instanceId: owner.taskMonitorId },
-        ingressId: `provider-action:${owner.runId}:provider-action-1`,
-        action: 'exec',
-        target: 'pnpm deploy',
-        createdAt: '2026-08-08T12:00:00.000Z',
-        expiresAt: '2026-08-08T12:05:00.000Z',
-        fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
-      }),
-    );
+      events.publish({ kind: 'agent_output', runId, envelope });
+      await vi.waitFor(() => expect(admitVerified).toHaveBeenCalledOnce());
+      expect(admitVerified).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'PROVIDER_INTERVENTION',
+          identity: { machineType: 'TASK_MONITOR', instanceId: owner.taskMonitorId },
+          ingressId: `provider-action:${owner.runId}:provider-action-1`,
+          action: 'exec',
+          target: 'pnpm deploy',
+          createdAt: '2026-08-08T12:00:00.000Z',
+          expiresAt: '2026-08-08T12:05:00.000Z',
+          fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/u),
+        }),
+      );
 
-    admission.dispose();
-    events.publish({ kind: 'agent_output', runId, envelope });
-    await Promise.resolve();
-    expect(admitVerified).toHaveBeenCalledOnce();
-  });
+      await expect(run.takeTaskMonitorPermissionAdmission('provider-action-1')).resolves.toBe(
+        outcome === 'accepted',
+      );
+
+      admission.dispose();
+      events.publish({ kind: 'agent_output', runId, envelope });
+      await Promise.resolve();
+      expect(admitVerified).toHaveBeenCalledOnce();
+    },
+  );
 
   it('admits one normalized exact action with canonical owner and immutable facts', () => {
     expect(

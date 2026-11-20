@@ -1,0 +1,161 @@
+[
+  {
+    "id": "report-new",
+    "organizationId": "org",
+    "projectId": "project",
+    "title": "Weekly progress \u2014 Nov 5",
+    "reportType": "PROJECT_REPORT",
+    "audience": "PROJECT_VISIBLE",
+    "version": 1,
+    "schemaVersion": 1,
+    "createdAt": "2026-11-12T08:43:00Z",
+    "expiresAt": "2027-06-01T00:00:00Z",
+    "entities": [],
+    "payload": {
+      "reportType": "PROJECT_REPORT",
+      "title": "Weekly progress \u2014 Nov 5",
+      "summary": "Summary of Weekly progress \u2014 Nov 5",
+      "question": "What changed this period?",
+      "scope": {
+        "projectId": "project",
+        "windowStart": "2026-11-05T00:00:00Z",
+        "windowEnd": "2026-11-12T00:00:00Z",
+        "timeZone": "UTC"
+      },
+      "exclusions": [],
+      "provenance": {
+        "requestId": "req-report-new",
+        "attemptId": "att-report-new",
+        "evidenceReadStartedAt": "2026-11-12T08:43:00Z",
+        "evidenceReadCompletedAt": "2026-11-12T08:43:00Z",
+        "evidence": [
+          {
+            "key": "e1",
+            "title": "Reports page task",
+            "subject": {
+              "entityType": "TASK",
+              "entityId": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        ]
+      },
+      "coverage": {
+        "status": "COMPLETE",
+        "matchingActivityCount": 12,
+        "processedActivityCount": 12,
+        "pagesRead": 1,
+        "limitations": []
+      },
+      "body": {
+        "html": "<h1>Week of Nov 5</h1><p data-entity-type=\"TASK\" data-entity-id=\"x\">Shipped @[task:11111111-1111-4111-8111-111111111111|Reports page] and polished @[feature:22222222-2222-4222-8222-222222222222|Project Page].</p><script>window.top.location='https://evil.example'</script><img src=\"https://tracker.example/p.png\"><link rel=\"stylesheet\" href=\"https://evil.example/x.css\"><table><tr><th>Area</th><th>Done</th></tr><tr><td>UI</td><td><div class=\"bar\" style=\"width:80%\"></div></td></tr><tr><td>API</td><td><div class=\"bar\" style=\"width:40%\"></div></td></tr></table><section data-evidence-key=\"e1\"><h2>Highlights</h2><p>Long narrative paragraph. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. More detail. </p></section>",
+        "css": "html,body{background:#123456;margin:0}body{font-family:Georgia,serif;padding:32px}h1{font-size:34px}.bar{height:14px;background:#2a7;border-radius:7px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ccc;padding:6px}"
+      }
+    }
+  },
+  {
+    "id": "report-mid",
+    "organizationId": "org",
+    "projectId": "project",
+    "title": "Weekly progress \u2014 Oct 29",
+    "reportType": "PROJECT_REPORT",
+    "audience": "PROJECT_VISIBLE",
+    "version": 1,
+    "schemaVersion": 1,
+    "createdAt": "2026-11-05T08:00:00Z",
+    "expiresAt": "2027-06-01T00:00:00Z",
+    "entities": [],
+    "payload": {
+      "reportType": "PROJECT_REPORT",
+      "title": "Weekly progress \u2014 Oct 29",
+      "summary": "Summary of Weekly progress \u2014 Oct 29",
+      "question": "What changed this period?",
+      "scope": {
+        "projectId": "project",
+        "windowStart": "2026-10-29T00:00:00Z",
+        "windowEnd": "2026-11-05T00:00:00Z",
+        "timeZone": "America/Los_Angeles"
+      },
+      "exclusions": [],
+      "provenance": {
+        "requestId": "req-report-mid",
+        "attemptId": "att-report-mid",
+        "evidenceReadStartedAt": "2026-11-05T08:00:00Z",
+        "evidenceReadCompletedAt": "2026-11-05T08:00:00Z",
+        "evidence": [
+          {
+            "key": "e1",
+            "title": "Reports page task",
+            "subject": {
+              "entityType": "TASK",
+              "entityId": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        ]
+      },
+      "coverage": {
+        "status": "COMPLETE",
+        "matchingActivityCount": 12,
+        "processedActivityCount": 12,
+        "pagesRead": 1,
+        "limitations": []
+      },
+      "body": {
+        "html": "<h1>Previous week</h1><p>Steady progress on @[task:33333333-3333-4333-8333-333333333333|Report previews].</p><div class=\"bar\" style=\"width:60%\"></div>",
+        "css": "html,body{background:#123456;margin:0}body{font-family:Georgia,serif;padding:32px}h1{font-size:34px}.bar{height:14px;background:#2a7;border-radius:7px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ccc;padding:6px}"
+      }
+    }
+  },
+  {
+    "id": "report-old",
+    "organizationId": "org",
+    "projectId": "project",
+    "title": "Daily check-in",
+    "reportType": "PROJECT_REPORT",
+    "audience": "PROJECT_VISIBLE",
+    "version": 1,
+    "schemaVersion": 1,
+    "createdAt": "2026-10-29T02:00:00Z",
+    "expiresAt": "2027-06-01T00:00:00Z",
+    "entities": [],
+    "payload": {
+      "reportType": "PROJECT_REPORT",
+      "title": "Daily check-in",
+      "summary": "Summary of Daily check-in",
+      "question": "What changed this period?",
+      "scope": {
+        "projectId": "project",
+        "windowStart": "2026-10-28T00:00:00Z",
+        "windowEnd": "2026-10-29T00:00:00Z",
+        "timeZone": "UTC"
+      },
+      "exclusions": [],
+      "provenance": {
+        "requestId": "req-report-old",
+        "attemptId": "att-report-old",
+        "evidenceReadStartedAt": "2026-10-29T02:00:00Z",
+        "evidenceReadCompletedAt": "2026-10-29T02:00:00Z",
+        "evidence": [
+          {
+            "key": "e1",
+            "title": "Reports page task",
+            "subject": {
+              "entityType": "TASK",
+              "entityId": "11111111-1111-4111-8111-111111111111"
+            }
+          }
+        ]
+      },
+      "coverage": {
+        "status": "COMPLETE",
+        "matchingActivityCount": 12,
+        "processedActivityCount": 12,
+        "pagesRead": 1,
+        "limitations": []
+      },
+      "body": {
+        "html": "<h1>Two weeks ago</h1><p>Planning and cleanup.</p>",
+        "css": "html,body{background:#123456;margin:0}body{font-family:Georgia,serif;padding:32px}h1{font-size:34px}.bar{height:14px;background:#2a7;border-radius:7px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #ccc;padding:6px}"
+      }
+    }
+  }
+]

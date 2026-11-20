@@ -1,3 +1,5 @@
+import { ReadVisibilityService } from '../read-restriction/read-visibility.service';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import { isSerializableWorkflowState } from '../workflows/conversation-workflow-state';
 import { resolveAncestorPlanWorkItem } from './plan/resolve-plan-work-item';
 import { parseProjectReportSessionConfig } from 'src/contracts/project-report-session-config';
@@ -12,6 +14,7 @@ import {
   ForbiddenException,
   forwardRef,
   Inject,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -171,6 +174,7 @@ export type PaginatedAgentSessionFilters = {
   userId?: string;
   serviceId?: string;
   taskId?: string;
+  search?: string;
   cursor?: string;
 };
 
@@ -181,6 +185,47 @@ export type AgentSessionRuntimeConnectionContext = {
   organizationIds: readonly string[];
   projectIds: readonly string[];
 };
+
+/**
+ * Name the first identity check a runtime observation failed. A connection
+ * with no subscribed projects is reported separately from one subscribed to
+ * other projects, because the former means its subscribe never succeeded.
+ */
+function runtimeObservationRejectionReason(
+  connection: AgentSessionRuntimeConnectionContext,
+  session: {
+    userId: string;
+    machineId: string | null;
+    projectId: string;
+  } | null,
+  organizationId: string | undefined,
+): string {
+  if (!session) {
+    return 'session_not_found';
+  }
+
+  if (connection.userId !== session.userId) {
+    return 'user_mismatch';
+  }
+
+  if (!connection.machineId || !session.machineId) {
+    return 'machine_unbound';
+  }
+
+  if (connection.machineId !== session.machineId) {
+    return 'machine_mismatch';
+  }
+
+  if (!organizationId) {
+    return 'organization_mismatch';
+  }
+
+  if (connection.projectIds.length === 0) {
+    return 'connection_has_no_project_subscriptions';
+  }
+
+  return 'project_not_subscribed';
+}
 
 export type StartRunConversationBinding =
   | { kind: 'REPOSITORY_IMPORT_MATERIALIZATION' }
@@ -272,6 +317,14 @@ export function parseAgentSessionTaskIdQuery(
     throw new BadRequestException('taskId must be a valid UUID');
   }
   return value;
+}
+
+/** Trimmed title search term; an empty or whitespace-only term means no search. */
+export function parseAgentSessionSearchQuery(
+  value: string | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 export function parseAgentSessionStatusesQuery(
@@ -444,7 +497,11 @@ export class AgentSessionService {
     private readonly workItemTypeRegistry?: WorkItemTypeRegistryService,
     @Optional()
     private readonly projectModeEligibility?: ProjectModeEligibilityService,
-  ) {}
+  ) {
+    this.visibility = new ReadVisibilityService(prisma);
+  }
+
+  private readonly visibility: ReadVisibilityService;
 
   async resolveStartRunConversationBinding(params: {
     organizationId: OrganizationId;
@@ -473,7 +530,7 @@ export class AgentSessionService {
           conversationId: params.conversationId,
           conversationWorkflowName: params.conversationWorkflowName,
         });
-        throw new ConflictException({
+        throw new UnprocessableEntityException({
           code: 'WORK_TRACKER_IMPORT_START_RUN_BINDING_MISMATCH',
           message:
             'The work-tracker import start-run request does not match the Agent Session conversation binding.',
@@ -494,7 +551,7 @@ export class AgentSessionService {
       select: { conversationId: true },
     });
     if (!session || session.conversationId !== params.conversationId) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'REPOSITORY_IMPORT_START_RUN_BINDING_MISMATCH',
         message:
           'The repository import start-run request does not match the Agent Session conversation binding.',
@@ -532,7 +589,7 @@ export class AgentSessionService {
         flowState: execution.flowState,
       })
     ) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'REPOSITORY_IMPORT_START_RUN_BINDING_MISMATCH',
         message:
           'The repository import start-run request does not match a qualifying import conversation.',
@@ -897,7 +954,8 @@ export class AgentSessionService {
                 agentSessionId: association.agentSessionId,
               },
             );
-            throw new ConflictException(
+            throw new ServerStateException(
+              'AGENT_SESSION_STATE_INCONSISTENT',
               'Coordinator association points to an invalid Agent Session',
             );
           }
@@ -1075,7 +1133,8 @@ export class AgentSessionService {
 
     if (session.conversationId !== null) {
       if (!this.conversationService) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'AGENT_SESSION_STATE_INCONSISTENT',
           'Agent session already has a conversation, but it could not be loaded',
         );
       }
@@ -1316,6 +1375,12 @@ export class AgentSessionService {
         AND cs.entity_id::text = ${filters.taskId}
       `);
     }
+    if (filters.search) {
+      // strpos is a literal substring match, so %, _ and \\ need no escaping.
+      whereConditions.push(
+        Prisma.sql`strpos(lower(cs.title), lower(${filters.search})) > 0`,
+      );
+    }
     if (cursor) {
       whereConditions.push(this.buildPageCursorWhereClause(cursor));
     }
@@ -1455,6 +1520,8 @@ export class AgentSessionService {
   ): Promise<AgentSessionDto> {
     const { includeService = false, includeUser = false, projectId } = options;
     let dto: AgentSessionDto;
+
+    await this.visibility.assertVisible('AGENT_SESSION', agentSessionId);
 
     if (includeService) {
       const session = await this.findOneWithServiceSummary(
@@ -2375,15 +2442,13 @@ export class AgentSessionService {
         organizationId,
         userId: connection.userId,
         machineId: connection.machineId,
-        reason: !session
-          ? 'session_not_found'
-          : connection.userId !== session.userId
-            ? 'user_mismatch'
-            : connection.machineId !== session.machineId
-              ? 'machine_mismatch'
-              : !organizationId
-                ? 'organization_mismatch'
-                : 'project_mismatch',
+        sessionProjectId: session?.projectId,
+        connectionProjectCount: connection.projectIds.length,
+        reason: runtimeObservationRejectionReason(
+          connection,
+          session,
+          organizationId,
+        ),
       });
       throw new ForbiddenException('Agent Session runtime observation denied');
     }
@@ -3378,9 +3443,17 @@ export class AgentSessionService {
   private buildPageCursorFingerprint(
     filters: Pick<
       PaginatedAgentSessionFilters,
-      'type' | 'statuses' | 'sort' | 'userId' | 'serviceId' | 'taskId'
+      | 'type'
+      | 'statuses'
+      | 'sort'
+      | 'userId'
+      | 'serviceId'
+      | 'taskId'
+      | 'search'
     >,
   ): string {
+    // `search` joins the identity only when present, so cursors issued
+    // without a search keep their original fingerprint.
     const canonicalFilters = JSON.stringify({
       type: filters.type ?? null,
       statuses: Array.from(new Set(filters.statuses)).sort(),
@@ -3388,6 +3461,7 @@ export class AgentSessionService {
       userId: filters.userId ?? null,
       serviceId: filters.serviceId ?? null,
       taskId: filters.taskId ?? null,
+      ...(filters.search ? { search: filters.search.toLowerCase() } : {}),
     });
     return createHash('sha256').update(canonicalFilters).digest('hex');
   }

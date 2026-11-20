@@ -2,8 +2,15 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NuqsAdapter } from "nuqs/adapters/react-router";
 import React from "react";
-import { BrowserRouter } from "react-router-dom";
+import {
+  BrowserRouter,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ChangesRedirect } from "../Changes/ChangesRedirect";
 import { ProjectAgentsTab } from "./ProjectAgentsTab";
 
 const registry = vi.hoisted(() => ({
@@ -31,6 +38,9 @@ vi.mock("../../components/Activity", () => ({
 vi.mock("@hey-hey/ui-common/components", () => ({
   TaskMonitorActivityTab: () => <div>Automation panel</div>,
 }));
+vi.mock("../Changes/ChangesView", () => ({
+  ChangesView: () => <div>Changes panel</div>,
+}));
 vi.mock("./views", () => ({ CostsView: () => null, UsageView: () => null }));
 
 const tab = (projectId = "project-1") => (
@@ -49,6 +59,7 @@ describe("Agents Eval URL restoration", () => {
   beforeEach(() => {
     registry.isReady = true;
     registry.error = null;
+    registry.workItemTypes[0].definition.name = "Evaluations";
     window.history.replaceState(
       {},
       "",
@@ -62,6 +73,21 @@ describe("Agents Eval URL restoration", () => {
         removeEventListener: vi.fn(),
       })),
     );
+  });
+  it("withholds unnamed Eval discovery and restores its registry label without losing the URL", () => {
+    registry.workItemTypes[0].definition.name = " ";
+    const view = render(tab());
+    expect(screen.queryByText("Eval discovery")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(query().get("agentsSubTab")).toBe("evals");
+
+    registry.workItemTypes[0].definition.name = "Quality checks";
+    view.rerender(tab());
+    expect(
+      screen.getByRole("button", { name: "Quality checks" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Eval discovery")).toBeInTheDocument();
+    expect(query().get("agentsSubTab")).toBe("evals");
   });
   it("retains a direct URL through delayed readiness, failure, recovery and remount", () => {
     registry.isReady = false;
@@ -133,5 +159,59 @@ describe("Agents Eval URL restoration", () => {
     expect(query().get("agentsSubTab")).toBe("evals");
     view.rerender(tab());
     expect(screen.getByText("Eval discovery")).toBeInTheDocument();
+  });
+  it("shows Changes right after Agent Sessions and renders its list from the URL", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/projects/project-1?tab=agents&agentsSubTab=changes&agentSessionId=s1",
+    );
+    render(tab());
+    const labels = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(labels.indexOf("Changes")).toBe(
+      labels.indexOf("Agent Sessions") + 1,
+    );
+    expect(screen.getByText("Changes panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("open-changes")).not.toBeInTheDocument();
+  });
+
+  it("redirects the old changes URL to the Agents Changes view with its filters", async () => {
+    const Probe = () => {
+      const location = useLocation();
+      return (
+        <div data-testid="probe">{`${location.pathname}${location.search}`}</div>
+      );
+    };
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/projects/project-1/changes?agentSessionId=s1&offset=50",
+        ]}
+      >
+        <Routes>
+          <Route
+            path="/projects/:projectId/changes"
+            element={<ChangesRedirect />}
+          />
+          <Route path="/projects/:projectId" element={<Probe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toBeInTheDocument(),
+    );
+    const target = new URL(
+      screen.getByTestId("probe").textContent ?? "",
+      "http://x",
+    );
+    expect(target.pathname).toBe("/projects/project-1");
+    expect(Object.fromEntries(target.searchParams)).toEqual({
+      tab: "agents",
+      agentsSubTab: "changes",
+      agentSessionId: "s1",
+      offset: "50",
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { RunAttachmentStore } from './run-attachment-store';
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import { EvalWorkspaces } from '../agents/run-eval/eval-workspace';
 import type { ProjectBrowser } from '../browser/project-browser-manager';
@@ -9,7 +10,6 @@ import { BrowserToolsHttpController } from '../agents/browser-tools/http-mcp';
 import { InputAdmissionOwner } from './input-admission/input-admission-owner';
 import { InputAdmissionLifecycle } from './input-admission/admission-lifecycle';
 import type { OperationTimelineRegistry } from './input-admission/operation-timeline';
-import { resolveBaseDir as resolveInputAdmissionRoot } from '../session/paths';
 import type { ApiRuntime } from '../shared/runtime/clients/shared';
 import { z } from 'zod';
 import type { AgentApplicationRuntime } from '../agents/agent-application-runtime';
@@ -42,6 +42,7 @@ import type { PlatformAuthContext } from './platform-auth-context';
 import type { PlatformWebSocketManager } from './platform-ws';
 import { ReportSyncService } from './report-sync-service';
 import type { EntityReportIndex } from './reports/entity-report-index';
+import { RecordedEditLedger } from './recorded-edit-ledger';
 import { RunChangedFilesReader } from './run-changed-files';
 import type { RunLifecycleEvents } from './run-lifecycle-events';
 import type { TaskMonitorManagedTurnRuntime } from './task-monitor-managed-turn-runtime';
@@ -228,6 +229,7 @@ export interface RunApplicationRuntimeDependencies {
   runLifecycleEvents: RunLifecycleEvents;
   logger: ServerLogger;
   dataDir: string;
+  invocationConfigPath?: string;
   apiBaseUrl: string;
   authContext: PlatformAuthContext;
   reportIndex: EntityReportIndex;
@@ -375,6 +377,11 @@ export class RunApplicationRuntime {
     this.runChangedFilesReader = new RunChangedFilesReader(
       dependencies.repoStore,
       dependencies.logger.child({ component: 'changed-files' }),
+      new RecordedEditLedger(
+        dependencies.oauthClient,
+        dependencies.apiBaseUrl,
+        dependencies.logger.child({ component: 'recorded-edit-ledger' }),
+      ),
     );
     this.sessionRunnerFacade = new SessionRunnerFacade({
       runStore: dependencies.runStore,
@@ -391,7 +398,11 @@ export class RunApplicationRuntime {
     const evalAttemptExecution = new EvalAttemptExecution(
       runLogger,
       undefined,
-      new EvalWorkspaces(dependencies.repoStore, runLogger.child({ component: 'eval-workspaces' })),
+      new EvalWorkspaces(
+        dependencies.repoStore,
+        runLogger.child({ component: 'eval-workspaces' }),
+        { rootDirectory: dependencies.dataDir + '/eval-workspaces' },
+      ),
     );
     const baseHandlerDeps = {
       evalAttemptExecution,
@@ -535,7 +546,9 @@ export class RunApplicationRuntime {
       readSource: this.localSessionReadSource,
       logger: dependencies.logger.child({ component: 'session-activity' }),
     });
-    const machineOptions = new MachineOptionsStore();
+    const machineOptions = new MachineOptionsStore({
+      filePath: dependencies.dataDir + '/options.json',
+    });
     this.isRemoteToolCallViewingEnabled = () => machineOptions.isRemoteToolCallViewingEnabled();
     this.readProjectName = createProjectNameReader(
       dependencies.apiRuntime,
@@ -563,6 +576,9 @@ export class RunApplicationRuntime {
       projectModeBundleRestorer: this.projectModeBundleRestorer,
     });
     this.agentService = new LocalAgentService({
+      ...(dependencies.invocationConfigPath
+        ? { invocationConfigPath: dependencies.invocationConfigPath }
+        : {}),
       runStore: dependencies.runStore,
       repoStore: dependencies.repoStore,
       runRegistry: this.runRegistry,
@@ -583,8 +599,8 @@ export class RunApplicationRuntime {
     evalAttemptExecution.bind(this.agentService, dependencies.runStore);
     const inputAdmissionOwner = new InputAdmissionOwner(
       {
-        directory: resolveInputAdmissionRoot() + '/runs/input-admission',
-        legacyStoreFile: resolveInputAdmissionRoot() + '/runs/input-admission.json',
+        directory: dependencies.dataDir + '/runs/input-admission',
+        legacyStoreFile: dependencies.dataDir + '/runs/input-admission.json',
       },
       dependencies.logger,
     );
@@ -599,6 +615,7 @@ export class RunApplicationRuntime {
       dependencies.runStore,
       this.messagePoster,
       dependencies.operationTimeline,
+      new RunAttachmentStore(dependencies.dataDir),
     );
     this.agentService.bindInputAdmission(this.inputAdmissionLifecycle);
     const subagentLogger = dependencies.logger.child({ component: 'subagent-interactions' });

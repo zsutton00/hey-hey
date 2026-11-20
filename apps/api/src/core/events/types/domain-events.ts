@@ -401,6 +401,31 @@ export type MachineEvents = MachineRevokedEvent;
 // Union of all domain event families
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Work item execution state events
+// ---------------------------------------------------------------------------
+
+/**
+ * Committed in the same transaction as an accepted change to a retained work
+ * item execution state, and delivered to every API instance. It carries
+ * identity and ordering only: each instance reads the retained record and
+ * emits it to its own subscribers. Hand-defined because it never crosses the
+ * public API boundary.
+ */
+export interface WorkItemExecutionStateRetainedEvent {
+  id: string;
+  type: typeof EVENT_TYPES.WORK_ITEM_EXECUTION_STATE.RETAINED;
+  /** The work item id. */
+  aggregateId: string;
+  payload: Partial<ExecutionContext> &
+    Pick<ExecutionContext, 'organizationId' | 'projectId'> & {
+      workItemId: string;
+      revision: number;
+    };
+}
+
+export type WorkItemExecutionStateEvents = WorkItemExecutionStateRetainedEvent;
+
 export type ServiceEvent =
   | ConversationEvents
   | MessageEvents
@@ -430,6 +455,7 @@ export type ServiceEvent =
   | GitHubWebhookEvents
   | HelpEvents
   | WorkItemTypeEvents
+  | WorkItemExecutionStateEvents
   | MachineEvents;
 
 export const isMessageCreatedEvent = (
@@ -981,3 +1007,8 @@ export const isMachineRevokedEvent = (
 ): event is MachineRevokedEvent => {
   return event.type === EVENT_TYPES.MACHINE.REVOKED;
 };
+
+export const isWorkItemExecutionStateRetainedEvent = (
+  event: ServiceEvent,
+): event is WorkItemExecutionStateRetainedEvent =>
+  event.type === EVENT_TYPES.WORK_ITEM_EXECUTION_STATE.RETAINED;

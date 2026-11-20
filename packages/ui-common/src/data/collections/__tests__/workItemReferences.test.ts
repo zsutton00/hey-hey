@@ -123,3 +123,30 @@ describe("work-item reference reads", () => {
     });
   });
 });
+
+describe("work-item reference status filters", () => {
+  const base = {
+    organizationId: "org",
+    projectId: "project",
+    workItemType: "RECIPE",
+    page: 1,
+    limit: 20,
+  };
+
+  it("keeps names containing commas intact in cache identity and requests", async () => {
+    const joined = ["Ready, pending sign-off"];
+    const split = ["Ready", "pending sign-off"];
+
+    expect(
+      workItemReferenceKeys.page({ ...base, statuses: joined }),
+    ).not.toEqual(workItemReferenceKeys.page({ ...base, statuses: split }));
+
+    listWorkItemReferencesMock.mockResolvedValue(pageResponse(1, [], false, 0));
+    await fetchWorkItemReferencePageQuery({ ...base, statuses: joined });
+    await fetchWorkItemReferencePageQuery({ ...base, statuses: split });
+
+    expect(
+      listWorkItemReferencesMock.mock.calls.map(([q]) => q.statuses),
+    ).toEqual([joined, split]);
+  });
+});

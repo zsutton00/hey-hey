@@ -1,8 +1,11 @@
 import { Alert, Box, Stack } from "@mui/material";
+import { TaskMonitorResultEvidence } from "./TaskMonitorResultEvidence";
 import { EntityListItem, taskAdapter } from "../Entity";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 
 export interface TaskMonitorStepsPaneProps {
+  results?: boolean;
+  organizationId?: string;
   nodes: readonly TaskMonitorProjectedNode[];
   projectId: string;
   selectedTaskId: string | null;
@@ -11,6 +14,8 @@ export interface TaskMonitorStepsPaneProps {
 
 export const TaskMonitorStepsPane = ({
   nodes,
+  results = false,
+  organizationId,
   projectId,
   selectedTaskId,
   onSelectTask,
@@ -32,14 +37,22 @@ export const TaskMonitorStepsPane = ({
       {nodes.map((node) => {
         if (node.task.kind === "missing") {
           return (
-            <Alert
-              key={node.taskId}
-              severity="error"
-              data-testid="task-monitor-step-missing"
-              data-task-id={node.taskId}
-            >
-              The canonical selected task could not be loaded.
-            </Alert>
+            <Box key={node.taskId}>
+              <Alert
+                severity="error"
+                data-testid="task-monitor-step-missing"
+                data-task-id={node.taskId}
+              >
+                The canonical selected task could not be loaded.
+              </Alert>
+              {results && organizationId ? (
+                <TaskMonitorResultEvidence
+                  organizationId={organizationId}
+                  projectId={projectId}
+                  node={node}
+                />
+              ) : null}
+            </Box>
           );
         }
 
@@ -106,6 +119,13 @@ export const TaskMonitorStepsPane = ({
                 ) : undefined
               }
             />
+            {results && organizationId ? (
+              <TaskMonitorResultEvidence
+                organizationId={organizationId}
+                projectId={projectId}
+                node={node}
+              />
+            ) : null}
           </Box>
         );
       })}

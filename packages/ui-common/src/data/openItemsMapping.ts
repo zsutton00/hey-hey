@@ -54,6 +54,7 @@ const lineageKinds = {
   plan_stage: "s",
   plan_step: "e",
   task: "t",
+  agent_session: "a",
 } as const;
 
 // The API uses TASK identity for all work items. The bounded route metadata
@@ -78,6 +79,12 @@ export function openItemsPresentation(
   }
   return {
     label: snapshot.label,
+    // Omitted means legacy/unknown; null means authoritatively absent. Keep
+    // that distinction so the server can backfill migrated snapshots.
+    ...(snapshot.kind === "agent_session" &&
+    snapshot.conversationId !== undefined
+      ? { conversationId: snapshot.conversationId }
+      : {}),
     workItemTypeKey:
       snapshot.kind === "task"
         ? snapshot.taskType
@@ -94,7 +101,10 @@ export function openItemsPresentation(
 
 export const openItemsLineage = (activation: EntityActivation) =>
   (activation.lineage ?? []).map((entry) => ({
-    entityType: EntityType.Task,
+    entityType:
+      entry.entityType === "agent_session"
+        ? EntityType.AgentSession
+        : EntityType.Task,
     entityId: entry.entityId,
   }));
 
@@ -148,6 +158,9 @@ function uiPresentation(
       kind,
       label: presentation.label,
       sessionType,
+      ...(presentation.conversationId !== undefined
+        ? { conversationId: presentation.conversationId }
+        : {}),
       ...(route?.conversationId && route.entityId && route.entityType
         ? {
             entityConversationRoute: {
@@ -175,14 +188,25 @@ function uiLineage(item: OpenItem): NavigationLineage {
           return [createNavigationLineageEntry("plan_step", entry.entityId)];
         case "t":
           return [createNavigationLineageEntry("task", entry.entityId)];
+        case "a":
+          return [
+            createNavigationLineageEntry("agent_session", entry.entityId),
+          ];
         default:
           return [];
       }
     });
   }
-  return item.lineage
-    .filter((entry) => entry.entityType === EntityType.Task)
-    .map((entry) => createNavigationLineageEntry("task", entry.entityId));
+  return item.lineage.flatMap<NavigationLineageEntry>((entry) => {
+    switch (entry.entityType) {
+      case EntityType.Task:
+        return [createNavigationLineageEntry("task", entry.entityId)];
+      case EntityType.AgentSession:
+        return [createNavigationLineageEntry("agent_session", entry.entityId)];
+      default:
+        return [];
+    }
+  });
 }
 
 const positionOrder = (left: string, right: string) =>

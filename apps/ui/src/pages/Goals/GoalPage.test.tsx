@@ -1,3 +1,5 @@
+import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import type {
   AgentSessionDto,
@@ -30,7 +32,13 @@ import {
   within,
 } from "@testing-library/react";
 import React from "react";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GoalPmConversationLink } from "@hey-hey/ui-common/components";
 import { GoalPage } from "./GoalPage";
@@ -42,10 +50,13 @@ let mockIsPlatformAdmin = false;
 let mockGoalTask: TaskResponseDto | null;
 let mockGoalWorkItem: TaskResponseDto | null;
 let mockTrackedWorkItems: Record<string, TaskResponseDto | null>;
-let mockPlans: Record<string, { id: string; name: string; status: WorkStatus }>;
+let mockPlans: Record<
+  string,
+  { id: string; name: string; status: TaskResponseDto["status"] }
+>;
 let mockDesignDocs: Record<
   string,
-  { id: string; title: string; status: WorkStatus }
+  { id: string; title: string; status: TaskResponseDto["status"] }
 >;
 let mockWorkItemTypes: WorkItemTypeSummaryDto[];
 let mockReports: ReportDto[];
@@ -237,6 +248,9 @@ vi.mock("@hey-hey/ui-common/components", () => ({
     children,
     contextualActions = [],
     entityId,
+    entityType,
+    entityTitle,
+    draggable = true,
   }: {
     children: React.ReactNode;
     contextualActions?: Array<{
@@ -244,8 +258,16 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       onSelect: () => void;
     }>;
     entityId: string;
+    entityType: string;
+    entityTitle: string;
+    draggable?: boolean;
   }) => (
-    <div data-testid={`goal-tracked-interaction-${entityId}`}>
+    <div
+      data-testid={`goal-tracked-interaction-${entityId}`}
+      data-draggable={String(draggable)}
+      data-entity-type={entityType}
+      data-entity-title={entityTitle}
+    >
       {children}
       {contextualActions.map((action) => (
         <button
@@ -275,7 +297,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       .replace(/^\w/, (character) => character.toUpperCase()),
   WorkItemMetadata: (props: {
     fields: {
-      status?: { onChange?: (value: WorkStatus) => void };
+      status?: { onChange?: (value: TaskResponseDto["status"]) => void };
       dueDate?: {
         onChange?: (value: string | null) => void;
         allowClear?: boolean;
@@ -463,6 +485,7 @@ vi.mock("@hey-hey/ui-common/services", () => ({
     plan: ({ planId }: { planId: string }) => `/plans/${planId}`,
   }),
   WebPathService: {
+    project: (projectId: string) => `/projects/${projectId}`,
     task: ({ taskId }: { taskId: string }) => `/tasks/${taskId}`,
     goal: ({ taskId }: { taskId: string }) => `/tasks/${taskId}`,
     designDoc: ({ designDocId }: { designDocId: string }) =>
@@ -476,7 +499,8 @@ vi.mock("@hey-hey/ui-common/services", () => ({
   },
 }));
 
-vi.mock("@hey-hey/ui-common/utils", () => ({
+vi.mock("@hey-hey/ui-common/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@hey-hey/ui-common/utils")>()),
   deriveGoalStatus: () => null,
   goalStatusChipDescriptor: vi.fn(),
 }));
@@ -742,13 +766,13 @@ const createGoalReport = (overrides: Partial<ReportDto> = {}): ReportDto =>
 const createTypeDefinition = (
   key: string,
   name: string,
-  allowedStatuses: WorkStatus[],
+  allowedStatuses: TaskResponseDto["status"][],
 ): WorkItemTypeDefinitionDto =>
   ({
     key,
     name,
     sections: [],
-    allowedStatuses,
+    statuses: legacyStatuses(allowedStatuses),
   }) as WorkItemTypeDefinitionDto;
 
 const createTypeSummary = (
@@ -768,8 +792,19 @@ const findEntityListItemProps = (
     .map(([props]) => props as Record<string, unknown>)
     .find((props) => props.title === title);
 
+function ArchiveLocationProbe() {
+  useArchiveHistory();
+  const location = useLocation();
+  return (
+    <output data-testid="archive-location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
+}
 const goalPageRoute = (): React.ReactElement => (
   <MemoryRouter initialEntries={["/projects/project-1/tasks/goal-task-1"]}>
+    <ArchiveLocationProbe />
     <Routes>
       <Route path="/projects/:projectId/tasks/:taskId" element={<GoalPage />} />
     </Routes>
@@ -854,7 +889,7 @@ describe("GoalPage tabs", () => {
     );
     mockPlanAdapter.mockImplementation(
       (
-        plan: { id: string; name: string; status: WorkStatus },
+        plan: { id: string; name: string; status: TaskResponseDto["status"] },
         options: {
           pathService: { plan: (input: { planId: string }) => string };
           showEntityKind?: boolean;
@@ -869,7 +904,11 @@ describe("GoalPage tabs", () => {
     );
     mockDesignDocAdapter.mockImplementation(
       (
-        designDoc: { id: string; title: string; status: WorkStatus },
+        designDoc: {
+          id: string;
+          title: string;
+          status: TaskResponseDto["status"];
+        },
         options: {
           pathService: {
             designDoc: (input: { designDocId: string }) => string;
@@ -885,6 +924,36 @@ describe("GoalPage tabs", () => {
       }),
     );
   });
+
+  it.each(["applied", "pending", "failed"])(
+    "handles Goal archive: %s",
+    async (outcome) => {
+      if (outcome === "failed") {
+        mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));
+      } else {
+        mockUpdateTask.mockResolvedValueOnce({
+          ...createGoalTask(),
+          status:
+            outcome === "applied" ? WorkStatus.Archived : WorkStatus.Backlog,
+        });
+      }
+      renderGoalPage();
+      const props = mockWorkItemMetadata.mock.calls.at(-1)?.[0] as {
+        fields: { status: { onChange: (status: WorkStatus) => Promise<void> } };
+      };
+      await act(async () => {
+        await props.fields.status.onChange(WorkStatus.Archived);
+      });
+      expect(mockUpdateTask).toHaveBeenCalledWith("goal-task-1", {
+        status: WorkStatus.Archived,
+      });
+      expect(screen.getByTestId("archive-location").textContent).toBe(
+        outcome === "applied"
+          ? "/projects/project-1"
+          : "/projects/project-1/tasks/goal-task-1",
+      );
+    },
+  );
 
   it("keeps the responsive Conversations destination without an outer tab bar for ordinary users", async () => {
     renderGoalPage();
@@ -1805,6 +1874,45 @@ describe("GoalPage tabs", () => {
       });
       expect(mockRefetchGoalWorkItem).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("makes tracked task and plan rows draggable with their entity identity", async () => {
+    mockTrackedWorkItems["plan-1"] = createGoalTask({
+      id: "plan-1",
+      name: "Delivery plan",
+      type: "PLAN",
+      status: WorkStatus.Active,
+    });
+    mockGoalWorkItem = createGoalTask({
+      trackedEntities: [
+        {
+          targetEntityId: "standard-1",
+          targetEntityType: EntityType.Task,
+          title: "Tracked task",
+          status: WorkStatus.Active,
+        },
+        {
+          targetEntityId: "plan-1",
+          targetEntityType: EntityType.Task,
+          title: "Delivery plan",
+          status: WorkStatus.Active,
+        },
+      ],
+    });
+
+    renderGoalPage();
+
+    const taskRow = await screen.findByTestId(
+      "goal-tracked-interaction-standard-1",
+    );
+    const planRow = await screen.findByTestId(
+      "goal-tracked-interaction-plan-1",
+    );
+
+    expect(taskRow).toHaveAttribute("data-draggable", "true");
+    expect(taskRow).toHaveAttribute("data-entity-title", "Tracked task");
+    expect(planRow).toHaveAttribute("data-draggable", "true");
+    expect(planRow).toHaveAttribute("data-entity-title", "Delivery plan");
   });
 
   it("removes a tracked plan through the goal-scoped action", async () => {

@@ -24,9 +24,15 @@
     "noImplicitReturns": false,
     "noImplicitOverride": false,
     "paths": {
+      "@hey-hey/contracts/monitor-kind-policy": [
+        "../../packages/contracts/dist/cjs/monitor-kind-policy"
+      ],
       "src/*": ["./src/*"],
       "@hey-hey/contracts/api/models": [
         "../../packages/contracts/dist/cjs/generated/api/models/index.d.ts"
+      ],
+      "@hey-hey/contracts/api/apis/reports-api": [
+        "../../packages/contracts/dist/cjs/generated/api/apis/reports-api.d.ts"
       ],
       "@hey-hey/contracts/api/custom/*": [
         "../../packages/contracts/dist/cjs/generated/api/custom/*"

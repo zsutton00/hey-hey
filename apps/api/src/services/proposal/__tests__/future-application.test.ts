@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ProposalApprovalService } from '../proposal-approval.service';
-import { DEFAULT_PROJECT_APPROVAL_POLICY } from '../project-approval-policy.service';
+import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
 import {
   futureBaselineBlocker,
   futureTargetUpdates,
@@ -200,7 +200,7 @@ describe('manual future application', () => {
       workItemTypeRegistry: registry,
       reconciliation,
       projectApprovalPolicyService: {
-        resolve: jest.fn(async () => DEFAULT_PROJECT_APPROVAL_POLICY),
+        resolve: jest.fn(async () => createDefaultProjectApprovalPolicy()),
       },
       pendingEdgeService: {
         cleanupForProposal: jest.fn(),
@@ -486,7 +486,7 @@ describe('manual future application', () => {
     ]);
     const resolvePolicy = jest
       .fn()
-      .mockResolvedValue(DEFAULT_PROJECT_APPROVAL_POLICY);
+      .mockResolvedValue(createDefaultProjectApprovalPolicy());
     (service as any).projectApprovalPolicyService = { resolve: resolvePolicy };
 
     const states = await service.readFutureProposalApprovalStates(

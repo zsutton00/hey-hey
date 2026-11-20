@@ -1,11 +1,4 @@
-import type { AgentProviderId } from '../providers/provider-config';
-
-export interface PlatformPromptContext {
-  provider: AgentProviderId;
-  model: string | null;
-  /** The initiating handler's `epistemicCalibration` declaration. */
-  epistemicCalibration?: true;
-}
+import type { PlatformPromptContext } from './platform-prompt-context';
 
 export const gpt56EpistemicCalibration = `### Working with an informed user
 

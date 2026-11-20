@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-/** Platforms every release image must cover: Mac ARM (via Linux ARM) and Linux x86. */
+/** Recognized image platforms; each manifest declares the platforms actually built. */
 export const RELEASE_PLATFORMS = ['linux/amd64', 'linux/arm64'] as const;
 
 const pinnedReferenceSchema = z
@@ -10,12 +10,7 @@ const pinnedReferenceSchema = z
     'Image reference must be pinned by sha256 digest',
   );
 
-const platformsSchema = z
-  .array(z.enum(RELEASE_PLATFORMS))
-  .refine(
-    (platforms) => RELEASE_PLATFORMS.every((platform) => platforms.includes(platform)),
-    `Image must cover ${RELEASE_PLATFORMS.join(' and ')}`,
-  );
+const platformsSchema = z.array(z.enum(RELEASE_PLATFORMS)).min(1);
 
 const releaseImageSchema = z.strictObject({
   reference: pinnedReferenceSchema,
@@ -23,8 +18,8 @@ const releaseImageSchema = z.strictObject({
 });
 
 /**
- * The single version source for one CLI release: install, matching checks and
- * update offers read this file and never resolve image tags on their own.
+ * The pinned image set for a release. The package supplies its CLI version;
+ * install, matching checks and update offers never resolve image tags on their own.
  * Agents is deliberately not part of the set.
  */
 export const releaseManifestSchema = z.strictObject({
@@ -47,14 +42,7 @@ export function parseReleaseManifest(json: string): ReleaseManifest {
   return releaseManifestSchema.parse(JSON.parse(json));
 }
 
-/** Parses the manifest and requires it to belong to the given CLI version. */
+/** Reads the image set for the CLI package using it, independently of its build-time version. */
 export function parseManifestForVersion(json: string, cliVersion: string): ReleaseManifest {
-  const manifest = parseReleaseManifest(json);
-  if (manifest.cliVersion !== cliVersion) {
-    throw new Error(
-      `Release manifest is for CLI ${manifest.cliVersion}, but package.json is ${cliVersion}.`,
-    );
-  }
-
-  return manifest;
+  return { ...parseReleaseManifest(json), cliVersion };
 }

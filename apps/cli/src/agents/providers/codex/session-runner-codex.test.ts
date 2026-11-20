@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import fs from 'node:fs/promises';
@@ -162,9 +163,9 @@ vi.mock('../../prompts/session-start-context', () => ({
 // point with each in turn and assert the prepended platform prompt tracks
 // whichever the stubbed read returns — proving a registry change alone
 // re-shapes the next session's ontology with no builder or runner edit.
-const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 const baselineContract: WorkItemTypeDefinitionDto = {
   ...TYPE_DEF_BASE,
@@ -580,6 +581,7 @@ describe('session-runner-codex', () => {
     async (resume) => {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-plan-limits-'));
       vi.stubEnv('HEYHEY_SESSION_DIR', root);
+      const runStore = makeRunStore();
       const report = async () => {
         sdkEventHandler?.({
           method: 'account/rateLimits/updated',
@@ -597,7 +599,7 @@ describe('session-runner-codex', () => {
       const runner = new CodexAgentSessionRunner({
         localAgentEndpoint,
         submissionToolRegistry,
-        runStore: makeRunStore(),
+        runStore,
         repoStore: makeRepoStore(),
         oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
       });
@@ -606,17 +608,23 @@ describe('session-runner-codex', () => {
           session: makeSession({ provider_session_id: resume ? 'codex-thread-1' : 'pending_abc' }),
           prompt: 'Capture limits.',
         });
-        expect(await new ProviderUsageStore(root).read('codex')).toMatchObject({
+        expect(
+          await new ProviderUsageStore(runStore.getDataDirectory()).read('codex'),
+        ).toMatchObject({
           status: 'reported',
           usage: {
             fiveHour: { usedPercent: 0, resetsAt: null },
             weekly: { usedPercent: 41, resetsAt: '1970-01-01T00:00:00.000Z' },
           },
         });
+        expect(await new ProviderUsageStore(root).read('codex')).toMatchObject({
+          status: 'unreported',
+        });
       } finally {
         await runner.dispose();
         vi.unstubAllEnvs();
         await fs.rm(root, { recursive: true, force: true });
+        await fs.rm(runStore.getDataDirectory(), { recursive: true, force: true });
       }
     },
   );
@@ -782,6 +790,52 @@ describe('session-runner-codex', () => {
     });
     expect(runStore.updateRunStatus).toHaveBeenNthCalledWith(1, 'agentic-1', 'running');
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'complete');
+  });
+
+  it('routes approvals to the automatic reviewer when a native mode is requested, on launch and resume', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const newRunner = () =>
+      new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+
+    await newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Run.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'codex-thread-1' }),
+      prompt: 'Continue.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+
+    expect(sdkStartSessionMock.mock.calls[0]?.[0]).toMatchObject({
+      approvalsReviewer: 'auto_review',
+    });
+    expect(sdkResumeSessionMock.mock.calls[0]?.[1]).toMatchObject({
+      approvalsReviewer: 'auto_review',
+    });
+  });
+
+  it('keeps the user as approval reviewer when no native mode is requested', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+    });
+
+    await runner.runPrompt({ session: makeSession(), prompt: 'Run.' });
+
+    expect(sdkStartSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('approvalsReviewer');
   });
 
   it('isolates project reports from repository, generic context, and native provider tools', async () => {
@@ -1086,6 +1140,93 @@ describe('session-runner-codex', () => {
         fs.rm(workspaceDir, { recursive: true, force: true }),
         fs.rm(codexHome, { recursive: true, force: true }),
       ]);
+    }
+  });
+
+  it('keeps a read-only handler read-only when its repository-bound session resumes', async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-runner-workspace-'));
+    const repoDir = path.join(workspaceDir, 'service-a');
+    const codexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'cli-codex-home-'));
+    const previousCodexHome = process.env['CODEX_HOME'];
+    process.env['CODEX_HOME'] = codexHome;
+    try {
+      await fs.mkdir(path.join(repoDir, '.git'), { recursive: true });
+      const canonicalRepoDir = await fs.realpath(repoDir);
+      sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+      const runner = new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(repoDir),
+      });
+
+      await runner.resumeSession({
+        session: makeSession({
+          provider_session_id: 'codex-thread-1',
+          services: [{ id: 'svc-1', path: repoDir }],
+          launchServiceId: 'svc-1',
+        }),
+        prompt: 'Revise the plan.',
+        readOnlyFilesystem: true,
+        workspace: {
+          ok: true as const,
+          runMode: 'default' as const,
+          repositoryPathForRunStarted: canonicalRepoDir,
+          cwd: canonicalRepoDir,
+          allowedRepositoryRoots: [canonicalRepoDir],
+          bindingRepositoryPath: canonicalRepoDir,
+          workspaceRoot: null,
+        },
+      });
+
+      const resumeConfig = sdkResumeSessionMock.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(resumeConfig['sandbox']).toBe('read-only');
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env['CODEX_HOME'];
+      } else {
+        process.env['CODEX_HOME'] = previousCodexHome;
+      }
+      await Promise.all([
+        fs.rm(workspaceDir, { recursive: true, force: true }),
+        fs.rm(codexHome, { recursive: true, force: true }),
+      ]);
+    }
+  });
+
+  it('keeps the user as reviewer for a read-only monitored run, on launch and resume', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const newRunner = () =>
+      new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+
+    await newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Review.',
+      readOnlyFilesystem: true,
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'codex-thread-1' }),
+      prompt: 'Review again.',
+      readOnlyFilesystem: true,
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+
+    for (const config of [
+      sdkStartSessionMock.mock.calls[0]?.[0],
+      sdkResumeSessionMock.mock.calls[0]?.[1],
+    ] as Array<Record<string, unknown>>) {
+      expect(config['sandbox']).toBe('read-only');
+      expect(config['config']).toMatchObject({ approvals_reviewer: 'user' });
+      expect(config).not.toHaveProperty('approvalsReviewer');
     }
   });
 
@@ -1582,7 +1723,11 @@ describe('session-runner-codex', () => {
     });
 
     expect(resolveSkill).toHaveBeenCalledWith(
-      { policy: 'service_workspace', authorityId: 'agentic-1', cwd: '/private/tmp/repo' },
+      {
+        policy: 'service_workspace',
+        authorityId: 'agentic-1',
+        cwd: path.join(await fs.realpath('/tmp'), 'repo'),
+      },
       {
         provider: 'codex',
         name: 'my-skill',
@@ -1654,7 +1799,11 @@ describe('session-runner-codex', () => {
     });
 
     expect(resolveSkill).toHaveBeenCalledWith(
-      { policy: 'service_workspace', authorityId: 'agentic-1', cwd: '/private/tmp/repo' },
+      {
+        policy: 'service_workspace',
+        authorityId: 'agentic-1',
+        cwd: path.join(await fs.realpath('/tmp'), 'repo'),
+      },
       {
         provider: 'codex',
         name: 'my-skill',
@@ -2188,7 +2337,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession(),
       prompt: firstTurnInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 
@@ -2205,7 +2354,7 @@ describe('session-runner-codex', () => {
     await runner.runPrompt({
       session: makeSession({ provider_session_id: 'codex-thread-1' }),
       prompt: followUpInput,
-      epistemicCalibration: true,
+      promptDeclarations: { epistemicCalibration: true },
       model: 'gpt-5.6-sol',
     });
 

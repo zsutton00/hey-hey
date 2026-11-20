@@ -85,6 +85,10 @@ import {
   proposalGroupContextSchema,
   type ProposalGroupContext,
 } from './proposal-group-tool.schemas';
+import {
+  ProposalValidationLayer,
+  type ProposalValidationIssue,
+} from '@hey-hey/contracts/api/models';
 import { validateProposalUpdateStatus } from './proposal-update-status-validator';
 import { buildProvenanceEnvelope, influenceSchema } from './provenance';
 import { extractRequestorContext } from './requestor-context';
@@ -263,16 +267,8 @@ const diagramElementInputSchema = z.object({
     .preprocess(repairSections, z.array(workItemSectionInputSchema).optional())
     .describe('Registry-declared sections for the Diagram Element.'),
   status: z
-    .enum([
-      'BACKLOG',
-      'ACTIVE',
-      'ON_HOLD',
-      'VERIFYING',
-      'COMPLETED',
-      'CANCELLED',
-      'ARCHIVED',
-      'SUPERSEDED',
-    ])
+    .string()
+    .min(1)
     .optional()
     .describe('Initial status for the Diagram Element'),
   priority: z
@@ -462,7 +458,13 @@ const designDocSectionInputSchema = z.object({
     .string()
     .min(1)
     .describe('Section key (e.g. context, decision, status)'),
-  content: z.string().optional().describe('Section content in markdown'),
+  content: z
+    .string()
+    .optional()
+    .describe(
+      'Section content in markdown. Use real line breaks; never type the ' +
+        'two characters backslash and n as a stand-in for a newline.',
+    ),
   order: z.number().int().nullable().optional().describe('Display order'),
 });
 
@@ -582,18 +584,7 @@ const CREATE_WORK_ITEM_KEYS = Object.keys(createWorkItemFields);
 
 const updateWorkItemFields = {
   name: z.string().min(1).optional().describe('New name/title for the task'),
-  status: z
-    .enum([
-      'BACKLOG',
-      'ACTIVE',
-      'ON_HOLD',
-      'VERIFYING',
-      'COMPLETED',
-      'CANCELLED',
-      'ARCHIVED',
-    ])
-    .optional()
-    .describe('New status for the task'),
+  status: z.string().min(1).optional().describe('New status for the task'),
   priority: z
     .enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
     .optional()
@@ -1088,7 +1079,10 @@ const createDesignDocFields = {
     .describe(
       'Full brainstorm body as a single markdown string. Stored as the ' +
         "sole `content` section of the document's BRAINSTORM template — " +
-        'the tool does not accept arbitrary section keys.',
+        'the tool does not accept arbitrary section keys. Write it with ' +
+        'real line breaks; never type the two characters backslash and n ' +
+        'as a stand-in for a newline, because a body without real line ' +
+        'breaks is refused.',
     ),
   tags: z.array(z.string()).optional().describe('Tags for categorization'),
   summary: z
@@ -1336,7 +1330,7 @@ export const proposeFutureRevisionOutput = z.discriminatedUnion('status', [
 
 type ProposeFutureRevisionOutput = z.infer<typeof proposeFutureRevisionOutput>;
 
-const proposalUpdatesSchema = z
+const entityProposalUpdatesSchema = z
   .object({
     name: z.string().min(1).optional().describe('Updated name/title'),
     sections: z
@@ -1357,10 +1351,8 @@ const proposalUpdatesSchema = z
       .string()
       .optional()
       .describe(
-        'Updated entity status. Valid values depend on the proposal' +
-          "'s targetEntityType: for TASK/FEATURE proposals use the " +
-          'task user-settable subset (BACKLOG, ACTIVE, ON_HOLD, ' +
-          'VERIFYING, COMPLETED, CANCELLED, ARCHIVED); for DESIGN_DOC ' +
+        'Updated entity status. For TASK/FEATURE proposals use the target type’s ' +
+          'project-effective agent-settable statuses; for DESIGN_DOC ' +
           'use AdrStatus values (e.g. REFINING_CONTENT, IN_REVIEW, ' +
           'READY). Plan and Stage work items use TASK statuses. ' +
           'Never use proposal-lifecycle states ' +
@@ -1389,6 +1381,11 @@ const proposalUpdatesSchema = z
     'The proposed changes to store. Shape matches the target entity ' +
       'update DTO (e.g. name, sections, status, priority for tasks).',
   );
+
+const proposalUpdatesSchema = z.union([
+  entityProposalUpdatesSchema,
+  workItemChangeSetValidationRequestSchema,
+]);
 
 export const updateProposalParameters = z.object({
   groupContext: proposalGroupContextSchema.optional(),
@@ -1511,6 +1508,27 @@ function paramsToLintSections(
   }));
 }
 
+/**
+ * True when the text has the two-character sequence backslash + `n` and no
+ * real newline. Such text cannot be intentionally formatted markdown, while
+ * text with any real newline may legitimately contain `\\n` (e.g. code).
+ */
+export function hasEscapedNewlinesOnly(text: string): boolean {
+  return text.includes('\\n') && !text.includes('\n');
+}
+
+function escapedNewlineIssue(field: string): ProposalValidationIssue {
+  return {
+    field,
+    code: 'escaped_newlines_only',
+    reason:
+      'The text contains literal backslash-n sequences and no real line breaks, so it would render as one unformatted block.',
+    layer: ProposalValidationLayer.Structural,
+    suggestion:
+      'Resend the content with real line breaks instead of typed backslash-n characters.',
+  };
+}
+
 function recoveryKey(
   tool: string,
   userId: string,
@@ -1560,6 +1578,9 @@ export function validateGraphOperationsAgainstCapability(params: {
 
   params.operations.forEach((operation, operationIndex) => {
     switch (operation.op) {
+      case 'designDoc.create':
+        requireAction('createNode', operationIndex, operation);
+        break;
       case 'workItem.create':
         requireAction('createNode', operationIndex, operation);
         if (operation.status === 'SUPERSEDED') {
@@ -1850,10 +1871,15 @@ export class ProposalToolsProvider {
         select: { type: true },
       });
       configuredStatuses = task
-        ? this.workItemTypeRegistry.getAgentSettableStatuses(
-            task.type,
-            args.projectId,
-          )
+        ? this.workItemTypeRegistry
+            .getAgentSettableStatuses(task.type, args.projectId)
+            .filter((status) =>
+              this.workItemTypeRegistry.isStatusAllowed(
+                task.type,
+                status,
+                args.projectId,
+              ),
+            )
         : undefined;
     }
     return validateProposalUpdateStatus(
@@ -3795,6 +3821,16 @@ export class ProposalToolsProvider {
 
     const targetEntityId = NIL_UUID;
 
+    if (hasEscapedNewlinesOnly(params.content)) {
+      this.logger.warn(
+        `create_design_doc rejected: field content has literal \\n and no real line breaks`,
+      );
+      return {
+        status: 'invalid_change_set',
+        issues: [escapedNewlineIssue('content')],
+      };
+    }
+
     // create_design_doc has no `sections` input — the agent supplies
     // a single `content` string and the server synthesizes the
     // `content` section. Lint sees that single section directly so the
@@ -3933,6 +3969,21 @@ export class ProposalToolsProvider {
       params.influences,
       params.generatedWithVersion,
     );
+
+    const escapedIssues = (params.sections ?? []).flatMap((section, index) =>
+      typeof section.content === 'string' &&
+      hasEscapedNewlinesOnly(section.content)
+        ? [escapedNewlineIssue(`sections[${index}].content`)]
+        : [],
+    );
+    if (escapedIssues.length > 0) {
+      this.logger.warn(
+        `edit_design_doc rejected: fields ${escapedIssues
+          .map((issue) => issue.field)
+          .join(', ')} have literal \\n and no real line breaks`,
+      );
+      return { status: 'invalid_change_set', issues: escapedIssues };
+    }
 
     const lintFindings = runProposalLint({
       tool: PROPOSAL_TOOL_NAMES.EDIT_DESIGN_DOC,
@@ -4229,7 +4280,10 @@ export class ProposalToolsProvider {
       toolName: PROPOSAL_TOOL_NAMES.UPDATE_PROPOSAL,
       token: params.authoringRootProof,
       required: topologyMutationRequested({
-        parentTaskId: params.updates?.parentTaskId,
+        parentTaskId:
+          params.updates && 'parentTaskId' in params.updates
+            ? params.updates.parentTaskId
+            : undefined,
         groupContext: params.groupContext,
       }),
     });
@@ -4310,7 +4364,11 @@ export class ProposalToolsProvider {
         };
       }
 
-      if (params.updates?.status !== undefined) {
+      if (
+        params.updates &&
+        'status' in params.updates &&
+        params.updates.status !== undefined
+      ) {
         const existing = await this.proposalService.findOne(
           params.proposalId,
           auth.organizationId,

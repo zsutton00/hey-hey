@@ -20,4 +20,15 @@ export interface MessageBus {
     eventType: ServiceEventType,
     handler: (envelope: EventEnvelope) => void,
   ): Promise<void>;
+
+  /**
+   * Observe loss and restoration of this instance's subscription to the bus.
+   * While interrupted, envelopes published elsewhere are not received.
+   * Transports that cannot be interrupted do not implement it.
+   */
+  onSubscriptionStateChange?(
+    listener: (state: MessageBusSubscriptionState) => void,
+  ): () => void;
 }
+
+export type MessageBusSubscriptionState = 'INTERRUPTED' | 'RESTORED';

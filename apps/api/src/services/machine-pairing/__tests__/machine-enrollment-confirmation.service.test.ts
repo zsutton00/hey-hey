@@ -1,8 +1,12 @@
+import { Logger } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import * as request from 'supertest';
+import { HttpExceptionFilter } from '../../../common/filters/http-exception.filter';
+import { MachineEnrollmentConfirmationController } from '../../../controllers/machine-enrollment-confirmation.controller';
 import { MachineEnrollmentState } from '@prisma/client';
 import * as crypto from 'node:crypto';
 import {
   MachineEnrollmentAuthenticationFailedException,
-  MachineEnrollmentInvalidTransitionException,
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH,
   MACHINE_ENROLLMENT_ORIGIN_ACCOUNT_MISMATCH_MESSAGE,
 } from '../../../common/exceptions/pairing.exceptions';
@@ -359,9 +363,20 @@ describe('MachineEnrollmentConfirmationService', () => {
     row.state = MachineEnrollmentState.PENDING;
     await service.poll(ENROLLMENT_ID, { deviceSecret: DEVICE_SECRET });
 
+    jest.advanceTimersByTime(MACHINE_ENROLLMENT_MIN_POLL_INTERVAL_MS - 79);
     await expect(
       service.poll(ENROLLMENT_ID, { deviceSecret: DEVICE_SECRET }),
-    ).rejects.toBeInstanceOf(MachineEnrollmentInvalidTransitionException);
+    ).rejects.toMatchObject({
+      status: 429,
+      response: {
+        code: 'MACHINE_ENROLLMENT_POLL_RATE_LIMITED',
+        retryAfterSeconds: 1,
+      },
+    });
+    jest.advanceTimersByTime(1000);
+    await expect(
+      service.poll(ENROLLMENT_ID, { deviceSecret: DEVICE_SECRET }),
+    ).resolves.toEqual({ state: 'pending' });
   });
 
   it('returns and consumes the local account-mismatch warning before pending state', async () => {
@@ -397,20 +412,55 @@ describe('MachineEnrollmentConfirmationService', () => {
     expect(row.localOutcomeConsumedAt).toBeNull();
   });
 
-  it.each([
-    [
-      'wrong device secret',
-      { deviceSecret: Buffer.alloc(32, 8).toString('base64') },
-    ],
-    ['expired enrollment', { deviceSecret: DEVICE_SECRET }],
-  ])('%s cannot poll or reveal review details', async (reason, input) => {
-    if (reason === 'expired enrollment') {
-      row.expiresAt = new Date(now.getTime() - 1);
+  it('keeps poll refusal causes in server diagnostics and returns the same public 401', async () => {
+    jest.useRealTimers();
+    const module = await Test.createTestingModule({
+      controllers: [MachineEnrollmentConfirmationController],
+      providers: [
+        { provide: MachineEnrollmentConfirmationService, useValue: service },
+      ],
+    }).compile();
+    const app = module.createNestApplication();
+    app.useGlobalFilters(new HttpExceptionFilter());
+    await app.init();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      const poll = (deviceSecret: string) =>
+        request(app.getHttpServer())
+          .post(`/api/v1/machines/enrollments/${ENROLLMENT_ID}/poll`)
+          .send({ deviceSecret })
+          .expect(401);
+      const invalid = await poll(Buffer.alloc(32, 8).toString('base64'));
+      row.expiresAt = new Date(0);
+      const expired = await poll(DEVICE_SECRET);
+      expect(warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ reasonCode: 'enrollment_expired' }),
+      );
+      row.state = MachineEnrollmentState.REJECTED;
+      const rejected = await poll(DEVICE_SECRET);
+      expect(warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          reasonCode: 'enrollment_not_live',
+          state: 'REJECTED',
+        }),
+      );
+      for (const result of [expired, rejected]) {
+        expect(result.body).toEqual({
+          ...invalid.body,
+          timestamp: expect.any(String),
+        });
+      }
+      expect(invalid.body.code).toBe(
+        'MACHINE_ENROLLMENT_AUTHENTICATION_FAILED',
+      );
+    } finally {
+      warn.mockRestore();
+      await app.close();
     }
-
-    await expect(service.poll(ENROLLMENT_ID, input)).rejects.toBeInstanceOf(
-      MachineEnrollmentAuthenticationFailedException,
-    );
   });
 
   it('activates exactly one machine binding and returns the credential once', async () => {

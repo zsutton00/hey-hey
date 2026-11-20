@@ -95,6 +95,7 @@ const PRISMA_PHASES = new Map([
   ['prisma:client:serialize', 'client_serialize'],
 ]);
 const OPERATION_KINDS: readonly WorkItemChangeSetOperation['op'][] = [
+  'designDoc.create',
   'workItem.create',
   'workItem.update',
   'workItem.delete',

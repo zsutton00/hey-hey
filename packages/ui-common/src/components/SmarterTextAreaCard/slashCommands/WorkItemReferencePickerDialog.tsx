@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from "../../../api/api";
+import { getWorkItemTypeStatusNames } from "../../../utils/statusUtils";
 import {
   Checkbox,
   Button,
@@ -12,7 +14,6 @@ import React, { useEffect, useState } from "react";
 import {
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum,
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum,
-  type WorkStatus,
   type WorkItemReferenceDto,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeEffectiveSource,
@@ -99,7 +100,7 @@ export const WorkItemReferencePickerDialog: React.FC<
   const previewHost = usePreviewHost();
   const [filter, setFilter] = useState("");
   const debouncedFilter = useDebouncedValue(filter);
-  const [statuses, setStatuses] = useState<WorkStatus[]>([]);
+  const [statuses, setStatuses] = useState<TaskResponseDto["status"][]>([]);
   const [sort, setSort] = useState<EntityCollectionSort>("name-asc");
   const [page, setPage] = useState(1);
   const referenceState = useWorkItemReferencePage({
@@ -126,12 +127,14 @@ export const WorkItemReferencePickerDialog: React.FC<
     }),
   }));
 
-  const handleStatusChange = (event: SelectChangeEvent<WorkStatus[]>): void => {
+  const handleStatusChange = (
+    event: SelectChangeEvent<TaskResponseDto["status"][]>,
+  ): void => {
     const value = event.target.value;
     const nextStatuses = typeof value === "string" ? value.split(",") : value;
     setStatuses(
       nextStatuses.flatMap((candidate) => {
-        const match = definition.allowedStatuses.find(
+        const match = getWorkItemTypeStatusNames(definition).find(
           (allowedStatus) => allowedStatus === candidate,
         );
         return match ? [match] : [];
@@ -166,7 +169,7 @@ export const WorkItemReferencePickerDialog: React.FC<
       additionalFilters={
         <FormControl fullWidth>
           <InputLabel id="work-item-reference-status-label">Status</InputLabel>
-          <Select<WorkStatus[]>
+          <Select<TaskResponseDto["status"][]>
             multiple
             labelId="work-item-reference-status-label"
             label="Status"
@@ -177,7 +180,7 @@ export const WorkItemReferencePickerDialog: React.FC<
             }
             inputProps={{ "data-testid": "work-item-reference-status-filter" }}
           >
-            {definition.allowedStatuses.map((status) => (
+            {getWorkItemTypeStatusNames(definition).map((status) => (
               <MenuItem key={status} value={status}>
                 <Checkbox checked={statuses.includes(status)} />
                 <ListItemText primary={getStatusLabel(status)} />

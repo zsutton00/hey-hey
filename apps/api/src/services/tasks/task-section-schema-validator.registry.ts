@@ -54,7 +54,12 @@ import {
   validateEvalCaseCodingContent,
 } from './eval-case-coding.validator';
 import {
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+  validateEvalCaseInputsContent,
+} from './eval-case-inputs.validator';
+import {
   FEATURE_REQUIREMENTS_SCHEMA_REF,
+  ungroupedRequirementsMessage,
   validateFeatureRequirementsSection,
 } from './feature-requirements-section.validator';
 
@@ -167,14 +172,25 @@ export class TaskSectionSchemaValidatorRegistry {
       [
         FEATURE_REQUIREMENTS_SCHEMA_REF,
         (content: unknown): TaskSectionSchemaValidationResult => {
+          // Only section writes reach this validator; reads use the section
+          // validator directly, so stored collections without groups still load.
           const result = validateFeatureRequirementsSection(content);
-          return result.success
-            ? { success: true, canonicalContent: result.canonicalContent }
-            : {
-                success: false,
-                code: 'invalid_json_section',
-                message: result.message,
-              };
+          if (!result.success) {
+            return {
+              success: false,
+              code: 'invalid_json_section',
+              message: result.message,
+            };
+          }
+          const ungrouped = ungroupedRequirementsMessage(result.value);
+          if (ungrouped !== undefined) {
+            return {
+              success: false,
+              code: 'invalid_json_section',
+              message: ungrouped,
+            };
+          }
+          return { success: true, canonicalContent: result.canonicalContent };
         },
       ],
       [
@@ -293,6 +309,19 @@ export class TaskSectionSchemaValidatorRegistry {
         EVAL_CASE_CODING_SCHEMA_REF,
         (content: unknown): TaskSectionSchemaValidationResult => {
           const result = validateEvalCaseCodingContent(content);
+          return result.success
+            ? { success: true, canonicalContent: result.canonicalContent }
+            : {
+                success: false,
+                code: 'invalid_json_section',
+                message: result.message,
+              };
+        },
+      ],
+      [
+        EVAL_CASE_INPUTS_SCHEMA_REF,
+        (content: unknown): TaskSectionSchemaValidationResult => {
+          const result = validateEvalCaseInputsContent(content);
           return result.success
             ? { success: true, canonicalContent: result.canonicalContent }
             : {

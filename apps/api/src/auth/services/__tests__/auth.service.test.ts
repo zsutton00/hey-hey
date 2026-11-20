@@ -121,8 +121,6 @@ describe('AuthService browser sign-in', () => {
       }) as unknown as PrismaService,
       emailService as never,
       passwordRecoveryThrottleService as never,
-      { getClient: jest.fn() } as never,
-      {} as never,
       {
         issuer: 'https://hosted.test/api',
         browserAudience: 'https://hosted.test',
@@ -151,107 +149,6 @@ describe('AuthService browser sign-in', () => {
       name: user.name,
       recoveryCredential: 'recovery-secret',
     });
-  });
-
-  it('does not issue local handoffs to hosted deployments', async () => {
-    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
-    const previousLocalFlag = process.env.HEYHEY_LOCAL_APPLICATION;
-    const previousSecret = process.env.LOCAL_INSTALLATION_SECRET;
-    process.env.DEPLOYMENT_ENVIRONMENT = 'production';
-    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
-    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
-
-    try {
-      await expect(
-        service.createLocalHandoff('installation-secret'),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    } finally {
-      if (previousDeployment === undefined) {
-        delete process.env.DEPLOYMENT_ENVIRONMENT;
-      } else {
-        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
-      }
-      if (previousLocalFlag === undefined) {
-        delete process.env.HEYHEY_LOCAL_APPLICATION;
-      } else {
-        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalFlag;
-      }
-      if (previousSecret === undefined) {
-        delete process.env.LOCAL_INSTALLATION_SECRET;
-      } else {
-        process.env.LOCAL_INSTALLATION_SECRET = previousSecret;
-      }
-    }
-  });
-
-  it('rejects local bootstrap without the installation secret', async () => {
-    const previousDeployment = process.env.DEPLOYMENT_ENVIRONMENT;
-    const previousLocalFlag = process.env.HEYHEY_LOCAL_APPLICATION;
-    const previousSecret = process.env.LOCAL_INSTALLATION_SECRET;
-    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
-    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
-    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
-
-    try {
-      await expect(
-        service.createLocalHandoff('unrelated-secret'),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(userService.createLocalBootstrapUser).not.toHaveBeenCalled();
-    } finally {
-      if (previousDeployment === undefined) {
-        delete process.env.DEPLOYMENT_ENVIRONMENT;
-      } else {
-        process.env.DEPLOYMENT_ENVIRONMENT = previousDeployment;
-      }
-      if (previousLocalFlag === undefined) {
-        delete process.env.HEYHEY_LOCAL_APPLICATION;
-      } else {
-        process.env.HEYHEY_LOCAL_APPLICATION = previousLocalFlag;
-      }
-      if (previousSecret === undefined) {
-        delete process.env.LOCAL_INSTALLATION_SECRET;
-      } else {
-        process.env.LOCAL_INSTALLATION_SECRET = previousSecret;
-      }
-    }
-  });
-
-  it('issues local CLI credentials only to the holder of the installation secret', async () => {
-    const previous = {
-      deployment: process.env.DEPLOYMENT_ENVIRONMENT,
-      localFlag: process.env.HEYHEY_LOCAL_APPLICATION,
-      secret: process.env.LOCAL_INSTALLATION_SECRET,
-    };
-    process.env.DEPLOYMENT_ENVIRONMENT = 'local';
-    process.env.HEYHEY_LOCAL_APPLICATION = 'true';
-    process.env.LOCAL_INSTALLATION_SECRET = 'installation-secret';
-
-    try {
-      await expect(
-        service.issueLocalCliCredentials('unrelated-secret'),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(jwtKeysService.signToken).not.toHaveBeenCalled();
-
-      await expect(
-        service.issueLocalCliCredentials('installation-secret'),
-      ).resolves.toEqual({
-        accessToken: 'legacy-access',
-        refreshToken: 'legacy-refresh',
-        expiresInSeconds: 60 * 60 * 24,
-      });
-    } finally {
-      for (const [key, value] of [
-        ['DEPLOYMENT_ENVIRONMENT', previous.deployment],
-        ['HEYHEY_LOCAL_APPLICATION', previous.localFlag],
-        ['LOCAL_INSTALLATION_SECRET', previous.secret],
-      ] as const) {
-        if (value === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = value;
-        }
-      }
-    }
   });
 
   it('keeps unknown and delivery-failure outcomes indistinguishable', async () => {

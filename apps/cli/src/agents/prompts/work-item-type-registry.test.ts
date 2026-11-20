@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const { listMock, projectMock, hintsEnabledMock } = vi.hoisted(() => ({
   hintsEnabledMock: vi.fn(),
 }));
 
-vi.mock('./hint-availability', () => ({ readHintsEnabled: hintsEnabledMock }));
+vi.mock('./hint-availability', () => ({ readHintAvailability: hintsEnabledMock }));
 
 vi.mock('../../shared/api/index', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../shared/api/index')>();
@@ -48,7 +49,7 @@ let previousSessionDir: string | undefined;
 
 beforeEach(async () => {
   projectMock.mockResolvedValue({ data: { data: { maturity: 'ESTABLISHED' } } });
-  hintsEnabledMock.mockResolvedValue(false);
+  hintsEnabledMock.mockResolvedValue({ enabled: false, productDevelopment: false });
   previousSessionDir = process.env['HEYHEY_SESSION_DIR'];
   sessionDir = await fs.mkdtemp(path.join(os.tmpdir(), 'session-start-context-'));
   process.env['HEYHEY_SESSION_DIR'] = sessionDir;
@@ -112,7 +113,7 @@ const taskDefinition = {
   description: 'A unit of implementation work.',
   sections: [taskSection],
   requiredScalars: ['tag'],
-  allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+  statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
   allowedParentTypes: ['FEATURE'],
   tracking: {
     allowedSourceEntityTypes: ['TASK'],
@@ -127,7 +128,7 @@ const featureDefinition = {
   name: 'Feature',
   role: 'project-info',
   sections: [featureSection],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 } satisfies WorkItemTypeDefinitionDto;
 
 const diagramElementPolicy = {
@@ -563,17 +564,21 @@ describe('readSessionStartContext maturity stage', () => {
 });
 
 describe('readSessionStartContext hints switch', () => {
-  it.each([true, false])('carries hintsEnabled=%s from the platform tool list', async (enabled) => {
-    listMock.mockResolvedValue({ data: { data: [] } });
-    hintsEnabledMock.mockResolvedValueOnce(enabled);
-    const oauthClient = new OAuthClient();
-    vi.spyOn(oauthClient, 'getAccessToken').mockResolvedValue({ success: true, data: TOKEN });
+  it.each([true, false])(
+    'carries hint availability=%s from the platform tool list',
+    async (enabled) => {
+      listMock.mockResolvedValue({ data: { data: [] } });
+      hintsEnabledMock.mockResolvedValueOnce({ enabled, productDevelopment: enabled });
+      const oauthClient = new OAuthClient();
+      vi.spyOn(oauthClient, 'getAccessToken').mockResolvedValue({ success: true, data: TOKEN });
 
-    const context = await readSessionStartContext({ oauthClient, projectId: PROJECT_ID });
+      const context = await readSessionStartContext({ oauthClient, projectId: PROJECT_ID });
 
-    expect(context.hintsEnabled).toBe(enabled);
-    expect(hintsEnabledMock).toHaveBeenCalledWith(TOKEN, PROJECT_ID);
-  });
+      expect(context.hintsEnabled).toBe(enabled);
+      expect(context.productDevelopment).toBe(enabled);
+      expect(hintsEnabledMock).toHaveBeenCalledWith(TOKEN, PROJECT_ID);
+    },
+  );
 });
 
 describe('readSessionStartContext Intent-first choice', () => {

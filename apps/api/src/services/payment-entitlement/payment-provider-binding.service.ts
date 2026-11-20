@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import {
   PaymentProviderBinding,
   PaymentProviderBindingStatus,
@@ -220,7 +221,8 @@ export class PaymentProviderBindingService {
       },
     });
     if (candidates.length > 1) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'PAYMENT_PROVIDER_BINDING_AMBIGUOUS',
         'Payment provider identifiers resolve to multiple bindings',
       );
     }
@@ -303,7 +305,8 @@ export class PaymentProviderBindingService {
           { where },
         );
     if (candidates.length > 1) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'PAYMENT_PROVIDER_BINDING_AMBIGUOUS',
         'Payment provider identifiers resolve to multiple closure markers',
       );
     }

@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Invoices</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        color: #1d1d1f;
+      }
+
+      .page {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .page-header h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .page-header__actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .button {
+        padding: 6px 12px;
+        border: 1px solid #c7c7cc;
+        border-radius: 6px;
+        background: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .button--primary {
+        border-color: #223344;
+        background: #223344;
+        color: #fff;
+      }
+
+      .button--danger {
+        color: #a22;
+      }
+
+      /* Stat row: four equal tiles */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .stat {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+      }
+
+      .stat__label {
+        font-size: 12px;
+        color: #6b6b70;
+      }
+
+      .stat__value {
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .stat__amount {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .stat__trend {
+        font-size: 11px;
+        color: #b33;
+      }
+
+      /* Selection bar replaces the filter toolbar while rows are selected */
+      .selection-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: #e9effb;
+      }
+
+      .selection-bar__actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th {
+        padding: 6px;
+        border-bottom: 1px solid #ddd;
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b6b70;
+        text-align: left;
+      }
+
+      td {
+        padding: 8px 6px;
+        border-bottom: 1px solid #eee;
+        vertical-align: middle;
+      }
+
+      .numeric {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      tr[aria-selected="true"] td {
+        background: #f1f5fd;
+      }
+
+      .customer {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .customer span {
+        font-size: 11px;
+        color: #6b6b70;
+      }
+
+      .status {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+
+      .status--overdue {
+        background: #fbe3e3;
+        color: #a22;
+      }
+
+      .status--open {
+        background: #eaeaf8;
+      }
+
+      .status--paid {
+        background: #e3f3e7;
+        color: #1f6b35;
+      }
+
+      .status--draft {
+        background: #eee;
+        color: #555;
+      }
+
+      .row-menu {
+        border: 0;
+        background: none;
+        cursor: pointer;
+      }
+
+      .table-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .pagination {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .pagination button[aria-current="page"] {
+        border-color: #223344;
+        background: #223344;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page" data-hh-id="invoices-page">
+      <header class="page-header" data-hh-id="page-header">
+        <h1 data-hh-id="page-title">Invoices</h1>
+        <div class="page-header__actions">
+          <button class="button" type="button" data-hh-id="export">
+            Export
+          </button>
+          <button
+            class="button button--primary"
+            type="button"
+            data-hh-id="new-invoice"
+          >
+            + New invoice
+          </button>
+        </div>
+      </header>
+
+      <div class="stats" data-hh-id="stat-row">
+        <div class="stat" data-hh-id="stat-outstanding">
+          <span class="stat__label">Outstanding</span>
+          <span class="stat__value">$18,240</span>
+        </div>
+        <div class="stat" data-hh-id="stat-overdue">
+          <span class="stat__label">Overdue</span>
+          <div class="stat__amount">
+            <span class="stat__value">$4,100</span>
+            <span class="stat__trend" data-hh-id="overdue-trend"
+              >+12% vs last month</span
+            >
+          </div>
+        </div>
+        <div class="stat" data-hh-id="stat-paid">
+          <span class="stat__label">Paid this month</span>
+          <span class="stat__value">$31,900</span>
+        </div>
+        <div class="stat" data-hh-id="stat-drafts">
+          <span class="stat__label">Drafts</span>
+          <span class="stat__value">3</span>
+        </div>
+      </div>
+
+      <div class="selection-bar" data-hh-id="selection-bar">
+        <strong data-hh-id="selection-count">2 selected</strong>
+      </div>
+
+      <table data-hh-id="invoice-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" aria-label="Select all" /></th>
+            <th>Invoice</th>
+            <th>Customer</th>
+            <th>Issued</th>
+            <th>Due</th>
+            <th class="numeric">Amount</th>
+            <th>Status</th>
+            <th><span hidden>Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr aria-selected="true" data-hh-id="invoice-row">
+            <td>
+              <input type="checkbox" checked aria-label="Select INV-1042" />
+            </td>
+            <td data-hh-id="invoice-number">INV-1042</td>
+            <td>
+              <div class="customer" data-hh-id="invoice-customer">
+                <strong>Northwind</strong><span>ap@northwind.com</span>
+              </div>
+            </td>
+            <td>Oct 28</td>
+            <td>Nov 11</td>
+            <td class="numeric" data-hh-id="invoice-amount">$2,400.00</td>
+            <td>
+              <span class="status status--overdue" data-hh-id="invoice-status"
+                >Overdue</span
+              >
+            </td>
+            <td>
+              <button
+                class="row-menu"
+                type="button"
+                aria-label="Invoice actions"
+                data-hh-id="invoice-menu"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+          <tr aria-selected="true">
+            <td>
+              <input type="checkbox" checked aria-label="Select INV-1041" />
+            </td>
+            <td>INV-1041</td>
+            <td>
+              <div class="customer">
+                <strong>Globex</strong><span>billing@globex.io</span>
+              </div>
+            </td>
+            <td>Oct 25</td>
+            <td>Nov 24</td>
+            <td class="numeric">$1,700.00</td>
+            <td><span class="status status--open">Open</span></td>
+            <td>
+              <button
+                class="row-menu"
+                type="button"
+                aria-label="Invoice actions"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" aria-label="Select INV-1040" /></td>
+            <td>INV-1040</td>
+            <td>
+              <div class="customer">
+                <strong>Initech</strong><span>finance@initech.com</span>
+              </div>
+            </td>
+            <td>Oct 20</td>
+            <td>Nov 19</td>
+            <td class="numeric">$980.50</td>
+            <td><span class="status status--paid">Paid</span></td>
+            <td>
+              <button
+                class="row-menu"
+                type="button"
+                aria-label="Invoice actions"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" aria-label="Select INV-1039" /></td>
+            <td>INV-1039</td>
+            <td>
+              <div class="customer">
+                <strong>Umbrella</strong><span>ap@umbrella.co</span>
+              </div>
+            </td>
+            <td>Oct 18</td>
+            <td>Nov 17</td>
+            <td class="numeric">$12,000.00</td>
+            <td><span class="status status--open">Open</span></td>
+            <td>
+              <button
+                class="row-menu"
+                type="button"
+                aria-label="Invoice actions"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td><input type="checkbox" aria-label="Select INV-1038" /></td>
+            <td>INV-1038</td>
+            <td>
+              <div class="customer">
+                <strong>Hooli</strong><span>pay@hooli.com</span>
+              </div>
+            </td>
+            <td>Oct 12</td>
+            <td>Nov 12</td>
+            <td class="numeric">$3,160.00</td>
+            <td><span class="status status--draft">Draft</span></td>
+            <td>
+              <button
+                class="row-menu"
+                type="button"
+                aria-label="Invoice actions"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <footer class="table-footer" data-hh-id="table-footer">
+        <div class="selection-bar__actions">
+          <button class="button" type="button" data-hh-id="bulk-mark-paid">
+            Mark paid
+          </button>
+          <button class="button" type="button" data-hh-id="bulk-remind">
+            Send reminder
+          </button>
+          <button
+            class="button button--danger"
+            type="button"
+            data-hh-id="bulk-delete"
+          >
+            Delete
+          </button>
+        </div>
+        <span data-hh-id="result-range">Showing 1–5 of 48</span>
+        <div class="pagination" data-hh-id="pagination">
+          <select aria-label="Rows per page" data-hh-id="page-size">
+            <option>5 per page</option>
+          </select>
+          <button class="button" type="button" data-hh-id="page-prev">
+            Previous
+          </button>
+          <button class="button" type="button" aria-current="page">1</button>
+          <button class="button" type="button">2</button>
+          <button class="button" type="button">3</button>
+          <span>…</span>
+          <button class="button" type="button">10</button>
+          <button class="button" type="button" data-hh-id="page-next">
+            Next
+          </button>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -109,6 +109,8 @@ function graph(rows: Row[], edges: Edge[]) {
   return { findMany, findIncident, get };
 }
 
+const STAGE_BUG = '00000000-0000-4000-8000-0000000000b1';
+
 const PLAN_ROWS: Row[] = [
   { id: FEATURE, type: 'FEATURE', parentTaskId: null },
   { id: PLAN, type: 'PLAN', parentTaskId: FEATURE },
@@ -117,6 +119,7 @@ const PLAN_ROWS: Row[] = [
   { id: TASK, type: 'STANDARD', parentTaskId: STAGE },
   { id: SIBLING, type: 'STANDARD', parentTaskId: STAGE },
   { id: OTHER_TASK, type: 'STANDARD', parentTaskId: OTHER_STAGE },
+  { id: STAGE_BUG, type: 'BUG', parentTaskId: STAGE },
 ];
 
 describe('ported relationship, dependency, requirements and Plan rules', () => {
@@ -345,6 +348,89 @@ describe('ported relationship, dependency, requirements and Plan rules', () => {
           code: 'cross_boundary_dependency',
         }),
       ]);
+    });
+  });
+
+  describe('plan.dependencies.boundary with a Bug in a Stage', () => {
+    const dependency = (source: string, target: string) => ({
+      root: existing(source),
+      operations: [
+        {
+          op: 'relationship.create' as const,
+          ref: { refType: 'temporary' as const, tempId: 'dependency' },
+          source: existing(source),
+          target: existing(target),
+          edgeType: 'DEPENDS_ON' as const,
+          category: 'meta' as const,
+        },
+      ],
+    });
+
+    it('lets a Bug and a Task in the same Stage depend on each other', async () => {
+      const { project } = projector(PLAN_ROWS);
+
+      expect((await project(dependency(STAGE_BUG, TASK))).issues).toEqual([]);
+      expect((await project(dependency(TASK, STAGE_BUG))).issues).toEqual([]);
+    });
+
+    it('treats a cross-Stage Bug dependency exactly like a Task dependency', async () => {
+      const { project } = projector(PLAN_ROWS);
+
+      const crossings: [string, string][] = [
+        [STAGE_BUG, OTHER_TASK],
+        [OTHER_TASK, STAGE_BUG],
+      ];
+      for (const [source, target] of crossings) {
+        expect((await project(dependency(source, target))).issues).toEqual([
+          expect.objectContaining({ code: 'cross_boundary_dependency' }),
+        ]);
+      }
+    });
+
+    it("checks a reparented Bug's stored dependencies", async () => {
+      const { project } = projector(PLAN_ROWS, [
+        { id: 'own', source: STAGE_BUG, target: SIBLING },
+      ]);
+
+      const projected = await project({
+        root: existing(STAGE_BUG),
+        operations: [
+          {
+            op: 'workItem.update',
+            ref: existing(STAGE_BUG),
+            parent: existing(OTHER_STAGE),
+          },
+        ],
+      });
+
+      expect(
+        projected.issues.filter(
+          (issue) => issue.code === 'cross_boundary_dependency',
+        ),
+      ).toEqual([
+        expect.objectContaining({ field: 'relationships.existing:own' }),
+      ]);
+    });
+
+    it('does not require acceptance criteria of a Bug under a Stage', async () => {
+      const { project } = projector(PLAN_ROWS);
+
+      const projected = await project({
+        root: existing(STAGE_BUG),
+        operations: [
+          {
+            op: 'workItem.update',
+            ref: existing(STAGE_BUG),
+            sections: { description: { content: 'Crashes on save.' } },
+          },
+        ],
+      } as never);
+
+      expect(
+        projected.issues.filter(
+          (issue) => issue.code === 'missing_required_section',
+        ),
+      ).toEqual([]);
     });
   });
 

@@ -214,14 +214,15 @@ export const REPORT_SCHEMAS = {
   },
   CODING_RESEARCH: {
     description:
-      'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.',
+      'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).',
     schema: {
       description:
-        'Payload for CODING_RESEARCH reports. The `format` discriminator selects structured output or the strict written summary/analysis handoff.\n',
+        'Payload for CODING_RESEARCH reports. The `format` discriminator records whether Project Assistant researched alone (`SELF_RESEARCH`) or was the parent of research subagents (`SUBAGENT_PARENT`).\n',
       oneOf: [
         {
           type: 'object',
-          description: 'Structured Project Assistant research result.',
+          description:
+            'Project Assistant research result from a run where Project Assistant did the research itself, with no research subagents.',
           required: [
             'reportType',
             'format',
@@ -240,7 +241,7 @@ export const REPORT_SCHEMAS = {
             },
             format: {
               type: 'string',
-              enum: ['STRUCTURED'],
+              enum: ['SELF_RESEARCH'],
             },
             summary: {
               type: 'string',
@@ -505,7 +506,7 @@ export const REPORT_SCHEMAS = {
         {
           type: 'object',
           description:
-            'Written Project Assistant research result. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
+            'Project Assistant research result from a run where Project Assistant is the parent of research subagents. The parent authors the visible summary and analysis, including its headed uncertainty section; children provide evidence to the parent and do not author the report.',
           required: ['reportType', 'format', 'summary', 'analysis'],
           additionalProperties: false,
           properties: {
@@ -515,7 +516,7 @@ export const REPORT_SCHEMAS = {
             },
             format: {
               type: 'string',
-              enum: ['WRITTEN'],
+              enum: ['SUBAGENT_PARENT'],
             },
             summary: {
               type: 'string',
@@ -579,6 +580,16 @@ export const REPORT_SCHEMAS = {
                 required: ['service', 'hash', 'branch'],
                 additionalProperties: false,
                 properties: {
+                  implementReportIds: {
+                    type: 'array',
+                    uniqueItems: true,
+                    description:
+                      'Previously unclaimed IMPLEMENT reports from this Run and Service. Absent on historical reports.',
+                    items: {
+                      type: 'string',
+                      format: 'uuid',
+                    },
+                  },
                   service: {
                     type: 'string',
                     description:
@@ -754,10 +765,10 @@ export const REPORT_SCHEMAS = {
   },
   EVAL_ATTEMPT: {
     description:
-      "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
+      "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.",
     schema: {
       description:
-        "Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
+        "Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt's identity; parentReportId is the run report. Status is updated in place. The attempt's output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.\n",
       allOf: [
         {
           type: 'object',
@@ -951,6 +962,13 @@ export const REPORT_SCHEMAS = {
                 },
               },
             },
+            repeat: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 10,
+              description:
+                '1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.',
+            },
             execution: {
               allOf: [
                 {
@@ -1022,7 +1040,8 @@ export const REPORT_SCHEMAS = {
             },
             status: {
               type: 'string',
-              description: 'Lifecycle of one case x configuration attempt.',
+              description:
+                'Lifecycle of one attempt at a case, configuration and repeat.',
               enum: [
                 'QUEUED',
                 'PREPARING',
@@ -1134,6 +1153,19 @@ export const REPORT_SCHEMAS = {
               type: 'string',
               description:
                 'Real provider session id of the child that judged this attempt. Never a pending placeholder.',
+            },
+            judgeSessionId: {
+              anyOf: [
+                {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Agent Session of the judge, recorded as soon as it is created so a running judge is already known as an eval session. The finished assessment repeats it.\n',
+                },
+                {
+                  type: 'null',
+                },
+              ],
             },
             measurements: {
               type: 'array',
@@ -1404,6 +1436,280 @@ export const REPORT_SCHEMAS = {
               description:
                 'Present for coding attempts once their changes were saved.',
             },
+            recordedToolCalls: {
+              allOf: [
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  description:
+                    'The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls.\n',
+                  required: ['state', 'calls'],
+                  properties: {
+                    state: {
+                      type: 'string',
+                      enum: ['COLLECTED', 'UNAVAILABLE'],
+                    },
+                    calls: {
+                      type: 'array',
+                      description: 'Empty when state is UNAVAILABLE.',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          "One tool call an attempt's tested agent made. The call's result is never kept. Evidence only; never shown to the tested agent or other attempts.\n",
+                        required: ['toolName', 'origin', 'truncated'],
+                        properties: {
+                          toolName: {
+                            type: 'string',
+                          },
+                          arguments: {
+                            type: 'string',
+                            description:
+                              'Serialized arguments the agent passed, cut to a fixed size when large.',
+                          },
+                          origin: {
+                            type: 'string',
+                            enum: ['RUN_OBSERVED', 'INTERCEPTED'],
+                            description:
+                              "RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them.\n",
+                          },
+                          agentText: {
+                            type: 'string',
+                            description:
+                              'Text the agent wrote with an INTERCEPTED call.',
+                          },
+                          truncated: {
+                            type: 'boolean',
+                            description: 'True when arguments were cut.',
+                          },
+                        },
+                      },
+                    },
+                    omittedCalls: {
+                      type: 'integer',
+                      minimum: 1,
+                      description:
+                        'Number of further calls left out once the list reached its cap.',
+                    },
+                  },
+                },
+              ],
+              description:
+                "The tested agent's own tool calls, without results. Absent on attempts recorded before tool calls were kept.\n",
+            },
+            turns: {
+              type: 'array',
+              description:
+                'The scripted messages the attempt started, in order, each saved as it settled. Absent on attempts recorded before scripted conversations, which ran only their final message.\n',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                description:
+                  "One scripted message an attempt sent and what came of it, saved as soon as the message settles. `index` is the message's position in the case's frozen inputs. Evidence only; never shown to the tested agent.\n",
+                required: ['index', 'input', 'state'],
+                properties: {
+                  index: {
+                    type: 'integer',
+                    minimum: 0,
+                    description:
+                      'Position of the message in the frozen inputs, from 0.',
+                  },
+                  turnId: {
+                    type: 'string',
+                    description:
+                      "The Run's Turn that handled the message. Absent until the Turn started.",
+                  },
+                  input: {
+                    type: 'string',
+                    description: 'The exact message text sent.',
+                  },
+                  state: {
+                    type: 'string',
+                    enum: ['STARTED', 'COMPLETED', 'FAILED', 'STOPPED'],
+                  },
+                  reply: {
+                    type: 'string',
+                    description:
+                      "The agent's reply to this message. Absent when none was produced.",
+                  },
+                  startedAt: {
+                    type: 'string',
+                    format: 'date-time',
+                  },
+                  completedAt: {
+                    type: 'string',
+                    format: 'date-time',
+                  },
+                  recordedToolCalls: {
+                    allOf: [
+                      {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'The tool calls one attempt made, in order. UNAVAILABLE means they could not be collected, which is different from COLLECTED with no calls.\n',
+                        required: ['state', 'calls'],
+                        properties: {
+                          state: {
+                            type: 'string',
+                            enum: ['COLLECTED', 'UNAVAILABLE'],
+                          },
+                          calls: {
+                            type: 'array',
+                            description: 'Empty when state is UNAVAILABLE.',
+                            items: {
+                              type: 'object',
+                              additionalProperties: false,
+                              description:
+                                "One tool call an attempt's tested agent made. The call's result is never kept. Evidence only; never shown to the tested agent or other attempts.\n",
+                              required: ['toolName', 'origin', 'truncated'],
+                              properties: {
+                                toolName: {
+                                  type: 'string',
+                                },
+                                arguments: {
+                                  type: 'string',
+                                  description:
+                                    'Serialized arguments the agent passed, cut to a fixed size when large.',
+                                },
+                                origin: {
+                                  type: 'string',
+                                  enum: ['RUN_OBSERVED', 'INTERCEPTED'],
+                                  description:
+                                    "RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED is reserved for calls the CLI answered itself without performing them.\n",
+                                },
+                                agentText: {
+                                  type: 'string',
+                                  description:
+                                    'Text the agent wrote with an INTERCEPTED call.',
+                                },
+                                truncated: {
+                                  type: 'boolean',
+                                  description: 'True when arguments were cut.',
+                                },
+                              },
+                            },
+                          },
+                          omittedCalls: {
+                            type: 'integer',
+                            minimum: 1,
+                            description:
+                              'Number of further calls left out once the list reached its cap.',
+                          },
+                        },
+                      },
+                    ],
+                    description:
+                      'Only the calls made while handling this message.',
+                  },
+                  measurement: {
+                    allOf: [
+                      {
+                        type: 'object',
+                        description:
+                          'Every number is optional and absent when the provider did not report it. It is never defaulted to 0.\n',
+                        required: ['scope'],
+                        properties: {
+                          scope: {
+                            type: 'string',
+                            description:
+                              'TARGET_PREPARATION (the Project Assistant research agent, present only when research ran) and TARGET_HANDLER (the tested agent) are measured per attempt. JUDGE is no longer recorded; stored JUDGE entries are ignored. COORDINATOR is measured per run. Scopes are never summed into one another.\n',
+                            enum: [
+                              'TARGET_PREPARATION',
+                              'TARGET_HANDLER',
+                              'JUDGE',
+                              'COORDINATOR',
+                            ],
+                          },
+                          elapsedMs: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          inputTokens: {
+                            description:
+                              'Fresh uncached input tokens; excludes cache reads.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          outputTokens: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cacheReadInputTokens: {
+                            description:
+                              'Input tokens read from cache; absent when unreported.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cacheCreationInputTokens: {
+                            description:
+                              'Input tokens written to cache; absent when unreported.',
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          toolCalls: {
+                            type: 'integer',
+                            minimum: 0,
+                          },
+                          cost: {
+                            description:
+                              'What one measured agent cost, or that its cost is not reported.',
+                            oneOf: [
+                              {
+                                type: 'object',
+                                description:
+                                  "A cost read from the provider's own record. `partial` means only some of the attempt's provider sessions could be read, so the amount is a lower bound.\n",
+                                additionalProperties: false,
+                                required: ['state', 'amount', 'currency'],
+                                properties: {
+                                  state: {
+                                    type: 'string',
+                                    enum: ['available', 'partial'],
+                                  },
+                                  amount: {
+                                    type: 'number',
+                                    minimum: 0,
+                                  },
+                                  currency: {
+                                    type: 'string',
+                                    enum: ['USD'],
+                                  },
+                                },
+                              },
+                              {
+                                type: 'object',
+                                description:
+                                  'The cost could not be read (unsupported provider such as OpenCode, no provider session, or a failed read). Carries no amount so it is never mistaken for zero.\n',
+                                additionalProperties: false,
+                                required: ['state'],
+                                properties: {
+                                  state: {
+                                    type: 'string',
+                                    enum: ['unavailable'],
+                                  },
+                                },
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                    description:
+                      'Time, tokens and cost attributed to this message. Absent values were not reported and are never zero.\n',
+                  },
+                  measurementPartial: {
+                    type: 'boolean',
+                    description:
+                      "True when some of this message's usage could not be attributed to it alone.",
+                  },
+                },
+              },
+            },
+            judgedTurnIndex: {
+              type: 'integer',
+              minimum: 0,
+              description:
+                'Index of the message the judge assessed. Absent when no final assessment happened.',
+            },
             judgedOutput: {
               anyOf: [
                 {
@@ -1622,12 +1928,8 @@ export const REPORT_SCHEMAS = {
                   target: {
                     type: 'object',
                     description:
-                      'Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.',
-                    required: [
-                      'situation',
-                      'initiatingRequest',
-                      'targetHandler',
-                    ],
+                      'Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list.',
+                    required: ['situation', 'inputs', 'targetHandler'],
                     properties: {
                       situation: {
                         type: 'string',
@@ -1678,9 +1980,49 @@ export const REPORT_SCHEMAS = {
                           format: 'uuid',
                         },
                       },
-                      initiatingRequest: {
-                        type: 'string',
-                        description: 'The single request that starts the case.',
+                      inputs: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          'Inputs section of an Eval Case: the ordered inputs that start and drive the case. Never holds situation, expectations, checks or rubric. Checked at authoring, approval and launch, and recorded with each run.\n',
+                        required: ['inputs'],
+                        properties: {
+                          inputs: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                              description:
+                                'One input of an Eval Case. `kind` selects the member.',
+                              oneOf: [
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  description:
+                                    'A fixed user message, worded as the user would type it.',
+                                  required: ['kind', 'text'],
+                                  properties: {
+                                    kind: {
+                                      type: 'string',
+                                      enum: ['text_message'],
+                                    },
+                                    text: {
+                                      type: 'string',
+                                      minLength: 1,
+                                      description:
+                                        'The message text, with any inline entity mentions as written.',
+                                    },
+                                  },
+                                },
+                              ],
+                              discriminator: {
+                                propertyName: 'kind',
+                                mapping: {
+                                  text_message: '#/EvalCaseTextMessageInput',
+                                },
+                              },
+                            },
+                          },
+                        },
                       },
                       targetHandler: {
                         type: 'string',
@@ -1769,7 +2111,7 @@ export const REPORT_SCHEMAS = {
                     type: 'object',
                     additionalProperties: false,
                     description:
-                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run.\n",
+                      "Coding section of an Eval Case whose handler is `free_form`. For the runner, coordinator and judge only; never passed to the target. Valid exactly when the case's handler is `free_form`; checked at approval and at launch, and recorded with each run. A section with a `mockupChecklist` must also have a `target`.\n",
                     required: ['serviceId', 'pinnedCommit'],
                     properties: {
                       serviceId: {
@@ -1815,22 +2157,39 @@ export const REPORT_SCHEMAS = {
                         description:
                           'Optional reference for the judge: a change that plausibly looks right but fails the case. Never passed to the target.\n',
                       },
+                      target: {
+                        type: 'object',
+                        additionalProperties: false,
+                        description:
+                          "What a coding case is about: whether the work is a new screen or component or a change to an existing one, and optionally where it lives in the case's Service. For the judge and results viewer only; never passed to the evaluated attempt.\n",
+                        required: ['kind'],
+                        properties: {
+                          kind: {
+                            type: 'string',
+                            enum: ['NEW', 'EXISTING'],
+                            description:
+                              'NEW for a new screen or component; EXISTING for a change to one.',
+                          },
+                          path: {
+                            type: 'string',
+                            minLength: 1,
+                            description:
+                              "Path of the screen or component within the case's Service.",
+                          },
+                        },
+                      },
                       mockupChecklist: {
                         type: 'object',
                         additionalProperties: false,
                         description:
-                          'What a coding case built from a Mockup is judged against. For a NEW Mockup the items cover every control; for an UPDATE only the parts that changed.\n',
-                        required: ['mockupId', 'kind', 'items'],
+                          "What a coding case built from a Mockup is judged against. Whether the Mockup is new or a change to an existing interface comes from the Coding section's `target`, which is required when a checklist is present. For a new interface the items cover every control; for an existing one only the parts that changed.\n",
+                        required: ['mockupId', 'items'],
                         properties: {
                           mockupId: {
                             type: 'string',
                             format: 'uuid',
                             description:
                               "The source Mockup, which must be in the case's project.",
-                          },
-                          kind: {
-                            type: 'string',
-                            enum: ['NEW', 'UPDATE'],
                           },
                           items: {
                             type: 'array',
@@ -2042,6 +2401,13 @@ export const REPORT_SCHEMAS = {
                 attemptTokenLimit: {
                   type: 'integer',
                   minimum: 1,
+                },
+                repeatsPerAttempt: {
+                  type: 'integer',
+                  minimum: 1,
+                  maximum: 10,
+                  description:
+                    'How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.\n',
                 },
               },
             },
@@ -2717,7 +3083,7 @@ export const REPORT_SCHEMAS = {
                   items: {
                     type: 'object',
                     description:
-                      'One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence.\n',
+                      "One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity's optional reason is display-only: it plays no part in group identity, target uniqueness or the user's response.\n",
                     required: [
                       'id',
                       'affectedEntities',
@@ -2734,28 +3100,45 @@ export const REPORT_SCHEMAS = {
                         type: 'array',
                         minItems: 1,
                         items: {
-                          type: 'object',
                           description:
-                            'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
-                          required: ['entityType', 'entityId', 'title'],
-                          properties: {
-                            entityType: {
-                              type: 'string',
+                            'An entity a V2 decision group affects: the source reference plus an optional one-line reason saying why the decision affects it. Display-only.\n',
+                          allOf: [
+                            {
+                              type: 'object',
                               description:
-                                'Kind of entity a FEATURE_SYNC discrepancy row points at.',
-                              enum: ['feature', 'task'],
+                                'Reference to the entity a FEATURE_SYNC discrepancy row points at. Mirrors the `Source` column of the user-facing reconciliation table — the agent renders this as `@[<entityType>:<entityId>|<title>]`.\n',
+                              required: ['entityType', 'entityId', 'title'],
+                              properties: {
+                                entityType: {
+                                  type: 'string',
+                                  description:
+                                    'Kind of entity a FEATURE_SYNC discrepancy row points at.',
+                                  enum: ['feature', 'task'],
+                                },
+                                entityId: {
+                                  type: 'string',
+                                  minLength: 1,
+                                },
+                                title: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'Human-readable title of the referenced entity (the `|title` half of the mention).',
+                                },
+                              },
                             },
-                            entityId: {
-                              type: 'string',
-                              minLength: 1,
+                            {
+                              type: 'object',
+                              properties: {
+                                reason: {
+                                  type: 'string',
+                                  minLength: 1,
+                                  description:
+                                    'One-line, display-only explanation of why the decision affects this entity.\n',
+                                },
+                              },
                             },
-                            title: {
-                              type: 'string',
-                              minLength: 1,
-                              description:
-                                'Human-readable title of the referenced entity (the `|title` half of the mention).',
-                            },
-                          },
+                          ],
                         },
                       },
                       title: {
@@ -3004,10 +3387,122 @@ export const REPORT_SCHEMAS = {
             filesChanged: {
               type: 'array',
               description:
-                'Repo-relative paths of files modified during the run.',
+                'Repo-relative paths of files modified during the turn, derived from `edits`: the sorted unique paths. Kept for readers that only need which files changed.\n',
               items: {
                 type: 'string',
                 minLength: 1,
+              },
+            },
+            edits: {
+              type: 'array',
+              description:
+                "Every recorded edit to this report's Service during the turn, in the order they occurred. Built by the CLI from the Run's canonical file-change facts, never authored by the agent. Carries no file content: versions are git object ids kept in the repository that ran the session. Absent on reports written before edits were recorded.\n",
+              items: {
+                type: 'object',
+                description:
+                  "One recorded edit to a file. Line ranges are measured against the exact before and after versions, so later edits never invalidate them. Edits to one file form a chain: an edit whose `beforeObjectId` is another edit's `afterObjectId` came after it.\n",
+                required: [
+                  'path',
+                  'occurredAt',
+                  'turnId',
+                  'beforeObjectId',
+                  'afterObjectId',
+                  'beforeRanges',
+                  'afterRanges',
+                  'approximate',
+                  'versionsRecorded',
+                ],
+                properties: {
+                  path: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'Repo-relative path of the edited file.',
+                  },
+                  occurredAt: {
+                    type: 'string',
+                    format: 'date-time',
+                    description: 'When the edit was recorded.',
+                  },
+                  turnId: {
+                    type: 'string',
+                    minLength: 1,
+                    description: 'The Turn that made the edit.',
+                  },
+                  beforeObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file before the edit. When `versionsRecorded` is true, null means the file did not exist before the edit.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  afterObjectId: {
+                    anyOf: [
+                      {
+                        type: 'string',
+                        description:
+                          'Git object id of the file after the edit. When `versionsRecorded` is true, null means the edit deleted the file.\n',
+                      },
+                      {
+                        type: 'null',
+                      },
+                    ],
+                  },
+                  beforeRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the before version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  afterRanges: {
+                    type: 'array',
+                    description: 'Changed line ranges in the after version.',
+                    items: {
+                      type: 'object',
+                      description:
+                        'A 1-based, inclusive range of lines in one version of a file.',
+                      required: ['startLine', 'endLine'],
+                      properties: {
+                        startLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                        endLine: {
+                          type: 'integer',
+                          minimum: 1,
+                        },
+                      },
+                    },
+                  },
+                  approximate: {
+                    type: 'boolean',
+                    description:
+                      "True when Hey Hey could not establish that the ranges hold only this session's lines. Another session, a script or the person's editor may have changed the same file between the two versions, and the ranges then cover everything observed between them. Hey Hey currently reads each file only after the edit has run, so every edit is approximate.\n",
+                  },
+                  versionsRecorded: {
+                    type: 'boolean',
+                    description:
+                      "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
+                  },
+                },
               },
             },
             decisions: {
@@ -3038,7 +3533,7 @@ export const REPORT_SCHEMAS = {
                         type: 'string',
                         minLength: 1,
                         description:
-                          'Repo-relative path of the file the decision lives in.',
+                          "Repo-relative path of the file the decision lives in. It names a path in this report's `edits`.\n",
                       },
                       startLine: {
                         type: 'integer',
@@ -3055,6 +3550,60 @@ export const REPORT_SCHEMAS = {
                 },
               },
             },
+          },
+        },
+      ],
+    },
+  },
+  MONITOR_NODE_RESULT: {
+    description:
+      "Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a monitor node's session records on itself, accept or fail with a reason. The report is linked to the node's Agent Session, and the monitor reads it to accept the node directly, to satisfy later nodes' dependencies, and to restore progress after a restart. Kind-specific detail, such as a Test report, lives in its own report; the monitor reads only this verdict.",
+    schema: {
+      description:
+        "Payload for MONITOR_NODE_RESULT reports: the kind-neutral verdict a monitor node's session records on itself, accept or fail with a reason. The report is linked to the node's Agent Session, and the monitor reads it to accept the node directly, to satisfy later nodes' dependencies, and to restore progress after a restart. Kind-specific detail, such as a Test report, lives in its own report; the monitor reads only this verdict.\n",
+      allOf: [
+        {
+          type: 'object',
+          description:
+            'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
+          required: ['summary'],
+          properties: {
+            summary: {
+              type: 'string',
+              minLength: 1,
+              description:
+                '50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.\n',
+            },
+          },
+        },
+        {
+          type: 'object',
+          required: ['reportType', 'nodeId', 'outcome', 'reason'],
+          additionalProperties: false,
+          properties: {
+            reportType: {
+              type: 'string',
+              enum: ['MONITOR_NODE_RESULT'],
+            },
+            nodeId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'Work item of the monitor node this verdict settles.',
+            },
+            outcome: {
+              type: 'string',
+              enum: ['ACCEPTED', 'FAILED'],
+              description:
+                'The normalized verdict on one monitor node: accept it, or fail it. Only ACCEPTED makes the node done under a normalized-result monitor kind.\n',
+            },
+            reason: {
+              type: 'string',
+              minLength: 1,
+              description:
+                "Why the node was accepted or failed. A failure's reason is shown when the monitor halts.\n",
+            },
+            summary: {},
           },
         },
       ],

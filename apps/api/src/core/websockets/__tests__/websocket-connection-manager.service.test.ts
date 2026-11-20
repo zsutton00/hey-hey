@@ -247,6 +247,71 @@ describe('WebsocketConnectionManager.subscribe', () => {
 
     expect(manager.getConnection('s1')?.projectIds).toEqual(['project-1']);
   });
+
+  it('removes previously granted scope that a later subscribe denies', async () => {
+    const manager = new WebsocketConnectionManager();
+    const leave = jest.fn();
+    const socket = {
+      id: 's1',
+      disconnected: false,
+      join: jest.fn(),
+      leave,
+    } as unknown as Socket;
+    manager.addConnection(
+      socket,
+      'user-1' as UserId,
+      ['org-1' as OrganizationId],
+      [],
+      [],
+      [],
+      [],
+      'cli',
+      'machine-1' as MachineId,
+      true,
+    );
+    await manager.subscribe(
+      's1',
+      ['conversation.updated'],
+      ['project-1' as ProjectId, 'project-2' as ProjectId],
+      ['conversation-1' as ConversationId, 'conversation-2' as ConversationId],
+    );
+
+    await manager.subscribe(
+      's1',
+      ['conversation.updated'],
+      ['project-1' as ProjectId],
+      ['conversation-1' as ConversationId],
+      [],
+      [],
+      [
+        {
+          scopeType: 'project',
+          id: 'project-2',
+          reason: 'not_found_or_inaccessible',
+        },
+        {
+          scopeType: 'conversation',
+          id: 'conversation-2',
+          reason: 'not_found_or_inaccessible',
+        },
+      ],
+    );
+
+    expect(manager.getConnection('s1')).toEqual(
+      expect.objectContaining({
+        projectIds: ['project-1'],
+        conversationIds: ['conversation-1'],
+      }),
+    );
+    expect(manager.getSubscription('s1')).toEqual(
+      expect.objectContaining({
+        projectIds: ['project-1'],
+        conversationIds: ['conversation-1'],
+      }),
+    );
+    expect(leave).toHaveBeenCalledWith('project:project-2');
+    expect(leave).toHaveBeenCalledWith('conversation:conversation-2');
+  });
 });
 
 describe('WebsocketConnectionManager.resetAuthorizationState', () => {

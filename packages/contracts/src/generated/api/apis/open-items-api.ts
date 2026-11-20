@@ -51,11 +51,15 @@ import type { MoveOpenItemRequest } from '../models.js';
 // @ts-ignore
 import type { OpenItemsConflictError } from '../models.js';
 // @ts-ignore
+import type { OpenItemsIdempotencyKeyReusedError } from '../models.js';
+// @ts-ignore
 import type { OpenItemsValidationError } from '../models.js';
 // @ts-ignore
 import type { PromoteGroupToGoal200Response } from '../models.js';
 // @ts-ignore
 import type { PromoteGroupToGoalRequest } from '../models.js';
+// @ts-ignore
+import type { RefreshOpenItemPresentationRequest } from '../models.js';
 // @ts-ignore
 import type { RemoveOpenItemRequest } from '../models.js';
 // @ts-ignore
@@ -584,6 +588,62 @@ export const OpenItemsApiAxiosParamCreator = function (configuration?: Configura
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(promoteGroupToGoalRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row.
+         * @summary Refresh an existing Agent Session Open Item title
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {EntityType} entityType Open Item entity type
+         * @param {string} entityId Open Item entity ID
+         * @param {RefreshOpenItemPresentationRequest} refreshOpenItemPresentationRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        refreshOpenItemPresentation: async (organizationId: string, projectId: string, entityType: EntityType, entityId: string, refreshOpenItemPresentationRequest: RefreshOpenItemPresentationRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('refreshOpenItemPresentation', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('refreshOpenItemPresentation', 'projectId', projectId)
+            // verify required parameter 'entityType' is not null or undefined
+            assertParamExists('refreshOpenItemPresentation', 'entityType', entityType)
+            // verify required parameter 'entityId' is not null or undefined
+            assertParamExists('refreshOpenItemPresentation', 'entityId', entityId)
+            // verify required parameter 'refreshOpenItemPresentationRequest' is not null or undefined
+            assertParamExists('refreshOpenItemPresentation', 'refreshOpenItemPresentationRequest', refreshOpenItemPresentationRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/presentation-refresh`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"entityType"}}`, encodeURIComponent(String(entityType)))
+                .replace(`{${"entityId"}}`, encodeURIComponent(String(entityId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(refreshOpenItemPresentationRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -1328,6 +1388,23 @@ export const OpenItemsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row.
+         * @summary Refresh an existing Agent Session Open Item title
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {EntityType} entityType Open Item entity type
+         * @param {string} entityId Open Item entity ID
+         * @param {RefreshOpenItemPresentationRequest} refreshOpenItemPresentationRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async refreshOpenItemPresentation(organizationId: string, projectId: string, entityType: EntityType, entityId: string, refreshOpenItemPresentationRequest: RefreshOpenItemPresentationRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ActivateOpenItem200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.refreshOpenItemPresentation(organizationId, projectId, entityType, entityId, refreshOpenItemPresentationRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['OpenItemsApi.refreshOpenItemPresentation']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Scoped to the authenticated user and authorized project. Server derives removed descendants from stored lineage: unpinned ungrouped and same-group descendants are removed; pinned and different-group descendants are retained. Returns every affected canonical row.
          * @summary Remove an Open Item
          * @param {string} organizationId Organization ID
@@ -1614,6 +1691,16 @@ export const OpenItemsApiFactory = function (configuration?: Configuration, base
             return localVarFp.promoteGroupToGoal(requestParameters.organizationId, requestParameters.projectId, requestParameters.promoteGroupToGoalRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row.
+         * @summary Refresh an existing Agent Session Open Item title
+         * @param {OpenItemsApiRefreshOpenItemPresentationRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        refreshOpenItemPresentation(requestParameters: OpenItemsApiRefreshOpenItemPresentationRequest, options?: RawAxiosRequestConfig): AxiosPromise<ActivateOpenItem200Response> {
+            return localVarFp.refreshOpenItemPresentation(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.refreshOpenItemPresentationRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Scoped to the authenticated user and authorized project. Server derives removed descendants from stored lineage: unpinned ungrouped and same-group descendants are removed; pinned and different-group descendants are retained. Returns every affected canonical row.
          * @summary Remove an Open Item
          * @param {OpenItemsApiRemoveOpenItemRequest} requestParameters Request parameters.
@@ -1831,6 +1918,16 @@ export interface OpenItemsApiInterface {
      * @memberof OpenItemsApiInterface
      */
     promoteGroupToGoal(requestParameters: OpenItemsApiPromoteGroupToGoalRequest, options?: RawAxiosRequestConfig): AxiosPromise<PromoteGroupToGoal200Response>;
+
+    /**
+     * Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row.
+     * @summary Refresh an existing Agent Session Open Item title
+     * @param {OpenItemsApiRefreshOpenItemPresentationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof OpenItemsApiInterface
+     */
+    refreshOpenItemPresentation(requestParameters: OpenItemsApiRefreshOpenItemPresentationRequest, options?: RawAxiosRequestConfig): AxiosPromise<ActivateOpenItem200Response>;
 
     /**
      * Scoped to the authenticated user and authorized project. Server derives removed descendants from stored lineage: unpinned ungrouped and same-group descendants are removed; pinned and different-group descendants are retained. Returns every affected canonical row.
@@ -2271,6 +2368,48 @@ export interface OpenItemsApiPromoteGroupToGoalRequest {
      * @memberof OpenItemsApiPromoteGroupToGoal
      */
     readonly promoteGroupToGoalRequest: PromoteGroupToGoalRequest
+}
+
+/**
+ * Request parameters for refreshOpenItemPresentation operation in OpenItemsApi.
+ * @export
+ * @interface OpenItemsApiRefreshOpenItemPresentationRequest
+ */
+export interface OpenItemsApiRefreshOpenItemPresentationRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof OpenItemsApiRefreshOpenItemPresentation
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof OpenItemsApiRefreshOpenItemPresentation
+     */
+    readonly projectId: string
+
+    /**
+     * Open Item entity type
+     * @type {EntityType}
+     * @memberof OpenItemsApiRefreshOpenItemPresentation
+     */
+    readonly entityType: EntityType
+
+    /**
+     * Open Item entity ID
+     * @type {string}
+     * @memberof OpenItemsApiRefreshOpenItemPresentation
+     */
+    readonly entityId: string
+
+    /**
+     *
+     * @type {RefreshOpenItemPresentationRequest}
+     * @memberof OpenItemsApiRefreshOpenItemPresentation
+     */
+    readonly refreshOpenItemPresentationRequest: RefreshOpenItemPresentationRequest
 }
 
 /**
@@ -2783,6 +2922,18 @@ export class OpenItemsApi extends BaseAPI implements OpenItemsApiInterface {
      */
     public promoteGroupToGoal(requestParameters: OpenItemsApiPromoteGroupToGoalRequest, options?: RawAxiosRequestConfig) {
         return OpenItemsApiFp(this.configuration).promoteGroupToGoal(requestParameters.organizationId, requestParameters.projectId, requestParameters.promoteGroupToGoalRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row.
+     * @summary Refresh an existing Agent Session Open Item title
+     * @param {OpenItemsApiRefreshOpenItemPresentationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof OpenItemsApi
+     */
+    public refreshOpenItemPresentation(requestParameters: OpenItemsApiRefreshOpenItemPresentationRequest, options?: RawAxiosRequestConfig) {
+        return OpenItemsApiFp(this.configuration).refreshOpenItemPresentation(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.refreshOpenItemPresentationRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

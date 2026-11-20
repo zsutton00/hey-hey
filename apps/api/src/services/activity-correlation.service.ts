@@ -1,3 +1,5 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { hydrateActivityHistoryMetadata } from './activity-correlation/activity-history-metadata';
 import {
   BadRequestException,
@@ -13,7 +15,6 @@ import {
   EntityType as PrismaEntityType,
   Prisma,
   ReportAudience as PrismaReportAudience,
-  WorkStatus,
 } from '@prisma/client';
 import {
   ActivityCorrelationActivityType,
@@ -3130,14 +3131,14 @@ export class ActivityCorrelationService {
   }
 
   private isDependencyUnblocked(
-    dependencyStatus: WorkStatus,
+    dependencyStatus: TaskResponseDto['status'],
     completedByAgentSession: boolean,
   ): boolean {
-    return dependencyStatus === WorkStatus.COMPLETED || completedByAgentSession;
+    return dependencyStatus === WorkStatus.Completed || completedByAgentSession;
   }
 
-  private isTaskClosedStatus(status: WorkStatus): boolean {
-    return status === WorkStatus.COMPLETED || status === WorkStatus.CANCELLED;
+  private isTaskClosedStatus(status: TaskResponseDto['status']): boolean {
+    return status === WorkStatus.Completed || status === WorkStatus.Cancelled;
   }
 
   private isStatusAwareEntityType(entityType: EntityType): boolean {

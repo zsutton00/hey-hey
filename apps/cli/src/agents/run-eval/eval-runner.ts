@@ -1,12 +1,15 @@
 import type {
   EvalAttemptReportPayload,
+  EvalAttemptTurn,
   EvalAutomatedAssessment,
   EvalCost,
   EvalMeasurement,
   EvalRecordedAttempt,
+  EvalRecordedToolCalls,
   EvalRunSettings,
 } from '@hey-hey/contracts/api/models';
 import type { SubAgentUsage } from '../../run/subagent';
+import type { ServerLogger } from '../../server/logger';
 
 /** What one target child produced. */
 export interface EvalTargetResult {
@@ -18,6 +21,12 @@ export interface EvalTargetResult {
   usage: SubAgentUsage;
   /** The tested agent's cost, read after its Run settled. */
   cost?: EvalCost;
+  /** The tested agent's own tool calls, without results. */
+  recordedToolCalls?: EvalRecordedToolCalls;
+  /** Every scripted message the attempt started. Present only for multi-message cases. */
+  turns?: EvalAttemptTurn[];
+  /** The message the output above answers; set only when the final message completed. */
+  judgedTurnIndex?: number;
 }
 
 /** A target failure that still carries what the failed attempt measured. */
@@ -27,9 +36,11 @@ export class EvalTargetFailure extends Error {
     public readonly measured: SubAgentUsage & {
       cost?: EvalCost;
       researchMeasurements?: EvalMeasurement[];
+      recordedToolCalls?: EvalRecordedToolCalls;
     },
+    cause?: unknown,
   ) {
-    super(message);
+    super(message, { cause });
   }
 }
 
@@ -43,6 +54,7 @@ export type EvalAttemptPatch = Partial<
     EvalAttemptReportPayload,
     | 'attemptProviderSessionIds'
     | 'judgeProviderSessionId'
+    | 'judgeSessionId'
     | 'status'
     | 'stopReason'
     | 'error'
@@ -52,6 +64,9 @@ export type EvalAttemptPatch = Partial<
     | 'automatedAssessment'
     | 'judgedOutput'
     | 'recordedChanges'
+    | 'recordedToolCalls'
+    | 'turns'
+    | 'judgedTurnIndex'
     | 'summary'
   >
 >;
@@ -71,10 +86,17 @@ export interface EvalRunnerPorts {
   /** Judges an output against the case's recorded checks and rubric. */
   judge(
     attempt: EvalRecordedAttempt,
-    outputText: string,
+    output: {
+      outputText: string;
+      toolCalls?: EvalRecordedToolCalls;
+      /** Present for scripted conversations: earlier messages are context, the last is judged. */
+      conversation?: { earlierTurns: EvalAttemptTurn[]; judgedTurn: EvalAttemptTurn };
+    },
     signal: AbortSignal,
   ): Promise<EvalJudgeResult>;
   now(): Date;
+  /** Records why an attempt ended in ERROR; the attempt record alone is not in the Run log. */
+  logger?: Pick<ServerLogger, 'warn'>;
 }
 
 export interface EvalRunTally {
@@ -144,6 +166,14 @@ export const runEvalAttempts = async (
         : null;
     const startedAt = ports.now();
     const measurements: EvalMeasurement[] = [];
+    const logAttemptError = (stage: string, error: unknown, code?: string): void => {
+      ports.logger?.warn('run_eval.attempt.errored', {
+        attemptId: attempt.attemptId,
+        stage,
+        ...(code ? { code } : {}),
+        error: errorMessage(error),
+      });
+    };
     const finish = async (patch: EvalAttemptPatch): Promise<void> => {
       await ports.recorder.updateAttempt(attempt.attemptId, {
         ...patch,
@@ -168,16 +198,22 @@ export const runEvalAttempts = async (
         });
       } catch (error) {
         const elapsedMs = ports.now().getTime() - startedAt.getTime();
-        const { cost, researchMeasurements, ...usage } =
+        const { cost, researchMeasurements, recordedToolCalls, ...usage } =
           error instanceof EvalTargetFailure ? error.measured : {};
         measurements.push(...(researchMeasurements ?? []));
         measurements.push(toMeasurement('TARGET_HANDLER', elapsedMs, usage, cost));
+        const retained = recordedToolCalls ? { recordedToolCalls } : {};
         if (stopped.reason !== null) {
           tally.stopped += 1;
-          await finish({ status: 'STOPPED', stopReason: stopped.reason });
+          await finish({ status: 'STOPPED', stopReason: stopped.reason, ...retained });
         } else {
           tally.errored += 1;
-          await finish({ status: 'ERROR', error: { message: errorMessage(error) } });
+          logAttemptError('target_failed', error);
+          await finish({
+            status: 'ERROR',
+            error: { message: errorMessage(error) },
+            ...retained,
+          });
         }
         return;
       }
@@ -192,21 +228,32 @@ export const runEvalAttempts = async (
       );
       if (target.budgetExhausted) stopped.reason ??= 'TOKEN_LIMIT';
       const summary = target.outputText ? { outputText: target.outputText } : undefined;
+      const retainedToolCalls = target.recordedToolCalls
+        ? { recordedToolCalls: target.recordedToolCalls }
+        : {};
       if (stopped.reason !== null) {
         tally.stopped += 1;
         await finish({
           status: 'STOPPED',
           stopReason: stopped.reason,
           ...(summary ? { summary } : {}),
+          ...retainedToolCalls,
         });
         return;
       }
       if (!target.assistantCompleted || !target.outputText) {
         tally.errored += 1;
+        ports.logger?.warn('run_eval.attempt.errored', {
+          attemptId: attempt.attemptId,
+          stage: 'target_incomplete',
+          assistantCompleted: target.assistantCompleted,
+          hasOutputText: Boolean(target.outputText),
+        });
         await finish({
           status: 'ERROR',
           error: { message: 'The target ended without a completed answer.' },
           ...(summary ? { summary } : {}),
+          ...retainedToolCalls,
         });
         return;
       }
@@ -216,9 +263,36 @@ export const runEvalAttempts = async (
         measurements,
         judgedOutput: target.outputText,
         summary,
+        ...(target.judgedTurnIndex !== undefined
+          ? { judgedTurnIndex: target.judgedTurnIndex }
+          : {}),
+        ...retainedToolCalls,
       });
+      const judgedTurn = target.turns?.find((turn) => turn.index === target.judgedTurnIndex);
       try {
-        const judged = await ports.judge(attempt, target.outputText, controller.signal);
+        const judged = await ports.judge(
+          attempt,
+          {
+            outputText: target.outputText,
+            // Only the judged message's own calls can satisfy a check.
+            ...(judgedTurn
+              ? {
+                  ...(judgedTurn.recordedToolCalls
+                    ? { toolCalls: judgedTurn.recordedToolCalls }
+                    : {}),
+                  conversation: {
+                    earlierTurns: (target.turns ?? []).filter(
+                      (turn) => turn.index < judgedTurn.index,
+                    ),
+                    judgedTurn,
+                  },
+                }
+              : target.recordedToolCalls
+                ? { toolCalls: target.recordedToolCalls }
+                : {}),
+          },
+          controller.signal,
+        );
         tally.completed += 1;
         await finish({ status: 'COMPLETED', automatedAssessment: judged.assessment, summary });
       } catch (error) {
@@ -227,6 +301,7 @@ export const runEvalAttempts = async (
           await finish({ status: 'STOPPED', stopReason: stopped.reason, summary });
         } else {
           tally.errored += 1;
+          logAttemptError('judge', error, 'JUDGE_FAILED');
           await finish({
             status: 'ERROR',
             error: { code: 'JUDGE_FAILED', message: errorMessage(error) },
@@ -237,6 +312,7 @@ export const runEvalAttempts = async (
     } catch (error) {
       // A failed record write belongs to this attempt only; the others carry on.
       tally.errored += 1;
+      logAttemptError('record', error, 'RECORD_FAILED');
       await ports.recorder
         .updateAttempt(attempt.attemptId, {
           status: 'ERROR',

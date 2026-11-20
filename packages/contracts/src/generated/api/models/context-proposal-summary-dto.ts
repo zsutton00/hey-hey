@@ -33,6 +33,9 @@ import type { ProposalAction } from './proposal-action.js';
 import type { ProposalApprovalDto } from './proposal-approval-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ProposalApprovalExplanation } from './proposal-approval-explanation.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ProposalEdgeDeclaration } from './proposal-edge-declaration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -135,11 +138,17 @@ export interface ContextProposalSummaryDto {
      */
     'requestorContext'?: { [key: string]: any; };
     /**
-     *
+     * Historical requirement is unknown when terminal decision evidence is unavailable; never interpret null as zero.
      * @type {number}
      * @memberof ContextProposalSummaryDto
      */
-    'requiredApprovals': number;
+    'requiredApprovals': number | null;
+    /**
+     *
+     * @type {ProposalApprovalExplanation}
+     * @memberof ContextProposalSummaryDto
+     */
+    'approvalExplanation'?: ProposalApprovalExplanation;
     /**
      *
      * @type {Array<Influence>}

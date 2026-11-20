@@ -176,6 +176,7 @@ const TARGETS = [
       "apps/api/scripts/generate-private-beta-access-schema.js",
       "apps/api/scripts/generate-demo-sandbox-schema.js",
       "apps/api/scripts/generate-open-items-schemas.js",
+      "apps/api/scripts/generate-work-item-execution-state-schema.js",
       "apps/api/scripts/generate-diagram-schemas.js",
       "apps/api/scripts/generate-entity-prompt-template-language.js",
       "scripts/entity-prompt-template-parser-source.cjs",
@@ -208,6 +209,7 @@ const TARGETS = [
       "apps/api/src/generated/future-revision.schema.ts",
       "apps/api/src/generated/goal-pm-decision.schema.ts",
       "apps/api/src/generated/open-items.schemas.ts",
+      "apps/api/src/generated/work-item-execution-state.schemas.ts",
       "apps/api/src/generated/private-beta-access-request-decision.schema.ts",
       "apps/api/src/generated/private-beta-access-request-submission.schema.ts",
       "apps/api/src/generated/project-mode-contract.schema.ts",
@@ -695,7 +697,6 @@ const digestTargetInputs = (
   const rootPackage = JSON.parse(
     fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"),
   );
-  add("node-version", process.version);
   add("package-manager", rootPackage.packageManager ?? "unknown");
   for (const file of ["scripts/openapi-source.cjs"]) {
     add(`file:${file}`, fs.readFileSync(path.join(projectRoot, file)));

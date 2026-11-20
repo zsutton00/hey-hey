@@ -664,6 +664,7 @@ export const KEYS = {
     passwordChangeFailed: "auth.passwordChangeFailed" as const,
     mustChangePassword: "auth.mustChangePassword" as const,
     setNewPassword: "auth.setNewPassword" as const,
+    or: "auth.or" as const,
   },
   betaOnboarding: {
     title: "betaOnboarding.title" as const,

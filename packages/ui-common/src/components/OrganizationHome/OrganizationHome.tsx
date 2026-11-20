@@ -26,7 +26,7 @@ import { useProjects } from "../../data/hooks/useProjects";
 import { usePermissions } from "../../hooks";
 import { TERMS } from "../../i18n/terminology";
 import { Card } from "../Card";
-import { EntityActionButton } from "../EntityActionButton";
+import { BrandedButton } from "../BrandedFrame";
 import { OrganizationHomeEvidence } from "./OrganizationHomeEvidence";
 import { OrganizationHomeProjectList } from "./OrganizationHomeProjectList";
 import {
@@ -93,6 +93,21 @@ const ErrorState: React.FC<{
   >
     {message}
   </Alert>
+);
+
+const CreateProjectButton: React.FC<{
+  disabled?: boolean;
+  onClick: () => void;
+}> = ({ disabled = false, onClick }) => (
+  <BrandedButton
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    data-testid="organization-home-create-project"
+    sx={{ width: "auto", whiteSpace: "nowrap" }}
+  >
+    Create {TERMS.Project}
+  </BrandedButton>
 );
 
 export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
@@ -205,7 +220,12 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
       component="main"
       data-testid="organization-home"
       aria-busy={isProjectLoading || isStarLoading}
-      sx={{ py: { xs: 8, sm: 10 }, px: { xs: 2, sm: 3 } }}
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        py: { xs: 6, sm: 8 },
+        px: { xs: 2, sm: 3 },
+      }}
     >
       <Container maxWidth="lg" disableGutters>
         {header && <OrganizationHomeHeader {...header} />}
@@ -213,6 +233,7 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
         <Card
           title="Projects"
           dataTestId="organization-home-projects-card"
+          appearance="translucent"
           inlineActionOnMobile
           action={
             canCreateProjects ? (
@@ -220,28 +241,11 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
                 {isCreateProjectDisabled ? (
                   <Tooltip title={createProjectTooltip} arrow>
                     <span data-testid="organization-home-create-project-tooltip-target">
-                      <EntityActionButton
-                        type="button"
-                        variant="contained"
-                        verb="create"
-                        noun={TERMS.Project}
-                        entityType="project"
-                        disabled
-                        onClick={onCreateProject}
-                        data-testid="organization-home-create-project"
-                      />
+                      <CreateProjectButton disabled onClick={onCreateProject} />
                     </span>
                   </Tooltip>
                 ) : (
-                  <EntityActionButton
-                    type="button"
-                    variant="contained"
-                    verb="create"
-                    noun={TERMS.Project}
-                    entityType="project"
-                    onClick={onCreateProject}
-                    data-testid="organization-home-create-project"
-                  />
+                  <CreateProjectButton onClick={onCreateProject} />
                 )}
               </Stack>
             ) : undefined
@@ -331,17 +335,19 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
                 sx={{ mt: 2, display: "flex", justifyContent: "center" }}
               />
             )}
-          {entitlement && entitlement.canCreateProject && (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ mt: 2 }}
-              data-testid="organization-home-project-entitlement"
-            >
-              {entitlement.usage.projectCount} of {entitlement.projectLimit}{" "}
-              projects used
-            </Typography>
-          )}
+          {entitlement &&
+            entitlement.canCreateProject &&
+            entitlement.projectLimit !== null && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 2 }}
+                data-testid="organization-home-project-entitlement"
+              >
+                {entitlement.usage.projectCount} of {entitlement.projectLimit}{" "}
+                projects used
+              </Typography>
+            )}
           {entitlement && !entitlement.canCreateProject && (
             <Alert
               severity="warning"
@@ -380,6 +386,7 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
           includeProjectInfo={false}
           organizationId={organizationId}
           onMetricActivate={onMetricActivate}
+          appearance="translucent"
           scopeLabel="Only you"
           title="My Activity"
         />
@@ -389,6 +396,7 @@ export const OrganizationHome: React.FC<OrganizationHomeProps> = ({
           includeProjectInfo={false}
           organizationId={organizationId}
           onMetricActivate={onMetricActivate}
+          appearance="translucent"
           scopeLabel="All accessible projects"
           title="Organization Activity"
         />

@@ -699,6 +699,7 @@ describe("resolveLocalDirectoryRuntimeBaseUrl", () => {
 
   it.each([
     ["https://staging.heyhey.dev", "", 3849],
+    ["https://evals.heyhey.dev", "", 3852],
     ["https://heyhey.dev", "", 3847],
     ["http://localhost:5173", "3848", 3848],
     ["https://staging.heyhey.dev", "3850", 3850],

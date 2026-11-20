@@ -17,6 +17,9 @@ const buildEntityConversationLineage = (
       return [createNavigationLineageEntry("plan", entityId)];
     case "task":
       return [createNavigationLineageEntry("task", entityId)];
+    case "agent_session":
+    case "agent-session":
+      return [createNavigationLineageEntry("agent_session", entityId)];
     default:
       return null;
   }

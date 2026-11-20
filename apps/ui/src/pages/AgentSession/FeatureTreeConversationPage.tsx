@@ -1,3 +1,4 @@
+import { useConversation } from "@hey-hey/ui-common/data";
 import React from "react";
 import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import { FeatureTreeConversationChat } from "@hey-hey/ui-common/components";
@@ -30,6 +31,13 @@ export const FeatureTreeConversationPage: React.FC<
     projectId,
     agentSessionId,
     { enabled: !!organizationId && !!agentSessionId },
+  );
+  const titleConversationId = agentSession?.conversationId;
+  const { data: titleConversation } = useConversation(
+    organizationId,
+    projectId,
+    { conversationId: titleConversationId ?? "" },
+    { enabled: !!titleConversationId && !preview, enablePolling: false },
   );
   useAcknowledgeAgentSessionOutputAttentionOnOpen({
     organizationId,
@@ -83,7 +91,7 @@ export const FeatureTreeConversationPage: React.FC<
             agentSession,
             undefined,
             undefined,
-            agentSession.title,
+            titleConversation?.title,
           ),
         ),
       };

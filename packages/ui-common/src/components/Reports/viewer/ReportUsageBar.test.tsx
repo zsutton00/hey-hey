@@ -5,6 +5,7 @@ import {
   within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -17,6 +18,7 @@ import {
   type ReportUsageMeasurement,
 } from "../../../api";
 import { ReportViewer } from "../ReportViewer";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 
 vi.mock("../../../data/hooks/useLocalRepoBindings", () => ({
   useLocalRepoBindings: () => ({
@@ -152,6 +154,52 @@ const eligibleTypes = [
 ] as const;
 
 describe("report usage bar", () => {
+  it.each([true, false])(
+    "keeps decision report usage inside its card (header: %s)",
+    (renderHeader) => {
+      const report = {
+        ...buildReport(ReportType.Review, completeUsage),
+        reportType: ReportType.FeatureSyncDecision,
+        schemaVersion: 2,
+        payload: {
+          reportType: "FEATURE_SYNC_DECISION",
+          summary: "Review the proposed changes.",
+          decisionGroups: [
+            {
+              id: "group",
+              title: "Report presentation",
+              summary: "Choose a layout.",
+              affectedEntities: [
+                {
+                  entityType: "feature",
+                  entityId: "feature-1",
+                  title: "Reports",
+                },
+              ],
+              choices: [
+                { id: "update", label: "Update", isNoChange: false },
+                { id: "keep", label: "Keep", isNoChange: true },
+              ],
+            },
+          ],
+        },
+      } as ReportDto;
+      render(
+        <ThemeProvider theme={createHeyTheme("light")}>
+          <ReportViewer report={report} renderHeader={renderHeader} />
+        </ThemeProvider>,
+      );
+      const card = screen.getByTestId(
+        `report-viewer-${report.id}-feature-sync-decision-card`,
+      );
+      const bar = within(card).getByTestId("report-usage-bar");
+      fireEvent.click(within(bar).getByTestId("report-usage-breakdown-toggle"));
+      expect(
+        within(bar).getByTestId("report-usage-breakdown"),
+      ).toBeInTheDocument();
+      expect(screen.getAllByTestId("report-usage-bar")).toHaveLength(1);
+    },
+  );
   it.each(eligibleTypes)(
     "shows usage and its per-agent breakdown on %s reports",
     (reportType) => {

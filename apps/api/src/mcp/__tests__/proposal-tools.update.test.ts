@@ -83,9 +83,9 @@ describe('ProposalToolsProvider.updateProposal', () => {
 
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
-    expect(parsed.data.updates?.sections).toEqual([
-      { key: 'preview', content: htmlCssContent, order: 0 },
-    ]);
+    expect(parsed.data.updates).toEqual({
+      sections: [{ key: 'preview', content: htmlCssContent, order: 0 }],
+    });
   });
 
   it('forwards the typed HTML/CSS section unchanged to the proposal service', async () => {

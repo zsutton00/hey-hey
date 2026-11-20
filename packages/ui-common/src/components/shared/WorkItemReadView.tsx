@@ -19,7 +19,7 @@ import {
   type WorkItemSectionSelection,
 } from "../../utils/workItemSections";
 import {
-  adaptFeatureRequirementsSection,
+  readFeatureRequirementsSection,
   isCanonicalFeatureRequirementsDefinition,
 } from "../../utils/featureRequirementsSection";
 
@@ -32,6 +32,10 @@ import { ImageSectionRenderer } from "./ImageSectionRenderer";
 import { isImageSectionDefinition } from "./imageSection";
 import { HtmlCssSectionRenderer } from "./HtmlCssSectionRenderer";
 import { StructuredMockupSectionRenderer } from "./StructuredMockupSectionRenderer";
+import {
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+  EvalCaseInputsSection,
+} from "./EvalCaseInputsSection";
 import { JsonSectionRenderer } from "./JsonSectionRenderer";
 import { ModeFilesSectionRenderer } from "./ModeFilesSectionRenderer";
 import { isModeFilesSection, isModeSettingsSection } from "./modeFilesSection";
@@ -317,6 +321,20 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                   <ImageSectionRenderer content={value} label={section.label} />
                 </Box>
               ) : section.kind === "json" &&
+                section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF ? (
+                <Box
+                  data-testid="work-item-section"
+                  data-section-key={section.key}
+                >
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    {section.label}
+                  </Typography>
+                  <EvalCaseInputsSection
+                    content={value}
+                    mentionConfig={mentionConfig}
+                  />
+                </Box>
+              ) : section.kind === "json" &&
                 !isCanonicalFeatureRequirementsDefinition(
                   sectionSelection?.status === "resolved"
                     ? sectionSelection.typeKey
@@ -383,7 +401,6 @@ export const WorkItemReadView: React.FC<WorkItemReadViewProps> = ({
                   sectionSelection?.status === "resolved"
                     ? sectionSelection.typeKey
                     : undefined,
-                  section,
                   materializedSection,
                   requirementsPreview,
                 )
@@ -412,17 +429,15 @@ const renderRequirementsSection = (
   markdownComponents: Components,
   mentionConfig?: MarkdownRendererMentionConfig,
   typeKey?: string,
-  definition?: WorkItemTypeSectionDefinition,
   section?: MaterializedWorkItemSection,
   requirementsPreview?: WorkItemRequirementsPreview,
 ): React.ReactNode => {
-  const isCanonical = isCanonicalFeatureRequirementsDefinition(
-    typeKey,
-    definition,
-  );
-  const canonicalState = isCanonical
-    ? adaptFeatureRequirementsSection({ typeKey, definition, section })
-    : undefined;
+  // Feature requirements are always structured records, so the stored content
+  // alone decides the state: empty content is empty, never raw JSON text.
+  const canonicalState =
+    typeKey === "FEATURE"
+      ? readFeatureRequirementsSection(section?.materializedMarkdown)
+      : undefined;
 
   return (
     <RequirementsSectionFrame label={label}>

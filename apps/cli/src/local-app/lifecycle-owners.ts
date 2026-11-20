@@ -166,6 +166,7 @@ export class LocalLifecycleOwners {
 
 /** Separate loopback listener keeps lifecycle authority out of browser-facing bridge routes. */
 export class LocalBridgeLifecycle {
+  private readonly logger = new StructuredServerLogger({}, { component: 'local-lifecycle' });
   private server: Server | undefined;
   private pendingWork: string[] = [];
   constructor(
@@ -215,7 +216,8 @@ export class LocalBridgeLifecycle {
         this.onStopping();
         await this.stop();
         response.writeHead(204).end();
-      } catch {
+      } catch (error) {
+        this.logger.error('local.lifecycle.stop.failed', { error });
         response.writeHead(503).end();
       }
     });

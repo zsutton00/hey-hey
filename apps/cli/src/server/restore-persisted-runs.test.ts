@@ -1,3 +1,6 @@
+import { CommitReportTool } from '../agents/submission-tools/create-commit-report-tool';
+import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
+import { executeCanonicalCommit } from '../agents/commit/commit-executor';
 /** @vitest-environment node */
 
 import { execFile } from 'node:child_process';
@@ -16,9 +19,10 @@ import { NOOP_LOGGER } from './logger';
 import { RunChangedFilesReader } from './run-changed-files';
 import { RunReadPreparationError, RunReadRestoreCoordinator } from './restore-persisted-runs';
 import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
+import { TurnChangeRecord } from '../turn/turn-change-record';
+import type { Turn } from '../turn/turn';
 import { ReportUsageSnapshotter } from '../provider-usage/report-usage-snapshotter';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
-import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
 import {
   createTestRepoMappingStore,
   createTestRun,
@@ -73,6 +77,98 @@ const makeSession = (): AgenticSession => ({
 });
 
 describe('RunReadRestoreCoordinator', () => {
+  it.each([
+    null,
+    { entityType: 'TASK' as const, entityId: '22222222-2222-4222-8222-222222222222' },
+  ])(
+    'restores local provenance and retries a pending commit without git for %j',
+    async (entity) => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-provenance-'));
+      tempDirectories.push(root);
+      const paths = createRunStorePaths(root);
+      const store = new RunStore({ paths });
+      await store.initialize();
+      await store.createRun({
+        entity,
+        agentic_session_id: 'run-provenance',
+        services: [],
+        provider: 'codex',
+        provider_session_id: 'pending_commit',
+        provider_conversation_id: null,
+        conversationId: 'conversation-1',
+        contextMetadata: { ...makeSession().contextMetadata, agentSessionId: 'run-provenance' },
+      });
+      const restore = async (disk: RunStore) => {
+        const wiring = createTestRunRegistryWiring({ runStore: disk });
+        const run = await new RunReadRestoreCoordinator({
+          runStore: disk,
+          runRegistry: wiring.runRegistry,
+          logger: NOOP_LOGGER,
+        }).restoreIdentity('run-provenance');
+        await run.ensureSeeded();
+        run.session.promptType = 'commit';
+        return run;
+      };
+      const first = await restore(store);
+      const entry = {
+        createdAt: new Date().toISOString(),
+        phase: 'implement' as const,
+        reportId: '11111111-1111-4111-8111-111111111111',
+        reportType: 'IMPLEMENT' as const,
+        summary: 'Changed file',
+        audience: 'EXTERNAL' as const,
+        sourceRunId: first.runId,
+        serviceId: 'service-1',
+      };
+      await first.reportProvenance.recordEntry(entry);
+      await first.reportProvenance.retain({
+        summary: 'Committed change',
+        files: ['a.ts'],
+        hashes: [
+          {
+            service: 'service-1',
+            hash: 'abc1234',
+            branch: 'main',
+            implementReportIds: [entry.reportId],
+          },
+        ],
+      });
+      first.cleanup();
+      const restartedStore = new RunStore({ paths });
+      await restartedStore.initialize();
+      const restarted = await restore(restartedStore);
+      expect(restarted.readReportChain()).toContainEqual(expect.objectContaining(entry));
+      const proxy = makeCreateReportProxy();
+      vi.mocked(proxy.create)
+        .mockRejectedValueOnce(new Error('network unavailable'))
+        .mockResolvedValue({ content: [], reportId: 'commit-report' });
+      const input = {
+        run: restarted,
+        payload: { userMessage: '' },
+        liveFiles: [],
+        message: null,
+        commitReportTool: new CommitReportTool(proxy),
+        logger: NOOP_LOGGER,
+      };
+      await expect(executeCanonicalCommit(input)).rejects.toThrow('network unavailable');
+      expect(restarted.reportProvenance.pending?.hashes[0]?.hash).toBe('abc1234');
+      await executeCanonicalCommit(input);
+      expect(restarted.reportProvenance.pending).toBeUndefined();
+      expect(restarted.readReportChain().at(-1)?.commitHashes?.[0]?.implementReportIds).toEqual([
+        entry.reportId,
+      ]);
+      restarted.cleanup();
+      const finalStore = new RunStore({ paths });
+      await finalStore.initialize();
+      const final = await restore(finalStore);
+      expect(final.reportProvenance.pending).toBeUndefined();
+      expect(final.readReportChain().at(-1)?.commitHashes?.[0]?.implementReportIds).toEqual([
+        entry.reportId,
+      ]);
+      final.cleanup();
+    },
+  );
+
   it('restores triage PROJECT identity from disk after a RunStore restart', async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-triage-restore-'));
     tempDirectories.push(tempRoot);
@@ -488,7 +584,21 @@ describe('RunReadRestoreCoordinator', () => {
 
     const repoStore = createTestRepoMappingStore();
     const runChangedFilesReader = new RunChangedFilesReader(repoStore);
-    const wiring = createTestRunRegistryWiring({ runStore, repoStore });
+    const proxy = makeCreateReportProxy();
+    vi.mocked(proxy.create)
+      .mockResolvedValueOnce({ content: [], reportId: 'report-service-1' })
+      .mockResolvedValueOnce({ content: [], reportId: 'report-service-2' });
+    // Native session records live on the machine; the test has none.
+    const usageSnapshotter = new ReportUsageSnapshotter(
+      new SessionTokenUsageReader(async () => JSON.stringify({ sessions: [] })),
+    );
+    const wiring = createTestRunRegistryWiring({
+      runStore,
+      repoStore,
+      baseSubmissionTools: [
+        new CreateReportTool(proxy, undefined, undefined, undefined, usageSnapshotter),
+      ],
+    });
     const coordinator = new RunReadRestoreCoordinator({
       runStore,
       runRegistry: wiring.runRegistry,
@@ -529,33 +639,22 @@ describe('RunReadRestoreCoordinator', () => {
     ).resolves.toHaveLength(1);
 
     restoredRun.session.promptType = 'coding_freeform';
-    const proxy = makeCreateReportProxy();
-    vi.mocked(proxy.create)
-      .mockResolvedValueOnce({ content: [], reportId: 'report-service-1' })
-      .mockResolvedValueOnce({ content: [], reportId: 'report-service-2' });
     const appendReportChainEntry = vi.spyOn(restoredRun, 'appendReportChainEntry');
-    // Native session records live on the machine; the test has none.
-    const usageSnapshotter = new ReportUsageSnapshotter(
-      new SessionTokenUsageReader(async () => JSON.stringify({ sessions: [] })),
-    );
-    await new CreateReportTool(proxy, undefined, undefined, undefined, usageSnapshotter).execute({
-      runId: 'run-restarted',
-      run: restoredRun,
-      args: {
-        reportType: 'IMPLEMENT',
-        audience: 'PROJECT_VISIBLE',
-        payload: {
-          reportType: 'IMPLEMENT',
-          summary: 'restored multi-service changes',
-          filesChanged: ['owned.ts'],
-        },
-        entities: [
-          { entityType: 'TASK', entityId: 'task-1', relation: 'PRIMARY' },
-          { entityType: 'AGENT_SESSION', entityId: 'run-restarted', relation: 'CONTEXT' },
-        ],
-      },
-    });
+    const restoredTurn = {
+      turnId: 'turn-1',
+      handler: { promptType: 'coding_freeform', requiresChangedFileReporting: true },
+      changedFileReporting: { settleReports: async () => undefined },
+      changeRecord: new TurnChangeRecord('turn-1', NOOP_LOGGER),
+    } as unknown as Turn;
+    await restoredRun.prepareTurnCompletionArtifacts(restoredTurn);
+
     expect(proxy.create).toHaveBeenCalledTimes(2);
+    expect(
+      vi.mocked(proxy.create).mock.calls.map(([request]) => {
+        const payload = request.args['payload'] as { filesChanged: string[] };
+        return payload.filesChanged;
+      }),
+    ).toEqual([['clean.ts', 'owned.ts'], ['owned.ts']]);
     expect(appendReportChainEntry.mock.calls.map(([entry]) => entry.serviceId)).toEqual([
       'service-1',
       'service-2',

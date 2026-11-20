@@ -1,6 +1,9 @@
 import { filterInertBuiltinTools } from '../../../run/inert-execution-policy';
+import type { ProviderPermissionMode } from '../provider-config';
 import { toolResultLogLevel } from './tool-result-log-level';
+import { describeGroupedPermissionRequest, isGroupedPermissionTool } from './permission-grouping';
 import { formatPermissionInputSummary, summarizePermissionInput } from './permission-input-summary';
+import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
@@ -17,6 +20,8 @@ import { summarizeClaudeInitToolExposure } from './init-tool-exposure';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import {
   ClaudeCodeSdkClient,
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
   type ClaudeCodePermissionResult,
   type ClaudeCodeSdkEvent,
   type ClaudeCodeTurnResult,
@@ -98,6 +103,8 @@ interface PendingClaudePermissionRequest {
   createdAt: string;
   toolName: string;
   toolInputRecord: Record<string, unknown> | null;
+  /** Request id of the card this request is shown on; set for grouped tools. */
+  cardRequestId?: string;
   resolve: (result: ClaudeCodePermissionResult) => void;
   reject: (error: Error) => void;
 }
@@ -220,6 +227,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly executionCapture: ClaudeExecutionCaptureHooks | null;
   private connected = false;
   private skipAllPermissions = false;
+  /** Fixed when the Claude process starts; a warm session keeps the mode it was minted with. */
+  private providerPermissionMode: ProviderPermissionMode | null = null;
   private reportingRepair = false;
   // Set at this.runPrompt entry; cleared only at this.runPrompt exit. Never touched by
   // this.discardSession — the agentic session is Run-scoped, not provider-session-scoped.
@@ -243,6 +252,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private activeAllowedToolNames = new Set<string>();
   private mintedUserMcpConfig: ClaudeUserMcpConfig | null = null;
   private readonly pendingPermissionRequests = new Map<string, PendingClaudePermissionRequest>();
+  // Cards that already have a decision. A request that arrives afterwards opens
+  // a new card, so it can never be answered by a decision made for other rows.
+  private readonly sealedPermissionCards = new Set<string>();
   // Waiting `AskUserQuestion` calls, keyed by the question request id. Kept apart
   // from pendingPermissionRequests: the answer comes from a `question_answer`
   // control, not a permission decision.
@@ -274,7 +286,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   ]);
   private readonly redactionConfig = loadAgentEventLogRedactionConfig();
   private readonly normalizationConfig = loadProviderEventNormalizationConfig();
-  private readonly attachmentContentReader = new RunAttachmentContentReader();
+  private readonly attachmentContentReader: RunAttachmentContentReader;
   private readonly runStore: RunStore;
   private readonly repoStore: RepoMappingStore;
   private readonly localAgentEndpoint: LocalAgentEndpoint;
@@ -284,7 +296,13 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   private readonly agentOutputOwner: Run | undefined;
   private readonly logger: ServerLogger;
 
+  public readonly executionRecorder: ExecutionRecorder | undefined;
+
   public constructor(dependencies: ClaudeAgentSessionRunnerDependencies) {
+    this.attachmentContentReader = new RunAttachmentContentReader(
+      new RunAttachmentStore(dependencies.runStore.getDataDirectory()),
+    );
+    this.executionRecorder = dependencies.executionRecorder;
     this.runStore = dependencies.runStore;
     this.repoStore = dependencies.repoStore;
     this.localAgentEndpoint = dependencies.localAgentEndpoint;
@@ -466,6 +484,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       pending.reject(new Error(reason));
     }
     this.pendingPermissionRequests.clear();
+    this.sealedPermissionCards.clear();
   };
 
   private readonly releasePendingQuestions = (reason: string): void => {
@@ -584,11 +603,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const sessionPreApproved =
         this.activeAllowedToolNames.has(toolName) ||
         isMintedUserMcpTool(toolName, this.mintedUserMcpConfig?.serverNames ?? []);
-      if (
-        this.alwaysAllowedTools.has(baseToolName) ||
-        sessionPreApproved ||
-        this.skipAllPermissions
-      ) {
+      const alwaysAllowed = this.alwaysAllowedTools.has(baseToolName);
+      if (alwaysAllowed || sessionPreApproved || this.skipAllPermissions) {
         requestContext.log(
           this.logger,
           'info',
@@ -627,6 +643,20 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       const existingPending = sameToolPending.find((p) =>
         isDeepStrictEqual(p.toolInputRecord, toolInputRecord),
       );
+      const groupedTool =
+        !this.agentOutputOwner?.taskMonitorId && isGroupedPermissionTool(toolName);
+      const openCardRequestId = groupedTool
+        ? sameToolPending.find(
+            (p) => p.cardRequestId && !this.sealedPermissionCards.has(p.cardRequestId),
+          )?.cardRequestId
+        : undefined;
+      const groupedCount = openCardRequestId
+        ? new Set(
+            sameToolPending
+              .filter((p) => p.cardRequestId === openCardRequestId)
+              .map((p) => JSON.stringify(p.toolInputRecord)),
+          ).size
+        : 0;
       requestContext.log(
         this.logger,
         'info',
@@ -634,13 +664,21 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         {
           toolName,
           agenticSessionId: this.activeAgenticSessionId,
+          approvalReason: 'skip_permissions_off_and_tool_not_allowlisted',
+          skipPermissions: this.skipAllPermissions,
+          alwaysAllowed,
+          sessionPreApproved,
+          providerPermissionMode: this.providerPermissionMode ?? 'default',
+          taskMonitorId: this.agentOutputOwner?.taskMonitorId ?? null,
           inputSummary: permissionInputSummary,
           sameToolPendingCount: sameToolPending.length,
           sameToolPendingInputs: sameToolPending.map((p) =>
             summarizePermissionInput(p.toolInputRecord),
           ),
-          decision: existingPending ? 'coalesced' : 'new_request',
+          decision: existingPending ? 'coalesced' : openCardRequestId ? 'grouped' : 'new_request',
           existingRequestId: existingPending?.requestId ?? null,
+          groupKey: groupedTool ? toolName : null,
+          groupedCount,
         },
       );
       if (existingPending) {
@@ -664,11 +702,18 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             createdAt: new Date().toISOString(),
             toolName,
             toolInputRecord,
+            ...(existingPending.cardRequestId
+              ? { cardRequestId: existingPending.cardRequestId }
+              : {}),
             resolve,
             reject,
           });
         });
         return result;
+      }
+
+      if (openCardRequestId) {
+        return this.joinOpenPermissionCard(openCardRequestId, toolName, toolInputRecord);
       }
 
       const requestId = `claude_permission_${crypto.randomUUID()}`;
@@ -745,7 +790,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             : `Permission requested for tool: ${toolName}`;
       const referencedFiles = toolFilePath ? [toolFilePath] : [];
       const agenticSessionId = this.activeAgenticSessionId;
-      const permissionTarget = toolCommand || toolFilePath || toolName;
+      const permissionTarget = toolCommand || toolFilePath || permissionInputText || toolName;
       const permissionFingerprint = `sha256:${crypto
         .createHash('sha256')
         .update(
@@ -781,6 +826,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
           createdAt: timestamp,
           toolName,
           toolInputRecord,
+          ...(groupedTool ? { cardRequestId: requestId } : {}),
           resolve,
           reject,
         });
@@ -817,29 +863,39 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         });
       }
 
-      this.emitRawEvent({
-        source: 'provider',
-        eventType: 'agent_output',
+      const permissionPayload = {
+        responseType: 'agent_request_permission_v1',
+        permission_request: {
+          ...canonicalPermissionRequest,
+          raw_event: { toolName, toolInput: toolInputRecord },
+        },
+        enrichment_metadata: {
+          reason: permissionReason,
+          agent_intent: null,
+          referenced_files: referencedFiles,
+          referenced_diffs: [],
+        },
+        raw_event: { toolName, toolInput: toolInputRecord },
+      };
+      const normalizedPermission = normalizeProviderEventPayload({
+        provider: 'claude',
+        runId: agenticSessionId ?? sessionId,
+        eventType: 'permission_request',
         timestamp,
         sessionId,
-        agentId: null,
-        payload: {
-          summary: JSON.stringify({
-            responseType: 'agent_request_permission_v1',
-            permission_request: {
-              ...canonicalPermissionRequest,
-              raw_event: { toolName, toolInput: toolInputRecord },
-            },
-            enrichment_metadata: {
-              reason: permissionReason,
-              agent_intent: null,
-              referenced_files: referencedFiles,
-              referenced_diffs: [],
-            },
-            raw_event: { toolName, toolInput: toolInputRecord },
-          }),
-          messageType: 'system',
-        },
+        agentId: 'claude',
+        rawEvent: permissionPayload,
+        config: this.normalizationConfig,
+      });
+
+      this.emitRawEvent({
+        source: 'provider',
+        eventType: 'permission_request_detected',
+        timestamp,
+        sessionId,
+        agentId: 'claude',
+        payload: { ...permissionPayload, ...normalizedPermission.payload },
+        ...(normalizedPermission.facts ? { providerFacts: normalizedPermission.facts } : {}),
       });
 
       const result = await permissionPromise;
@@ -862,6 +918,61 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     this.connected = true;
     requestContext.log(this.logger, 'debug', 'local.runner.claude.connected');
   };
+
+  /**
+   * Add a same-tool request to the card that is still open for that tool: the
+   * card gains a row describing the request, and the request waits for its own
+   * decision.
+   */
+  private async joinOpenPermissionCard(
+    cardRequestId: string,
+    toolName: string,
+    toolInputRecord: Record<string, unknown> | null,
+  ): Promise<ClaudeCodePermissionResult> {
+    const card = this.pendingPermissionRequests.get(cardRequestId);
+    const requestId = `claude_permission_${crypto.randomUUID()}`;
+    const timestamp = new Date().toISOString();
+    const sessionId =
+      card?.sessionId ??
+      this.resolveActiveProviderSessionId() ??
+      this.activeAgenticSessionId ??
+      requestId;
+
+    const waiting = new Promise<ClaudeCodePermissionResult>((resolve, reject) => {
+      this.pendingPermissionRequests.set(requestId, {
+        requestId,
+        sessionId,
+        createdAt: timestamp,
+        toolName,
+        toolInputRecord,
+        cardRequestId,
+        resolve,
+        reject,
+      });
+    });
+
+    this.emitRawEvent({
+      source: 'local',
+      eventType: 'permission_group_item_added',
+      timestamp,
+      sessionId,
+      agentId: null,
+      payload: {
+        cardRequestId,
+        cardDescription: describeGroupedPermissionRequest(toolName, card?.toolInputRecord ?? null),
+        requestId,
+        description: describeGroupedPermissionRequest(toolName, toolInputRecord),
+      },
+    });
+    requestContext.log(this.logger, 'debug', 'local.runner.claude.permission_request.grouped', {
+      cardRequestId,
+      requestId,
+      toolName,
+      agenticSessionId: this.activeAgenticSessionId,
+    });
+
+    return waiting;
+  }
 
   /**
    * Post an `AskUserQuestion` call as an interactive question and keep the tool
@@ -990,6 +1101,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       signal,
       startingMessage,
       skipPermissions,
+      providerPermissionMode,
       mcpToolUseCase,
       additionalAllowedTools,
       additionalBuiltinTools,
@@ -1004,8 +1116,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       workspaceWriteBoundary,
       startupSegments,
       replaceProviderSystemPrompt,
+      promptDeclarations,
     } = args;
     this.skipAllPermissions = skipPermissions ?? false;
+    this.providerPermissionMode = providerPermissionMode ?? null;
+    requestContext.log(this.logger, 'info', 'local.runner.claude.permission_mode.resolved', {
+      permissionMode: providerPermissionMode ?? 'default',
+      reason: providerPermissionMode ? 'provider_native_mode' : 'no_native_mode_requested',
+      skipPermissions: this.skipAllPermissions,
+    });
     this.reportingRepair = args.reportingRepair ?? false;
     const startedAt = Date.now();
     const runId = `claude_${crypto.randomUUID()}`;
@@ -1922,14 +2041,23 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // work-item type definitions. Built here on the fresh-session path only;
       // resume turns inherit the session's original appended prompt.
       const platformSystemPrompt = sessionStartContext
-        ? buildPlatformSystemPrompt(sessionStartContext.workItemTypeDefinitions, undefined, {
-            provider: 'claude',
-            intentFirst: sessionStartContext.intentFirst,
-            maturity: sessionStartContext.maturity,
-            hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
-              ...this.activeAllowedToolNames,
-            ]),
-          })
+        ? buildPlatformSystemPrompt(
+            sessionStartContext.workItemTypeDefinitions,
+            {
+              provider: 'claude',
+              model: model ?? session.model ?? null,
+              ...promptDeclarations,
+            },
+            {
+              provider: 'claude',
+              intentFirst: sessionStartContext.intentFirst,
+              maturity: sessionStartContext.maturity,
+              hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
+                ...this.activeAllowedToolNames,
+              ]),
+              productDevelopment: sessionStartContext.productDevelopment,
+            },
+          )
         : null;
       const freshPlatformPromptDelivery = platformSystemPrompt
         ? composeFreshPlatformPromptDelivery({
@@ -1970,7 +2098,12 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             attachments: attachmentContent,
             fastMode: session.fastMode === true,
             cwd: runCwd,
-            permissionMode: 'default' as const,
+            permissionMode: this.providerPermissionMode ?? ('default' as const),
+            // Auto mode may approve a write tool without asking; these rules
+            // keep every write-capable tool on the roots check in the callback.
+            ...(this.providerPermissionMode === 'auto'
+              ? { alwaysAskTools: Object.keys(CLAUDE_WRITE_PATH_FIELDS) }
+              : {}),
             ...(toolExecutionHooks ? { toolExecutionHooks } : {}),
             ...(session.workspaceBound === true ? { withoutGitCredentials: true } : {}),
             ...(this.workspaceWriteBoundary
@@ -2322,16 +2455,17 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     signal,
     model,
     reasoningEffort,
+    mcpToolUseCase,
     additionalAllowedTools,
     additionalBuiltinTools,
+    readOnlyFilesystem,
+    builtinTools,
     browserMcpMount,
     platformMcpProxyMount,
     skipPermissions,
+    providerPermissionMode,
     workspace,
     workspaceWriteBoundary,
-    // readOnlyFilesystem is intentionally ignored on resume — the Claude SDK
-    // freezes the built-in tool surface at session mint, so a resumed session
-    // inherits whatever was pinned at the initial this.runPrompt call.
   }: ResumeArgs): Promise<AgentRunResult> {
     if (skipPermissions !== undefined) {
       this.skipAllPermissions = skipPermissions;
@@ -2402,6 +2536,19 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       researchHandler.replaceProviderSystemPrompt
         ? { replaceProviderSystemPrompt: true }
         : {}),
+      // A warm resume keeps the process it was minted with and ignores the
+      // tool surface below. A cold resume starts a new process and builds the
+      // surface again, so the handler's restrictions must be forwarded or the
+      // session comes back with the default coding tools.
+      ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
+      ...(additionalAllowedTools && additionalAllowedTools.length > 0
+        ? { additionalAllowedTools }
+        : {}),
+      ...(additionalBuiltinTools && additionalBuiltinTools.length > 0
+        ? { additionalBuiltinTools }
+        : {}),
+      ...(readOnlyFilesystem ? { readOnlyFilesystem } : {}),
+      ...(builtinTools !== undefined ? { builtinTools } : {}),
       ...(signal ? { signal } : {}),
       ...(model ? { model } : {}),
       ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -2409,6 +2556,10 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       ...(platformMcpProxyMount ? { platformMcpProxyMount } : {}),
       ...(workspace ? { workspace } : {}),
       ...(workspaceWriteBoundary ? { workspaceWriteBoundary } : {}),
+      // A cold resume starts a new process, so both approval settings are
+      // forwarded; runPrompt would otherwise reset them.
+      ...(skipPermissions !== undefined ? { skipPermissions } : {}),
+      ...(providerPermissionMode ? { providerPermissionMode } : {}),
     });
   }
 
@@ -2452,6 +2603,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
         connected: this.connected,
       },
     );
+    if (pendingPermission.cardRequestId) {
+      this.sealedPermissionCards.add(pendingPermission.cardRequestId);
+    }
     // Collect the primary request and only its structurally identical calls.
     const coalescedRequests: PendingClaudePermissionRequest[] = [];
     for (const [id, pending] of this.pendingPermissionRequests) {
@@ -2466,6 +2620,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     for (const req of coalescedRequests) {
       this.pendingPermissionRequests.delete(req.requestId);
     }
+    this.closeFullyDecidedPermissionCard(pendingPermission.cardRequestId);
     if (coalescedRequests.length > 1) {
       requestContext.log(
         this.logger,
@@ -2534,6 +2689,19 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     };
   }
 
+  // A card with no pending requests left is fully decided; forget its seal.
+  private closeFullyDecidedPermissionCard(cardRequestId: string | undefined): void {
+    if (!cardRequestId) {
+      return;
+    }
+    const stillPending = Array.from(this.pendingPermissionRequests.values()).some(
+      (p) => p.cardRequestId === cardRequestId,
+    );
+    if (!stillPending) {
+      this.sealedPermissionCards.delete(cardRequestId);
+    }
+  }
+
   public async dispose(): Promise<void> {
     this.releasePendingQuestions('Claude question was canceled because the runner was disposed.');
     try {
@@ -2594,7 +2762,28 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
     // fields to `T | undefined`, which `exactOptionalPropertyTypes` rejects
     // against the DTO's bare-optional props. Reconcile at this single, already
     // schema-validated boundary.
-    const contextData = (await this.client.getContextUsage()) as LocalContextData;
+    let contextData: LocalContextData;
+    try {
+      contextData = (await this.client.getContextUsage()) as LocalContextData;
+    } catch (error) {
+      const sessionEnded =
+        error instanceof ControlRequestDisconnectedError ||
+        error instanceof ControlRequestAbortedError;
+      if (!sessionEnded) {
+        throw error;
+      }
+
+      // The live session ended (the Turn finished and Run discarded the provider
+      // session, or the Turn was cancelled and the client was torn down) while the read was pending. Report it as "no active
+      // session" so the caller falls back to reading by resuming the persisted one.
+      requestContext.log(this.logger, 'debug', 'local.runner.claude.context_usage.disconnected', {
+        activeSessionId,
+      });
+      throw new AgentSessionRunnerError(
+        'NO_ACTIVE_SESSION',
+        'The Claude SDK session ended while context usage was being read.',
+      );
+    }
     requestContext.log(this.logger, 'debug', 'local.runner.claude.context_usage.succeeded', {
       activeSessionId,
       totalTokens: contextData.totalTokens,
@@ -2749,6 +2938,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             hints: resolveHintPromptAccess(sessionStartContext.hintsEnabled, [
               ...this.activeAllowedToolNames,
             ]),
+            productDevelopment: sessionStartContext.productDevelopment,
           },
         );
       } catch (err: unknown) {

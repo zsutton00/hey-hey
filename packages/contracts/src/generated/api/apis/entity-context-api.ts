@@ -105,6 +105,7 @@ export const EntityContextApiAxiosParamCreator = function (configuration?: Confi
          * @param {string} entityId Unique identifier of the entity
          * @param {boolean} [includeRelatedEntities] Include relatedEntities and agentSessions in the response. Both are derived from the same graph traversal and are gated by the same flag.
          * @param {number} [relatedEntityDepth] Graph traversal depth used only for relatedEntities and agentSessions. UI callers use the default one-hop neighborhood; agent callers may request two hops for broader orientation.
+         * @param {boolean} [groupRelationships] Agent view. Adds groupedRelatedEntities (one entry per related entity carrying all of its relationships) and returns featureHierarchy with one entry per feature, relationship type and direction. relatedEntities is unchanged. Selection, ranking and limits are identical to the default response.
          * @param {boolean} [includeFeatureHierarchy] Include feature hierarchy in the response.
          * @param {boolean} [includePlan] Include canonical Plan placement in the response. Set false to omit only Plan placement; other context projections are unchanged.
          * @param {boolean} [includeProposals] Include proposal history in the response.
@@ -113,7 +114,7 @@ export const EntityContextApiAxiosParamCreator = function (configuration?: Confi
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getEntityContext: async (organizationId: string, projectId: string, entityType: EntityType, entityId: string, includeRelatedEntities?: boolean, relatedEntityDepth?: number, includeFeatureHierarchy?: boolean, includePlan?: boolean, includeProposals?: boolean, proposalDetail?: ProposalDetail, includeAvailableMcpTools?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getEntityContext: async (organizationId: string, projectId: string, entityType: EntityType, entityId: string, includeRelatedEntities?: boolean, relatedEntityDepth?: number, groupRelationships?: boolean, includeFeatureHierarchy?: boolean, includePlan?: boolean, includeProposals?: boolean, proposalDetail?: ProposalDetail, includeAvailableMcpTools?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('getEntityContext', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -148,6 +149,10 @@ export const EntityContextApiAxiosParamCreator = function (configuration?: Confi
 
             if (relatedEntityDepth !== undefined) {
                 localVarQueryParameter['relatedEntityDepth'] = relatedEntityDepth;
+            }
+
+            if (groupRelationships !== undefined) {
+                localVarQueryParameter['groupRelationships'] = groupRelationships;
             }
 
             if (includeFeatureHierarchy !== undefined) {
@@ -410,6 +415,7 @@ export const EntityContextApiFp = function(configuration?: Configuration) {
          * @param {string} entityId Unique identifier of the entity
          * @param {boolean} [includeRelatedEntities] Include relatedEntities and agentSessions in the response. Both are derived from the same graph traversal and are gated by the same flag.
          * @param {number} [relatedEntityDepth] Graph traversal depth used only for relatedEntities and agentSessions. UI callers use the default one-hop neighborhood; agent callers may request two hops for broader orientation.
+         * @param {boolean} [groupRelationships] Agent view. Adds groupedRelatedEntities (one entry per related entity carrying all of its relationships) and returns featureHierarchy with one entry per feature, relationship type and direction. relatedEntities is unchanged. Selection, ranking and limits are identical to the default response.
          * @param {boolean} [includeFeatureHierarchy] Include feature hierarchy in the response.
          * @param {boolean} [includePlan] Include canonical Plan placement in the response. Set false to omit only Plan placement; other context projections are unchanged.
          * @param {boolean} [includeProposals] Include proposal history in the response.
@@ -418,8 +424,8 @@ export const EntityContextApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getEntityContext(organizationId: string, projectId: string, entityType: EntityType, entityId: string, includeRelatedEntities?: boolean, relatedEntityDepth?: number, includeFeatureHierarchy?: boolean, includePlan?: boolean, includeProposals?: boolean, proposalDetail?: ProposalDetail, includeAvailableMcpTools?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetEntityContext200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getEntityContext(organizationId, projectId, entityType, entityId, includeRelatedEntities, relatedEntityDepth, includeFeatureHierarchy, includePlan, includeProposals, proposalDetail, includeAvailableMcpTools, options);
+        async getEntityContext(organizationId: string, projectId: string, entityType: EntityType, entityId: string, includeRelatedEntities?: boolean, relatedEntityDepth?: number, groupRelationships?: boolean, includeFeatureHierarchy?: boolean, includePlan?: boolean, includeProposals?: boolean, proposalDetail?: ProposalDetail, includeAvailableMcpTools?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetEntityContext200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getEntityContext(organizationId, projectId, entityType, entityId, includeRelatedEntities, relatedEntityDepth, groupRelationships, includeFeatureHierarchy, includePlan, includeProposals, proposalDetail, includeAvailableMcpTools, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EntityContextApi.getEntityContext']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -513,7 +519,7 @@ export const EntityContextApiFactory = function (configuration?: Configuration, 
          * @throws {RequiredError}
          */
         getEntityContext(requestParameters: EntityContextApiGetEntityContextRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetEntityContext200Response> {
-            return localVarFp.getEntityContext(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.includeRelatedEntities, requestParameters.relatedEntityDepth, requestParameters.includeFeatureHierarchy, requestParameters.includePlan, requestParameters.includeProposals, requestParameters.proposalDetail, requestParameters.includeAvailableMcpTools, options).then((request) => request(axios, basePath));
+            return localVarFp.getEntityContext(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.includeRelatedEntities, requestParameters.relatedEntityDepth, requestParameters.groupRelationships, requestParameters.includeFeatureHierarchy, requestParameters.includePlan, requestParameters.includeProposals, requestParameters.proposalDetail, requestParameters.includeAvailableMcpTools, options).then((request) => request(axios, basePath));
         },
         /**
          * Walks the parent chain above the given task and returns every FEATURE-typed ancestor, inline with its full description and requirements, in walk order (nearest first). Scoped to the feature-sync sub-agent for hierarchy-walk drift and enrichment checks — other sub-agents continue to use the lean get_context.
@@ -710,6 +716,13 @@ export interface EntityContextApiGetEntityContextRequest {
     readonly relatedEntityDepth?: number
 
     /**
+     * Agent view. Adds groupedRelatedEntities (one entry per related entity carrying all of its relationships) and returns featureHierarchy with one entry per feature, relationship type and direction. relatedEntities is unchanged. Selection, ranking and limits are identical to the default response.
+     * @type {boolean}
+     * @memberof EntityContextApiGetEntityContext
+     */
+    readonly groupRelationships?: boolean
+
+    /**
      * Include feature hierarchy in the response.
      * @type {boolean}
      * @memberof EntityContextApiGetEntityContext
@@ -892,7 +905,7 @@ export class EntityContextApi extends BaseAPI implements EntityContextApiInterfa
      * @memberof EntityContextApi
      */
     public getEntityContext(requestParameters: EntityContextApiGetEntityContextRequest, options?: RawAxiosRequestConfig) {
-        return EntityContextApiFp(this.configuration).getEntityContext(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.includeRelatedEntities, requestParameters.relatedEntityDepth, requestParameters.includeFeatureHierarchy, requestParameters.includePlan, requestParameters.includeProposals, requestParameters.proposalDetail, requestParameters.includeAvailableMcpTools, options).then((request) => request(this.axios, this.basePath));
+        return EntityContextApiFp(this.configuration).getEntityContext(requestParameters.organizationId, requestParameters.projectId, requestParameters.entityType, requestParameters.entityId, requestParameters.includeRelatedEntities, requestParameters.relatedEntityDepth, requestParameters.groupRelationships, requestParameters.includeFeatureHierarchy, requestParameters.includePlan, requestParameters.includeProposals, requestParameters.proposalDetail, requestParameters.includeAvailableMcpTools, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

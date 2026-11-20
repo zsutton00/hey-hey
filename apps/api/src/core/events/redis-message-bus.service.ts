@@ -5,7 +5,10 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import Redis, { RedisOptions } from 'ioredis';
-import { MessageBus } from './message-bus.interface';
+import {
+  MessageBus,
+  MessageBusSubscriptionState,
+} from './message-bus.interface';
 import { EventEnvelope } from './types/event-envelope';
 import { EVENT_TYPES } from './types/event.types';
 
@@ -67,6 +70,47 @@ export class RedisMessageBus
     this.subscriber.on('message', (channel, message) =>
       this.handleMessage(channel, message),
     );
+
+    // ioredis resubscribes on reconnect; until then this instance misses
+    // everything published elsewhere.
+    this.subscriber.on('close', () => this.setSubscriptionState('INTERRUPTED'));
+    this.subscriber.on('ready', () => this.setSubscriptionState('RESTORED'));
+  }
+
+  private subscriptionInterrupted = false;
+  private readonly subscriptionListeners = new Set<
+    (state: MessageBusSubscriptionState) => void
+  >();
+
+  onSubscriptionStateChange(
+    listener: (state: MessageBusSubscriptionState) => void,
+  ): () => void {
+    this.subscriptionListeners.add(listener);
+    return () => {
+      this.subscriptionListeners.delete(listener);
+    };
+  }
+
+  private setSubscriptionState(state: MessageBusSubscriptionState): void {
+    const interrupted = state === 'INTERRUPTED';
+    if (interrupted === this.subscriptionInterrupted) {
+      return;
+    }
+
+    this.subscriptionInterrupted = interrupted;
+    this.logger.warn(`[subscription] ${state.toLowerCase()}`, {
+      channels: this.subscribedChannels.size,
+    });
+    this.subscriptionListeners.forEach((listener) => {
+      try {
+        listener(state);
+      } catch (error) {
+        this.logger.error(
+          'Subscription state listener threw – swallowed by bus',
+          error as Error,
+        );
+      }
+    });
   }
 
   /* ----------------------------------------------------------------------- */
@@ -167,9 +211,17 @@ export class RedisMessageBus
     message: string,
   ): Promise<boolean> {
     // Each API owns a snapshot, so every subscriber must receive invalidations.
+    // Each API also delivers retained execution state to its own sockets, and
+    // orders those deliveries by revision itself.
     if (
       channel ===
-      this.getChannelForEventType(EVENT_TYPES.WORK_ITEM_TYPE.CONFIG_CHANGED)
+        this.getChannelForEventType(
+          EVENT_TYPES.WORK_ITEM_TYPE.CONFIG_CHANGED,
+        ) ||
+      channel ===
+        this.getChannelForEventType(
+          EVENT_TYPES.WORK_ITEM_EXECUTION_STATE.RETAINED,
+        )
     ) {
       return false;
     }

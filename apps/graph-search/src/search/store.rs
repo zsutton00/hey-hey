@@ -256,7 +256,8 @@ pub struct Candidate {
 
 pub struct Retrieval<'a> {
     pub organization_id: &'a str,
-    pub project_id: Option<&'a str>,
+    /// Projects the caller may read now; global Help content is always included.
+    pub projects: &'a [String],
     pub filter: &'a Filter,
     pub keyword_text: Option<&'a str>,
     pub title_only: bool,
@@ -264,8 +265,8 @@ pub struct Retrieval<'a> {
     pub vector: Option<&'a [f32]>,
 }
 
-/// Scores every unit that passes the filters. Searches are scoped to one
-/// organization (and usually one project), plus global Help content, so these
+/// Scores every unit that passes the filters. Searches are scoped to the
+/// caller's authorized projects in one organization, plus global Help content, so these
 /// are exact scans, and ranking the complete set lets any offset reach every
 /// match.
 const RETRIEVE: &str = r#"
@@ -273,7 +274,7 @@ WITH scoped AS (
     SELECT u.*
     FROM search.unit u
     WHERE u.text <> ''
-      AND ((u.organization_id = $1 AND ($2::text IS NULL OR u.project_id = $2))
+      AND ((u.organization_id = $1 AND u.project_id = ANY ($2::text[]))
            OR u.organization_id = $20)
       AND u.metadata @> $3::jsonb
       AND ($4::text[] IS NULL OR lower(u.type) = ANY ($4) OR lower(u.task_type) = ANY ($4))
@@ -333,7 +334,7 @@ pub async fn retrieve(pool: &PgPool, retrieval: Retrieval<'_>) -> Result<Vec<Can
     let filter = retrieval.filter;
     let candidates = sqlx::query_as::<_, Candidate>(RETRIEVE)
         .bind(retrieval.organization_id)
-        .bind(retrieval.project_id)
+        .bind(retrieval.projects)
         .bind(Value::Object(filter.equals.clone()))
         .bind(&filter.types)
         .bind(&filter.statuses)

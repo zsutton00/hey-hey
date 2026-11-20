@@ -102,6 +102,52 @@ describe('reviewed conversational planning context', () => {
     );
   });
 
+  it('approves a version saved before the rename and hands its findings over as changes_existing_behavior', () => {
+    const base = {
+      sourceRef: { sourceType: 'task', sourceId: 'task-1' },
+      sourceField: 'description',
+      sourceExcerpt: 'The recorded promise.',
+      discrepancyText: 'The plan evolves existing code.',
+      reasoning: 'Update the existing code.',
+      severity: 'medium',
+    };
+    const legacyVersion = {
+      ...context,
+      discrepancies: [
+        {
+          ...base,
+          findingId: 'legacy',
+          category: 'project_context',
+          disposition: 'repair_planned',
+          userDirection: 'Proceed.',
+          implementationFollowThrough: 'Verify it.',
+        },
+        { ...base, severity: 'high', findingId: 'open', disposition: 'open' },
+        { ...base, severity: 'low' },
+      ],
+    };
+    const rows = [
+      row('legacy-version', {
+        uiElements: [
+          { type: 'coding_plan_version', payload: legacyVersion },
+          {
+            type: 'coding_plan_discrepancy',
+            payload: { ...base, disposition: 'repair_planned' },
+          },
+        ],
+      }),
+    ];
+
+    const result = resolveReviewedCodingPlan(rows, 'legacy-version');
+
+    expect(
+      result.approvedVersion.discrepancies?.map((d) => d.disposition),
+    ).toEqual(['changes_existing_behavior', 'open', undefined]);
+    expect(result.planningDiscussion).toContain(
+      '"disposition":"changes_existing_behavior"',
+    );
+    expect(result.planningDiscussion).not.toContain('repair_planned');
+  });
   it('hands over the approved version with only its own discrepancies, keeping older versions and standalone issues in the discussion', () => {
     const issue = (text: string) => ({
       sourceRef: {

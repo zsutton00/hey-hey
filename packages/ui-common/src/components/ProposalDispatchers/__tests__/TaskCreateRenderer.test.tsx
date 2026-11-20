@@ -1,5 +1,6 @@
 import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
 import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   act,
   fireEvent,
@@ -229,7 +230,7 @@ beforeEach(() => {
         { key: "acceptanceCriteria", label: "Done When" },
         { key: "requirements", label: "Requirements" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
     FEATURE: {
       key: "FEATURE",
@@ -242,7 +243,7 @@ beforeEach(() => {
           schemaRef: "#/components/schemas/FeatureRequirementsSection",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     },
   };
   registryState.isLoading = false;
@@ -697,7 +698,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           schemaRef: "#/components/schemas/ProjectModeApplicabilityV1",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -817,7 +818,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
           ],
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -893,7 +894,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
         { key: "audience", label: "Intended Audience" },
         { key: "description", label: "Research Summary" },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
     const proposal = makeTaskProposal();
     proposal.updates = {
@@ -931,7 +932,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       key: "CUSTOM",
       name: "Research Brief",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     const customProposal = makeTaskProposal();
@@ -976,7 +977,7 @@ describe("TaskCreateRenderer — project registry type labels", () => {
       key: "ARCHIVED",
       name: "Archived Brief",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     const proposal = makeTaskProposal();
@@ -1050,7 +1051,7 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
       key: "MODE",
       name: "Project Mode",
       sections: [{ key: "description", label: "Guidance" }],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
   };
 
@@ -1153,4 +1154,85 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
       expect.anything(),
     );
   });
+});
+
+describe("Eval Case proposal inputs", () => {
+  it.each(["single", "multiple", "invalid"] as const)(
+    "renders %s inputs through the schema presentation",
+    async (shape) => {
+      const { default: captured } =
+        await import("./fixtures/evalCaseInputs.json");
+      // Captured Projects-page case, extended with a follow-up for ordered-input review.
+      const inputs =
+        shape === "single"
+          ? captured.inputs
+          : [
+              ...captured.inputs,
+              {
+                kind: "text_message",
+                text: "Keep Cancel and Save inside the editing card.",
+              },
+            ];
+      registryState.definitions.EVAL_CASE = {
+        key: "EVAL_CASE",
+        name: "Eval Case",
+        allowedStatuses: [],
+        sections: [
+          {
+            key: "inputs",
+            label: "Inputs",
+            kind: "json",
+            schemaRef: "#/components/schemas/EvalCaseInputs",
+          },
+        ],
+      };
+      const proposal = makeTaskProposal();
+      proposal.updates = {
+        ...proposal.updates,
+        type: "EVAL_CASE",
+        sections: [
+          {
+            key: "inputs",
+            content:
+              shape === "invalid" ? "{broken" : JSON.stringify({ inputs }),
+          },
+        ],
+      };
+      render(
+        <MemoryRouter>
+          <TaskCreateRenderer
+            proposal={proposal}
+            status={{ state: "pending" }}
+            onApply={() => {}}
+          />
+        </MemoryRouter>,
+      );
+      if (shape === "invalid") {
+        expect(
+          screen.getByTestId("eval-case-inputs-unavailable"),
+        ).toBeVisible();
+        expect(screen.queryByText("{broken")).toBeNull();
+        return;
+      }
+      const first = screen.getByTestId(
+        shape === "single" ? "case-request-single" : "input-1",
+      );
+      expect(first).toHaveTextContent("Build a Projects page");
+      expect(
+        within(first).getByTestId("mock-markdown-renderer"),
+      ).toHaveAttribute("data-mention-project-id", PROJ_ID);
+      expect(first).toHaveTextContent(
+        "@[mockup:0cdade9f-08ef-4409-9413-c94c11a13112|Fidelity Fixture 2: Project List with Editable Cards]",
+      );
+      if (shape === "multiple") {
+        expect(screen.getByTestId("input-2")).toHaveTextContent(inputs[1].text);
+        expect(screen.getByTestId("input-2")).toContainElement(
+          screen.getByTestId("input-judged-badge"),
+        );
+      } else {
+        expect(screen.queryByTestId("input-judged-badge")).toBeNull();
+      }
+      expect(screen.queryByTestId("add-input")).toBeNull();
+    },
+  );
 });

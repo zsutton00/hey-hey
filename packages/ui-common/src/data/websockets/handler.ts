@@ -34,6 +34,8 @@ import {
   type WebSocketAgentSessionDeletedEvent,
   type WebSocketAgentSessionStatusChangedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
+  type WebSocketWorkItemExecutionStateChangedEvent,
+  type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
   type WebSocketAgentSessionContextSizeChangedEvent,
   type WebSocketAgentSessionOutputAttentionChangedEvent,
   type WebSocketConversationPhaseChangedEvent,
@@ -70,6 +72,12 @@ import {
   writeAgentSessionOutputAttention,
 } from "../collections/agentSessionLiveState";
 import {
+  interruptWorkItemExecutionStateDelivery,
+  interruptWorkItemExecutionStateProjectDelivery,
+  refreshLoadedWorkItemExecutionStates,
+  writeWorkItemExecutionStateEvent,
+} from "../collections/workItemExecutionState";
+import {
   createInitiativeInvalidator,
   initiativeKeys,
 } from "../collections/initiatives";
@@ -94,6 +102,7 @@ import {
   writeNotificationRecords,
 } from "../collections/notifications";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
+import { reportKeys } from "../collections/reports";
 import {
   invalidateAllDataLayerQueries,
   invalidateInitiativeChange,
@@ -226,6 +235,8 @@ type WebSocketEventUnion =
       changedBy?: { userId?: string; email?: string; name?: string };
     }
   | WebSocketAgentSessionCurrentStateChangedEvent
+  | WebSocketWorkItemExecutionStateChangedEvent
+  | WebSocketWorkItemExecutionStateDeliveryChangedEvent
   | WebSocketAgentSessionContextSizeChangedEvent
   | WebSocketAgentSessionOutputAttentionChangedEvent
   | WebSocketConversationPhaseChangedEvent
@@ -278,6 +289,65 @@ export class WebSocketHandler {
       organizationId,
       projectId,
       "currentState",
+    );
+  }
+
+  /** As above, for loaded work-item execution states. */
+  refreshLoadedWorkItemExecutionStates(
+    organizationId: string,
+    projectId: string,
+  ): Promise<void> {
+    return refreshLoadedWorkItemExecutionStates(
+      this.queryClient,
+      organizationId,
+      projectId,
+    );
+  }
+
+  /**
+   * The server delivering this project lost, then regained, changes accepted
+   * on other servers. Held records stay as they are but are no longer live;
+   * after restoration they are re-read before delivery is live again.
+   */
+  private handleWorkItemExecutionStateDeliveryChanged(
+    event: WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+  ): void {
+    if (event.delivery === "INTERRUPTED") {
+      interruptWorkItemExecutionStateProjectDelivery(
+        this.queryClient,
+        event.organizationId,
+        event.projectId,
+      );
+      return;
+    }
+
+    void refreshLoadedWorkItemExecutionStates(
+      this.queryClient,
+      event.organizationId,
+      event.projectId,
+    ).catch((error: unknown) => {
+      logger.warn(
+        "data_websockets",
+        "Execution-state refresh after delivery restoration failed",
+        { projectId: event.projectId, error },
+      );
+    });
+  }
+
+  /** Loaded execution states may now miss updates until a project refresh. */
+  interruptWorkItemExecutionStateDelivery(): void {
+    interruptWorkItemExecutionStateDelivery(this.queryClient);
+  }
+
+  /** As above, for one project whose room this client left. */
+  interruptWorkItemExecutionStateProjectDelivery(
+    organizationId: string,
+    projectId: string,
+  ): void {
+    interruptWorkItemExecutionStateProjectDelivery(
+      this.queryClient,
+      organizationId,
+      projectId,
     );
   }
 
@@ -591,6 +661,17 @@ export class WebSocketHandler {
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.AgentSessionCurrentStateChanged:
           this.handleAgentSessionCurrentStateChanged(event);
+          break;
+        case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged:
+          writeWorkItemExecutionStateEvent(
+            this.queryClient,
+            event.organizationId,
+            event.projectId,
+            event.executionState,
+          );
+          break;
+        case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged:
+          this.handleWorkItemExecutionStateDeliveryChanged(event);
           break;
         case WebSocketSubscriptionRequestEventTypesEnum.AgentSessionContextSizeChanged:
           this.handleAgentSessionContextSizeChanged(event);
@@ -985,6 +1066,28 @@ export class WebSocketHandler {
    */
   private handleSystemNotification(event: WebSocketSystemNotificationEvent) {
     const queryClient = this.queryClient;
+    if (event.notification.eventType === "session_report_ready") {
+      if (event.projectId) {
+        void invalidateWithFollowUpRead(queryClient, {
+          queryKey: [
+            ...reportKeys.entityList(event.organizationId, event.projectId),
+            {
+              entityType: "AGENT_SESSION",
+              entityId: event.notification.payload.sessionId,
+            },
+          ],
+        });
+      } else {
+        logger.warn(
+          "data_websockets",
+          "Report-ready notification has no project scope",
+          {
+            code: "REPORT_READY_SCOPE_MISSING",
+            sessionId: event.notification.payload.sessionId,
+          },
+        );
+      }
+    }
     writeNotificationRecords(
       queryClient,
       event.organizationId,

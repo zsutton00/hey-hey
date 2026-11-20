@@ -139,7 +139,7 @@ AvailableFutureDependency:
       description: Actual registered work-item type key.
     status:
       allOf:
-        - $ref: "common.yaml#/WorkStatus"
+        - $ref: "common.yaml#/WorkItemStatus"
       description: Current status on approved future reads only; absent on pending previews.
 
 UnavailableFutureDependency:
@@ -385,7 +385,7 @@ FutureCompletionBlocker:
       type: string
       enum: [INCOMPLETE, CANCELLED, ARCHIVED, SUPERSEDED, MISSING, UNRESOLVABLE]
     status:
-      $ref: "common.yaml#/WorkStatus"
+      $ref: "common.yaml#/WorkItemStatus"
 
 FutureCompletionEligibility:
   type: object

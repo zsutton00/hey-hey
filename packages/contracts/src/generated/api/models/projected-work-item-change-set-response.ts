@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ProjectedDesignDoc } from './projected-design-doc.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ProjectedWorkItem } from './projected-work-item.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -45,6 +48,12 @@ export interface ProjectedWorkItemChangeSetResponse {
      * @memberof ProjectedWorkItemChangeSetResponse
      */
     'projectedRoot': ProjectedWorkItem;
+    /**
+     *
+     * @type {Array<ProjectedDesignDoc>}
+     * @memberof ProjectedWorkItemChangeSetResponse
+     */
+    'designDocs'?: Array<ProjectedDesignDoc>;
     /**
      *
      * @type {Array<ProjectedWorkItem>}

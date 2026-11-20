@@ -1,5 +1,8 @@
-import { Alert, Box, Button, Chip, Stack, Typography } from "@mui/material";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Box, Button, Chip, Stack, Typography } from "@mui/material";
+import { SolidAlert } from "../Card/SolidAlert";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { TaskMonitorResponsePresentationContext } from "../../TaskMonitor/TaskMonitorResponsePresentationContext";
+import logger from "../../../utils/logger";
 import {
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
   TaskMonitorHumanDecisionCommandCauseEnum,
@@ -45,7 +48,7 @@ const getChoicePresentation = (choice: TaskMonitorInterventionChoice) => {
 
 const buildDecisionCommand = (
   data: TaskMonitorInterventionSystemMessageData,
-  resolution: TaskMonitorInterventionChoice
+  resolution: TaskMonitorInterventionChoice,
 ): TaskMonitorHumanDecisionRequestCommand => ({
   cause: TaskMonitorHumanDecisionCommandCauseEnum.HumanDecision,
   interventionId: data.interventionId,
@@ -58,7 +61,7 @@ const buildDecisionCommand = (
 
 const createDecisionRequest = (
   data: TaskMonitorInterventionSystemMessageData,
-  resolution: TaskMonitorInterventionChoice
+  resolution: TaskMonitorInterventionChoice,
 ): DecisionRequest => ({
   requestId: crypto.randomUUID(),
   command: buildDecisionCommand(data, resolution),
@@ -70,11 +73,12 @@ export const TaskMonitorInterventionMessage = ({
   const { activeConversation, project, taskMonitorId, isReadOnly } =
     useConversationContext();
   const submitMonitorCommand = useSubmitTaskMonitorCommand();
+  const onAnswered = useContext(TaskMonitorResponsePresentationContext);
   const messagesQuery = useConversationMessages(
     project.organizationId,
     project.id,
     activeConversation.id,
-    { refetchOnMount: false }
+    { refetchOnMount: false },
   );
   const conversationQuery = useConversation(
     project.organizationId,
@@ -83,10 +87,10 @@ export const TaskMonitorInterventionMessage = ({
     {
       enablePolling: false,
       refetchOnMount: false,
-    }
+    },
   );
   const [pendingRequest, setPendingRequest] = useState<DecisionRequest | null>(
-    null
+    null,
   );
   const decisionRequestCacheRef = useRef<DecisionRequestCache | null>(null);
   const activeInterventionIdRef = useRef(data.interventionId);
@@ -133,11 +137,16 @@ export const TaskMonitorInterventionMessage = ({
         request,
       });
     } catch (error) {
+      logger.warn("data_hooks", "Task Monitor intervention submission failed", {
+        code: "TASK_MONITOR_INTERVENTION_SUBMISSION_FAILED",
+        interventionId: data.interventionId,
+        cause: error instanceof Error ? error.message : String(error),
+      });
       if (activeInterventionIdRef.current === data.interventionId) {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "The decision could not be delivered."
+            : "The decision could not be delivered.",
         );
       }
       return;
@@ -146,10 +155,16 @@ export const TaskMonitorInterventionMessage = ({
     setIsRefreshing(true);
     try {
       await Promise.all([conversationQuery.refetch(), messagesQuery.refetch()]);
-    } catch {
+    } catch (error) {
+      const cause = error instanceof Error ? error.message : String(error);
+      logger.warn("data_hooks", "Task Monitor intervention refresh failed", {
+        code: "TASK_MONITOR_INTERVENTION_REFRESH_FAILED",
+        interventionId: data.interventionId,
+        cause,
+      });
       if (activeInterventionIdRef.current === data.interventionId) {
         setErrorMessage(
-          "The decision was acknowledged, but the canonical conversation could not be refreshed."
+          `The decision was acknowledged, but the canonical conversation could not be refreshed. ${cause}`,
         );
       }
       return;
@@ -161,9 +176,19 @@ export const TaskMonitorInterventionMessage = ({
       activeInterventionIdRef.current === data.interventionId &&
       outcome.status === SubmitTaskMonitorCommandResponseDtoStatusEnum.Rejected
     ) {
+      logger.warn("data_hooks", "Task Monitor intervention decision rejected", {
+        code: outcome.reason ?? "TASK_MONITOR_DECISION_REJECTED",
+        stage: outcome.stage,
+        interventionId: data.interventionId,
+        cause: outcome.message,
+      });
       setErrorMessage(
-        outcome.message ?? "The Task Monitor rejected the decision."
+        outcome.message ?? "The Task Monitor rejected the decision.",
       );
+      return;
+    }
+    if (activeInterventionIdRef.current === data.interventionId) {
+      onAnswered?.(taskMonitorId);
     }
   };
 
@@ -211,13 +236,18 @@ export const TaskMonitorInterventionMessage = ({
             </MarkdownRenderer>
           </Typography>
         </Stack>
-        <Typography color="text.secondary" variant="caption">
-          Expires {new Date(data.expiresAt).toLocaleString()}
-        </Typography>
+        {data.expiresAt !== null && (
+          <Typography color="text.secondary" variant="caption">
+            Expires {new Date(data.expiresAt).toLocaleString()}
+          </Typography>
+        )}
         {errorMessage ? (
-          <Alert severity="error" data-testid="task-monitor-intervention-error">
+          <SolidAlert
+            severity="error"
+            data-testid="task-monitor-intervention-error"
+          >
             {errorMessage}
-          </Alert>
+          </SolidAlert>
         ) : null}
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {choices.map((choice) => {

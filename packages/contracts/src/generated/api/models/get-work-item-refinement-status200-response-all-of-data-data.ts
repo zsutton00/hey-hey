@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -21,9 +20,6 @@ import type { GetWorkItemRefinementStatus200ResponseAllOfDataDataContentState } 
 // May contain unused imports in some cases
 // @ts-ignore
 import type { GetWorkItemRefinementStatus200ResponseAllOfDataDataProgress } from './get-work-item-refinement-status200-response-all-of-data-data-progress.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  *
@@ -56,11 +52,11 @@ export interface GetWorkItemRefinementStatus200ResponseAllOfDataData {
      */
     'nextLevel'?: GetWorkItemRefinementStatus200ResponseAllOfDataDataNextLevelEnum | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof GetWorkItemRefinementStatus200ResponseAllOfDataData
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      *
      * @type {GetWorkItemRefinementStatus200ResponseAllOfDataDataProgress}
@@ -143,8 +139,6 @@ export namespace GetWorkItemRefinementStatus200ResponseAllOfDataData {
     export type CurrentLevelEnum = GetWorkItemRefinementStatus200ResponseAllOfDataDataCurrentLevelEnum;
     export const NextLevelEnum = GetWorkItemRefinementStatus200ResponseAllOfDataDataNextLevelEnum;
     export type NextLevelEnum = GetWorkItemRefinementStatus200ResponseAllOfDataDataNextLevelEnum;
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const AvailableActionsEnum = GetWorkItemRefinementStatus200ResponseAllOfDataDataAvailableActionsEnum;
     export type AvailableActionsEnum = GetWorkItemRefinementStatus200ResponseAllOfDataDataAvailableActionsEnum;
 }

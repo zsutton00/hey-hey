@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentGroupedPermissionRequest } from './agent-grouped-permission-request.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { PermissionRequestSummary } from './permission-request-summary.js';
 
 /**
@@ -60,6 +63,12 @@ export interface AgentRequestPermissionPayload {
      * @memberof AgentRequestPermissionPayload
      */
     'decidedAt'?: string | null;
+    /**
+     * Present when this card lists several same-tool requests. Each entry carries its own decision. The first entry is the request described by permissionRequest, decision and decidedAt.
+     * @type {Array<AgentGroupedPermissionRequest>}
+     * @memberof AgentRequestPermissionPayload
+     */
+    'groupedRequests'?: Array<AgentGroupedPermissionRequest>;
 }
 
 

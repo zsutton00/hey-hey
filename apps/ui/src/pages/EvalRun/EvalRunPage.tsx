@@ -1,3 +1,4 @@
+import type { NavigationLineage } from "@hey-hey/ui-common";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import {
@@ -7,30 +8,39 @@ import {
   CircularProgress,
   Typography,
 } from "@mui/material";
+import { parseAsString, useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 
-import { EvalRunStatus, EvalTargetHandlerKey } from "@hey-hey/contracts/api";
+import {
+  EvalAttemptStatus,
+  EvalRunStatus,
+  EvalTargetHandlerKey,
+} from "@hey-hey/contracts/api";
 import {
   evalRunName,
+  evalRunStatusLabel,
+  runRepeats,
   useEvalRun,
   useEvalRunSession,
   type EvalAttemptReport,
   type EvalRunReport,
 } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
-import { WebPathService } from "@hey-hey/ui-common/services";
 
 import { AttemptGrid } from "./AttemptGrid";
+import { CompareSetups } from "./CompareSetups";
+import { EvalCaseRows } from "./EvalCaseRows";
 import { EvalRunLayout } from "./EvalRunLayout";
+import { RepeatedCaseRows } from "./RepeatedCaseRows";
 import {
   EvalRunMachinePicker,
   useEvalRunMachine,
 } from "./EvalRunMachinePicker";
 import type { EvalRunNavigationState } from "./EvalRunSetupPage";
-import { ProgressList } from "./ProgressList";
 import { RunNameHeading } from "./RunNameHeading";
+import { compareSetups } from "./evalResultsView";
 import {
   formatTimeLimit,
   formatTokenCount,
@@ -62,6 +72,7 @@ const SettingsSummary: React.FC<{ run: EvalRunReport }> = ({ run }) => {
     run.payload.settings;
   const none = t("eval.run.page.limitNone");
   const handler = runHandlerOf(run.payload.configurations);
+  const repeats = runRepeats(run);
   return (
     <Typography
       variant="body2"
@@ -100,6 +111,8 @@ const SettingsSummary: React.FC<{ run: EvalRunReport }> = ({ run }) => {
               : "eval.run.page.projectAssistantOff",
         ),
       })}
+      {repeats > 1 &&
+        ` · ${t("eval.run.page.repeatsSummary", { count: repeats })}`}
     </Typography>
   );
 };
@@ -167,19 +180,23 @@ const NotStartedPanel: React.FC<NotStartedPanelProps> = ({
 };
 
 interface EvalRunViewProps {
+  userId: string;
+  lineage: NavigationLineage;
   organizationId: string;
   projectId: string;
   runId: string;
 }
 
 const EvalRunView: React.FC<EvalRunViewProps> = ({
+  userId,
+  lineage,
   organizationId,
   projectId,
   runId,
 }) => {
   const { t } = useTranslation();
   const location = useLocation();
-  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useQueryState("attempt", parseAsString);
   const navigationState = (location.state ??
     null) as EvalRunNavigationState | null;
   const {
@@ -196,6 +213,8 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
   const handleStart = useCallback(
     async (machineId: string | null) => {
       const result = await session.start({
+        userId,
+        lineage,
         organizationId,
         projectId,
         runId,
@@ -203,7 +222,7 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
       });
       if (result.ok) setStartedHere(true);
     },
-    [organizationId, projectId, runId, session],
+    [organizationId, projectId, runId, session, userId, lineage],
   );
 
   const handleStop = useCallback(() => {
@@ -213,6 +232,10 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
   const endedCount = useMemo(
     () => attempts.filter(isAttemptEnded).length,
     [attempts],
+  );
+  const comparisons = useMemo(
+    () => (run ? compareSetups(run, attempts) : []),
+    [run, attempts],
   );
 
   if (error) {
@@ -238,14 +261,23 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
   }
 
   const { status, cases, configurations } = run.payload;
-  const total = cases.length * configurations.length;
+  const repeats = runRepeats(run);
+  const total = cases.length * configurations.length * repeats;
   const isOver =
     status === EvalRunStatus.Finished || status === EvalRunStatus.Stopped;
-  const resultsHref = WebPathService.evalRunResults({
-    projectId,
-    evalId: run.payload.evalId,
-    runId,
+  const errorCount = attempts.filter(
+    (attempt) => attempt.payload.status === EvalAttemptStatus.Error,
+  ).length;
+  const baseStatusLine = evalRunStatusLabel(t, {
+    status,
+    total,
+    ended: endedCount,
+    errors: errorCount,
   });
+  const statusLine =
+    status === EvalRunStatus.Finished && repeats > 1
+      ? `${baseStatusLine} · ${t("eval.run.attempts", { count: total })}`
+      : baseStatusLine;
   const startAccepted = startedHere || !!navigationState?.startAccepted;
   const startError =
     session.error ??
@@ -275,14 +307,7 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
           sx={{ flex: 1 }}
           data-testid="eval-run-progress-summary"
         >
-          {t("eval.run.page.progressSummary", {
-            cases: t("eval.run.cases", { count: cases.length }),
-            configurations: t("eval.run.configurations", {
-              count: configurations.length,
-            }),
-            ended: endedCount,
-            total,
-          })}
+          {statusLine}
         </Typography>
         {!isOver && (
           <Typography
@@ -292,21 +317,6 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
           >
             {t("eval.run.page.backgroundHint")}
           </Typography>
-        )}
-        {isOver && (
-          <Button
-            variant="contained"
-            size="small"
-            href={resultsHref}
-            onClick={(event: React.MouseEvent) => {
-              if (event.ctrlKey || event.metaKey || event.shiftKey) return;
-              event.preventDefault();
-              navigate(resultsHref);
-            }}
-            data-testid="eval-run-view-results"
-          >
-            {t("eval.run.page.viewResults")}
-          </Button>
         )}
         {status === EvalRunStatus.Running && (
           <Button
@@ -345,14 +355,38 @@ const EvalRunView: React.FC<EvalRunViewProps> = ({
         )
       )}
 
-      <AttemptGrid
-        organizationId={organizationId}
-        projectId={projectId}
-        run={run}
-        attempts={attempts}
-        now={now}
-      />
-      <ProgressList run={run} attempts={attempts} />
+      {isOver ? (
+        <>
+          <CompareSetups comparisons={comparisons} />
+          {repeats > 1 ? (
+            <RepeatedCaseRows
+              organizationId={organizationId}
+              projectId={projectId}
+              run={run}
+              attempts={attempts}
+              selectedId={selectedId}
+              onSelect={(attemptId) => void setSelectedId(attemptId)}
+            />
+          ) : (
+            <EvalCaseRows
+              organizationId={organizationId}
+              projectId={projectId}
+              run={run}
+              attempts={attempts}
+              selectedId={selectedId}
+              onSelect={(attemptId) => void setSelectedId(attemptId)}
+            />
+          )}
+        </>
+      ) : (
+        <AttemptGrid
+          organizationId={organizationId}
+          projectId={projectId}
+          run={run}
+          attempts={attempts}
+          now={now}
+        />
+      )}
     </>
   );
 };
@@ -384,8 +418,10 @@ export const EvalRunPage: React.FC = () => {
       crumbLabel={run ? evalRunName(run, t) : t("eval.page.runs.columns.run")}
       testId="eval-run-page"
     >
-      {() => (
+      {(_evalTask, lineage) => (
         <EvalRunView
+          userId={identity?.userId ?? ""}
+          lineage={lineage}
           organizationId={organizationId}
           projectId={projectId}
           runId={runId}

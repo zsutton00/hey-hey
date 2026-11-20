@@ -33,6 +33,8 @@ import type { AgentInteractionSettledTurn } from '../models.js';
 // @ts-ignore
 import type { AgentInteractionSettlementReceipt } from '../models.js';
 // @ts-ignore
+import type { AgentSessionContinuationStartupReport } from '../models.js';
+// @ts-ignore
 import type { AgentSessionCurrentStateBatchRequestDto } from '../models.js';
 // @ts-ignore
 import type { AgentSessionListSort } from '../models.js';
@@ -57,6 +59,8 @@ import type { CliReadRuntimeModelCatalogGetRequest } from '../models.js';
 // @ts-ignore
 import type { CliReadWorkspaceSkillsListRequest } from '../models.js';
 // @ts-ignore
+import type { CommitAgentSessionContinuationRequestDto } from '../models.js';
+// @ts-ignore
 import type { CompactRunRequestDto } from '../models.js';
 // @ts-ignore
 import type { CreateAgentSession201Response } from '../models.js';
@@ -69,6 +73,8 @@ import type { CreateAgentSessionDto } from '../models.js';
 // @ts-ignore
 import type { EntityType } from '../models.js';
 // @ts-ignore
+import type { GetAgentSessionContinuationStatus200Response } from '../models.js';
+// @ts-ignore
 import type { GetAgentSessionRouting200Response } from '../models.js';
 // @ts-ignore
 import type { GetRuntimeModelCatalog200Response } from '../models.js';
@@ -76,6 +82,10 @@ import type { GetRuntimeModelCatalog200Response } from '../models.js';
 import type { GrantAgentSessionServices200Response } from '../models.js';
 // @ts-ignore
 import type { GrantAgentSessionServicesDto } from '../models.js';
+// @ts-ignore
+import type { InspectAgentSessionContinuation200Response } from '../models.js';
+// @ts-ignore
+import type { InspectAgentSessionContinuationRequestDto } from '../models.js';
 // @ts-ignore
 import type { ListAgentSessions200Response } from '../models.js';
 // @ts-ignore
@@ -88,6 +98,8 @@ import type { PermissionDecisionRequestDto } from '../models.js';
 import type { QuestionAnswerRequestDto } from '../models.js';
 // @ts-ignore
 import type { ReadAgentSessionCliState200Response } from '../models.js';
+// @ts-ignore
+import type { ReportAgentSessionContinuationStartup200Response } from '../models.js';
 // @ts-ignore
 import type { ResolveWorkItemCoordinator200Response } from '../models.js';
 // @ts-ignore
@@ -337,6 +349,56 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Records that the person declined an INSPECTED or AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or started. A FAILED attempt, where no provider session started, may also be cancelled while it still owns the session\'s binding: the binding returns to the previous computer so the person can continue elsewhere. Repeating returns the cancelled attempt.
+         * @summary Decline a continuation attempt before anything starts
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Continuation attempt identity.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cancelAgentSessionContinuation: async (organizationId: string, projectId: string, agentSessionId: string, continuationId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('cancelAgentSessionContinuation', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('cancelAgentSessionContinuation', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('cancelAgentSessionContinuation', 'agentSessionId', agentSessionId)
+            // verify required parameter 'continuationId' is not null or undefined
+            assertParamExists('cancelAgentSessionContinuation', 'continuationId', continuationId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/cancel`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)))
+                .replace(`{${"continuationId"}}`, encodeURIComponent(String(continuationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          *
          * @summary Cancel an unsettled child and its foreground wait
          * @param {string} organizationId
@@ -476,6 +538,62 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Atomically rebinds the session to the inspected destination, records the previous machine, and delivers a materialize-only start_run for that destination under its own controller authorization. Repeating while a delivery is pending or succeeded returns the recorded attempt. On a FAILED attempt it retries delivery to the same destination as a new delivery generation, without a second rebind.
+         * @summary Continue the session on the inspected destination
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Client-minted continuation identity; repeating it is idempotent.
+         * @param {CommitAgentSessionContinuationRequestDto} commitAgentSessionContinuationRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        commitAgentSessionContinuation: async (organizationId: string, projectId: string, agentSessionId: string, continuationId: string, commitAgentSessionContinuationRequestDto: CommitAgentSessionContinuationRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('commitAgentSessionContinuation', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('commitAgentSessionContinuation', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('commitAgentSessionContinuation', 'agentSessionId', agentSessionId)
+            // verify required parameter 'continuationId' is not null or undefined
+            assertParamExists('commitAgentSessionContinuation', 'continuationId', continuationId)
+            // verify required parameter 'commitAgentSessionContinuationRequestDto' is not null or undefined
+            assertParamExists('commitAgentSessionContinuation', 'commitAgentSessionContinuationRequestDto', commitAgentSessionContinuationRequestDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/commit`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)))
+                .replace(`{${"continuationId"}}`, encodeURIComponent(String(continuationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(commitAgentSessionContinuationRequestDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -783,6 +901,52 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Server-confirmed state of the session\'s machine binding and its latest continuation. Only a revoked or removed binding offers continuation; an offline or unverifiable machine keeps its session.
+         * @summary Read whether this session can continue on another computer
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionContinuationStatus: async (organizationId: string, projectId: string, agentSessionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getAgentSessionContinuationStatus', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getAgentSessionContinuationStatus', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('getAgentSessionContinuationStatus', 'agentSessionId', agentSessionId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuation`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
          * @summary Find the session that routes machine-hosted reads
          * @param {string} organizationId Organization ID
@@ -995,6 +1159,62 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Under the destination\'s own controller authorization, asks its CLI whether usable provider state for this session exists. Records the inspection; moves nothing. Repeating the same continuation with the same input returns the recorded inspection; different input is rejected.
+         * @summary Inspect a destination computer\'s provider state for continuation
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Client-minted continuation identity; repeating it is idempotent.
+         * @param {InspectAgentSessionContinuationRequestDto} inspectAgentSessionContinuationRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        inspectAgentSessionContinuation: async (organizationId: string, projectId: string, agentSessionId: string, continuationId: string, inspectAgentSessionContinuationRequestDto: InspectAgentSessionContinuationRequestDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('inspectAgentSessionContinuation', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('inspectAgentSessionContinuation', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('inspectAgentSessionContinuation', 'agentSessionId', agentSessionId)
+            // verify required parameter 'continuationId' is not null or undefined
+            assertParamExists('inspectAgentSessionContinuation', 'continuationId', continuationId)
+            // verify required parameter 'inspectAgentSessionContinuationRequestDto' is not null or undefined
+            assertParamExists('inspectAgentSessionContinuation', 'inspectAgentSessionContinuationRequestDto', inspectAgentSessionContinuationRequestDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/inspection`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)))
+                .replace(`{${"continuationId"}}`, encodeURIComponent(String(continuationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(inspectAgentSessionContinuationRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Retrieve agent sessions for an organization with optional filters.
          * @summary List agent sessions
          * @param {string} organizationId Organization ID
@@ -1077,7 +1297,7 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
@@ -1089,12 +1309,13 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
          * @param {string} [taskId] Filter by a matching TASK attachment within the project.
          * @param {Array<AgentSessionStatus>} [status] Filter by one or more lifecycle statuses using repeated query parameters.
          * @param {AgentSessionListSort} [sort]
+         * @param {string} [search] Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
          * @param {number} [limit]
          * @param {string} [cursor] Opaque cursor returned by the previous page.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listAgentSessionsPaginated: async (organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, limit?: number, cursor?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listAgentSessionsPaginated: async (organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, search?: string, limit?: number, cursor?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('listAgentSessionsPaginated', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -1147,6 +1368,10 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
 
             if (sort !== undefined) {
                 localVarQueryParameter['sort'] = sort;
+            }
+
+            if (search !== undefined) {
+                localVarQueryParameter['search'] = search;
             }
 
             if (limit !== undefined) {
@@ -1334,6 +1559,62 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(cliReadRequestDto, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Machine-authenticated. Only the attempt\'s destination computer may report. Applies the outcome to a PENDING or UNCERTAIN attempt whose latest delivery is the reported operation; any other report is answered with accepted false and changes nothing. Repeating an applied report returns the same result.
+         * @summary Report provider startup for a continuation delivery
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Continuation attempt identity.
+         * @param {AgentSessionContinuationStartupReport} agentSessionContinuationStartupReport
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        reportAgentSessionContinuationStartup: async (organizationId: string, projectId: string, agentSessionId: string, continuationId: string, agentSessionContinuationStartupReport: AgentSessionContinuationStartupReport, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('reportAgentSessionContinuationStartup', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('reportAgentSessionContinuationStartup', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('reportAgentSessionContinuationStartup', 'agentSessionId', agentSessionId)
+            // verify required parameter 'continuationId' is not null or undefined
+            assertParamExists('reportAgentSessionContinuationStartup', 'continuationId', continuationId)
+            // verify required parameter 'agentSessionContinuationStartupReport' is not null or undefined
+            assertParamExists('reportAgentSessionContinuationStartup', 'agentSessionContinuationStartupReport', agentSessionContinuationStartupReport)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/startup`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)))
+                .replace(`{${"continuationId"}}`, encodeURIComponent(String(continuationId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(agentSessionContinuationStartupReport, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2311,6 +2592,22 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Records that the person declined an INSPECTED or AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or started. A FAILED attempt, where no provider session started, may also be cancelled while it still owns the session\'s binding: the binding returns to the previous computer so the person can continue elsewhere. Repeating returns the cancelled attempt.
+         * @summary Decline a continuation attempt before anything starts
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Continuation attempt identity.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async cancelAgentSessionContinuation(organizationId: string, projectId: string, agentSessionId: string, continuationId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<InspectAgentSessionContinuation200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.cancelAgentSessionContinuation(organizationId, projectId, agentSessionId, continuationId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.cancelAgentSessionContinuation']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          *
          * @summary Cancel an unsettled child and its foreground wait
          * @param {string} organizationId
@@ -2354,6 +2651,23 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.claimSubagentDispatch(organizationId, projectId, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.claimSubagentDispatch']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Atomically rebinds the session to the inspected destination, records the previous machine, and delivers a materialize-only start_run for that destination under its own controller authorization. Repeating while a delivery is pending or succeeded returns the recorded attempt. On a FAILED attempt it retries delivery to the same destination as a new delivery generation, without a second rebind.
+         * @summary Continue the session on the inspected destination
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Client-minted continuation identity; repeating it is idempotent.
+         * @param {CommitAgentSessionContinuationRequestDto} commitAgentSessionContinuationRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async commitAgentSessionContinuation(organizationId: string, projectId: string, agentSessionId: string, continuationId: string, commitAgentSessionContinuationRequestDto: CommitAgentSessionContinuationRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<InspectAgentSessionContinuation200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.commitAgentSessionContinuation(organizationId, projectId, agentSessionId, continuationId, commitAgentSessionContinuationRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.commitAgentSessionContinuation']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -2451,6 +2765,21 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Server-confirmed state of the session\'s machine binding and its latest continuation. Only a revoked or removed binding offers continuation; an offline or unverifiable machine keeps its session.
+         * @summary Read whether this session can continue on another computer
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getAgentSessionContinuationStatus(organizationId: string, projectId: string, agentSessionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetAgentSessionContinuationStatus200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getAgentSessionContinuationStatus(organizationId, projectId, agentSessionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.getAgentSessionContinuationStatus']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
          * @summary Find the session that routes machine-hosted reads
          * @param {string} organizationId Organization ID
@@ -2515,6 +2844,23 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Under the destination\'s own controller authorization, asks its CLI whether usable provider state for this session exists. Records the inspection; moves nothing. Repeating the same continuation with the same input returns the recorded inspection; different input is rejected.
+         * @summary Inspect a destination computer\'s provider state for continuation
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Client-minted continuation identity; repeating it is idempotent.
+         * @param {InspectAgentSessionContinuationRequestDto} inspectAgentSessionContinuationRequestDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async inspectAgentSessionContinuation(organizationId: string, projectId: string, agentSessionId: string, continuationId: string, inspectAgentSessionContinuationRequestDto: InspectAgentSessionContinuationRequestDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<InspectAgentSessionContinuation200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.inspectAgentSessionContinuation(organizationId, projectId, agentSessionId, continuationId, inspectAgentSessionContinuationRequestDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.inspectAgentSessionContinuation']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Retrieve agent sessions for an organization with optional filters.
          * @summary List agent sessions
          * @param {string} organizationId Organization ID
@@ -2537,7 +2883,7 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
@@ -2549,13 +2895,14 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
          * @param {string} [taskId] Filter by a matching TASK attachment within the project.
          * @param {Array<AgentSessionStatus>} [status] Filter by one or more lifecycle statuses using repeated query parameters.
          * @param {AgentSessionListSort} [sort]
+         * @param {string} [search] Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
          * @param {number} [limit]
          * @param {string} [cursor] Opaque cursor returned by the previous page.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listAgentSessionsPaginated(organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, limit?: number, cursor?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListAgentSessionsPaginated200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listAgentSessionsPaginated(organizationId, projectId, type, excludeType, hasUserMessage, userId, serviceId, taskId, status, sort, limit, cursor, options);
+        async listAgentSessionsPaginated(organizationId: string, projectId: string, type?: AgentSessionType, excludeType?: AgentSessionType, hasUserMessage?: boolean, userId?: string, serviceId?: string, taskId?: string, status?: Array<AgentSessionStatus>, sort?: AgentSessionListSort, search?: string, limit?: number, cursor?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListAgentSessionsPaginated200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listAgentSessionsPaginated(organizationId, projectId, type, excludeType, hasUserMessage, userId, serviceId, taskId, status, sort, search, limit, cursor, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.listAgentSessionsPaginated']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -2614,6 +2961,23 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.readAgentSessionCliState(organizationId, projectId, agentSessionId, cliReadRequestDto, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.readAgentSessionCliState']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Machine-authenticated. Only the attempt\'s destination computer may report. Applies the outcome to a PENDING or UNCERTAIN attempt whose latest delivery is the reported operation; any other report is answered with accepted false and changes nothing. Repeating an applied report returns the same result.
+         * @summary Report provider startup for a continuation delivery
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} agentSessionId Agent Session ID
+         * @param {string} continuationId Continuation attempt identity.
+         * @param {AgentSessionContinuationStartupReport} agentSessionContinuationStartupReport
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async reportAgentSessionContinuationStartup(organizationId: string, projectId: string, agentSessionId: string, continuationId: string, agentSessionContinuationStartupReport: AgentSessionContinuationStartupReport, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ReportAgentSessionContinuationStartup200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.reportAgentSessionContinuationStartup(organizationId, projectId, agentSessionId, continuationId, agentSessionContinuationStartupReport, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.reportAgentSessionContinuationStartup']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -2944,6 +3308,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.batchReadAgentSessionOutputAttention(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionOutputAttentionBatchRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
+         * Records that the person declined an INSPECTED or AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or started. A FAILED attempt, where no provider session started, may also be cancelled while it still owns the session\'s binding: the binding returns to the previous computer so the person can continue elsewhere. Repeating returns the cancelled attempt.
+         * @summary Decline a continuation attempt before anything starts
+         * @param {AgentSessionsApiCancelAgentSessionContinuationRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cancelAgentSessionContinuation(requestParameters: AgentSessionsApiCancelAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response> {
+            return localVarFp.cancelAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, options).then((request) => request(axios, basePath));
+        },
+        /**
          *
          * @summary Cancel an unsettled child and its foreground wait
          * @param {AgentSessionsApiCancelSubagentInteractionRequest} requestParameters Request parameters.
@@ -2972,6 +3346,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
          */
         claimSubagentDispatch(requestParameters: AgentSessionsApiClaimSubagentDispatchRequest, options?: RawAxiosRequestConfig): AxiosPromise<SubagentDispatchClaimResponse> {
             return localVarFp.claimSubagentDispatch(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Atomically rebinds the session to the inspected destination, records the previous machine, and delivers a materialize-only start_run for that destination under its own controller authorization. Repeating while a delivery is pending or succeeded returns the recorded attempt. On a FAILED attempt it retries delivery to the same destination as a new delivery generation, without a second rebind.
+         * @summary Continue the session on the inspected destination
+         * @param {AgentSessionsApiCommitAgentSessionContinuationRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        commitAgentSessionContinuation(requestParameters: AgentSessionsApiCommitAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response> {
+            return localVarFp.commitAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.commitAgentSessionContinuationRequestDto, options).then((request) => request(axios, basePath));
         },
         /**
          * Server-signed remote control. Resolves the conversation owner, verifies the acting user matches, and emits a signed `trigger.control` envelope to the conversation owner\'s machine wrapping a `compact_run` body. The CLI verifier validates the envelope, locates the active Run for the conversation, and compacts its conversation history. Idempotent on absent / no-conversation cases.
@@ -3034,6 +3418,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.getAgentSession(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.includeService, requestParameters.includeUser, options).then((request) => request(axios, basePath));
         },
         /**
+         * Server-confirmed state of the session\'s machine binding and its latest continuation. Only a revoked or removed binding offers continuation; an offline or unverifiable machine keeps its session.
+         * @summary Read whether this session can continue on another computer
+         * @param {AgentSessionsApiGetAgentSessionContinuationStatusRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getAgentSessionContinuationStatus(requestParameters: AgentSessionsApiGetAgentSessionContinuationStatusRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionContinuationStatus200Response> {
+            return localVarFp.getAgentSessionContinuationStatus(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
          * @summary Find the session that routes machine-hosted reads
          * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
@@ -3074,6 +3468,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.heartbeatSubagentDispatch(requestParameters.organizationId, requestParameters.projectId, requestParameters.effectId, requestParameters.subagentDispatchHeartbeatRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Under the destination\'s own controller authorization, asks its CLI whether usable provider state for this session exists. Records the inspection; moves nothing. Repeating the same continuation with the same input returns the recorded inspection; different input is rejected.
+         * @summary Inspect a destination computer\'s provider state for continuation
+         * @param {AgentSessionsApiInspectAgentSessionContinuationRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        inspectAgentSessionContinuation(requestParameters: AgentSessionsApiInspectAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response> {
+            return localVarFp.inspectAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.inspectAgentSessionContinuationRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Retrieve agent sessions for an organization with optional filters.
          * @summary List agent sessions
          * @param {AgentSessionsApiListAgentSessionsRequest} requestParameters Request parameters.
@@ -3084,14 +3488,14 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.listAgentSessions(requestParameters.organizationId, requestParameters.projectId, requestParameters.ids, requestParameters.userId, requestParameters.conversationId, requestParameters.entityType, requestParameters.entityId, requestParameters.serviceId, requestParameters.type, requestParameters.includeService, options).then((request) => request(axios, basePath));
         },
         /**
-         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+         * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
          * @summary List agent sessions with cursor pagination
          * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         listAgentSessionsPaginated(requestParameters: AgentSessionsApiListAgentSessionsPaginatedRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListAgentSessionsPaginated200Response> {
-            return localVarFp.listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.limit, requestParameters.cursor, options).then((request) => request(axios, basePath));
+            return localVarFp.listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.search, requestParameters.limit, requestParameters.cursor, options).then((request) => request(axios, basePath));
         },
         /**
          *
@@ -3130,6 +3534,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
          */
         readAgentSessionCliState(requestParameters: AgentSessionsApiReadAgentSessionCliStateRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReadAgentSessionCliState200Response> {
             return localVarFp.readAgentSessionCliState(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.cliReadRequestDto, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Machine-authenticated. Only the attempt\'s destination computer may report. Applies the outcome to a PENDING or UNCERTAIN attempt whose latest delivery is the reported operation; any other report is answered with accepted false and changes nothing. Repeating an applied report returns the same result.
+         * @summary Report provider startup for a continuation delivery
+         * @param {AgentSessionsApiReportAgentSessionContinuationStartupRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionContinuationStartup200Response> {
+            return localVarFp.reportAgentSessionContinuationStartup(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.agentSessionContinuationStartupReport, options).then((request) => request(axios, basePath));
         },
         /**
          *
@@ -3351,6 +3765,16 @@ export interface AgentSessionsApiInterface {
     batchReadAgentSessionOutputAttention(requestParameters: AgentSessionsApiBatchReadAgentSessionOutputAttentionRequest, options?: RawAxiosRequestConfig): AxiosPromise<BatchReadAgentSessionOutputAttention200Response>;
 
     /**
+     * Records that the person declined an INSPECTED or AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or started. A FAILED attempt, where no provider session started, may also be cancelled while it still owns the session\'s binding: the binding returns to the previous computer so the person can continue elsewhere. Repeating returns the cancelled attempt.
+     * @summary Decline a continuation attempt before anything starts
+     * @param {AgentSessionsApiCancelAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    cancelAgentSessionContinuation(requestParameters: AgentSessionsApiCancelAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response>;
+
+    /**
      *
      * @summary Cancel an unsettled child and its foreground wait
      * @param {AgentSessionsApiCancelSubagentInteractionRequest} requestParameters Request parameters.
@@ -3379,6 +3803,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     claimSubagentDispatch(requestParameters: AgentSessionsApiClaimSubagentDispatchRequest, options?: RawAxiosRequestConfig): AxiosPromise<SubagentDispatchClaimResponse>;
+
+    /**
+     * Atomically rebinds the session to the inspected destination, records the previous machine, and delivers a materialize-only start_run for that destination under its own controller authorization. Repeating while a delivery is pending or succeeded returns the recorded attempt. On a FAILED attempt it retries delivery to the same destination as a new delivery generation, without a second rebind.
+     * @summary Continue the session on the inspected destination
+     * @param {AgentSessionsApiCommitAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    commitAgentSessionContinuation(requestParameters: AgentSessionsApiCommitAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response>;
 
     /**
      * Server-signed remote control. Resolves the conversation owner, verifies the acting user matches, and emits a signed `trigger.control` envelope to the conversation owner\'s machine wrapping a `compact_run` body. The CLI verifier validates the envelope, locates the active Run for the conversation, and compacts its conversation history. Idempotent on absent / no-conversation cases.
@@ -3441,6 +3875,16 @@ export interface AgentSessionsApiInterface {
     getAgentSession(requestParameters: AgentSessionsApiGetAgentSessionRequest, options?: RawAxiosRequestConfig): AxiosPromise<CreateAgentSession201Response>;
 
     /**
+     * Server-confirmed state of the session\'s machine binding and its latest continuation. Only a revoked or removed binding offers continuation; an offline or unverifiable machine keeps its session.
+     * @summary Read whether this session can continue on another computer
+     * @param {AgentSessionsApiGetAgentSessionContinuationStatusRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    getAgentSessionContinuationStatus(requestParameters: AgentSessionsApiGetAgentSessionContinuationStatusRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetAgentSessionContinuationStatus200Response>;
+
+    /**
      * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
      * @summary Find the session that routes machine-hosted reads
      * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
@@ -3481,6 +3925,16 @@ export interface AgentSessionsApiInterface {
     heartbeatSubagentDispatch(requestParameters: AgentSessionsApiHeartbeatSubagentDispatchRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentInteractionSettlementReceipt>;
 
     /**
+     * Under the destination\'s own controller authorization, asks its CLI whether usable provider state for this session exists. Records the inspection; moves nothing. Repeating the same continuation with the same input returns the recorded inspection; different input is rejected.
+     * @summary Inspect a destination computer\'s provider state for continuation
+     * @param {AgentSessionsApiInspectAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    inspectAgentSessionContinuation(requestParameters: AgentSessionsApiInspectAgentSessionContinuationRequest, options?: RawAxiosRequestConfig): AxiosPromise<InspectAgentSessionContinuation200Response>;
+
+    /**
      * Retrieve agent sessions for an organization with optional filters.
      * @summary List agent sessions
      * @param {AgentSessionsApiListAgentSessionsRequest} requestParameters Request parameters.
@@ -3491,7 +3945,7 @@ export interface AgentSessionsApiInterface {
     listAgentSessions(requestParameters: AgentSessionsApiListAgentSessionsRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListAgentSessions200Response>;
 
     /**
-     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
      * @summary List agent sessions with cursor pagination
      * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3537,6 +3991,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     readAgentSessionCliState(requestParameters: AgentSessionsApiReadAgentSessionCliStateRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReadAgentSessionCliState200Response>;
+
+    /**
+     * Machine-authenticated. Only the attempt\'s destination computer may report. Applies the outcome to a PENDING or UNCERTAIN attempt whose latest delivery is the reported operation; any other report is answered with accepted false and changes nothing. Repeating an applied report returns the same result.
+     * @summary Report provider startup for a continuation delivery
+     * @param {AgentSessionsApiReportAgentSessionContinuationStartupRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionContinuationStartup200Response>;
 
     /**
      *
@@ -3823,6 +4287,41 @@ export interface AgentSessionsApiBatchReadAgentSessionOutputAttentionRequest {
 }
 
 /**
+ * Request parameters for cancelAgentSessionContinuation operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiCancelAgentSessionContinuationRequest
+ */
+export interface AgentSessionsApiCancelAgentSessionContinuationRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiCancelAgentSessionContinuation
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiCancelAgentSessionContinuation
+     */
+    readonly projectId: string
+
+    /**
+     * Agent Session ID
+     * @type {string}
+     * @memberof AgentSessionsApiCancelAgentSessionContinuation
+     */
+    readonly agentSessionId: string
+
+    /**
+     * Continuation attempt identity.
+     * @type {string}
+     * @memberof AgentSessionsApiCancelAgentSessionContinuation
+     */
+    readonly continuationId: string
+}
+
+/**
  * Request parameters for cancelSubagentInteraction operation in AgentSessionsApi.
  * @export
  * @interface AgentSessionsApiCancelSubagentInteractionRequest
@@ -3911,6 +4410,48 @@ export interface AgentSessionsApiClaimSubagentDispatchRequest {
      * @memberof AgentSessionsApiClaimSubagentDispatch
      */
     readonly projectId: string
+}
+
+/**
+ * Request parameters for commitAgentSessionContinuation operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiCommitAgentSessionContinuationRequest
+ */
+export interface AgentSessionsApiCommitAgentSessionContinuationRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiCommitAgentSessionContinuation
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiCommitAgentSessionContinuation
+     */
+    readonly projectId: string
+
+    /**
+     * Agent Session ID
+     * @type {string}
+     * @memberof AgentSessionsApiCommitAgentSessionContinuation
+     */
+    readonly agentSessionId: string
+
+    /**
+     * Client-minted continuation identity; repeating it is idempotent.
+     * @type {string}
+     * @memberof AgentSessionsApiCommitAgentSessionContinuation
+     */
+    readonly continuationId: string
+
+    /**
+     *
+     * @type {CommitAgentSessionContinuationRequestDto}
+     * @memberof AgentSessionsApiCommitAgentSessionContinuation
+     */
+    readonly commitAgentSessionContinuationRequestDto: CommitAgentSessionContinuationRequestDto
 }
 
 /**
@@ -4110,6 +4651,34 @@ export interface AgentSessionsApiGetAgentSessionRequest {
 }
 
 /**
+ * Request parameters for getAgentSessionContinuationStatus operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiGetAgentSessionContinuationStatusRequest
+ */
+export interface AgentSessionsApiGetAgentSessionContinuationStatusRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionContinuationStatus
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionContinuationStatus
+     */
+    readonly projectId: string
+
+    /**
+     * Agent Session ID
+     * @type {string}
+     * @memberof AgentSessionsApiGetAgentSessionContinuationStatus
+     */
+    readonly agentSessionId: string
+}
+
+/**
  * Request parameters for getAgentSessionRouting operation in AgentSessionsApi.
  * @export
  * @interface AgentSessionsApiGetAgentSessionRoutingRequest
@@ -4247,6 +4816,48 @@ export interface AgentSessionsApiHeartbeatSubagentDispatchRequest {
      * @memberof AgentSessionsApiHeartbeatSubagentDispatch
      */
     readonly subagentDispatchHeartbeatRequest: SubagentDispatchHeartbeatRequest
+}
+
+/**
+ * Request parameters for inspectAgentSessionContinuation operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiInspectAgentSessionContinuationRequest
+ */
+export interface AgentSessionsApiInspectAgentSessionContinuationRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiInspectAgentSessionContinuation
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiInspectAgentSessionContinuation
+     */
+    readonly projectId: string
+
+    /**
+     * Agent Session ID
+     * @type {string}
+     * @memberof AgentSessionsApiInspectAgentSessionContinuation
+     */
+    readonly agentSessionId: string
+
+    /**
+     * Client-minted continuation identity; repeating it is idempotent.
+     * @type {string}
+     * @memberof AgentSessionsApiInspectAgentSessionContinuation
+     */
+    readonly continuationId: string
+
+    /**
+     *
+     * @type {InspectAgentSessionContinuationRequestDto}
+     * @memberof AgentSessionsApiInspectAgentSessionContinuation
+     */
+    readonly inspectAgentSessionContinuationRequestDto: InspectAgentSessionContinuationRequestDto
 }
 
 /**
@@ -4403,6 +5014,13 @@ export interface AgentSessionsApiListAgentSessionsPaginatedRequest {
     readonly sort?: AgentSessionListSort
 
     /**
+     * Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
+     * @type {string}
+     * @memberof AgentSessionsApiListAgentSessionsPaginated
+     */
+    readonly search?: string
+
+    /**
      *
      * @type {number}
      * @memberof AgentSessionsApiListAgentSessionsPaginated
@@ -4485,6 +5103,48 @@ export interface AgentSessionsApiReadAgentSessionCliStateRequest {
      * @memberof AgentSessionsApiReadAgentSessionCliState
      */
     readonly cliReadRequestDto: CliReadRequestDto
+}
+
+/**
+ * Request parameters for reportAgentSessionContinuationStartup operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiReportAgentSessionContinuationStartupRequest
+ */
+export interface AgentSessionsApiReportAgentSessionContinuationStartupRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
+     */
+    readonly projectId: string
+
+    /**
+     * Agent Session ID
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
+     */
+    readonly agentSessionId: string
+
+    /**
+     * Continuation attempt identity.
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
+     */
+    readonly continuationId: string
+
+    /**
+     *
+     * @type {AgentSessionContinuationStartupReport}
+     * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
+     */
+    readonly agentSessionContinuationStartupReport: AgentSessionContinuationStartupReport
 }
 
 /**
@@ -5173,6 +5833,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
+     * Records that the person declined an INSPECTED or AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or started. A FAILED attempt, where no provider session started, may also be cancelled while it still owns the session\'s binding: the binding returns to the previous computer so the person can continue elsewhere. Repeating returns the cancelled attempt.
+     * @summary Decline a continuation attempt before anything starts
+     * @param {AgentSessionsApiCancelAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public cancelAgentSessionContinuation(requestParameters: AgentSessionsApiCancelAgentSessionContinuationRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).cancelAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      *
      * @summary Cancel an unsettled child and its foreground wait
      * @param {AgentSessionsApiCancelSubagentInteractionRequest} requestParameters Request parameters.
@@ -5206,6 +5878,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public claimSubagentDispatch(requestParameters: AgentSessionsApiClaimSubagentDispatchRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).claimSubagentDispatch(requestParameters.organizationId, requestParameters.projectId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Atomically rebinds the session to the inspected destination, records the previous machine, and delivers a materialize-only start_run for that destination under its own controller authorization. Repeating while a delivery is pending or succeeded returns the recorded attempt. On a FAILED attempt it retries delivery to the same destination as a new delivery generation, without a second rebind.
+     * @summary Continue the session on the inspected destination
+     * @param {AgentSessionsApiCommitAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public commitAgentSessionContinuation(requestParameters: AgentSessionsApiCommitAgentSessionContinuationRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).commitAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.commitAgentSessionContinuationRequestDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -5281,6 +5965,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
+     * Server-confirmed state of the session\'s machine binding and its latest continuation. Only a revoked or removed binding offers continuation; an offline or unverifiable machine keeps its session.
+     * @summary Read whether this session can continue on another computer
+     * @param {AgentSessionsApiGetAgentSessionContinuationStatusRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public getAgentSessionContinuationStatus(requestParameters: AgentSessionsApiGetAgentSessionContinuationStatusRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).getAgentSessionContinuationStatus(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Returns the single most recently active session owned by the user that is bound to one of the given machines, without loading the session list.
      * @summary Find the session that routes machine-hosted reads
      * @param {AgentSessionsApiGetAgentSessionRoutingRequest} requestParameters Request parameters.
@@ -5329,6 +6025,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
+     * Under the destination\'s own controller authorization, asks its CLI whether usable provider state for this session exists. Records the inspection; moves nothing. Repeating the same continuation with the same input returns the recorded inspection; different input is rejected.
+     * @summary Inspect a destination computer\'s provider state for continuation
+     * @param {AgentSessionsApiInspectAgentSessionContinuationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public inspectAgentSessionContinuation(requestParameters: AgentSessionsApiInspectAgentSessionContinuationRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).inspectAgentSessionContinuation(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.inspectAgentSessionContinuationRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Retrieve agent sessions for an organization with optional filters.
      * @summary List agent sessions
      * @param {AgentSessionsApiListAgentSessionsRequest} requestParameters Request parameters.
@@ -5341,7 +6049,7 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
-     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, and sort.
+     * Retrieve a bounded agent-session page ordered by the latest message in each linked conversation. Sessions without messages sort last. When serviceId is provided, only sessions linked to that service within the selected project are returned. When taskId is provided, only sessions whose TASK attachment matches that identifier are returned. Cursors are bound to the requested type selection, user, statuses, service, task, user-message presence, sort, and search term.
      * @summary List agent sessions with cursor pagination
      * @param {AgentSessionsApiListAgentSessionsPaginatedRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -5349,7 +6057,7 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      * @memberof AgentSessionsApi
      */
     public listAgentSessionsPaginated(requestParameters: AgentSessionsApiListAgentSessionsPaginatedRequest, options?: RawAxiosRequestConfig) {
-        return AgentSessionsApiFp(this.configuration).listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.limit, requestParameters.cursor, options).then((request) => request(this.axios, this.basePath));
+        return AgentSessionsApiFp(this.configuration).listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.search, requestParameters.limit, requestParameters.cursor, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -5396,6 +6104,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public readAgentSessionCliState(requestParameters: AgentSessionsApiReadAgentSessionCliStateRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).readAgentSessionCliState(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.cliReadRequestDto, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Machine-authenticated. Only the attempt\'s destination computer may report. Applies the outcome to a PENDING or UNCERTAIN attempt whose latest delivery is the reported operation; any other report is answered with accepted false and changes nothing. Repeating an applied report returns the same result.
+     * @summary Report provider startup for a continuation delivery
+     * @param {AgentSessionsApiReportAgentSessionContinuationStartupRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).reportAgentSessionContinuationStartup(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.agentSessionContinuationStartupReport, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

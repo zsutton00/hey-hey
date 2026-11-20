@@ -47,6 +47,7 @@ export function hasProposalSupport(entityType: string): boolean {
 /** Canonical MCP tool names for orchestration tools. */
 export const ORCHESTRATION_TOOL_NAMES = {
   CREATE_PLAN: 'create_plan',
+  CREATE_PLAN_FROM_EXISTING_TASKS: 'create_plan_from_existing_tasks',
 } as const;
 
 /** Canonical MCP tool name for shared topology authoring guidance. */

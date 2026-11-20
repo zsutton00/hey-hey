@@ -8,6 +8,8 @@ export type { UseConversationPhaseReturn } from "./useConversationPhase";
 export { useConversationByWorkflow } from "./useConversationByWorkflow";
 export { useConversationCliStatus } from "./useConversationCliStatus";
 export type { UseConversationCliStatusReturn } from "./useConversationCliStatus";
+export { useWorkItemExecutionState } from "./useWorkItemExecutionState";
+export type { WorkItemExecutionStateResult } from "./useWorkItemExecutionState";
 export {
   useAgentSessionCurrentState,
   useAgentSessionCurrentStates,
@@ -404,6 +406,7 @@ export {
   useAllowedParentEntityTypes,
   useCanParentEntityType,
   useTrackingTargetWorkItemTypes,
+  useWorkItemStatusVocabularies,
   useWorkItemTypeByKey,
   useWorkItemTypeRelationshipIndex,
   useWorkItemTypes,
@@ -423,6 +426,7 @@ export {
   useWorkItemTypeCascadeImpact,
   useWorkItemTypeSectionContentImpact,
   useWorkItemTypeTrackingLinkRevocationImpact,
+  useResolveWorkItemTypeStatuses,
 } from "./useWorkItemTypeLifecycle";
 
 // Entity context hooks
@@ -906,3 +910,9 @@ export {
   useApplyProposalFuture,
   type UseApplyProposalFutureReturn,
 } from "./useApplyProposalFuture";
+
+export { useProjectApprovalPolicy } from "./useProjectApprovalPolicy";
+
+export { useEvalSessionStatuses } from "./useEvalSessionStatuses";
+
+export { useOpenItemSessionRename } from "./useOpenItemSessionRename";

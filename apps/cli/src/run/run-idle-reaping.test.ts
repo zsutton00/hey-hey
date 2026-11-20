@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -33,6 +34,7 @@ const handler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

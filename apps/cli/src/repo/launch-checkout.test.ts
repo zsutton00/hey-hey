@@ -3,18 +3,16 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { findLaunchCheckoutConflict } from './launch-checkout';
-import { RepoMappingStore, toRepositoryPath, toServiceId } from './index';
+import { RepoMappingStore, toServiceId } from './index';
 import { startAgenticSession } from '../commands/agent-session-starter';
 import { RunStore } from '../run-store';
 import { resolveRunWorkspace } from '../agents/run-scope';
-import type { AgenticSession } from '../session';
 
 let directory: string;
 let root: string;
 let other: string;
 beforeEach(async () => {
-  directory = await fs.mkdtemp(path.join(os.tmpdir(), 'launch-checkout-'));
+  directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'launch-checkout-')));
   root = path.join(directory, 'root');
   other = path.join(directory, 'other');
   await fs.mkdir(root);
@@ -34,39 +32,34 @@ beforeEach(async () => {
     { cwd: root },
   );
   execFileSync('git', ['worktree', 'add', '-b', 'other', other], { cwd: root });
-  vi.spyOn(process, 'cwd').mockReturnValue(root);
 });
 afterEach(async () => {
   vi.restoreAllMocks();
   await fs.rm(directory, { recursive: true, force: true });
 });
 
-it('rejects another checkout of the running repository for a non-worktree launch', async () => {
-  expect(await findLaunchCheckoutConflict(other, false)).toContain('Non-worktree launch refused');
-  expect(await findLaunchCheckoutConflict(root, false)).toBeNull();
-  expect(await findLaunchCheckoutConflict(other, true)).toBeNull();
-});
-it('allows another service repository and a CLI started in a subdirectory of the selected checkout', async () => {
-  const service = path.join(directory, 'service');
-  await fs.mkdir(service);
-  execFileSync('git', ['init', service]);
-  expect(await findLaunchCheckoutConflict(service, false)).toBeNull();
-  const subdirectory = path.join(root, 'src');
-  await fs.mkdir(subdirectory);
-  expect(await findLaunchCheckoutConflict(root, false, undefined, subdirectory)).toBeNull();
-});
-it('rejects a contaminated binding before persisting a new run', async () => {
-  const repoStore = new RepoMappingStore();
-  vi.spyOn(repoStore, 'getBinding').mockResolvedValue({
-    serviceId: toServiceId('service'),
-    repositoryPath: toRepositoryPath(other),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
-  const runStore = new RunStore();
-  const create = vi.spyOn(runStore, 'createRun');
-  await expect(
-    startAgenticSession({
+it.each(['main', 'worktree'])(
+  'starts and resumes in the selected %s checkout independently of the CLI location',
+  async (selected) => {
+    const repositoryPath = selected === 'main' ? root : other;
+    const cliDirectory = selected === 'main' ? other : root;
+    vi.spyOn(process, 'cwd').mockReturnValue(cliDirectory);
+    const repoStore = new RepoMappingStore({
+      mappingPath: path.join(directory, 'repos.json'),
+      lockPath: path.join(directory, 'repos.lock'),
+    });
+    await repoStore.setBinding(toServiceId('service'), repositoryPath);
+    const baseDir = path.join(directory, 'state');
+    const runStore = new RunStore({
+      paths: {
+        baseDir,
+        runsDir: path.join(baseDir, 'runs'),
+        indexPath: path.join(baseDir, 'run-index.json'),
+        preferencesPath: path.join(baseDir, 'preferences.json'),
+      },
+    });
+    await runStore.initialize();
+    const result = await startAgenticSession({
       context: { projectId: 'project', serviceIds: ['service'], launchServiceId: 'service' },
       entity: null,
       conversationId: 'conversation',
@@ -80,20 +73,19 @@ it('rejects a contaminated binding before persisting a new run', async () => {
         userComments: [],
         fileReferences: { resolved: [], unresolved: [] },
       },
-    }),
-  ).rejects.toThrow('Non-worktree launch refused');
-  expect(create).not.toHaveBeenCalled();
-});
-it('rejects a persisted wrong checkout during resume even after the mapping is repaired', async () => {
-  const repoStore = new RepoMappingStore();
-  const readBinding = vi.spyOn(repoStore, 'getBinding');
-  const session = {
-    agentic_session_id: 'session',
-    services: [{ id: 'service', path: other }],
-    launchServiceId: 'service',
-    contextMetadata: {},
-  } as AgenticSession;
-  const result = await resolveRunWorkspace({ session, repoStore });
-  expect(result).toMatchObject({ ok: false, code: 'RUN_SCOPE_INVALID' });
-  expect(readBinding).not.toHaveBeenCalled();
-});
+    });
+    expect(result.status).toBe('started');
+    if (result.status !== 'started') throw new Error('Expected a started session');
+    expect(result.session.services).toEqual([{ id: 'service', path: repositoryPath }]);
+    // Later binding changes must not redirect an existing Run to the CLI checkout.
+    await repoStore.setBinding(toServiceId('service'), cliDirectory);
+    const saved = await runStore.getRun(result.session.agentic_session_id);
+    if (!saved) throw new Error('Expected the persisted session');
+    expect(await resolveRunWorkspace({ session: saved, repoStore })).toMatchObject({
+      ok: true,
+      cwd: repositoryPath,
+      allowedRepositoryRoots: [repositoryPath],
+      bindingRepositoryPath: repositoryPath,
+    });
+  },
+);

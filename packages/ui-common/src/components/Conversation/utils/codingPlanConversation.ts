@@ -5,34 +5,60 @@ import {
 } from "../../../api";
 import type { ConversationMessage } from "../../../types/conversation";
 
-/** Keep the planner's closing review message ahead of the document it introduces. */
+const isCodingPlanVersion = (item: ConversationMessage): boolean =>
+  item.message.type === MessageType.System &&
+  !!item.message.data.uiElements?.some(
+    (element) => element.type === "coding_plan_version",
+  );
+
+const isPlannerClosingMessage = (item: ConversationMessage): boolean =>
+  item.message.type === MessageType.System &&
+  item.message.status === MessageStatus.Completed &&
+  item.message.data.type === "AGENT" &&
+  item.message.data.promptHandler === "startup_session" &&
+  !!item.message.data.response?.trim() &&
+  !item.message.data.uiElements?.length &&
+  !item.message.reports?.length;
+
+/**
+ * Show the planner's closing message, then the plan it introduces. Progress
+ * messages may sit between them, so the plan moves behind the last closing
+ * message before the next plan version or user message.
+ */
 export function placeCodingPlanReviewMessage(
   timeline: ConversationMessage[],
 ): ConversationMessage[] {
   const presented = [...timeline];
-  for (let index = 0; index < presented.length - 1; index += 1) {
-    const plan = presented[index];
-    const review = presented[index + 1];
-    if (
-      !plan ||
-      !review ||
-      plan.message.type !== MessageType.System ||
-      !plan.message.data.uiElements?.some(
-        (element) => element.type === "coding_plan_version",
-      ) ||
-      review.message.type !== MessageType.System ||
-      review.message.status !== MessageStatus.Completed ||
-      review.message.data.type !== "AGENT" ||
-      review.message.data.promptHandler !== "startup_session" ||
-      !review.message.data.response?.trim() ||
-      review.message.data.uiElements?.length ||
-      review.message.reports?.length
-    )
+
+  for (let planIndex = 0; planIndex < presented.length; planIndex += 1) {
+    const plan = presented[planIndex];
+    if (!plan || !isCodingPlanVersion(plan)) {
       continue;
-    presented[index] = review;
-    presented[index + 1] = plan;
-    index += 1;
+    }
+
+    let closingIndex = -1;
+    for (let next = planIndex + 1; next < presented.length; next += 1) {
+      const candidate = presented[next];
+      if (
+        !candidate ||
+        isCodingPlanVersion(candidate) ||
+        candidate.message.type === MessageType.User
+      ) {
+        break;
+      }
+      if (isPlannerClosingMessage(candidate)) {
+        closingIndex = next;
+      }
+    }
+    if (closingIndex === -1) {
+      continue;
+    }
+
+    presented.splice(planIndex, 1);
+    presented.splice(closingIndex, 0, plan);
+    planIndex = closingIndex;
   }
+
   return presented;
 }
 

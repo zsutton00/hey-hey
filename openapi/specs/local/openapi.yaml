@@ -24,6 +24,8 @@ tags:
     description: Same-machine latest-Turn tool-call reads
   - name: RunBrowser
     description: Local Shared Browser operations for a Run
+  - name: RunProviderSessionTranscript
+    description: Same-machine raw provider session text reads
 
 paths:
   /runs/{runId}/tool-calls/latest-turn:
@@ -71,6 +73,50 @@ paths:
           $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
         "503":
           $ref: "#/components/responses/RunToolCallsLatestTurnFailure"
+
+  /runs/{runId}/provider-sessions/transcript:
+    post:
+      tags:
+        - RunProviderSessionTranscript
+      summary: Read a provider session's raw text from this computer
+      description: >
+        Approved-origin loopback read after verifying this CLI is the requested machine.
+        The provider session id must belong to the addressed Run's provider-session
+        history. Returns the provider's own session file unmodified. Content is
+        transient: it is never stored, cached, embedded or passed to a judge.
+      operationId: readLocalRunProviderSessionTranscript
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunProviderSessionTranscriptRequest"
+      responses:
+        "200":
+          description: The transcript, or the typed reason it is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalRunProviderSessionTranscriptResult"
+        "400":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
+        "403":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
+        "404":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
+        "409":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
+        "500":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
+        "503":
+          $ref: "#/components/responses/RunProviderSessionTranscriptFailure"
 
   /repos:
     get:
@@ -131,9 +177,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
         "403":
-          $ref: "#/components/responses/OriginNotAllowed"
-        "409":
-          description: The requested machine does not match the CLI's paired machine.
+          description: >-
+            The browser origin is not approved (ORIGIN_NOT_ALLOWED), or the
+            requested machine does not match the CLI's paired machine
+            (MACHINE_MISMATCH).
           content:
             application/json:
               schema:
@@ -183,9 +230,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/LocalRepositoryBindingErrorResponse"
         "403":
-          $ref: "#/components/responses/OriginNotAllowed"
-        "409":
-          description: The requested machine does not match the CLI's paired machine.
+          description: >-
+            The browser origin is not approved (ORIGIN_NOT_ALLOWED), or the
+            requested machine does not match the CLI's paired machine
+            (MACHINE_MISMATCH).
           content:
             application/json:
               schema:
@@ -533,6 +581,54 @@ paths:
         "503":
           $ref: "#/components/responses/RunChangedFileDetailFailure"
 
+  /runs/{runId}/recorded-edits/read:
+    post:
+      tags:
+        - RunChangedFileDetail
+      summary: Read the stored before and after versions of one recorded edit
+      description: >
+        Returns the same outcome as the remote `run.recorded_edit.read` CLI read
+        when the submitted paired-machine identity identifies this CLI. Only
+        versions retained for this Run in the Service's repository are read;
+        the working tree is never read.
+      operationId: readLocalRunRecordedEdit
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalRunRecordedEditRequest"
+      responses:
+        "200":
+          description: The before and after content of the recorded edit.
+          content:
+            application/json:
+              schema:
+                $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditSuccessResponseDto"
+        "400":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "403":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "404":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "409":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "413":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "422":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "500":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+        "503":
+          $ref: "#/components/responses/RunRecordedEditFailure"
+
   /runs/{runId}/walkthrough/source:
     post:
       operationId: resolveWalkthroughSource
@@ -663,12 +759,26 @@ components:
           schema:
             $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
 
+    RunProviderSessionTranscriptFailure:
+      description: The transcript request was rejected without any session content.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LocalRunProviderSessionTranscriptErrorResponse"
+
     RunChangedFileDetailFailure:
       description: The local detail request was rejected or could not be completed.
       content:
         application/json:
           schema:
             $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunChangedFileDetailErrorResponseDto"
+
+    RunRecordedEditFailure:
+      description: The local recorded-edit read was rejected or could not be completed.
+      content:
+        application/json:
+          schema:
+            $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadRunRecordedEditErrorResponseDto"
 
     RunChangedFilesInventoryFailure:
       description: The local inventory request was rejected or could not be completed.
@@ -698,6 +808,74 @@ components:
       required: [machineId]
       properties:
         machineId:
+          type: string
+          minLength: 1
+
+    LocalRunProviderSessionTranscriptRequest:
+      type: object
+      additionalProperties: false
+      required: [machineId, providerId, providerSessionId]
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        providerId:
+          type: string
+          enum: [claude, codex, opencode]
+        providerSessionId:
+          type: string
+          description: External id; must match the strict id pattern and the Run's history.
+          pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+          minLength: 1
+          maxLength: 128
+
+    LocalRunProviderSessionTranscriptUnavailableReason:
+      type: string
+      enum:
+        - PROVIDER_NOT_SUPPORTED
+        - SESSION_NOT_IN_RUN
+        - SESSION_FILE_NOT_FOUND
+        - SESSION_FILE_UNREADABLE
+
+    LocalRunProviderSessionTranscriptResult:
+      type: object
+      additionalProperties: false
+      required: [runId, providerSessionId, state]
+      properties:
+        runId:
+          type: string
+          format: uuid
+        providerSessionId:
+          type: string
+        state:
+          type: string
+          enum: [available, unavailable]
+        text:
+          type: string
+          description: The provider's session file content, unmodified. Present when available.
+        truncated:
+          type: boolean
+          description: True when the file exceeded the size cap and text is its leading part.
+        reason:
+          $ref: "#/components/schemas/LocalRunProviderSessionTranscriptUnavailableReason"
+
+    LocalRunProviderSessionTranscriptErrorCode:
+      type: string
+      enum:
+        - ORIGIN_NOT_ALLOWED
+        - INVALID_REQUEST
+        - MACHINE_ID_UNAVAILABLE
+        - MACHINE_MISMATCH
+        - RUN_NOT_FOUND
+        - READ_FAILED
+
+    LocalRunProviderSessionTranscriptErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          $ref: "#/components/schemas/LocalRunProviderSessionTranscriptErrorCode"
+        message:
           type: string
           minLength: 1
 
@@ -983,6 +1161,22 @@ components:
           $ref: "#/components/schemas/LocalMachineId"
         file:
           $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadChangedFileIdentity"
+
+    LocalRunRecordedEditRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - machineId
+        - serviceId
+        - edit
+      properties:
+        machineId:
+          $ref: "#/components/schemas/LocalMachineId"
+        serviceId:
+          type: string
+          format: uuid
+        edit:
+          $ref: "../schemas/reports.yaml#/ImplementReportEdit"
 
     LocalWalkthroughSourceRequest:
       type: object

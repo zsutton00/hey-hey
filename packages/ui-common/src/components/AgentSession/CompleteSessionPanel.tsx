@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { Button, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 import {
@@ -10,10 +11,10 @@ import { useValidationLauncher } from "./useValidationLauncher";
 
 interface CompleteSessionPanelProps {
   taskId: string;
-  currentStatus: WorkStatus;
+  currentStatus: TaskResponseDto["status"];
   onUpdateStatus: (
     taskId: string,
-    update: { status: WorkStatus }
+    update: { status: TaskResponseDto["status"] },
   ) => Promise<void>;
   onCompleteSessionOnly?: () => Promise<void>;
   onPanelComplete?: () => Promise<void> | void;
@@ -35,9 +36,9 @@ export const CompleteSessionPanel = ({
   projectId,
 }: CompleteSessionPanelProps) => {
   const { collapseAction } = useActionsCapsule();
-  const [updating, setUpdating] = useState<WorkStatus | "session-only" | null>(
-    null
-  );
+  const [updating, setUpdating] = useState<
+    TaskResponseDto["status"] | "session-only" | null
+  >(null);
   const [view, setView] = useState<PanelView>("status");
 
   const launcher = useValidationLauncher({
@@ -56,7 +57,7 @@ export const CompleteSessionPanel = ({
     collapseAction();
   };
 
-  const handleSetStatus = async (status: WorkStatus) => {
+  const handleSetStatus = async (status: TaskResponseDto["status"]) => {
     setUpdating(status);
     try {
       await onUpdateStatus(taskId, { status });

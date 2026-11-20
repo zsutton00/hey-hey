@@ -50,6 +50,28 @@ describe("buildEntityConversationPageComposition", () => {
     });
   });
 
+  it.each(["AGENT_SESSION", "agent-session"])(
+    "nests a conversation about a session under that session (%s)",
+    (entityType) => {
+      expect(
+        buildEntityConversationPageComposition({
+          preview: false,
+          agentSessionId: "session-1",
+          entityType,
+          entityId: "parent-session",
+          presentation,
+        }),
+      ).toMatchObject({
+        kind: "canonical",
+        descriptor: {
+          lineage: [
+            { entityType: "agent_session", entityId: "parent-session" },
+          ],
+        },
+      });
+    },
+  );
+
   it("keeps preview mounts observational", () => {
     expect(
       buildEntityConversationPageComposition({

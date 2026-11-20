@@ -14,7 +14,7 @@ import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-
 import type { PassThroughSubmissionToolDeclaration } from '../agents/submission-tools/types';
 import type { RunStore } from '../run-store/run-store';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgenticSession } from '../session/types';
 import { Run, type RunArgs, type RunCollaborators } from './run';
 import {
@@ -52,9 +52,11 @@ const quickHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
+  requiresChangedFileReporting: true,
   buildPrompt: () => 'task-only prompt',
 };
 
@@ -613,8 +615,8 @@ describe('Run file-change attribution without repository reconciliation', () => 
     expect(harness.appendFileChangeFacts).not.toHaveBeenCalled();
     expect(harness.run.getFileChangeProjection()).toEqual([]);
     expect(harness.createReport).not.toHaveBeenCalled();
-    expect(harness.logger.debug).toHaveBeenCalledWith(
-      'local.run.open_implement_report.skipped',
+    expect(harness.logger.info).toHaveBeenCalledWith(
+      'local.run.turn_implement_reports.skipped',
       expect.objectContaining({ reason: 'no-files-changed' }),
     );
   });
@@ -732,7 +734,14 @@ describe('Run agent-reported file changes', () => {
     expect(harness.loggerInfo).toHaveBeenCalledWith(
       'local.run.file_change.agent_report.resolved',
       expect.objectContaining({
-        rejected: [{ serviceId: 'service-1', path: 'edited.ts', reason: 'git_read_failed' }],
+        rejected: [
+          expect.objectContaining({
+            serviceId: 'service-1',
+            path: 'edited.ts',
+            reason: 'git_read_failed',
+            gitFailure: expect.objectContaining({ message: expect.any(String) }),
+          }),
+        ],
       }),
     );
   });

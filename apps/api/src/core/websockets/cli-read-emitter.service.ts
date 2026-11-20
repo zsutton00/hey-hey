@@ -24,6 +24,9 @@ import {
   WebSocketCliReadRequestEvent,
   HostActionTargetKind,
   HostAffectingActionType,
+  AgentSessionContinuationNativeState,
+  AgentSessionContinuationInspectionReason,
+  CliReadAgentSessionContinuationInspectSuccessResponseDto,
 } from '@hey-hey/contracts/api/models';
 import {
   AgentSessionId,
@@ -128,6 +131,13 @@ const runChangedFileDetailSuccessSchema = z
       .strict(),
   })
   .strict();
+
+const runRecordedEditSuccessSchema = runChangedFileDetailSuccessSchema.extend({
+  operation: z.literal('run.recorded_edit.read'),
+});
+const runRecordedEditErrorSchema = errorSchema.extend({
+  operation: z.literal('run.recorded_edit.read'),
+});
 
 const projectSessionCostSchema = z.discriminatedUnion('state', [
   z
@@ -600,7 +610,27 @@ const workspaceSkillsListSuccessSchema = runSkillsListSuccessSchema.extend({
 const workspaceSkillsListErrorSchema = errorSchema.extend({
   operation: z.literal('workspace.skills.list'),
 });
+const continuationInspectSuccessSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    operation: z.literal('agent_session.continuation.inspect'),
+    status: z.literal('success'),
+    result: z
+      .object({
+        agentSessionId: z.string().uuid(),
+        continuationId: z.string().uuid(),
+        nativeState: z.nativeEnum(AgentSessionContinuationNativeState),
+        reason: z.nativeEnum(AgentSessionContinuationInspectionReason),
+      })
+      .strict(),
+  })
+  .strict() satisfies z.ZodType<CliReadAgentSessionContinuationInspectSuccessResponseDto>;
+const continuationInspectErrorSchema = errorSchema.extend({
+  operation: z.literal('agent_session.continuation.inspect'),
+});
 const responseSchema = z.union([
+  continuationInspectSuccessSchema,
+  continuationInspectErrorSchema,
   workspaceSkillsListSuccessSchema,
   workspaceSkillsListErrorSchema,
   runChangedFilesCountSuccessSchema,
@@ -608,6 +638,8 @@ const responseSchema = z.union([
   runChangedFilesInventorySuccessSchema,
   runChangedFilesInventoryErrorSchema,
   runChangedFileDetailSuccessSchema,
+  runRecordedEditSuccessSchema,
+  runRecordedEditErrorSchema,
   runChangedFileDetailErrorSchema,
   projectSessionCostsListSuccessSchema,
   projectSessionCostsListErrorSchema,
@@ -724,6 +756,51 @@ export class CliReadEmitter {
       ...params,
       body,
       agentSessionId: null,
+      target: {
+        kind: HostActionTargetKind.CliRead,
+        id: params.machineId,
+        revision: null,
+      },
+    });
+  }
+
+  async readAgentSessionContinuation(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    machineId: MachineId;
+    userId: UserId;
+    agentSessionId: string;
+    conversationId: string;
+    continuationId: string;
+    expectedSourceMachineId: string;
+    provider: string;
+    authorizationRequestId: string;
+    admission: AdmittedCliReadAuthorization;
+  }): Promise<CliReadResponseDto> {
+    const body: CliReadEnvelopeBody = {
+      requestId: randomUUID(),
+      operation: 'agent_session.continuation.inspect',
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      machineId: params.machineId,
+      authorizationRequestId: params.authorizationRequestId,
+      agentSessionId: params.agentSessionId,
+      conversationId: params.conversationId,
+      continuationId: params.continuationId,
+      expectedSourceMachineId: params.expectedSourceMachineId,
+      provider: params.provider,
+    };
+    // Addressed to the selected destination, not the session's binding: the
+    // continuation has not moved the session yet.
+    return this.readBody({
+      body,
+      machineId: params.machineId,
+      userId: params.userId,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      admission: params.admission,
+      agentSessionId: null,
+      timeoutMs: 30_000,
       target: {
         kind: HostActionTargetKind.CliRead,
         id: params.machineId,
@@ -865,6 +942,12 @@ export class CliReadEmitter {
             CliReadRunToolCallsLatestTurnRequest.OperationEnum
               .RunToolCallsLatestTurn) &&
         parsed.data.result.runId !== body.runId) ||
+      (body.operation === 'run.recorded_edit.read' &&
+        parsed.data.operation === 'run.recorded_edit.read' &&
+        parsed.data.status === 'success' &&
+        (parsed.data.result.runId !== body.runId ||
+          parsed.data.result.file.serviceId !== body.serviceId ||
+          parsed.data.result.file.filePath !== body.edit.path)) ||
       (body.operation ===
         CliReadRunContextUsageGetRequest.OperationEnum.RunContextUsageGet &&
         body.providerSessionId !== undefined &&

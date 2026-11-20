@@ -4,6 +4,10 @@ import {
   resolveEvalExecution,
 } from '../eval-case-handlers';
 
+const VALID_INPUTS = JSON.stringify({
+  inputs: [{ kind: 'text_message', text: 'Add a mobile view.' }],
+});
+
 const projected = (
   handler: string,
   consumer: string,
@@ -12,6 +16,7 @@ const projected = (
   name: 'A case',
   ...(status ? { status } : {}),
   sections: [
+    { key: 'inputs', content: VALID_INPUTS },
     { key: 'handler', content: handler },
     { key: 'consumerHandler', content: consumer },
   ],
@@ -30,6 +35,7 @@ const coding = (overrides: Record<string, unknown> = {}) =>
 const withCoding = (handler: string, content?: string) => ({
   name: 'A case',
   sections: [
+    { key: 'inputs', content: VALID_INPUTS },
     { key: 'handler', content: handler },
     { key: 'consumerHandler', content: '' },
     ...(content === undefined ? [] : [{ key: 'coding', content }]),
@@ -37,9 +43,9 @@ const withCoding = (handler: string, content?: string) => ({
 });
 const MOCKUP = '55555555-5555-4555-8555-555555555555';
 const checklist = (overrides: Record<string, unknown> = {}) => ({
+  target: { kind: 'EXISTING', path: 'apps/ui/src/pages/Settings.tsx' },
   mockupChecklist: {
     mockupId: MOCKUP,
-    kind: 'NEW',
     items: [{ id: 'save', description: 'Saving shows a confirmation' }],
     ...overrides,
   },
@@ -47,7 +53,82 @@ const checklist = (overrides: Record<string, unknown> = {}) => ({
 const serviceExists = async (id: string) => id === SERVICE;
 const mockupExists = async (id: string) => id === MOCKUP;
 
+describe('a conversation and its handler', () => {
+  const conversation = JSON.stringify({
+    inputs: [
+      { kind: 'text_message', text: 'Hello.' },
+      { kind: 'text_message', text: 'Now find the mockup.' },
+    ],
+  });
+  const withInputs = (handler: string, consumer: string, inputs: string) => ({
+    name: 'A case',
+    sections: [
+      { key: 'inputs', content: inputs },
+      { key: 'handler', content: handler },
+      { key: 'consumerHandler', content: consumer },
+    ],
+  });
+
+  it('rejects approving a multi-message case whose handler is Project Assistant, which is not interactive', async () => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs(
+          'project_assistant',
+          'entity_conversation',
+          conversation,
+        ) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).rejects.toThrow(/not interactive/);
+  });
+
+  it('still approves a multi-message case on a conversational handler and a one-message Project Assistant case', async () => {
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs('entity_conversation', '', conversation) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        withInputs(
+          'project_assistant',
+          'entity_conversation',
+          VALID_INPUTS,
+        ) as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe('assertApprovedEvalCaseHandlers', () => {
+  it.each([
+    ['missing', undefined],
+    ['empty', '{"inputs":[]}'],
+    ['an unknown kind', '{"inputs":[{"kind":"audio","text":"x"}]}'],
+  ])('rejects a case whose Inputs section is %s', async (_name, content) => {
+    const sections = projected('entity_conversation', '').sections.filter(
+      (section) => section.key !== 'inputs',
+    );
+    await expect(
+      assertApprovedEvalCaseHandlers(
+        {
+          name: 'A case',
+          sections: [
+            ...sections,
+            ...(content === undefined ? [] : [{ key: 'inputs', content }]),
+          ],
+        } as never,
+        serviceExists,
+        mockupExists,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it.each([
     ['an entity conversation case', 'entity_conversation', ''],
     [
@@ -102,7 +183,7 @@ describe('assertApprovedEvalCaseHandlers', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('approves a Coding section with a Mockup checklist', async () => {
+    it('approves a Coding section with a Mockup checklist and its target', async () => {
       await expect(
         assertApprovedEvalCaseHandlers(
           withCoding('free_form', coding(checklist())),
@@ -110,6 +191,27 @@ describe('assertApprovedEvalCaseHandlers', () => {
           mockupExists,
         ),
       ).resolves.toBeUndefined();
+    });
+
+    it('approves a target without a Mockup checklist, and a target with no path', async () => {
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding({ target: { kind: 'NEW' } })),
+          serviceExists,
+          mockupExists,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a Mockup checklist without a target, naming the cause', async () => {
+      const { target: _omitted, ...withoutTarget } = checklist();
+      await expect(
+        assertApprovedEvalCaseHandlers(
+          withCoding('free_form', coding(withoutTarget)),
+          serviceExists,
+          mockupExists,
+        ),
+      ).rejects.toThrow(/target/);
     });
 
     it.each([
@@ -132,6 +234,14 @@ describe('assertApprovedEvalCaseHandlers', () => {
           'free_form',
           coding(checklist({ mockupId: crypto.randomUUID() })),
         ),
+      ],
+      [
+        'a checklist that still carries its own new-or-update kind',
+        withCoding('free_form', coding(checklist({ kind: 'UPDATE' }))),
+      ],
+      [
+        'a target with an unknown kind',
+        withCoding('free_form', coding({ target: { kind: 'UPDATE' } })),
       ],
       [
         'a checklist with no items',

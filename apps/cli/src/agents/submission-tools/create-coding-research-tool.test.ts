@@ -109,7 +109,7 @@ describe('createCodingResearchTool', () => {
         audience: 'PROJECT_VISIBLE',
         payload: {
           reportType: 'CODING_RESEARCH',
-          format: 'STRUCTURED',
+          format: 'SELF_RESEARCH',
           summary: args['summary'],
           frame: SAMPLE_FRAME,
           analysis: args['analysis'],
@@ -141,18 +141,19 @@ describe('createCodingResearchTool', () => {
     const memo = vi.mocked(run.appendMemo).mock.calls[0]![0] as RunMemo;
     expect(memo.source).toBe('project_assistant');
     expect(memo.writtenAt).toBe(FIXED_NOW);
-    expect(memo.content).toContain(JSON.stringify(SAMPLE_FRAME, null, 2));
+    expect(memo.content.split(JSON.stringify(SAMPLE_FRAME, null, 2))).toHaveLength(2);
+    expect(memo.content).not.toContain('Research evidence from child handoffs');
     expect(memo.content).toContain(JSON.stringify(SAMPLE_UPDATES, null, 2));
     expect(memo.content).toContain(args['analysis'] as string);
   });
 
-  it('persists the parent-authored written report and retains research evidence for the next handler', async () => {
+  it('persists the parent-authored subagent-parent report and retains research evidence for the next handler', async () => {
     const proxy = makeCreateReportProxy();
     vi.mocked(proxy.create).mockResolvedValue({
       content: makePlatformContent('report-cr-written'),
       reportId: 'report-cr-written',
     });
-    const tool = new CodingResearchTool(proxy, () => FIXED_NOW, undefined, 'WRITTEN');
+    const tool = new CodingResearchTool(proxy, () => FIXED_NOW, undefined, 'SUBAGENT_PARENT');
     const run = makeRun();
     const analysis = [
       'The parent reviewed child evidence and wrote this analysis.',
@@ -173,7 +174,7 @@ describe('createCodingResearchTool', () => {
         args: expect.objectContaining({
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'WRITTEN',
+            format: 'SUBAGENT_PARENT',
             summary: expect.any(String),
             analysis,
           },
@@ -181,8 +182,8 @@ describe('createCodingResearchTool', () => {
       }),
     );
     const memo = vi.mocked(run.appendMemo).mock.calls[0]![0] as RunMemo;
-    expect(memo.content).toContain('Research evidence from child handoffs');
-    expect(memo.content).toContain(JSON.stringify(SAMPLE_FRAME, null, 2));
+    expect(memo.content).not.toContain('Research evidence from child handoffs');
+    expect(memo.content.split(JSON.stringify(SAMPLE_FRAME, null, 2))).toHaveLength(2);
     expect(memo.content).toContain(analysis);
   });
 

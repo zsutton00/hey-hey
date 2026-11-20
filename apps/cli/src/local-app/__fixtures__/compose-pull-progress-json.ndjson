@@ -1,0 +1,111 @@
+{"id":"Image python:3.12-slim","status":"Working","text":"Pulling"}
+{"id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling"}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"d3282d7e6b76","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"a4ce1202d746","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"1ab010a06338","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"37aca2470cda","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"e6557c42ebea","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"70b4f81c82dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Pulling fs layer","details":"0B"}
+{"id":"e6557c42ebea","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"70b4f81c82dc","parent_id":"Image python:3.12-slim","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"1ab010a06338","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"a4ce1202d746","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"37aca2470cda","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"d3282d7e6b76","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":16025223,"percent":13}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1270220,"percent":82}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":16025223,"percent":19}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"4.194MB","current":4194304,"total":16025223,"percent":26}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":12058410,"percent":8}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"5.243MB","current":5242880,"total":16025223,"percent":32}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":12058410,"percent":8}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"5.243MB","current":5242880,"total":16025223,"percent":32}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":12058410,"percent":8}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"7.34MB","current":7340032,"total":16025223,"percent":45}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":12058410,"percent":17}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"8.389MB","current":8388608,"total":16025223,"percent":52}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":12058410,"percent":17}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"10.49MB","current":10485760,"total":16025223,"percent":65}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":12058410,"percent":17}
+{"id":"0373269344dc","parent_id":"Image python:3.12-slim","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1785759,"percent":58}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"11.53MB","current":11534336,"total":16025223,"percent":71}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":12058410,"percent":26}
+{"id":"5988adaa992c","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1785759,"percent":58}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"12.58MB","current":12582912,"total":16025223,"percent":78}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":12058410,"percent":26}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"13.63MB","current":13631488,"total":16025223,"percent":85}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1785759,"percent":58}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":12058410,"percent":26}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"14.68MB","current":14680064,"total":16025223,"percent":91}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1785759,"percent":58}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"4.194MB","current":4194304,"total":12058410,"percent":34}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":1785759,"percent":58}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":3993029,"percent":26}
+{"id":"cf4b30a54e0f","parent_id":"Image python:3.12-slim","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"bdec8a8ca49a","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":2151122,"percent":48}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"4.194MB","current":4194304,"total":12058410,"percent":34}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":3993029,"percent":52}
+{"id":"bdec8a8ca49a","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"1.049MB","current":1048576,"total":2151122,"percent":48}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"4.194MB","current":4194304,"total":12058410,"percent":34}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":3993029,"percent":52}
+{"id":"bdec8a8ca49a","parent_id":"Image python:3.12-slim","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"5.243MB","current":5242880,"total":12058410,"percent":43}
+{"id":"707735927b67","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":3993029,"percent":52}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"6.291MB","current":6291456,"total":12058410,"percent":52}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"2.097MB","current":2097152,"total":3993029,"percent":52}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"6.291MB","current":6291456,"total":12058410,"percent":52}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"7.34MB","current":7340032,"total":12058410,"percent":60}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":3993029,"percent":78}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":3993029,"percent":78}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"7.34MB","current":7340032,"total":12058410,"percent":60}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":3993029,"percent":78}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"8.389MB","current":8388608,"total":12058410,"percent":69}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Downloading","details":"3.146MB","current":3145728,"total":3993029,"percent":78}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"8.389MB","current":8388608,"total":12058410,"percent":69}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"9.437MB","current":9437184,"total":12058410,"percent":78}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"10.49MB","current":10485760,"total":12058410,"percent":86}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"6e771e15690e","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"e6557c42ebea","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"1ab010a06338","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Downloading","details":"10.49MB","current":10485760,"total":12058410,"percent":86}
+{"id":"a4ce1202d746","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"37aca2470cda","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"d3282d7e6b76","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"c60e446e49a0","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Done","text":"Download complete","details":"0B","percent":100}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"9994ea1088e3","parent_id":"Image nginx:1.27-alpine","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"Image nginx:1.27-alpine","status":"Done","text":"Pulled"}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"70b4f81c82dc","parent_id":"Image python:3.12-slim","status":"Working","text":"Extracting","details":"1B","current":1}
+{"id":"0ba3a3e89cd9","parent_id":"Image python:3.12-slim","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"70b4f81c82dc","parent_id":"Image python:3.12-slim","status":"Done","text":"Pull complete","details":"0B","percent":100}
+{"id":"Image python:3.12-slim","status":"Done","text":"Pulled"}

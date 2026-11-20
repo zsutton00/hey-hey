@@ -1,5 +1,6 @@
 import type { AgenticSession } from '../../session/types';
 import {
+  SessionRole,
   AgentSessionConfigProjectReportV1TypeEnum,
   AgentSessionConfigProjectReportV1VersionEnum,
   LocalPromptType,
@@ -57,6 +58,7 @@ const readProjectReportConfig = (
 
 class ProjectReportHandler implements PromptTypeHandler<ProjectReportHandlerPayload> {
   public readonly id = 'project_report';
+  public readonly sessionRole = SessionRole.Research;
   public readonly promptType = LocalPromptType.ProjectReport;
   public readonly service = 'optional';
   public readonly launchEntity = 'none';

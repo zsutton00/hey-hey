@@ -314,5 +314,9 @@ class GeneratedMachineControllerManagementClient implements MachineControllerMan
 
 export const createDefaultMachineControllerManagementClient = (
   keyPairStore: KeyPairStore,
+  oauthClient?: OAuthClient,
 ): MachineControllerManagementClient =>
-  new GeneratedMachineControllerManagementClient(keyPairStore);
+  new GeneratedMachineControllerManagementClient(
+    keyPairStore,
+    new GatewayMachineControllerChallengeSource(keyPairStore, oauthClient),
+  );

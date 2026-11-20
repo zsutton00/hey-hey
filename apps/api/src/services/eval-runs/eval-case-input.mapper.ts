@@ -11,6 +11,7 @@ import { normalizeMentionTypeAlias } from '../mentions/mention-type-aliases';
 import {
   resolveEvalCaseCoding,
   resolveEvalCaseHandlers,
+  resolveEvalCaseInputs,
 } from './eval-case-handlers';
 
 export type EvalCaseRecord = {
@@ -29,6 +30,7 @@ const LIST_ITEM_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+(.*)$/;
  */
 function parseItems(
   markdown: string,
+  workItemIds: ReadonlySet<string>,
 ): Pick<EvalCaseTarget, 'focalItemId' | 'focalItemType' | 'supportingItemIds'> {
   const mentions = [...markdown.matchAll(MENTION_PATTERN)];
   const ids = [...new Set(mentions.map((match) => match[2]!.toLowerCase()))];
@@ -40,12 +42,17 @@ function parseItems(
   const canonicalType = normalizeMentionTypeAlias(focal[1]!)
     .toUpperCase()
     .replace(/-/g, '_');
-  const focalItemType = Object.values(RunEntityReference.EntityTypeEnum).find(
-    (type) => type === canonicalType,
-  );
+  const focalId = focal[2]!.toLowerCase();
+  // Every work-item type (mockup, contract, custom types) is a TASK to a run;
+  // the item's own id is authoritative over the token it was mentioned with.
+  const focalItemType = workItemIds.has(focalId)
+    ? RunEntityReference.EntityTypeEnum.Task
+    : Object.values(RunEntityReference.EntityTypeEnum).find(
+        (type) => type === canonicalType,
+      );
   if (!focalItemType) {
     throw new BadRequestException(
-      'The focal item mention must use a supported entity family (task for work items).',
+      `The focal item mention "${focal[1]}" is not a supported entity family or a work item of this project (use task for work items).`,
     );
   }
 
@@ -54,6 +61,18 @@ function parseItems(
     focalItemType,
     supportingItemIds: ids.slice(1),
   };
+}
+
+/** Ids mentioned in a case's items section, for resolving which are work items. */
+export function readItemMentionIds(record: EvalCaseRecord): string[] {
+  const markdown =
+    record.sections.find((candidate) => candidate.key === 'items')
+      ?.materializedMarkdown ?? '';
+  return [
+    ...new Set(
+      [...markdown.matchAll(MENTION_PATTERN)].map((m) => m[2]!.toLowerCase()),
+    ),
+  ];
 }
 
 function parseListItems(markdown: string): string[] {
@@ -108,22 +127,25 @@ function parseRubric(markdown: string): EvalRubricDimension[] {
 /**
  * Records an approved Eval Case exactly as it stands at launch. The target
  * context includes reviewer-only situation and supporting items; the launch
- * sends only the request and focal entity to the tested handler.
+ * sends only the inputs and focal entity to the tested handler. The stored
+ * Inputs text is carried verbatim, so mentions in a message reach the tested
+ * agent exactly as they did from the former Markdown request.
  */
-export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
+export function toEvalRunCaseInput(
+  record: EvalCaseRecord,
+  workItemIds: ReadonlySet<string> = new Set(),
+): EvalRunCaseInput {
   const section = (key: string): string =>
     record.sections
       .find((candidate) => candidate.key === key)
       ?.materializedMarkdown?.trim() ?? '';
 
   const situation = section('situation');
-  const initiatingRequest =
-    record.sections.find((candidate) => candidate.key === 'request')
-      ?.materializedMarkdown ?? '';
+  const inputsContent = section('inputs');
   const handler = section('handler');
   const missing = [
     ['situation', situation],
-    ['request', initiatingRequest],
+    ['inputs', inputsContent],
     ['handler', handler],
   ]
     .filter(([, value]) => !value?.trim())
@@ -133,6 +155,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       `Eval case "${record.name}" cannot run: missing ${missing.join(', ')}`,
     );
   }
+  const inputs = resolveEvalCaseInputs(record.name, inputsContent);
   const handlers = resolveEvalCaseHandlers(
     record.name,
     handler,
@@ -145,7 +168,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     section('coding'),
   );
 
-  const items = parseItems(section('items'));
+  const items = parseItems(section('items'), workItemIds);
   const expectations = section('expectations');
   return {
     id: randomUUID(),
@@ -154,7 +177,7 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
     target: {
       situation,
       ...items,
-      initiatingRequest,
+      inputs,
       ...handlers,
     },
     grading: {
@@ -163,5 +186,34 @@ export function toEvalRunCaseInput(record: EvalCaseRecord): EvalRunCaseInput {
       rubric: parseRubric(section('rubric')),
     },
     ...(coding ? { coding } : {}),
+  };
+}
+
+/** A target recorded before Eval Case inputs existed. */
+type LegacyEvalCaseTarget = Omit<EvalCaseTarget, 'inputs'> & {
+  initiatingRequest: string;
+};
+
+function isLegacyEvalCaseTarget(
+  target: EvalCaseTarget | LegacyEvalCaseTarget,
+): target is LegacyEvalCaseTarget {
+  return !('inputs' in target) && 'initiatingRequest' in target;
+}
+
+/**
+ * Reads a recorded run's case target. A target recorded before inputs existed
+ * carries only `initiatingRequest` and reads as a one-message list.
+ */
+export function readEvalCaseTarget(
+  target: EvalCaseTarget | LegacyEvalCaseTarget,
+): EvalCaseTarget {
+  if (!isLegacyEvalCaseTarget(target)) {
+    return target;
+  }
+
+  const { initiatingRequest, ...rest } = target;
+  return {
+    ...rest,
+    inputs: { inputs: [{ kind: 'text_message', text: initiatingRequest }] },
   };
 }

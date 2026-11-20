@@ -130,7 +130,7 @@ WorkItemTypeDefinitionDto:
     - name
     - role
     - sections
-    - allowedStatuses
+    - statuses
   properties:
     key:
       type: string
@@ -196,13 +196,20 @@ WorkItemTypeDefinitionDto:
         from both lists is optional.
       items:
         $ref: "#/WorkItemTypeScalarField"
-    allowedStatuses:
+    statuses:
       type: array
+      minItems: 1
       description: >
-        The work statuses an item of this type may occupy. Reuses the shared
-        WorkStatus enum rather than declaring a type-local status set.
+        The type's ordered ordinary statuses — the authority for which statuses
+        items of this type may be created in and moved between. The first entry
+        is the status new items start in. Each entry carries the internal
+        meaning the platform reads for progress and active filters, and the
+        metadata that preserves legacy labels and completion/cancellation
+        behavior. ARCHIVED is universal and SUPERSEDED is protected and
+        platform-owned (see `capabilities.supportsSupersession`); neither
+        appears in this list.
       items:
-        $ref: "./common.yaml#/WorkStatus"
+        $ref: "#/WorkItemTypeStatus"
     allowedParentTypes:
       type: array
       description: >
@@ -232,11 +239,11 @@ WorkItemTypeDefinitionDto:
     agentSettableStatuses:
       type: array
       description: >
-        The subset of `allowedStatuses` an agent may set directly on an item
-        of this type. Statuses the engine reserves for system transitions are
-        absent here. Reuses the shared WorkStatus enum.
+        The subset of the type's status names (`statuses`, plus the universal
+        ARCHIVED) an agent may set directly on an item of this type. Statuses
+        the engine reserves for system transitions are absent here.
       items:
-        $ref: "./common.yaml#/WorkStatus"
+        $ref: "./common.yaml#/WorkItemStatus"
     anchorableReportTypes:
       type: array
       description: >
@@ -448,7 +455,16 @@ WorkItemHtmlCssAnnotation:
   type: object
   additionalProperties: false
   required:
-    [id, note, author, category, lifecycle, authoredProposalId, authoredSizeKey, target]
+    [
+      id,
+      note,
+      author,
+      category,
+      lifecycle,
+      authoredProposalId,
+      authoredSizeKey,
+      target,
+    ]
   properties:
     id:
       $ref: "#/WorkItemStructuredMockupAnnotationId"
@@ -986,7 +1002,19 @@ WorkItemStructuredMockupSemanticRole:
 
 WorkItemStructuredMockupColor:
   type: string
-  enum: [primary, secondary, success, warning, error, info, neutral, muted, surface, transparent]
+  enum:
+    [
+      primary,
+      secondary,
+      success,
+      warning,
+      error,
+      info,
+      neutral,
+      muted,
+      surface,
+      transparent,
+    ]
   description: Host palette token used for constrained component color.
 
 WorkItemStructuredMockupOverflow:
@@ -1638,6 +1666,106 @@ WorkItemTypeWritingStandards:
       type: string
       description: Authoring prose read before editing an item of this type.
 
+WorkItemStatusMeaning:
+  type: string
+  enum:
+    - NOT_STARTED
+    - IN_PROGRESS
+    - UNFINISHED
+    - FINISHED
+  description: >
+    What an ordinary status means for progress: NOT_STARTED work has not begun,
+    IN_PROGRESS work is underway, FINISHED work needs no further effort.
+    UNFINISHED preserves an unfinished state whose start state is unspecified
+    (for example legacy Blocked and On Hold). Goal progress and active filters
+    read this, never the status name.
+
+WorkItemStatusCompletionBehavior:
+  type: string
+  enum:
+    - COMPLETED
+    - CANCELLED
+  description: >
+    Legacy completion semantics a FINISHED status carries: COMPLETED counts
+    toward Goal completion and emits completion events; CANCELLED ends work
+    without counting as done. Absent for statuses with neither behavior.
+
+WorkItemTypeStatus:
+  type: object
+  additionalProperties: false
+  description: >
+    One ordinary status of a work-item type. `name` is the exact value stored
+    on items and is never rewritten by a type edit.
+  required:
+    - name
+    - meaning
+  properties:
+    name:
+      type: string
+      minLength: 1
+      description: >
+        The status name, stored verbatim on items (e.g. "BACKLOG" for a
+        migrated platform status, "Testing" for a custom one). Unique within
+        the type, and never ARCHIVED or SUPERSEDED.
+    label:
+      type: string
+      minLength: 1
+      description: >
+        Display label when it differs from `name` (preserves the labels
+        existing statuses have always shown, e.g. ACTIVE shows "In progress").
+        Absent means `name` is shown as written.
+    meaning:
+      $ref: "#/WorkItemStatusMeaning"
+    completionBehavior:
+      $ref: "#/WorkItemStatusCompletionBehavior"
+
+WorkItemStatusAuthoringRequest:
+  type: object
+  additionalProperties: false
+  required: [purpose]
+  properties:
+    purpose:
+      type: string
+      description: Purpose of the work-item type, used to suggest statuses.
+    names:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        minLength: 1
+      description: Ordered ordinary names. Omit to request suggestions.
+    existingStatuses:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeStatus"
+      description: Existing resolved statuses whose meanings and labels should be preserved.
+    finishedNames:
+      type: array
+      items:
+        type: string
+      description: Explicit selection of finished statuses; an empty array means none.
+
+WorkItemStatusAuthoringResponse:
+  type: object
+  additionalProperties: false
+  required: [suggestions, state]
+  properties:
+    suggestions:
+      type: array
+      items:
+        type: string
+    state:
+      type: string
+      enum: [RESOLVED, CLARIFICATION]
+    statuses:
+      type: array
+      items:
+        $ref: "#/WorkItemTypeStatus"
+      description: Fully resolved definition, present only when state is RESOLVED.
+    question:
+      type: string
+      description: Question to ask when finished statuses are unclear.
+
 WorkItemTypeCapabilities:
   type: object
   description: >
@@ -1654,9 +1782,12 @@ WorkItemTypeCapabilities:
     planEligible:
       type: boolean
       description: Whether this type may be planned as plan implementation work.
-    hasSetInitialStatus:
+    supportsSupersession:
       type: boolean
-      description: Whether this type's first allowed status is an explicit initial-status policy.
+      description: >
+        Whether items of this type are eligible for the protected SUPERSEDED
+        status. SUPERSEDED is set only by successor proposal approval, never
+        through the ordinary status list or ordinary status edits.
     rendersInline:
       type: boolean
       description: Whether mentions of this type may render as an inline rich surface instead of a badge.
@@ -1665,7 +1796,194 @@ WorkItemTypeCapabilities:
       description: Whether this type opts into an Explorer Sidebar section; false or omission means no Explorer section is configured.
     graph:
       $ref: "#/WorkItemTypeGraphCapability"
+    monitorKinds:
+      type: array
+      minItems: 1
+      description: >
+        The kinds a monitor of this monitor-role type may run, each identified
+        by a key unique within the type. Each monitor records the key of the
+        kind it runs in its execution definition.
+      items:
+        $ref: "#/WorkItemTypeMonitorKind"
   additionalProperties: false
+
+WorkItemTypeMonitorKind:
+  type: object
+  additionalProperties: false
+  description: >
+    One kind declared on a monitor-role work-item type: what each execution
+    node of a monitor of this kind may be, how it may be launched, and how it
+    starts, finishes and is supervised. Kinds are configuration on the monitor
+    type, not separate types. A monitor selects one declared kind by `key`,
+    and keys are unique within the type.
+  required:
+    - key
+    - allowedNodeTypes
+    - allowedLaunchMethods
+    - allowedRuntimeProviders
+    - allowedReasoningEfforts
+  properties:
+    key:
+      type: string
+      minLength: 1
+      description: Stable kind identifier, e.g. "task".
+    allowedNodeTypes:
+      type: array
+      minItems: 1
+      description: Work-item type keys a node of a monitor of this kind may be.
+      items:
+        $ref: "#/WorkItemTypeKey"
+    allowedLaunchMethods:
+      type: array
+      minItems: 1
+      description: Launch modes a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchMethod"
+    allowedRuntimeProviders:
+      type: array
+      minItems: 1
+      description: Runtime providers, one half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorLaunchProvider"
+    allowedReasoningEfforts:
+      type: array
+      minItems: 1
+      description: Reasoning efforts, the other half of a node's runtime profile, a node of this kind may use.
+      items:
+        $ref: "./work-items.yaml#/TaskMonitorReasoningEffort"
+    start:
+      $ref: "#/WorkItemTypeMonitorKindStartPolicy"
+    done:
+      $ref: "#/WorkItemTypeMonitorKindDonePolicy"
+    acceptance:
+      $ref: "#/WorkItemTypeMonitorKindAcceptancePolicy"
+    supervision:
+      $ref: "#/WorkItemTypeMonitorKindSupervisionPolicy"
+
+WorkItemTypeMonitorKindStartPolicy:
+  description: >
+    What starting a node does to its work item before its session launches.
+    The registry resolves an omitted start policy from the canonical
+    TASK_MONITOR definition, so only an explicit declaration changes it.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindStatusTransitionStart"
+    - $ref: "#/WorkItemTypeMonitorKindNoStatusChangeStart"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindStatusTransitionStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node moves its work item to the declared status through Work Items.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - STATUS_TRANSITION
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNoStatusChangeStart:
+  type: object
+  additionalProperties: false
+  description: Starting a node leaves its work item status unchanged.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NO_STATUS_CHANGE
+
+WorkItemTypeMonitorKindDonePolicy:
+  description: >
+    How a node counts as done for selection, dependencies, acceptance
+    confirmation and monitor completion, independently of item lifecycle effects.
+    Item-status completion requires canonical COMPLETED and Work Items completion.
+    Normalized-result completion requires no lifecycle effects and supports either
+    supervision policy. The registry resolves an omitted done policy from the canonical
+    TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindItemStatusDone"
+    - $ref: "#/WorkItemTypeMonitorKindNormalizedResultDone"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindItemStatusDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when its work item is canonically COMPLETED. Only COMPLETED
+    is supported; acceptance effects are declared separately. Task execution
+    cannot substitute an intermediate status, regardless of kind key or allowed types.
+  required:
+    - type
+    - status
+  properties:
+    type:
+      type: string
+      enum:
+        - ITEM_STATUS
+    status:
+      $ref: "./common.yaml#/WorkStatus"
+
+WorkItemTypeMonitorKindNormalizedResultDone:
+  type: object
+  additionalProperties: false
+  description: >
+    A node is done when the durable normalized result of its recorded session
+    accepts it. A missing, failed, malformed or mismatched result is never done,
+    and the work item's status is not consulted or changed. Coordinator supervision
+    additionally requires durable admitted acceptance bound to this result and session.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - NORMALIZED_RESULT
+
+WorkItemTypeMonitorKindSupervisionPolicy:
+  description: >
+    How a settled node is accepted. The registry resolves an omitted
+    supervision policy from the canonical TASK_MONITOR definition.
+  oneOf:
+    - $ref: "#/WorkItemTypeMonitorKindCoordinatorReviewSupervision"
+    - $ref: "#/WorkItemTypeMonitorKindDirectAcceptanceSupervision"
+  discriminator:
+    propertyName: type
+
+WorkItemTypeMonitorKindCoordinatorReviewSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    Every settled node goes to the coordinator agent under the monitor's
+    Review mode. Supports canonical item completion or normalized operation results.
+    Normalized results alone cannot bypass coordinator acceptance or required Review.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COORDINATOR_REVIEW
+
+WorkItemTypeMonitorKindDirectAcceptanceSupervision:
+  type: object
+  additionalProperties: false
+  description: >
+    A settled node is accepted or failed from its normalized structured result,
+    with no coordinator run. Requires normalized-result completion.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - DIRECT_ACCEPTANCE
 
 WorkItemTypeGraphCapability:
   type: object
@@ -2183,6 +2501,22 @@ WorkItemTypeSummaryDto:
     effectiveSource:
       $ref: "#/WorkItemTypeEffectiveSource"
 
+WorkItemTypeCanonicalComparisonDto:
+  type: object
+  additionalProperties: false
+  description: >
+    Read-only reference for comparing a project's canonical override with the
+    current canonical definition of the same key. Both definitions are complete
+    and unmodified; consumers display them and never merge them.
+  required:
+    - effective
+    - canonical
+  properties:
+    effective:
+      $ref: "#/WorkItemTypeSummaryDto"
+    canonical:
+      $ref: "#/WorkItemTypeDefinitionDto"
+
 WorkItemTypeGuidancePurpose:
   type: string
   enum: [maintenance, role]
@@ -2213,6 +2547,8 @@ WorkItemTypeSessionRoleGuidance:
     planning:
       type: string
     review:
+      type: string
+    sync:
       type: string
 
 WorkItemTypeRoleGuidanceDto:
@@ -2319,3 +2655,24 @@ DiagramReferenceTargetRule:
       description: Allowed TASK discriminators; omitted permits any work-item type. Targets must still be accessible and non-archived. Invalid for SERVICE.
       items:
         $ref: "#/WorkItemTypeKey"
+
+WorkItemTypeMonitorKindAcceptancePolicy:
+  type: object
+  additionalProperties: false
+  description: >
+    The explicit item lifecycle effect of accepting the operation. COMPLETE_ITEM
+    delegates canonical completion to Work Items, requires ITEM_STATUS COMPLETED
+    and COORDINATOR_REVIEW, and supports STANDARD Tasks only. NO_STATUS_CHANGE
+    requires NORMALIZED_RESULT and NO_STATUS_CHANGE start, and supports either
+    supervision policy. STANDARD Task execution always requires COMPLETE_ITEM.
+    The registry supplies omitted acceptance centrally: existing explicit
+    NORMALIZED_RESULT policies take canonical no-lifecycle acceptance; other
+    omissions take the canonical Task acceptance. Explicit done rules are preserved.
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - COMPLETE_ITEM
+        - NO_STATUS_CHANGE

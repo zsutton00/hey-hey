@@ -462,7 +462,7 @@ describe("RelatedCard", () => {
       ]);
     });
 
-    it("applies warning styling only to Depends on chips", () => {
+    it("colors significant relationship chips and leaves neutral ones default", () => {
       renderCard({
         relatedEntities: [
           buildRelated("task-multi", "TASK", "Multi Task", "related-to"),
@@ -480,7 +480,35 @@ describe("RelatedCard", () => {
       ).toHaveClass("MuiChip-colorDefault");
       expect(
         within(row).getByText("Derives from").closest(".MuiChip-root"),
-      ).toHaveClass("MuiChip-colorDefault");
+      ).toHaveClass("MuiChip-colorInfo");
+    });
+
+    it("gives a depended-on-by chip the same warning color as depends-on", () => {
+      renderCard({
+        relatedEntities: [
+          buildRelated("task-waiting", "TASK", "Waiting Task", "depends-on"),
+          buildRelated(
+            "task-blocking",
+            "TASK",
+            "Blocking Task",
+            "depended-on-by",
+          ),
+        ],
+      });
+
+      const dependsOnChip = within(
+        screen.getByTestId("related-card-row-task-waiting"),
+      )
+        .getByText("Depends on")
+        .closest(".MuiChip-root");
+      const dependedOnByChip = within(
+        screen.getByTestId("related-card-row-task-blocking"),
+      )
+        .getByText("Depended on by")
+        .closest(".MuiChip-root");
+
+      expect(dependsOnChip).toHaveClass("MuiChip-colorWarning");
+      expect(dependedOnByChip).toHaveClass("MuiChip-colorWarning");
     });
 
     it("groups TASK entries into per-type sections in registry order, preserving relationship labels, with Design Documents and Other at the tail and Created Together left to History", () => {

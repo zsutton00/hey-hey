@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 
+import type { NativePermissionModeResolution } from '../../../agents/providers/native-permission-mode';
 import {
   installCapabilityCatalog,
   resetCapabilityCatalogForTests,
@@ -26,7 +27,10 @@ const opencodeState = vi.hoisted(() => ({
 }));
 
 const claudeState = vi.hoisted(() => ({
-  lastRunPromptArgs: undefined as { model?: string | null } | undefined,
+  lastRunPromptArgs: undefined as
+    | { model?: string | null; skipPermissions?: boolean; providerPermissionMode?: string }
+    | undefined,
+  lastResumeArgs: undefined as ResumeArgs | undefined,
   createdRunnerDependencies: [] as Array<{
     toolRuleStore: object;
     runStore: object;
@@ -67,6 +71,11 @@ vi.mock('../../../agents/providers/claude/session-runner-claude', () => ({
       claudeState.createdRunnerDependencies.push(dependencies);
     }
 
+    public async resumeSession(args: ResumeArgs): Promise<AgentRunResult> {
+      claudeState.lastResumeArgs = args;
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    }
+
     public async runPrompt(args: { model?: string | null }): Promise<AgentRunResult> {
       claudeState.lastRunPromptArgs = args;
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
@@ -94,6 +103,10 @@ vi.mock('../../../agents/providers/codex/session-runner-codex', () => ({
   CodexAgentSessionRunner: class {
     public constructor(dependencies: (typeof codexState.createdRunnerDependencies)[number]) {
       codexState.createdRunnerDependencies.push(dependencies);
+    }
+
+    public async runPrompt(): Promise<AgentRunResult> {
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     }
   },
 }));
@@ -140,8 +153,21 @@ const buildRun = (overrides: { runId?: string; provider?: RunArgs['provider'] } 
   return run;
 };
 
-const buildFacade = (readAgentSession?: (id: string) => Promise<AgentSessionMonitorState | null>) =>
+const buildFacade = (
+  readAgentSession?: (id: string) => Promise<AgentSessionMonitorState | null>,
+  preciseFileChangeTracking = false,
+  nativeMode: NativePermissionModeResolution = { mode: 'auto', installedVersion: '9.9.9' },
+) =>
   new SessionRunnerFacade({
+    nativePermissionModeProbe: {
+      resolve: async (providerId) =>
+        providerId === 'opencode'
+          ? ({ mode: null, reason: 'provider_has_no_native_mode' } as const)
+          : nativeMode,
+    },
+    machineOptionsStore: {
+      isPreciseFileChangeTrackingEnabled: async () => preciseFileChangeTracking,
+    },
     capabilityCatalog: SETTLED_CATALOG_AVAILABILITY,
     runStore: new RunStore(),
     repoStore: createTestRepoMappingStore(),
@@ -175,18 +201,52 @@ const resetState = (): void => {
   opencodeState.createdRunnerDependencies = [];
   claudeState.createdRunnerDependencies = [];
   claudeState.lastRunPromptArgs = undefined;
+  claudeState.lastResumeArgs = undefined;
   codexState.createdRunnerDependencies = [];
 };
 
 describe('SessionRunnerFacade — ToolRuleStore ownership', () => {
-  it('keeps execution-evidence snapshot hooks disabled for production provider runners', () => {
+  it('sends no capture hooks while precise file change tracking is off', async () => {
     resetState();
     const facade = buildFacade();
-    facade.forRun(buildRun({ runId: 'codex-run', provider: 'codex' }));
-    facade.forRun(buildRun({ runId: 'claude-run', provider: 'claude' }));
+    for (const provider of ['codex', 'claude'] as const) {
+      const run = buildRun({ runId: `${provider}-run`, provider });
+      await facade.runPrompt(run, buildRunArgs());
+    }
 
     expect(codexState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
     expect(claudeState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
+  });
+
+  it('rebuilds the runner the picker cached before the first prompt, so the option takes effect', async () => {
+    resetState();
+    const facade = buildFacade(undefined, true);
+    const run = buildRun({ runId: 'picked-run', provider: 'codex' });
+
+    // RunnerPicker.pick calls forRun before the runner prompts.
+    facade.forRun(run);
+    expect(codexState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
+    await facade.runPrompt(run, buildRunArgs());
+
+    const latest = codexState.createdRunnerDependencies.at(-1);
+    expect(latest).toHaveProperty('executionRecorder');
+    expect(vi.mocked(run.setRunner).mock.calls.length).toBe(2);
+    // Later prompts reuse the recorder-equipped runner.
+    await facade.runPrompt(run, buildRunArgs());
+    expect(codexState.createdRunnerDependencies).toHaveLength(2);
+  });
+
+  it('gives Codex and Claude runners the recorder when the option is on, but never OpenCode', async () => {
+    resetState();
+    const facade = buildFacade(undefined, true);
+    for (const provider of ['codex', 'claude', 'opencode'] as const) {
+      const run = buildRun({ runId: `${provider}-run`, provider });
+      await facade.runPrompt(run, buildRunArgs());
+    }
+
+    expect(codexState.createdRunnerDependencies[0]).toHaveProperty('executionRecorder');
+    expect(claudeState.createdRunnerDependencies[0]).toHaveProperty('executionRecorder');
+    expect(opencodeState.createdRunnerDependencies[0]).not.toHaveProperty('executionRecorder');
   });
 
   it('launches the first model the provider reported when none is named', async () => {
@@ -234,7 +294,7 @@ describe('SessionRunnerFacade — skipPermissions derivation', () => {
     expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: true });
   });
 
-  it('skips permissions on a Task Monitor Run even when autoDecide is off, without granting scope automation', async () => {
+  it('keeps explicit permissions on a Task Monitor Run when autoDecide is off, without granting scope automation', async () => {
     resetState();
     const facade = buildFacade(async () => dto(false));
     const run = buildRun();
@@ -244,8 +304,8 @@ describe('SessionRunnerFacade — skipPermissions derivation', () => {
     await facade.runPrompt(run, buildRunArgs());
     await facade.resumeSession(run, buildResumeArgs());
 
-    expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: true });
-    expect(opencodeState.lastResumeArgs).toMatchObject({ skipPermissions: true });
+    expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: false });
+    expect(opencodeState.lastResumeArgs).toMatchObject({ skipPermissions: false });
     expect(setAuthorization).toHaveBeenCalledTimes(2);
     expect(setAuthorization).toHaveBeenNthCalledWith(1, false);
     expect(setAuthorization).toHaveBeenNthCalledWith(2, false);
@@ -284,6 +344,88 @@ describe('SessionRunnerFacade — skipPermissions derivation', () => {
       throw new Error('Expected OpenCode run prompt args to be captured.');
     }
     expect(forwarded.skipPermissions).toBeUndefined();
+  });
+});
+
+describe('SessionRunnerFacade — provider permission mode', () => {
+  it('runs a Claude Task Monitor launch and resume in auto mode without blanket approval', async () => {
+    resetState();
+    const facade = buildFacade(async () => dto(true));
+    const run = buildRun({ provider: 'claude' });
+    vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
+    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
+
+    await facade.runPrompt(run, buildRunArgs());
+    await facade.resumeSession(run, buildResumeArgs());
+
+    expect(claudeState.lastRunPromptArgs).toMatchObject({
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    expect(claudeState.lastResumeArgs).toMatchObject({
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    // The monitor-owned authorization is unchanged by the provider mode.
+    expect(setAuthorization).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps explicit permissions, with no blanket approval, whenever native automation is unavailable or authorization is unknown', async () => {
+    const cases: Array<{
+      name: string;
+      provider: 'claude' | 'opencode';
+      read: () => Promise<AgentSessionMonitorState | null>;
+      nativeMode?: NativePermissionModeResolution;
+    }> = [
+      { name: 'provider without a native mode', provider: 'opencode', read: async () => dto(true) },
+      {
+        name: 'installed version too old',
+        provider: 'claude',
+        read: async () => dto(true),
+        nativeMode: { mode: null, reason: 'installed_version_too_old', installedVersion: '1.0.0' },
+      },
+      {
+        name: 'version unreadable',
+        provider: 'claude',
+        read: async () => dto(true),
+        nativeMode: { mode: null, reason: 'version_unreadable', cause: 'ENOENT' },
+      },
+      { name: 'autoDecide off', provider: 'claude', read: async () => dto(false) },
+      {
+        name: 'authorization read throws',
+        provider: 'claude',
+        read: async () => {
+          throw new Error('platform down');
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      resetState();
+      const facade = buildFacade(testCase.read, false, testCase.nativeMode);
+      const run = buildRun({ provider: testCase.provider });
+      vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
+
+      await facade.runPrompt(run, buildRunArgs());
+      await facade.resumeSession(run, buildResumeArgs());
+
+      const state = testCase.provider === 'claude' ? claudeState : opencodeState;
+      expect(state.lastRunPromptArgs, testCase.name).toMatchObject({ skipPermissions: false });
+      expect(state.lastResumeArgs, testCase.name).toMatchObject({ skipPermissions: false });
+      expect(state.lastRunPromptArgs, testCase.name).not.toHaveProperty('providerPermissionMode');
+      expect(state.lastResumeArgs, testCase.name).not.toHaveProperty('providerPermissionMode');
+    }
+  });
+
+  it('leaves a Claude run outside Task Monitor without a provider mode', async () => {
+    resetState();
+
+    await buildFacade(async () => dto(false)).runPrompt(
+      buildRun({ provider: 'claude' }),
+      buildRunArgs(),
+    );
+
+    expect(claudeState.lastRunPromptArgs).not.toHaveProperty('providerPermissionMode');
   });
 });
 

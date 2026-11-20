@@ -541,6 +541,8 @@ model OutboxEvent {
   retryCount     Int       @default(0)
   maxRetries     Int       @default(3)
   createdAt      DateTime  @default(now())
+  claimToken String?
+  claimExpiresAt DateTime?
   processedAt    DateTime?
   nextRetryAt    DateTime?
   scheduledFor   DateTime?
@@ -559,6 +561,7 @@ model OutboxEvent {
 
   @@unique([aggregateType, aggregateId, eventType, sequenceNumber])
   @@index([status, nextRetryAt, partitionKey])
+  @@index([status, claimExpiresAt])
   @@index([correlationId])
   @@index([causationId])
   @@index([sagaId])

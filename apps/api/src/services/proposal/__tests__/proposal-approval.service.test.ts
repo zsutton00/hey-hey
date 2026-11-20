@@ -1,10 +1,14 @@
+import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
+import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
 import { ProposalValidationEngine } from '../proposal-validation.engine';
 import { AgentEdgeClientService } from '../../agent-edge-client.service';
 import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
+import * as responsePolicy from '../proposal-response-policy';
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as futureRevisions from '../future-revision';
@@ -514,6 +518,7 @@ describe('ProposalApprovalService', () => {
           useValue: {
             assertApplicable: jest.fn(),
             recordCreatedDelivery: jest.fn(),
+            decisionsForProposals: jest.fn().mockResolvedValue(new Map()),
           },
         },
         {
@@ -578,19 +583,21 @@ describe('ProposalApprovalService', () => {
     jest.restoreAllMocks();
   });
 
-  // Pin the approval threshold the evaluator returns, decoupled from the live
-  // rule config. The default rule for a top-level FEATURE content change is
-  // threshold 1 (verified in permission-evaluation.test.ts), so a test that
-  // needs to exercise the service's "below threshold → stay DRAFT / at
-  // threshold → enact" gate must force a higher threshold here.
-  function forceThreshold(threshold: number) {
-    return jest
-      .spyOn(permissionEvaluation, 'evaluatePermissions')
-      .mockReturnValue({
+  // Supply policy at the resolver boundary so enforcement and explanation use the same real evaluator.
+  function forceThreshold(threshold: number, allowsProposerApproval = true) {
+    projectApprovalPolicyService.resolve.mockResolvedValue({
+      requiredApprovals: Math.max(1, threshold),
+      rules: [],
+      fallback: {
         requiresProposal: true,
-        threshold,
-        allowsProposerApproval: true,
-      });
+        threshold:
+          threshold === 0
+            ? { policy: 'IMMEDIATE' }
+            : { policy: 'FIXED_REQUIRED', requiredApprovals: threshold },
+        allowsProposerApproval,
+      },
+    });
+    return jest.spyOn(permissionEvaluation, 'evaluateApprovalPolicy');
   }
 
   // `findForUpdateInTx` takes the row lock via `$queryRaw` (which only
@@ -884,7 +891,12 @@ describe('ProposalApprovalService', () => {
       expect(txMock.proposal.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: proposalId },
-          data: { status: 'APPROVED' },
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
         }),
       );
 
@@ -1243,7 +1255,7 @@ describe('ProposalApprovalService', () => {
           name: 'Marketing',
           description: 'Campaign work',
           sections: [{ key: 'brief', label: 'Brief' }],
-          allowedStatuses: ['ACTIVE', 'COMPLETED'],
+          statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
         },
       });
     }
@@ -1398,7 +1410,7 @@ describe('ProposalApprovalService', () => {
         name: 'Marketing',
         description: 'Campaign work',
         sections: [{ key: 'brief', label: 'Brief' }],
-        allowedStatuses: ['ACTIVE', 'COMPLETED'],
+        statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
       };
       const draft = makeStoredProposal({
         targetEntityType: 'WORK_ITEM_TYPE',
@@ -1448,7 +1460,7 @@ describe('ProposalApprovalService', () => {
         key: typeKey,
         name: 'Marketing',
         sections,
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       };
     }
 
@@ -3807,6 +3819,12 @@ describe('ProposalApprovalService', () => {
           { key: 'handler', content: 'free_form' },
           { key: 'consumerHandler', content: '' },
           {
+            key: 'inputs',
+            content: JSON.stringify({
+              inputs: [{ kind: 'text_message', text: 'Implement the page.' }],
+            }),
+          },
+          {
             key: 'coding',
             content: JSON.stringify({
               serviceId,
@@ -4200,20 +4218,82 @@ describe('ProposalApprovalService', () => {
       },
     );
 
-    it('records approval and completes the selected generic enactment before returning', async () => {
-      const draft = makeStoredProposal({
-        updates: {
-          root: { refType: 'temporary', tempId: 'root' },
-          operations: [
-            {
-              op: 'workItem.create',
-              ref: { refType: 'temporary', tempId: 'root' },
-              name: 'Root',
-              type: 'STANDARD',
+    it('approves the real four-stage producer payload through generic enactment without a top-level name', async () => {
+      let stored: unknown;
+      const ids = [
+        '11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333',
+        '44444444-4444-4444-8444-444444444444',
+      ] as const;
+      const provider = new PlanToolsProvider(
+        {
+          create: async (
+            _org: unknown,
+            _project: unknown,
+            _user: unknown,
+            dto: { updates: unknown },
+          ) => {
+            stored = dto.updates;
+            return {
+              id: proposalId,
+              status: 'DRAFT',
+              action: 'CREATE',
+              targetEntityType: 'TASK',
+              targetEntityId: '00000000-0000-0000-0000-000000000000',
+              createdAt: '',
+            };
+          },
+        } as any,
+        {
+          db: {
+            task: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: testIds.task,
+                type: 'FEATURE',
+                parentTaskId: null,
+              }),
+              findMany: jest.fn().mockResolvedValue(
+                ids.map((id) => ({
+                  id,
+                  type: 'STANDARD',
+                  parentTaskId: testIds.task,
+                })),
+              ),
             },
-          ],
+          },
+        } as any,
+      );
+      await provider.createPlanFromExistingTasks(
+        {
+          planTitle: 'Deliver existing work',
+          eli5: 'Organize the reviewed tasks.',
+          parentFeatureId: testIds.task,
+          designDocMarkdown:
+            '# Full design\n\n' +
+            'Reviewed implementation decisions.\n'.repeat(300),
+          stages: ids.map((id, i) => ({
+            title: `Stage ${i + 1}`,
+            taskIds: [id],
+          })),
+          taskPrerequisites: [{ taskId: ids[3], dependsOnTaskId: ids[0] }],
         },
-      });
+        {} as any,
+        {
+          headers: { 'x-project-id': testIds.project },
+          user: {
+            userId: approvingUserId,
+            currentOrgId: testIds.organization,
+            orgMemberships: [],
+            isDevAdmin: false,
+            devAdminMode: false,
+          },
+        } as any,
+      );
+      const updates = workItemChangeSetValidationRequestSchema.parse(stored);
+      expect(updates).not.toHaveProperty('name');
+      expect(updates).not.toHaveProperty('planTitle');
+      const draft = makeStoredProposal({ updates });
       setupForApproval(draft);
 
       const result = await service.approve(
@@ -4236,7 +4316,12 @@ describe('ProposalApprovalService', () => {
       expect(txMock.proposal.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: proposalId },
-          data: { status: 'APPROVED' },
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
         }),
       );
       expect(
@@ -4634,7 +4719,14 @@ describe('ProposalApprovalService', () => {
 
       expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledTimes(1);
       expect(txMock.proposal.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { status: 'APPROVED' } }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'APPROVED',
+            approvalDecisionEvidence: expect.objectContaining({
+              evidence: 'CAPTURED',
+            }),
+          }),
+        }),
       );
       expect(
         txMock.proposal.update.mock.calls.every(
@@ -4951,8 +5043,29 @@ describe('ProposalApprovalService', () => {
       });
       expect(txMock.proposal.update).toHaveBeenCalledWith({
         where: { id: proposalId },
-        data: { status: 'REJECTED' },
+        data: expect.objectContaining({ status: 'REJECTED' }),
       });
+    });
+
+    it('retains rejection when the target disappeared instead of inventing historical evidence', async () => {
+      const draft = makeStoredProposal({
+        action: 'UPDATE',
+        targetEntityType: 'TASK',
+      });
+      setupForRejection(draft);
+      txMock.task.findFirst.mockResolvedValue(null);
+      await service.reject(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+        'No longer needed',
+      );
+      expect(txMock.proposal.update).toHaveBeenCalledWith({
+        where: { id: proposalId },
+        data: { status: 'REJECTED', approvalDecisionEvidence: Prisma.DbNull },
+      });
+      expect(mockPendingEdgeService.cleanupForProposal).toHaveBeenCalled();
     });
 
     it('trims whitespace from the rejection reason', async () => {
@@ -5004,7 +5117,7 @@ describe('ProposalApprovalService', () => {
         });
         expect(txMock.proposal.update).toHaveBeenCalledWith({
           where: { id: proposalId },
-          data: { status: 'REJECTED' },
+          data: expect.objectContaining({ status: 'REJECTED' }),
         });
       },
     );
@@ -5109,6 +5222,58 @@ describe('ProposalApprovalService', () => {
       ).rejects.toThrow(
         'Cannot reject a proposal that has already been approved',
       );
+    });
+
+    it('commits rejection with unavailable history when the target is missing and returns the terminal record', async () => {
+      const draft = makeStoredProposal({
+        action: 'UPDATE',
+        updates: { name: 'Changed' },
+      });
+      stubStoredProposal(draft);
+      txMock.task.findFirst.mockResolvedValue(null);
+      (mockPrisma.db.task.findFirst as jest.Mock).mockResolvedValue(null);
+      txMock.proposal.update.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({
+          ...draft,
+          ...data,
+          approvalDecisionEvidence: null,
+          approvalRecords: [],
+          groupMembership: null,
+          workItemChangeSetMaterialization: null,
+        }),
+      );
+      const actual = jest.requireActual('../proposal-response-policy');
+      jest
+        .spyOn(responsePolicy, 'mapProposalResponse')
+        .mockImplementationOnce(actual.mapProposalResponse);
+      const result = await service.reject(
+        proposalId,
+        testIds.organization,
+        testIds.project,
+        approvingUserId,
+        'Target removed',
+      );
+      expect(txMock.proposal.update).toHaveBeenCalledWith({
+        where: { id: proposalId },
+        data: {
+          status: 'REJECTED',
+          approvalDecisionEvidence: Prisma.DbNull,
+        },
+      });
+      expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'REJECTION',
+            reason: 'Target removed',
+          }),
+        }),
+      );
+      expect(result.proposal).toMatchObject({
+        status: 'REJECTED',
+        requiredApprovals: null,
+        outOfDateStatus: 'NOT_APPLICABLE',
+        approvalExplanation: { evidence: 'UNAVAILABLE' },
+      });
     });
 
     it('allows rejecting a DRAFT proposal', async () => {
@@ -5323,11 +5488,7 @@ describe('ProposalApprovalService', () => {
     });
 
     it('rejects later self-approval when policy excludes the user author', async () => {
-      jest.spyOn(permissionEvaluation, 'evaluatePermissions').mockReturnValue({
-        requiresProposal: true,
-        threshold: 1,
-        allowsProposerApproval: false,
-      });
+      forceThreshold(1, false);
       const draft = makeStoredProposal({
         action: 'UPDATE',
         requestorId: approvingUserId,
@@ -5357,6 +5518,130 @@ describe('ProposalApprovalService', () => {
       );
 
       expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
+    });
+
+    describe.each([
+      ['one eligible member', [{ userId: approvingUserId }]],
+      [
+        'several eligible members',
+        [{ userId: approvingUserId }, { userId: 'other-member-id' }],
+      ],
+    ])('top-level custom-type item with %s', (_label, members) => {
+      const topLevelRecipe = {
+        type: 'RECIPE',
+        parentTaskId: null,
+        initiativeId: null,
+      };
+
+      it('lets the user author approve their own status change without a second approver', async () => {
+        txMock.projectMember.findMany.mockResolvedValue(members);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: approvingUserId,
+          requestorContext: {
+            source: 'user',
+            userId: approvingUserId,
+            organizationId: testIds.organization,
+            toolName: 'POST /proposals',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        setupForApproval(draft, {
+          approvalCount: 1,
+          taskLookup: topLevelRecipe,
+        });
+        mockTaskService.updateInTransaction.mockResolvedValue({
+          task: { id: testIds.task },
+          postCommit: {},
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        );
+
+        expect(result.enacted).toBe(true);
+        expect(result.proposal.status).toBe('APPROVED');
+      });
+
+      it('applies an agent-authored status change only on the human approval, never on authorship', async () => {
+        txMock.projectMember.findMany.mockResolvedValue(members);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: 'agent-requestor-id',
+          requestorContext: {
+            source: 'agent',
+            userId: 'agent-requestor-id',
+            organizationId: testIds.organization,
+            toolName: 'mcp.edit_work_item',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        // The count reflects only the human's explicit approval record.
+        setupForApproval(draft, {
+          approvalCount: 1,
+          taskLookup: topLevelRecipe,
+        });
+        mockTaskService.updateInTransaction.mockResolvedValue({
+          task: { id: testIds.task },
+          postCommit: {},
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        );
+
+        expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledTimes(1);
+        expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledWith({
+          data: {
+            proposalId,
+            userId: approvingUserId,
+            type: 'APPROVAL',
+          },
+        });
+        expect(result.enacted).toBe(true);
+        expect(result.proposal.status).toBe('APPROVED');
+      });
+
+      it('rejects the agent author approving its own status change', async () => {
+        txMock.projectMember.findMany.mockResolvedValue([
+          ...members,
+          { userId: 'agent-requestor-id' },
+        ]);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: 'agent-requestor-id',
+          requestorContext: {
+            source: 'agent',
+            userId: 'agent-requestor-id',
+            organizationId: testIds.organization,
+            toolName: 'mcp.edit_work_item',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        setupForApproval(draft, {
+          approvalCount: 0,
+          taskLookup: topLevelRecipe,
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          'agent-requestor-id',
+        );
+
+        expect(result.enacted).toBe(false);
+        expect(mockTaskService.updateInTransaction).not.toHaveBeenCalled();
+      });
     });
 
     it('enacts proposal with single approval when no rules match', async () => {
@@ -5904,7 +6189,7 @@ describe('ProposalApprovalService', () => {
           key: 'RESEARCH',
           name: 'Research',
           sections: [],
-          allowedStatuses: ['ACTIVE'],
+          statuses: legacyStatuses(['ACTIVE']),
         },
       });
       stubGroupedMember(proposal);

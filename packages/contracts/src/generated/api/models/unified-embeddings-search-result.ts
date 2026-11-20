@@ -19,7 +19,7 @@
 import type { EmbeddingMetadata } from './embedding-metadata.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { MatchSpan } from './match-span.js';
+import type { UnifiedMatchParagraph } from './unified-match-paragraph.js';
 
 /**
  *
@@ -28,17 +28,11 @@ import type { MatchSpan } from './match-span.js';
  */
 export interface UnifiedEmbeddingsSearchResult {
     /**
-     * Matched spans with end-exclusive UTF-16 code-unit offsets into text. Present together with text, or both omitted.
-     * @type {Array<MatchSpan>}
+     * Up to 3 excerpts of blank-line paragraphs of the indexed text, each bounded in length, containing the strongest matched spans, in document order. A standalone heading is included with the paragraph beneath it. Omitted when the hit reports no spans.
+     * @type {Array<UnifiedMatchParagraph>}
      * @memberof UnifiedEmbeddingsSearchResult
      */
-    'matchSpans'?: Array<MatchSpan>;
-    /**
-     * Exact source text indexed by matchSpans. UTF-16 code-unit offsets are valid only against this string, not the result content. Present together with matchSpans, or both omitted.
-     * @type {string}
-     * @memberof UnifiedEmbeddingsSearchResult
-     */
-    'text'?: string;
+    'matchParagraphs'?: Array<UnifiedMatchParagraph>;
     /**
      *
      * @type {string}

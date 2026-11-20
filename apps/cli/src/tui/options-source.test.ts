@@ -8,6 +8,7 @@ const fakeStore = (intentFirst = false, remoteToolCallViewing = true) => {
     remoteToolCallViewing,
     jevEnabled: true,
     heyHeyContextReminder: false,
+    preciseFileChangeTracking: false,
   };
   const store = {
     read: vi.fn<OptionsStore['read']>(() => Promise.resolve(saved)),
@@ -29,6 +30,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: null,
       jevEnabled: null,
       heyHeyContextReminder: null,
+      preciseFileChangeTracking: null,
       jevKeyDefined: true,
     });
     await vi.waitFor(() =>
@@ -37,6 +39,7 @@ describe('OptionsSource', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       }),
     );
@@ -53,6 +56,7 @@ describe('OptionsSource', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: true,
       }),
     );
@@ -65,6 +69,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });
@@ -83,6 +88,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
     });
     await Promise.resolve();
 
@@ -92,6 +98,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });
@@ -141,6 +148,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: true,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });
@@ -160,6 +168,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });
@@ -175,6 +184,7 @@ describe('OptionsSource', () => {
         remoteToolCallViewing: true,
         jevEnabled: true,
         heyHeyContextReminder: false,
+        preciseFileChangeTracking: false,
         jevKeyDefined: false,
       }),
     );
@@ -196,6 +206,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: true,
       jevEnabled: false,
       heyHeyContextReminder: false,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });
@@ -215,6 +226,7 @@ describe('OptionsSource', () => {
       remoteToolCallViewing: false,
       jevEnabled: true,
       heyHeyContextReminder: true,
+      preciseFileChangeTracking: false,
       jevKeyDefined: true,
     });
   });

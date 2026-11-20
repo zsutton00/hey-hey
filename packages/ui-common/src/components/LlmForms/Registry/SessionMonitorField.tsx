@@ -8,7 +8,7 @@ import { SessionMonitorOutcome } from "../../../api";
 import type { FieldComponentProps } from "./types";
 
 function isActionCompletion(
-  cc: SessionMonitorSystemMessageData["continuationCompletion"]
+  cc: SessionMonitorSystemMessageData["continuationCompletion"],
 ): cc is SessionMonitorContinuationCompletionAction {
   return !!cc && "action" in cc;
 }
@@ -18,8 +18,7 @@ export const SessionMonitorField: React.FC<FieldComponentProps> = ({
   context,
 }) => {
   const messageData = context.messageData as
-    | SessionMonitorSystemMessageData
-    | undefined;
+    SessionMonitorSystemMessageData | undefined;
   if (!messageData) return null;
 
   const cc = messageData.continuationCompletion;
@@ -31,17 +30,14 @@ export const SessionMonitorField: React.FC<FieldComponentProps> = ({
     badgeLabel === SessionMonitorOutcome.Continued
       ? "success"
       : badgeLabel === SessionMonitorOutcome.Deferred
-      ? "warning"
-      : "info";
+        ? "warning"
+        : "info";
 
   return (
     <Box
       data-testid={`session-monitor-field-${config.field}`}
       sx={(theme) => ({
-        backgroundColor:
-          theme.palette.mode === "dark"
-            ? "rgba(103, 58, 183, 0.12)"
-            : "rgba(103, 58, 183, 0.08)",
+        backgroundColor: theme.palette.monitorMessage.soft,
         borderRadius: 1,
         padding: 2,
         boxShadow: "none",

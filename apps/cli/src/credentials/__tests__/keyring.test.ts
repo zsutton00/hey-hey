@@ -83,4 +83,34 @@ describe('KeyringPlatformStore', () => {
       message: expect.not.stringContaining('BEGIN PRIVATE KEY'),
     });
   });
+
+  it('does not treat a missing D-Bus object as an absent credential', async () => {
+    const store = new KeyringPlatformStore(
+      throwingFactory(new Error('Object not found at /org/freedesktop/secrets/collection/login')),
+    );
+    await expect(store.retrieve('any')).rejects.toBeInstanceOf(Error);
+    await expect(store.delete('any')).rejects.toBeInstanceOf(Error);
+  });
+
+  it('proves write and read capability with a scoped diagnostic entry it removes again', async () => {
+    const { factory, data } = makeFakeKeyring();
+    data.set('keep/private_key', 'existing-secret');
+    const store = new KeyringPlatformStore(factory);
+
+    await store.ensureReady('ns/');
+
+    expect([...data.keys()]).toEqual(['keep/private_key']);
+  });
+
+  it('fails readiness when the store accepts a write it cannot read back', async () => {
+    const factory: KeyringEntryFactory = () => ({
+      setPassword() {},
+      getPassword: () => null,
+      deletePassword: () => false,
+    });
+
+    await expect(new KeyringPlatformStore(factory).ensureReady('ns/')).rejects.toBeInstanceOf(
+      StorageFailureError,
+    );
+  });
 });

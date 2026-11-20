@@ -288,6 +288,7 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
       getService: async () => ({ data: { data: { name: 'Test Service' } } }),
     } as never,
     verifier: dependencies.verifier,
+    continuationStartup: { confirm: async () => undefined },
     machinesApi:
       dropSurfacing?.machinesApi ??
       ({

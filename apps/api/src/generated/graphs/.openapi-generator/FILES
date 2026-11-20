@@ -123,6 +123,8 @@ model/searchBoosts.ts
 model/searchBoostsEntityIdsInner.ts
 model/searchBoostsEntityTypesInner.ts
 model/searchDirection.ts
+model/searchExclusionRequest.ts
+model/searchExclusionResponse.ts
 model/searchFilters.ts
 model/searchFiltersDateRange.ts
 model/searchFiltersUpdatedAtRange.ts

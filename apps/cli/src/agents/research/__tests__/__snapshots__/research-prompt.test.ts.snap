@@ -37,7 +37,7 @@ Only one service is in scope here, but real projects contain others. Treat any c
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question: \`get_entity_identities\` for a missing title or item type, \`get_full_entity\` for content, \`get_context\` for hierarchy, relationships or proposal history, and \`unified_search\` for discovery."
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read."
 `;
 
 exports[`buildResearchPrompt > snapshots the complete standalone child prompt without services context 1`] = `
@@ -65,7 +65,7 @@ Return a short handoff for your slice that the parent can merge directly: the en
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question: \`get_entity_identities\` for a missing title or item type, \`get_full_entity\` for content, \`get_context\` for hierarchy, relationships or proposal history, and \`unified_search\` for discovery."
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read."
 `;
 
 exports[`buildResearchPrompt for a Project Assistant fan-out child > snapshots the child prompt with every check 1`] = `
@@ -208,5 +208,5 @@ When drafting, use the Work Items proposal path: call \`edit_work_item\` for @[f
 
 ## Focal context orientation
 
-The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question: \`get_entity_identities\` for a missing title or item type, \`get_full_entity\` for content, \`get_context\` for hierarchy, relationships or proposal history, and \`unified_search\` for discovery."
+The canonical focal entity projection supplied at provider startup is your initial orientation. Do not reload that same focal entity by default. Read additional context only when the user requests fresh state, you need to follow a different referenced entity, or the supplied neighborhood is insufficient for the current work. In those cases, pick the smallest read for the question, as described in Choosing the Smallest Read."
 `;

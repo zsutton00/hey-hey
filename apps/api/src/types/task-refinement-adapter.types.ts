@@ -14,7 +14,6 @@ import {
   TaskPriority,
   TaskResponseDto,
   TaskSource,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { materializedSectionsToContentMap } from '../utils/work-item-section.util';
 import { RefinableEntity } from './refinable-entity.types';
@@ -118,7 +117,7 @@ export function fromTaskRefinableEntity(
     type: entity.type,
     organizationId: entity.organizationId,
     projectId: entity.projectId,
-    status: entity.status as WorkStatus,
+    status: entity.status as TaskResponseDto['status'],
     priority: entity.priority ? (entity.priority as TaskPriority) : undefined,
     assigneeId: entity.assigneeId ?? undefined,
     createdAt:

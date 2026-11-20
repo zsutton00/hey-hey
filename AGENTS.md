@@ -28,12 +28,27 @@ Some commands are slow enough to dominate a task. Budget for them.
 - Don't re-declare a shape the spec already defines. Import the generated type.
 - Use `satisfies` to check literals against generated types. Do not use `as` to silence a type error. If the type is wrong, fix the spec or the type.
 
+## HTTP status
+
+- 409 only when a request conflicts with the current state or version of an existing resource, or duplicates one. Never use it as a catch-all.
+- Too soon or too many is 429 with `Retry-After`; missing is 404; bad input is 400 or 422; refused is 403; our own broken state is 500.
+
 ## Generation benchmarks
 
 - Compare isolated baseline and candidate checkouts whose complete generation inputs match the intended revisions. Record the OpenAPI closure and generator-input identities (specs, scripts, manifests, and tool versions); a matching OpenAPI digest alone does not make cached outputs comparable.
 - Start each scenario from the same recorded source and cache state. Do not carry edits or generated outputs from one scenario into another unless that carry-over is the scenario being measured.
 - Run all generation requests through the host-wide coordinator. Measure lock wait separately from useful generation time, and count expensive invocations at the generator boundary; don't trust an invocation counter unless its instrumentation is present in that checkout.
 - Mark a before/after result noncomparable when inputs, tool versions, cache state, or completion differ, and identify the mismatch instead of inferring a speedup.
+
+## Production, other users, other projects
+
+Hey Hey is a shipped product. Other users, organizations and projects run it in production, staging and local stacks. This repo's own project and data are one sample, never the population.
+
+- Do not design, fix or verify against this project's data alone. Anything that reads stored or API data must hold for every project's data: empty, partial, older revisions, custom types, fields we never set ourselves.
+- A failure on someone else's data is a production outage we cannot see or reproduce. We find out only from their logs, so every failure must be diagnosable from the log line alone.
+- Every rejection, failed start and caught error logs its specific cause (error code and safe detail) where it is handled. A bare `catch` that drops the cause is a defect. Redaction hides content, never the reason.
+- Tests for anything that renders, parses, migrates or loads stored data run the real shipped artifact (published canonical templates, real migrations, captured payloads) against realistic populated data. A hand-written one-field fixture or an empty collection proves nothing.
+- Before releasing a change to a shared renderer, schema or contract, exercise every shipped canonical artifact it consumes against it. A release that breaks Runs for other users is not "an edge case".
 
 ## Types
 

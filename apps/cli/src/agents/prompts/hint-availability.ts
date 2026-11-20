@@ -3,20 +3,35 @@ import { buildMcpHeaders, qualifyMcpToolName, resolveMcpEndpointUrl } from '../m
 
 const toolsListResponseSchema = z.object({
   jsonrpc: z.literal('2.0'),
-  result: z.object({ tools: z.array(z.object({ name: z.string() })) }),
+  result: z.object({
+    tools: z.array(z.object({ name: z.string(), _meta: z.record(z.unknown()).optional() })),
+  }),
 });
 
+/** What the platform tool list says about hints for this deployment. */
+export interface HintAvailability {
+  /** The platform offers the hint tools. */
+  enabled: boolean;
+  /** The API is a staging or local deployment, where Hey Hey itself is developed. */
+  productDevelopment: boolean;
+}
+
+const PRODUCT_DEVELOPMENT_META_KEY = 'heyhey/productDevelopment';
+
 /**
- * Reads whether the platform offers hints. The API's deployment-wide
- * `HINTS_ENABLED` flag decides: when it is off the hint tools are absent from
- * the platform tool list, so `create_hint` being listed is the signal. Throws
- * on any failed or malformed read so session start aborts loudly.
+ * Reads hint availability and the deployment environment from the platform tool
+ * list. Hints are offered when `create_hint` is listed. The API marks its
+ * always-listed tools with `_meta['heyhey/productDevelopment']: true` on staging
+ * and local deployments; any listed tool carrying it counts, so the signal does
+ * not depend on hint tools. Anything other than an explicit `true` is not
+ * product development, so production never receives the extra rules. Throws on any failed or malformed
+ * read so session start aborts loudly.
  */
-export const readHintsEnabled = async (
+export const readHintAvailability = async (
   accessToken: string,
   projectId: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<boolean> => {
+): Promise<HintAvailability> => {
   const response = await fetchImpl(resolveMcpEndpointUrl(), {
     method: 'POST',
     headers: {
@@ -37,7 +52,13 @@ export const readHintsEnabled = async (
       `Cannot start session: platform tool list was invalid (${parsed.error.message}).`,
     );
   }
-  return parsed.data.result.tools.some(
+  const createHint = parsed.data.result.tools.find(
     (tool) => tool.name === 'create_hint' || tool.name === qualifyMcpToolName('create_hint'),
   );
+
+  const productDevelopment = parsed.data.result.tools.some(
+    (tool) => tool._meta?.[PRODUCT_DEVELOPMENT_META_KEY] === true,
+  );
+
+  return { enabled: createHint !== undefined, productDevelopment };
 };

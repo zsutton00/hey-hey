@@ -16,6 +16,13 @@ const temporaryRelationship = {
 
 const validOperations = [
   {
+    op: 'designDoc.create',
+    ref: { refType: 'temporary', tempId: 'design' },
+    name: 'Plan design',
+    markdown: '# Delivery design\n\nPreserve the supplied document.',
+    parent: temporaryWorkItem,
+  },
+  {
     op: 'workItem.create',
     ref: temporaryWorkItem,
     name: 'New item',
@@ -53,6 +60,28 @@ const validOperations = [
 ] satisfies WorkItemChangeSetOperation[];
 
 describe('workItemChangeSetValidationRequestSchema', () => {
+  it('requires a work-item parent for a document create', () => {
+    const operation = {
+      op: 'designDoc.create',
+      ref: { refType: 'temporary', tempId: 'design' },
+      name: 'Plan design',
+      markdown: '# Delivery design',
+    };
+
+    expect(
+      workItemChangeSetValidationRequestSchema.safeParse({
+        root,
+        operations: [operation],
+      }).success,
+    ).toBe(false);
+    expect(
+      workItemChangeSetValidationRequestSchema.safeParse({
+        root,
+        operations: [{ ...operation, parent: root }],
+      }).success,
+    ).toBe(true);
+  });
+
   it('preserves Service ID arrays, including duplicates, through validation', () => {
     const serviceId = '10000000-0000-4000-8000-000000000002';
     const request = {
@@ -458,5 +487,38 @@ describe('workItemChangeSetValidationRequestSchema', () => {
         operations: [malformed],
       }).success,
     ).toBe(false);
+  });
+  it('accepts a typed document relationship to a same-change-set document', () => {
+    const document = { refType: 'temporary', tempId: 'plan-design' };
+    const result = workItemChangeSetValidationRequestSchema.safeParse({
+      root,
+      operations: [
+        {
+          op: 'designDoc.create',
+          ref: document,
+          name: 'Plan design',
+          markdown: '# Design\n\nThe reviewed design.',
+          parent: root,
+        },
+        {
+          op: 'relationship.create',
+          ref: temporaryRelationship,
+          source: root,
+          sourceEntityType: 'TASK',
+          target: document,
+          targetEntityType: 'DESIGN_DOC',
+          edgeType: 'RELATED_TO',
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.operations[1]).toMatchObject({
+        sourceEntityType: 'TASK',
+        targetEntityType: 'DESIGN_DOC',
+        target: document,
+      });
+    }
   });
 });

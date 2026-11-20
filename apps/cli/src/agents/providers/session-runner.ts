@@ -1,3 +1,4 @@
+import type { ExecutionRecorder } from './execution-recorder/execution-recorder';
 import type { RunAttachmentReference } from '@hey-hey/contracts/agent-bridge';
 import type { BrowserMcpMount } from '../browser-tools/browser-mcp-access';
 import type { AgenticSession } from '../../session/index';
@@ -6,6 +7,7 @@ import type {
   LocalReasoningEffort,
 } from '../../shared/agent-bridge-contract/contract';
 import type { McpToolUseCase } from '../mcp-server-config';
+import type { ProviderPermissionMode } from './provider-config';
 import type {
   AgentPermissionDecisionDispatch,
   PermissionCallbackType,
@@ -15,6 +17,7 @@ import type { ResolvedRunWorkspace } from '../run-scope';
 import type { RunWorkspaceWriteBoundary } from '../workspace-write-boundary';
 import type { AgentSkillCatalog, AgentSkillSelection } from './agent-skills';
 import type { ProviderSessionStartupSegments } from '../../run/provider-session-startup-input';
+import type { SessionPromptDeclarations } from '../prompts/platform-prompt-context';
 
 export type AgentSessionRunnerErrorCode =
   | 'INVALID_CREDENTIAL'
@@ -59,8 +62,8 @@ export interface RunPromptArgs {
   attachmentRunId?: string;
   attachments?: readonly RunAttachmentReference[];
   prompt: string;
-  /** Initiating handler's `epistemicCalibration` declaration, applied to fresh-session guidance. */
-  epistemicCalibration?: true;
+  /** Initiating handler's prompt declarations, composed into fresh-session guidance. */
+  promptDeclarations?: SessionPromptDeclarations;
   /** Replace provider defaults with the platform prompt on fresh sessions. */
   replaceProviderSystemPrompt?: boolean;
   /** Pathless provider Skill identity; provider adapters resolve native paths locally. */
@@ -76,6 +79,12 @@ export interface RunPromptArgs {
   startingMessage?: string;
   /** When true, auto-approve all permission requests without waiting for user input. */
   skipPermissions?: boolean;
+  /**
+   * The provider's own permission mode for this Run, kept apart from
+   * `skipPermissions` (which approves everything). Set only for providers that
+   * report a native mode; the runner falls back to its default mode otherwise.
+   */
+  providerPermissionMode?: ProviderPermissionMode;
   /**
    * Which MCP tool use case this turn runs under. Sourced from the initiating
    * handler's `mcpToolUseCase`; defaults to `'coding'` when absent. Only
@@ -182,14 +191,21 @@ export interface ResumeArgs {
    */
   additionalBuiltinTools?: readonly string[];
   /**
-   * Resuming handler's declared `readOnlyFilesystem`. Both Claude and Codex
-   * freeze the filesystem posture at session start, so resume cannot change
-   * it; forwarded for parity with the other fields and reserved for future
-   * drift-detection at resume entry.
+   * Resuming handler's declared `readOnlyFilesystem`. A warm resume keeps the
+   * posture its process or thread started with. A cold resume starts a new
+   * Claude process or Codex sandbox, so it must be forwarded or the resumed
+   * session would lose the restriction.
    */
   readOnlyFilesystem?: boolean;
+  /**
+   * Resuming handler's explicit built-in tool surface. Applied when a cold
+   * resume starts a new Claude process; a warm resume keeps its configured one.
+   */
+  builtinTools?: readonly string[];
   /** See `RunPromptArgs.skipPermissions`. */
   skipPermissions?: boolean;
+  /** See `RunPromptArgs.providerPermissionMode`. */
+  providerPermissionMode?: ProviderPermissionMode;
   /** See `RunPromptArgs.workspace`. */
   workspace?: ResolvedRunWorkspace;
   /** See `RunPromptArgs.workspaceWriteBoundary`. */
@@ -240,6 +256,9 @@ export type QuestionAnswerDispatchResult =
   | { delivered: false; outcome: 'stale'; reason: 'request_not_found' };
 
 export interface AgentSessionRunner {
+  /** Hook evidence owned by this provider runner, when precise tracking is enabled. */
+  readonly executionRecorder?: ExecutionRecorder | undefined;
+
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult>;
   listSkills?(args: ListSkillsArgs): Promise<AgentSkillCatalog>;
   resumeSession(args: ResumeArgs): Promise<AgentRunResult>;

@@ -5,16 +5,19 @@ import type {
   QuestionsGroupUserMessage,
 } from "../../../api";
 import { QuestionGroup, type QuestionAnswer } from "../../QuestionGroup";
+import { SmarterTextAreaCard } from "../../SmarterTextAreaCard";
 import type { FieldComponentProps } from "./types";
 
-export interface QuestionGroupFieldProps
-  extends Omit<FieldComponentProps<QuestionsGroupUserMessage>, "onChange"> {
+export interface QuestionGroupFieldProps extends Omit<
+  FieldComponentProps<QuestionsGroupUserMessage>,
+  "onChange"
+> {
   value?: QuestionsGroupUserMessage;
   onChange?: (value: QuestionsGroupUserMessage) => void;
 }
 
-const isQuestionsGroupPayload = (
-  payload: unknown
+export const isQuestionsGroupPayload = (
+  payload: unknown,
 ): payload is QuestionsGroupPayload =>
   payload !== null &&
   typeof payload === "object" &&
@@ -32,11 +35,15 @@ export const QuestionGroupField: React.FC<QuestionGroupFieldProps> = ({
   const payload = config.payload;
   const questions = useMemo(
     () => (isQuestionsGroupPayload(payload) ? payload.questions : []),
-    [payload]
+    [payload],
   );
 
+  const conversationReply = isQuestionsGroupPayload(payload)
+    ? payload.conversationReply
+    : undefined;
+
   const [fieldValue, setFieldValue] = useState<QuestionsGroupUserMessage>(
-    () => value ?? { clarifyingAnswers: [] }
+    () => value ?? { clarifyingAnswers: [] },
   );
 
   useEffect(() => {
@@ -59,13 +66,40 @@ export const QuestionGroupField: React.FC<QuestionGroupFieldProps> = ({
   const handleAnswersChange = useCallback(
     (answers: QuestionAnswer[]) => {
       const newValue: QuestionsGroupUserMessage = {
+        ...fieldValue,
         clarifyingAnswers: answers,
       };
       setFieldValue(newValue);
       onChange?.(newValue);
     },
-    [onChange]
+    [fieldValue, onChange],
   );
+
+  const handleNoteChange = useCallback(
+    (note: string) => {
+      const newValue: QuestionsGroupUserMessage = { ...fieldValue, note };
+      setFieldValue(newValue);
+      onChange?.(newValue);
+    },
+    [fieldValue, onChange],
+  );
+
+  const noteField = conversationReply ? (
+    <SmarterTextAreaCard
+      value={fieldValue.note ?? ""}
+      onChange={handleNoteChange}
+      headerText={conversationReply.noteLabel}
+      placeholder={conversationReply.notePlaceholder}
+      disabled={disabled || isSubmitted}
+      saveStatus={disabled || isSubmitted ? "complete" : "draft"}
+      saveMode={null}
+      hasUnsavedChanges={false}
+      minRows={2}
+      maxRows={6}
+      multiline={true}
+      headerSx={{ pb: "5px" }}
+    />
+  ) : null;
 
   if (questions.length === 0) {
     return (
@@ -84,6 +118,7 @@ export const QuestionGroupField: React.FC<QuestionGroupFieldProps> = ({
           onChange={() => {}}
           disabled
         />
+        {noteField}
       </Box>
     );
   }
@@ -96,6 +131,7 @@ export const QuestionGroupField: React.FC<QuestionGroupFieldProps> = ({
         onChange={handleAnswersChange}
         disabled={disabled}
       />
+      {noteField}
 
       {error && (
         <Typography variant="body2" color="error" sx={{ mt: 1 }}>

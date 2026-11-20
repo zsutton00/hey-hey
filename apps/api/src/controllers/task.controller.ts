@@ -261,7 +261,7 @@ export class TaskController {
     name: 'status',
     required: false,
     description:
-      'Filter by task statuses (comma-separated or repeated query params).',
+      'Filter by exact task statuses (repeated query params; names may contain commas).',
     isArray: true,
     enum: WorkStatus,
   })

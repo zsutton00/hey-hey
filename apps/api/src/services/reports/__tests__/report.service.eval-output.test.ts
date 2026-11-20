@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { EventContextManager } from '../../../core/events/observable-event.context';
 import { EvalOutputAdmissionService } from '../../eval/eval-output-admission.service';
 import { ReportService } from '../report.service';
+import { VALID_PAYLOAD_BY_TYPE } from './report-payload.fixtures';
 
 const ORG = '11111111-1111-4111-8111-111111111111' as never;
 const PROJECT = '22222222-2222-4222-8222-222222222222';
@@ -155,6 +156,7 @@ describe('ReportService eval attempt output', () => {
     await service.createWithIdInTransaction(tx as never, ORG, REPORT_ID, {
       ...dto,
       reportType: 'EVAL_RUN',
+      payload: VALID_PAYLOAD_BY_TYPE.EVAL_RUN,
       neverExpires: true,
     } as never);
 

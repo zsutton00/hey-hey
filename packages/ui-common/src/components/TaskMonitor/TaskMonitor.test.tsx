@@ -1,3 +1,4 @@
+import type { WorkItemExecutionStateResult } from "../../data/hooks/useWorkItemExecutionState";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,7 @@ import { TaskMonitor } from "./TaskMonitor";
 
 const mocks = vi.hoisted(() => ({
   trackingProvider: vi.fn(),
+  useExecutionState: vi.fn(),
   useTaskMonitorProjection: vi.fn(),
   useTaskMonitorStart: vi.fn(),
   useTaskMonitorPauseResume: vi.fn(),
@@ -25,6 +27,9 @@ const getWorkspaceCallbacks = (): TaskMonitorWorkspaceCallbacks => {
   return props as TaskMonitorWorkspaceCallbacks;
 };
 
+vi.mock("../../data/hooks/useWorkItemExecutionState", () => ({
+  useWorkItemExecutionState: mocks.useExecutionState,
+}));
 vi.mock("../../contexts", () => ({
   TrackingProvider: ({
     children,
@@ -59,6 +64,10 @@ vi.mock("./TaskMonitorWorkspaceView", () => ({
 
 describe("TaskMonitor", () => {
   beforeEach(() => {
+    mocks.useExecutionState.mockReturnValue({
+      status: "missing",
+      delivery: "LIVE",
+    });
     mocks.trackingProvider.mockClear();
     mocks.useTaskMonitorProjection.mockReturnValue({
       definition: null,
@@ -97,7 +106,7 @@ describe("TaskMonitor", () => {
         projectId="project-1"
         monitorId="monitor-1"
         activePane="monitor"
-      />
+      />,
     );
 
     expect(screen.getByTestId("task-monitor-workspace-stub")).toBeVisible();
@@ -115,7 +124,7 @@ describe("TaskMonitor", () => {
             name: "Task Monitor",
           },
         }),
-      })
+      }),
     );
   });
 
@@ -139,22 +148,56 @@ describe("TaskMonitor", () => {
         projectId="project-1"
         monitorId="monitor-1"
         activePane="monitor"
-      />
+      />,
     );
 
     expect(mocks.useTaskMonitorPauseResume).toHaveBeenCalledWith(
-      expect.objectContaining({ reconcileProjection: reconcileAfterCommand })
+      expect.objectContaining({ reconcileProjection: reconcileAfterCommand }),
     );
   });
 
   it.each([
     [WorkStatus.Backlog, "start"],
     [WorkStatus.OnHold, "resume"],
+    [WorkStatus.Blocked, "start"],
   ] as const)(
-    "routes the visible Start action for canonical %s status to %s",
+    "routes setup or advertised recovery from %s to %s",
     async (status, expectedAction) => {
       const start = vi.fn().mockResolvedValue(true);
       const resume = vi.fn().mockResolvedValue(true);
+      if (status !== WorkStatus.Backlog) {
+        mocks.useExecutionState.mockReturnValue({
+          status: "retained",
+          delivery: "LIVE",
+          revision: 2,
+          ownerMachineId: "machine-1",
+          acceptedAt: "2026-11-18T12:00:00Z",
+          freshness: { status: "CURRENT", changedAt: "2026-11-18T12:00:00Z" },
+          state: {
+            type: "TASK_MONITOR",
+            projection: {
+              execution: {
+                lifecycle: "RUNNING",
+                control: "PAUSED",
+                work:
+                  expectedAction === "resume"
+                    ? "AWAITING_REVIEW"
+                    : "RETRYABLE_LAUNCH",
+                intervention: "CLEAR",
+              },
+              availableActions: [
+                {
+                  kind:
+                    expectedAction === "resume"
+                      ? "PAUSED_CONTINUATION"
+                      : "RETRYABLE_RECOVERY",
+                  command: expectedAction === "resume" ? "RESUME" : "START",
+                },
+              ],
+            },
+          },
+        } satisfies WorkItemExecutionStateResult);
+      }
       mocks.useTaskMonitorStart.mockReturnValue({
         isCatalogLoading: false,
         isCatalogFetched: true,
@@ -189,20 +232,20 @@ describe("TaskMonitor", () => {
           projectId="project-1"
           monitorId="monitor-1"
           activePane="monitor"
-        />
+        />,
       );
 
       getWorkspaceCallbacks().onStart();
 
       await vi.waitFor(() =>
         expect(
-          expectedAction === "start" ? start : resume
-        ).toHaveBeenCalledTimes(1)
+          expectedAction === "start" ? start : resume,
+        ).toHaveBeenCalledTimes(1),
       );
       expect(
-        expectedAction === "start" ? resume : start
+        expectedAction === "start" ? resume : start,
       ).not.toHaveBeenCalled();
-    }
+    },
   );
 
   it.each([
@@ -259,12 +302,33 @@ describe("TaskMonitor", () => {
         projectId="project-1"
         monitorId="monitor-1"
         activePane="monitor"
-      />
+      />,
     );
 
     getWorkspaceCallbacks().onStart();
 
     expect(start).not.toHaveBeenCalled();
     expect(resume).not.toHaveBeenCalled();
+  });
+  it("keeps the workspace mounted while the launch catalog reloads", () => {
+    const props = {
+      organizationId: "org-1",
+      projectId: "project-1",
+      monitorId: "monitor-1",
+      activePane: "monitor",
+    } satisfies React.ComponentProps<typeof TaskMonitor>;
+    const { rerender } = render(<TaskMonitor {...props} />);
+    const workspace = screen.getByTestId("task-monitor-workspace-stub");
+    const start = mocks.useTaskMonitorStart.mock.results.at(-1)?.value;
+    mocks.useTaskMonitorStart.mockReturnValue({
+      ...start,
+      isCatalogLoading: true,
+      isCatalogFetched: false,
+    });
+    rerender(<TaskMonitor {...props} />);
+    expect(screen.getByTestId("task-monitor-workspace-stub")).toBe(workspace);
+    expect(mocks.workspaceProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ isStartCatalogLoading: true }),
+    );
   });
 });

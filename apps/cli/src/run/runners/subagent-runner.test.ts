@@ -1,4 +1,5 @@
 import { createPromptTypeHandlerTestDeps } from '../../agents/prompt-type-handler.test-support';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -111,6 +112,7 @@ const makeSubagentHandler = (): PromptTypeHandler<unknown> => ({
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'subagent',
   providerSessionCountsForContext: false,
   reports: [],

@@ -1,21 +1,30 @@
+import type { StartupDiagnostics } from '../local-app/startup-diagnostics';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import {
   DEV_INFRASTRUCTURE_ENDPOINTS,
-  LOCAL_AGENT_PORT_VARIABLE,
-  LOCAL_WEB_ORIGIN,
+  localWebOrigin,
+  devWebEnvironment,
   devComposeConfiguration,
   localApiEnvironment,
   provisioningSql,
+  LOCAL_PROJECT,
 } from '../local-app/compose';
 import { DockerBoundary } from '../local-app/docker-boundary';
-import { InstallationStore, checkModels } from '../local-app/installation-store';
+import { InstallationStore, type Installation } from '../local-app/installation-store';
+import { ModelDownloader } from '../local-app/model-downloader';
 import { LocalLifecycleOwners } from '../local-app/lifecycle-owners';
-import { assertObservedRelease } from '../local-app/local-application';
-import { resolveLocalBridgePort } from '../local-app/local-port';
+import { assertNoOrphanedStorage, assertObservedRelease } from '../local-app/local-application';
+import { LOCAL_RESET_CONFIRMATION, LocalReset } from '../local-app/local-reset';
+import type { DownloadDetail } from '../local-app/pull-progress';
+import { ReleasePackage } from '../local-app/release-package';
+import { LocalKeyPairStore } from '../local-app/local-key-pair-store';
+import { LocalCliState } from '../local-app/local-cli-state';
+import { devWorkspace } from '../local-app/local-workspace';
+import { resolveLocalBridgePort, resolveLocalWebPort } from '../local-app/local-port';
 import { continueLocalApplication } from './local';
 
 const INFRASTRUCTURE = ['postgres', 'redis', 'graph-search'];
@@ -55,6 +64,88 @@ function startFromSource(
   return child;
 }
 
+/**
+ * First run on this computer: the installer's own installation record and secrets, pinned to the
+ * latest published release's images. The package is only read for its manifest, never installed.
+ */
+async function installForDevelopment(
+  storage: InstallationStore,
+  docker: DockerBoundary,
+): Promise<Installation> {
+  await assertNoOrphanedStorage(docker, await docker.inspect());
+  console.log('No local installation yet; creating one at ' + storage.directory);
+  console.log(
+    'Reading the pinned images of the latest published Hey Hey release (nothing is installed)',
+  );
+  const packages = new ReleasePackage();
+  let release;
+  try {
+    release = await packages.latest();
+  } finally {
+    await packages.dispose();
+  }
+  console.log(`Using release ${release.cliVersion} for PostgreSQL, Redis and graph/search`);
+  return storage.prepare(release);
+}
+
+/**
+ * Fast fresh start: erases the dev workspace's account, projects, setup and this computer's dev
+ * pairing through the reset's own targeting, keeping installation identity, images and model files.
+ * The installed `heyhey local` is a different workspace and is never touched.
+ */
+async function freshStart(storage: InstallationStore): Promise<'cleared' | 'cancelled'> {
+  if (!(await storage.read())) {
+    console.log('No dev workspace yet; the first run is already a fresh start.');
+    return 'cleared';
+  }
+  const reset = new LocalReset('fresh-start', true, devWorkspace());
+  const plan = await reset.plan();
+  reset.describe(plan).forEach((line) => console.log(line));
+
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await terminal.question(
+      `Type ${LOCAL_RESET_CONFIRMATION} to erase the listed targets: `,
+    );
+    if (answer !== LOCAL_RESET_CONFIRMATION) {
+      console.log('Cancelled. Nothing was removed.');
+      return 'cancelled';
+    }
+  } finally {
+    terminal.close();
+  }
+  await reset.apply(plan);
+  return 'cleared';
+}
+
+function printImageProgress(): (detail: DownloadDetail) => void {
+  let shown = -1;
+  return (detail) => {
+    const step = detail.percent === null ? null : Math.floor(detail.percent / 10) * 10;
+    if (step !== null && step > shown) {
+      shown = step;
+      console.log(`Downloading images ${String(step)}%`);
+    }
+  };
+}
+
+/**
+ * The installed app publishes the API and web ports dev mode serves on, and may be running agent
+ * work. Dev mode never stops it; it names the command that does and exits.
+ */
+async function assertInstalledApplicationStopped(): Promise<void> {
+  const observed = await new DockerBoundary().inspect();
+  const running = observed.filter((container) => container.State.Running);
+  if (running.length > 0) {
+    const services = running.map(
+      (container) => container.Config.Labels?.['com.docker.compose.service'] ?? container.Id,
+    );
+    throw new Error(
+      `The installed heyhey local's containers are running in Docker (${LOCAL_PROJECT}: ${services.join(', ')}) and use the same ports, even with no terminal open. Stop them with heyhey local stop (or pnpm dev:run local stop from apps/cli); their data is kept. Then retry.`,
+    );
+  }
+}
+
 function stopProcessGroup(child: ChildProcess): void {
   if (child.pid === undefined || child.exitCode !== null) {
     return;
@@ -67,51 +158,66 @@ function stopProcessGroup(child: ChildProcess): void {
 }
 
 /**
- * Developer-only `heyhey local dev`: the installation's pinned PostgreSQL, Redis and graph/search
- * in containers, the API and UI from this checkout with hot reload, and this CLI attached as it
- * attaches to the installed application. Installation data and the paired machine are kept.
+ * Developer-only `heyhey local dev`: pinned PostgreSQL, Redis and graph/search in containers, the
+ * API and UI from this checkout with hot reload, and this CLI attached as it attaches to the
+ * installed application. It runs in its own workspace (folder, Docker project and volumes, and
+ * keychain pairing), kept between dev runs and never shared with the installed `heyhey local`.
  */
-export async function runLocalDevCommand(): Promise<boolean> {
+export async function runLocalDevCommand(
+  options: { fresh: boolean },
+  diagnostics?: StartupDiagnostics,
+): Promise<boolean> {
   const root = checkoutRoot();
-  const storage = new InstallationStore(join(homedir(), '.heyhey', 'local-application'));
-  const docker = new DockerBoundary();
+  const workspace = devWorkspace();
+  const storage = new InstallationStore(workspace.directory);
+  const docker = new DockerBoundary(undefined, undefined, workspace.project);
   const children: ChildProcess[] = [];
   let infrastructureStarted = false;
+  if (diagnostics) {
+    diagnostics.dockerProject = workspace.project;
+  }
 
   try {
     if ((await docker.prerequisite()) !== 'ready') {
       throw new Error('Docker with Compose v2 must be installed and running.');
     }
-    const installation = await storage.read();
-    if (!installation) {
-      throw new Error('No local installation found. Run heyhey local once to install it.');
+    await assertInstalledApplicationStopped();
+    // Declining the fresh start is an intentional exit, as cancelling the installed command is.
+    if (options.fresh && (await freshStart(storage)) === 'cancelled') {
+      return true;
     }
+    console.log(`Dev workspace: ${storage.directory} (Docker project ${workspace.project})`);
+    const installation = (await storage.read()) ?? (await installForDevelopment(storage, docker));
     const { release } = installation;
-    await checkModels(installation.modelDirectory);
+    await new ModelDownloader().ensure(installation.modelDirectory, (action) =>
+      console.log(action),
+    );
     const secrets = await storage.secrets();
     const bridgePort = resolveLocalBridgePort();
+    const webPort = resolveLocalWebPort();
 
     await new LocalLifecycleOwners(storage).exclusive(async () => {
-      const observed = await docker.inspect();
-      assertObservedRelease(observed, release);
-
-      const appServices = observed
-        .map((container) => container.Config.Labels?.['com.docker.compose.service'] ?? '')
-        .filter((service) => service === 'api' || service === 'ui');
-      if (appServices.length > 0) {
-        console.log('Removing the installed api and ui containers (data is kept)');
-        await docker.removeContainers(storage.composePath, appServices);
-      }
+      assertObservedRelease(await docker.inspect(), release);
 
       const devPath = storage.devComposePath;
-      await storage.writeCompose(
-        devComposeConfiguration(
-          installation,
-          secrets,
-          bridgePort,
-          join(root, 'apps', 'api', 'db', 'flyway'),
-        ),
+      const devCompose = devComposeConfiguration(
+        installation,
+        secrets,
+        bridgePort,
+        webPort,
+        join(root, 'apps', 'api', 'db', 'flyway'),
+      );
+      await storage.writeCompose(devCompose, devPath);
+
+      // Checked on every launch, so a first download that was interrupted resumes on the next run.
+      const pinnedImages = Object.fromEntries(
+        Object.entries(devCompose.services).map(([service, { image }]) => [service, image]),
+      );
+      await docker.pullMissing(
         devPath,
+        pinnedImages,
+        (missing) => console.log(`Downloading the pinned images for ${missing.join(', ')}`),
+        printImageProgress(),
       );
       console.log('Starting PostgreSQL and Redis');
       infrastructureStarted = true;
@@ -128,20 +234,14 @@ export async function runLocalDevCommand(): Promise<boolean> {
         'api',
         join(root, 'apps', 'api'),
         ['dev:no-watch'],
-        localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS),
+        localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS, webPort),
         logDirectory,
       ),
       startFromSource(
         'ui',
         join(root, 'apps', 'ui'),
-        ['exec', 'vite', '--port', '5173', '--strictPort'],
-        {
-          NODE_ENV: 'development',
-          // The browser calls the API directly, as the installed web app does, so origins match.
-          VITE_API_URL: 'http://localhost:3000/api/v1',
-          VITE_API_PROXY_TARGET: 'http://localhost:3000',
-          [LOCAL_AGENT_PORT_VARIABLE]: String(bridgePort),
-        },
+        ['exec', 'vite', '--port', String(webPort), '--strictPort'],
+        devWebEnvironment(bridgePort, webPort),
         logDirectory,
       ),
     );
@@ -153,7 +253,7 @@ export async function runLocalDevCommand(): Promise<boolean> {
     assertObservedRelease(await docker.inspect(), release);
 
     const navigation = {
-      url: `${LOCAL_WEB_ORIGIN}/local`,
+      url: `${localWebOrigin(webPort)}/local`,
       reconnectCommand: 'pnpm dev:run local dev',
       stopCommand: 'Ctrl+C',
     };
@@ -163,11 +263,18 @@ export async function runLocalDevCommand(): Promise<boolean> {
       release,
       navigation,
       bridgePort,
+      webPort,
       () => {},
-      INFRASTRUCTURE,
+      { project: workspace.project, services: INFRASTRUCTURE },
+      new LocalCliState(
+        storage.directory,
+        new LocalKeyPairStore(undefined, workspace.credentialService),
+      ),
+      diagnostics,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'heyhey local dev failed.');
+    console.error(`Dev-mode logs: ${join(storage.directory, 'dev-logs')}`);
     return false;
   } finally {
     children.forEach(stopProcessGroup);

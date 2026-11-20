@@ -29,6 +29,9 @@ import type { UnifiedSearchBoosts } from './unified-search-boosts.js';
 import type { UnifiedSearchCommonFilters } from './unified-search-common-filters.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { UnifiedSearchExcludeConnected } from './unified-search-exclude-connected.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { UnifiedSearchIntent } from './unified-search-intent.js';
 
 /**
@@ -109,6 +112,12 @@ export interface UnifiedSearchRequest {
      * @memberof UnifiedSearchRequest
      */
     'boosts'?: UnifiedSearchBoosts;
+    /**
+     *
+     * @type {UnifiedSearchExcludeConnected}
+     * @memberof UnifiedSearchRequest
+     */
+    'excludeConnected'?: UnifiedSearchExcludeConnected;
 }
 
 export namespace UnifiedSearchRequest {

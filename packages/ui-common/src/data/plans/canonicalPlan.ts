@@ -6,6 +6,7 @@ import {
   type PlanConfigurationV1,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
+  WorkStatus,
 } from "../../api";
 import type { WorkItemResponseDto } from "../collections/workItems";
 
@@ -23,8 +24,11 @@ export interface PlanStageWorkItem extends WorkItemResponseDto {
   parentTaskId: string;
 }
 
+export const BUG_WORK_ITEM_TYPE = "BUG" as const;
+
+/** Executable work directly under a Plan Stage: a Standard Task or a Bug. */
 export interface PlanStageStandardTask extends WorkItemResponseDto {
-  type: typeof STANDARD_WORK_ITEM_TYPE;
+  type: typeof STANDARD_WORK_ITEM_TYPE | typeof BUG_WORK_ITEM_TYPE;
   parentTaskId: string;
 }
 
@@ -295,7 +299,8 @@ export const isPlanStageWorkItem = <T extends WorkItemParent>(
 export const isPlanStageStandardTask = <T extends WorkItemParent>(
   item: T,
 ): item is T & Pick<PlanStageStandardTask, "type" | "parentTaskId"> =>
-  item.type === STANDARD_WORK_ITEM_TYPE && isNonEmpty(item.parentTaskId);
+  (item.type === STANDARD_WORK_ITEM_TYPE || item.type === BUG_WORK_ITEM_TYPE) &&
+  isNonEmpty(item.parentTaskId);
 
 const isPlanType = (value: unknown): value is PlanType =>
   value === PlanType.Standard || value === PlanType.Mini;
@@ -379,7 +384,7 @@ export const parseCanonicalPlanStageSource = (input: {
     if (!isPlanStageStandardTask(descendant)) {
       addMessage(
         messages,
-        "Every direct Plan Stage child must be a STANDARD Task.",
+        "Every direct Plan Stage child must be a STANDARD Task or a BUG.",
       );
       continue;
     }
@@ -569,7 +574,7 @@ export const composeCanonicalPlanAggregate = (input: {
       if (!isPlanStageStandardTask(child)) {
         addMessage(
           messages,
-          "Every direct Plan Stage child must be a STANDARD Task.",
+          "Every direct Plan Stage child must be a STANDARD Task or a BUG.",
         );
       } else {
         tasks.push(child);
@@ -593,3 +598,19 @@ export const composeCanonicalPlanAggregate = (input: {
         aggregate: { plan: input.plan, configuration, stages: aggregateStages },
       };
 };
+
+/**
+ * Stage work that leaves nothing actionable. Mirrors the backend stage rollup:
+ * VERIFYING and other intermediate statuses are not finished.
+ */
+export const isPlanStageWorkFinished = (
+  status: PlanStageStandardTask["status"],
+): boolean =>
+  status === WorkStatus.Completed ||
+  status === WorkStatus.Cancelled ||
+  status === WorkStatus.Superseded;
+
+/** Stage work that has not started, so it does not make its stage active. */
+export const isPlanStageWorkNotStarted = (
+  status: PlanStageStandardTask["status"],
+): boolean => status === WorkStatus.Backlog || status === WorkStatus.Generated;

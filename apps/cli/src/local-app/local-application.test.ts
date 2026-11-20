@@ -2,13 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalApplication } from './local-application';
+import { LocalApplication, type LocalState } from './local-application';
 import { ReleaseSource } from './release-source';
 import { ReleasePackage } from './release-package';
 import { InstallationStore } from './installation-store';
+import { ModelDownloader } from './model-downloader';
+import { createHash } from 'node:crypto';
 import { DockerBoundary, type ObservedContainer } from './docker-boundary';
-import { SERVICE_IMAGES } from './compose';
-import { DEFAULT_LOCAL_BRIDGE_PORT, resolveLocalBridgePort } from './local-port';
+import { localWebOrigin, SERVICE_IMAGES } from './compose';
+import {
+  DEFAULT_LOCAL_BRIDGE_PORT,
+  DEFAULT_LOCAL_WEB_PORT,
+  resolveLocalBridgePort,
+  resolveLocalWebPort,
+} from './local-port';
 import { RELEASE_PLATFORMS, type ReleaseManifest } from '../release/release-manifest';
 
 const image = (name: string) => ({
@@ -30,16 +37,25 @@ function containers(
   running: boolean,
   manifest = release,
   bridgePort = DEFAULT_LOCAL_BRIDGE_PORT,
+  webPort = DEFAULT_LOCAL_WEB_PORT,
 ): ObservedContainer[] {
   return Object.entries(SERVICE_IMAGES).map(([service, name]) => ({
     Id: service,
     Config: {
       Image: manifest.images[name].reference,
-      Env: service === 'ui' ? [`VITE_LOCAL_AGENT_PORT=${bridgePort}`] : [],
+      Env:
+        service === 'ui'
+          ? [`VITE_LOCAL_AGENT_PORT=${bridgePort}`, `VITE_WS_URL=ws://localhost:${webPort}`]
+          : service === 'api'
+            ? [`ACCOUNT_PASSKEY_ORIGIN=http://localhost:${webPort}`]
+            : [],
       Labels: {
         'com.docker.compose.service': service,
         'dev.heyhey.cli-version': manifest.cliVersion,
       },
+    },
+    HostConfig: {
+      PortBindings: service === 'ui' ? { '5173/tcp': [{ HostPort: String(webPort) }] } : {},
     },
     State: {
       Running: running,
@@ -148,11 +164,17 @@ function recoveryMessage(app: LocalApplication): string {
 }
 
 let directory: string;
-let models: string;
+let downloader: ModelDownloader;
+const modelContents = { 'model_quantized.onnx': 'fixture', 'tokenizer.json': '{}' };
+const modelFiles = Object.entries(modelContents).map(([name, content]) => ({
+  name,
+  path: name,
+  sha256: createHash('sha256').update(content).digest('hex'),
+}));
 let docker: FakeDocker;
 let storage: InstallationStore;
 let source: ReleaseSource;
-const application = () => new LocalApplication(source, storage, docker, models, 'darwin');
+const application = () => new LocalApplication(source, storage, docker, downloader, 'darwin');
 const mutated = () =>
   docker.calls.filter(
     (args) =>
@@ -161,13 +183,14 @@ const mutated = () =>
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'heyhey-local-test-'));
-  models = join(directory, 'models');
-  await mkdir(models);
-  await writeFile(join(models, 'model_quantized.onnx'), 'fixture');
-  await writeFile(join(models, 'tokenizer.json'), '{}');
   await writeFile(join(directory, 'release.json'), JSON.stringify(release));
   source = new ReleaseSource(join(directory, 'release.json'), release.cliVersion);
   storage = new InstallationStore(join(directory, 'installation'));
+  downloader = new ModelDownloader(modelFiles, 'https://models.test');
+  await mkdir(storage.modelDirectory, { recursive: true });
+  for (const [name, content] of Object.entries(modelContents)) {
+    await writeFile(join(storage.modelDirectory, name), content);
+  }
   docker = new FakeDocker();
   vi.stubEnv('HEYHEY_SERVER_PORT', '');
   vi.stubGlobal(
@@ -187,11 +210,11 @@ describe('local application installation and return visits', () => {
     await app.run();
     expect(app.state.kind).toBe('installation');
     expect(mutated()).toEqual([]);
-    expect(await readdir(directory)).not.toContain('installation');
+    expect(await storage.read()).toBeUndefined();
     await app.install();
     expect(app.state).toMatchObject({
       kind: 'ready',
-      url: 'http://localhost:5173/local',
+      url: `${localWebOrigin(DEFAULT_LOCAL_WEB_PORT)}/local`,
       bridgeConnected: false,
       executionAuthorized: false,
     });
@@ -208,8 +231,38 @@ describe('local application installation and return visits', () => {
     expect((await stat(storage.directory)).mode & 0o777).toBe(0o700);
   });
 
+  it('shows combined image download status while installing, without persisting each update', async () => {
+    docker.pull = (_path, onProgress) => {
+      for (const bytesDone of [10, 50, 100]) {
+        onProgress?.({
+          kind: 'images',
+          bytesDone,
+          bytesTotal: 100,
+          percent: bytesDone,
+          layersDone: 1,
+          layersTotal: 4,
+        });
+      }
+      return Promise.resolve();
+    };
+    const app = application();
+    const downloading: unknown[] = [];
+    app.on('change', (state: LocalState) => {
+      if (state.kind === 'progress' && state.detail) {
+        downloading.push(state.detail);
+      }
+    });
+    await app.run();
+    await app.install();
+
+    expect(app.state.kind).toBe('ready');
+    expect(downloading[0]).toMatchObject({ kind: 'images', layersTotal: 4 });
+    // Three updates arrived at once; the screen is not redrawn for each of them.
+    expect(downloading.length).toBeLessThan(3);
+  });
+
   it('starts a stopped installation without reinstalling images or replacing secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     const before = await storage.secrets();
     docker.observed = containers(false);
     const app = application();
@@ -221,7 +274,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('checks a running installation without pulling, migrating or starting anything', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     docker.observed = containers(true);
     const app = application();
     await app.run();
@@ -238,24 +291,136 @@ describe('local application installation and return visits', () => {
   });
 
   it('writes the bridge port into the UI container configuration', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const { composeConfiguration } = await import('./compose');
-    const config = composeConfiguration(installation, await storage.secrets(), 4100);
+    const config = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      4100,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     expect(config.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
   });
 
+  it('serves the installed web app and API from one address', async () => {
+    const installation = await storage.prepare(release);
+    const { composeConfiguration, devWebEnvironment } = await import('./compose');
+    const LOCAL_WEB_ORIGIN = localWebOrigin(DEFAULT_LOCAL_WEB_PORT);
+    const ui = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      4100,
+      DEFAULT_LOCAL_WEB_PORT,
+    ).services.ui;
+
+    expect(ui.ports).toEqual(['127.0.0.1:3850:5173']);
+    expect(ui.healthcheck.test.at(-1)).toContain('http://127.0.0.1:5173/');
+    expect(ui.environment['API_PROXY_TARGET']).toBe('http://api:3000');
+    expect(ui.environment['VITE_API_URL']).toBe('/api/v1');
+    expect(new URL(ui.environment['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
+
+    const dev = devWebEnvironment(4100, DEFAULT_LOCAL_WEB_PORT);
+    expect(dev['VITE_API_URL']).toBe('/api/v1');
+    expect(new URL(dev['VITE_WS_URL'] ?? '').host).toBe(new URL(LOCAL_WEB_ORIGIN).host);
+  });
+
   it('reconfigures a running UI that does not know the bridge port, keeping data and secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     const before = await storage.secrets();
     docker.observed = containers(true, release, 3847);
-    const app = new LocalApplication(source, storage, docker, models, 'darwin', undefined, 4100);
+    const app = new LocalApplication(
+      source,
+      storage,
+      docker,
+      downloader,
+      'darwin',
+      undefined,
+      4100,
+    );
     await app.run();
     expect(app.state.kind).toBe('ready');
-    expect(mutated().map((args) => args.at(-1))).toEqual(['ui']);
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
     expect(mutated().some((args) => args.includes('pull') || args.includes('run'))).toBe(false);
     const written = JSON.parse(await readFile(storage.composePath, 'utf8'));
     expect(written.services.ui.environment.VITE_LOCAL_AGENT_PORT).toBe('4100');
     expect(await storage.secrets()).toEqual(before);
+  });
+
+  it('moves an existing 5173-era installation to the new web address without touching data or secrets', async () => {
+    await storage.prepare(release);
+    const before = await storage.secrets();
+    docker.observed = containers(true, release, DEFAULT_LOCAL_BRIDGE_PORT, 5173);
+    const app = new LocalApplication(source, storage, docker, downloader, 'darwin');
+    await app.run();
+    expect(app.state).toMatchObject({
+      kind: 'ready',
+      url: `${localWebOrigin(DEFAULT_LOCAL_WEB_PORT)}/local`,
+    });
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
+    expect(mutated().some((args) => ['pull', 'down', 'run'].includes(args.at(-1) ?? ''))).toBe(
+      false,
+    );
+    expect(mutated().some((args) => args.includes('-v') || args.includes('--volumes'))).toBe(false);
+    const written = JSON.parse(await readFile(storage.composePath, 'utf8'));
+    expect(written.services.ui.ports).toEqual(['127.0.0.1:3850:5173']);
+    expect(written.services.api.environment.ACCOUNT_PASSKEY_ORIGIN).toBe('http://localhost:3850');
+    expect(written.services.api.environment.ACCOUNT_PASSKEY_RP_ID).toBe('localhost');
+    expect(await storage.secrets()).toEqual(before);
+  });
+
+  it('resolves an explicit web port once and applies it everywhere, rejecting an invalid one', async () => {
+    expect(resolveLocalWebPort({})).toBe(3850);
+    expect(resolveLocalWebPort({ HEYHEY_WEB_PORT: '4100' })).toBe(4100);
+    expect(() => resolveLocalWebPort({ HEYHEY_WEB_PORT: 'nope' })).toThrow('HEYHEY_WEB_PORT');
+    expect(() => resolveLocalWebPort({ HEYHEY_WEB_PORT: '70000' })).toThrow('HEYHEY_WEB_PORT');
+
+    const installation = await storage.prepare(release);
+    const { composeConfiguration } = await import('./compose');
+    const config = composeConfiguration(
+      installation,
+      await storage.secrets(),
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      4100,
+    );
+    const api = config.services.api.environment;
+    expect(config.services.ui.ports).toEqual(['127.0.0.1:4100:5173']);
+    expect(config.services.ui.environment.VITE_WS_URL).toBe('ws://localhost:4100');
+    for (const key of [
+      'ACCOUNT_PASSKEY_ORIGIN',
+      'MACHINE_ENROLLMENT_WEBAUTHN_ORIGIN',
+      'BROWSER_TOKEN_AUDIENCE',
+      'CORS_WHITELIST',
+    ] as const) {
+      expect(api[key]).toBe('http://localhost:4100');
+    }
+    expect(api.ACCOUNT_PASSKEY_RP_ID).toBe('localhost');
+  });
+
+  it('recreates a stack running on the default web port when another port is requested', async () => {
+    await storage.prepare(release);
+    docker.observed = containers(true);
+    const app = new LocalApplication(
+      source,
+      storage,
+      docker,
+      downloader,
+      'darwin',
+      undefined,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      4100,
+    );
+    await app.run();
+    expect(app.state).toMatchObject({ kind: 'ready', url: 'http://localhost:4100/local' });
+    expect(mutated().map((args) => args.slice(-2))).toEqual([['api', 'ui']]);
+  });
+
+  it('leaves an up-to-date running stack alone', async () => {
+    await storage.prepare(release);
+    docker.observed = containers(true);
+    const app = new LocalApplication(source, storage, docker, downloader, 'darwin');
+    await app.run();
+    expect(app.state.kind).toBe('ready');
+    expect(mutated()).toEqual([]);
   });
 
   it.each(['missing', 'stopped', 'compose'] as const)(
@@ -277,7 +442,7 @@ describe('local application installation and return visits', () => {
   it('rejects both stored and observed release mismatches before mutation, including retry', async () => {
     const other = structuredClone(release);
     other.cliVersion = '1.2.2';
-    await storage.prepare(other, models);
+    await storage.prepare(other);
     const before = await readFile(join(storage.directory, 'secrets.json'), 'utf8');
     const app = application();
     await app.run();
@@ -293,7 +458,7 @@ describe('local application installation and return visits', () => {
   it.each(['version', 'digest', 'unknown'] as const)(
     'rejects an observed %s mismatch even with matching storage',
     async (mismatch) => {
-      await storage.prepare(release, models);
+      await storage.prepare(release);
       docker.observed = containers(false);
       const container = docker.observed[0];
       if (!container?.Config.Labels) {
@@ -455,17 +620,39 @@ describe('local application installation and return visits', () => {
     expect(docker.calls.some((args) => args[0] === 'volume' && args.includes('rm'))).toBe(false);
   });
 
-  it('reports missing model files before creating storage or pulling images', async () => {
-    models = join(directory, 'missing-models');
+  it('downloads missing model files itself before recording an installation', async () => {
+    await rm(storage.modelDirectory, { recursive: true });
+    const fetched: string[] = [];
+    const realFetch = fetch;
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      fetched.push(url);
+      if (!url.startsWith('https://models.test')) {
+        return realFetch(url, init);
+      }
+      return new Response(modelContents[url.split('/').pop() as keyof typeof modelContents]);
+    });
     const app = application();
     await app.install();
-    expect(recoveryMessage(app)).toContain('HEYHEY_LOCAL_MODEL_DIR');
+    expect(fetched.filter((url) => url.startsWith('https://models.test')).sort()).toEqual([
+      'https://models.test/model_quantized.onnx',
+      'https://models.test/tokenizer.json',
+    ]);
+    expect(await readFile(join(storage.modelDirectory, 'tokenizer.json'), 'utf8')).toBe('{}');
+    expect(app.state.kind).not.toBe('recovery');
+  });
+
+  it('reports why a model download failed and installs nothing', async () => {
+    await rm(storage.modelDirectory, { recursive: true });
+    vi.stubGlobal('fetch', async () => new Response('', { status: 503 }));
+    const app = application();
+    await app.install();
+    expect(recoveryMessage(app)).toContain('HTTP 503');
     expect(await storage.read()).toBeUndefined();
     expect(mutated()).toEqual([]);
   });
 
   it('does not replace a damaged durable identity or missing secrets', async () => {
-    await storage.prepare(release, models);
+    await storage.prepare(release);
     await writeFile(join(storage.directory, 'secrets.json'), 'damaged');
     docker.observed = containers(false);
     const app = application();
@@ -480,12 +667,13 @@ describe('local application installation and return visits', () => {
   });
 
   it('generates only pinned images, loopback app ports, private databases and no hosted credentials', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const { composeConfiguration } = await import('./compose');
     const config = composeConfiguration(
       installation,
       await storage.secrets(),
       DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
     );
     const expectedImages = Object.values(release.images).map((image) => image.reference);
     for (const service of Object.values(config.services)) {
@@ -502,7 +690,7 @@ describe('local application installation and return visits', () => {
       /TEMPORAL|CLAUDE_API_KEY|OPENAI_API_KEY|SYNTHETIC_LLM_API_KEY/,
     );
     expect(config.services.api.environment.GRAPH_SERVICE_URL).toBe(
-      config.services.api.environment.EMBEDDINGS_SERVICE_URL,
+      `${config.services.api.environment.EMBEDDINGS_SERVICE_URL}/api`,
     );
     expect(config.services['graph-search'].environment.GRAPH_SEARCH_DATABASE_URL).toContain(
       '/heyhey_graph_search',
@@ -510,7 +698,7 @@ describe('local application installation and return visits', () => {
   });
 
   it('dev mode runs only pinned infrastructure on loopback and derives the API configuration from the installed definition', async () => {
-    const installation = await storage.prepare(release, models);
+    const installation = await storage.prepare(release);
     const secrets = await storage.secrets();
     const {
       composeConfiguration,
@@ -518,15 +706,22 @@ describe('local application installation and return visits', () => {
       localApiEnvironment,
       DEV_INFRASTRUCTURE_ENDPOINTS,
     } = await import('./compose');
-    const installed = composeConfiguration(installation, secrets, DEFAULT_LOCAL_BRIDGE_PORT);
+    const installed = composeConfiguration(
+      installation,
+      secrets,
+      DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     const dev = devComposeConfiguration(
       installation,
       secrets,
       DEFAULT_LOCAL_BRIDGE_PORT,
+      DEFAULT_LOCAL_WEB_PORT,
       '/flyway',
     );
 
-    expect(dev.name).toBe(installed.name);
+    // Its own Compose project, so the same volume names never resolve to the installed app's data.
+    expect(dev.name).not.toBe(installed.name);
     expect(dev.volumes).toEqual(installed.volumes);
     expect(dev.services).not.toHaveProperty('ui');
     expect(dev.services.api).not.toHaveProperty('ports');
@@ -535,7 +730,11 @@ describe('local application installation and return visits', () => {
       expect(dev.services[name].ports.every((port) => port.startsWith('127.0.0.1:'))).toBe(true);
     }
 
-    const hostApi = localApiEnvironment(secrets, DEV_INFRASTRUCTURE_ENDPOINTS);
+    const hostApi = localApiEnvironment(
+      secrets,
+      DEV_INFRASTRUCTURE_ENDPOINTS,
+      DEFAULT_LOCAL_WEB_PORT,
+    );
     const addressKeys = /URL|HOST|PORT/;
     for (const [key, value] of Object.entries(installed.services.api.environment)) {
       if (!addressKeys.test(key)) {
@@ -543,13 +742,13 @@ describe('local application installation and return visits', () => {
       }
     }
     expect(hostApi.PROJECT_DATABASE_URL).toContain('127.0.0.1:55432');
-    expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090');
+    expect(hostApi.GRAPH_SERVICE_URL).toBe('http://127.0.0.1:58090/api');
   });
 
-  it('fixture releases cannot bypass packaged version or digest validation', async () => {
+  it('reuses pinned images across CLI versions and rejects invalid image data', async () => {
     await expect(
       new ReleaseSource(join(directory, 'release.json'), 'other-version').read(),
-    ).rejects.toThrow('package.json');
+    ).resolves.toEqual({ ...release, cliVersion: 'other-version' });
     const invalid = structuredClone(release);
     invalid.images.api.reference = 'example.test/api:latest';
     await writeFile(join(directory, 'release.json'), JSON.stringify(invalid));
@@ -580,10 +779,10 @@ class FixturePackage extends ReleasePackage {
 }
 
 it('offers the complete newer fixture release without mutation; declining keeps the matched installation usable', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   const packages = new FixturePackage();
-  const app = new LocalApplication(source, storage, docker, models, 'darwin', packages);
+  const app = new LocalApplication(source, storage, docker, downloader, 'darwin', packages);
   await app.run();
   expect(app.state).toEqual({
     kind: 'update',
@@ -600,10 +799,10 @@ it('offers the complete newer fixture release without mutation; declining keeps 
 });
 
 it('records coordinated consent before package install, then repairs a partial image update on retry without removing data', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   const packages = new FixturePackage();
-  const app = new LocalApplication(source, storage, docker, models, 'darwin', packages);
+  const app = new LocalApplication(source, storage, docker, downloader, 'darwin', packages);
   await app.run();
   await app.acceptUpdate();
   expect(app.state).toEqual({
@@ -641,7 +840,7 @@ it('records coordinated consent before package install, then repairs a partial i
 
 it('does not reuse update consent for a different source release or start a partial, unconsented release', async () => {
   const older = { ...release, cliVersion: '1.2.2' };
-  await storage.prepare(older, models);
+  await storage.prepare(older);
   await storage.recordUpdate({ ...release, cliVersion: '1.2.1' }, release);
   docker.observed = [...containers(false, older).slice(0, 2), ...containers(false).slice(2)];
   const app = application();
@@ -657,11 +856,18 @@ it('does not reuse update consent for a different source release or start a part
 });
 
 it('lets a matched installation decline a newer release even when another terminal cannot report work', async () => {
-  await storage.prepare(release, models);
+  await storage.prepare(release);
   docker.observed = containers(true);
   await mkdir(join(storage.directory, 'bridges'));
   await writeFile(join(storage.directory, 'bridges', 'unreadable-owner.json'), 'invalid');
-  const app = new LocalApplication(source, storage, docker, models, 'darwin', new FixturePackage());
+  const app = new LocalApplication(
+    source,
+    storage,
+    docker,
+    downloader,
+    'darwin',
+    new FixturePackage(),
+  );
   await app.run();
   expect(app.state).toMatchObject({ kind: 'update', required: false, activeCount: null });
   await app.declineUpdate();
@@ -671,7 +877,7 @@ it('lets a matched installation decline a newer release even when another termin
 
 it('rejects duplicated or manually altered containers during a consented update before any launch', async () => {
   const older = { ...release, cliVersion: '1.2.2' };
-  await storage.prepare(older, models);
+  await storage.prepare(older);
   await storage.recordUpdate(older, release);
   docker.observed = [...containers(false, older), ...containers(false).slice(0, 1)];
   const app = application();

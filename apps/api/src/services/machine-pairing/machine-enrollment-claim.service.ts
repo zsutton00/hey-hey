@@ -21,6 +21,7 @@ import {
   MachineEnrollmentWebAuthnRegistrationCredentialDto,
 } from '@hey-hey/contracts/api/models';
 import {
+  type BrowserSafeClaimFailureCode,
   MACHINE_ENROLLMENT_CLAIM_EXPIRED,
   MACHINE_ENROLLMENT_CLAIM_TERMINAL,
   MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE,
@@ -57,12 +58,6 @@ export interface PreparedCompletion {
   enrollment: PendingMachineEnrollment;
   verified: VerifiedMachineEnrollmentCredential;
 }
-
-type BrowserSafeClaimFailureCode =
-  | typeof MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE
-  | typeof MACHINE_ENROLLMENT_CLAIM_EXPIRED
-  | typeof MACHINE_ENROLLMENT_CLAIM_TERMINAL
-  | typeof MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE;
 
 export const MACHINE_ENROLLMENT_WEBAUTHN_VERIFIER = Symbol(
   'MACHINE_ENROLLMENT_WEBAUTHN_VERIFIER',
@@ -563,12 +558,31 @@ export class MachineEnrollmentClaimService {
     return this.completionResponse(prepared, input);
   }
 
+  /** The mode a pending enrollment was begun in, or null when unknown. */
+  async enrollmentModeOf(
+    enrollmentId: string,
+  ): Promise<MachineEnrollmentMode | null> {
+    if (!this.isUuid(enrollmentId)) {
+      return null;
+    }
+    const enrollment = await this.prisma.db.pendingMachineEnrollment.findUnique(
+      {
+        where: { id: enrollmentId },
+        select: { enrollmentMode: true },
+      },
+    );
+    return enrollment
+      ? (enrollment.enrollmentMode as MachineEnrollmentMode)
+      : null;
+  }
+
   async prepareCompletion(
     input: CompleteMachineEnrollmentClaimRequestDto,
     userId: UserId,
     memberships: readonly OrganizationMembership[],
     sourceAddress: string | undefined,
     expectedMode: MachineEnrollmentMode,
+    acceptsMissingAccountProof = false,
   ): Promise<PreparedCompletion> {
     const normalizedSourceAddress = this.normalizeSource(sourceAddress);
 
@@ -657,11 +671,11 @@ export class MachineEnrollmentClaimService {
       );
     }
 
-    if (
-      enrollment.enrollmentMode !== expectedMode ||
-      (expectedMode === MachineEnrollmentMode.SHARED_NEW) !==
-        (input.accountProof !== undefined)
-    ) {
+    const shared = expectedMode === MachineEnrollmentMode.SHARED_NEW;
+    const proofAcceptable = shared
+      ? input.accountProof !== undefined || acceptsMissingAccountProof
+      : input.accountProof === undefined;
+    if (enrollment.enrollmentMode !== expectedMode || !proofAcceptable) {
       return this.failClaim(
         userId,
         normalizedSourceAddress,

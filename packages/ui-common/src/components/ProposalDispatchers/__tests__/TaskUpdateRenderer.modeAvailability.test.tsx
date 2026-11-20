@@ -2,6 +2,7 @@ import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serv
 import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { stripIgnoredCharacters } from "graphql";
 import { http } from "msw";
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -115,7 +116,7 @@ const workItemTypeDefinition: WorkItemTypeDefinitionDto = {
   key: "MODE",
   name: "Agent Mode",
   sections: [{ key: "description", label: "Guidance" }],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const makeProposal = (): ProposalResponseDto =>
@@ -316,4 +317,69 @@ describe("TaskUpdateRenderer Agent Mode availability", () => {
       expect.anything(),
     );
   });
+});
+
+it("preserves complete before and after input lists for Eval Case updates", async () => {
+  const { default: captured } = await import("./fixtures/evalCaseInputs.json");
+  const before = {
+    inputs: [
+      ...captured.inputs,
+      { kind: "text_message", text: "Removed request" },
+      { kind: "text_message", text: "Original final request" },
+    ],
+  };
+  const after = {
+    inputs: [
+      ...captured.inputs,
+      { kind: "text_message", text: "Changed final request" },
+      { kind: "text_message", text: "Added request" },
+    ],
+  };
+  const proposal = {
+    ...makeProposal(),
+    edges: [],
+    updates: { sections: [{ key: "inputs", content: JSON.stringify(after) }] },
+  };
+  const current = {
+    ...existing,
+    type: "EVAL_CASE",
+    sections: [{ key: "inputs", materializedMarkdown: JSON.stringify(before) }],
+  };
+  const definition: WorkItemTypeDefinitionDto = {
+    key: "EVAL_CASE",
+    name: "Eval Case",
+    allowedStatuses: [],
+    sections: [
+      {
+        key: "inputs",
+        label: "Inputs",
+        kind: "json",
+        schemaRef: "#/components/schemas/EvalCaseInputs",
+      },
+    ],
+  };
+  render(
+    <MemoryRouter>
+      <TaskUpdateRenderer
+        proposal={proposal}
+        existing={current}
+        status={{ state: "pending" }}
+        onApply={() => {}}
+        workItemTypeDefinition={definition}
+      />
+    </MemoryRouter>,
+  );
+  const lists = screen.getAllByTestId("inputs-list");
+  expect(lists).toHaveLength(2);
+  expect(lists[0]).toHaveTextContent("Removed request");
+  expect(lists[0]).toHaveTextContent("Original final request");
+  expect(lists[1]).toHaveTextContent("Changed final request");
+  expect(lists[1]).toHaveTextContent("Added request");
+  for (const list of lists) {
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(list).getByTestId("input-3")).toContainElement(
+      within(list).getByTestId("input-judged-badge"),
+    );
+  }
+  expect(screen.queryByTestId("diff-renderer")).toBeNull();
 });

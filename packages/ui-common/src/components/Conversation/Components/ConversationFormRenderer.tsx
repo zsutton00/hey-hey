@@ -1,3 +1,4 @@
+import { Box } from "@mui/material";
 import { latestCodingPlanVersionMessageId } from "../utils/codingPlanConversation";
 import type { ResolvedConversationForm } from "../utils/conversationResponseModel";
 import React, { memo } from "react";
@@ -68,7 +69,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         workflowStatus,
         handleNext,
         isReadOnly,
-        composerResetMode,
         isCliInputDisabled,
         onFocusComposer,
         onGoalPmAction,
@@ -291,9 +291,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
               isSubmittable={isSubmittable}
               secondActions={getSecondActions(fieldContext)}
               status={status}
-              composerResetMode={
-                formResolution?.composerResetMode ?? composerResetMode
-              }
               onNext={onNext}
               conversationMessage={conversationMessage}
               uiHints={uiHints}
@@ -306,43 +303,70 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
                 declaration.currentFieldId === responseUiElement.id,
             );
             return (
-              <ReportViewer
+              <Box
                 key={report.id}
-                report={report}
-                renderHeader={false}
-                featureSyncDecisionInteraction={
-                  report.reportType === ReportType.FeatureSyncDecision &&
-                  !isReadOnly &&
-                  ownsEmbeddedResponse
-                    ? createFeatureSyncDecisionInteraction({
-                        conversationId: activeConversation.id,
-                        disabled: !canInteractWithReport,
-                        handleNext: handleMessageNext,
-                        parentMessageId: conversationMessage.message.id,
-                      })
-                    : undefined
-                }
-                planInteraction={
-                  report.reportType === ReportType.Plan &&
-                  !isReadOnly &&
-                  ownsEmbeddedResponse
-                    ? {
-                        sourceUiElement: responseUiElement,
-                        parentMessageId: conversationMessage.message.id,
-                        fieldContext,
-                        disabled: !canInteractWithReport,
-                        submit: (values, parentMessageId) =>
-                          handleMessageNext(values, parentMessageId),
-                      }
-                    : undefined
-                }
-              />
+                sx={{
+                  // A decision card has its own frame, so it needs its own
+                  // gap below the message it answers.
+                  mt:
+                    report.reportType === ReportType.FeatureSyncDecision
+                      ? 1.5
+                      : 0,
+                }}
+              >
+                <ReportViewer
+                  report={report}
+                  renderHeader={false}
+                  featureSyncDecisionRecordedResponse={
+                    report.reportType === ReportType.FeatureSyncDecision
+                      ? findRecordedUserResponse(conversationMessage)
+                      : undefined
+                  }
+                  featureSyncDecisionInteraction={
+                    report.reportType === ReportType.FeatureSyncDecision &&
+                    !isReadOnly &&
+                    ownsEmbeddedResponse
+                      ? createFeatureSyncDecisionInteraction({
+                          conversationId: activeConversation.id,
+                          disabled: !canInteractWithReport,
+                          handleNext: handleMessageNext,
+                          parentMessageId: conversationMessage.message.id,
+                        })
+                      : undefined
+                  }
+                  planInteraction={
+                    report.reportType === ReportType.Plan &&
+                    !isReadOnly &&
+                    ownsEmbeddedResponse
+                      ? {
+                          sourceUiElement: responseUiElement,
+                          parentMessageId: conversationMessage.message.id,
+                          fieldContext,
+                          disabled: !canInteractWithReport,
+                          submit: (values, parentMessageId) =>
+                            handleMessageNext(values, parentMessageId),
+                        }
+                      : undefined
+                  }
+                />
+              </Box>
             );
           })}
         </div>
       );
     },
   );
+
+/** The latest reply the user persisted against this message, if any. */
+const findRecordedUserResponse = (
+  conversationMessage: ConversationMessage,
+): string | undefined => {
+  const replies = (conversationMessage.message.responses ?? []).filter(
+    (response) => response.type === MessageType.User,
+  );
+
+  return replies.at(-1)?.data.response;
+};
 
 const createFeatureSyncDecisionInteraction = (input: {
   conversationId: string;

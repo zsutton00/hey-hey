@@ -30,6 +30,16 @@ export interface ServerLogSink {
   append(entry: ServerLogEntry): void;
 }
 
+// Scoped process observers can preserve selected startup facts before terminal
+// verbosity filtering. Each observer owns its privacy boundary and lifecycle.
+const diagnosticSinks = new Set<ServerLogSink>();
+export function observeServerLogs(sink: ServerLogSink): () => void {
+  diagnosticSinks.add(sink);
+  return () => {
+    diagnosticSinks.delete(sink);
+  };
+}
+
 /** One sink that tees each entry to several; a failing sink never starves the others. */
 export const fanOutLogSinks = (...sinks: readonly ServerLogSink[]): ServerLogSink => ({
   append: (entry) => {
@@ -215,12 +225,24 @@ export class StructuredServerLogger implements ServerLogger {
   }
 
   private emit(level: ServerLogLevel, event: string, fields?: Record<string, unknown>): void {
-    if (LOG_LEVEL_ORDER[level] < LOG_LEVEL_ORDER[this.runtime.minLevel]) return;
+    const visible = LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[this.runtime.minLevel];
+    if (!visible && diagnosticSinks.size === 0) return;
 
-    const entry: ServerLogEntry = {
+    const diagnosticEntry: ServerLogEntry = {
       timestamp: this.runtime.now().toISOString(),
       level,
       event,
+      ...this.bindings,
+      ...fields,
+    };
+
+    for (const sink of diagnosticSinks) {
+      sink.append(diagnosticEntry);
+    }
+    if (!visible) return;
+
+    const entry: ServerLogEntry = {
+      ...diagnosticEntry,
       ...normalizeRecord(this.bindings),
       ...(fields ? normalizeRecord(fields) : {}),
     };

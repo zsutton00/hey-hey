@@ -6,6 +6,7 @@ import { RepoMappingStore, toServiceId } from '../repo';
 import type { LocalAgentInfrastructureOptions } from '../server/local-agent-infrastructure';
 import type { ProjectModeLaunchResumeProbeArgs } from './probe-project-mode-launch-resume-args';
 import { createProjectModeLaunchResumeProbeDependencies } from './probe-project-mode-runtime';
+import { NOOP_LOGGER } from '../server/logger';
 
 vi.mock('../auth', () => ({ seedCredentialFromEnvIfAbsent: vi.fn().mockResolvedValue(false) }));
 vi.mock('../agents/agent-application-runtime', () => ({ AgentApplicationRuntime: class {} }));
@@ -20,7 +21,7 @@ vi.mock('../server/local-agent-infrastructure', () => ({
     runStore = { initialize: async () => {} };
     oauthClient = { getAccessToken: async () => ({ success: true, data: 'test-token' }) };
     apiRuntime = { transport: { setAuthToken: () => {} } };
-    logger = { debug: () => {}, child: () => this.logger };
+    logger = NOOP_LOGGER;
     constructor(options: LocalAgentInfrastructureOptions) {
       this.repoStore = new RepoMappingStore(options.repoMappingStoreOptions);
     }

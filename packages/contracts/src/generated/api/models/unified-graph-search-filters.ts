@@ -72,6 +72,12 @@ export interface UnifiedGraphSearchFilters {
      */
     'excludeReportTypes'?: Array<ReportType>;
     /**
+     * Internal. Entities the graph service removes from results, relationships and traversal paths inside the query.
+     * @type {Array<string>}
+     * @memberof UnifiedGraphSearchFilters
+     */
+    'excludeEntityIds'?: Array<string>;
+    /**
      *
      * @type {UnifiedSearchCommonFiltersDateRange}
      * @memberof UnifiedGraphSearchFilters

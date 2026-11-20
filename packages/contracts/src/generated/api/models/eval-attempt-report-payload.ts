@@ -31,6 +31,9 @@ import type { EvalAttemptStatus } from './eval-attempt-status.js';
 import type { EvalAttemptStopReason } from './eval-attempt-stop-reason.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalAttemptTurn } from './eval-attempt-turn.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConfiguration } from './eval-configuration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -40,11 +43,14 @@ import type { EvalMeasurement } from './eval-measurement.js';
 import type { EvalRecordedChanges } from './eval-recorded-changes.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalRecordedToolCalls } from './eval-recorded-tool-calls.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
 
 /**
  * @type EvalAttemptReportPayload
- * Payload for EVAL_ATTEMPT reports, one per case and configuration. The report id is the attempt\'s identity; parentReportId is the run report. Status is updated in place. The attempt\'s output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.
+ * Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The report id is the attempt\'s identity; parentReportId is the run report. Status is updated in place. The attempt\'s output is whatever its target session wrote while the attempt was in flight. The target session is referenced by id only and never attached, so deleting the session does not delete the attempt.
  * @export
  */
 export interface EvalAttemptReportPayload extends BaseReportPayload, EvalAttemptReportPayloadAllOf {

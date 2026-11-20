@@ -11,6 +11,7 @@ export class ProcessFailureReporter {
   public constructor(
     private readonly logger: ServerLogger,
     private readonly diagnosticFeed: DiagnosticFeed,
+    private readonly dataDirectory: string = resolveBaseDir(),
   ) {}
 
   public start(): void {
@@ -49,7 +50,7 @@ export class ProcessFailureReporter {
     }
     let reportStatus: string;
     try {
-      const directory = path.join(resolveBaseDir(), 'crashes');
+      const directory = path.join(this.dataDirectory, 'crashes');
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       const reportPath = path.join(
         directory,

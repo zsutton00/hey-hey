@@ -355,12 +355,14 @@ export const WorkflowDetailPageView: React.FC<WorkflowDetailPageViewProps> = ({
                 <Divider />
 
                 <Box data-testid="workflow-detail-description">
-                  <Typography variant="overline" color="text.secondary">
-                    Description
-                  </Typography>
                   <WorkItemReadView
                     htmlCssRenderingContext="page"
                     sections={workflow.sections}
+                    sectionSelection={{
+                      status: "resolved",
+                      typeKey: workflow.type,
+                      sections: [{ key: "description", label: "Description" }],
+                    }}
                   />
                 </Box>
               </Stack>

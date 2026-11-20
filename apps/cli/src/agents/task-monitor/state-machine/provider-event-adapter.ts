@@ -31,7 +31,11 @@ const exactActionPayloadSchema = z
             target: z.string().trim().min(1),
             fingerprint: z.string().trim().min(1),
             created_at: z.string().datetime(),
-            expires_at: z.string().datetime(),
+            expires_at: z
+              .string()
+              .datetime()
+              .nullish()
+              .transform((value) => value ?? null),
           })
           .passthrough(),
       })
@@ -39,36 +43,64 @@ const exactActionPayloadSchema = z
   })
   .passthrough();
 
-/**
- * Converts one already-normalized provider boundary event into an addressed,
- * immutable Task Monitor input. It performs shape and ownership checks only;
- * policy remains in the machine.
- */
+export type TaskMonitorPermissionAdmission =
+  | {
+      accepted: true;
+      providerSessionId: string;
+      request: z.infer<typeof exactActionPayloadSchema>['canonical_event']['permission_request'];
+    }
+  | { accepted: false; reason: string };
+
+/** Shared boundary validation for monitor admission and ordinary-card fallback. */
+export const checkTaskMonitorPermissionAdmission = (
+  event: LocalAgentOutputEvent,
+  now: () => number = Date.now,
+): TaskMonitorPermissionAdmission => {
+  if (event.source !== 'provider') {
+    return { accepted: false, reason: 'permission_request_not_provider_owned' };
+  }
+  if (event.sessionId === null) {
+    return { accepted: false, reason: 'permission_request_missing_provider_session' };
+  }
+  const parsed = exactActionPayloadSchema.safeParse(event.payload);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => `${issue.path.join('.')}:${issue.code}`);
+    return { accepted: false, reason: `permission_request_invalid_fields:${fields.join(',')}` };
+  }
+  const request = parsed.data.canonical_event.permission_request;
+  if (
+    parsed.data.canonical_event.timestamp !== request.created_at ||
+    event.timestamp !== request.created_at
+  ) {
+    return { accepted: false, reason: 'permission_request_timestamp_mismatch' };
+  }
+  if (request.expires_at !== null) {
+    if (Date.parse(request.expires_at) <= Date.parse(request.created_at)) {
+      return { accepted: false, reason: 'permission_request_expiry_not_after_creation' };
+    }
+    if (Date.parse(request.expires_at) <= now()) {
+      return { accepted: false, reason: 'permission_request_expired' };
+    }
+  }
+  return { accepted: true, request, providerSessionId: event.sessionId };
+};
+
 export const taskMonitorExactActionInputFromProviderEvent = (
   input: TaskMonitorProviderEventInput,
   createInterventionId: () => string = randomUUID,
   now: () => number = Date.now,
+  onRejected: (reason: string) => void = () => {},
 ): VerifiedTaskMonitorProviderInterventionInput | null => {
-  if (
-    input.event.runId !== input.owner.runId ||
-    input.event.source !== 'provider' ||
-    input.event.sessionId === null
-  ) {
+  if (input.event.runId !== input.owner.runId) {
+    onRejected('permission_request_run_mismatch');
     return null;
   }
-
-  const parsed = exactActionPayloadSchema.safeParse(input.event.payload);
-  if (!parsed.success) return null;
-
-  const request = parsed.data.canonical_event.permission_request;
-  if (
-    parsed.data.canonical_event.timestamp !== request.created_at ||
-    input.event.timestamp !== request.created_at ||
-    Date.parse(request.expires_at) <= Date.parse(request.created_at) ||
-    Date.parse(request.expires_at) <= now()
-  ) {
+  const admission = checkTaskMonitorPermissionAdmission(input.event, now);
+  if (!admission.accepted) {
+    onRejected(admission.reason);
     return null;
   }
+  const request = admission.request;
 
   return {
     source: 'PROVIDER_INTERVENTION',
@@ -77,7 +109,7 @@ export const taskMonitorExactActionInputFromProviderEvent = (
     taskMonitorId: input.owner.taskMonitorId,
     interventionId: createInterventionId(),
     providerActionId: request.id,
-    providerSessionId: input.event.sessionId,
+    providerSessionId: admission.providerSessionId,
     runId: input.owner.runId,
     agentSessionId: input.owner.agentSessionId,
     action: request.action,

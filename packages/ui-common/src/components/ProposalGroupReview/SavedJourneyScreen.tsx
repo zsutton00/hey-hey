@@ -2,7 +2,7 @@ import React from "react";
 import { Alert, Stack, Typography } from "@mui/material";
 import type { ProposalGroupSnapshot } from "../../api";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
-import { JourneyScreen } from "./JourneyScreen";
+import { JourneyScreen, JourneyScreenPlaceholder } from "./JourneyScreen";
 
 export const SavedJourneyScreen: React.FC<{
   id: string;
@@ -10,10 +10,29 @@ export const SavedJourneyScreen: React.FC<{
   group: Pick<ProposalGroupSnapshot, "organizationId" | "projectId">;
   onOpenFullSize?: () => void;
   fullSize?: boolean;
-}> = ({ id, name, group, onOpenFullSize, fullSize }) => {
+  /** Static miniature: any screen that cannot be shown becomes a named placeholder. */
+  readOnly?: boolean;
+}> = ({ id, name, group, onOpenFullSize, fullSize, readOnly = false }) => {
   const read = useWorkItem(group.organizationId, "task", id, {
     projectId: group.projectId,
   });
+  if (readOnly) {
+    const mockup =
+      read.workItem?.type === "mockup" && read.workItem.status !== "ARCHIVED"
+        ? read.workItem
+        : null;
+    return mockup ? (
+      <JourneyScreen
+        name={name}
+        source={{ kind: "workItem", workItemId: id }}
+        sections={mockup.sections ?? []}
+        group={group}
+        readOnly
+      />
+    ) : (
+      <JourneyScreenPlaceholder name={name} />
+    );
+  }
   if (read.isLoading) {
     return <Alert severity="info">Loading saved screen…</Alert>;
   }

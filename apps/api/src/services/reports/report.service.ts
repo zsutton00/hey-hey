@@ -1,14 +1,21 @@
+import type { ReportsApiListProjectChangesRequest } from '@hey-hey/contracts/api/apis/reports-api';
 import { readReportUsage } from './report-usage.validation';
+import { readEvalCaseTarget } from '../eval-runs/eval-case-input.mapper';
 import {
   aggregateUsageTrends,
   USAGE_TREND_REPORT_KINDS,
   type UsageTrendQuery,
   type UsageTrendRow,
 } from './report-usage-trends';
-import { restrictReportWhere } from 'src/read-restriction/read-policy';
-import { validateChangeWalkthroughPayload } from './change-walkthrough-payload.validation';
-import { validateCodingResearchPayload } from './coding-research-payload.validation';
-import { validateProjectReportPayload } from './project-report-payload.validation';
+import {
+  ReadPolicyContext,
+  restrictReportWhere,
+} from 'src/read-restriction/read-policy';
+import {
+  REPORT_PAYLOAD_INVALID_CODE,
+  ReportPayloadValidationException,
+  validateReportPayload,
+} from './report-payload.validation';
 import {
   EvalOutputAdmissionService,
   ORDINARY_EVAL_OUTPUT_STAMP,
@@ -41,6 +48,7 @@ import {
 import { DomainEventPublisher } from 'src/core/events/domain-event-publisher';
 import { EVENT_TYPES } from 'src/core/events/types/event.types';
 import {
+  ChangeRecordCommit,
   CodingResearchReportPayload,
   CreateReportDto,
   CreateReportDtoOther,
@@ -65,6 +73,7 @@ import {
   FileTouchTaskHistoryEvidenceDto,
   FileTouchWorkHistoryDto,
   ImplementReportPayload,
+  ProjectChangesPage,
   LinkedReportEntityRef,
   OtherReportPayload,
   ReportAudience,
@@ -90,9 +99,6 @@ import {
   SessionMonitorReportGuidance,
   UpdateReportDto,
 } from '@hey-hey/contracts/api/models';
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import { REPORT_SCHEMAS } from 'src/mcp/tools/report-schemas.generated';
 import { AnyTransactionClient, PrismaService } from 'src/prisma/prisma.service';
 import { EntityRegistryService } from 'src/services/entity-registry/entity-registry.service';
 import { FlowExecutionService } from 'src/services/workflows/flow-execution.service';
@@ -109,15 +115,6 @@ type ReportWithEntities = Prisma.ReportGetPayload<{
 }>;
 
 const REPORT_ENVELOPE_METADATA_KEY = '__reportEnvelope';
-
-// Implement parses approved PLAN payloads strictly, so a payload that does not
-// satisfy the PLAN contract must be rejected at write time, while the planner
-// can still revise and resubmit it, rather than surfacing after approval.
-const planPayloadAjv = new Ajv({ allErrors: true, strict: false });
-addFormats(planPayloadAjv);
-const validatePlanPayloadSchema = planPayloadAjv.compile(
-  REPORT_SCHEMAS.PLAN.schema,
-);
 
 type FileTouchIndexingResult = {
   reportId: string;
@@ -235,6 +232,7 @@ export class ReportService {
     FEATURE_TREE_ANALYSIS: 'Feature Tree Analysis',
     COMPETITIVE_ANALYSIS: 'Competitive Analysis',
     SESSION_MONITOR_DEFERRAL: 'Session Monitor Deferral',
+    MONITOR_NODE_RESULT: 'Monitor Node Result',
     PROJECT_REPORT: 'Project Report',
     EVAL_RUN: 'Eval Run',
     EVAL_ATTEMPT: 'Eval Attempt',
@@ -266,6 +264,73 @@ export class ReportService {
   private static readonly EMPTY_NAME_MAP = new Map<string, string>();
   private readonly defaultListLimit = 50;
   private readonly maxListLimit = 200;
+
+  /** Indexed reverse lookup; the payload remains the only owner of commit state. */
+  async findCommitsForImplementReport(
+    organizationId: string,
+    projectId: string,
+    implementReportId: string,
+  ) {
+    return this.prisma.db.$queryRaw<ChangeRecordCommit[]>(Prisma.sql`
+      SELECT c.id AS "reportId", h.value->>'service' AS service,
+        h.value->>'hash' AS hash, h.value->>'branch' AS branch
+      FROM reports c
+      CROSS JOIN LATERAL jsonb_array_elements(c.payload->'hashes') h(value)
+      WHERE c.organization_id = ${organizationId} AND c.project_id = ${projectId}
+        AND c.report_type = 'COMMIT'
+        AND c.payload @> ${JSON.stringify({ hashes: [{ implementReportIds: [implementReportId] }] })}::jsonb
+        AND h.value @> ${JSON.stringify({ implementReportIds: [implementReportId] })}::jsonb
+    `);
+  }
+
+  /** One query for a page of IMPLEMENT reports, keyed by IMPLEMENT report id. */
+  private async findCommitsForImplementReports(
+    organizationId: string,
+    projectId: string,
+    implementReportIds: string[],
+  ): Promise<Map<string, ChangeRecordCommit[]>> {
+    const byReport = new Map<string, ChangeRecordCommit[]>();
+    if (implementReportIds.length === 0) {
+      return byReport;
+    }
+
+    const rows = await this.prisma.db.$queryRaw<
+      Array<ChangeRecordCommit & { implementReportId: string }>
+    >(Prisma.sql`
+      SELECT c.id AS "reportId", h.value->>'service' AS service,
+        h.value->>'hash' AS hash, h.value->>'branch' AS branch,
+        i.value AS "implementReportId"
+      FROM reports c
+      CROSS JOIN LATERAL jsonb_array_elements(c.payload->'hashes') h(value)
+      CROSS JOIN LATERAL jsonb_array_elements_text(h.value->'implementReportIds') i(value)
+      WHERE c.organization_id = ${organizationId} AND c.project_id = ${projectId}
+        AND c.report_type = 'COMMIT'
+        AND i.value IN (${Prisma.join(implementReportIds)})
+    `);
+
+    for (const { implementReportId, ...commit } of rows) {
+      const commits = byReport.get(implementReportId) ?? [];
+      commits.push(commit);
+      byReport.set(implementReportId, commits);
+    }
+    return byReport;
+  }
+
+  /** Reusable database predicate for a scoped IMPLEMENT list, without loading COMMIT bodies. */
+  implementCommitStatePredicate(
+    organizationId: string,
+    projectId: string,
+    committed: boolean,
+  ): Prisma.Sql {
+    const exists = Prisma.sql`EXISTS (
+      SELECT 1 FROM reports c
+      WHERE c.organization_id = ${organizationId} AND c.project_id = ${projectId}
+        AND c.report_type = 'COMMIT'
+        AND c.payload @> jsonb_build_object('hashes', jsonb_build_array(
+          jsonb_build_object('implementReportIds', jsonb_build_array(reports.id))))
+    )`;
+    return committed ? exists : Prisma.sql`NOT ${exists}`;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -301,12 +366,16 @@ export class ReportService {
         ? ReportAudience.WorkflowOnly
         : dto.audience;
     this.validateReportType(dto.reportType);
-    validateChangeWalkthroughPayload(dto.reportType, dto.payload);
-    validateCodingResearchPayload(dto.reportType, dto.payload);
-    const projectReportPayload = validateProjectReportPayload(
-      dto.reportType,
-      dto.payload,
-    );
+    const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
+    this.assertValidReportPayload(organizationId, {
+      reportType: dto.reportType,
+      payload: dto.payload,
+      schemaVersion,
+    });
+    const projectReportPayload =
+      dto.payload.reportType === ReportType.ProjectReport
+        ? dto.payload
+        : undefined;
     if (
       projectReportPayload &&
       (!dto.projectId ||
@@ -322,12 +391,8 @@ export class ReportService {
       );
     }
     this.validateReportAudience(audience);
-    if (dto.reportType === ReportType.Plan) {
-      this.validatePlanPayloadShape(organizationId, dto.payload);
-    }
     await this.validatePlanRequiredServiceIds(organizationId, dto);
     await this.validateGoalAnchor(organizationId, dto);
-    const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
     const expiresAt = this.resolveCreateExpiresAt(dto);
     const callerEntityCreates = (dto.entities ?? []).map((entity) =>
       this.toReportEntityCreateInput(entity),
@@ -352,6 +417,30 @@ export class ReportService {
     let created: ReportWithEntities;
     try {
       created = await this.prisma.db.$transaction(async (tx) => {
+        if (
+          dto.reportType === ReportType.Commit &&
+          dto.payload.reportType === 'COMMIT' &&
+          dto.sourceExecutionId
+        ) {
+          // Serialize retry requests from one Run, including a lost successful response.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId + ':' + dto.sourceExecutionId}, 0))`;
+          const existing = await tx.report.findFirst({
+            where: {
+              organizationId,
+              projectId: dto.projectId ?? null,
+              sourceExecutionId: dto.sourceExecutionId,
+              reportType: PrismaReportType.COMMIT,
+              payload: { path: ['hashes'], equals: dto.payload.hashes },
+            },
+          });
+          if (existing) {
+            const reportEntities = await tx.reportEntity.findMany({
+              where: { reportId: existing.id },
+              orderBy: { createdAt: 'asc' },
+            });
+            return { ...existing, reportEntities };
+          }
+        }
         if (projectReportPayload) {
           await this.projectReportRequests!.assertReportSubmissionInTransaction(
             tx as unknown as Prisma.TransactionClient,
@@ -459,8 +548,13 @@ export class ReportService {
     dto: CreateReportDto,
   ): Promise<ReportDto> {
     this.validateReportType(dto.reportType);
-    this.validateReportAudience(dto.audience);
     const schemaVersion = this.resolveSchemaVersion(dto.schemaVersion);
+    this.assertValidReportPayload(organizationId, {
+      reportType: dto.reportType,
+      payload: dto.payload,
+      schemaVersion,
+    });
+    this.validateReportAudience(dto.audience);
     const expiresAt = this.resolveCreateExpiresAt(dto);
     const entityCreates = this.dedupeEntityCreates([
       ...(dto.entities ?? []).map((entity) =>
@@ -583,6 +677,91 @@ export class ReportService {
     }
 
     return aggregateUsageTrends(rows, query);
+  }
+
+  async listProjectChanges(
+    organizationId: OrganizationId,
+    projectId: string,
+    filters: Omit<
+      ReportsApiListProjectChangesRequest,
+      'organizationId' | 'projectId' | 'limit' | 'offset'
+    > & { limit: number; offset: number },
+  ): Promise<ProjectChangesPage> {
+    if (
+      ReadPolicyContext.current().excludedReportTypes.includes(
+        PrismaReportType.IMPLEMENT,
+      )
+    ) {
+      return { records: [], hasMore: false };
+    }
+    const relation = (entityType: string, entityId: string) => Prisma.sql`
+      EXISTS (SELECT 1 FROM report_entities e WHERE e.report_id = reports.id
+        AND e.entity_type::text = ${entityType} AND e.entity_id = ${entityId})`;
+    const conditions = [
+      Prisma.sql`reports.organization_id = ${organizationId}`,
+      Prisma.sql`reports.project_id = ${projectId}`,
+      Prisma.sql`reports.report_type = 'IMPLEMENT'`,
+      Prisma.sql`(reports.expires_at IS NULL OR reports.expires_at > NOW())`,
+    ];
+    if (filters.agentSessionId) {
+      conditions.push(relation('AGENT_SESSION', filters.agentSessionId));
+    }
+    if (filters.serviceId) {
+      conditions.push(relation('SERVICE', filters.serviceId));
+    }
+    if (filters.taskId) {
+      conditions.push(relation('TASK', filters.taskId));
+    }
+    if (filters.featureId) {
+      conditions.push(Prisma.sql`EXISTS (
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM tasks WHERE id = ${filters.featureId}
+            AND organization_id = ${organizationId} AND project_id = ${projectId}
+            AND type = 'FEATURE' AND archived_at IS NULL
+          UNION
+          SELECT t.id FROM tasks t JOIN subtree p ON t.parent_task_id = p.id
+            WHERE t.organization_id = ${organizationId} AND t.project_id = ${projectId}
+              AND t.archived_at IS NULL
+        ) SELECT 1 FROM report_entities e JOIN subtree ON subtree.id = e.entity_id
+          WHERE e.report_id = reports.id AND e.entity_type::text = 'TASK'
+      )`);
+    }
+    if (filters.committed !== undefined) {
+      conditions.push(
+        this.implementCommitStatePredicate(
+          organizationId,
+          projectId,
+          filters.committed,
+        ),
+      );
+    }
+    const ids = await this.prisma.db.$queryRaw<
+      Array<{ id: string }>
+    >(Prisma.sql`
+      SELECT reports.id FROM reports WHERE ${Prisma.join(conditions, ' AND ')}
+      ORDER BY reports.created_at DESC, reports.id DESC
+      LIMIT ${filters.limit + 1} OFFSET ${filters.offset}
+    `);
+    const reports = await this.prisma.db.report.findMany({
+      where: restrictReportWhere({
+        organizationId,
+        projectId,
+        id: { in: ids.slice(0, filters.limit).map((row) => row.id) },
+      }),
+      include: { reportEntities: { orderBy: { createdAt: 'asc' } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+    const names = await this.resolveEntityNames(organizationId, reports);
+    const commitsByReport = await this.findCommitsForImplementReports(
+      organizationId,
+      projectId,
+      reports.map((report) => report.id),
+    );
+    const records = reports.map((report) => ({
+      report: this.toDto(report, names),
+      commits: commitsByReport.get(report.id) ?? [],
+    }));
+    return { records, hasMore: ids.length > filters.limit };
   }
 
   async findAll(
@@ -1706,26 +1885,29 @@ export class ReportService {
         id: reportId,
         organizationId,
       },
-      select: { id: true, payload: true, reportType: true },
+      select: {
+        id: true,
+        payload: true,
+        reportType: true,
+        schemaVersion: true,
+      },
     });
 
     if (!existing) {
       throw new NotFoundException('Report not found');
-    }
-    if (existing.reportType === PrismaReportType.PLAN) {
-      this.validatePlanPayloadShape(organizationId, dto.payload);
-    }
-
-    if (dto.payload !== undefined) {
-      validateProjectReportPayload(existing.reportType, dto.payload);
-      validateChangeWalkthroughPayload(existing.reportType, dto.payload);
-      validateCodingResearchPayload(existing.reportType, dto.payload);
     }
 
     const schemaVersion =
       dto.schemaVersion === undefined
         ? undefined
         : this.resolveSchemaVersion(dto.schemaVersion);
+    if (dto.payload !== undefined || schemaVersion !== undefined) {
+      this.assertValidReportPayload(organizationId, {
+        reportType: existing.reportType,
+        payload: dto.payload ?? existing.payload,
+        schemaVersion: schemaVersion ?? existing.schemaVersion,
+      });
+    }
     const requestedAudience =
       dto.audience === undefined
         ? undefined
@@ -2677,9 +2859,28 @@ export class ReportService {
     return {
       ...base,
       reportType: reportType as ReportDtoOther['reportType'],
-      payload: payload as OtherReportPayload,
+      payload: this.readRecordedRunCases(payload) as OtherReportPayload,
       schemaVersion: report.schemaVersion,
     } satisfies ReportDtoOther;
+  }
+
+  /**
+   * A run recorded before Eval Cases had inputs carries only the old single
+   * request on each case target. Serve it as a one-message list so readers
+   * can rely on `target.inputs`.
+   */
+  private readRecordedRunCases(payload: ReportPayload): ReportPayload {
+    if (payload.reportType !== ReportType.EvalRun) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      cases: payload.cases.map((caseInput) => ({
+        ...caseInput,
+        target: readEvalCaseTarget(caseInput.target),
+      })),
+    };
   }
 
   private toPersistedReportPayload(
@@ -3227,29 +3428,32 @@ export class ReportService {
     );
   }
 
-  private validatePlanPayloadShape(
+  /**
+   * Structural gate shared by every report write. Rejects before persistence or
+   * publication and logs a content-free cause the agent-facing error mirrors.
+   */
+  private assertValidReportPayload(
     organizationId: OrganizationId,
-    payload: unknown,
+    input: { reportType: string; payload: unknown; schemaVersion: number },
   ): void {
-    const cleanedPayload = this.withoutReportEnvelopeMetadata(payload);
-    if (validatePlanPayloadSchema(cleanedPayload)) {
-      return;
+    try {
+      validateReportPayload(input);
+    } catch (error) {
+      if (error instanceof ReportPayloadValidationException) {
+        this.logger.warn('Rejected report: payload violates report schema', {
+          organizationId,
+          code: REPORT_PAYLOAD_INVALID_CODE,
+          reportType: input.reportType,
+          schemaVersion: input.schemaVersion,
+          issues: error.failure.issues.map((issue) => ({
+            path: issue.path,
+            keyword: issue.keyword,
+            missingProperty: issue.missingProperty,
+          })),
+        });
+      }
+      throw error;
     }
-    const issues = (validatePlanPayloadSchema.errors ?? []).map((error) => {
-      const location = error.instancePath || '/';
-      const extraKey =
-        error.keyword === 'additionalProperties'
-          ? ` (${String(error.params.additionalProperty)})`
-          : '';
-      return `${location} ${error.message ?? 'is invalid'}${extraKey}`;
-    });
-    this.logger.warn('Rejected PLAN report: payload violates PLAN schema', {
-      organizationId,
-      issues,
-    });
-    throw new BadRequestException(
-      `PLAN report payload does not match the PLAN report schema: ${issues.join('; ')}. Remove unknown fields and fix the listed issues, then revise and resubmit the report.`,
-    );
   }
 
   private async validatePlanRequiredServiceIds(

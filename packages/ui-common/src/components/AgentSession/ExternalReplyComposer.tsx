@@ -340,6 +340,11 @@ export const ExternalReplyComposer = ({
             "File attachments are supported on ordinary replies. Remove the files before sending a command.",
           );
         }
+        // Hide the submitted text as soon as the send starts; a failure
+        // restores it below.
+        setDraft("");
+        setSelectedSkill(null);
+        editorKeyRef.current += 1;
         if (messageAgent.kind === "executable") {
           if (!onSubmitMessageAgent)
             throw new Error(
@@ -364,10 +369,7 @@ export const ExternalReplyComposer = ({
         }
         if (activeSubmissionScopeRef.current === submittedScopeKey) {
           runAttachments.clearSubmitted(submittedAttachments);
-          setDraft("");
-          editorKeyRef.current += 1;
           setClearSignal((prev) => prev + 1);
-          setSelectedSkill(null);
           setPostFailure((current) =>
             current?.conversationId === submissionConversationId &&
             current.submissionIdentity === submissionIdentity

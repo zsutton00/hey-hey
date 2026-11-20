@@ -43,7 +43,7 @@ import { projectReportHandler } from './project-report/project-report.handler';
 import { releaseNotesHandler } from './release-notes/release-notes.handler';
 import { projectReportSectionHandler } from './project-report/project-report-section.handler';
 import { projectModeHandler } from './project-mode';
-import type { PromptTypeHandler } from './prompt-type-handler';
+import { declaresSessionRole, type PromptTypeHandler } from './prompt-type-handler';
 import { proposalRefinerHandler } from './proposal-refiner/proposal-refiner.handler';
 import { reportUpdateHandler } from './report-update/report-update.handler';
 import { researchHandler } from './research';
@@ -213,6 +213,15 @@ const CHILD_ONLY_HANDLERS: readonly PromptTypeHandler<unknown>[] = [
   evalJudgeHandler,
 ];
 
+/** Every handler states its session role; none inherits one. */
+function assertDeclaresSessionRole(handler: PromptTypeHandler<unknown>): void {
+  if (!declaresSessionRole(handler)) {
+    throw new Error(
+      `PromptTypeRegistry: handler '${handler.id}' must declare sessionRole or resolveSessionRole.`,
+    );
+  }
+}
+
 export class PromptTypeRegistry {
   private readonly handlersByPromptType = new Map<string, PromptTypeHandler<unknown>>();
   private readonly handlersById = new Map<string, PromptTypeHandler<unknown>>();
@@ -246,6 +255,8 @@ export class PromptTypeRegistry {
         throw new Error(`PromptTypeRegistry: duplicate handler id '${handler.id}'.`);
       }
 
+      assertDeclaresSessionRole(handler);
+
       registeredPromptTypes.add(promptType);
       this.handlersByPromptType.set(promptType, handler);
       this.handlersById.set(handler.id, handler);
@@ -266,6 +277,7 @@ export class PromptTypeRegistry {
           `PromptTypeRegistry: child-only handler '${handler.id}' must declare a child configuration.`,
         );
       }
+      assertDeclaresSessionRole(handler);
       this.childOnlyHandlersById.set(handler.id, handler);
     }
 

@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { AssistantCompleteEvent } from '../../run/types';
 import type { OtherReportPayload } from '@hey-hey/contracts/api/models';
 import type { CreateReportDto, CreateReportEntityDto } from '../../shared/api/index';
@@ -206,6 +207,7 @@ const buildMessageData = (parsed: LocalDailySessionResponse) => ({
 export const dailySessionHandler: UserLaunchablePromptTypeHandler<LocalDailySessionPromptPayload> =
   {
     id: 'daily_session',
+    sessionRole: SessionRole.Research,
     promptType: 'daily_session',
     service: 'optional',
     launchEntity: 'none',

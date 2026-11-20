@@ -827,6 +827,43 @@ describe("DiscussModal submit and close behavior", () => {
     );
   });
 
+  it("shows the automatic context read-only and sends it ahead of the user's own text", async () => {
+    const { props } = renderModal({
+      contextPreview: "The user wants to discuss an uncertainty.",
+    });
+
+    expect(
+      screen.getByTestId("discuss-modal-context-preview"),
+    ).toHaveTextContent("The user wants to discuss an uncertainty.");
+    expect(screen.getByTestId("mock-editor-input")).toHaveValue("");
+
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "Why is this uncertain?" },
+    });
+    await userEvent.click(screen.getByTestId("discuss-modal-submit"));
+
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt:
+          "The user wants to discuss an uncertainty.\n\nWhy is this uncertain?",
+      }),
+    );
+  });
+
+  it("starts from the automatic context alone when the user adds nothing", async () => {
+    const { props } = renderModal({
+      contextPreview: "The user wants to discuss an uncertainty.",
+    });
+
+    await userEvent.click(screen.getByTestId("discuss-modal-submit"));
+
+    expect(props.onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "The user wants to discuss an uncertainty.",
+      }),
+    );
+  });
+
   it("submits Quick Question with Project Assistant explicitly disabled", async () => {
     const stored: SurfaceSelection = {
       provider: ConversationStartRunRequestDtoProviderEnum.Codex,

@@ -1,4 +1,4 @@
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import {
   ExtendedUIFieldType,
   MessageStatus,
@@ -43,6 +43,7 @@ const invalidAction = (): CompletionAction => ({
 
 class RepositoryFirstWorkHandler implements PromptTypeHandler<RepositoryFirstWorkPromptPayload> {
   readonly id = 'repository-first-work';
+  readonly sessionRole = SessionRole.Research;
   readonly promptType = LocalPromptType.RepositoryFirstWork;
   readonly service = 'required';
   readonly launchEntity = 'none';

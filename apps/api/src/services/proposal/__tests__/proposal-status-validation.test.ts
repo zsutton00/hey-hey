@@ -1,4 +1,6 @@
 import { ProposalReconciliationService } from '../proposal-reconciliation.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { CreateProposalDto } from '@hey-hey/contracts/api/models';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
@@ -21,7 +23,9 @@ const context = () => ({
   requestor: TestUtils.createMockAuthenticatedUser(),
 });
 
-function updateStatusProposal(status: WorkStatus): CreateProposalDto {
+function updateStatusProposal(
+  status: TaskResponseDto['status'],
+): CreateProposalDto {
   return {
     type: 'SINGLE',
     action: 'UPDATE',
@@ -61,7 +65,7 @@ async function buildEngine(registry: WorkItemTypeRegistryService): Promise<{
 function projectAndTaskMocks(
   prisma: ReturnType<typeof TestUtils.createMockPrismaService>,
   type: string,
-  status: WorkStatus = WorkStatus.Active,
+  status: TaskResponseDto['status'] = WorkStatus.Active,
 ) {
   prisma.db.project.findFirst.mockResolvedValue({ id: testIds.project });
   prisma.db.task.findFirst.mockResolvedValue({
@@ -72,6 +76,48 @@ function projectAndTaskMocks(
 }
 
 describe('proposal status validation', () => {
+  it('accepts recipe creation with its own statuses and rejects unknown assignments', async () => {
+    const registry = await createWarmWorkItemTypeRegistryWithCustomTypes([
+      {
+        typeKey: 'recipe',
+        projectId: testIds.project,
+        statuses: [
+          { name: 'Idea', meaning: 'NOT_STARTED' },
+          { name: 'Testing', meaning: 'IN_PROGRESS' },
+          { name: 'Made', meaning: 'FINISHED' },
+        ],
+      },
+    ]);
+    const { engine, prisma } = await buildEngine(registry);
+    projectAndTaskMocks(prisma, 'recipe');
+    const proposal = (status?: string): CreateProposalDto => ({
+      type: 'SINGLE',
+      action: 'CREATE',
+      targetEntityId: testIds.task,
+      targetEntityType: 'TASK',
+      updates: {
+        name: 'Soup',
+        type: 'recipe',
+        ...(status === undefined ? {} : { status }),
+      },
+    });
+    for (const status of [undefined, 'Idea', 'Testing']) {
+      const result = await engine.validate({
+        proposals: [proposal(status)],
+        context: context(),
+      });
+      expect(result.proposals[0]?.errors).toEqual([]);
+    }
+    const invalid = await engine.validate({
+      proposals: [proposal('Unknown')],
+      context: context(),
+    });
+    expect(invalid.proposals[0]?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'status_not_allowed' }),
+      ]),
+    );
+  });
   it('accepts PLAN VERIFYING through generic validation', async () => {
     const registry = await createWarmWorkItemTypeRegistry();
     const { engine, prisma } = await buildEngine(registry);
@@ -96,7 +142,7 @@ describe('proposal status validation', () => {
         typeKey: 'LIMITED',
         projectId: testIds.project,
         initialStatus: WorkStatus.Backlog,
-        allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
       },
     ]);
     const { engine, prisma } = await buildEngine(registry);
@@ -112,6 +158,16 @@ describe('proposal status validation', () => {
     });
 
     expect(result.valid).toBe(false);
+    projectAndTaskMocks(prisma, 'LIMITED', WorkStatus.Verifying);
+    const reassignment = await engine.validate({
+      proposals: [updateStatusProposal(WorkStatus.Verifying)],
+      context: context(),
+    });
+    expect(reassignment.proposals[0]?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'status_not_allowed' }),
+      ]),
+    );
     expect(result.proposals[0]?.errors).toContainEqual(
       expect.objectContaining({
         field: 'proposals[0].updates.status',
@@ -147,10 +203,14 @@ describe('proposal status validation', () => {
       registry = await createWarmWorkItemTypeRegistry();
     });
     it.each(BUILT_IN_WORK_ITEM_TYPE_KEYS)(
-      '%s agent-settable statuses equal its allowed statuses',
+      '%s agent-settable statuses include ordinary allowed statuses',
       async (typeKey) => {
         const rules = registry.getRulesForProject(typeKey, testIds.project);
-        expect(rules?.agentSettableStatuses).toEqual(rules?.allowedStatuses);
+        expect(rules?.agentSettableStatuses).toEqual(
+          rules?.allowedStatuses.filter(
+            (status) => status !== WorkStatus.Superseded,
+          ),
+        );
       },
     );
 
@@ -203,11 +263,7 @@ describe('proposal status validation', () => {
       expect(result.proposals[0]?.errors).toEqual([]);
     });
 
-    it('still rejects a direct SUPERSEDED edit when the type lists SUPERSEDED as agent-settable', async () => {
-      expect(
-        registry.getRulesForProject('CONTRACT', testIds.project)
-          ?.agentSettableStatuses,
-      ).toContain(WorkStatus.Superseded);
+    it('rejects a direct SUPERSEDED edit for a supersedable type', async () => {
       const { engine, prisma } = await buildEngine(registry);
       projectAndTaskMocks(prisma, 'CONTRACT');
 

@@ -81,7 +81,7 @@ describe('input admission lifecycle delivery', () => {
     api.settle.mockResolvedValue({ data: { data: { accepted: true } } });
   });
   afterEach(async () => {
-    for (const lifecycle of lifecycles) lifecycle.dispose();
+    for (const lifecycle of lifecycles) await lifecycle.dispose();
     lifecycles = [];
     vi.restoreAllMocks();
     await rm(directory, { recursive: true, force: true });
@@ -609,7 +609,11 @@ describe('input admission lifecycle delivery', () => {
       expect(f.poster.createOutOfBand).toHaveBeenCalledWith(
         expect.objectContaining({
           dto: expect.objectContaining({
-            data: expect.objectContaining({ response: expect.stringContaining('try again') }),
+            data: expect.objectContaining({
+              response: expect.stringContaining(
+                status === 'unclassified' ? 'Unexpected Error' : 'INVALID_REQUEST',
+              ),
+            }),
           }),
         }),
       );
@@ -692,7 +696,7 @@ describe('input admission lifecycle delivery', () => {
     f.send.mockRejectedValueOnce(new AxiosError('still unavailable', 'ECONNRESET'));
     await lifecycle.advance(f.identity.agentSessionId);
     expect(f.send).toHaveBeenCalledTimes(2);
-    lifecycle.dispose();
+    await lifecycle.dispose();
 
     const restored = new InputAdmissionOwner(paths(), NOOP_LOGGER);
     const replay = await restored.admit(f.identity, f.payload, waits);
@@ -1011,7 +1015,7 @@ describe('input admission lifecycle delivery', () => {
       expect(f.warn).toHaveBeenCalledWith('input_admission.settlement_deferred', expect.anything()),
     );
     expect((await f.records())[0]?.settlementDelivered).toBe(false);
-    lifecycle.dispose();
+    await lifecycle.dispose();
     // The failed delivery is retried at its persisted due time, including after a restart.
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 5_001);
     const restored = new InputAdmissionOwner(paths(), NOOP_LOGGER);
@@ -1049,7 +1053,7 @@ describe('input admission lifecycle delivery', () => {
     const admissionLifecycle = f.make();
     await admissionLifecycle.start();
     await f.callbacks().onStarted();
-    admissionLifecycle.dispose();
+    await admissionLifecycle.dispose();
 
     const realSetTimeout = globalThis.setTimeout;
     vi.useFakeTimers({ toFake: ['setTimeout'] });
@@ -1082,7 +1086,7 @@ describe('input admission lifecycle delivery', () => {
       clock += 1;
       await vi.advanceTimersByTimeAsync(1);
       await waitForRestoreCalls(3);
-      recoveryLifecycle.dispose();
+      await recoveryLifecycle.dispose();
     } finally {
       vi.useRealTimers();
     }

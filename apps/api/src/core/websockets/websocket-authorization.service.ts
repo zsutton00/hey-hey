@@ -22,8 +22,51 @@ export interface WebsocketRoomAuthorizationRequest {
   designDocIds: readonly DesignDocId[];
 }
 
+export type RoomScopeType =
+  | 'organization'
+  | 'project'
+  | 'conversation'
+  | 'initiative'
+  | 'design_doc';
+
+/** Server-side cause for a denied room. Logged, never sent to clients. */
+export type RoomDenialReason =
+  | 'not_found_or_inaccessible'
+  | 'organization_access'
+  | 'organization_not_entitled'
+  | 'organization_scope_mismatch'
+  | 'project_access'
+  | 'ownership_inconsistent';
+
+export interface DeniedRoomScope {
+  scopeType: RoomScopeType;
+  id: string;
+  reason: RoomDenialReason;
+}
+
+export type ChildRoomScopeType = Exclude<RoomScopeType, 'organization'>;
+
+export interface DeniedChildRoomScope extends DeniedRoomScope {
+  scopeType: ChildRoomScopeType;
+}
+
+function isDeniedChildRoom(
+  denied: DeniedRoomScope,
+): denied is DeniedChildRoomScope {
+  return denied.scopeType !== 'organization';
+}
+
+export interface GrantedRoomScope {
+  projectIds: ProjectId[];
+  conversationIds: ConversationId[];
+  initiativeIds: InitiativeId[];
+  designDocIds: DesignDocId[];
+}
+
 export interface WebsocketRoomAuthorizationDecision {
   authorized: boolean;
+  grantedScope: GrantedRoomScope;
+  deniedScopes: DeniedRoomScope[];
 }
 
 export interface MachineRoomAuthorizationRequest {
@@ -36,8 +79,14 @@ export interface MachineRoomAuthorizationRequest {
   designDocIds: readonly DesignDocId[];
 }
 
-export interface MachineRoomAuthorizationDecision
-  extends WebsocketRoomAuthorizationDecision {
+/**
+ * A machine is authorized when its own binding and organization are valid.
+ * Within that, rooms are granted individually: `deniedScopes` lists the
+ * requested rooms left out, so one stale ID cannot block the rest.
+ */
+export interface MachineRoomAuthorizationDecision {
+  authorized: boolean;
+  deniedScopes: DeniedChildRoomScope[];
   organizationIds: OrganizationId[];
   projectIds: ProjectId[];
   conversationIds: ConversationId[];
@@ -52,7 +101,19 @@ type OwnedEntity = {
   projectId?: string | null;
 };
 
-const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
+const unique = <T extends string>(ids: readonly T[]): T[] => [...new Set(ids)];
+
+const machineDenied = (): MachineRoomAuthorizationDecision => ({
+  authorized: false,
+  deniedScopes: [],
+  organizationIds: [],
+  projectIds: [],
+  conversationIds: [],
+  initiativeIds: [],
+  designDocIds: [],
+  agentSessionIds: [],
+  taskMonitorIds: [],
+});
 
 @Injectable()
 export class WebsocketAuthorizationService {
@@ -66,16 +127,15 @@ export class WebsocketAuthorizationService {
 
   /**
    * Authorize passive machine rooms from the verified owner and current access.
+   * A missing, revoked or foreign-organization machine is denied outright.
+   * Otherwise each requested room is granted or denied on its own, and the
+   * denied rooms are returned so the caller can report them.
    * Session and grant bindings only contribute executable recipient ids.
    */
   async authorizeMachine(
     request: MachineRoomAuthorizationRequest,
   ): Promise<MachineRoomAuthorizationDecision> {
     const requestedOrganizations = unique(request.organizationIds);
-    const requestedProjects = unique(request.projectIds);
-    const requestedConversations = unique(request.conversationIds);
-    const requestedInitiatives = unique(request.initiativeIds);
-    const requestedDesignDocs = unique(request.designDocIds);
     const machine = await this.prisma.db.machine.findFirst({
       where: { id: request.machineId, userId: request.userId },
       select: {
@@ -83,91 +143,70 @@ export class WebsocketAuthorizationService {
         revokedAt: true,
       },
     });
-    const organizationIds = machine?.organizationId
-      ? [machine.organizationId as OrganizationId]
-      : [];
 
     if (!machine || machine.revokedAt || !machine.organizationId) {
-      this.logger.debug(
-        'Machine room authorization rejected before scope resolution',
-        {
-          machineId: request.machineId,
-          userId: request.userId,
-          machineFound: Boolean(machine),
-          machineRevoked: Boolean(machine?.revokedAt),
-          machineOrganizationBound: Boolean(machine?.organizationId),
-          requestedOrganizationIds: requestedOrganizations,
-          requestedProjectIds: requestedProjects,
-          requestedConversationIds: requestedConversations,
-          requestedInitiativeIds: requestedInitiatives,
-          requestedDesignDocIds: requestedDesignDocs,
-        },
-      );
-      return {
-        authorized: false,
-        organizationIds,
-        projectIds: [],
-        conversationIds: [],
-        initiativeIds: [],
-        designDocIds: [],
-        agentSessionIds: [],
-        taskMonitorIds: [],
-      };
-    }
-
-    if (
-      !requestedOrganizations.every(
-        (organizationId) => organizationId === machine.organizationId,
-      )
-    ) {
-      this.logger.debug('Machine organization room authorization denied', {
+      this.logger.warn('Machine room authorization denied', {
         machineId: request.machineId,
         userId: request.userId,
-        requestedOrganizationCount: requestedOrganizations.length,
+        reason: !machine
+          ? 'machine_not_found'
+          : machine.revokedAt
+            ? 'machine_revoked'
+            : 'machine_unbound_to_organization',
       });
-      return {
-        authorized: false,
-        organizationIds: [],
-        projectIds: [],
-        conversationIds: [],
-        initiativeIds: [],
-        designDocIds: [],
-        agentSessionIds: [],
-        taskMonitorIds: [],
-      };
+      return machineDenied();
     }
 
-    const passiveRoomDecision = await this.authorize({
+    const foreignOrganizationIds = requestedOrganizations.filter(
+      (organizationId) => organizationId !== machine.organizationId,
+    );
+    if (foreignOrganizationIds.length > 0) {
+      this.logger.warn('Machine room authorization denied', {
+        machineId: request.machineId,
+        userId: request.userId,
+        reason: 'organization_scope_mismatch',
+        machineOrganizationId: machine.organizationId,
+        foreignOrganizationIds,
+      });
+      return machineDenied();
+    }
+
+    const organizationIds = [machine.organizationId as OrganizationId];
+    const roomDecision = await this.authorize({
       userId: request.userId,
       organizationIds,
-      projectIds: requestedProjects as ProjectId[],
-      conversationIds: requestedConversations as ConversationId[],
-      initiativeIds: requestedInitiatives as InitiativeId[],
-      designDocIds: requestedDesignDocs as DesignDocId[],
+      projectIds: request.projectIds,
+      conversationIds: request.conversationIds,
+      initiativeIds: request.initiativeIds,
+      designDocIds: request.designDocIds,
     });
-    if (!passiveRoomDecision.authorized) {
-      this.logger.debug('Machine passive room authorization denied', {
+
+    const deniedRooms = roomDecision.deniedScopes.filter(isDeniedChildRoom);
+    if (deniedRooms.length < roomDecision.deniedScopes.length) {
+      this.logger.warn('Machine room authorization denied', {
+        machineId: request.machineId,
+        userId: request.userId,
+        reason: 'machine_organization_access',
+        deniedScopes: roomDecision.deniedScopes.filter(
+          (denied) => !isDeniedChildRoom(denied),
+        ),
+      });
+      return machineDenied();
+    }
+
+    if (deniedRooms.length > 0) {
+      this.logger.warn('Machine room authorization partially granted', {
         machineId: request.machineId,
         userId: request.userId,
         organizationId: machine.organizationId,
-        requestedCounts: {
-          organizations: requestedOrganizations.length,
-          projects: requestedProjects.length,
-          conversations: requestedConversations.length,
-          initiatives: requestedInitiatives.length,
-          designDocs: requestedDesignDocs.length,
+        deniedScopes: deniedRooms,
+        grantedCounts: {
+          projects: roomDecision.grantedScope.projectIds.length,
+          conversations: roomDecision.grantedScope.conversationIds.length,
+          initiatives: roomDecision.grantedScope.initiativeIds.length,
+          designDocs: roomDecision.grantedScope.designDocIds.length,
         },
       });
-      return {
-        authorized: false,
-        organizationIds: [],
-        projectIds: [],
-        conversationIds: [],
-        initiativeIds: [],
-        designDocIds: [],
-        agentSessionIds: [],
-        taskMonitorIds: [],
-      };
     }
 
     const now = new Date();
@@ -218,21 +257,8 @@ export class WebsocketAuthorizationService {
     this.logger.debug('Machine room authorization granted', {
       machineId: request.machineId,
       userId: request.userId,
-      authorized: true,
-      requestedOrganizationIds: requestedOrganizations,
-      requestedProjectIds: requestedProjects,
-      requestedConversationIds: requestedConversations,
-      requestedInitiativeIds: requestedInitiatives,
-      requestedDesignDocIds: requestedDesignDocs,
-      requestedCounts: {
-        organizations: requestedOrganizations.length,
-        projects: requestedProjects.length,
-        conversations: requestedConversations.length,
-        initiatives: requestedInitiatives.length,
-        designDocs: requestedDesignDocs.length,
-      },
+      grantedScope: roomDecision.grantedScope,
       resolvedCounts: {
-        organizations: organizationIds.length,
         agentSessions: allowedAgentSessionIds.length,
         taskMonitors: allowedTaskMonitorIds.length,
       },
@@ -240,20 +266,20 @@ export class WebsocketAuthorizationService {
 
     return {
       authorized: true,
+      deniedScopes: deniedRooms,
       organizationIds,
-      projectIds: requestedProjects as ProjectId[],
-      conversationIds: requestedConversations as ConversationId[],
-      initiativeIds: requestedInitiatives as InitiativeId[],
-      designDocIds: requestedDesignDocs as DesignDocId[],
+      ...roomDecision.grantedScope,
       agentSessionIds: allowedAgentSessionIds,
       taskMonitorIds: allowedTaskMonitorIds,
     };
   }
 
   /**
-   * Authorize a complete room request in one decision. Entity lookups use
-   * findMany with active-record predicates so missing, deleted, archived, and
-   * foreign records all collapse into the same externally observable denial.
+   * Decide every requested room separately. `authorized` is true only when
+   * every requested room is allowed; `grantedScope` and `deniedScopes` let a
+   * caller that accepts partial grants honor the allowed rooms. Entity lookups
+   * use active-record predicates, so missing, deleted, archived and foreign
+   * records all report `not_found_or_inaccessible`.
    */
   async authorize(
     request: WebsocketRoomAuthorizationRequest,
@@ -390,27 +416,29 @@ export class WebsocketAuthorizationService {
       ]),
     );
 
-    const [memberships, projectMemberships] = await Promise.all([
-      requiredOrganizationIds.length > 0
-        ? this.prisma.db.organizationMember.findMany({
-            where: {
-              userId: request.userId,
-              organizationId: { in: requiredOrganizationIds },
-              isActive: true,
-            },
-            select: { organizationId: true },
-          })
-        : Promise.resolve([]),
-      requiredProjectIds.length > 0
-        ? this.prisma.db.projectMember.findMany({
-            where: {
-              userId: request.userId,
-              projectId: { in: requiredProjectIds },
-            },
-            select: { projectId: true },
-          })
-        : Promise.resolve([]),
-    ]);
+    const [memberships, projectMemberships, entitledOrganizationIds] =
+      await Promise.all([
+        requiredOrganizationIds.length > 0
+          ? this.prisma.db.organizationMember.findMany({
+              where: {
+                userId: request.userId,
+                organizationId: { in: requiredOrganizationIds },
+                isActive: true,
+              },
+              select: { organizationId: true },
+            })
+          : Promise.resolve([]),
+        requiredProjectIds.length > 0
+          ? this.prisma.db.projectMember.findMany({
+              where: {
+                userId: request.userId,
+                projectId: { in: requiredProjectIds },
+              },
+              select: { projectId: true },
+            })
+          : Promise.resolve([]),
+        this.resolveEntitledOrganizationIds(requiredOrganizationIds),
+      ]);
 
     const activeOrganizationIds = new Set<string>(
       memberships
@@ -422,47 +450,108 @@ export class WebsocketAuthorizationService {
     const currentProjectIds = new Set<string>(
       projectMemberships.map((membership) => String(membership.projectId)),
     );
-    const boundOrganizationIds = new Set(organizationIds);
+    const boundOrganizationIds = new Set<string>(organizationIds);
 
-    const allRequestedEntitiesExist =
-      organizationIds.every((id) => organizationById.has(id)) &&
-      projectIds.every((id) => requestedProjectById.has(id)) &&
-      conversationIds.every((id) => conversationById.has(id)) &&
-      initiativeIds.every((id) => initiativeById.has(id)) &&
-      designDocIds.every((id) => designDocById.has(id));
+    const organizationDenial = (
+      organizationId: string,
+    ): RoomDenialReason | null => {
+      if (!activeOrganizationIds.has(organizationId)) {
+        return 'organization_access';
+      }
 
-    const entitiesHaveConsistentOwnership = requestedEntities.every(
-      (entity) => {
-        const project = entity.projectId
-          ? projectById.get(entity.projectId)
+      if (!entitledOrganizationIds.has(organizationId)) {
+        return 'organization_not_entitled';
+      }
+
+      return null;
+    };
+
+    const entityDenial = (entity: OwnedEntity): RoomDenialReason | null => {
+      if (
+        boundOrganizationIds.size > 0 &&
+        !boundOrganizationIds.has(entity.organizationId)
+      ) {
+        return 'organization_scope_mismatch';
+      }
+
+      const organizationReason = organizationDenial(entity.organizationId);
+      if (organizationReason) {
+        return organizationReason;
+      }
+
+      if (!entity.projectId) {
+        return null;
+      }
+
+      const project = projectById.get(entity.projectId);
+      if (!project || !currentProjectIds.has(entity.projectId)) {
+        return 'project_access';
+      }
+
+      if (project.organizationId !== entity.organizationId) {
+        return 'ownership_inconsistent';
+      }
+
+      return null;
+    };
+
+    const deniedScopes: DeniedRoomScope[] = [];
+    const decide = <T extends string>(
+      scopeType: RoomScopeType,
+      ids: readonly T[],
+      resolve: (id: T) => OwnedEntity | undefined,
+    ): T[] =>
+      ids.filter((id) => {
+        const entity = resolve(id);
+        const reason = entity
+          ? entityDenial(entity)
+          : 'not_found_or_inaccessible';
+        if (reason) {
+          deniedScopes.push({ scopeType, id, reason });
+          return false;
+        }
+
+        return true;
+      });
+
+    for (const organizationId of organizationIds) {
+      const reason = organizationById.has(organizationId)
+        ? organizationDenial(organizationId)
+        : 'not_found_or_inaccessible';
+      if (reason) {
+        deniedScopes.push({
+          scopeType: 'organization',
+          id: organizationId,
+          reason,
+        });
+      }
+    }
+
+    const grantedScope: GrantedRoomScope = {
+      projectIds: decide('project', projectIds, (id) => {
+        const project = requestedProjectById.get(id);
+        return project
+          ? { organizationId: project.organizationId, projectId: project.id }
           : undefined;
+      }),
+      conversationIds: decide('conversation', conversationIds, (id) =>
+        conversationById.get(id),
+      ),
+      initiativeIds: decide('initiative', initiativeIds, (id) => {
+        const initiative = initiativeById.get(id);
+        return initiative
+          ? {
+              organizationId: initiative.organizationId,
+              projectId: initiative.originatingProjectId,
+            }
+          : undefined;
+      }),
+      designDocIds: decide('design_doc', designDocIds, (id) =>
+        designDocById.get(id),
+      ),
+    };
 
-        return (
-          (!entity.projectId ||
-            project?.organizationId === entity.organizationId) &&
-          (boundOrganizationIds.size === 0 ||
-            boundOrganizationIds.has(entity.organizationId))
-        );
-      },
-    );
-
-    const organizationAccessIsValid = requiredOrganizationIds.every((id) =>
-      activeOrganizationIds.has(id),
-    );
-    const projectAccessIsValid = requiredProjectIds.every(
-      (id) => projectById.has(id) && currentProjectIds.has(id),
-    );
-    const entitlementAccessIsValid =
-      await this.accountEntitlementService.areOrganizationsAuthorized(
-        requiredOrganizationIds as OrganizationId[],
-      );
-
-    const authorized =
-      allRequestedEntitiesExist &&
-      entitiesHaveConsistentOwnership &&
-      organizationAccessIsValid &&
-      entitlementAccessIsValid &&
-      projectAccessIsValid;
+    const authorized = deniedScopes.length === 0;
 
     this.logger.verbose('[websocket-authz] room decision', {
       userId: request.userId,
@@ -474,22 +563,33 @@ export class WebsocketAuthorizationService {
         initiatives: initiativeIds.length,
         designDocs: designDocIds.length,
       },
-      resolvedCounts: {
-        organizations: organizations.length,
-        projects: projects.length,
-        conversations: conversations.length,
-        initiatives: initiatives.length,
-        designDocs: designDocs.length,
-      },
-      checks: {
-        allRequestedEntitiesExist,
-        entitiesHaveConsistentOwnership,
-        organizationAccessIsValid,
-        entitlementAccessIsValid,
-        projectAccessIsValid,
-      },
+      deniedScopes,
     });
 
-    return { authorized };
+    return { authorized, grantedScope, deniedScopes };
+  }
+
+  /**
+   * Check entitlement per organization so one lapsed organization does not
+   * hide which rooms belong to entitled ones.
+   */
+  private async resolveEntitledOrganizationIds(
+    organizationIds: readonly string[],
+  ): Promise<Set<string>> {
+    const decisions = await Promise.all(
+      organizationIds.map(async (organizationId) => ({
+        organizationId,
+        entitled:
+          await this.accountEntitlementService.areOrganizationsAuthorized([
+            organizationId as OrganizationId,
+          ]),
+      })),
+    );
+
+    return new Set(
+      decisions
+        .filter((decision) => decision.entitled)
+        .map((decision) => decision.organizationId),
+    );
   }
 }

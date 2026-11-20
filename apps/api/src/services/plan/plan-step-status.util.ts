@@ -1,4 +1,8 @@
-import { AdrStatus, WorkStatus } from '@hey-hey/contracts/api/models';
+import {
+  AdrStatus,
+  WorkStatus,
+  type TaskResponseDto,
+} from '@hey-hey/contracts/api/models';
 
 export type PlanStepStatusValue =
   | 'NOT_STARTED'
@@ -30,7 +34,7 @@ export function getInitialStepStatusForType(
 }
 
 export function mapTaskStatusToPlanStepStatus(
-  status: WorkStatus,
+  status: TaskResponseDto['status'],
 ): PlanStepStatusValue {
   switch (status) {
     case WorkStatus.Generated:

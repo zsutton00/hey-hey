@@ -1,3 +1,4 @@
+import { oneMessageInputs } from '../agents/run-eval/eval-case-inputs.fixture';
 import { EvalAttemptExecution } from '../agents/run-eval/eval-attempt-execution';
 import type { AgenticSession } from '../session/types';
 import type { EvalRecordedAttempt } from '@hey-hey/contracts/api/models';
@@ -642,13 +643,20 @@ describe('ordinary Run output boundaries', () => {
                 targetHandler: 'entity_conversation',
                 focalItemId: ENTITY.entityId,
                 focalItemType: 'TASK',
-                initiatingRequest: 'Review this item.',
+                inputs: oneMessageInputs('Review this item.'),
                 situation: 'SECRET-SITUATION',
               },
               grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
             },
           } satisfies EvalRecordedAttempt,
-          { signal: new AbortController().signal },
+          {
+            signal: new AbortController().signal,
+            searchScope: {
+              createdBefore: '2026-01-01T00:00:00.000Z',
+              excludeConnectedTo: [],
+              hiddenEntityIds: [],
+            },
+          },
         );
         expect(result).toMatchObject({ assistantCompleted: true, outputText: 'Evidence answer.' });
         expect(await runStore.getRunMetadata(AGENT_SESSION_ID)).toMatchObject({

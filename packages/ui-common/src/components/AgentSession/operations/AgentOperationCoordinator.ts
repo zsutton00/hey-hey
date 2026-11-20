@@ -14,7 +14,18 @@ import type {
   MachineDto,
 } from "../../../api";
 import { classifyMachineExecutionReadiness } from "../runtime/coding/machineExecutionReadiness";
+import { extractErrorCode, getErrorMessage } from "../../../utils/errorUtils";
 import type { SubagentCommandIntent } from "../../SmarterTextAreaCard/slashCommands/subagentCommand";
+
+const IDEMPOTENCY_REUSE_CODES: ReadonlySet<string> = new Set([
+  "IDEMPOTENCY_KEY_REUSED",
+  "AGENT_OPERATION_FINGERPRINT_MISMATCH",
+]);
+
+function idempotencyReuseCode(error: unknown): string | undefined {
+  const code = extractErrorCode(error);
+  return code && IDEMPOTENCY_REUSE_CODES.has(code) ? code : undefined;
+}
 
 declare const agentOperationIdBrand: unique symbol;
 export type AgentOperationId = string & {
@@ -269,12 +280,32 @@ export class DefaultAgentOperationCoordinator implements AgentOperationCoordinat
         this.publish(operationId, snapshot);
         return this.reconcilePreparedOperation(operationId, snapshot);
       } catch (error) {
+        const reuseCode = idempotencyReuseCode(error);
+        if (reuseCode) {
+          // The identity is already bound to different input, so whatever the
+          // earlier operation did is not the outcome of this request. Released
+          // servers answer 409, current ones 422; both carry the same code.
+          const result: AgentOperationResult = {
+            operationId,
+            kind,
+            fingerprint,
+            state: "failed",
+            code: reuseCode,
+            message: getErrorMessage(error, "Agent operation failed."),
+          };
+          this.publish(operationId, result);
+          return result;
+        }
         try {
           const reconciled = await this.dependencies.reconcile(operationId);
+          if (reconciled.fingerprint !== fingerprint) {
+            throw new Error("The recorded operation is for different input.");
+          }
           return await this.reconcilePreparedOperation(operationId, reconciled);
         } catch {
-          // The request may have failed before the API created the operation.
-          // Preserve the original failure in that case.
+          // The request may have failed before the API created the operation,
+          // or the recorded operation belongs to different input. Preserve the
+          // original failure in both cases.
         }
         const message =
           error instanceof Error ? error.message : "Agent operation failed.";

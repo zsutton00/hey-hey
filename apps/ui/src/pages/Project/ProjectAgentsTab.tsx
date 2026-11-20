@@ -1,6 +1,7 @@
 import { WebPathService } from "@hey-hey/ui-common";
 import { TaskMonitorActivityTab } from "@hey-hey/ui-common/components";
 import { useWorkItemTypes } from "@hey-hey/ui-common/data";
+import { getWorkItemTypePluralDisplayName } from "../../types/workItemTypes";
 import { Alert, Box } from "@mui/material";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import React, { useCallback, useRef } from "react";
@@ -15,10 +16,12 @@ import {
 import { buildPlanTaskMonitorPath } from "../Plan/planSessionRoutes";
 import { ProjectWorkItemsTab } from "../../components/Tabs/ProjectWorkItemsTab";
 import { selectProjectEvalType } from "./projectEvalDiscovery";
+import { ChangesView } from "../Changes/ChangesView";
 import { CostsView, UsageTrendsView, UsageView } from "./views";
 
 const projectAgentsViews = [
   "agent-sessions",
+  "changes",
   "conversations",
   "automation",
   "evals",
@@ -30,6 +33,7 @@ type ProjectAgentsView = (typeof projectAgentsViews)[number];
 
 const projectAgentsSegments: readonly Segment<ProjectAgentsView>[] = [
   { value: "agent-sessions", label: "Agent Sessions" },
+  { value: "changes", label: "Changes" },
   { value: "conversations", label: "Conversations" },
   { value: "automation", label: "Automation" },
   { value: "costs", label: "Costs" },
@@ -52,13 +56,15 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
     projectId,
   });
   const evalType = selectProjectEvalType(workItemTypes, projectId, isReady);
-  const segments: readonly Segment<ProjectAgentsView>[] = evalType
-    ? [
-        ...projectAgentsSegments.slice(0, 3),
-        { value: "evals", label: evalType.definition.name },
-        ...projectAgentsSegments.slice(3),
-      ]
-    : projectAgentsSegments;
+  const evalsLabel = getWorkItemTypePluralDisplayName(evalType?.definition);
+  const segments: readonly Segment<ProjectAgentsView>[] =
+    evalType && evalsLabel
+      ? [
+          ...projectAgentsSegments.slice(0, 4),
+          { value: "evals", label: evalsLabel },
+          ...projectAgentsSegments.slice(4),
+        ]
+      : projectAgentsSegments;
   const [agentsView, setAgentsView] = useQueryState(
     "agentsSubTab",
     parseAsStringLiteral(projectAgentsViews).withDefault("agent-sessions"),
@@ -84,7 +90,11 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
       <Box sx={{ mb: 3, maxWidth: "100%", minWidth: 0 }}>
         <SegmentedToggle
           segments={segments}
-          value={displayedView === "evals" && !evalType ? "" : displayedView}
+          value={
+            displayedView === "evals" && (!evalType || !evalsLabel)
+              ? ""
+              : displayedView
+          }
           onChange={(value) => {
             if (value) void setAgentsView(value, { history: "push" });
           }}
@@ -98,6 +108,9 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
           organizationId={organizationId}
           projectId={projectId}
         />
+      )}
+      {displayedView === "changes" && (
+        <ChangesView organizationId={organizationId} projectId={projectId} />
       )}
       {displayedView === "conversations" && (
         <PaginatedSessionFeed
@@ -131,13 +144,13 @@ export const ProjectAgentsTab: React.FC<ProjectAgentsTabProps> = ({
         />
       )}
       {displayedView === "evals" &&
-        (evalType ? (
+        (evalType && evalsLabel ? (
           <ProjectWorkItemsTab
             key={`${organizationId}:${projectId}:${evalType.definition.key}`}
             organizationId={organizationId}
             projectId={projectId}
             taskType={evalType.definition.key}
-            title={evalType.definition.name}
+            title={evalsLabel}
             emptyMessage="No evaluations found."
           />
         ) : (

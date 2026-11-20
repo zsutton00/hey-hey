@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -122,7 +123,7 @@ describe("proposal header task-type resolution", () => {
       key: "decision",
       name: "Decision",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "decision",
     };
     const presentation = resolveWorkItemTypePresentation(
@@ -141,7 +142,7 @@ describe("proposal header task-type resolution", () => {
         key: "mockup",
         name: "Mockup",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "design",
       }),
     ).toEqual({
@@ -155,7 +156,7 @@ describe("proposal header task-type resolution", () => {
       key: "mockup",
       name: "Mockup",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "design",
     });
 

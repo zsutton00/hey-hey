@@ -35,6 +35,10 @@ export interface SearchFilters {
    */
   excludeReportTypes?: Array<ReportType>;
   /**
+   * Entities removed from results, relationships and traversal paths. Applied in the query before paging and totals, with the same path rule as excludeTaskTypes.
+   */
+  excludeEntityIds?: Array<string>;
+  /**
    * Feature tag filter applied to FEATURE-typed task nodes. When provided, task nodes whose `tag` property matches one of the given values are kept; non-task nodes pass through unaffected.
    */
   tags?: Array<FeatureTag>;

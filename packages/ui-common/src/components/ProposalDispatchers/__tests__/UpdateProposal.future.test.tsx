@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { __resetForTests as resetProposalState } from "../proposalSelectedStateCache";
 import { createPortal } from "react-dom";
 import {
@@ -165,10 +166,16 @@ vi.mock("../../Entity", () => ({
   EntityLinkWithPreview: ({
     label,
     testId,
+    href,
   }: {
     label: string;
     testId?: string;
-  }) => <a data-testid={testId}>{label}</a>,
+    href?: string;
+  }) => (
+    <a data-testid={testId} href={href}>
+      {label}
+    </a>
+  ),
 }));
 vi.mock("../../SuggestedContent", () => ({
   DiffRenderer: ({
@@ -221,7 +228,7 @@ const featureDefinition: WorkItemTypeDefinitionDto = {
       schemaRef: "#/components/schemas/FeatureRequirementsSection",
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
 };
 
 const requirement = (id: string, statement: string) => ({
@@ -606,6 +613,11 @@ describe("UpdateProposal future revisions", () => {
       );
       expect(screen.getByTestId("proposal-title")).toHaveTextContent(
         "Review notes",
+      );
+      // The live target still shows pre-revision content; the future lives on its proposal.
+      expect(screen.getByTestId("proposal-title")).toHaveAttribute(
+        "href",
+        "/proposals/future-proposal",
       );
       if (status === "APPROVED") {
         const expand = await screen.findByRole("button", {

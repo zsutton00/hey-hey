@@ -25,6 +25,10 @@ import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError
 // @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
+import type { ConnectedEntitiesRequest } from '../models.js';
+// @ts-ignore
+import type { GetTopologyConnectedEntities200Response } from '../models.js';
+// @ts-ignore
 import type { GetTopologyEntityGraph200Response } from '../models.js';
 // @ts-ignore
 import type { GetTopologyGraphTopology200Response } from '../models.js';
@@ -50,6 +54,54 @@ import type { TopologySummaryCategory } from '../models.js';
  */
 export const TopologyApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * Returns the given entities together with the entities that link to or mention them, and every message in any given conversation. Links the given entities make themselves and structural hubs such as the project or a parent feature are not followed. Returns IDs only.
+         * @summary List the entities connected to the given entities
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {ConnectedEntitiesRequest} connectedEntitiesRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getTopologyConnectedEntities: async (organizationId: string, projectId: string, connectedEntitiesRequest: ConnectedEntitiesRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('getTopologyConnectedEntities', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('getTopologyConnectedEntities', 'projectId', projectId)
+            // verify required parameter 'connectedEntitiesRequest' is not null or undefined
+            assertParamExists('getTopologyConnectedEntities', 'connectedEntitiesRequest', connectedEntitiesRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/topology/connected-entities`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(connectedEntitiesRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Return graph connections for a single seed entity up to the requested traversal depth.
          * @summary Get topology graph neighborhood for an entity
@@ -488,6 +540,21 @@ export const TopologyApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = TopologyApiAxiosParamCreator(configuration)
     return {
         /**
+         * Returns the given entities together with the entities that link to or mention them, and every message in any given conversation. Links the given entities make themselves and structural hubs such as the project or a parent feature are not followed. Returns IDs only.
+         * @summary List the entities connected to the given entities
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {ConnectedEntitiesRequest} connectedEntitiesRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getTopologyConnectedEntities(organizationId: string, projectId: string, connectedEntitiesRequest: ConnectedEntitiesRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<GetTopologyConnectedEntities200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getTopologyConnectedEntities(organizationId, projectId, connectedEntitiesRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['TopologyApi.getTopologyConnectedEntities']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Return graph connections for a single seed entity up to the requested traversal depth.
          * @summary Get topology graph neighborhood for an entity
          * @param {string} organizationId Organization ID
@@ -627,6 +694,16 @@ export const TopologyApiFactory = function (configuration?: Configuration, baseP
     const localVarFp = TopologyApiFp(configuration)
     return {
         /**
+         * Returns the given entities together with the entities that link to or mention them, and every message in any given conversation. Links the given entities make themselves and structural hubs such as the project or a parent feature are not followed. Returns IDs only.
+         * @summary List the entities connected to the given entities
+         * @param {TopologyApiGetTopologyConnectedEntitiesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getTopologyConnectedEntities(requestParameters: TopologyApiGetTopologyConnectedEntitiesRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetTopologyConnectedEntities200Response> {
+            return localVarFp.getTopologyConnectedEntities(requestParameters.organizationId, requestParameters.projectId, requestParameters.connectedEntitiesRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Return graph connections for a single seed entity up to the requested traversal depth.
          * @summary Get topology graph neighborhood for an entity
          * @param {TopologyApiGetTopologyEntityGraphRequest} requestParameters Request parameters.
@@ -716,6 +793,16 @@ export const TopologyApiFactory = function (configuration?: Configuration, baseP
  */
 export interface TopologyApiInterface {
     /**
+     * Returns the given entities together with the entities that link to or mention them, and every message in any given conversation. Links the given entities make themselves and structural hubs such as the project or a parent feature are not followed. Returns IDs only.
+     * @summary List the entities connected to the given entities
+     * @param {TopologyApiGetTopologyConnectedEntitiesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TopologyApiInterface
+     */
+    getTopologyConnectedEntities(requestParameters: TopologyApiGetTopologyConnectedEntitiesRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetTopologyConnectedEntities200Response>;
+
+    /**
      * Return graph connections for a single seed entity up to the requested traversal depth.
      * @summary Get topology graph neighborhood for an entity
      * @param {TopologyApiGetTopologyEntityGraphRequest} requestParameters Request parameters.
@@ -795,6 +882,34 @@ export interface TopologyApiInterface {
      */
     listTopologySubfacets(requestParameters: TopologyApiListTopologySubfacetsRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListTopologySubfacets200Response>;
 
+}
+
+/**
+ * Request parameters for getTopologyConnectedEntities operation in TopologyApi.
+ * @export
+ * @interface TopologyApiGetTopologyConnectedEntitiesRequest
+ */
+export interface TopologyApiGetTopologyConnectedEntitiesRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof TopologyApiGetTopologyConnectedEntities
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof TopologyApiGetTopologyConnectedEntities
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {ConnectedEntitiesRequest}
+     * @memberof TopologyApiGetTopologyConnectedEntities
+     */
+    readonly connectedEntitiesRequest: ConnectedEntitiesRequest
 }
 
 /**
@@ -1091,6 +1206,18 @@ export interface TopologyApiListTopologySubfacetsRequest {
  * @extends {BaseAPI}
  */
 export class TopologyApi extends BaseAPI implements TopologyApiInterface {
+    /**
+     * Returns the given entities together with the entities that link to or mention them, and every message in any given conversation. Links the given entities make themselves and structural hubs such as the project or a parent feature are not followed. Returns IDs only.
+     * @summary List the entities connected to the given entities
+     * @param {TopologyApiGetTopologyConnectedEntitiesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TopologyApi
+     */
+    public getTopologyConnectedEntities(requestParameters: TopologyApiGetTopologyConnectedEntitiesRequest, options?: RawAxiosRequestConfig) {
+        return TopologyApiFp(this.configuration).getTopologyConnectedEntities(requestParameters.organizationId, requestParameters.projectId, requestParameters.connectedEntitiesRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
     /**
      * Return graph connections for a single seed entity up to the requested traversal depth.
      * @summary Get topology graph neighborhood for an entity

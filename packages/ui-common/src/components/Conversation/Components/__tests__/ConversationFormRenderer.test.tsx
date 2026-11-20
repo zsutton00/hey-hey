@@ -59,7 +59,9 @@ const ConversationFormRenderer = (props: {
   );
 };
 import {
+  MessageType,
   ProposalStatus,
+  type MessageResponseDto,
   type ProposalResponseDto,
   ReportAudience,
   ReportType,
@@ -97,9 +99,11 @@ vi.mock("../../../Reports/ReportViewer", () => ({
   ReportViewer: ({
     report,
     featureSyncDecisionInteraction,
+    featureSyncDecisionRecordedResponse,
     planInteraction,
   }) => (
     <button
+      data-recorded-response={featureSyncDecisionRecordedResponse}
       data-testid={`report-viewer-${report.id}`}
       data-interactive={
         planInteraction || featureSyncDecisionInteraction ? "true" : "false"
@@ -156,7 +160,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
     isSubmittable,
     secondActions,
     status,
-    composerResetMode,
     uiElements,
     inlineReports,
     onNext,
@@ -166,7 +169,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
     isSubmittable: boolean;
     secondActions?: unknown[];
     status: string;
-    composerResetMode?: "preserve" | "clearOnSuccess";
     uiElements?: Array<{ id: string }>;
     inlineReports?: ReportDto[];
     onNext: (data: Record<string, unknown>) => void;
@@ -181,7 +183,6 @@ vi.mock("../../../LlmForms/DynamicForm", () => ({
         secondActions && secondActions.length > 0 ? "true" : "false"
       }
       data-status={status}
-      data-composer-reset-mode={composerResetMode ?? "preserve"}
       data-ui-element-ids={uiElements?.map((element) => element.id).join(",")}
       data-inline-report-ids={inlineReports
         ?.map((report) => report.id)
@@ -454,7 +455,6 @@ describe("ConversationFormRenderer", () => {
     expect(button).toHaveAttribute("data-submittable", "true");
     expect(button).toHaveAttribute("data-has-second-action", "true");
     expect(button).toHaveAttribute("data-status", "processing");
-    expect(button).toHaveAttribute("data-composer-reset-mode", "preserve");
   });
 
   it("calls handleNext with the message id when the form is submitted", async () => {
@@ -561,7 +561,6 @@ describe("ConversationFormRenderer", () => {
       uiElements: [{ id: "owner-field", type: ExtendedUIFieldType.Textarea }],
       disabled: false,
       isSubmitted: false,
-      composerResetMode: "clearOnSuccess",
       submit,
     };
     const conversationFormResolver = vi.fn(() => formResolution);
@@ -588,7 +587,6 @@ describe("ConversationFormRenderer", () => {
     expect(form).toHaveAttribute("data-disabled", "false");
     expect(form).toHaveAttribute("data-submitted", "false");
     expect(form).toHaveAttribute("data-ui-element-ids", "owner-field");
-    expect(form).toHaveAttribute("data-composer-reset-mode", "clearOnSuccess");
 
     form.click();
 
@@ -1031,6 +1029,54 @@ describe("ConversationFormRenderer", () => {
     expect(onNext).not.toHaveBeenCalled();
   });
 
+  it("hands a Feature Sync decision the reply the user already recorded", async () => {
+    const sourceUiElement = {
+      id: "feature-sync-decision-field",
+      type: "feature_sync_decision",
+      label: "Feature Sync decision",
+    };
+    const message = createMockConversationMessage({
+      message: createMockMessage({
+        id: "answered-decision-message",
+        data: {
+          type: "QUESTIONS",
+          uiElements: [sourceUiElement],
+        } as QuestionsSystemMessageData,
+        responses: [
+          {
+            id: "answered-decision-reply",
+            type: MessageType.User,
+            createdAt: "2023-01-01T00:01:00Z",
+            data: { response: "Reports: Keep the current presentation" },
+          },
+        ],
+      } as Partial<MessageResponseDto>),
+    });
+    const report = {
+      id: "answered-decision-report",
+      reportType: ReportType.FeatureSyncDecision,
+    } as ReportDto;
+
+    await renderWithConversationProvider(
+      <ConversationFormRenderer
+        conversationMessage={message}
+        interactiveReportAttachments={[
+          { report, responseUiElement: sourceUiElement },
+        ]}
+        messageIndex={0}
+        totalMessages={1}
+      />,
+      { timeline: [message], readOnly: true },
+    );
+
+    expect(
+      screen.getByTestId("report-viewer-answered-decision-report"),
+    ).toHaveAttribute(
+      "data-recorded-response",
+      "Reports: Keep the current presentation",
+    );
+  });
+
   it("falls back to a read-only PLAN report when the conversation cannot respond", async () => {
     const sourceUiElement = {
       id: "startup-plan-field",
@@ -1066,34 +1112,6 @@ describe("ConversationFormRenderer", () => {
       screen.getByTestId("report-viewer-read-only-plan-report"),
     ).toHaveAttribute("data-interactive", "false");
     expect(screen.queryByTestId("dynamic-form")).not.toBeInTheDocument();
-  });
-
-  it("passes composer reset override from conversation context", async () => {
-    const message = createMockConversationMessage({
-      message: createMockMessage({
-        data: {
-          type: "QUESTIONS",
-          uiElements: [{ id: "element-1" }],
-        } as QuestionsSystemMessageData,
-      }),
-    });
-
-    await renderWithConversationProvider(
-      <ConversationFormRenderer
-        conversationMessage={message}
-        messageIndex={0}
-        totalMessages={1}
-      />,
-      {
-        timeline: [message],
-        composerResetMode: "clearOnSuccess",
-      },
-    );
-
-    expect(screen.getByTestId("dynamic-form")).toHaveAttribute(
-      "data-composer-reset-mode",
-      "clearOnSuccess",
-    );
   });
 
   it("passes inline report attachments into the dynamic field path", async () => {

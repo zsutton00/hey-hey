@@ -80,11 +80,11 @@ export interface TaskMonitorInterventionSystemMessageDataAllOf {
      */
     'createdAt': string;
     /**
-     *
+     * Provider deadline, or null when the request has no deadline.
      * @type {string}
      * @memberof TaskMonitorInterventionSystemMessageDataAllOf
      */
-    'expiresAt': string;
+    'expiresAt': string | null;
     /**
      * Closed decision set containing APPROVE and DENY exactly once each.
      * @type {Array<TaskMonitorInterventionChoice>}

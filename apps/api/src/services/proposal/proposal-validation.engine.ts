@@ -1,5 +1,6 @@
 import { ProposalReconciliationService } from './proposal-reconciliation.service';
 import { forwardRef, Inject } from '@nestjs/common';
+import { workItemTypeStatusesSchema } from '../tasks/work-item-type-status.schema';
 import { sectionContent } from './future-application';
 import { rootChildrenView } from './work-item-change-set-projector.service';
 import { isEqual } from 'lodash';
@@ -32,6 +33,7 @@ import {
 import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { PrismaService, AnyTransactionClient } from 'src/prisma/prisma.service';
+import type { Task } from '@prisma/client';
 import type {
   CreateProposalDto,
   CreateProposalRequestDto,
@@ -81,13 +83,19 @@ import { ProposalEdgeTargetType } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeEndpointMode } from '@hey-hey/contracts/api/models';
 import { ProposalEdgeType } from '@hey-hey/contracts/api/models';
 import { WorkflowName } from '@hey-hey/contracts/api/models';
-import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
+import {
+  undeclaredAgentSettableStatuses,
+  WorkItemTypeRegistryService,
+} from '../tasks/work-item-type-registry.service';
 import {
   isWorkItemServiceScopeEligible,
   WORK_ITEM_SERVICE_SCOPE_INVALID_REASON,
   WORK_ITEM_SERVICE_SCOPE_INVALID_SUGGESTION,
 } from '../tasks/work-item-service-scope-policy';
-import { formatWorkItemStatusNotAllowedMessage } from '../tasks/work-item-status-policy';
+import {
+  formatWorkItemStatusNotAllowedMessage,
+  isOrdinaryStatusAssignmentAllowed,
+} from '../tasks/work-item-status-policy';
 import { WorkItemParentageValidator } from '../tasks/work-item-parentage-validator.service';
 import {
   validateWorkItemConfigForType,
@@ -268,7 +276,7 @@ const workflowProposalStepInputSchema = z
     tempId: z.string().min(1),
     name: z.string().min(1),
     sections: z.array(taskSectionSchema).optional(),
-    status: z.nativeEnum(WorkStatus).optional(),
+    status: z.string().min(1).optional(),
     source: z.enum(['system', 'user', 'agent']).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
@@ -282,7 +290,7 @@ const createTaskUpdatesSchema = z
     name: z.string().min(1),
     initiativeId: z.string().uuid().optional(),
     sections: z.array(taskSectionSchema).optional(),
-    status: z.nativeEnum(WorkStatus).optional(),
+    status: z.string().min(1).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
     assigneeId: z.string().uuid().optional(),
@@ -328,8 +336,8 @@ const updateTaskUpdatesSchema = z
     initiativeId: z.string().uuid().optional(),
     // SUPERSEDED is accepted by the schema but gated by the supersede
     // invariant in validateStructure: a direct status edit without the legacy
-    // transition pairing is rejected before this enum parse runs.
-    status: z.nativeEnum(WorkStatus).optional(),
+    // transition pairing is rejected before this status parse runs.
+    status: z.string().min(1).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
     dueDate: z.string().datetime().optional(),
     assigneeId: z.string().uuid().nullable().optional(),
@@ -614,16 +622,13 @@ const createWorkItemTypeUpdatesSchema = z
     // status is later derived from the statuses it may occupy. A definition
     // with zero allowed statuses therefore has no coherent initial-status
     // policy — there is nothing an item of the type could ever start in — so
-    // a non-empty allowedStatuses is the structural coherence check here.
-    allowedStatuses: z.array(z.nativeEnum(WorkStatus)).min(1, {
-      message:
-        'allowedStatuses must list at least one status the type can occupy',
-    }),
+    // a non-empty statuses list is the structural coherence check here.
+    statuses: workItemTypeStatusesSchema,
     allowedParentTypes: z.array(z.string()).optional(),
     edgeTargets: z.array(workItemTypeEdgeTargetSchema).optional(),
     allowedParentEntityTypes: z.array(z.nativeEnum(EntityType)).optional(),
     tracking: workItemTypeTrackingSchema.optional(),
-    agentSettableStatuses: z.array(z.nativeEnum(WorkStatus)).optional(),
+    agentSettableStatuses: z.array(z.string()).optional(),
     anchorableReportTypes: z.array(z.nativeEnum(ReportType)).optional(),
     maintenanceGuidance: z.string().optional(),
     sessionRoleGuidance: workItemTypeSessionRoleGuidanceSchema.optional(),
@@ -1966,6 +1971,7 @@ export class ProposalValidationEngine {
         organizationId,
         projectId,
         request: parsed.data,
+        db,
       });
       if (!projection.valid) {
         throw new BadRequestException({
@@ -2527,6 +2533,28 @@ export class ProposalValidationEngine {
             suggestion: `Reference only the project's active work-item types: ${validTypes.join(
               ', ',
             )}.`,
+          });
+        }
+      }
+
+      if (def.statuses && def.agentSettableStatuses) {
+        const undeclared = undeclaredAgentSettableStatuses({
+          statuses: def.statuses,
+          agentSettableStatuses: def.agentSettableStatuses,
+        });
+        if (undeclared.length > 0) {
+          issues.push({
+            field:
+              dto.action === 'UPDATE'
+                ? `${prefix}.updates.definition.agentSettableStatuses`
+                : `${prefix}.updates.agentSettableStatuses`,
+            code: 'unknown_agent_settable_status',
+            reason:
+              `Agent-settable statuses must be among the type's statuses or ARCHIVED: ` +
+              `${undeclared.join(', ')}.`,
+            layer: 'referential',
+            suggestion:
+              'Rename these entries to match the renamed statuses, or remove them.',
           });
         }
       }
@@ -3328,31 +3356,42 @@ export class ProposalValidationEngine {
     db: AnyTransactionClient,
   ): Promise<ProposalValidationIssue | null> {
     if (
-      dto.action !== 'UPDATE' ||
+      (dto.action !== 'UPDATE' && dto.action !== 'CREATE') ||
       typeof updates.status !== 'string' ||
       isWorkItemChangeSetPayload(dto.updates)
     ) {
       return null;
     }
 
-    const existingTask = await db.task.findFirst({
-      where: {
-        id: dto.targetEntityId,
-        organizationId: ctx.organizationId,
-        projectId: ctx.projectId,
-        archivedAt: null,
-      },
-      select: { type: true, status: true },
-    });
-    if (!existingTask || existingTask.status === updates.status) return null;
+    const existingTask =
+      dto.action === 'UPDATE'
+        ? await db.task.findFirst({
+            where: {
+              id: dto.targetEntityId,
+              organizationId: ctx.organizationId,
+              projectId: ctx.projectId,
+              archivedAt: null,
+            },
+            select: { type: true, status: true },
+          })
+        : null;
+    const type = dto.action === 'CREATE' ? updates.type : existingTask?.type;
+    if (typeof type !== 'string') return null;
 
     const rules = this.workItemTypeRegistry.getRulesForProject(
-      existingTask.type,
+      type,
       ctx.projectId,
     );
     if (
       !rules ||
-      rules.agentSettableStatuses.includes(updates.status as WorkStatus)
+      (isOrdinaryStatusAssignmentAllowed(
+        updates.status,
+        rules.allowedStatuses,
+      ) &&
+        isOrdinaryStatusAssignmentAllowed(
+          updates.status,
+          rules.agentSettableStatuses,
+        ))
     ) {
       return null;
     }
@@ -3362,7 +3401,7 @@ export class ProposalValidationEngine {
       code: 'status_not_allowed',
       reason: formatWorkItemStatusNotAllowedMessage(
         updates.status,
-        existingTask.type,
+        type,
         rules.agentSettableStatuses,
       ),
       layer: 'referential',

@@ -55,6 +55,7 @@ import type { WorkItemTypeCascadeImpactConflictDto } from '@hey-hey/contracts/ap
 import type { WorkItemTypeArchiveRequestDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeEditRequestDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeSummaryDto } from '@hey-hey/contracts/api/models';
+import type { WorkItemTypeCanonicalComparisonDto } from '@hey-hey/contracts/api/models';
 import { OrganizationId, ProjectId } from 'src/types';
 import {
   AuthToken,
@@ -84,6 +85,11 @@ import type { WorkItemTypeMaintenanceGuidanceDto } from '@hey-hey/contracts/api/
 import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGuidanceBatchRequestDto as WorkItemTypeGuidanceBatchRequest } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeGuidancePurpose } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemStatusAuthoringRequest,
+  WorkItemStatusAuthoringResponse,
+} from '@hey-hey/contracts/api/models';
+import { resolveWorkItemStatusAuthoring } from '../services/tasks/work-item-status-inference';
 
 export class WorkItemTypeGuidanceQueryDto {
   @ApiProperty({ enum: WorkItemTypeGuidancePurpose })
@@ -293,6 +299,46 @@ export class WorkItemTypeController {
     return summary;
   }
 
+  @Get(':typeKey/canonical-comparison')
+  @ApiOperation({
+    summary: 'Read a canonical override next to its canonical definition',
+  })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiParam({ name: 'projectId', description: 'Project ID' })
+  @ApiParam({ name: 'typeKey', description: 'Work-item type key' })
+  @ApiResponse({ status: 404, description: 'Work-item type not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'The type is not a project override of a canonical type',
+  })
+  getCanonicalComparison(
+    @Param('projectId') projectId: ProjectId,
+    @Param('typeKey') typeKey: string,
+  ): WorkItemTypeCanonicalComparisonDto {
+    const comparison = this.registry.getCanonicalComparison(projectId, typeKey);
+    if (!comparison) {
+      throw new NotFoundException(
+        `Work-item type '${typeKey}' is not available in this project.`,
+      );
+    }
+
+    const { effective, canonical } = comparison;
+    if (
+      effective.effectiveSource !==
+        WorkItemTypeEffectiveSource.CanonicalOverride ||
+      !canonical
+    ) {
+      throw new ConflictException(
+        `Work-item type '${typeKey}' is not a canonical override.`,
+      );
+    }
+
+    return {
+      effective,
+      canonical,
+    } satisfies WorkItemTypeCanonicalComparisonDto;
+  }
+
   @Get(':typeKey/guidance')
   @ApiOperation({ summary: 'Read work-item type guidance by purpose' })
   @ApiQuery({
@@ -332,6 +378,20 @@ export class WorkItemTypeController {
       query.purpose,
       query.sessionRole,
     );
+  }
+
+  @Post('status-authoring')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suggest and resolve work-item statuses' })
+  async resolveStatuses(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId') projectId: ProjectId,
+    @Body() body: WorkItemStatusAuthoringRequest,
+  ): Promise<WorkItemStatusAuthoringResponse> {
+    if (!(await this.projectService.findOne(projectId, organizationId))) {
+      throw new NotFoundException('Project not found or not accessible.');
+    }
+    return resolveWorkItemStatusAuthoring(body);
   }
 
   @Post('guidance/batch')
@@ -475,6 +535,7 @@ export class WorkItemTypeController {
     const dto = buildWorkItemTypeEditProposal({
       typeKey,
       definition: requestBody.definition,
+      currentDefinition: row.definition,
       acknowledgeCanonicalCustomization:
         requestBody.acknowledgeCanonicalCustomization,
       requestorContext,

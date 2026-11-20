@@ -304,6 +304,31 @@ describe('buildPlatformSystemPrompt', () => {
     expect(options('read')).toContain('At the start of each session');
   });
 
+  it('tells every hint-capable session once, in every environment, not to surface hints to users', () => {
+    const rule = 'never mention them to the user unless asked';
+    const substance = 'state its substance plainly and say who decides';
+    const promptFor = (hints: 'write' | 'read' | 'none', productDevelopment: boolean) =>
+      buildPlatformSystemPrompt(sampleDefs, undefined, {
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints,
+        productDevelopment,
+      });
+    const occurrences = (text: string, part: string) => text.split(part).length - 1;
+
+    for (const hints of ['write', 'read'] as const) {
+      for (const productDevelopment of [false, true]) {
+        const prompt = promptFor(hints, productDevelopment);
+        expect(occurrences(prompt, rule)).toBe(1);
+        expect(occurrences(prompt, substance)).toBe(1);
+      }
+    }
+    expect(promptFor('read', false)).toContain(
+      'Include relevant hints in the context you hand forward',
+    );
+    expect(promptFor('none', true)).not.toContain(rule);
+  });
+
   it('words hint writing neutrally and records the direction, not the mood', () => {
     expect(hintWritingGuidance).toContain('emphatic about a correction or repeats it');
     expect(hintWritingGuidance).toContain('never how it was said');
@@ -423,9 +448,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     expect(prompt.indexOf('**Links as connective tissue.**')).toBeLessThan(
       prompt.indexOf(paragraph),
     );
-    expect(prompt.indexOf(paragraph)).toBeLessThan(
-      prompt.indexOf('**Search as the default discovery move.**'),
-    );
+    expect(prompt.indexOf(paragraph)).toBeLessThan(prompt.indexOf('**Propose vs. edit vs. ask.**'));
     for (const agentPrompt of [
       buildCodingConversationPrompt(
         { userMessage: 'review knowledge' },
@@ -609,26 +632,29 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
     );
   });
 
-  it('frames a plan as a single artifact for a feature, not an assembled collection of tasks', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('authored as a single artifact');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
-      'not assembled from pre-existing tasks',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('sequence of work for a feature');
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain(
-      'ordered collection of tasks and design docs',
-    );
-    expect(buildPlatformSystemPrompt(sampleDefs)).not.toContain('`create_plan`');
+  it('describes Plan only through the project type registry', () => {
+    const planType = {
+      ...sampleDefs[0]!,
+      key: 'PLAN',
+      name: 'Plan',
+      description:
+        'A staged, reviewable sequence of work authored as one artifact with create_plan and divided into dependency-ordered stages, not assembled from existing tasks.',
+      role: 'project-info',
+    } satisfies WorkItemTypeDefinitionDto;
+    const prompt = buildPlatformSystemPrompt([...sampleDefs, planType]);
+
+    expect(prompt.split('(`PLAN`)')).toHaveLength(2);
+    expect(prompt.split('**Work-item types.**')[1]).toContain('(`PLAN`)');
+    expect(prompt.split('authored as one artifact with create_plan')).toHaveLength(2);
   });
 
-  it('preserves the existing situational-awareness, links, search, and propose-edit-ask paragraphs', () => {
+  it('preserves the existing situational-awareness, links, and propose-edit-ask paragraphs', () => {
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain(
       'Situational awareness (passive reflex, not a fan-out)',
     );
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('notice what I already see');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('src/agents/feature-sync/prompts.ts');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Links as connective tissue');
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Search as the default discovery move');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('unified_search');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('Propose vs. edit vs. ask');
   });
@@ -671,7 +697,7 @@ Good: "Turning Shared Browser off now stays off after you restart the CLI."`;
   });
 
   it('bundles the mention-format block', () => {
-    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References (HARD STOP)');
+    expect(buildPlatformSystemPrompt(sampleDefs)).toContain('## Entity References');
     expect(buildPlatformSystemPrompt(sampleDefs)).toContain('@[type:id|title]');
   });
 
@@ -802,6 +828,8 @@ describe('planVsTasksFork', () => {
       'without that lean for existing-system changes, even large ones',
     );
     expect(planVsTasksFork).toContain('Honor explicit plan requests either way');
+    expect(planVsTasksFork).toContain('create_plan_from_existing_tasks');
+    expect(planVsTasksFork).toContain('If that set looks incomplete, stop and ask the user');
     expect(planVsTasksFork).toContain(
       'Task count, service count, and cross-service coordination alone do not justify plans',
     );
@@ -911,7 +939,7 @@ describe('buildCodingPlanPrompt', () => {
         [{ messageId: 'reply', text: 'Looks good; retain keyboard access.', createdAt: '' }],
         {
           focalEntityId: 'task-1',
-          researchMemo: 'Read the governing accessibility requirements.',
+          hasResearch: true,
           planningConversation: 'Agreed intent and earlier issue replies.',
           services: [{ id: 'service-1', path: '/authorized/worktree' }],
           launchServiceId: 'service-1',
@@ -1800,11 +1828,8 @@ describe('buildEntityConversationPrompt', () => {
     const prompt = buildEntityConversationPrompt(makeEntityPayload());
     expect(prompt).toContain(planVsTasksFork);
     expect(prompt).toMatch(/Contract Companion Proposals/i);
-    expect(prompt).toContain('ambient Contract-recognition boundary');
-    expect(prompt).toContain("relevant element's concrete inputs, outputs, and responsibility");
-    expect(prompt).toContain('outside a Diagram');
+    expect(prompt).toContain('recognition boundary from Contract Discovery and Enforcement');
     expect(prompt).toContain('root authoring guide and Contract-specific guide');
-    expect(prompt).toContain('reference roll-ups');
     expect(prompt).not.toContain('Attach every step evidenced as authoring');
     expect(prompt).toContain('boundary remains under-modeled');
     expect(prompt).toMatchSnapshot();
@@ -1838,12 +1863,6 @@ describe('buildEntityConversationPrompt', () => {
   it('includes the conversation role instruction', () => {
     const result = buildEntityConversationPrompt(makeEntityPayload());
     expect(result).toContain('user has started a conversation');
-  });
-
-  it('composes graph research once in Entity Conversation instructions', () => {
-    const result = buildEntityConversationPrompt(makeEntityPayload());
-    expect(result.match(/## Widening graph research/gu)).toHaveLength(1);
-    expect(result).toContain('no supplied Service association or session Service context');
   });
 
   it('includes page context when provided', () => {
@@ -2289,7 +2308,11 @@ describe('buildCodingConversationPrompt', () => {
     expect(result).toContain('## Follow References');
     expect(result).toContain('## Plan vs. tasks');
     expect(result).toContain('## Additional Service scope');
-    expect(result.endsWith(buildCompletionReconciliationPromptFor(new Set()))).toBe(true);
+    expect(
+      result.endsWith(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
+      ),
+    ).toBe(true);
     expect(result).toMatchSnapshot();
   });
 
@@ -2297,7 +2320,9 @@ describe('buildCodingConversationPrompt', () => {
     const result = buildCodingConversationPrompt({ userMessage: 'go' }, { kind: 'launch' });
     expect(result).toContain('A readiness response replaces the completion JSON below');
     expect(result.indexOf('## Implementation-readiness preflight')).toBeLessThan(
-      result.indexOf(buildCompletionReconciliationPromptFor(new Set())),
+      result.indexOf(
+        buildCompletionReconciliationPromptFor({ startedPromptTypes: new Set(), focalTask: true }),
+      ),
     );
   });
 

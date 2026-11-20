@@ -9,6 +9,7 @@ import {
 } from '../run/run.test-support';
 
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-type-handler';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import { MessageType, MessageStatus } from '../shared/api/index';
 import type { InternalRunPromptRequest } from '../shared/agent-bridge-contract/contract';
 import type { AgenticSession } from '../session/types';
@@ -28,6 +29,7 @@ const handlerStub: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

@@ -43,6 +43,16 @@ export class TaskMonitorProviderEventAdmission {
       },
       undefined,
       this.now,
+      (reason) => {
+        if (rawEvent.envelope.eventType === 'permission_request_detected') {
+          this.logger.warn('task_monitor.provider_event_admission.rejected', {
+            taskMonitorId,
+            runId: rawEvent.runId,
+            agentSessionId: run.agentSessionId,
+            reason,
+          });
+        }
+      },
     );
     if (!input) return;
 
@@ -53,7 +63,7 @@ export class TaskMonitorProviderEventAdmission {
       ingressId: input.ingressId,
       providerActionId: input.providerActionId,
     });
-    void this.inputAdapter
+    const admission = this.inputAdapter
       .admitVerified(input)
       .then((result) => {
         this.logger[result.status === 'rejected' ? 'warn' : 'info'](
@@ -66,6 +76,7 @@ export class TaskMonitorProviderEventAdmission {
             ...(result.status === 'rejected' ? { code: result.code, reason: result.reason } : {}),
           },
         );
+        return result.status === 'accepted' || result.status === 'replayed';
       })
       .catch((error: Error) => {
         this.logger.error('task_monitor.provider_event_admission.failed', {
@@ -74,6 +85,8 @@ export class TaskMonitorProviderEventAdmission {
           ingressId: input.ingressId,
           error,
         });
+        return false;
       });
+    run.recordTaskMonitorPermissionAdmission(input.providerActionId, admission);
   };
 }

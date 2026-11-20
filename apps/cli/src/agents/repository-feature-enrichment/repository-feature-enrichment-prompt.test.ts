@@ -19,4 +19,18 @@ describe('Feature intent conversation prompt', () => {
     expect(prompt).toContain('entry points');
     expect(prompt).toContain('neighboring capabilities');
   });
+
+  it('asks full rounds, follows up only on material gaps, and proposes edits after each round', () => {
+    const prompt = buildRepositoryFeatureEnrichmentPrompt(request);
+    expect(prompt).toContain('three non-repeated questions');
+    expect(prompt).toContain('never more than three');
+    expect(prompt).toContain(
+      'cross-cutting questions that settle intent for several Features first',
+    );
+    expect(prompt).toContain('only when it leaves a material gap');
+    expect(prompt).toContain('before you ask the next round');
+    expect(prompt).not.toContain('Treat every answer as a lead');
+    expect(prompt).toContain('<enrichment_questions>');
+    expect(prompt).toContain('If the user asks to finish, stop asking questions');
+  });
 });

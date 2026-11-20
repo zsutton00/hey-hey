@@ -1,5 +1,5 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import { hasWorktreeStateEntriesForSession } from '../../agents/run-scope';
 import { loadAgentSessionRunnerConfig } from '../../agents/providers/session-runner-config';
@@ -21,6 +21,7 @@ import { LocalAgentApiError } from '../../shared/agent-bridge-contract/errors';
 import { isRunContextMetadata } from '../../shared/agent-bridge-contract/run-context';
 import type { ServerLogger } from '../logger';
 import { requestContext } from '../request-context';
+import { RunContinuationMaterializer } from './run-continuation';
 import type { RunRegistry } from '../../run/run-registry';
 import { sameRunEntity } from '../../run/run-entity';
 import { readLaunchEntity } from '../conversation-dispatch/run-entity-ingress';
@@ -303,6 +304,7 @@ const findRunByCanonicalId = async (
 };
 
 export interface RunServiceDependencies {
+  invocationConfigPath?: string;
   runStore: RunStore;
   repoStore: RepoMappingStore;
   logger: ServerLogger;
@@ -315,7 +317,11 @@ export type RunMaterializationResult =
   | (Extract<LocalCreateRunResponse, { status: 'started' }> & { created: boolean });
 
 export class RunService {
-  public constructor(private readonly dependencies: RunServiceDependencies) {}
+  private readonly continuation: RunContinuationMaterializer;
+
+  public constructor(private readonly dependencies: RunServiceDependencies) {
+    this.continuation = new RunContinuationMaterializer(dependencies.runStore, dependencies.logger);
+  }
 
   private log(
     level: 'trace' | 'debug' | 'info' | 'warn' | 'error',
@@ -484,12 +490,44 @@ export class RunService {
         );
       }
 
-      const runnerConfig = await loadAgentSessionRunnerConfig();
+      const runnerConfig = await loadAgentSessionRunnerConfig(
+        this.dependencies.invocationConfigPath
+          ? { configPath: this.dependencies.invocationConfigPath }
+          : {},
+      );
       const resolvedModel = input.model ?? runnerConfig.model;
       const resolvedEffort = input.reasoningEffort ?? runnerConfig.reasoningEffort;
       // Validate before this lookup: duplicate signed requests and direct
       // local calls must not reuse a persisted Run to bypass monitor checks.
       const requestedAgentSessionId = readNonEmptyString(input.contextMetadata.agentSessionId);
+      const continuation =
+        input.continuation && requestedAgentSessionId
+          ? {
+              marker: input.continuation,
+              identity: {
+                runId: requestedAgentSessionId,
+                organizationId: input.contextMetadata.organizationId,
+                projectId: input.contextMetadata.projectId,
+                conversationId: input.conversationId,
+                provider,
+              },
+            }
+          : null;
+      if (input.continuation && !continuation) {
+        throw new LocalAgentApiError(
+          'INVALID_REQUEST',
+          'A continuation requires the Agent Session identity.',
+          400,
+        );
+      }
+      if (continuation) {
+        this.log('info', 'local.service.create_run.continuation_received', {
+          runId: continuation.identity.runId,
+          continuationId: continuation.marker.continuationId,
+          mode: continuation.marker.mode,
+        });
+        await this.continuation.recheckNativeState(continuation.marker, continuation.identity);
+      }
       if (requestedAgentSessionId) {
         // One Agent Session owns exactly one Run, whose id is the Agent Session id.
         const existing = await runStore.getRun(requestedAgentSessionId);
@@ -521,6 +559,11 @@ export class RunService {
                   : 'disabled',
           });
           await runStore.reindexRun(existing);
+          if (continuation) {
+            await this.continuation.apply(continuation.marker, existing, continuation.identity);
+            const continued = await runStore.getRun(existing.agentic_session_id);
+            return { status: 'started', run: toLocalRun(continued ?? existing), created: false };
+          }
           return { status: 'started', run: toLocalRun(existing), created: false };
         }
       }
@@ -557,6 +600,7 @@ export class RunService {
       if (resolvedEffort) startArgs.reasoningEffort = resolvedEffort;
       if (input.fastMode !== undefined) startArgs.fastMode = input.fastMode;
       if (input.inert !== undefined) startArgs.inert = input.inert;
+      if (input.searchScope !== undefined) startArgs.searchScope = input.searchScope;
       if (input.workspaceBinding) startArgs.workspaceBinding = input.workspaceBinding;
       const result = await startAgenticSession(startArgs);
 
@@ -569,6 +613,9 @@ export class RunService {
       }
 
       const session = result.session;
+      if (continuation) {
+        await this.continuation.apply(continuation.marker, session, continuation.identity);
+      }
       const run = toLocalRun(session);
       this.log('debug', 'local.service.create_run.succeeded', {
         runId: run.agentic_session_id,

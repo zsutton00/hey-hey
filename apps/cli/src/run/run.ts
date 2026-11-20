@@ -1,7 +1,9 @@
+import { CommitGitError } from '../agents/commit/commit-git-error';
+import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
 import { isAxiosError } from 'axios';
-import type { FailureReason } from './failure-message';
+import { startupFailureCause, type FailureReason } from './failure-message';
 import { isInertSubmissionToolAllowed } from './inert-execution-policy';
 import { SessionRoleGuidance } from '../agents/session-role-guidance/session-role-guidance';
 import { createContextTrimmer } from '../agents/context-trimming/create-trimmer';
@@ -106,6 +108,7 @@ import {
 } from '../agents/submission-tools/types';
 import type { SubmissionToolRegistry } from '../agents/submission-tools/registry';
 import { SubmissionActionPoster } from '../agents/submission-tools/action-poster';
+import { CreateReportTool } from '../agents/submission-tools/create-report-tool';
 import { ActivePlatformToolCatalog } from '../agents/platform-mcp-proxy/catalog';
 import { TurnPlatformMcpProxy } from '../agents/platform-mcp-proxy/turn-proxy';
 import type { McpSessionContext } from '../agents/mcp-server-config';
@@ -126,8 +129,17 @@ import type {
   AgentSessionReviewFileScopeRequest,
   ImplementationReadinessDisposition,
 } from '@hey-hey/contracts/api/models';
-import { MessageType, MessageStatus, SystemMessageDataTypeEnum } from '../shared/api/index';
-import type { AgentSystemMessageData, SystemMessageData } from '../shared/api/index';
+import {
+  MessageType,
+  MessageStatus,
+  SystemMessageDataPresentationEnum,
+  SystemMessageDataTypeEnum,
+} from '../shared/api/index';
+import type {
+  AgentSystemMessageData,
+  SystemMessageData,
+  SystemMessageDataNoticeSeverityEnum as NoticeSeverity,
+} from '../shared/api/index';
 import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
@@ -154,7 +166,7 @@ import type { MessagePoster } from './message-poster';
 import { normalizeEvent } from './normalize';
 import { isLegacyHandoffReport } from '../agents/prompts/report-chain';
 import { evaluateDeclaredReports } from './report-enforcement';
-import { emitOpenImplementReportIfNeeded } from './open-implement-report';
+import { emitTurnImplementReports } from './turn-implement-reports';
 import { resolvePrompt } from './resolve-prompt';
 import { resolveOwnerFollowup } from '../agents/resolve-owner-followup';
 import type { RunnerContext } from './runners/types';
@@ -199,6 +211,8 @@ import type { ReviewFileScopeDecisionInput } from '../agents/review-file-scope-r
 import {
   canonicalFileChangeKey,
   captureFileChangeEvidence,
+  fileChangeVersions,
+  liveFileProjection,
   projectFileChanges,
   resolveProjectedFilePath,
   resolveReportedFileChanges,
@@ -273,9 +287,11 @@ export const buildRunMcpSessionContext = (
     | 'launchServiceId'
     | 'services'
     | 'inert'
+    | 'searchScope'
   >,
 ): McpSessionContext => ({
   inert: session.inert === true,
+  searchScope: session.searchScope,
   projectId: session.contextMetadata.projectId,
   conversationId: session.conversationId,
   serviceId: session.launchServiceId,
@@ -706,6 +722,9 @@ export class Run {
     { messageId: string; data: SystemMessageData | null }
   > = new Map();
   private readonly settledPermissionRequestIds = new Set<string>();
+  // Handlers waiting for a permission card's message to be posted, by the
+  // request id the card is keyed by.
+  private readonly permissionCardWaiters = new Map<string, Array<() => void>>();
   // Open `AskUserQuestion` messages by question request id. In-memory only: a
   // waiting question cannot outlive the process that holds its tool call.
   private readonly questionMessages = new Map<
@@ -873,6 +892,7 @@ export class Run {
   private readonly browserAnnotations: BrowserAnnotationDelivery | undefined;
   private readonly browserTabNotices: BrowserTabNoticeDelivery | undefined;
   private readonly runStore: RunStore;
+  readonly reportProvenance: ReportProvenance;
   private readonly implementationReadinessOwner: ImplementationReadinessOwner;
   private readonly repoStore: RepoMappingStore;
   private readonly poster: MessagePoster;
@@ -935,6 +955,7 @@ export class Run {
     this.browserAnnotations = collaborators.browserAnnotations;
     this.browserTabNotices = collaborators.browserTabNotices;
     this.runStore = collaborators.runStore;
+    this.reportProvenance = new ReportProvenance(this.runStore, this.runId);
     this.implementationReadinessOwner = new ImplementationReadinessOwner(
       this.runStore,
       collaborators.logger,
@@ -993,7 +1014,8 @@ export class Run {
       session: () => this.session,
       activeTurn: () => this.activeTurn,
       contextProviderSessionId: () => this.contextProviderSessionId(),
-      postAgentSystemMessage: (response, session) => this.postAgentSystemMessage(response, session),
+      postRuntimeNotice: (response, severity, session) =>
+        this.postAgentSystemMessage(response, session, severity),
     });
     this.proposalTracker = new RunProposalTracker({
       runId: this.runId,
@@ -1114,7 +1136,8 @@ export class Run {
         if (!this.activeTurn && !this._processing) void this.drainQueue();
       },
       releaseHeldAdmission: (held) => this.releaseHeldAdmission(held),
-      postAgentSystemMessage: (text) => this.postAgentSystemMessage(text),
+      postRuntimeNotice: (text, severity) =>
+        this.postAgentSystemMessage(text, this.session, severity),
     });
     this.serviceScopeCoordinator = new AgentSessionServiceScopeCoordinator({
       runStore: this.runStore,
@@ -1145,6 +1168,12 @@ export class Run {
     // via ensureSeeded). Each seed logs and swallows its own failure — a seed
     // must not block the Run, so the combined promise resolves either way.
     const seedSubPromises: Promise<void>[] = [];
+    const localReportSeed = this.reportProvenance.restore().then((entries) => {
+      for (const entry of entries) {
+        this.appendReportChainEntry(entry);
+      }
+    });
+    seedSubPromises.push(localReportSeed);
 
     // Report chain from the task scope — only when a task is in scope.
     const taskReportChainReader = collaborators.taskReportChainReader;
@@ -1153,7 +1182,10 @@ export class Run {
       seedSubPromises.push(
         taskReportChainReader
           .read(taskId)
-          .then((entries) => {
+          .then(async (entries) => {
+            // Durable Run-local entries retain ownership and commit claims that
+            // the task-history projection omits, regardless of read order.
+            await localReportSeed;
             for (const entry of entries) {
               this.appendReportChainEntry(entry);
             }
@@ -1233,6 +1265,16 @@ export class Run {
    */
   get providerSessionId(): string | null {
     return this.session.provider_session_id ?? null;
+  }
+
+  /** Whether the provider session belongs to this Run: its current session or a history member. */
+  public ownsProviderSession(providerSessionId: string): boolean {
+    return (
+      this.providerSessionId === providerSessionId ||
+      (this.session.provider_session_history ?? []).some(
+        (entry) => entry.providerSessionId === providerSessionId,
+      )
+    );
   }
 
   /**
@@ -1698,6 +1740,7 @@ export class Run {
     this.runner = runner;
   }
 
+  /** Set only for a Run whose provider hooks are sent; null means every edit stays approximate. */
   notePermissionDecisionDelivered(input: {
     requestId: string;
     decision: PermissionDecision;
@@ -1730,8 +1773,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('decision_delivered');
+    this.conversationPhase.resolveApproval('decision_delivered');
   }
 
   /**
@@ -1761,8 +1804,8 @@ export class Run {
       nextPhase: 'thinking',
       hasActiveTurn: this.activeTurn !== null,
     });
-    this.agentSessionCurrentState.observeProviderPhase('thinking');
-    this.conversationPhase.resumeAfterApproval();
+    this.agentSessionCurrentState.resolveApproval('question_answered');
+    this.conversationPhase.resolveApproval('question_answered');
   }
 
   setHasProviderSession(value: boolean, reason: string): void {
@@ -1852,6 +1895,32 @@ export class Run {
   }
 
   getFileChangeProjection(turnId?: string): FileChangeProjection[] {
+    const projection = this.historicalFileProjection(turnId);
+    return liveFileProjection(
+      projection,
+      this._fileChangeFacts,
+      this.session.committedFileVersions,
+    );
+  }
+
+  captureFileChangeVersions() {
+    return fileChangeVersions(this._fileChangeFacts);
+  }
+
+  async saveCommitState(
+    intent: NonNullable<AgenticSession['commitIntent']> | null,
+    versions: Record<string, string | null> = {},
+  ): Promise<void> {
+    await this.runStore.saveCommitState(this.runId, intent, versions);
+    if (intent) {
+      this.session.commitIntent = intent;
+    } else {
+      delete this.session.commitIntent;
+    }
+    this.session.committedFileVersions = { ...this.session.committedFileVersions, ...versions };
+  }
+
+  private historicalFileProjection(turnId?: string): FileChangeProjection[] {
     if (this._fileChangeFacts.length > 0) {
       return projectFileChanges(this._fileChangeFacts, turnId);
     }
@@ -1868,13 +1937,6 @@ export class Run {
           }
         : { serviceId: 'legacy', repoRelativePath: candidatePath };
     });
-  }
-
-  logImplementReportValidation(
-    event: string,
-    metadata: Record<string, string | number | boolean | null | readonly string[]>,
-  ): void {
-    this.logger.warn(event, { runId: this.runId, ...metadata });
   }
 
   /**
@@ -2249,7 +2311,14 @@ export class Run {
       }
       const evidenceCapture = await captureFileChangeEvidence(resolved, candidate.providerPatch);
       if (attributionSource === 'agent_report' && evidenceCapture.gitDiffError !== null) {
-        throw new ReportedFileChangeFailure('git_read_failed');
+        this.logger.warn('local.run.file_change.agent_report.evidence_capture_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          serviceId: resolved.serviceId,
+          repoRelativePath: resolved.repoRelativePath,
+          gitFailure: evidenceCapture.gitDiffError,
+        });
+        throw new ReportedFileChangeFailure('git_read_failed', evidenceCapture.gitDiffError);
       }
       this.logger.debug('local.run.file_change.evidence_captured', {
         runId: this.runId,
@@ -2440,6 +2509,24 @@ export class Run {
     this._narrationByTurn.get(turnId)?.reject(error);
   }
 
+  private readonly taskMonitorPermissionAdmissions = new Map<string, Promise<boolean>>();
+
+  recordTaskMonitorPermissionAdmission(requestId: string, admission: Promise<boolean>): void {
+    this.taskMonitorPermissionAdmissions.set(requestId, admission);
+  }
+
+  async takeTaskMonitorPermissionAdmission(requestId: string): Promise<boolean> {
+    const admission = this.taskMonitorPermissionAdmissions.get(requestId);
+    if (!admission) {
+      return false;
+    }
+    try {
+      return await admission;
+    } finally {
+      this.taskMonitorPermissionAdmissions.delete(requestId);
+    }
+  }
+
   recordPermissionRequestMessage(
     requestId: string,
     messageId: string,
@@ -2447,6 +2534,10 @@ export class Run {
   ): void {
     this.settledPermissionRequestIds.delete(requestId);
     this.permissionRequestMessages.set(requestId, { messageId, data });
+    for (const wake of this.permissionCardWaiters.get(requestId) ?? []) {
+      wake();
+    }
+    this.permissionCardWaiters.delete(requestId);
     const presentations: PermissionRequestPresentation[] = [
       ...(this.session.permissionRequestPresentations ?? []).filter(
         (presentation) => presentation.requestId !== requestId,
@@ -2464,6 +2555,50 @@ export class Run {
           error,
         });
       });
+  }
+
+  /**
+   * Resolves once the message for the card keyed by `requestId` has been
+   * recorded, or false after `timeoutMs`. A request can join a card before the
+   * card's own post has finished, so joining waits for the card instead of
+   * dropping the row.
+   */
+  async whenPermissionRequestMessageRecorded(
+    requestId: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    if (this.permissionRequestMessages.has(requestId)) {
+      return true;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        const waiters = this.permissionCardWaiters.get(requestId)?.filter((w) => w !== wake);
+        if (waiters?.length) {
+          this.permissionCardWaiters.set(requestId, waiters);
+        } else {
+          this.permissionCardWaiters.delete(requestId);
+        }
+        resolve(false);
+      }, timeoutMs);
+      const wake = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      this.permissionCardWaiters.set(requestId, [
+        ...(this.permissionCardWaiters.get(requestId) ?? []),
+        wake,
+      ]);
+    });
+  }
+
+  /** Makes a request that joined an open card share that card's message entry. */
+  joinPermissionRequestMessage(
+    requestId: string,
+    entry: { messageId: string; data: SystemMessageData | null },
+  ): void {
+    this.settledPermissionRequestIds.delete(requestId);
+    this.permissionRequestMessages.set(requestId, entry);
   }
 
   recordQuestionMessage(requestId: string, messageId: string, data: SystemMessageData): void {
@@ -2625,6 +2760,8 @@ export class Run {
     if (!replayed) {
       await this.postAgentSystemMessage(
         'Sorry, looks like we have to ask again… The earlier approval request expired when the CLI restarted, so the action will be retried and approval requested again if needed.',
+        this.session,
+        'info',
       );
     }
 
@@ -2890,6 +3027,9 @@ export class Run {
    * and `cleanup()` deliberately leaves it intact.
    */
   appendReportChainEntry(entry: ReportChainEntry): void {
+    if (this._reportChain.some((existing) => existing.reportId === entry.reportId)) {
+      return;
+    }
     if (!entry.createdAt) throw new Error('ReportChainEntry.createdAt is required');
     if (!entry.phase) throw new Error('ReportChainEntry.phase is required');
     if (!entry.reportId) throw new Error('ReportChainEntry.reportId is required');
@@ -2908,6 +3048,19 @@ export class Run {
       summary: entry.summary,
       audience: entry.audience,
       ...(entry.serviceId ? { serviceId: entry.serviceId } : {}),
+      ...(entry.sourceRunId ? { sourceRunId: entry.sourceRunId } : {}),
+      ...(entry.commitHashes
+        ? {
+            commitHashes: Object.freeze(
+              entry.commitHashes.map((hash) =>
+                Object.freeze({
+                  ...hash,
+                  implementReportIds: Object.freeze([...(hash.implementReportIds ?? [])]),
+                }),
+              ),
+            ),
+          }
+        : {}),
       ...(entry.touchPoints
         ? { touchPoints: Object.freeze(entry.touchPoints.map((tp) => Object.freeze({ ...tp }))) }
         : {}),
@@ -2954,7 +3107,7 @@ export class Run {
   async prepareTurnCompletionArtifacts(turn: Turn, activeDispatchId?: symbol): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS, activeDispatchId);
     try {
-      await this._fileChangeMutation;
+      await Promise.all([this._fileChangeMutation, turn.changedFileReporting.settleReports()]);
     } catch (error) {
       this.logger.error('local.run.turn_completion.file_change_settle_failed', {
         runId: this.runId,
@@ -2972,16 +3125,17 @@ export class Run {
     );
 
     try {
-      await emitOpenImplementReportIfNeeded({
+      await emitTurnImplementReports({
         run: this,
+        turn,
         logger: this.logger,
-        promptType: turn.handler.promptType,
-        fileChanges: this.getFileChangeProjection(turn.turnId),
+        facts: this._fileChangeFacts,
+        capturedVersions: this.runner?.executionRecorder ?? null,
         reportsSinceTurnStart,
-        createReportTool: createReportTool ?? null,
+        createReportTool: createReportTool instanceof CreateReportTool ? createReportTool : null,
       });
     } catch (error) {
-      this.logger.error('local.run.open_implement_report.emit.failed', {
+      this.logger.error('local.run.turn_implement_reports.emit.failed', {
         runId: this.runId,
         turnId: turn.turnId,
         promptType: turn.handler.promptType,
@@ -3764,6 +3918,38 @@ export class Run {
     this.initialInertInputAllowed = true;
   }
 
+  /** The one recorded scripted message the coordinator has authorized next, by exact text. */
+  private authorizedScriptedInput: { index: number; text: string } | null = null;
+
+  /**
+   * Coordinator-owned: lets exactly one recorded scripted message into this
+   * inert Run. Any other follow-up, or the same one twice, is still refused.
+   */
+  public authorizeScriptedInertInput(authorization: { index: number; text: string }): void {
+    if (!this.session.inert) {
+      throw new Error('Only inert evaluation Runs take scripted input.');
+    }
+    if (this.authorizedScriptedInput) {
+      throw new Error('A scripted input is already authorized and has not been admitted.');
+    }
+    this.authorizedScriptedInput = authorization;
+    this.logger.debug('local.run.inert.scripted_input_authorized', {
+      runId: this.runId,
+      index: authorization.index,
+    });
+  }
+
+  /** Withdraws an authorization the Run never admitted, so it cannot be used later. */
+  public revokeScriptedInertInput(): void {
+    this.authorizedScriptedInput = null;
+  }
+
+  private matchesAuthorizedScriptedInput(input: InternalRunPromptRequest): boolean {
+    const authorized = this.authorizedScriptedInput;
+
+    return authorized !== null && resolvePromptText(input) === authorized.text;
+  }
+
   private assertOrdinaryExecution(input?: InternalRunPromptRequest): void {
     if (!this.session.inert) {
       return;
@@ -3869,6 +4055,15 @@ export class Run {
       this.initialInertInputAllowed = false;
       this.inertInput = input;
       this.logger.debug('local.run.inert.initial_input', { runId: this.runId });
+    } else if (this.session.inert && this.matchesAuthorizedScriptedInput(input)) {
+      const authorized = this.authorizedScriptedInput!;
+      this.authorizedScriptedInput = null;
+      this.inertInput = input;
+      this.inertInputStarted = false;
+      this.logger.debug('local.run.inert.scripted_input_admitted', {
+        runId: this.runId,
+        index: authorized.index,
+      });
     } else {
       this.assertOrdinaryExecution();
     }
@@ -4249,7 +4444,7 @@ export class Run {
           await admission.onRejected();
           this.projectedInputStartTurnIds.delete(admission.turnId);
         }
-        await this.postFailureMessage('STARTUP_FAILED');
+        await this.postFailureMessage('STARTUP_FAILED', error);
         this.logger.error('local.run.start_turn.failure_reported', {
           turnId,
           runId: this.runId,
@@ -4276,7 +4471,7 @@ export class Run {
         await rejectedAdmission.onRejected(reason === 'STOPPED' ? 'ABORTED' : 'FAILED');
         this.projectedInputStartTurnIds.delete(rejectedAdmission.turnId);
       }
-      await this.postFailureMessage(reason);
+      await this.postFailureMessage(reason, error);
       if (
         error instanceof ProjectAssistantPreparationError ||
         error instanceof AgentStartupPromptInputError
@@ -4360,7 +4555,7 @@ export class Run {
       if (failedAdmission) {
         await failedAdmission.onRejected();
       }
-      await this.postFailureMessage(failureReason);
+      await this.postFailureMessage(failureReason, error);
       void this.drainQueue();
       return;
     }
@@ -4614,9 +4809,11 @@ export class Run {
     return fallback;
   }
 
+  private readonly terminalCommitFailures = new Map<string, CommitGitError>();
+
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
-  private async postFailureMessage(reason: FailureReason): Promise<void> {
+  private async postFailureMessage(reason: FailureReason, error?: unknown): Promise<void> {
     // A Turn aborted to wait for Service approval is paused, not stopped; the approval request
     // already tells the user what is happening.
     if (reason === 'STOPPED' && this.serviceScope.hasServiceScopeContinuation()) {
@@ -4628,6 +4825,11 @@ export class Run {
       projectId: this.projectId,
       conversationId: this.session.conversationId,
       reason,
+      ...(reason === 'STARTUP_FAILED'
+        ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
+        : error instanceof CommitGitError
+          ? { cause: error.message }
+          : {}),
       inert: this.session.inert === true,
     });
   }
@@ -4680,6 +4882,9 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
+    if (error instanceof CommitGitError) {
+      this.terminalCommitFailures.set(turn.turnId, error);
+    }
     this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));
     const runnerFailureAction = turn.handler.getRunnerFailureAction?.(error, turn.payload) ?? null;
     if (runnerFailureAction) {
@@ -4781,7 +4986,7 @@ export class Run {
           turn.terminalOutcome === 'ABORTED'
             ? 'STOPPED'
             : (this.terminalFailureReasons.get(turn.turnId) ?? 'EXECUTION_FAILED');
-        await this.postFailureMessage(reason);
+        await this.postFailureMessage(reason, this.terminalCommitFailures.get(turn.turnId));
         const bootstrapAdmission =
           !settledAdmission && this.activeTurnInput
             ? readBootstrapInputAdmission(this.activeTurnInput)
@@ -4793,6 +4998,7 @@ export class Run {
         }
       }
       this.terminalFailureReasons.delete(turn.turnId);
+      this.terminalCommitFailures.delete(turn.turnId);
       const inputSettlement = this.serviceScope.settleTurnInput(
         turn.turnId,
         settledAdmission,
@@ -5187,7 +5393,7 @@ export class Run {
             if (admission) {
               await admission.onRejected();
             }
-            await this.postFailureMessage('STARTUP_FAILED');
+            await this.postFailureMessage('STARTUP_FAILED', error);
           } catch (postError) {
             this.logger.error('local.run.drain.failure_post_failed', {
               runId: this.runId,
@@ -5651,7 +5857,9 @@ export class Run {
       payload: preparedPayload ?? input.payload,
       deps: this.handlerDeps,
       logger: this.logger,
+      sessionId: this.agentSessionId,
       attemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-context') : null,
+      edgesAttemptLogDir: jevLogsDir ? path.join(jevLogsDir, 'get-edges') : null,
     });
     const platformMcpProxy = new TurnPlatformMcpProxy({
       runId: this.runId,
@@ -6174,6 +6382,7 @@ export class Run {
     if (this.workspaceWriteBoundary === null) {
       this.workspaceWriteBoundary = await RunWorkspaceWriteBoundary.create(workspace, {
         runScopeId: this.runId,
+        providerStateRoot: path.join(this.runStore.getDataDirectory(), 'provider-state'),
         readOnlyDirectories,
       });
       this.logger.info('local.run.workspace_write_boundary.created', {
@@ -6503,7 +6712,10 @@ export class Run {
           ...(uiElements ? { uiElements } : {}),
         },
       },
-      stamp: null,
+      stamp: {
+        providerSessionId: this.providerSessionId,
+        promptHandler: turn.handler.promptType,
+      },
     });
     this.logger.debug('local.coding_plan.conversation.persisted', {
       runId: this.runId,
@@ -6517,12 +6729,16 @@ export class Run {
   private async postAgentSystemMessage(
     response: string,
     session: AgenticSession = this.session,
+    noticeSeverity?: NoticeSeverity,
   ): Promise<void> {
     const agentData: AgentSystemMessageData = {
       type: SystemMessageDataTypeEnum.Agent,
       response,
       detectedIntent: 'agent_response',
       intentConfidence: 1,
+      ...(noticeSeverity
+        ? { presentation: SystemMessageDataPresentationEnum.Notice, noticeSeverity }
+        : {}),
     };
     const dto = {
       type: MessageType.System,

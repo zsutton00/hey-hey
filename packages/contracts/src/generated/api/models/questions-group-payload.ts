@@ -14,6 +14,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { QuestionsGroupConversationReply } from './questions-group-conversation-reply.js';
 
 /**
  * Plan scope constraints payload for UI rendering
@@ -27,4 +30,10 @@ export interface QuestionsGroupPayload {
      * @memberof QuestionsGroupPayload
      */
     'questions': Array<string>;
+    /**
+     *
+     * @type {QuestionsGroupConversationReply}
+     * @memberof QuestionsGroupPayload
+     */
+    'conversationReply'?: QuestionsGroupConversationReply;
 }

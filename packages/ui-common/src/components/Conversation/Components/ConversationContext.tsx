@@ -158,7 +158,6 @@ interface ConversationContextValue {
 
   // Read-only mode
   isReadOnly: boolean;
-  composerResetMode: "preserve" | "clearOnSuccess";
 
   /**
    * When true, all conversation input surfaces (forms, secondary action
@@ -172,6 +171,10 @@ interface ConversationContextValue {
 
   // Hide analysis action button
   hideAnalysisAction: boolean;
+
+  // Suppress the in-timeline thinking placeholder for a processing system
+  // message; the owner renders the Run-state indicator instead.
+  hideProcessingPlaceholder: boolean;
 
   // Default view mode applied to diffs rendered inside UPDATE proposals.
   proposalDiffDefaultViewMode?: DiffViewMode;
@@ -201,8 +204,8 @@ interface ConversationProviderProps {
   renderNestedUserMessages?: boolean;
   scrollPolicy: ConversationScrollPolicy;
   readOnly?: boolean;
-  composerResetMode?: "preserve" | "clearOnSuccess";
   hideAnalysisAction?: boolean;
+  hideProcessingPlaceholder?: boolean;
   navigate?: (url: string) => void;
   onDirectTrigger?: (message: CreateUserMessage) => Promise<void>;
   onPersistMessage?: (message: CreateUserMessage) => Promise<void>;
@@ -540,8 +543,8 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
   renderNestedUserMessages = false,
   scrollPolicy,
   readOnly = false,
-  composerResetMode = "preserve",
   hideAnalysisAction = false,
+  hideProcessingPlaceholder = false,
   navigate,
   onDirectTrigger,
   onPersistMessage,
@@ -869,11 +872,11 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
         isGeneratingResponse: false,
         suggestionDecisions,
         isReadOnly: readOnly,
-        composerResetMode,
         isCliInputDisabled,
         selectedMachineId:
           cliResult.type === "ready" ? cliResult.machine.machineId : null,
         hideAnalysisAction,
+        hideProcessingPlaceholder,
         proposalDiffDefaultViewMode,
         onProposalsAccepted,
         proposalInteraction,
@@ -930,11 +933,11 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
 
       // Read-only mode
       isReadOnly: readOnly,
-      composerResetMode,
       isCliInputDisabled,
       selectedMachineId:
         cliResult.type === "ready" ? cliResult.machine.machineId : null,
       hideAnalysisAction,
+      hideProcessingPlaceholder,
       proposalDiffDefaultViewMode,
       onProposalsAccepted,
       proposalInteraction,
@@ -978,10 +981,10 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     animationType,
     suggestionDecisions,
     readOnly,
-    composerResetMode,
     isCliInputDisabled,
     cliResult,
     hideAnalysisAction,
+    hideProcessingPlaceholder,
     proposalDiffDefaultViewMode,
     onProposalsAccepted,
     proposalInteraction,

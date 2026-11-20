@@ -7,6 +7,8 @@ import type {
   CliReadErrorCode,
   CliReadRunChangedFileDetailSuccessResponseDto,
   CliReadRunChangedFilesInventorySuccessResponseDto,
+  CliReadRunRecordedEditSuccessResponseDto,
+  ImplementReportEdit,
   LocalListRepoBindingsResponse,
   LocalRunAttachmentOpenSuccessResponse,
   LocalRunAttachmentSuccessResponse,
@@ -15,6 +17,8 @@ import type {
   LocalPickRepoDirectoryResponse,
   LocalRunBrowserOpenRequest,
   LocalRunBrowserOpenSuccessResponse,
+  LocalRunProviderSessionTranscriptRequest,
+  LocalRunProviderSessionTranscriptResult,
   LocalStagedBrowserTabOpenRequest,
   LocalStagedBrowserTabOpenSuccessResponse,
   LocalServiceRepoBinding,
@@ -25,11 +29,13 @@ import {
   LocalRunAttachmentOpenAction,
   LocalRunAttachmentOpenErrorCode,
   LocalRunBrowserOpenErrorCode,
+  LocalRunProviderSessionTranscriptErrorCode,
   LocalStagedBrowserTabOpenErrorCode,
 } from "@hey-hey/contracts/local";
-
-const DEFAULT_LOCAL_CLI_PORT = 3847;
-const STAGING_LOCAL_CLI_PORT = 3849;
+import {
+  hostedPlatformEnvironmentForHost,
+  PRODUCTION_BRIDGE_PORT,
+} from "@hey-hey/contracts/platform-environments";
 
 const configuredLocalCliPort = (): number | null => {
   const configuredPort = getLocalAgentPort();
@@ -220,6 +226,30 @@ const readChangedFileDetailResponse = (
   } satisfies CliReadRunChangedFileDetailSuccessResponseDto;
 };
 
+const readRecordedEditResponse = (
+  value: unknown,
+  runId: string,
+): CliReadRunRecordedEditSuccessResponseDto => {
+  if (
+    !isRecord(value) ||
+    typeof value.requestId !== "string" ||
+    value.requestId.trim().length === 0 ||
+    value.operation !== "run.recorded_edit.read" ||
+    value.status !== "success" ||
+    !isRecord(value.result) ||
+    value.result.runId !== runId ||
+    !isChangedFileDetail(value.result.file)
+  ) {
+    throw new Error("The local CLI returned an invalid recorded edit.");
+  }
+  return {
+    requestId: value.requestId,
+    operation: "run.recorded_edit.read",
+    status: "success",
+    result: { runId, file: value.result.file },
+  } satisfies CliReadRunRecordedEditSuccessResponseDto;
+};
+
 const isChangedFileInventoryEntry = (
   value: unknown,
 ): value is CliReadChangedFileInventoryEntry =>
@@ -306,6 +336,36 @@ const readRunBrowserOpenError = async (
     isRunBrowserOpenErrorCode(code) ? code : null,
   );
 };
+
+/** A typed rejection from the loopback provider session transcript read. */
+export class LocalRunProviderSessionTranscriptError extends Error {
+  public constructor(
+    message: string,
+    public readonly code: LocalRunProviderSessionTranscriptErrorCode | null,
+  ) {
+    super(message);
+    this.name = "LocalRunProviderSessionTranscriptError";
+  }
+}
+
+const isTranscriptErrorCode = (
+  value: unknown,
+): value is LocalRunProviderSessionTranscriptErrorCode =>
+  typeof value === "string" &&
+  Object.values(LocalRunProviderSessionTranscriptErrorCode).some(
+    (code) => code === value,
+  );
+
+const isTranscriptResult = (
+  value: unknown,
+  runId: string,
+  providerSessionId: string,
+): value is LocalRunProviderSessionTranscriptResult =>
+  isRecord(value) &&
+  value.runId === runId &&
+  value.providerSessionId === providerSessionId &&
+  (value.state === "unavailable" ||
+    (value.state === "available" && typeof value.text === "string"));
 
 /** A typed rejection from the loopback Open browser route used before a Run exists. */
 export class LocalStagedBrowserTabOpenError extends Error {
@@ -519,18 +579,17 @@ export const resolveLocalDirectoryRuntimeBaseUrl = (): string => {
   const configuredPort = configuredLocalCliPort();
   if (typeof window === "undefined") {
     return `http://localhost:${String(
-      configuredPort ?? DEFAULT_LOCAL_CLI_PORT,
+      configuredPort ?? PRODUCTION_BRIDGE_PORT,
     )}`;
   }
 
   const port = readPort(
     new URLSearchParams(window.location.search).get("server"),
   );
-  // Match the CLI's --staging bridge; production and staging can run together.
+  // Match the CLI's --staging / --eval bridge so each environment's CLI can run alongside production.
   const defaultPort =
-    window.location.hostname === "staging.heyhey.dev"
-      ? STAGING_LOCAL_CLI_PORT
-      : DEFAULT_LOCAL_CLI_PORT;
+    hostedPlatformEnvironmentForHost(window.location.hostname)?.bridgePort ??
+    PRODUCTION_BRIDGE_PORT;
   return `http://localhost:${String(port ?? configuredPort ?? defaultPort)}`;
 };
 
@@ -567,6 +626,12 @@ export interface DirectoryBindingApi {
     runId: string,
     machineId: string,
   ): Promise<CliReadRunChangedFilesInventorySuccessResponseDto>;
+  readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto>;
   openRunBrowserTab(
     runId: string,
     body: LocalRunBrowserOpenRequest,
@@ -574,6 +639,11 @@ export interface DirectoryBindingApi {
   openStagedBrowserTab(
     body: LocalStagedBrowserTabOpenRequest,
   ): Promise<LocalStagedBrowserTabOpenSuccessResponse>;
+  /** Raw provider session text from this computer; transient, never cache it. */
+  readRunProviderSessionTranscript(
+    runId: string,
+    body: LocalRunProviderSessionTranscriptRequest,
+  ): Promise<LocalRunProviderSessionTranscriptResult>;
 }
 
 export const createDirectoryBindingApi = (
@@ -719,6 +789,23 @@ export const createDirectoryBindingApi = (
     return readChangedFileDetailResponse(payload, runId);
   },
 
+  async readRunRecordedEdit(
+    runId: string,
+    machineId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadRunRecordedEditSuccessResponseDto> {
+    const payload = await request<unknown>(
+      baseUrl,
+      `/api/local/runs/${encodeURIComponent(runId)}/recorded-edits/read`,
+      {
+        method: "POST",
+        body: JSON.stringify({ machineId, serviceId, edit }),
+      },
+    );
+    return readRecordedEditResponse(payload, runId);
+  },
+
   async readRunChangedFilesInventory(
     runId: string,
     machineId: string,
@@ -757,6 +844,35 @@ export const createDirectoryBindingApi = (
       throw new Error("The local CLI returned an invalid Open browser result.");
     }
     return { runId, url: payload.url };
+  },
+
+  async readRunProviderSessionTranscript(
+    runId: string,
+    body: LocalRunProviderSessionTranscriptRequest,
+  ): Promise<LocalRunProviderSessionTranscriptResult> {
+    const response = await fetch(
+      `${baseUrl}/api/local/runs/${encodeURIComponent(
+        runId,
+      )}/provider-sessions/transcript`,
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      const { message, code } = await readBrowserOpenFailure(response);
+      throw new LocalRunProviderSessionTranscriptError(
+        message,
+        isTranscriptErrorCode(code) ? code : null,
+      );
+    }
+    const payload: unknown = await response.json();
+    if (!isTranscriptResult(payload, runId, body.providerSessionId)) {
+      throw new Error("The local CLI returned an invalid session result.");
+    }
+    return payload;
   },
 
   async openStagedBrowserTab(

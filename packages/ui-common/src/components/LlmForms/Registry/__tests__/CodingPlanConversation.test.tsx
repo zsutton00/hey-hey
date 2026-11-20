@@ -366,6 +366,49 @@ describe("conversational planning controls", () => {
     },
   );
 
+  it("renders a saved plan version's legacy repair_planned finding as the new disposition", () => {
+    render(
+      <CodingPlanApprovalField
+        config={{
+          field: "plan",
+          description: "",
+          type: "coding_plan_version",
+          payload: {
+            ...planning,
+            discrepancies: [
+              {
+                severity: "medium",
+                discrepancyText: "Existing code evolves",
+                reasoning: "Update it",
+                disposition: "repair_planned",
+              },
+              {
+                severity: "high",
+                discrepancyText: "Unresolved conflict",
+                reasoning: "Ask",
+                disposition: "open",
+              },
+            ],
+          },
+        }}
+        context={context}
+      />,
+    );
+    const document = screen.getByTestId("coding-plan-document");
+    expect(
+      within(document).getByText("Changes existing behavior", {
+        selector: "span",
+      }),
+    ).toBeVisible();
+    expect(
+      within(document).getByRole("img", { name: "Changes existing behavior" }),
+    ).toBeVisible();
+    expect(
+      within(document).getByRole("img", { name: "High severity" }),
+    ).toHaveAttribute("data-testid", "ErrorIcon");
+    expect(within(document).queryByText(/repair/i)).toBeNull();
+  });
+
   it("keeps each version's discrepancies inside its own plan document", () => {
     const issue = (text: string) => ({
       severity: "high",
@@ -424,7 +467,7 @@ describe("conversational planning controls", () => {
             severity: "medium",
             findingId: "f1",
             category: "project_context",
-            disposition: "repair_planned",
+            disposition: "open",
             userDirection: "Proceed, we will fix it afterwards.",
             implementationFollowThrough:
               "Verify the requirement is reconciled.",
@@ -440,7 +483,7 @@ describe("conversational planning controls", () => {
     expect(
       screen.getByRole("img", { name: "Medium severity" }),
     ).toHaveAttribute("data-testid", "WarningIcon");
-    expect(screen.getByText("Repair planned")).toBeVisible();
+    expect(screen.getByText("Open")).toBeVisible();
     expect(
       screen.getByText("Proceed, we will fix it afterwards."),
     ).toBeVisible();
@@ -448,6 +491,40 @@ describe("conversational planning controls", () => {
       screen.getByText("Verify the requirement is reconciled."),
     ).toBeVisible();
   });
+
+  it.each(["changes_existing_behavior", "repair_planned"] as const)(
+    "shows %s as an expected change with a neutral icon and its severity label",
+    (disposition) => {
+      render(
+        <CodingPlanDiscrepancyField
+          config={{
+            field: "issue",
+            type: "coding_plan_discrepancy",
+            payload: {
+              sourceRef: { sourceType: "task", sourceId: "hidden-task-id" },
+              sourceExcerpt: "The recorded promise.",
+              discrepancyText: "The plan evolves existing behavior.",
+              reasoning: "Update the existing code.",
+              severity: "medium",
+              findingId: "f2",
+              category: "project_context",
+              disposition,
+            },
+          }}
+          context={context}
+        />,
+      );
+      expect(
+        screen.getByText("Changes existing behavior", { selector: "span" }),
+      ).toBeVisible();
+      expect(
+        screen.getByRole("img", { name: "Changes existing behavior" }),
+      ).toHaveAttribute("data-testid", "AutorenewIcon");
+      expect(screen.queryByTestId("WarningIcon")).toBeNull();
+      expect(screen.getByText("Medium")).toBeVisible();
+      expect(screen.queryByText(/repair/i)).toBeNull();
+    },
+  );
 
   it.each([
     {
@@ -743,17 +820,17 @@ describe("conversational planning controls", () => {
     );
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   });
-  it("fails visibly with no pending approval and never falls back to chat", async () => {
+  it("submits a live approval and a reply even when the workflow node and prompt gate read differently", async () => {
+    state.node.mockResolvedValue({
+      data: { data: { currentNodeId: "other" } },
+    });
     state.gate.mockResolvedValue({
-      data: {
-        data: {
-          workflowState: "agent-pending",
-          nodeId: "feature-sync-coding-plan",
-          triggerMessageId: null,
-        },
-      },
+      data: { data: { workflowState: "idle", nodeId: "other" } },
     });
     const { result } = renderHook(() => useCodingPlanConversation(context));
+    await act(async () => {
+      await result.current.submit({ reply: "Tighten step two." });
+    });
     await act(async () => {
       await result.current.submit({
         approval: {
@@ -762,8 +839,8 @@ describe("conversational planning controls", () => {
         },
       });
     });
-    expect(result.current.error).toContain("no pending planning approval");
-    expect(state.answer).not.toHaveBeenCalled();
-    expect(state.submit).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+    expect(state.submit).toHaveBeenCalledTimes(1);
+    expect(state.answer).toHaveBeenCalledTimes(1);
   });
 });

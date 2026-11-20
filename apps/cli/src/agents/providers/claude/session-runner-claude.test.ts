@@ -1,3 +1,10 @@
+import { initialTransition, transition } from 'xstate';
+import { createTaskMonitorDefinition } from '../../task-monitor/state-machine/machine';
+import { taskMonitorEventFromVerifiedInput } from '../../task-monitor/state-machine/events';
+import { normalizeEvent } from '../../../run/normalize';
+import { taskMonitorExactActionInputFromProviderEvent } from '../../task-monitor/state-machine/provider-event-adapter';
+import type { AgentOutputMessage } from '../../agent-event-stream';
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -6,6 +13,10 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
+} from '../../../agent-runtime/index';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
@@ -105,9 +116,9 @@ vi.mock('../../prompts/session-start-context', () => ({
 // point with each in turn and assert the delivered prompt tracks whichever the
 // stubbed read returns — proving a registry change alone re-shapes the next
 // session's ontology with no builder or runner edit.
-const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 const baselineContract: WorkItemTypeDefinitionDto = {
   ...TYPE_DEF_BASE,
@@ -1462,6 +1473,124 @@ describe('session-runner-claude', () => {
     rmSync(base, { recursive: true, force: true });
   });
 
+  it('admits a real Claude request without a deadline and delivers its monitor decision', async () => {
+    const onAgentOutput = vi.fn<(message: AgentOutputMessage) => void>();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Check monitored permissions.' });
+    await waitForPermissionHandler();
+    const input = { command: 'echo monitor-permission' };
+    const pending = permissionRequestHandler!('Bash', input);
+    // Cleanup can cancel an unresolved request when an assertion fails.
+    void pending.catch(() => {});
+
+    try {
+      await vi.waitFor(() => {
+        expect(
+          onAgentOutput.mock.calls.some(
+            ([message]) => message.event.eventType === 'permission_request_detected',
+          ),
+        ).toBe(true);
+      });
+      const message = onAgentOutput.mock.calls.find(
+        ([message]) => message.event.eventType === 'permission_request_detected',
+      )![0];
+      const event = { runId: session.agentic_session_id, ...message.event };
+      const admitted = taskMonitorExactActionInputFromProviderEvent({
+        owner: {
+          taskMonitorId: '10000000-0000-4000-8000-000000000001',
+          runId: session.agentic_session_id,
+          agentSessionId: session.agentic_session_id,
+        },
+        event,
+      });
+      expect(admitted).toMatchObject({ action: 'Bash', expiresAt: null });
+      if (!admitted) {
+        throw new Error('Claude permission request was not admitted');
+      }
+      const normalized = normalizeEvent(event, 'claude');
+      expect(normalized.kind).toBe('permission');
+      if (normalized.kind !== 'permission') {
+        throw new Error('Expected a permission event');
+      }
+      expect(normalized.taskMonitorAdmission.accepted).toBe(true);
+      const definition = createTaskMonitorDefinition();
+      const [initial] = initialTransition(definition.machine, {
+        machineType: 'TASK_MONITOR',
+        instanceId: admitted.taskMonitorId,
+      });
+      const observing = definition.machine.resolveState({
+        value: {
+          RUNNING: {
+            control: 'ACTIVE',
+            work: 'OBSERVING_RUN',
+            intervention: 'CLEAR',
+            input: 'WAITING_FOR_INPUT',
+          },
+        },
+        context: {
+          ...initial.context,
+          organizationId: 'org-1',
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+          agentSessionId: admitted.agentSessionId,
+          activeRunAgentSessionId: admitted.agentSessionId,
+        },
+      });
+      const [awaitingDecision] = transition(
+        definition.machine,
+        observing,
+        taskMonitorEventFromVerifiedInput(admitted),
+      );
+      expect(awaitingDecision.context.pendingIntervention).toMatchObject({ expiresAt: null });
+      const decidedAt = new Date().toISOString();
+      const [, actions] = transition(definition.machine, awaitingDecision, {
+        type: 'HUMAN_DECISION',
+        taskMonitorId: admitted.taskMonitorId,
+        interventionId: admitted.interventionId,
+        providerActionId: admitted.providerActionId,
+        runId: admitted.runId,
+        agentSessionId: admitted.agentSessionId,
+        fingerprint: admitted.fingerprint,
+        resolution: 'APPROVE',
+        providerDecision: 'approve',
+        decidedAt,
+        human: { userId: 'user-1', authenticatedAt: decidedAt },
+      });
+      const effect = actions
+        .flatMap((action) => definition.effectFromAction(action) ?? [])
+        .find((effect) => effect.type === 'APPLY_TASK_MONITOR_DECISION');
+      if (!effect || effect.type !== 'APPLY_TASK_MONITOR_DECISION') {
+        throw new Error('Monitor did not produce a provider decision');
+      }
+      const dispatch = translatePermissionDecisionToDispatch({
+        runId: effect.runId,
+        sessionId: effect.providerSessionId,
+        requestId: effect.providerActionId,
+        agentType: 'claude',
+        decision: effect.providerDecision,
+        reason: null,
+        idempotencyToken: admitted.ingressId,
+        deciderUserId: 'user-1',
+      });
+      await expect(runner.submitPermissionDecision({ session, dispatch })).resolves.toMatchObject({
+        delivered: true,
+      });
+      await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: input });
+    } finally {
+      await waitForEventHandler();
+      emitClaudeEvent({ type: 'result' });
+      await runPromise;
+    }
+  });
+
   it('shares permission decisions only across structurally identical calls', async () => {
     const onAgentOutput = vi.fn();
     const runner = new ClaudeAgentSessionRunner({
@@ -1603,6 +1732,182 @@ describe('session-runner-claude', () => {
       await submitDecision(request, 'approve');
     }
     await expect(Promise.all(mixedPromises)).resolves.toHaveLength(5);
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await runPromise;
+  });
+
+  it('keeps distinct monitored network requests independently actionable', async () => {
+    const onAgentOutput = vi.fn<(message: AgentOutputMessage) => void>();
+    const owner = createProviderTestAgentOutputOwner(onAgentOutput);
+    vi.spyOn(owner, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: owner,
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Access two hosts.' });
+    await waitForPermissionHandler();
+    const first = permissionRequestHandler!('SandboxNetworkAccess', { host: 'one.example' });
+    const second = permissionRequestHandler!('SandboxNetworkAccess', { host: 'two.example' });
+    void first.catch(() => {});
+    void second.catch(() => {});
+    let secondSettled = false;
+    void second.then(
+      () => {
+        secondSettled = true;
+      },
+      () => {
+        secondSettled = true;
+      },
+    );
+    try {
+      const requests = () =>
+        onAgentOutput.mock.calls
+          .map(([message]) => message.event)
+          .filter((event) => event.eventType === 'permission_request_detected');
+      await vi.waitFor(() => expect(requests()).toHaveLength(2));
+      expect(
+        onAgentOutput.mock.calls.some(
+          ([message]) => message.event.eventType === 'permission_group_item_added',
+        ),
+      ).toBe(false);
+      const admitted = requests().map((event) =>
+        taskMonitorExactActionInputFromProviderEvent({
+          owner: {
+            taskMonitorId: 'monitor-1',
+            runId: session.agentic_session_id,
+            agentSessionId: session.agentic_session_id,
+          },
+          event: { ...event, runId: session.agentic_session_id },
+        }),
+      );
+      expect(admitted.every(Boolean)).toBe(true);
+      expect(admitted.map((request) => request?.target)).toEqual([
+        'host=one.example',
+        'host=two.example',
+      ]);
+      expect(admitted[0]?.providerActionId).not.toBe(admitted[1]?.providerActionId);
+      for (const [index, request] of admitted.entries()) {
+        if (!request) {
+          throw new Error('Expected individually admissible request');
+        }
+        await runner.submitPermissionDecision({
+          session,
+          dispatch: translatePermissionDecisionToDispatch({
+            runId: request.runId,
+            sessionId: request.providerSessionId,
+            requestId: request.providerActionId,
+            agentType: 'claude',
+            decision: index === 0 ? 'approve' : 'deny',
+            reason: null,
+            idempotencyToken: request.providerActionId,
+            deciderUserId: 'user-1',
+          }),
+        });
+        if (index === 0) {
+          await expect(first).resolves.toMatchObject({
+            behavior: 'allow',
+            updatedInput: { host: 'one.example' },
+          });
+          expect(secondSettled).toBe(false);
+        }
+      }
+      await expect(second).resolves.toMatchObject({ behavior: 'deny' });
+    } finally {
+      await waitForEventHandler();
+      emitClaudeEvent({ type: 'result' });
+      await runPromise;
+    }
+  });
+
+  it('lists same-tool requests with different inputs on one card with a decision per request', async () => {
+    const onAgentOutput = vi.fn();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession();
+    const runPromise = runner.runPrompt({ session, prompt: 'Search the web.' });
+    await waitForPermissionHandler();
+
+    const emitted = () =>
+      onAgentOutput.mock.calls.flatMap((call) => {
+        const event = call[0]?.event as
+          | { eventType?: string; sessionId?: string; payload?: Record<string, unknown> }
+          | undefined;
+
+        return event?.eventType ? [event] : [];
+      });
+    const cards = () =>
+      emitted().filter(
+        (event) => event.eventType === 'permission_request' && event.payload?.['tool_name'],
+      );
+    const joinedRows = () =>
+      emitted()
+        .filter((event) => event.eventType === 'permission_group_item_added')
+        .map((event) => event.payload as Record<string, string>);
+    const decide = (requestId: string, decision: 'approve' | 'deny') =>
+      runner.submitPermissionDecision?.({
+        session,
+        dispatch: translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: 'session-1',
+          requestId,
+          agentType: 'claude',
+          decision,
+          reason: decision === 'deny' ? 'Denied for this search.' : null,
+          idempotencyToken: requestId,
+          deciderUserId: 'user-1',
+        }),
+      });
+
+    const alpha = { query: 'alpha', mode: 'standard' };
+    const beta = { query: 'beta', mode: 'standard' };
+    const gamma = { query: 'gamma', mode: 'standard' };
+    const alphaPromise = permissionRequestHandler!('WebSearch', alpha);
+    const betaPromise = permissionRequestHandler!('WebSearch', beta);
+    const gammaPromise = permissionRequestHandler!('WebSearch', gamma);
+    const alphaTwinPromise = permissionRequestHandler!('WebSearch', { ...alpha });
+    await vi.waitFor(() => expect(joinedRows()).toHaveLength(2));
+
+    // One card for the three distinct searches; the exact duplicate adds no row.
+    expect(cards()).toHaveLength(1);
+    const cardRequestId = (cards()[0]!.payload!['permission_request'] as { id: string }).id;
+    const [betaRow, gammaRow] = joinedRows();
+    expect(joinedRows().map((row) => row['description'])).toEqual(['beta', 'gamma']);
+    expect(betaRow).toMatchObject({ cardRequestId, cardDescription: 'alpha' });
+
+    // Each row is decided on its own; the duplicate follows its twin.
+    await decide(cardRequestId, 'approve');
+    await expect(alphaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+    await expect(alphaTwinPromise).resolves.toEqual({ behavior: 'allow', updatedInput: alpha });
+
+    // A request arriving after a decision opens a new card instead of inheriting one.
+    const deltaPromise = permissionRequestHandler!('WebSearch', { query: 'delta' });
+    await vi.waitFor(() => expect(cards()).toHaveLength(2));
+    expect(joinedRows()).toHaveLength(2);
+
+    await decide(betaRow!['requestId']!, 'deny');
+    await expect(betaPromise).resolves.toEqual({
+      behavior: 'deny',
+      message: 'Denied for this search.',
+    });
+    await decide(gammaRow!['requestId']!, 'approve');
+    await expect(gammaPromise).resolves.toEqual({ behavior: 'allow', updatedInput: gamma });
+
+    const deltaRequestId = (cards()[1]!.payload!['permission_request'] as { id: string }).id;
+    await decide(deltaRequestId, 'approve');
+    await expect(deltaPromise).resolves.toMatchObject({ behavior: 'allow' });
+
     await waitForEventHandler();
     emitClaudeEvent({ type: 'result' });
     await runPromise;
@@ -1856,6 +2161,65 @@ describe('session-runner-claude', () => {
       rmSync(base, { recursive: true, force: true });
     },
   );
+
+  it('starts Claude in auto mode with write tools kept on the permission callback, and keeps it on a cold resume', async () => {
+    const newRunner = () =>
+      new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+        oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+      });
+
+    const launched = newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Run.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await launched;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      permissionMode: 'auto',
+      alwaysAskTools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
+    });
+
+    const resumed = newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'provider-session-1' }),
+      prompt: 'Continue.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await resumed;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({ permissionMode: 'auto' });
+  });
+
+  it('keeps the default mode when no provider mode is requested', async () => {
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+
+    const run = runner.runPrompt({ session: makeSession(), prompt: 'Run.' });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await run;
+
+    const config = startSessionMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(config).toMatchObject({ permissionMode: 'default' });
+    expect(config).not.toHaveProperty('alwaysAskTools');
+  });
 
   it('passes mcpServers and allowedTools to startSession when oauthClient is provided', async () => {
     const mockMcpConfig = {
@@ -2928,6 +3292,39 @@ describe('session-runner-claude', () => {
     expect(continueSessionMock).toHaveBeenCalledWith('FOLLOW UP', { attachments: [] });
   });
 
+  it('cold persisted resume rebuilds the planner read-only tool surface', async () => {
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+    const resumed = runner.resumeSession({
+      session: makeSession({ provider_session_id: 'persisted-session' }),
+      prompt: 'FOLLOW UP',
+      mcpToolUseCase: 'planning',
+      additionalAllowedTools: ['get_agent_sessions', 'list_services'],
+      readOnlyFilesystem: true,
+      builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await resumed;
+
+    expect(buildMcpServerConfigMock).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      useCase: 'planning',
+      additionalTools: ['get_agent_sessions', 'list_services'],
+    });
+    const launch = startSessionMock.mock.calls[0]?.[0];
+    expect(launch).toMatchObject({
+      resumeSessionId: 'persisted-session',
+      builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+    });
+    expect(launch.builtinTools).not.toContain('Bash');
+  });
+
   it.each([false, true])(
     'cold persisted resume retains the handler system-prompt policy (research=%s)',
     async (research) => {
@@ -3393,6 +3790,28 @@ describe('session-runner-claude', () => {
     await expect(runner.getContextUsage('provider-session-1')).resolves.toEqual(contextData);
     expect(getContextUsageMock).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ['disconnects', new ControlRequestDisconnectedError('get_context_usage')],
+    ['is aborted by Turn cancellation', new ControlRequestAbortedError('get_context_usage')],
+  ])(
+    'throws NO_ACTIVE_SESSION when the live client %s while the read is pending',
+    async (_label, failure) => {
+      const runner = new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+      getSessionIdMock.mockReturnValue('provider-session-1');
+      getContextUsageMock.mockRejectedValue(failure);
+
+      await expect(runner.getContextUsage()).rejects.toEqual(
+        expect.objectContaining({ code: 'NO_ACTIVE_SESSION' }),
+      );
+    },
+  );
 
   it('throws NO_ACTIVE_SESSION when no provider session is active', async () => {
     const runner = new ClaudeAgentSessionRunner({

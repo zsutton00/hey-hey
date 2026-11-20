@@ -33,12 +33,24 @@ export const ImplementationReadinessSecondaryAction: React.FC<
   if (kind === "clarify") {
     return (
       <Button
-        variant="text"
+        variant="contained"
         size="small"
+        disableElevation
         disabled={action.disabled}
         onClick={() => context.onFocusComposer?.()}
         data-testid="implementation-readiness-clarify-action"
-        sx={{ py: 1.5, px: 2 }}
+        sx={(theme) => {
+          const role = theme.palette.conversationCard.roles.needsAnswer;
+
+          return {
+            backgroundColor: role.main,
+            color: role.contrastText,
+            "&:hover": {
+              backgroundColor: role.main,
+              filter: "brightness(0.92)",
+            },
+          };
+        }}
       >
         {action.label}
       </Button>
@@ -59,7 +71,7 @@ export const ImplementationReadinessSecondaryAction: React.FC<
         disabled={action.disabled}
         onClick={() => setConfirmationOpen(true)}
         data-testid={`implementation-readiness-${kind}-action`}
-        sx={{ py: 1.5, px: 2 }}
+        sx={{ color: "text.secondary" }}
       >
         {action.label}
       </Button>

@@ -2,6 +2,10 @@ import { Chip, Skeleton } from "@mui/material";
 import React, { memo } from "react";
 import { useDesignDoc } from "../../../data/hooks/useDesignDoc";
 import { useWorkItem } from "../../../data/hooks/useWorkItem";
+import { formatStatus } from "../../../utils/statusUtils";
+
+import { useWorkItemTypeByKey } from "../../../data/hooks/useWorkItemTypes";
+import { getWorkItemStatusLabel } from "../../../utils/workItemStatusVocabulary";
 
 interface EntityStatusChipProps {
   entityId: string;
@@ -19,22 +23,28 @@ export const EntityStatusChip: React.FC<EntityStatusChipProps> = memo(
     const { data: designDoc, isLoading: isLoadingDesignDoc } = useDesignDoc(
       organizationId,
       isDesignDoc ? entityId : undefined,
-      { enabled: isDesignDoc }
+      { enabled: isDesignDoc },
     );
 
     const { workItem: task, isLoading: isLoadingTask } = useWorkItem(
       organizationId,
       "task",
       isTask ? entityId : "",
-      { enabled: isTask }
+      { enabled: isTask },
+    );
+
+    const { workItemTypeDefinition } = useWorkItemTypeByKey(
+      organizationId,
+      task?.projectId,
+      task?.type,
     );
 
     const isLoading = isLoadingDesignDoc || isLoadingTask;
     const status = isDesignDoc
       ? designDoc?.status
       : isTask
-      ? task?.status
-      : null;
+        ? task?.status
+        : null;
 
     if (isLoading) {
       return <Skeleton variant="rectangular" width={80} height={24} />;
@@ -45,14 +55,9 @@ export const EntityStatusChip: React.FC<EntityStatusChipProps> = memo(
     }
 
     const getStatusColor = (
-      statusValue: string
+      statusValue: string,
     ):
-      | "default"
-      | "primary"
-      | "secondary"
-      | "success"
-      | "error"
-      | "warning" => {
+      "default" | "primary" | "secondary" | "success" | "error" | "warning" => {
       const statusStr = String(statusValue).toLowerCase();
       if (statusStr.includes("done") || statusStr.includes("complete")) {
         return "success";
@@ -70,20 +75,17 @@ export const EntityStatusChip: React.FC<EntityStatusChipProps> = memo(
       return "default";
     };
 
-    const formatStatus = (statusValue: string): string => {
-      return String(statusValue)
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
     return (
       <Chip
-        label={formatStatus(status)}
+        label={
+          isTask
+            ? getWorkItemStatusLabel(status, workItemTypeDefinition)
+            : formatStatus(status)
+        }
         size="small"
         color={getStatusColor(status)}
         variant="outlined"
       />
     );
-  }
+  },
 );

@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Request } from 'express';
 import { UnifiedSearchService } from '../../services/unified-search/unified-search.service';
@@ -13,9 +14,14 @@ import {
   HelpSearchResponse,
   UnifiedSearchRequest,
   UnifiedSearchResult,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { SearchProjection } from '../../generated/graphs';
+import { WORK_ITEM_TYPE_KEYS } from '../../services/tasks/work-item-type-keys';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
+import {
+  statusGroupOf,
+  type McpStatusGroup,
+} from '../../services/tasks/work-item-status-groups';
 import { HelpService } from '../../services/help.service';
 import { ProjectId } from '../../types';
 import {
@@ -30,7 +36,7 @@ import {
 } from './mcp-tool.utils';
 import {
   ENVELOPE_ALLOWANCE,
-  RESPONSE_CHARACTER_BUDGET,
+  SEARCH_RESPONSE_CHARACTER_BUDGET,
 } from './response-budget';
 import { SearchCacheService } from './search-cache.service';
 import {
@@ -60,6 +66,12 @@ export const UNIFIED_SEARCH_ENTITY_TYPES = [
   'DESIGN_DOC',
   'MESSAGE',
 ] as const;
+
+/** Order-independent digest of a resolved exclusion, so cache keys stay small and stable. */
+const fingerprintEntityIds = (entityIds: readonly string[]): string =>
+  createHash('sha256')
+    .update([...new Set(entityIds)].sort().join(','))
+    .digest('hex');
 
 // NOTE: do not wrap this schema in `.refine()`/`.superRefine()`. Those produce
 // a ZodEffects, which breaks MCP tool schema generation. The exactly-one-of
@@ -143,6 +155,17 @@ export const unifiedSearchParameters = z.object({
         'updated at or before this instant are returned. Combine with ' +
         'updatedAfter to scope results to an update-time window. Applies to ' +
         'every query in a batch.',
+    ),
+  excludeConnected: z
+    .object({
+      entityIds: z.array(z.string().uuid()).min(1).max(100),
+      depth: z.number().int().min(1).max(2).optional(),
+    })
+    .optional()
+    .describe(
+      'Internal; not for general use. The platform sets this during ' +
+        'evaluation runs to hide results connected to the given entities. ' +
+        'Applies to every query in a batch.',
     ),
   match: z
     .enum(['semantic', 'exact'])
@@ -290,24 +313,28 @@ const searchResultItem = z.object({
   id: z.string().describe('Entity ID'),
   type: z.string().describe('Entity type'),
   title: z.string().describe('Entity title or summary'),
-  snippet: z.string().describe('Relevant text snippet'),
-  matchSpans: z
+  snippet: z
+    .string()
+    .optional()
+    .describe(
+      'Opening text of the hit. Omitted when matchParagraphs is present, since those carry the relevant text.',
+    ),
+  matchParagraphs: z
     .array(
       z.object({
-        start: z.number(),
-        end: z.number(),
-        strength: z.number(),
+        text: z.string(),
+        matchSpans: z.array(
+          z.object({
+            start: z.number(),
+            end: z.number(),
+            strength: z.number(),
+          }),
+        ),
       }),
     )
     .optional()
     .describe(
-      'Matched spans with end-exclusive UTF-16 code-unit offsets into matchText, never snippet. Present together with matchText.',
-    ),
-  matchText: z
-    .string()
-    .optional()
-    .describe(
-      'Exact source text indexed by matchSpans; present together with matchSpans.',
+      'Up to 3 excerpts of paragraphs containing the strongest matches, in document order; a long paragraph is cut to a window around its strongest match. Each matchSpans offset is an end-exclusive UTF-16 code-unit offset into that excerpt text. Omitted when the hit reports no spans.',
     ),
   score: z.number().describe('Relevance score'),
   taskType: z
@@ -446,7 +473,7 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
         sizes[index]!.reduce((pageSum, size) => pageSum + size, 0),
       0,
     );
-  while (total > RESPONSE_CHARACTER_BUDGET) {
+  while (total > SEARCH_RESPONSE_CHARACTER_BUDGET) {
     const largest = Math.max(...kept);
     if (largest <= 1) break;
     const index = kept.lastIndexOf(largest);
@@ -468,9 +495,13 @@ function fitSearchPagesToBudget<T extends SearchPage>(pages: T[]): T[] {
 }
 
 function mapResult(item: UnifiedSearchResult) {
-  const snippet =
-    truncate(item.content, MAX_SNIPPET_LENGTH) ||
-    truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
+  const matchParagraphs = item.embeddings?.matchParagraphs;
+  const hasMatchParagraphs =
+    matchParagraphs !== undefined && matchParagraphs.length > 0;
+  const snippet = hasMatchParagraphs
+    ? undefined
+    : truncate(item.content, MAX_SNIPPET_LENGTH) ||
+      truncate(item.topologySummary, MAX_SNIPPET_LENGTH);
 
   const meta = item.embeddings?.metadata as CanonicalTaskMetadata | undefined;
   const isFeature = meta?.taskType === 'FEATURE';
@@ -479,15 +510,9 @@ function mapResult(item: UnifiedSearchResult) {
     id: item.entityId ?? '',
     type: item.entityType ?? '',
     title: item.title ?? '',
-    snippet,
+    ...(snippet === undefined ? {} : { snippet }),
     score: item.score ?? 0,
-    ...(item.embeddings?.matchSpans !== undefined &&
-    item.embeddings.text !== undefined
-      ? {
-          matchSpans: item.embeddings.matchSpans,
-          matchText: item.embeddings.text,
-        }
-      : {}),
+    ...(matchParagraphs === undefined ? {} : { matchParagraphs }),
     // Surface the task subtype straight from the search metadata so callers
     // can tell a feature/bug/goal hit from a standard one without a follow-up
     // lookup; omit it entirely when the search data carries no subtype.
@@ -508,30 +533,6 @@ const DEFAULT_TYPES: EntityType[] = [
   EntityType.DesignDoc,
   EntityType.Message,
 ];
-
-// BACKLOG: all "not ready to work on" states (generated, refining, on hold)
-// IN_PROGRESS: actively being worked on
-// IN_REVIEW: verification phase
-// DONE / CANCELLED: terminal states
-const MCP_TO_TASK_STATUSES: Record<string, WorkStatus[]> = {
-  BACKLOG: [
-    WorkStatus.Generated,
-    WorkStatus.Backlog,
-    WorkStatus.RefiningDescription,
-    WorkStatus.RefiningDetails,
-    WorkStatus.RefiningAcceptanceCriteria,
-    WorkStatus.GeneratingDescription,
-    WorkStatus.GeneratingDetails,
-    WorkStatus.GeneratingDescriptionAndDetails,
-    WorkStatus.GeneratingAcceptanceCriteria,
-    WorkStatus.GeneratingAll,
-    WorkStatus.OnHold,
-  ],
-  IN_PROGRESS: [WorkStatus.Active],
-  IN_REVIEW: [WorkStatus.Verifying],
-  DONE: [WorkStatus.Completed],
-  CANCELLED: [WorkStatus.Cancelled],
-};
 
 // Simplified MCP-facing status → internal design doc workflow statuses.
 // ADR statuses come from src/types/design-doc.types.ts (runtime domain);
@@ -561,6 +562,7 @@ export class SearchToolsProvider {
     private readonly unifiedSearchService: UnifiedSearchService,
     private readonly searchCache: SearchCacheService,
     private readonly helpService: HelpService,
+    private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     @Optional() private readonly searchReceipts?: SearchReceiptStore,
   ) {}
 
@@ -598,6 +600,43 @@ export class SearchToolsProvider {
       this.searchReceipts?.missingSessionError() ??
       mcpError('Search receipt storage is unavailable.')
     );
+  }
+
+  /**
+   * Whether a search hit's status belongs to `group` under its type's
+   * effective definition. A hit without type metadata (for example one found
+   * only through the graph, which carries a status but no embedding metadata)
+   * cannot be attributed to a type, so it is read against the default
+   * Standard definition, as the fixed status-name groups did. A hit whose
+   * status is not in its definition (for example a removed status) belongs to
+   * no group.
+   */
+  private isInStatusGroup(
+    item: UnifiedSearchResult,
+    group: McpStatusGroup,
+    projectId: ProjectId,
+  ): boolean {
+    const meta = item.embeddings?.metadata as CanonicalTaskMetadata | undefined;
+    const typeKey = meta?.taskType ?? WORK_ITEM_TYPE_KEYS.Standard;
+    if (!item.status) {
+      return false;
+    }
+
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      typeKey,
+      projectId,
+    );
+    if (!rules) {
+      this.logger.warn('Work item type not resolved for status filter', {
+        typeKey,
+        projectId,
+      });
+      return false;
+    }
+
+    const status = rules.statuses.find(({ name }) => name === item.status);
+
+    return status !== undefined && statusGroupOf(status) === group;
   }
 
   @Tool({
@@ -670,7 +709,7 @@ export class SearchToolsProvider {
     description:
       'Search across content types (tasks, design docs, plans, and messages) ' +
       'in a project. Returns ranked results with relevance scores and text ' +
-      'snippets for context. Provide EITHER `query` (a single search, ' +
+      'matched text excerpts (a snippet only for hits without them) for context. Provide EITHER `query` (a single search, ' +
       'returning a flat { results, total, hasMore }) OR `queries` (a batch of ' +
       'up to 5 searches run in one call, returning { groups } — one ordered ' +
       'group per input query so you can correlate results back to the query ' +
@@ -689,7 +728,7 @@ export class SearchToolsProvider {
       'check whether a phrase exists: results are only entities containing ' +
       'the literal query (no near matches), and an empty result means none ' +
       'does; matched positions are returned in the result spans. The response stays within ' +
-      'an 8,000-token estimated budget: when it would not fit, ranked ' +
+      'a 12,000-token estimated budget shared across the batch: when it would not fit, ranked ' +
       'results are cut from the end, hasMore is true, and omittedForSize ' +
       'says how many were cut — repeat the query with limit no larger than ' +
       'total and page through it with offset in steps of that limit.',
@@ -721,6 +760,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeConnected,
       match,
       limit,
       offset,
@@ -741,19 +781,31 @@ export class SearchToolsProvider {
       );
     }
 
-    const shared = {
-      entityTypes,
-      downrankUnreviewed,
-      createdAfter,
-      createdBefore,
-      updatedAfter,
-      updatedBefore,
-      match,
-      limit,
-      offset,
-    };
-
     try {
+      // Worked out once per call and shared by every query of a batch. A failure is a search
+      // error: results are never returned without the exclusion that was asked for.
+      const excludeEntityIds = excludeConnected
+        ? await this.unifiedSearchService.resolveExcludedEntityIds(
+            auth.organizationId,
+            projectId,
+            excludeConnected,
+            auth.token,
+          )
+        : undefined;
+
+      const shared = {
+        entityTypes,
+        downrankUnreviewed,
+        createdAfter,
+        createdBefore,
+        updatedAfter,
+        updatedBefore,
+        excludeEntityIds,
+        match,
+        limit,
+        offset,
+      };
+
       if (hasMulti) {
         // Run each query through the same single-query pipeline (cache
         // included) and return one ordered group per query. Promise.all
@@ -817,6 +869,7 @@ export class SearchToolsProvider {
       createdBefore?: string;
       updatedAfter?: string;
       updatedBefore?: string;
+      excludeEntityIds?: string[];
       match?: 'semantic' | 'exact';
       limit: number;
       offset: number;
@@ -831,6 +884,7 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      excludeEntityIds,
       match,
       limit,
       offset,
@@ -856,6 +910,12 @@ export class SearchToolsProvider {
       createdBefore,
       updatedAfter,
       updatedBefore,
+      // The resolved set, not the seeds it came from: the closure changes as items are linked, and a
+      // cached page must never answer a call whose exclusion differs. Present only when asked for,
+      // so ordinary searches keep their exact cache keys.
+      ...(excludeEntityIds
+        ? { excludedEntities: fingerprintEntityIds(excludeEntityIds) }
+        : {}),
       match,
       // The shared key lowercases and trims `query`, but an exact phrase is
       // literal (surrounding whitespace included), so key it untouched.
@@ -903,6 +963,7 @@ export class SearchToolsProvider {
       types: resolvedTypes,
       ...(dateRange ? { dateRange } : {}),
       ...(updatedAtRange ? { updatedAtRange } : {}),
+      ...(excludeEntityIds ? { excludeEntityIds } : {}),
     };
 
     // Exact mode is embeddings-only: graph traversal would add entities that
@@ -1054,8 +1115,6 @@ export class SearchToolsProvider {
         ? limit + 1
         : limit;
 
-    const mappedStatuses = status ? MCP_TO_TASK_STATUSES[status] : undefined;
-
     try {
       const searchRequest: UnifiedSearchRequest = {
         intent: 'semantic',
@@ -1108,15 +1167,13 @@ export class SearchToolsProvider {
         }),
       });
 
-      if (mappedStatuses) {
+      if (status) {
         const before = items.length;
-        const statusSet = new Set(mappedStatuses);
-        items = items.filter(
-          (item) => item.status && statusSet.has(item.status as WorkStatus),
+        items = items.filter((item) =>
+          this.isInStatusGroup(item, status, projectId as ProjectId),
         );
         this.logger.debug(`${toolName} status filter`, {
           filter: status,
-          mappedStatuses,
           before,
           after: items.length,
         });

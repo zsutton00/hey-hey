@@ -37,11 +37,11 @@ export interface OrganizationProjectEntitlementDto {
      */
     'projectLimitOverride': number | null;
     /**
-     *
+     * The effective project limit. Null means the organization has no project limit (local installations).
      * @type {number}
      * @memberof OrganizationProjectEntitlementDto
      */
-    'projectLimit': number;
+    'projectLimit': number | null;
     /**
      *
      * @type {OrganizationProjectEntitlementUsageDto}

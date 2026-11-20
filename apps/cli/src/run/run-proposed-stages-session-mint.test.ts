@@ -21,6 +21,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -63,6 +64,7 @@ const featureSyncAnalyzeHandler: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

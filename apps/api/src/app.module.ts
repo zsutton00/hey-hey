@@ -1,6 +1,12 @@
 import { LocalOnboardingController } from './controllers/local-onboarding.controller';
+import { ProjectApprovalPolicyController } from './controllers/project-approval-policy.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
+import {
+  AgentSessionContinuationController,
+  MachineAgentSessionContinuationController,
+} from './controllers/agent-session-continuation.controller';
+import { AgentSessionContinuationService } from './services/agent-session-continuation/agent-session-continuation.service';
 import { RuntimeModelCatalogReadService } from './services/runtime-model-catalog-read.service';
 import { WorkspaceSkillsReadService } from './services/workspace-skills-read.service';
 import { Module } from '@nestjs/common';
@@ -94,6 +100,7 @@ import {
 } from './controllers/agent-interaction.controller';
 import { AgentInteractionAdmissionService } from './services/agent-interaction/agent-interaction-admission.service';
 import { AgentSessionCurrentStateController } from './controllers/agent-session-current-state.controller';
+import { WorkItemExecutionStateController } from './controllers/work-item-execution-state.controller';
 import { AgentSessionOutputAttentionController } from './controllers/agent-session-output-attention.controller';
 import { SecondaryActionsController } from './controllers/secondary-actions.controller';
 import { CodingPromptController } from './controllers/coding-prompt.controller';
@@ -207,6 +214,8 @@ import { ProjectReportLaunchService } from './services/project-reports/project-r
 import { MetricsModule } from './core/metrics/metrics.module';
 import { TypeSafeJevModule } from './services/typesafe-jev/typesafe-jev.module';
 import { ReadRestrictionModule } from './read-restriction/read-restriction.module';
+import { LocalApplicationModule } from './local/local-application.module';
+import { isLocalApplication } from './deployment-environment';
 
 @Module({
   imports: [
@@ -256,10 +265,14 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     MachineEffectAdmissionModule,
     AgentOperationModule,
     TypeSafeJevModule,
+    // Local-only routes and rules never enter a hosted provider graph.
+    ...(isLocalApplication() ? [LocalApplicationModule] : []),
   ],
   controllers: [
     WorkspaceSkillsController,
     RuntimeModelCatalogController,
+    AgentSessionContinuationController,
+    MachineAgentSessionContinuationController,
     AdminController,
     PlatformAdminAccessController,
     AdminImplementationHintController,
@@ -276,6 +289,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     ProjectMetricsController,
     QueueController,
     ProjectController,
+    ProjectApprovalPolicyController,
     ReportController,
     ProjectReportsController,
     ProjectReportRequestController,
@@ -315,6 +329,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
     SessionMessageTargetController,
     AgentSessionTurnAdmissionController,
     AgentSessionCurrentStateController,
+    WorkItemExecutionStateController,
     AgentSessionOutputAttentionController,
     SecondaryActionsController,
     CodingPromptController,
@@ -356,6 +371,7 @@ import { ReadRestrictionModule } from './read-restriction/read-restriction.modul
   providers: [
     WorkspaceSkillsReadService,
     RuntimeModelCatalogReadService,
+    AgentSessionContinuationService,
     CustomLoggerService,
     {
       provide: APP_INTERCEPTOR,

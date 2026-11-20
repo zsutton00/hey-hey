@@ -7,7 +7,6 @@ import {
   EntityContextService,
   type ListGoalsResponseDto,
 } from '../../services/entity-context/entity-context.service';
-import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, ProjectId } from '../../types';
 import {
   extractAuthContext,
@@ -20,30 +19,6 @@ import {
 const LIST_GOALS_TOOL_NAME = 'list_goals';
 const DEFAULT_LIMIT = 200;
 const MAX_LIMIT = 500;
-
-// Mirrors the MCP→WorkStatus mapping in search-tools.provider.ts so
-// list_goals and search_goals normalize the same simplified status
-// surface (BACKLOG / IN_PROGRESS / IN_REVIEW / DONE / CANCELLED) onto
-// the underlying WorkStatus enum.
-const MCP_TO_WORK_STATUSES: Record<string, WorkStatus[]> = {
-  BACKLOG: [
-    WorkStatus.Generated,
-    WorkStatus.Backlog,
-    WorkStatus.RefiningDescription,
-    WorkStatus.RefiningDetails,
-    WorkStatus.RefiningAcceptanceCriteria,
-    WorkStatus.GeneratingDescription,
-    WorkStatus.GeneratingDetails,
-    WorkStatus.GeneratingDescriptionAndDetails,
-    WorkStatus.GeneratingAcceptanceCriteria,
-    WorkStatus.GeneratingAll,
-    WorkStatus.OnHold,
-  ],
-  IN_PROGRESS: [WorkStatus.Active],
-  IN_REVIEW: [WorkStatus.Verifying],
-  DONE: [WorkStatus.Completed],
-  CANCELLED: [WorkStatus.Cancelled],
-};
 
 const listGoalsParameters = z.object({
   limit: z
@@ -71,7 +46,9 @@ const listGoalsParameters = z.object({
     .describe(
       'Filter goals by simplified status. BACKLOG covers all not-yet-active ' +
         'states (generated, refining, on hold); IN_PROGRESS is active work; ' +
-        'IN_REVIEW is the verification phase; DONE / CANCELLED are terminal.',
+        'IN_REVIEW is the verification phase; DONE / CANCELLED are terminal. ' +
+        "Groups follow each status's meaning in the Goal type, so custom " +
+        'statuses are included.',
     ),
   projectId: z
     .string()
@@ -159,8 +136,6 @@ export class ListGoalsToolsProvider {
     if (!isProjectId(resolvedProjectId)) return resolvedProjectId;
     const projectId = resolvedProjectId;
 
-    const mappedStatuses = status ? MCP_TO_WORK_STATUSES[status] : undefined;
-
     this.logger.log('list_goals called', {
       organizationId,
       projectId,
@@ -176,7 +151,7 @@ export class ListGoalsToolsProvider {
         projectId as ProjectId,
         limit,
         offset,
-        mappedStatuses,
+        status,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

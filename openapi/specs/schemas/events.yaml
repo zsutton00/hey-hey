@@ -696,9 +696,9 @@ components:
             - newStatus
           properties:
             previousStatus:
-              "$ref": "./common.yaml#/WorkStatus"
+              "$ref": "./common.yaml#/WorkItemStatus"
             newStatus:
-              "$ref": "./common.yaml#/WorkStatus"
+              "$ref": "./common.yaml#/WorkItemStatus"
             originatingProjectId:
               "$ref": "./common.yaml#/ProjectId"
               nullable: true
@@ -1090,9 +1090,9 @@ components:
             - newStatus
           properties:
             previousStatus:
-              "$ref": "./common.yaml#/WorkStatus"
+              "$ref": "./common.yaml#/WorkItemStatus"
             newStatus:
-              "$ref": "./common.yaml#/WorkStatus"
+              "$ref": "./common.yaml#/WorkItemStatus"
             initiativeId:
               "$ref": "./common.yaml#/InitiativeId"
             originatingProjectId:
@@ -3156,7 +3156,7 @@ components:
           items:
             "$ref": "./common.yaml#/ProjectId"
         status:
-          "$ref": "./common.yaml#/WorkStatus"
+          "$ref": "./common.yaml#/WorkItemStatus"
         priority:
           type: string
         dueDate:
@@ -3189,7 +3189,7 @@ components:
         reasoning:
           type: string
         status:
-          "$ref": "./common.yaml#/WorkStatus"
+          "$ref": "./common.yaml#/WorkItemStatus"
         priority:
           "$ref": "./common.yaml#/Priority"
         creatorType:
@@ -3279,7 +3279,7 @@ components:
         initiativeId:
           "$ref": "./common.yaml#/InitiativeId"
         status:
-          "$ref": "./common.yaml#/WorkStatus"
+          "$ref": "./common.yaml#/WorkItemStatus"
         priority:
           "$ref": "./tasks.yaml#/TaskPriority"
         dueDate:
@@ -3353,7 +3353,7 @@ components:
             Updated feature tag. Only meaningful for FEATURE tasks; absent on
             non-FEATURE update events.
         status:
-          "$ref": "./common.yaml#/WorkStatus"
+          "$ref": "./common.yaml#/WorkItemStatus"
         priority:
           "$ref": "./tasks.yaml#/TaskPriority"
         dueDate:

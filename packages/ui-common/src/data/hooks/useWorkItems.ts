@@ -64,7 +64,7 @@ export interface WorkItemHookOptions extends CollectionHookOptions<WorkItemRespo
   includeTrackedEntities?: boolean;
   /** Request the compact GOAL tracked-work aggregate; independent of snapshots. */
   includeTrackedWorkSummary?: boolean;
-  status?: WorkStatus | WorkStatus[];
+  status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
   taskIds?: string[];
   websocketsEnabled?: boolean;
   taskType?: string;
@@ -159,7 +159,8 @@ export function useWorkItems(
   // The endpoint is project-scoped, so a read needs the project.
   const isEnabled = enabledOption !== false && !!organizationId && !!projectId;
   // Array params are joined so the memoised options follow their contents.
-  const statusKey = status === undefined ? "" : [status].flat().join(",");
+  // Status names may contain commas, so their key is JSON rather than a join.
+  const statusKey = status === undefined ? "" : JSON.stringify([status].flat());
   const sectionKey = normalizedSectionKeys?.join(",") ?? "";
   const edgeTypesKey = edgeTypes?.join(",") ?? "";
   const parentTaskIdsKey = parentTaskIds?.join(",") ?? "";
@@ -172,7 +173,9 @@ export function useWorkItems(
       initiativeId,
       parentTaskId,
       parentTaskIds: split(parentTaskIdsKey),
-      status: split<WorkStatus>(statusKey),
+      status: statusKey
+        ? (JSON.parse(statusKey) as TaskResponseDto["status"][])
+        : undefined,
       taskIds: split(taskIdsKey),
       includeSectionKeys: split(sectionKey),
       includeServiceRelations,

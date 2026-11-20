@@ -7,6 +7,7 @@ import {
   ReportSortBy,
   ReportSortOrder,
   ReportType,
+  type EvalSessionStatus,
   type EvalAttemptReportPayload,
   type EvalAttemptUpdatedEvent,
   type EvalHumanReviewReportPayload,
@@ -24,6 +25,72 @@ import { captureRequestOptions } from "../core/requestInitiator";
 import { dataLayerQueryPolicy } from "../query/queryPolicy";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
 import { reportKeys } from "./reports";
+
+export const evalSessionStatusesKey = (org: string, project: string) =>
+  [...reportKeys.all(org), "evalSessionStatuses", project] as const;
+
+const EVAL_SESSION_STATUS_REFRESH_INTERVAL_MS = 5_000;
+
+const statusRefreshes = new WeakMap<
+  QueryClient,
+  Map<string, ReturnType<typeof setTimeout>>
+>();
+function refreshEvalSessionStatuses(
+  queryClient: QueryClient,
+  org: string,
+  project: string,
+) {
+  let pending = statusRefreshes.get(queryClient);
+  if (!pending) {
+    pending = new Map();
+    statusRefreshes.set(queryClient, pending);
+  }
+  const scope = `${org}:${project}`;
+  if (pending.has(scope)) {
+    return;
+  }
+  pending.set(
+    scope,
+    setTimeout(() => {
+      pending.delete(scope);
+      void invalidateWithFollowUpRead(queryClient, {
+        queryKey: evalSessionStatusesKey(org, project),
+      });
+    }, EVAL_SESSION_STATUS_REFRESH_INTERVAL_MS),
+  );
+}
+
+export function evalSessionStatusesQueryOptions(
+  organizationId: string,
+  projectId: string,
+  agentSessionIds: readonly string[],
+) {
+  const ids = [...new Set(agentSessionIds)].sort();
+  const requestOptions = captureRequestOptions();
+  return queryOptions({
+    ...dataLayerQueryPolicy,
+    queryKey: [...evalSessionStatusesKey(organizationId, projectId), ids],
+    queryFn: async ({ signal }): Promise<EvalSessionStatus[]> => {
+      const statuses: EvalSessionStatus[] = [];
+      // Older collections and collections containing only protected items
+      // can remain over the cap. Every network request stays bounded.
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const response = await evalRunsClient.getEvalSessionStatuses(
+          {
+            organizationId,
+            projectId,
+            evalSessionStatusesRequest: {
+              agentSessionIds: ids.slice(offset, offset + 100),
+            },
+          },
+          { ...requestOptions, signal },
+        );
+        statuses.push(...response.data.data);
+      }
+      return statuses;
+    },
+  });
+}
 
 /** The largest page the report list read serves; it has no offset. */
 export const EVAL_REPORT_READ_LIMIT = 200;
@@ -128,9 +195,43 @@ export const toEvalAttemptOutput = (
   reports: messages.flatMap((message) => message.reports ?? []),
 });
 
-/** Number of attempts launch recorded: one per case and configuration. */
+/** Repeats per case and configuration. Runs recorded before repeats count as 1. */
+export const runRepeats = (run: EvalRunReport): number =>
+  run.payload.settings.repeatsPerAttempt ?? 1;
+
+/** Which repeat an attempt is. Attempts recorded before repeats are repeat 1. */
+export const attemptRepeat = (attempt: EvalAttemptReport): number =>
+  attempt.payload.repeat ?? 1;
+
+/** Number of attempts launch recorded: one per case, configuration and repeat. */
 export const expectedAttemptCount = (run: EvalRunReport): number =>
-  run.payload.cases.length * run.payload.configurations.length;
+  run.payload.cases.length *
+  run.payload.configurations.length *
+  runRepeats(run);
+
+/**
+ * Launch order: repeat by repeat, then case, then configuration, as recorded
+ * on the run. Independent of createdAt, which ties within one transaction.
+ */
+function inLaunchOrder(
+  run: EvalRunReport,
+  attempts: EvalAttemptReport[],
+): EvalAttemptReport[] {
+  const casePosition = new Map(run.payload.cases.map((c, i) => [c.id, i]));
+  const configurationPosition = new Map(
+    run.payload.configurations.map((c, i) => [c.id, i]),
+  );
+  const position = (attempt: EvalAttemptReport): number[] => [
+    attemptRepeat(attempt),
+    casePosition.get(attempt.payload.caseInputId) ?? -1,
+    configurationPosition.get(attempt.payload.configuration.id) ?? -1,
+  ];
+  return [...attempts].sort((left, right) => {
+    const a = position(left);
+    const b = position(right);
+    return a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
+  });
+}
 
 export function evalAttemptsQueryOptions(
   organizationId: string,
@@ -323,7 +424,8 @@ export function buildRunEvalStartPayload(
     );
   }
   const cases = new Map(run.payload.cases.map((c) => [c.id, c]));
-  const recordedAttempts: EvalRecordedAttempt[] = attempts.map((attempt) => {
+  const ordered = inLaunchOrder(run, attempts);
+  const recordedAttempts: EvalRecordedAttempt[] = ordered.map((attempt) => {
     const caseInput = cases.get(attempt.payload.caseInputId);
     if (!caseInput) {
       throw new Error(
@@ -349,6 +451,9 @@ export function buildRunEvalStartPayload(
       targetConversationId,
       caseInput,
       configuration: attempt.payload.configuration,
+      ...(attempt.payload.repeat !== undefined
+        ? { repeat: attempt.payload.repeat }
+        : {}),
     };
   });
   return {
@@ -377,6 +482,7 @@ export function applyEvalRunUpdated(
   event: EvalRunUpdatedEvent,
 ): Promise<void> {
   const { organizationId, projectId, evalId, run } = event.payload;
+  refreshEvalSessionStatuses(queryClient, organizationId, projectId);
   if (isEvalRunReport(run)) storeEvalRun(queryClient, organizationId, run);
   return invalidateWithFollowUpRead(queryClient, {
     queryKey: evalRunKeys.runs(organizationId, projectId, evalId),
@@ -389,7 +495,8 @@ export function applyEvalAttemptUpdated(
   queryClient: QueryClient,
   event: EvalAttemptUpdatedEvent,
 ): Promise<void> {
-  const { organizationId, evalRunId, attempt } = event.payload;
+  const { organizationId, projectId, evalRunId, attempt } = event.payload;
+  refreshEvalSessionStatuses(queryClient, organizationId, projectId);
   const key = evalRunKeys.attempts(organizationId, evalRunId);
   const current = queryClient.getQueryData<EvalAttemptReport[]>(key);
   if (current && isEvalAttemptReport(attempt)) {

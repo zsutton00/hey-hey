@@ -1,9 +1,9 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useMemo, useRef } from "react";
 import type {
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum,
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum,
   PaginatedWorkItemReferenceResponseDto,
-  WorkStatus,
   WorkItemReferenceDto,
 } from "../../api";
 import {
@@ -110,7 +110,7 @@ export interface UseWorkItemReferencePageInput {
   page: number;
   limit?: number;
   filter?: string;
-  statuses?: readonly WorkStatus[];
+  statuses?: readonly TaskResponseDto["status"][];
   sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum;
   sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum;
 }

@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   EntityPromptTemplateLifecycleState as PrismaLifecycleState,
   EntityPromptTemplateOwnershipScope as PrismaOwnershipScope,
@@ -32,6 +33,7 @@ import {
   ENTITY_PROMPT_TEMPLATE_LANGUAGES,
   parseEntityPromptTemplate,
 } from '../generated/entity-prompt-template-language';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import type { OrganizationId, ProjectId } from '../types';
 import { PrismaService, AnyTransactionClient } from '../prisma/prisma.service';
 import { WORK_ITEM_TYPE_KEYS } from './tasks/work-item-type-keys';
@@ -310,8 +312,10 @@ export class EntityPromptTemplateService {
     templateKey: string,
   ): Promise<EntityPromptTemplateEffectiveDto> {
     await this.requireProject(organizationId, projectId);
-    await this.requireSupportedKey(projectId, templateKey);
 
+    // Eligibility comes from stored revisions only, the same data the catalog
+    // reads. A separate type/key gate here made built-in types such as Mockup
+    // appear absent while the catalog listed them.
     const rows = await this.loadRows(projectId, templateKey);
     const effective = this.selectEffectiveRevision(templateKey, rows);
 
@@ -321,7 +325,8 @@ export class EntityPromptTemplateService {
         templateKey,
         candidateCount: rows.length,
       });
-      throw new NotFoundException(
+      throw new MissingRecordException(
+        'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
         `No eligible entity prompt template exists for ${templateKey}`,
       );
     }
@@ -730,7 +735,8 @@ export class EntityPromptTemplateService {
           },
         });
         if (!transitioned) {
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             'The published project template revision could not be reloaded',
           );
         }
@@ -746,7 +752,8 @@ export class EntityPromptTemplateService {
               revisionId,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No eligible entity prompt template exists for ${templateKey}`,
           );
         }
@@ -818,7 +825,8 @@ export class EntityPromptTemplateService {
               templateKey,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No published canonical entity prompt template exists for ${templateKey}`,
           );
         }
@@ -850,7 +858,8 @@ export class EntityPromptTemplateService {
               templateKey,
             },
           );
-          throw new ConflictException(
+          throw new MissingRecordException(
+            'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
             `No active project entity prompt template exists for ${templateKey}`,
           );
         }
@@ -893,7 +902,8 @@ export class EntityPromptTemplateService {
           },
         });
         if (!transitioned) {
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             'The retired project template revision could not be reloaded',
           );
         }
@@ -910,7 +920,8 @@ export class EntityPromptTemplateService {
               effectiveRevisionId: effective?.id ?? null,
             },
           );
-          throw new ConflictException(
+          throw new ServerStateException(
+            'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
             `Canonical entity prompt template ${templateKey} could not be selected after retirement`,
           );
         }
@@ -1038,7 +1049,8 @@ export class EntityPromptTemplateService {
           row.validationStatus === PrismaValidationStatus.VALID,
       );
       if (!active) {
-        throw new ConflictException(
+        throw new MissingRecordException(
+          'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
           `No active project entity prompt template exists for ${templateKey}`,
         );
       }
@@ -1068,7 +1080,8 @@ export class EntityPromptTemplateService {
         where: { id: active.id },
       });
       if (!transitioned) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
           'Retired entity prompt-template revision could not be reloaded',
         );
       }
@@ -1082,7 +1095,8 @@ export class EntityPromptTemplateService {
         !effectiveAfter ||
         effectiveAfter.ownershipScope !== PrismaOwnershipScope.CANONICAL
       ) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
           `Canonical entity prompt template ${templateKey} could not be selected after retirement`,
         );
       }
@@ -1152,7 +1166,8 @@ export class EntityPromptTemplateService {
     const rowsAfter = await this.loadRows(projectId, templateKey, tx);
     const effectiveAfter = this.selectEffectiveRevision(templateKey, rowsAfter);
     if (!effectiveAfter || effectiveAfter.id !== revision.id) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ENTITY_PROMPT_TEMPLATE_STATE_INCONSISTENT',
         `Published entity prompt template ${templateKey} could not be selected`,
       );
     }
@@ -1410,7 +1425,8 @@ export class EntityPromptTemplateService {
           selector: row.selector,
         })),
       });
-      throw new NotFoundException(
+      throw new MissingRecordException(
+        'ENTITY_PROMPT_TEMPLATE_NOT_FOUND',
         `No eligible entity prompt template exists for ${templateKey}`,
       );
     }

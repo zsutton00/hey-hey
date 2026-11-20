@@ -1,3 +1,5 @@
+import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { HostedModalFixture } from "../../test/HostedModalFixture";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { PreviewModal } from "../../components/PreviewModal";
@@ -27,6 +29,7 @@ import { TaskPage } from "./TaskPage";
 const {
   mockChildTabsLogInfo,
   mockChildTabsLogWarn,
+  mockUpdateTask,
   mockCreateTask,
   mockInteractionComponent,
   mockNewTaskModal,
@@ -37,6 +40,7 @@ const {
   mockUseWorkItem: vi.fn(),
   mockChildTabsLogInfo: vi.fn(),
   mockChildTabsLogWarn: vi.fn(),
+  mockUpdateTask: vi.fn(),
   mockCreateTask: vi.fn(),
   mockInteractionComponent: vi.fn(),
   mockNewTaskModal: vi.fn(),
@@ -252,7 +256,7 @@ const createDefinition = (
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: [],
   role: WorkItemTypeRole.WorkItem,
   capabilities: {
@@ -278,6 +282,10 @@ let mockWorkItemTypesFetched = true;
 let mockVisibleChildren: TaskResponseDto[] = [];
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
   usePlatformAdminAccess: () => ({
     isPlatformAdmin: mockIsPlatformAdmin,
     isResolved: true,
@@ -365,7 +373,7 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     };
   },
   useWorkItemUpdateMethods: () => ({
-    updateTask: vi.fn(),
+    updateTask: mockUpdateTask,
   }),
 }));
 
@@ -385,6 +393,7 @@ vi.mock("@hey-hey/ui-common/i18n", () => ({
 
 vi.mock("@hey-hey/ui-common/services", () => ({
   WebPathService: {
+    project: (projectId: string) => `/projects/${projectId}`,
     initiativeDetail: () => "/initiative",
     returnToProject: () => "/project",
     task: () => "/task",
@@ -453,7 +462,18 @@ vi.mock("../../components/Layout", () => ({
   DetailPageSidebar: ({ metadata }: { metadata: React.ReactNode }) => (
     <>{metadata}</>
   ),
-  DetailPageHeader: ({ title }: { title: string }) => <div>{title}</div>,
+  DetailPageHeader: ({
+    title,
+    metadataComponent,
+  }: {
+    title: string;
+    metadataComponent?: React.ReactNode;
+  }) => (
+    <div>
+      {title}
+      {metadataComponent}
+    </div>
+  ),
   DetailPageTabs: ({
     tabs,
     onChange,
@@ -611,6 +631,7 @@ const renderTaskPage = (
 };
 
 const LocationProbe = () => {
+  useArchiveHistory();
   const location = useLocation();
   return (
     <div data-testid="location">
@@ -634,6 +655,49 @@ describe("TaskPage data debug tab", () => {
     mockVisibleChildren = [];
     mockWorkItemFilesTab.mockReset();
   });
+
+  it.each(["applied", "pending", "failed"])(
+    "handles a custom item archive: %s",
+    async (outcome) => {
+      mockActiveTab = "task";
+      mockHierarchyTask = createTask({ type: "MARKETING" });
+      mockWorkItemTask = mockHierarchyTask;
+      mockWorkItemTypeDefinition = createDefinition({
+        key: "MARKETING",
+        name: "Marketing",
+        statuses: legacyStatuses([WorkStatus.Backlog]),
+      });
+      if (outcome === "failed") {
+        mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));
+      } else {
+        mockUpdateTask.mockResolvedValueOnce(
+          createTask({
+            status:
+              outcome === "applied" ? WorkStatus.Archived : WorkStatus.Backlog,
+          }),
+        );
+      }
+      renderTaskPage(
+        "/projects/project-1/initiatives/initiative-1/tasks/task-1",
+      );
+      const props = mockWorkItemMetadata.mock.calls.at(-1)?.[0] as {
+        fields: { status: { onChange: (status: WorkStatus) => Promise<void> } };
+      };
+      await act(async () => {
+        await props.fields.status
+          .onChange(WorkStatus.Archived)
+          .catch(() => undefined);
+      });
+      expect(mockUpdateTask).toHaveBeenCalledWith("task-1", {
+        status: WorkStatus.Archived,
+      });
+      expect(screen.getByTestId("location").textContent).toBe(
+        outcome === "applied"
+          ? "/projects/project-1"
+          : "/projects/project-1/initiatives/initiative-1/tasks/task-1",
+      );
+    },
+  );
 
   it("preserves the actual canonical task composition and its context through Preview minimize and restore", async () => {
     mockActiveTab = "task";
@@ -1406,7 +1470,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       sections: [
         { key: "audience", label: "Audience" },
         { key: "brief", label: "Brief" },
@@ -1424,7 +1488,7 @@ describe("TaskPage dynamic children tabs", () => {
       onSubmit: (formData: {
         name: string;
         initiativeId: string;
-        status: WorkStatus;
+        status: TaskResponseDto["status"];
         sectionContent: Record<string, string>;
       }) => Promise<void>;
     };
@@ -1459,7 +1523,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockWorkItemTypeDefinition = createDefinition();
     mockWorkItemTypes = [

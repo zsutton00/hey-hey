@@ -1,4 +1,10 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { OutboxEvent, Prisma } from '@prisma/client';
 import { ExecutionContext } from 'src/types/execution-context';
@@ -40,14 +46,16 @@ function uniqBy<T>(array: T[], iteratee: (item: T) => string): T[] {
 export const outboxPublisers = new Set<OutboxPublisher>();
 
 @Injectable()
-export class OutboxPublisher implements OnModuleInit {
+export class OutboxPublisher implements OnModuleInit, OnModuleDestroy {
   private readonly logger = ContextAwareLogger.createServiceLogger(
     OutboxPublisher.name,
   );
   private publisherInterval: NodeJS.Timeout | null = null;
   private publisherRunning = false;
+  private pollInProgress = false;
   private readonly PUBLISH_INTERVAL_MS: number;
   private readonly BATCH_SIZE: number;
+  private readonly CLAIM_LEASE_MS = 60_000;
   private readonly DEFAULT_MAX_RETRIES: number;
   private readonly RETRY_DELAY_BASE_MS: number;
 
@@ -86,41 +94,69 @@ export class OutboxPublisher implements OnModuleInit {
   }
 
   startPublisher() {
-    if (this.publisherRunning) return;
+    if (this.publisherRunning) {
+      return;
+    }
     this.publisherRunning = true;
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    this.publisherInterval = setInterval(async () => {
-      try {
-        await this.processOutboxEvents();
-      } catch (err) {
-        this.logger.error('Unhandled error processing outbox events', err);
-      }
+    this.schedulePoll();
+  }
+
+  private schedulePoll() {
+    this.publisherInterval = setTimeout(() => {
+      void this.poll();
     }, this.PUBLISH_INTERVAL_MS);
+  }
+
+  private async poll(): Promise<void> {
+    if (this.pollInProgress) {
+      return;
+    }
+    this.pollInProgress = true;
+    try {
+      await this.processOutboxEvents();
+    } catch (err) {
+      this.logger.error('Unhandled error processing outbox events', err);
+    } finally {
+      this.pollInProgress = false;
+      if (this.publisherRunning) {
+        this.schedulePoll();
+      }
+    }
+  }
+
+  onModuleDestroy() {
+    this.stopPublisher();
+    outboxPublisers.delete(this);
   }
 
   stopPublisher() {
     this.publisherRunning = false;
     if (this.publisherInterval) {
-      clearInterval(this.publisherInterval);
+      clearTimeout(this.publisherInterval);
       this.publisherInterval = null;
     }
   }
 
   private async processOutboxEvents(): Promise<void> {
+    const due: Prisma.OutboxEventWhereInput = {
+      OR: [
+        {
+          status: OutboxEventStatus.PROCESSING,
+          claimExpiresAt: { lte: new Date() },
+        },
+        { status: OutboxEventStatus.PENDING, scheduledFor: null },
+        {
+          status: OutboxEventStatus.SCHEDULED,
+          scheduledFor: { lte: new Date() },
+        },
+        {
+          status: OutboxEventStatus.FAILED,
+          nextRetryAt: { lte: new Date() },
+        },
+      ],
+    };
     const events = await this.prisma.outboxEvent.findMany({
-      where: {
-        OR: [
-          { status: OutboxEventStatus.PENDING, scheduledFor: null },
-          {
-            status: OutboxEventStatus.SCHEDULED,
-            scheduledFor: { lte: new Date() },
-          },
-          {
-            status: OutboxEventStatus.FAILED,
-            nextRetryAt: { lte: new Date() },
-          },
-        ],
-      },
+      where: due,
       orderBy: [{ partitionKey: 'asc' }, { sequenceNumber: 'asc' }],
       take: this.BATCH_SIZE,
     });
@@ -147,23 +183,64 @@ export class OutboxPublisher implements OnModuleInit {
           partitionKey: evt.partitionKey,
         });
         const start = Date.now();
+        const claimToken = randomUUID();
+        const claim = await this.prisma.outboxEvent.updateMany({
+          where: { id: evt.id, retryCount: evt.retryCount, ...due },
+          data: {
+            status: OutboxEventStatus.PROCESSING,
+            claimToken,
+            claimExpiresAt: new Date(Date.now() + this.CLAIM_LEASE_MS),
+          },
+        });
+        if (claim.count !== 1) {
+          return;
+        }
+
+        let publishedEvent = evt;
         try {
-          await this.prisma.outboxEvent.update({
-            where: { id: evt.id },
-            data: { status: OutboxEventStatus.PROCESSING },
-          });
-          await this.publishEvent(evt);
-          await this.prisma.outboxEvent.update({
-            where: { id: evt.id },
-            data: {
-              status: OutboxEventStatus.PUBLISHED,
-              processedAt: new Date(),
+          // A merge may have committed after the initial candidate read.
+          const claimedEvent = await this.prisma.outboxEvent.findUniqueOrThrow({
+            where: {
+              id: evt.id,
+              claimToken,
+              status: OutboxEventStatus.PROCESSING,
             },
           });
-          await this.logEventProcessed(evt, start);
-          this.metrics.recordOutboxProcessed();
+          publishedEvent = claimedEvent;
+          await this.publishEvent(claimedEvent);
+          const completed = await this.prisma.outboxEvent.updateMany({
+            where: {
+              id: evt.id,
+              claimToken,
+              status: OutboxEventStatus.PROCESSING,
+            },
+            data: {
+              status: OutboxEventStatus.PUBLISHED,
+              claimToken: null,
+              claimExpiresAt: null,
+              processedAt: new Date(),
+              nextRetryAt: null,
+            },
+          });
+          if (completed.count !== 1) {
+            this.logger.warn('Outbox claim lost before completion', {
+              eventId: evt.id,
+            });
+            return;
+          }
         } catch (err) {
-          await this.handleEventError(evt, err as Error);
+          await this.handleEventError(evt, err as Error, claimToken);
+          return;
+        }
+
+        // Observability failures must never retry an already published event.
+        try {
+          await this.logEventProcessed(publishedEvent, start);
+        } catch (err) {
+          this.logger.error('Failed to record published outbox event', {
+            eventId: evt.id,
+            error: err,
+          });
         }
       });
     }
@@ -204,21 +281,37 @@ export class OutboxPublisher implements OnModuleInit {
     await this.messageBus.publish(envelope);
   }
 
-  private async handleEventError(evt: OutboxEvent, error: Error) {
+  private async handleEventError(
+    evt: OutboxEvent,
+    error: Error,
+    claimToken: string,
+  ) {
     const retryCount = evt.retryCount + 1;
     const maxRetries = evt.maxRetries || this.DEFAULT_MAX_RETRIES;
     if (retryCount >= maxRetries) {
-      await this.prisma.outboxEvent.update({
-        where: { id: evt.id },
+      const failed = await this.prisma.outboxEvent.updateMany({
+        where: { id: evt.id, claimToken, status: OutboxEventStatus.PROCESSING },
         data: {
           status: OutboxEventStatus.FAILED,
+          claimToken: null,
+          claimExpiresAt: null,
           retryCount,
+          nextRetryAt: null,
           lastError: error.message,
           errorCount: evt.errorCount + 1,
         },
       });
+      if (failed.count !== 1) {
+        this.logger.warn('Outbox claim lost after publish failure', {
+          eventId: evt.id,
+          error: error.message,
+        });
+        return;
+      }
       this.logger.error(`Permanent failure publishing event ${evt.id}`, {
-        ...evt,
+        eventId: evt.id,
+        correlationId: evt.correlationId,
+        retryCount,
         message: error.message,
         name: error.name,
         stack: error.stack,
@@ -230,15 +323,32 @@ export class OutboxPublisher implements OnModuleInit {
       this.RETRY_DELAY_BASE_MS * Math.pow(2, retryCount - 1),
       30_000,
     );
-    await this.prisma.outboxEvent.update({
-      where: { id: evt.id },
+    const failed = await this.prisma.outboxEvent.updateMany({
+      where: { id: evt.id, claimToken, status: OutboxEventStatus.PROCESSING },
       data: {
         status: OutboxEventStatus.FAILED,
+        claimToken: null,
+        claimExpiresAt: null,
         retryCount,
         nextRetryAt: new Date(Date.now() + delay),
         lastError: error.message,
         errorCount: evt.errorCount + 1,
       },
+    });
+    if (failed.count !== 1) {
+      this.logger.warn('Outbox claim lost after publish failure', {
+        eventId: evt.id,
+        error: error.message,
+      });
+      return;
+    }
+    this.logger.warn('Outbox publish failed; retry scheduled', {
+      eventId: evt.id,
+      correlationId: evt.correlationId,
+      retryCount,
+      retryDelayMs: delay,
+      message: error.message,
+      name: error.name,
     });
   }
 

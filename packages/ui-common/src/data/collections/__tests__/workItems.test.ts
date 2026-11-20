@@ -250,7 +250,7 @@ describe("optimistic registry section materialization", () => {
           { key: "sources", label: "Sources" },
           { key: "findings", label: "Findings" },
         ],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
     });
 

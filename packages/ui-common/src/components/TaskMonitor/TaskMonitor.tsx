@@ -1,10 +1,14 @@
 import { Stack } from "@mui/material";
 import { useState } from "react";
 import { WorkStatus } from "../../api";
+import { useWorkItemExecutionState } from "../../data/hooks/useWorkItemExecutionState";
 import { TrackingProvider } from "../../contexts";
 import { DataStateBoundary } from "../shared/DataStateBoundary";
 import { TaskMonitorWorkspaceView } from "./TaskMonitorWorkspaceView";
-import type { TaskMonitorPane } from "./TaskMonitorWorkspaceView";
+import type {
+  TaskMonitorPane,
+  TaskMonitorWorkspaceViewProps,
+} from "./TaskMonitorWorkspaceView";
 import { useTaskMonitorProjection } from "./useTaskMonitorProjection";
 import { useTaskMonitorStart } from "./useTaskMonitorStart";
 import { useTaskMonitorPauseResume } from "./useTaskMonitorPauseResume";
@@ -20,6 +24,7 @@ export interface TaskMonitorProps {
   projectId: string;
   monitorId: string;
   activePane: TaskMonitorPane;
+  renderPaneNavigation?: TaskMonitorWorkspaceViewProps["renderPaneNavigation"];
 }
 
 export const TaskMonitor = ({
@@ -27,9 +32,19 @@ export const TaskMonitor = ({
   projectId,
   monitorId,
   activePane,
+  renderPaneNavigation,
 }: TaskMonitorProps) => {
+  const executionState = useWorkItemExecutionState(monitorId);
+  const snapshot =
+    executionState.status === "retained"
+      ? executionState.state.projection
+      : null;
+  const live =
+    executionState.status === "retained" &&
+    executionState.delivery === "LIVE" &&
+    executionState.freshness.status === "CURRENT";
   const [userMessage, setUserMessage] = useState<string | null>(() =>
-    readTaskMonitorStartMessage(organizationId, projectId, monitorId)
+    readTaskMonitorStartMessage(organizationId, projectId, monitorId),
   );
   const projection = useTaskMonitorProjection({
     organizationId,
@@ -39,7 +54,8 @@ export const TaskMonitor = ({
   const { machines, selectedMachine, setSelectedMachineId } =
     useMachineResolution();
   const launchNode = projection.definition
-    ? projection.definition.executionPlan[projection.definition.cursor] ?? null
+    ? (projection.definition.executionPlan[projection.definition.cursor] ??
+      null)
     : null;
   const start = useTaskMonitorStart({
     organizationId,
@@ -62,15 +78,22 @@ export const TaskMonitor = ({
     !organizationId || !projectId || !monitorId
       ? "Organization, project, and Task Monitor route context are required."
       : null;
-  const startPresentation = projection.definition
-    ? projection.monitor
-      ? resolveTaskMonitorStartPresentation({
-          monitorStatus: projection.monitor.status,
-          isSubmitting: start.isSubmitting,
-          acceptedAwaitingRefresh: start.acceptedAwaitingRefresh,
-        })
-      : { status: "ready" as const }
-    : { status: "ready" as const };
+  const startPresentation =
+    !snapshot && (start.isSubmitting || start.acceptedAwaitingRefresh)
+      ? { status: "starting" as const }
+      : snapshot
+        ? start.isSubmitting
+          ? { status: "starting" as const }
+          : { status: "active" as const }
+        : projection.definition
+          ? projection.monitor
+            ? resolveTaskMonitorStartPresentation({
+                monitorStatus: projection.monitor.status,
+                isSubmitting: start.isSubmitting,
+                acceptedAwaitingRefresh: start.acceptedAwaitingRefresh,
+              })
+            : { status: "ready" as const }
+          : { status: "ready" as const };
 
   return (
     <TrackingProvider
@@ -90,15 +113,12 @@ export const TaskMonitor = ({
     >
       <Stack data-testid="task-monitor" sx={{ height: "100%", minHeight: 0 }}>
         <DataStateBoundary
-          loading={
-            !contextError && (projection.isLoading || start.isCatalogLoading)
-          }
-          fetched={
-            Boolean(contextError) ||
-            (projection.isFetched && start.isCatalogFetched)
-          }
+          loading={!contextError && projection.isLoading}
+          fetched={Boolean(contextError) || projection.isFetched}
         >
           <TaskMonitorWorkspaceView
+            executionState={executionState}
+            isStartCatalogLoading={start.isCatalogLoading}
             organizationId={organizationId}
             projectId={projectId}
             monitorId={monitorId}
@@ -119,29 +139,51 @@ export const TaskMonitor = ({
             selectedMachineId={selectedMachine?.machineId ?? null}
             onSelectMachine={setSelectedMachineId}
             onPause={() => {
-              void pauseResume.pause();
-            }}
-            onStart={() => {
-              const monitorStatus = projection.monitor?.status;
-              if (monitorStatus === WorkStatus.OnHold) {
-                void pauseResume.resume();
-                return;
+              if (
+                live &&
+                snapshot?.availableActions.some(
+                  (action) => action.command === "PAUSE",
+                )
+              ) {
+                void pauseResume.pause();
               }
-              if (monitorStatus !== WorkStatus.Backlog) return;
+            }}
+            onStart={async (): Promise<boolean> => {
+              const monitorStatus = projection.monitor?.status;
+              const command = live
+                ? snapshot?.availableActions.find(
+                    (action) =>
+                      action.command === "RESUME" || action.command === "START",
+                  )?.command
+                : null;
+              if (command === "RESUME") {
+                return pauseResume.resume();
+              }
+              if (
+                snapshot && snapshot.execution.lifecycle !== "ABSENT"
+                  ? command !== "START"
+                  : monitorStatus !== WorkStatus.Backlog
+              ) {
+                return false;
+              }
 
-              void start.start().then((submitted) => {
-                if (!submitted) return;
+              return start.start().then((submitted) => {
+                if (!submitted) {
+                  return false;
+                }
                 clearTaskMonitorStartMessage(
                   organizationId,
                   projectId,
-                  monitorId
+                  monitorId,
                 );
                 setUserMessage(null);
+                return true;
               });
             }}
             isSavingLaunchConfiguration={projection.isSavingLaunchConfiguration}
             onSaveLaunchConfiguration={projection.saveLaunchConfiguration}
             activePane={activePane}
+            renderPaneNavigation={renderPaneNavigation}
           />
         </DataStateBoundary>
       </Stack>

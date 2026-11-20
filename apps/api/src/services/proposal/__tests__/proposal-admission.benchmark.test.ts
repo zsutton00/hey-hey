@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 /**
  * Opt-in PostgreSQL workload. All fixture writes roll back. See
  * scripts/benchmarks/proposal-admission.md for the before/after procedure.
@@ -137,7 +138,10 @@ run('proposal admission PostgreSQL benchmark', () => {
               { provide: WorkItemTypeRegistryService, useValue: registry },
               WorkItemParentageValidator,
               WorkItemChangeSetProjectorService,
-              ProjectApprovalPolicyService,
+              {
+                provide: ProjectApprovalPolicyService,
+                useValue: createTestProjectApprovalPolicyService(),
+              },
               {
                 provide: ProposalApprovalService,
                 useValue: { genericChangeSetRequest: () => null },

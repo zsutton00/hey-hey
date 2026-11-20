@@ -161,7 +161,12 @@ describe("AgentSetupView", () => {
       blocked: true,
       rejection: null,
       entries: [
-        { key: "file", fileName: "notes.txt", status: "uploading" as const },
+        {
+          key: "file",
+          fileName: "notes.txt",
+          status: "uploading" as const,
+          file: new File(["x"], "notes.txt"),
+        },
       ],
       references: [],
       drop,

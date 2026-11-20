@@ -3,6 +3,9 @@ import {
   ReadPolicyContext,
   readPolicyFor,
 } from 'src/read-restriction/read-policy';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import {
   BadRequestException,
   ConflictException,
@@ -17,7 +20,6 @@ import { CreateTaskDto, UpdateTaskDto } from '@hey-hey/contracts/api/models';
 import {
   TaskDependencyRelationType,
   TaskDependencySourceType,
-  WorkStatus,
 } from '@prisma/client';
 import * as TestUtils from '../../../utils/testUtils';
 import { materializedSectionsToContentMap } from '../../../utils/work-item-section.util';
@@ -76,7 +78,6 @@ const CUSTOM_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -96,7 +97,6 @@ const CUSTOM_TYPE_WITH_NONBUILTIN_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -117,7 +117,6 @@ const CUSTOM_TYPE_WITH_SCHEMA_BACKED_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -138,7 +137,6 @@ const CUSTOM_TYPE_WITH_IMAGE_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -166,7 +164,6 @@ const CUSTOM_TYPE_WITH_UNSUPPORTED_SCHEMA_BACKED_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -200,7 +197,6 @@ const CUSTOM_TYPE_WITH_HTML_CSS_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -234,7 +230,6 @@ const CUSTOM_TYPE_WITH_STRUCTURED_MOCKUP_SECTION: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -249,7 +244,6 @@ const ARCHIVED_CUSTOM_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: true,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
@@ -275,7 +269,6 @@ const GRAPH_ROOT_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: false,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
     graph: {
       nodeChildType: 'GRAPH_NODE',
@@ -318,12 +311,12 @@ const GRAPH_NODE_TYPE_SPEC: CustomTypeRowSpec = {
   capabilities: {
     requiresParent: true,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
   },
 };
 
 const VALID_SCHEMA_BACKED_SECTION_CONTENT = {
+  kind: 'task',
   executionPlan: [
     {
       taskId: TASK_MONITOR_TASK_ID,
@@ -523,11 +516,21 @@ describe('TaskService', () => {
       },
       CUSTOM_TYPE_SPEC,
       {
+        typeKey: 'recipe',
+        projectId: testIds.project,
+        statuses: [
+          { name: 'Idea', meaning: 'NOT_STARTED' },
+          { name: 'Testing', meaning: 'IN_PROGRESS' },
+          { name: 'Made', meaning: 'FINISHED' },
+          { name: 'Rejected', meaning: 'FINISHED' },
+          { name: 'CANCELLED', meaning: 'FINISHED' },
+        ],
+      },
+      {
         typeKey: 'mockup',
         projectId: testIds.project,
         initialStatus: 'ACTIVE',
-        allowedStatuses: ['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED'],
-        capabilities: { hasSetInitialStatus: true },
+        statuses: legacyStatuses(['ACTIVE', 'BACKLOG', 'READY', 'ARCHIVED']),
       },
       CUSTOM_TYPE_WITH_NONBUILTIN_SECTION,
       CUSTOM_TYPE_WITH_SCHEMA_BACKED_SECTION,
@@ -670,7 +673,7 @@ describe('TaskService', () => {
         2,
         1,
         ' roadmap ',
-        [WorkStatus.ACTIVE, WorkStatus.COMPLETED],
+        [WorkStatus.Active, WorkStatus.Completed],
         'createdAt',
         'desc',
       );
@@ -681,8 +684,8 @@ describe('TaskService', () => {
         type: 'FEATURE',
         archivedAt: null,
         status: {
-          in: [WorkStatus.ACTIVE, WorkStatus.COMPLETED],
-          not: WorkStatus.ARCHIVED,
+          in: [WorkStatus.Active, WorkStatus.Completed],
+          not: WorkStatus.Archived,
         },
         name: { contains: 'roadmap', mode: 'insensitive' },
       };
@@ -736,7 +739,7 @@ describe('TaskService', () => {
       const root = {
         ...mockTaskData,
         type: 'GRAPH_ROOT',
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         updatedAt: new Date('2026-09-11T05:35:12.404Z'),
       };
       const child = {
@@ -800,7 +803,7 @@ describe('TaskService', () => {
             workItems: {
               [root.id]: {
                 ...root,
-                status: WorkStatus.BACKLOG,
+                status: WorkStatus.Backlog,
                 updatedAt: '2026-09-09T21:07:24.037Z',
                 edges: [],
               },
@@ -817,11 +820,11 @@ describe('TaskService', () => {
         ['GUARANTEES'],
       );
       expect(result.root).toMatchObject({
-        status: WorkStatus.ACTIVE,
+        status: WorkStatus.Active,
         updatedAt: root.updatedAt.toISOString(),
       });
       expect(result.children).toEqual([
-        expect.objectContaining({ id: childId, status: WorkStatus.ACTIVE }),
+        expect.objectContaining({ id: childId, status: WorkStatus.Active }),
       ]);
       expect(result.root.sections).toEqual(
         expect.arrayContaining([
@@ -1749,7 +1752,7 @@ describe('TaskService', () => {
       organizationId: testIds.organization,
       projectId: testIds.project,
       initiativeId: testIds.initiative,
-      status: WorkStatus.BACKLOG,
+      status: WorkStatus.Backlog,
       source: 'user',
       parentTaskId: null,
       createdAt: '2026-08-01T00:00:00.000Z',
@@ -2399,7 +2402,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
           }),
         }),
       );
@@ -2447,7 +2450,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.BACKLOG,
+            status: WorkStatus.Backlog,
           }),
         }),
       );
@@ -2495,7 +2498,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.BACKLOG,
+            status: WorkStatus.Backlog,
           }),
         }),
       );
@@ -2506,7 +2509,7 @@ describe('TaskService', () => {
         name: 'AI-generated Standard',
         initiativeId: testIds.initiative,
         type: 'STANDARD',
-        status: WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
+        status: WorkStatus.RefiningAcceptanceCriteria,
       };
 
       const createSpy = jest.fn().mockResolvedValue({
@@ -2544,7 +2547,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
+            status: WorkStatus.RefiningAcceptanceCriteria,
           }),
         }),
       );
@@ -2714,14 +2717,11 @@ describe('TaskService', () => {
       },
     );
 
-    it('forces new GOAL tasks to start at ACTIVE, ignoring any caller-supplied status', async () => {
+    it("starts new GOAL tasks in the type's first status when no status is supplied", async () => {
       const createTaskDto: CreateTaskDto = {
         name: 'Goal A',
         type: 'GOAL',
         dueDate: '2026-12-31T00:00:00.000Z',
-        // Caller tries to start the goal in BACKLOG; the service must override
-        // this and pin the goal to ACTIVE.
-        status: WorkStatus.BACKLOG,
       };
 
       const createSpy = jest.fn().mockResolvedValue({
@@ -2755,7 +2755,7 @@ describe('TaskService', () => {
       expect(createSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
           }),
         }),
       );
@@ -2906,7 +2906,14 @@ describe('TaskService', () => {
           organizationId: testIds.organization,
           archivedAt: null,
         },
-        select: { id: true, name: true, status: true, dueDate: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          projectId: true,
+          status: true,
+          dueDate: true,
+        },
       });
       expect(result.get(testIds.task)).toEqual(
         result.get('11111111-1111-4111-8111-111111111111'),
@@ -2920,6 +2927,8 @@ describe('TaskService', () => {
         {
           targetEntityId: shared,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Shared work',
           status: 'ACTIVE',
           dueDate: null,
@@ -2933,9 +2942,43 @@ describe('TaskService', () => {
       const future = new Date('2026-11-01T00:00:00.000Z');
       const row = (
         id: string,
-        status: WorkStatus,
+        status: TaskResponseDto['status'],
         dueDate: Date | null = null,
-      ) => ({ id, name: id, status, dueDate });
+      ) => ({
+        id,
+        name: id,
+        type: 'STANDARD',
+        projectId: testIds.project,
+        status,
+        dueDate,
+      });
+
+      it.each([
+        ['recipe', 'Made', 1],
+        ['recipe', 'Rejected', 1],
+        ['recipe', 'CANCELLED', 1],
+        ['recipe', 'COMPLETED', 0],
+        ['mockup', 'ACTIVE', 0],
+        ['STANDARD', 'BLOCKED', 0],
+        ['STANDARD', 'ON_HOLD', 0],
+      ])(
+        'uses effective meanings for %s / %s',
+        (type, status, completedCount) => {
+          const rows = [{ ...row('work', status), type }];
+          const summary = service['toTrackedWorkSummary'](rows, now);
+          expect(summary).toEqual({
+            totalCount: 1,
+            completedCount,
+            cancelledCount: 0,
+            pastDueCount: 0,
+            openUndatedCount: 1 - completedCount,
+          });
+          expect(
+            service['toTrackedSnapshots'](rows)[0]?.statusMeaning ===
+              'FINISHED',
+          ).toBe(completedCount === 1);
+        },
+      );
 
       it('returns zero counts for a goal without tracked work', () => {
         expect(service['toTrackedWorkSummary']([], now)).toEqual({
@@ -2951,8 +2994,8 @@ describe('TaskService', () => {
         expect(
           service['toTrackedWorkSummary'](
             [
-              row('a', WorkStatus.COMPLETED, past),
-              row('b', WorkStatus.COMPLETED),
+              row('a', WorkStatus.Completed, past),
+              row('b', WorkStatus.Completed),
             ],
             now,
           ),
@@ -2969,10 +3012,10 @@ describe('TaskService', () => {
         expect(
           service['toTrackedWorkSummary'](
             [
-              row('cancelled', WorkStatus.CANCELLED, past),
-              row('overdue', WorkStatus.ACTIVE, past),
-              row('upcoming', WorkStatus.BACKLOG, future),
-              row('undated', WorkStatus.ACTIVE),
+              row('cancelled', WorkStatus.Cancelled, past),
+              row('overdue', WorkStatus.Active, past),
+              row('upcoming', WorkStatus.Backlog, future),
+              row('undated', WorkStatus.Active),
             ],
             now,
           ),
@@ -3002,7 +3045,14 @@ describe('TaskService', () => {
       } satisfies SearchResponse);
       // The batched read filters archivedAt: null, so archived rows never return.
       (mockPrismaService.db.task.findMany as jest.Mock).mockResolvedValueOnce([
-        { id: resolved, name: 'Resolved', status: 'COMPLETED', dueDate: null },
+        {
+          id: resolved,
+          name: 'Resolved',
+          type: 'STANDARD',
+          projectId: testIds.project,
+          status: 'COMPLETED',
+          dueDate: null,
+        },
       ]);
       const rows = await service['loadTrackedTaskRowsByGoal'](
         testIds.organization,
@@ -3096,6 +3146,8 @@ describe('TaskService', () => {
           {
             targetEntityId: trackedRow.id,
             targetEntityType: 'TASK',
+            statusMeaning: undefined,
+            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,
@@ -3165,6 +3217,8 @@ describe('TaskService', () => {
             {
               id: trackedId,
               name: 'Tracked work item',
+              type: 'STANDARD',
+              projectId: testIds.project,
               status: 'COMPLETED',
               dueDate: null,
             },
@@ -3356,7 +3410,7 @@ describe('TaskService', () => {
       });
 
       expect(mockPrismaService.db.task.groupBy).toHaveBeenCalledWith({
-        by: ['parentTaskId', 'status'],
+        by: ['parentTaskId', 'status', 'type', 'projectId'],
         where: {
           organizationId: testIds.organization,
           initiativeId: testIds.initiative,
@@ -3600,7 +3654,7 @@ describe('TaskService', () => {
         relatedEntityType: AgentEdgeEndpointEntityType.Task,
         edgeTypes: [RelationshipType.RelatedTo],
         taskType: 'TASK_MONITOR',
-        statuses: [WorkStatus.BACKLOG],
+        statuses: [WorkStatus.Backlog],
         page: 2,
         limit: 1,
         userToken: 'token-xyz',
@@ -3624,7 +3678,7 @@ describe('TaskService', () => {
             archivedAt: null,
             id: { in: [testIds.task, secondCandidateId] },
             type: 'TASK_MONITOR',
-            status: { in: [WorkStatus.BACKLOG] },
+            status: { in: [WorkStatus.Backlog] },
           },
           orderBy: { createdAt: 'desc' },
           skip: 1,
@@ -5012,7 +5066,7 @@ describe('TaskService', () => {
         organizationId: testIds.organization,
         projectId: testIds.project,
         initiativeId: testIds.initiative,
-        status: WorkStatus.BACKLOG,
+        status: WorkStatus.Backlog,
         source: 'user',
       };
       (
@@ -5126,7 +5180,7 @@ describe('TaskService', () => {
     it('hydrates archived mutation results within the organization', async () => {
       const archivedTask = {
         ...mockTaskData,
-        status: WorkStatus.ARCHIVED,
+        status: WorkStatus.Archived,
         archivedAt: new Date(),
       };
       (mockPrismaService.db.task.findFirst as jest.Mock).mockImplementation(
@@ -5170,7 +5224,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
       expect(mockPrismaService.db.taskSection.findMany).not.toHaveBeenCalled();
@@ -5210,7 +5264,7 @@ describe('TaskService', () => {
               id: testIds.task,
               organizationId: testIds.organization,
               archivedAt: null,
-              status: { not: WorkStatus.ARCHIVED },
+              status: { not: WorkStatus.Archived },
             },
             protectedTypes,
           ],
@@ -5252,7 +5306,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
     });
@@ -5270,6 +5324,8 @@ describe('TaskService', () => {
       (mockPrismaService.db.task.groupBy as jest.Mock).mockResolvedValue([
         {
           parentTaskId: mockTaskData.id,
+          type: 'STANDARD',
+          projectId: testIds.project,
           status: 'COMPLETED',
           _count: { _all: 1 },
         },
@@ -5289,7 +5345,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
       });
 
@@ -5300,6 +5356,47 @@ describe('TaskService', () => {
         done: 1,
         inProgress: 0,
         backlog: 0,
+      });
+    });
+
+    it('counts child progress by status meaning, not status name', async () => {
+      (mockPrismaService.db.task.findFirst as jest.Mock).mockResolvedValue(
+        mockTaskData,
+      );
+      jest.spyOn(workItemTypeRegistry, 'getRulesForProject').mockReturnValue({
+        statuses: [
+          { name: 'BUILDING', label: 'Building', meaning: 'IN_PROGRESS' },
+          {
+            name: 'DELIVERED',
+            label: 'Delivered',
+            meaning: 'FINISHED',
+            completionBehavior: 'COMPLETED',
+          },
+        ],
+      } as unknown as ReturnType<
+        WorkItemTypeRegistryService['getRulesForProject']
+      >);
+      const child = (status: string, count: number) => ({
+        parentTaskId: mockTaskData.id,
+        type: 'STANDARD',
+        projectId: testIds.project,
+        status,
+        _count: { _all: count },
+      });
+      (mockPrismaService.db.task.groupBy as jest.Mock).mockResolvedValue([
+        child('DELIVERED', 2),
+        child('BUILDING', 1),
+        // Removed from the type: never counted as done.
+        child('COMPLETED', 3),
+      ]);
+
+      const result = await service.findOne(testIds.organization, testIds.task);
+
+      expect(result?.childCounts).toEqual({
+        total: 6,
+        done: 2,
+        inProgress: 1,
+        backlog: 3,
       });
     });
 
@@ -5457,6 +5554,8 @@ describe('TaskService', () => {
         expect.objectContaining({
           targetEntityId: targetTaskId,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Tracked feature',
         }),
       );
@@ -5464,6 +5563,8 @@ describe('TaskService', () => {
         expect.objectContaining({
           targetEntityId: targetPlanId,
           targetEntityType: 'TASK',
+          statusMeaning: undefined,
+          completionBehavior: undefined,
           title: 'Tracked plan',
         }),
       );
@@ -5521,7 +5622,7 @@ describe('TaskService', () => {
           id: testIds.task,
           organizationId: testIds.organization,
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
         include: {
           serviceRelations: {
@@ -5698,6 +5799,46 @@ describe('TaskService', () => {
   });
 
   describe('update', () => {
+    it('retains a removed recipe status for unrelated edits but rejects explicitly resubmitting it', async () => {
+      const existing = {
+        ...mockTaskData,
+        type: 'recipe',
+        status: 'Retired',
+        projectId: testIds.project,
+      };
+      const updated = { ...existing, name: 'Renamed soup' };
+      const tx = {
+        ...mockPrismaService.db,
+        task: {
+          ...mockPrismaService.db.task,
+          findFirst: jest.fn().mockResolvedValue(existing),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(updated),
+          update: jest.fn().mockResolvedValue(updated),
+        },
+      };
+      const result = await service.updateInTransaction(
+        tx as any,
+        testIds.organization,
+        testIds.initiative,
+        testIds.task,
+        { name: 'Renamed soup' },
+      );
+      expect(result.task.status).toBe('Retired');
+      expect(tx.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ status: expect.anything() }),
+        }),
+      );
+      await expect(
+        service.updateInTransaction(
+          tx as any,
+          testIds.organization,
+          testIds.initiative,
+          testIds.task,
+          { status: 'Retired' },
+        ),
+      ).rejects.toThrow('Status Retired is not allowed');
+    });
     it('should update task with new acceptanceCriteria', async () => {
       const updateTaskDto: UpdateTaskDto = {
         sections: TestUtils.createMockTaskSectionInputs({
@@ -7003,6 +7144,127 @@ describe('TaskService', () => {
       },
     );
 
+    describe('monitor kind enforcement', () => {
+      const nodeTypes = (types: Record<string, string>) =>
+        jest
+          .fn()
+          .mockImplementation(async (args: any) =>
+            (args.where.id.in as string[]).flatMap((id) =>
+              types[id] ? [{ id, type: types[id] }] : [],
+            ),
+          );
+      const BUG_NEXT_NODE = {
+        [TASK_MONITOR_TASK_ID]: 'STANDARD',
+        [NEXT_TASK_MONITOR_TASK_ID]: 'BUG',
+      };
+      const firstNodeOnly: TaskMonitorExecutionDefinition = {
+        ...VALID_SCHEMA_BACKED_SECTION_CONTENT,
+        executionPlan: [VALID_SCHEMA_BACKED_SECTION_CONTENT.executionPlan[0]!],
+      };
+
+      it('checks the persisted entry when a create repeats executionDefinition', async () => {
+        const createSpy = jest.fn();
+        mockTransaction.mockImplementation(async (callback) =>
+          callback({
+            initiative: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: testIds.initiative,
+                originatingProjectId: testIds.project,
+              }),
+            },
+            task: {
+              create: createSpy,
+              findFirst: jest.fn().mockResolvedValue({
+                id: 'monitor-parent',
+                type: 'STANDARD',
+                projectId: testIds.project,
+              }),
+              findMany: nodeTypes(BUG_NEXT_NODE),
+            },
+          }),
+        );
+
+        // The first entry is allowed by the Task kind; the last, which is the
+        // one that would be stored, has a Bug node.
+        await expect(
+          service.create(
+            testIds.organization,
+            testIds.initiative,
+            {
+              name: 'monitor',
+              type: 'TASK_MONITOR',
+              parentTaskId: 'monitor-parent',
+              initiativeId: testIds.initiative,
+              sections: [
+                { key: 'executionDefinition', content: firstNodeOnly },
+                {
+                  key: 'executionDefinition',
+                  content: VALID_SCHEMA_BACKED_SECTION_CONTENT,
+                },
+              ],
+            },
+            testIds.project,
+          ),
+        ).rejects.toThrow(
+          new RegExp(
+            `${NEXT_TASK_MONITOR_TASK_ID}.*"BUG".*"task" monitor kind`,
+          ),
+        );
+        expect(createSpy).not.toHaveBeenCalled();
+      });
+
+      it('rejects an edit that adds a node the kind does not allow', async () => {
+        const taskSectionUpdate = jest.fn();
+        const tx = {
+          task: {
+            findFirst: jest.fn().mockResolvedValue({
+              ...mockTaskData,
+              type: 'TASK_MONITOR',
+              projectId: testIds.project,
+            }),
+            findMany: nodeTypes(BUG_NEXT_NODE),
+            update: jest.fn(),
+          },
+          taskSection: {
+            findMany: jest.fn().mockResolvedValue([
+              {
+                id: `${testIds.task}-executionDefinition`,
+                key: 'executionDefinition',
+                materializedMarkdown: JSON.stringify(firstNodeOnly),
+              },
+            ]),
+            update: taskSectionUpdate,
+          },
+          taskSectionHistory: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: jest.fn(),
+          },
+        };
+
+        await expect(
+          service.updateInTransaction(
+            tx as any,
+            testIds.organization,
+            testIds.initiative,
+            testIds.task,
+            {
+              sections: [
+                {
+                  key: 'executionDefinition',
+                  content: VALID_SCHEMA_BACKED_SECTION_CONTENT,
+                },
+              ],
+            } as UpdateTaskDto,
+          ),
+        ).rejects.toThrow(
+          new RegExp(
+            `${NEXT_TASK_MONITOR_TASK_ID}.*"BUG".*"task" monitor kind`,
+          ),
+        );
+        expect(taskSectionUpdate).not.toHaveBeenCalled();
+      });
+    });
+
     // Inline placement matrix for create + re-parent enforcement tests.
     // Mirrors the registry's built-in type rules. Parent/child compatibility
     // is owned by each child's allowedParentTypes declaration.
@@ -7234,54 +7496,31 @@ describe('TaskService', () => {
   describe('custom-typed creation (registry-derived rules)', () => {
     it.each([
       {
-        forced: true,
-        initial: WorkStatus.ACTIVE,
+        initial: WorkStatus.Active,
         requested: undefined,
-        expected: WorkStatus.ACTIVE,
+        expected: WorkStatus.Active,
       },
       {
-        forced: true,
-        initial: WorkStatus.ACTIVE,
-        requested: WorkStatus.BACKLOG,
-        expected: WorkStatus.ACTIVE,
+        initial: WorkStatus.Active,
+        requested: WorkStatus.Backlog,
+        expected: WorkStatus.Backlog,
       },
       {
-        forced: true,
-        initial: WorkStatus.ACTIVE,
-        requested: WorkStatus.READY,
-        expected: WorkStatus.ACTIVE,
-      },
-      {
-        forced: true,
-        initial: WorkStatus.BACKLOG,
-        requested: WorkStatus.ACTIVE,
-        expected: WorkStatus.BACKLOG,
-      },
-      {
-        forced: false,
-        initial: WorkStatus.BACKLOG,
-        requested: WorkStatus.READY,
-        expected: WorkStatus.READY,
-      },
-      {
-        forced: false,
-        initial: WorkStatus.BACKLOG,
+        initial: WorkStatus.Backlog,
         requested: undefined,
-        expected: WorkStatus.BACKLOG,
+        expected: WorkStatus.Backlog,
+      },
+      {
+        initial: WorkStatus.Backlog,
+        requested: WorkStatus.Ready,
+        expected: WorkStatus.Ready,
       },
     ])(
-      'persists Mockup policy $initial (forced=$forced, requested=$requested)',
-      async ({ forced, initial, requested, expected }) => {
-        // Registry tests prove canonical/override source selection; exercise the
-        // same creation path with each resulting effective policy here.
-        if (initial !== WorkStatus.ACTIVE || !forced) {
-          jest
-            .spyOn(workItemTypeRegistry, 'getInitialStatusPolicy')
-            .mockReturnValue({
-              initialStatus: initial,
-              hasSetInitialStatus: forced,
-            });
-        }
+      'creates a Mockup in $expected when the type starts in $initial and requests $requested',
+      async ({ initial, requested, expected }) => {
+        jest
+          .spyOn(workItemTypeRegistry, 'getInitialStatusPolicy')
+          .mockReturnValue({ initialStatus: initial });
         const createSpy = jest.fn().mockImplementation(async ({ data }) => ({
           ...mockTaskData,
           type: data.type,
@@ -7325,6 +7564,45 @@ describe('TaskService', () => {
         mockPrismaService.db.taskSection.findMany as jest.Mock
       ).mockResolvedValue(createTaskSectionRecords(mockTaskData.id));
     };
+
+    it('defaults a recipe to Idea and accepts only its listed status assignments', async () => {
+      const createSpy = jest.fn().mockImplementation(async ({ data }) => ({
+        ...mockTaskData,
+        type: data.type,
+        status: data.status,
+      }));
+      buildTx(createSpy);
+      await service.create(
+        testIds.organization,
+        testIds.initiative,
+        { name: 'Soup', type: 'recipe' },
+        testIds.project,
+      );
+      expect(createSpy.mock.calls[0][0].data.status).toBe('Idea');
+      await service.create(
+        testIds.organization,
+        testIds.initiative,
+        { name: 'Soup', type: 'recipe', status: 'Testing' },
+        testIds.project,
+      );
+      expect(createSpy.mock.calls[1][0].data.status).toBe('Testing');
+      await expect(
+        service.create(
+          testIds.organization,
+          testIds.initiative,
+          { name: 'Soup', type: 'recipe', status: 'Unknown' },
+          testIds.project,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(
+          testIds.organization,
+          testIds.initiative,
+          { name: 'Soup', type: 'recipe', status: 'SUPERSEDED' },
+          testIds.project,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
 
     it('persists the custom type key and derives its sections from the custom definition', async () => {
       const createSpy = jest.fn().mockResolvedValue({
@@ -7399,7 +7677,7 @@ describe('TaskService', () => {
             id: testIds.task,
             organizationId: testIds.organization,
             archivedAt: null,
-            status: { not: WorkStatus.ARCHIVED },
+            status: { not: WorkStatus.Archived },
           },
         }),
       );
@@ -9018,6 +9296,8 @@ describe('TaskService', () => {
           {
             targetEntityId: trackedTaskId,
             targetEntityType: 'TASK',
+            statusMeaning: undefined,
+            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,
@@ -9184,7 +9464,7 @@ describe('TaskService', () => {
       });
 
       it('should support additional where conditions', async () => {
-        const whereConditions = { statuses: [WorkStatus.ACTIVE] };
+        const whereConditions = { statuses: [WorkStatus.Active] };
         const mockDbTask = {
           ...mockTasks[0],
           createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -9795,12 +10075,12 @@ describe('TaskService', () => {
       async (state) => {
         const current = {
           ...mockTaskData,
-          status: WorkStatus.ACTIVE,
+          status: WorkStatus.Active,
           updatedAt: new Date('2026-09-11T05:35:12.404Z'),
         };
         const prior = {
           ...mockTaskData,
-          status: WorkStatus.BACKLOG,
+          status: WorkStatus.Backlog,
           updatedAt: '2026-09-09T21:07:24.037Z',
         };
         const intents = [
@@ -9864,7 +10144,7 @@ describe('TaskService', () => {
           hierarchy.children[0],
         ]) {
           expect(response).toMatchObject({
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
             updatedAt: current.updatedAt.toISOString(),
           });
           expect(response?.sections).toEqual(
@@ -10188,19 +10468,23 @@ describe('TaskService', () => {
     });
   });
   describe('canonical plan rollup', () => {
-    const plan = (status: WorkStatus) => ({
+    const plan = (status: TaskResponseDto['status']) => ({
       id: 'plan',
       type: 'PLAN',
       status,
       parentTaskId: null,
     });
-    const stage = (id: string, status: WorkStatus) => ({
+    const stage = (id: string, status: TaskResponseDto['status']) => ({
       id,
       type: 'PLAN_STAGE',
       status,
       parentTaskId: 'plan',
     });
-    const step = (id: string, status: WorkStatus, parentTaskId: string) => ({
+    const step = (
+      id: string,
+      status: TaskResponseDto['status'],
+      parentTaskId: string,
+    ) => ({
       id,
       type: 'STANDARD',
       status,
@@ -10226,9 +10510,9 @@ describe('TaskService', () => {
     it('moves the plan to VERIFYING when its last stage is completed directly', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.COMPLETED),
-          stage('stage-2', WorkStatus.ACTIVE),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Completed),
+          stage('stage-2', WorkStatus.Active),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -10238,17 +10522,17 @@ describe('TaskService', () => {
         testIds.organization,
         testIds.initiative,
         'stage-2' as TaskId,
-        { status: WorkStatus.COMPLETED } as UpdateTaskDto,
+        { status: WorkStatus.Completed } as UpdateTaskDto,
       );
 
-      expect(rows.get('stage-2')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-2')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('stage-2')).toHaveLength(1);
       expect(statusChangedEventsFor('plan')).toEqual([
         expect.objectContaining({
           payload: expect.objectContaining({
-            previousStatus: WorkStatus.ACTIVE,
-            newStatus: WorkStatus.VERIFYING,
+            previousStatus: WorkStatus.Active,
+            newStatus: WorkStatus.Verifying,
           }),
         }),
       ]);
@@ -10257,15 +10541,15 @@ describe('TaskService', () => {
     it('recalculates the former stage and plan when the last open step is re-parented out', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.ACTIVE),
-          stage('stage-2', WorkStatus.COMPLETED),
-          step('done', WorkStatus.COMPLETED, 'stage-1'),
-          step('open', WorkStatus.ACTIVE, 'stage-1'),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Active),
+          stage('stage-2', WorkStatus.Completed),
+          step('done', WorkStatus.Completed, 'stage-1'),
+          step('open', WorkStatus.Active, 'stage-1'),
           {
             id: 'feature',
             type: 'FEATURE',
-            status: WorkStatus.ACTIVE,
+            status: WorkStatus.Active,
             parentTaskId: null,
           },
         ],
@@ -10283,8 +10567,8 @@ describe('TaskService', () => {
         { parentTaskId: 'feature' } as UpdateTaskDto,
       );
 
-      expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('stage-1')).toHaveLength(1);
       expect(statusChangedEventsFor('plan')).toHaveLength(1);
     });
@@ -10292,10 +10576,10 @@ describe('TaskService', () => {
     it('recalculates the former stage and plan when the last open step is archived', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.ACTIVE),
-          stage('stage-1', WorkStatus.ACTIVE),
-          step('done', WorkStatus.COMPLETED, 'stage-1'),
-          step('open', WorkStatus.ACTIVE, 'stage-1'),
+          plan(WorkStatus.Active),
+          stage('stage-1', WorkStatus.Active),
+          step('done', WorkStatus.Completed, 'stage-1'),
+          step('open', WorkStatus.Active, 'stage-1'),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -10307,17 +10591,17 @@ describe('TaskService', () => {
       );
 
       expect(rows.get('open')?.archivedAt).toBeInstanceOf(Date);
-      expect(rows.get('stage-1')?.status).toBe(WorkStatus.COMPLETED);
-      expect(rows.get('plan')?.status).toBe(WorkStatus.VERIFYING);
+      expect(rows.get('stage-1')?.status).toBe(WorkStatus.Completed);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Verifying);
       expect(statusChangedEventsFor('plan')).toHaveLength(1);
     });
 
     it('moves a VERIFYING plan back to ACTIVE when a stage is reopened directly', async () => {
       const { tx, rows } = createPlanHierarchyFakeTx(
         [
-          plan(WorkStatus.VERIFYING),
-          stage('stage-1', WorkStatus.COMPLETED),
-          stage('stage-2', WorkStatus.COMPLETED),
+          plan(WorkStatus.Verifying),
+          stage('stage-1', WorkStatus.Completed),
+          stage('stage-2', WorkStatus.Completed),
         ],
         { organizationId: testIds.organization, projectId: testIds.project },
       );
@@ -10327,10 +10611,10 @@ describe('TaskService', () => {
         testIds.organization,
         testIds.initiative,
         'stage-2' as TaskId,
-        { status: WorkStatus.ACTIVE } as UpdateTaskDto,
+        { status: WorkStatus.Active } as UpdateTaskDto,
       );
 
-      expect(rows.get('plan')?.status).toBe(WorkStatus.ACTIVE);
+      expect(rows.get('plan')?.status).toBe(WorkStatus.Active);
     });
   });
 });

@@ -1,5 +1,6 @@
 import type { Task } from '@prisma/client';
 import type {
+  ProjectedDesignDoc,
   ProjectedWorkItem,
   ProjectedWorkItemChangeSetIssue,
   ProjectedWorkItemRelationship,
@@ -15,6 +16,7 @@ export type ProjectedEdge = ProjectedWorkItemRelationship;
 
 export type ProjectionState = {
   nodes: Map<string, ProjectedNode>;
+  designDocs?: Map<string, ProjectedDesignDoc>;
   relationships: Map<string, ProjectedEdge>;
   identityLabels: Record<string, string>;
   issues: ProjectedWorkItemChangeSetIssue[];

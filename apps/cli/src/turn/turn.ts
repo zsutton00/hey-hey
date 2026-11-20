@@ -47,6 +47,7 @@ import type { ServerLogger } from '../server/logger';
 import type { Run } from '../run/run';
 import type { FeatureVerificationSuggestion } from '../agents/completion-reconciliation/schemas';
 import { ChangedFileReporting } from './changed-file-reporting';
+import { TurnChangeRecord } from './turn-change-record';
 import { CompletionCorrection } from './completion-correction';
 import {
   formatRunEventAppendLockGuidance,
@@ -121,6 +122,7 @@ export interface TurnArgs {
 
 export class Turn {
   readonly changedFileReporting: ChangedFileReporting;
+  readonly changeRecord: TurnChangeRecord;
   readonly completionCorrection: CompletionCorrection;
   readonly turnId: string;
   readonly runId: string;
@@ -169,6 +171,7 @@ export class Turn {
     this.effectiveReasoningEffort = args.effectiveReasoningEffort;
     this.logger = args.logger;
     this.changedFileReporting = new ChangedFileReporting(args.turnId, args.logger);
+    this.changeRecord = new TurnChangeRecord(args.turnId, args.logger);
     this.completionCorrection = new CompletionCorrection(args.turnId, args.logger);
     this.owner = args.owner;
     // The Turn's own list is cleared at completion; the Run's tracker keeps ids across Turns.

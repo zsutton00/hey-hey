@@ -1,8 +1,10 @@
-import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { LOCAL_RUN_MODE, LOCAL_RUN_WORKSPACE_LAYOUT } from '../shared/agent-bridge-contract/contract';
+import {
+  LOCAL_RUN_MODE,
+  LOCAL_RUN_WORKSPACE_LAYOUT,
+} from '../shared/agent-bridge-contract/contract';
 import type {
   LocalWorktreeState,
   LocalWorktreeStateByService,
@@ -15,6 +17,7 @@ import {
   attachWorktree,
   createWorktree,
   getBranchWorktreeState,
+  switchWorktreeToBranch,
   toBranchSafeName,
   type BranchWorktreeState,
   type WorktreeInfo,
@@ -91,8 +94,7 @@ const getSessionLogFields = (session: AgenticSession): LogFields => ({
 
 export type RunWorkspaceResolutionFailureCode = 'REPO_BINDING_MISSING' | 'RUN_SCOPE_INVALID';
 
-export const RUN_WORKTREE_COLLISION_CODE =
-  'BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY' as const;
+export const RUN_WORKTREE_COLLISION_CODE = 'BRANCH_CHECKED_OUT_IN_HOST_REPOSITORY' as const;
 
 export type RunWorktreeCollisionAuthority = 'PLAN' | 'TASK_MONITOR';
 export type RunWorktreeCollisionCorrectionMode = 'PLAN_LOCKED' | 'USER_EDITABLE';
@@ -406,6 +408,29 @@ const resolveWorktreeForService = async (
     };
   }
 
+  // The session's own worktree can be left on another branch (for example a
+  // release branch cut inside it). Adding a second worktree at the same path
+  // would fail, so put the registered one back on the session's branch.
+  const driftedWorktree = branchState.worktrees.find((entry) =>
+    areSamePath(entry.worktreePath, worktreePath),
+  );
+  if (driftedWorktree && branchState.branchExists) {
+    logWarn(logger, 'local.run_scope.worktree.service.branch_drift_detected', {
+      ...baseFields,
+      currentBranch: driftedWorktree.branch,
+    });
+    const restored = await switchWorktreeToBranch({
+      repoPath: repositoryPath,
+      worktreePath,
+      branch,
+    });
+    logDebug(logger, 'local.run_scope.worktree.service.branch_drift_restored', {
+      ...baseFields,
+      worktreePath: restored.worktreePath,
+    });
+    return restored;
+  }
+
   if (branchState.branchExists) {
     logDebug(logger, 'local.run_scope.worktree.service.attach_started', baseFields);
     const attached = await attachWorktree({
@@ -670,14 +695,6 @@ export const resolveRunWorkspace = async (input: {
   }
 
   const bindingRepositoryPath = toCanonicalPath(launch.repositoryPath);
-  const checkoutConflict = await findLaunchCheckoutConflict(
-    bindingRepositoryPath,
-    input.session.worktree?.enabled === true,
-    logger,
-  );
-  if (checkoutConflict) {
-    return { ok: false, code: 'RUN_SCOPE_INVALID', message: checkoutConflict };
-  }
   const allServicePaths = await resolveAllServicePaths(input.session, input.repoStore);
   if (!allServicePaths.ok) {
     logWarn(logger, 'local.run_scope.workspace.resolve.service_binding_missing', {

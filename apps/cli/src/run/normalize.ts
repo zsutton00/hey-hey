@@ -1,3 +1,4 @@
+import { checkTaskMonitorPermissionAdmission } from '../agents/task-monitor/state-machine/provider-event-adapter';
 /**
  * Normalize — the single normalization boundary.
  *
@@ -34,6 +35,7 @@ import type {
   DiffEvent,
   PermissionEvent,
   PermissionDecisionRecordedEvent,
+  PermissionGroupItemAddedEvent,
   ToolUseEvent,
   ToolUseNormalizedBlock,
   ToolResultEvent,
@@ -511,6 +513,7 @@ export const normalizeEvent = (
     return {
       ...event,
       kind: 'permission',
+      taskMonitorAdmission: checkTaskMonitorPermissionAdmission(event),
       files,
       ...(itemId ? { itemId } : {}),
     } satisfies PermissionEvent;
@@ -532,6 +535,7 @@ export const normalizeEvent = (
         ...event,
         payload: { ...payload, ...permissionPayload },
         kind: 'permission',
+        taskMonitorAdmission: checkTaskMonitorPermissionAdmission(event),
         files: extractFilesFromFlatPermission(permissionPayload),
       } satisfies PermissionEvent;
     }
@@ -592,6 +596,25 @@ export const normalizeEvent = (
         decidedAt,
         ...(userId ? { userId } : {}),
       } satisfies PermissionDecisionRecordedEvent;
+    }
+  }
+
+  // -- Same-tool request joined an open permission card (local event emitted by the runner) --
+
+  if (event.eventType === 'permission_group_item_added') {
+    const cardRequestId = readString(payload['cardRequestId']);
+    const cardDescription = readString(payload['cardDescription']);
+    const requestId = readString(payload['requestId']);
+    const description = readString(payload['description']);
+    if (cardRequestId && cardDescription && requestId && description) {
+      return {
+        ...event,
+        kind: 'permission_group_item_added',
+        cardRequestId,
+        cardDescription,
+        requestId,
+        description,
+      } satisfies PermissionGroupItemAddedEvent;
     }
   }
 

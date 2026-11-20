@@ -1,20 +1,58 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Stack } from "@mui/material";
 import React from "react";
-import type { CodingResearchUncertainty } from "../../../api";
+import type { CodingResearchUncertainty, ReportDto } from "../../../api";
 import {
-  UNCERTAINTY_CATEGORY_LABELS,
+  getCodingResearchFocalNode,
+  type CodingResearchFrameModel,
+} from "./codingResearchReportModel";
+import { useModal } from "../../../contexts/ModalContext";
+import type { EntityType, TargetEntityType } from "../../../api";
+import {
   UncertaintyItem,
+  buildUncertaintyDiscussContext,
 } from "../../Uncertainties";
-import { ReportEntityMention, ReportPanel } from "./reportPrimitives";
+import { ConversationCardRelatedRows } from "../../Conversation/Card";
+
+/** The entity a Discuss launch from this report attaches to: the report's focal entity. */
+export interface CodingResearchUncertaintyDiscussScope {
+  organizationId: string;
+  projectId: string;
+  entityId: string;
+  entityType: EntityType | TargetEntityType;
+  entityTitle?: string;
+}
+
+export const getCodingResearchUncertaintyDiscussScope = (
+  report: ReportDto | undefined,
+  frameModel: CodingResearchFrameModel,
+): CodingResearchUncertaintyDiscussScope | undefined => {
+  const focalNode = getCodingResearchFocalNode(frameModel);
+
+  if (!report?.projectId || !focalNode) {
+    return undefined;
+  }
+
+  return {
+    organizationId: report.organizationId,
+    projectId: report.projectId,
+    entityId: focalNode.id,
+    entityType: focalNode.type,
+    entityTitle: focalNode.title,
+  };
+};
 
 export interface CodingResearchUncertaintiesSectionProps {
   uncertainties: CodingResearchUncertainty[];
   reportTestId: string;
+  /** Omit when the report has no focal entity or is display-only. */
+  discussScope?: CodingResearchUncertaintyDiscussScope;
 }
 
 export const CodingResearchUncertaintiesSection: React.FC<
   CodingResearchUncertaintiesSectionProps
-> = ({ uncertainties, reportTestId }) => {
+> = ({ uncertainties, reportTestId, discussScope }) => {
+  const modal = useModal();
+
   if (uncertainties.length === 0) {
     return null;
   }
@@ -23,18 +61,15 @@ export const CodingResearchUncertaintiesSection: React.FC<
     ...new Set(uncertainties.map(({ category }) => category)),
   ];
   return (
-    <Paper
+    <Stack
       data-testid={`${reportTestId}-coding-research-uncertainties`}
-      sx={{ p: 1.5, backgroundColor: "action.hover" }}
-      variant="outlined"
+      sx={{ mt: 1 }}
     >
       <Stack spacing={1.25}>
-        <Typography variant="subtitle2">Open questions</Typography>
         {categories.map((category) => (
-          <ReportPanel
+          <Stack
             key={category}
-            testId={`${reportTestId}-coding-research-uncertainties-${category}`}
-            title={UNCERTAINTY_CATEGORY_LABELS[category]}
+            data-testid={`${reportTestId}-coding-research-uncertainties-${category}`}
           >
             <Stack spacing={1}>
               {uncertainties
@@ -47,23 +82,36 @@ export const CodingResearchUncertaintiesSection: React.FC<
                     category={uncertainty.category}
                     statement={uncertainty.statement}
                     showAnswerBand={false}
+                    onDiscuss={
+                      discussScope && modal
+                        ? () =>
+                            modal.openModal({
+                              type: "discuss",
+                              ...discussScope,
+                              contextPreview:
+                                buildUncertaintyDiscussContext(uncertainty),
+                            })
+                        : undefined
+                    }
                   >
-                    <Stack spacing={0.5}>
-                      {uncertainty.references.map((reference) => (
-                        <ReportEntityMention
-                          key={`${reference.entityType}-${reference.entityId}`}
-                          entityId={reference.entityId}
-                          entityName={reference.title}
-                          entityType={reference.entityType}
-                        />
-                      ))}
-                    </Stack>
+                    {uncertainty.references.length > 0 ? (
+                      <ConversationCardRelatedRows
+                        rows={uncertainty.references.map((reference) => ({
+                          key: `${reference.entityType}-${reference.entityId}`,
+                          mention: {
+                            entityType: reference.entityType,
+                            entityId: reference.entityId,
+                            entityName: reference.title,
+                          },
+                        }))}
+                      />
+                    ) : null}
                   </UncertaintyItem>
                 ))}
             </Stack>
-          </ReportPanel>
+          </Stack>
         ))}
       </Stack>
-    </Paper>
+    </Stack>
   );
 };

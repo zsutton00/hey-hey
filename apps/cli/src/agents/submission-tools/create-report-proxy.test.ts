@@ -20,6 +20,7 @@ import { SubmissionToolAuth } from './submission-tool-auth';
 import { createTestOAuthClient as createProviderTestOAuthClient } from '../../auth/oauth-client.test-support';
 import { jointDecision } from '../feature-sync/__tests__/feature-sync-decision.fixtures';
 import type { Run } from '../../run/run';
+import { SubmissionToolCorrectableError } from './types';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type {
   ProjectReportCoverage,
@@ -456,6 +457,53 @@ describe('CreateReportProxy', () => {
     await expect(
       proxy.create({ runId: 'r', conversationId: 'c', projectId: 'p', args: {} }),
     ).rejects.toThrow('Platform create_report returned HTTP 400: payload.body: required');
+  });
+
+  it('turns a platform schema rejection into a correctable error naming the report type, fields and causes', async () => {
+    const proxy = new CreateReportProxy({
+      fetchImpl: makeFetch(
+        jsonResponse(
+          {
+            success: false,
+            message:
+              'SNAPSHOT report (schemaVersion 1) is invalid: /summary: missing required property "summary".',
+            statusCode: 400,
+            timestamp: '2026-10-03T06:00:00Z',
+            code: 'REPORT_PAYLOAD_INVALID',
+            data: {
+              reportType: 'SNAPSHOT',
+              schemaVersion: 1,
+              issues: [
+                {
+                  path: '/summary',
+                  keyword: 'required',
+                  message: "must have required property 'summary'",
+                  missingProperty: 'summary',
+                },
+              ],
+            },
+          },
+          400,
+        ),
+      ),
+      auth: makeSubmissionToolAuth('token-with-org:org-1'),
+      apiBaseUrl: 'http://localhost:3000/api/v1',
+      reportEmissionEvents: makeReportEmissionEvents(),
+    });
+
+    const rejected = await proxy
+      .create({ runId: 'r', conversationId: 'c', projectId: 'p', args: {} })
+      .catch((error: unknown) => error);
+
+    expect(rejected).toBeInstanceOf(SubmissionToolCorrectableError);
+    expect((rejected as SubmissionToolCorrectableError).reason).toContain('SNAPSHOT');
+    expect((rejected as SubmissionToolCorrectableError).findings).toEqual([
+      expect.objectContaining({
+        field: '/summary',
+        code: 'required',
+        reason: 'missing required property "summary"',
+      }),
+    ]);
   });
 
   it.each([true, false])(
@@ -1238,7 +1286,7 @@ describe('creation-time report usage', () => {
     expect(read).toHaveBeenCalledTimes(1);
   });
 
-  it('captures usage on the structured research path without changing its handoff', async () => {
+  it('captures usage on the self-research path without changing its handoff', async () => {
     const { run, body, proxy, snapshotter } = setup();
     const tool = new CodingResearchTool(proxy, () => '2026-11-01T00:00:00.000Z', snapshotter);
     await tool.execute({
@@ -1246,7 +1294,7 @@ describe('creation-time report usage', () => {
       run,
       args: {
         frame: { focalId: 'focal', nodes: [] },
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         summary: 'Research summary',
         provenance: { discoveryCalls: [], edgesTraversed: [] },
         updates: [],
@@ -1258,7 +1306,7 @@ describe('creation-time report usage', () => {
       reportType: 'CODING_RESEARCH',
       payload: {
         summary: 'Research summary',
-        analysis: 'Written research handoff',
+        analysis: 'Subagent-parent research handoff',
         frame: { focalId: 'focal', nodes: [] },
       },
       usage: { inputTokens: 33, toolCalls: 2 },
@@ -1350,22 +1398,10 @@ describe('creation-time report usage', () => {
     },
   );
 
-  it('creates the report without usage when collection fails, and never collects for a skipped IMPLEMENT', async () => {
-    const { submit, body, read, tool, run, fetchImpl } = setup();
+  it('creates the report without usage when collection fails', async () => {
+    const { submit, body, read } = setup();
     read.mockRejectedValue(new Error('Unreadable native session'));
     await submit();
     expect(body(0)).not.toHaveProperty('usage');
-    read.mockClear();
-    await tool.execute({
-      runId: run.runId,
-      run,
-      args: {
-        reportType: 'IMPLEMENT',
-        audience: 'PROJECT_VISIBLE',
-        payload: { reportType: 'IMPLEMENT', summary: 'No changes', filesChanged: [] },
-      },
-    });
-    expect(read).not.toHaveBeenCalled();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

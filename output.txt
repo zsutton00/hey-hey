@@ -1,0 +1,1028 @@
+  Property 'uncertainties' does not exist on type 'CodingResearchWrittenReportPayload'.
+
+56           uncertainties: payload.uncertainties ?? [],
+                                    ~~~~~~~~~~~~~
+
+src/components/Reports/viewer/codingResearchSubagentParentUncertainties.ts:148:7 - error TS2367: This comparison appears to be unintentional because the types '"STRUCTURED" | "WRITTEN"' and '"SUBAGENT_PARENT"' have no overlap.
+
+148   if (payload.format === "SUBAGENT_PARENT") {
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/components/Reports/viewer/codingResearchSubagentParentUncertainties.ts:149:62 - error TS2339: Property 'analysis' does not exist on type 'never'.
+
+149     return parseCodingResearchSubagentParentAnalysis(payload.analysis)
+                                                                 ~~~~~~~~
+
+src/components/Reports/viewer/codingResearchSubagentParentUncertainties.ts:153:18 - error TS2339: Property 'uncertainties' does not exist on type 'CodingResearchReportPayload'.
+  Property 'uncertainties' does not exist on type 'CodingResearchWrittenReportPayload'.
+
+153   return payload.uncertainties ?? [];
+                     ~~~~~~~~~~~~~
+
+src/components/Reports/viewer/FeatureSyncDecisionReport.tsx:591:30 - error TS2339: Property 'reason' does not exist on type 'FeatureSyncReportSourceRef'.
+
+591               reason: entity.reason,
+                                 ~~~~~~
+
+src/components/Reports/viewer/MonitorNodeResultReport.tsx:2:15 - error TS2305: Module '"../../../api"' has no exported member 'MonitorNodeResultReportPayload'.
+
+2 import type { MonitorNodeResultReportPayload } from "../../../api";
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/components/Reports/viewer/rendererContract.ts:235:21 - error TS2339: Property 'MonitorNodeResult' does not exist on type '{ readonly ProjectReport: "PROJECT_REPORT"; readonly CodingResearch: "CODING_RESEARCH"; readonly EvidencePipeline: "EVIDENCE_PIPELINE"; readonly Snapshot: "SNAPSHOT"; readonly RollupProposal: "ROLLUP_PROPOSAL"; ... 46 more ...; readonly EVAL_HUMAN_REVIEW: "EVAL_HUMAN_REVIEW"; }'.
+
+235     case ReportType.MonitorNodeResult:
+                        ~~~~~~~~~~~~~~~~~
+
+src/components/Selectors/WorkItemStatusSelector.tsx:76:14 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+76     onChange(next);
+                ~~~~
+
+src/components/Selectors/WorkItemStatusSelector.tsx:85:37 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto' is not assignable to parameter of type 'WorkItemStatusVocabulary'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+85         ...getWorkItemStatusChoices(definition),
+                                       ~~~~~~~~~~
+
+src/components/Selectors/WorkItemStatusSelector.tsx:86:38 - error TS2339: Property 'supportsSupersession' does not exist on type 'WorkItemTypeCapabilities'.
+
+86         ...(definition.capabilities?.supportsSupersession && taskId
+                                        ~~~~~~~~~~~~~~~~~~~~
+
+src/components/Selectors/WorkItemStatusSelector.tsx:92:36 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto | undefined' is not assignable to parameter of type 'WorkItemStatusVocabulary | undefined'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+92     getWorkItemStatusLabel(status, definition);
+                                      ~~~~~~~~~~
+
+src/components/Selectors/WorkItemStatusSelector.tsx:128:39 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+128                   label={resolveLabel(status)}
+                                          ~~~~~~
+
+src/components/shared/EntityHoverCard/EntityHoverCard.tsx:453:9 - error TS2322: Type 'WorkItemTypeDefinitionDto | undefined' is not assignable to type 'WorkItemStatusVocabulary | undefined'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+453         taskStatusDefinition={workItemType.workItemTypeDefinition}
+            ~~~~~~~~~~~~~~~~~~~~
+
+  src/components/shared/EntityHoverCard/EntityHoverCard.tsx:496:3
+    496   taskStatusDefinition: WorkItemStatusVocabulary | undefined;
+          ~~~~~~~~~~~~~~~~~~~~
+    The expected type comes from property 'taskStatusDefinition' which is declared here on type 'IntrinsicAttributes & { data: EntityDetailsData | null; entityType: string; isLoading: boolean; error: Error | null; errorLabel: string; ... 9 more ...; titleHref?: string | undefined; }'
+
+src/components/shared/EvalCaseInputsSection.tsx:13:15 - error TS2724: '"../../api"' has no exported member named 'EvalCaseInputs'. Did you mean 'EvalRunCaseInput'?
+
+13 import type { EvalCaseInputs, EvalCaseTextMessageInput } from "../../api";
+                 ~~~~~~~~~~~~~~
+
+src/components/shared/EvalCaseInputsSection.tsx:13:31 - error TS2305: Module '"../../api"' has no exported member 'EvalCaseTextMessageInput'.
+
+13 import type { EvalCaseInputs, EvalCaseTextMessageInput } from "../../api";
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/components/shared/WorkItemComponents.tsx:37:47 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto | undefined' is not assignable to parameter of type 'WorkItemStatusVocabulary | undefined'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+37         label={getWorkItemStatusLabel(status, workItemTypeDefinition)}
+                                                 ~~~~~~~~~~~~~~~~~~~~~~
+
+src/components/shared/workItemGraphDraft.ts:13:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectedDesignDoc'.
+
+13   ProjectedDesignDoc,
+     ~~~~~~~~~~~~~~~~~~
+
+src/components/shared/workItemGraphDraft.ts:548:10 - error TS2678: Type '"designDoc.create"' is not comparable to type '"layout.clear" | "layout.replace" | "relationship.create" | "relationship.delete" | "relationship.update" | "section.clear" | "section.replace" | "workItem.create" | "workItem.delete" | "workItem.update"'.
+
+548     case "designDoc.create":
+             ~~~~~~~~~~~~~~~~~~
+
+src/components/shared/workItemGraphDraft.ts:550:29 - error TS2339: Property 'ref' does not exist on type 'never'.
+
+550         identity: operation.ref,
+                                ~~~
+
+src/components/shared/workItemGraphDraft.ts:551:25 - error TS2339: Property 'name' does not exist on type 'never'.
+
+551         name: operation.name,
+                            ~~~~
+
+src/components/shared/workItemGraphDraft.ts:552:29 - error TS2339: Property 'markdown' does not exist on type 'never'.
+
+552         markdown: operation.markdown,
+                                ~~~~~~~~
+
+src/components/shared/workItemGraphDraft.ts:553:27 - error TS2339: Property 'parent' does not exist on type 'never'.
+
+553         parent: operation.parent,
+                              ~~~~~~
+
+src/components/shared/workItemGraphDraft.ts:814:5 - error TS2353: Object literal may only specify known properties, and 'designDocs' does not exist in type 'WorkItemGraphDraftProjection'.
+
+814     designDocs: input.designDocs,
+        ~~~~~~~~~~
+
+src/components/SmarterTextAreaCard/slashCommands/WorkItemReferencePickerDialog.tsx:136:7 - error TS2345: Argument of type 'string[]' is not assignable to parameter of type 'SetStateAction<WorkStatus[]>'.
+  Type 'string[]' is not assignable to type 'WorkStatus[]'.
+    Type 'string' is not assignable to type 'WorkStatus'.
+
+136       nextStatuses.flatMap((candidate) => {
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+137         const match = getWorkItemTypeStatusNames(definition).find(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+...
+140         return match ? [match] : [];
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+141       }),
+    ~~~~~~~~
+
+src/components/SmarterTextAreaCard/slashCommands/WorkItemReferencePickerDialog.tsx:185:54 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+185                 <Checkbox checked={statuses.includes(status)} />
+                                                         ~~~~~~
+
+src/components/SmarterTextAreaCard/slashCommands/WorkItemReferencePickerDialog.tsx:186:55 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+186                 <ListItemText primary={getStatusLabel(status)} />
+                                                          ~~~~~~
+
+src/components/TaskMonitor/__tests__/taskMonitorTestFixtures.ts:23:5 - error TS2353: Object literal may only specify known properties, and 'kind' does not exist in type 'TaskMonitorExecutionDefinition'.
+
+23     kind: "task",
+       ~~~~
+
+src/components/TaskMonitor/TaskMonitor.tsx:145:20 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+145                   (action) => action.command === "PAUSE",
+                       ~~~~~~
+
+src/components/TaskMonitor/TaskMonitor.tsx:155:22 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+155                     (action) =>
+                         ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:191:33 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+191         advertisedActions.some((action) => action.command === "RESUME")) &&
+                                    ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:195:14 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+195             (action) =>
+                 ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:199:36 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+199     pause: advertisedActions.some((action) => action.command === "PAUSE"),
+                                       ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:204:30 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+204       committedActions.some((action) => action.command === "PAUSE") &&
+                                 ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:206:10 - error TS7006: Parameter 'action' implicitly has an 'any' type.
+
+206         (action) => action.command === "START" || action.command === "RESUME",
+             ~~~~~~
+
+src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:602:44 - error TS2339: Property 'kind' does not exist on type 'TaskMonitorExecutionDefinition'.
+
+602                 monitorKindKey={definition.kind}
+                                               ~~~~
+
+src/components/TaskMonitor/useMonitorKind.ts:1:15 - error TS2724: '"../../api"' has no exported member named 'WorkItemTypeMonitorKind'. Did you mean 'WorkItemTypeTracking'?
+
+1 import type { WorkItemTypeMonitorKind } from "../../api";
+                ~~~~~~~~~~~~~~~~~~~~~~~
+
+  ../contracts/dist/cjs/generated/api/models/work-item-type-tracking.d.ts:21:26
+    21 export declare namespace WorkItemTypeTracking {
+                                ~~~~~~~~~~~~~~~~~~~~
+    'WorkItemTypeTracking' is declared here.
+
+src/components/TaskMonitor/useMonitorKind.ts:24:48 - error TS2339: Property 'monitorKinds' does not exist on type 'WorkItemTypeCapabilities'.
+
+24   return workItemTypeDefinition?.capabilities?.monitorKinds?.find(
+                                                  ~~~~~~~~~~~~
+
+src/components/TaskMonitor/useMonitorKind.ts:25:6 - error TS7006: Parameter 'kind' implicitly has an 'any' type.
+
+25     (kind) => kind.key === kindKey,
+        ~~~~
+
+src/components/WorkItem/StatusActionCompact.tsx:166:41 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto' is not assignable to parameter of type 'WorkItemStatusVocabulary'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+166             ...getWorkItemStatusChoices(definition),
+                                            ~~~~~~~~~~
+
+src/components/WorkItem/StatusActionCompact.tsx:167:42 - error TS2339: Property 'supportsSupersession' does not exist on type 'WorkItemTypeCapabilities'.
+
+167             ...(definition.capabilities?.supportsSupersession && taskId
+                                             ~~~~~~~~~~~~~~~~~~~~
+
+src/components/WorkItem/StatusActionCompact.tsx:175:65 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto | undefined' is not assignable to parameter of type 'WorkItemStatusVocabulary | undefined'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+175     (s: TaskResponseDto["status"]) => getWorkItemStatusLabel(s, definition),
+                                                                    ~~~~~~~~~~
+
+src/components/WorkItem/StatusActionCompact.tsx:294:51 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+294                 onClick={() => handleStatusSelect(s)}
+                                                      ~
+
+src/components/WorkItem/StatusActionCompact.tsx:297:45 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+297                   label={resolveStatusLabel(s)}
+                                                ~
+
+src/components/WorkItem/WorkItemEditor.tsx:409:29 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+409     workItemTypeDefinition?.statuses.some(({ name }) => name === status) ??
+                                ~~~~~~~~
+
+src/components/WorkItem/WorkItemEditor.tsx:409:46 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+409     workItemTypeDefinition?.statuses.some(({ name }) => name === status) ??
+                                                 ~~~~
+
+src/components/WorkItem/WorkItemMetadata.tsx:102:48 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto' is not assignable to parameter of type 'WorkItemStatusVocabulary'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+102     isRetainedRemovedStatus(statusField.value, definition);
+                                                   ~~~~~~~~~~
+
+src/contexts/EntityActivationContext.tsx:28:45 - error TS2344: Type '"conversationId"' does not satisfy the constraint 'keyof OpenItemPresentation'.
+
+28   agent_session: Pick<OpenItemPresentation, "conversationId"> & {
+                                               ~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:3:3 - error TS2724: '"../../api"' has no exported member named 'AgentSessionContinuationDto'. Did you mean 'AgentSessionRoutingDto'?
+
+3   AgentSessionContinuationDto,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:4:3 - error TS2305: Module '"../../api"' has no exported member 'AgentSessionContinuationStatusDto'.
+
+4   AgentSessionContinuationStatusDto,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:47:35 - error TS2339: Property 'getAgentSessionContinuationStatus' does not exist on type 'AgentSessionsApi'.
+
+47         await agentSessionsClient.getAgentSessionContinuationStatus(
+                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:100:7 - error TS2353: Object literal may only specify known properties, and 'agentSessionId' does not exist in type '({ targetKind: "CLI_READ"; } & RuntimeModelCatalogHostActionPreparation) | ({ targetKind: "CLI_READ"; } & WorkspaceSkillsHostActionPreparation)'.
+
+100       agentSessionId: target.agentSessionId,
+          ~~~~~~~~~~~~~~
+
+  src/data/hooks/useControllerAuthorizedAction.ts:35:3
+    35   action: HostActionPreparation;
+         ~~~~~~
+    The expected type comes from property 'action' which is declared here on type 'ControllerAuthorizedActionVariables<unknown>'
+
+src/data/collections/agentSessionContinuation.ts:105:27 - error TS2339: Property 'inspectAgentSessionContinuation' does not exist on type 'AgentSessionsApi'.
+
+105       agentSessionsClient.inspectAgentSessionContinuation(
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:123:30 - error TS18046: 'authorized.data' is of type 'unknown'.
+
+123   return requireContinuation(authorized.data.data.data);
+                                 ~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:153:27 - error TS2339: Property 'commitAgentSessionContinuation' does not exist on type 'AgentSessionsApi'.
+
+153       agentSessionsClient.commitAgentSessionContinuation(
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:170:30 - error TS18046: 'authorized.data' is of type 'unknown'.
+
+170   return requireContinuation(authorized.data.data.data);
+                                 ~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessionContinuation.ts:177:46 - error TS2339: Property 'cancelAgentSessionContinuation' does not exist on type 'AgentSessionsApi'.
+
+177   const response = await agentSessionsClient.cancelAgentSessionContinuation(
+                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/agentSessions.ts:292:7 - error TS2353: Object literal may only specify known properties, and 'search' does not exist in type 'AgentSessionsApiListAgentSessionsPaginatedRequest'.
+
+292       search: filters.search,
+          ~~~~~~
+
+src/data/collections/evalRuns.ts:10:8 - error TS2305: Module '"../../api"' has no exported member 'EvalSessionStatus'.
+
+10   type EvalSessionStatus,
+          ~~~~~~~~~~~~~~~~~
+
+src/data/collections/evalRuns.ts:78:47 - error TS2339: Property 'getEvalSessionStatuses' does not exist on type 'EvalRunsApi'.
+
+78         const response = await evalRunsClient.getEvalSessionStatuses(
+                                                 ~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/evalRuns.ts:210:8 - error TS2304: Cannot find name 'messageKeys'.
+
+210     ...messageKeys.conversation(
+           ~~~~~~~~~~~
+
+src/data/collections/evalRuns.ts:233:30 - error TS2304: Cannot find name 'platformClient'.
+
+233       const response = await platformClient.getMessages(
+                                 ~~~~~~~~~~~~~~
+
+src/data/collections/evalRuns.ts:256:24 - error TS2339: Property 'repeatsPerAttempt' does not exist on type 'EvalRunSettings'.
+
+256   run.payload.settings.repeatsPerAttempt ?? 1;
+                           ~~~~~~~~~~~~~~~~~
+
+src/data/collections/evalRuns.ts:260:19 - error TS2339: Property 'repeat' does not exist on type '{ reportType: "EVAL_ATTEMPT"; } & EvalAttemptReportPayload & { reportType: "EVAL_ATTEMPT"; }'.
+  Property 'repeat' does not exist on type 'never'.
+
+260   attempt.payload.repeat ?? 1;
+                      ~~~~~~
+
+src/data/collections/evalRuns.ts:510:27 - error TS2339: Property 'repeat' does not exist on type '{ reportType: "EVAL_ATTEMPT"; } & EvalAttemptReportPayload & { reportType: "EVAL_ATTEMPT"; }'.
+  Property 'repeat' does not exist on type 'never'.
+
+510       ...(attempt.payload.repeat !== undefined
+                              ~~~~~~
+
+src/data/collections/evalRuns.ts:511:37 - error TS2339: Property 'repeat' does not exist on type '{ reportType: "EVAL_ATTEMPT"; } & EvalAttemptReportPayload & { reportType: "EVAL_ATTEMPT"; }'.
+  Property 'repeat' does not exist on type 'never'.
+
+511         ? { repeat: attempt.payload.repeat }
+                                        ~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:3:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectApprovalPolicyReplaceRequest'.
+
+3   ProjectApprovalPolicyReplaceRequest,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:4:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectApprovalPolicyRestoreRequest'.
+
+4   ProjectApprovalPolicyRestoreRequest,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:5:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectApprovalPolicySnapshot'.
+
+5   ProjectApprovalPolicySnapshot,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:30:30 - error TS2339: Property 'getProjectApprovalPolicy' does not exist on type 'LegacyApiClient'.
+
+30         await platformClient.getProjectApprovalPolicy(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:47:30 - error TS2339: Property 'replaceProjectApprovalPolicy' does not exist on type 'LegacyApiClient'.
+
+47       ? await platformClient.replaceProjectApprovalPolicy(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/projectApprovalPolicy.ts:55:30 - error TS2339: Property 'restoreProjectApprovalPolicyDefaults' does not exist on type 'LegacyApiClient'.
+
+55       : await platformClient.restoreProjectApprovalPolicyDefaults(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/workItemExecutionState.ts:3:3 - error TS2305: Module '"../../api"' has no exported member 'BatchReadWorkItemExecutionState200Response'.
+
+3   BatchReadWorkItemExecutionState200Response,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/workItemExecutionState.ts:4:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemExecutionState'.
+
+4   WorkItemExecutionState,
+    ~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/workItemExecutionState.ts:5:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemExecutionStateBatchItemDto'.
+
+5   WorkItemExecutionStateBatchItemDto,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/collections/workItemLists.ts:9:8 - error TS6133: 'WorkStatus' is declared but its value is never read.
+
+9   type WorkStatus,
+         ~~~~~~~~~~
+
+src/data/collections/workItemLists.ts:44:12 - error TS2304: Cannot find name 'TaskResponseDto'.
+
+44   status?: TaskResponseDto["status"][];
+              ~~~~~~~~~~~~~~~
+
+src/data/collections/workItemReferences.ts:38:23 - error TS2304: Cannot find name 'TaskResponseDto'.
+
+38   statuses?: readonly TaskResponseDto["status"][];
+                         ~~~~~~~~~~~~~~~
+
+src/data/collections/workItemTypes.ts:136:30 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+136     Array.isArray(definition.statuses)
+                                 ~~~~~~~~
+
+src/data/evalRunStatusLabel.ts:2:30 - error TS2305: Module '"../api"' has no exported member 'EvalSessionStatus'.
+
+2 import { EvalRunStatus, type EvalSessionStatus } from "../api";
+                               ~~~~~~~~~~~~~~~~~
+
+src/data/evalRunStatusLabel.ts:7:4 - error TS2366: Function lacks ending return statement and return type does not include 'undefined'.
+
+7 ): string {
+     ~~~~~~
+
+src/data/hooks/useAgentSessionContinuationStatus.ts:3:3 - error TS2724: '"../../api"' has no exported member named 'AgentSessionContinuationState'. Did you mean 'AgentSessionOutputAttentionState'?
+
+3   AgentSessionContinuationState,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  ../contracts/dist/cjs/generated/api/models/agent-session-output-attention-state.d.ts:17:22
+    17 export declare const AgentSessionOutputAttentionState: {
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    'AgentSessionOutputAttentionState' is declared here.
+
+src/data/hooks/useAgentSessionContinuationStatus.ts:4:8 - error TS2305: Module '"../../api"' has no exported member 'AgentSessionContinuationStatusDto'.
+
+4   type AgentSessionContinuationStatusDto,
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useEvalRunSession.ts:204:15 - error TS2345: Argument of type '{ kind: "agent_session"; label: string; sessionType: "PROJECT_CONVERSATION"; }' is not assignable to parameter of type 'Pick<OpenItemPresentation, "conversationId"> & { kind: "agent_session"; label: string; sessionType: AgentSessionType; entityConversationRoute?: { ...; } | undefined; }'.
+  Property 'conversationId' is missing in type '{ kind: "agent_session"; label: string; sessionType: "PROJECT_CONVERSATION"; }' but required in type 'Pick<OpenItemPresentation, "conversationId">'.
+
+204               {
+                  ~
+205                 kind: "agent_session",
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+...
+207                 sessionType: AgentSessionType.ProjectConversation,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+208               },
+    ~~~~~~~~~~~~~~~
+
+src/data/hooks/useExistingPlanTasks.ts:2:10 - error TS2305: Module '"../collections/workItemLists"' has no exported member 'workItemListQueryOptions'.
+
+2 import { workItemListQueryOptions } from "../collections/workItemLists";
+           ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useExistingPlanTasks.ts:33:52 - error TS7006: Parameter 'task' implicitly has an 'any' type.
+
+33       const tasks = new Map((read.data ?? []).map((task) => [task.id, task]));
+                                                      ~~~~
+
+src/data/hooks/useOpenItemGoalWork.ts:7:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemStatusMeaning'.
+
+7   WorkItemStatusMeaning,
+    ~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemGoalWork.ts:33:28 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+33             (work) => work.statusMeaning !== WorkItemStatusMeaning.InProgress,
+                              ~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemGoalWork.ts:93:21 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+93         return item.statusMeaning !== WorkItemStatusMeaning.Finished;
+                       ~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemGoalWork.ts:96:16 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+96           item.statusMeaning === WorkItemStatusMeaning.InProgress ||
+                  ~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:6:3 - error TS2305: Module '"../collections/conversations"' has no exported member 'conversationQueryOptions'.
+
+6   conversationQueryOptions,
+    ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:7:3 - error TS2305: Module '"../collections/conversations"' has no exported member 'updateConversation'.
+
+7   updateConversation,
+    ~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:63:23 - error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<ConversationResponseDto | null>'.
+
+63       setConversation(current);
+                         ~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:64:16 - error TS18046: 'current' is of type 'unknown'.
+
+64       setDraft(current.title ?? "");
+                  ~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:121:25 - error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<ConversationResponseDto | null>'.
+
+121               setLatest(await read());
+                            ~~~~~~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:137:11 - error TS2322: Type '"refreshOpenItemPresentation"' is not assignable to type '"activateOpenItem" | "assignOpenItemsToGroup" | "createOpenItemGroup" | "deleteOpenItemGroup" | "moveOpenItem" | "moveOpenItemGroup" | "moveOpenItemGroupMember" | "removeOpenItem" | ... 7 more ... | "ungroupOpenItems"'.
+
+137           kind: "refreshOpenItemPresentation",
+              ~~~~
+
+  src/data/openItemsAdapter.ts:50:5
+    50     kind: K;
+           ~~~~
+    The expected type comes from property 'kind' which is declared here on type 'OpenItemsOperation'
+
+src/data/hooks/useOpenItemSessionRename.ts:141:13 - error TS2353: Object literal may only specify known properties, and 'refreshOpenItemPresentationRequest' does not exist in type 'Omit<OpenItemsApiActivateOpenItemRequest, "organizationId" | "projectId"> | Omit<OpenItemsApiSetOpenItemNoteRequest, "organizationId" | "projectId"> | ... 13 more ... | Omit<...>'.
+
+141             refreshOpenItemPresentationRequest: {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  src/data/openItemsAdapter.ts:51:5
+    51     parameters: Omit<
+           ~~~~~~~~~~
+    The expected type comes from property 'parameters' which is declared here on type 'OpenItemsOperation'
+
+src/data/hooks/useOpenItemSessionRename.ts:172:23 - error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<ConversationResponseDto | null>'.
+
+172       setConversation(current);
+                          ~~~~~~~
+
+src/data/hooks/useOpenItemSessionRename.ts:173:17 - error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<ConversationResponseDto | null>'.
+
+173       setLatest(current);
+                    ~~~~~~~
+
+src/data/hooks/useProjectApprovalPolicy.ts:3:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectApprovalPolicyReplaceRequest'.
+
+3   ProjectApprovalPolicyReplaceRequest,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useProjectApprovalPolicy.ts:4:3 - error TS2305: Module '"../../api"' has no exported member 'ProjectApprovalPolicyRestoreRequest'.
+
+4   ProjectApprovalPolicyRestoreRequest,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useProjectChanges.ts:3:15 - error TS2724: '"../../api"' has no exported member named 'ReportsApiListProjectChangesRequest'. Did you mean 'ReportsApiListProjectReportsRequest'?
+
+3 import type { ReportsApiListProjectChangesRequest } from "../../api";
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useRecordedEdit.ts:8:8 - error TS2305: Module '"../../api"' has no exported member 'ImplementReportEdit'.
+
+8   type ImplementReportEdit,
+         ~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useRecordedEdit.ts:225:15 - error TS2322: Type '{ operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; requestId: `${string}-${string}-${string}-${string}-${string}`; agentSessionId: string; }' is not assignable to type 'CliReadEnvelopeBody'.
+  Type '{ operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; requestId: `${string}-${string}-${string}-${string}-${string}`; agentSessionId: string; }' is not assignable to type '{ operation: "run.tool_calls.latest_turn"; } & CliReadRunToolCallsLatestTurnEnvelopeBody'.
+    Type '{ operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; requestId: `${string}-${string}-${string}-${string}-${string}`; agentSessionId: string; }' is not assignable to type '{ operation: "run.tool_calls.latest_turn"; }'.
+      Types of property 'operation' are incompatible.
+        Type '"run.recorded_edit.read"' is not assignable to type '"run.tool_calls.latest_turn"'.
+
+225               body: {
+                  ~~~~
+
+src/data/hooks/useRecordedEdit.ts:237:15 - error TS2322: Type '{ authorization: AdmissionEnvelopeAuthorization; operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; }' is not assignable to type 'CliReadRequestDto'.
+  Type '{ authorization: AdmissionEnvelopeAuthorization; operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; }' is not assignable to type '{ operation: "run.tool_calls.latest_turn"; } & CliReadRunToolCallsLatestTurnRequest'.
+    Type '{ authorization: AdmissionEnvelopeAuthorization; operation: "run.recorded_edit.read"; runId: string; serviceId: string; edit: any; }' is not assignable to type '{ operation: "run.tool_calls.latest_turn"; }'.
+      Types of property 'operation' are incompatible.
+        Type '"run.recorded_edit.read"' is not assignable to type '"run.tool_calls.latest_turn"'.
+
+237               cliReadRequestDto: { ...controllerReadInputs, authorization },
+                  ~~~~~~~~~~~~~~~~~
+
+  ../contracts/dist/cjs/generated/api/apis/agent-sessions-api.d.ts:2345:14
+    2345     readonly cliReadRequestDto: CliReadRequestDto;
+                      ~~~~~~~~~~~~~~~~~
+    The expected type comes from property 'cliReadRequestDto' which is declared here on type 'AgentSessionsApiReadAgentSessionCliStateRequest'
+
+src/data/hooks/useRecordedEdit.ts:251:24 - error TS2367: This comparison appears to be unintentional because the types '"run.changed_files.detail" | "run.changed_files.inventory" | "runtime.model_catalog.get" | "run.tool_calls.latest_turn" | "project.session_costs.list" | "provider.usage.get" | "run.changed_files.count" | "run.context_usage.get" | "run.skills.list" | "workspace.skills.list"' and '"run.recorded_edit.read"' have no overlap.
+
+251         if (!result || result.operation !== "run.recorded_edit.read") {
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useRecordedEdit.ts:263:37 - error TS2339: Property 'error' does not exist on type 'never'.
+
+263               readErrorCause(result.error.code),
+                                        ~~~~~
+
+src/data/hooks/useRecordedEdit.ts:264:22 - error TS2339: Property 'error' does not exist on type 'never'.
+
+264               result.error.message,
+                         ~~~~~
+
+src/data/hooks/useRecordedEdit.ts:270:26 - error TS2339: Property 'result' does not exist on type 'never'.
+
+270             file: result.result.file,
+                             ~~~~~~
+
+src/data/hooks/useWorkItemExecutionState.ts:4:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemExecutionFreshness'.
+
+4   WorkItemExecutionFreshness,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useWorkItemExecutionState.ts:5:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemExecutionState'.
+
+5   WorkItemExecutionState,
+    ~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useWorkItemTypeCanonicalComparison.ts:2:15 - error TS2305: Module '"../../api"' has no exported member 'WorkItemTypeCanonicalComparisonDto'.
+
+2 import type { WorkItemTypeCanonicalComparisonDto } from "../../api";
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useWorkItemTypeCanonicalComparison.ts:34:37 - error TS2551: Property 'organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet' does not exist on type 'WorkItemTypesApi'. Did you mean 'organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet'?
+
+34         await getWorkItemTypesApi().organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet(
+                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  ../contracts/dist/cjs/generated/api/apis/work-item-types-api.d.ts:860:5
+    860     organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet(requestParameters: WorkItemTypesApiOrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGetRequest, options?: RawAxiosRequestConfig): Promise<import("axios").AxiosResponse<OrganizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet200Response, any, {}>>;
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    'organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCascadeImpactGet' is declared here.
+
+src/data/hooks/useWorkItemTypeLifecycle.ts:15:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemStatusAuthoringRequest'.
+
+15   WorkItemStatusAuthoringRequest,
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useWorkItemTypeLifecycle.ts:16:3 - error TS2305: Module '"../../api"' has no exported member 'WorkItemStatusAuthoringResponse'.
+
+16   WorkItemStatusAuthoringResponse,
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/hooks/useWorkItemTypeLifecycle.ts:34:52 - error TS2339: Property 'resolveWorkItemTypeStatuses' does not exist on type 'WorkItemTypesApi'.
+
+34       const response = await getWorkItemTypesApi().resolveWorkItemTypeStatuses({
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/openItemsAdapter.ts:471:12 - error TS2678: Type '"refreshOpenItemPresentation"' is not comparable to type '"activateOpenItem" | "assignOpenItemsToGroup" | "createOpenItemGroup" | "deleteOpenItemGroup" | "moveOpenItem" | "moveOpenItemGroup" | "moveOpenItemGroupMember" | "removeOpenItem" | ... 7 more ... | "ungroupOpenItems"'.
+
+471       case "refreshOpenItemPresentation":
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/openItemsAdapter.ts:473:29 - error TS2339: Property 'refreshOpenItemPresentation' does not exist on type 'OpenItemsApiInterface'.
+
+473           await this.client.refreshOpenItemPresentation({
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/openItemsAdapter.ts:475:26 - error TS2339: Property 'parameters' does not exist on type 'never'.
+
+475             ...operation.parameters,
+                             ~~~~~~~~~~
+
+src/data/openItemsMapping.ts:157:5 - error TS2322: Type '{ entityConversationRoute?: { conversationId: string; entityId: string; entityType: string; } | undefined; conversationId?: any; kind: "agent_session"; label: string; sessionType: "CODING" | ... 12 more ... | "VALIDATION"; }' is not assignable to type 'EntityPresentationSnapshot | null'.
+  Type '{ entityConversationRoute?: { conversationId: string; entityId: string; entityType: string; } | undefined; conversationId?: any; kind: "agent_session"; label: string; sessionType: "CODING" | ... 12 more ... | "VALIDATION"; }' is not assignable to type 'Pick<OpenItemPresentation, "conversationId"> & { kind: "agent_session"; label: string; sessionType: AgentSessionType; entityConversationRoute?: { ...; } | undefined; }'.
+    Type '{ entityConversationRoute?: { conversationId: string; entityId: string; entityType: string; } | undefined; conversationId?: any; kind: "agent_session"; label: string; sessionType: "CODING" | ... 12 more ... | "VALIDATION"; }' is not assignable to type 'Pick<OpenItemPresentation, "conversationId">'.
+      Property 'conversationId' is optional in type '{ entityConversationRoute?: { conversationId: string; entityId: string; entityType: string; } | undefined; conversationId?: any; kind: "agent_session"; label: string; sessionType: "CODING" | ... 12 more ... | "VALIDATION"; }' but required in type 'Pick<OpenItemPresentation, "conversationId">'.
+
+157     return {
+        ~~~~~~
+
+src/data/openItemsMapping.ts:161:24 - error TS2339: Property 'conversationId' does not exist on type 'OpenItemPresentation'.
+
+161       ...(presentation.conversationId !== undefined
+                           ~~~~~~~~~~~~~~
+
+src/data/openItemsMapping.ts:162:42 - error TS2339: Property 'conversationId' does not exist on type 'OpenItemPresentation'.
+
+162         ? { conversationId: presentation.conversationId }
+                                             ~~~~~~~~~~~~~~
+
+src/data/websockets/handler.ts:37:8 - error TS2305: Module '"../../api"' has no exported member 'WebSocketWorkItemExecutionStateChangedEvent'.
+
+37   type WebSocketWorkItemExecutionStateChangedEvent,
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/websockets/handler.ts:38:8 - error TS2305: Module '"../../api"' has no exported member 'WebSocketWorkItemExecutionStateDeliveryChangedEvent'.
+
+38   type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/websockets/handler.ts:665:57 - error TS2339: Property 'WorkItemExecutionStateChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+665         case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged:
+                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/data/websockets/handler.ts:673:57 - error TS2339: Property 'WorkItemExecutionStateDeliveryChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+673         case WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged:
+                                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/browserSessionDiagnostics.ts:3:3 - error TS2305: Module '"@hey-hey/contracts/agent-bridge"' has no exported member 'LocalStartupBrowserEvent'.
+
+3   LocalStartupBrowserEvent,
+    ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/browserSessionDiagnostics.ts:4:3 - error TS2305: Module '"@hey-hey/contracts/agent-bridge"' has no exported member 'LocalStartupBrowserRecord'.
+
+4   LocalStartupBrowserRecord,
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/localStartupDiagnostics.ts:7:3 - error TS2305: Module '"@hey-hey/contracts/agent-bridge"' has no exported member 'LocalStartupBrowserEvent'.
+
+7   LocalStartupBrowserEvent,
+    ~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/localStartupDiagnostics.ts:8:8 - error TS2305: Module '"@hey-hey/contracts/agent-bridge"' has no exported member 'LocalStartupBrowserRecord'.
+
+8   type LocalStartupBrowserRecord,
+         ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:48:8 - error TS2305: Module '"../api"' has no exported member 'WebSocketWorkItemExecutionStateChangedEvent'.
+
+48   type WebSocketWorkItemExecutionStateChangedEvent,
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:49:8 - error TS2305: Module '"../api"' has no exported member 'WebSocketWorkItemExecutionStateDeliveryChangedEvent'.
+
+49   type WebSocketWorkItemExecutionStateDeliveryChangedEvent,
+          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1352:50 - error TS2339: Property 'WorkItemExecutionStateChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1352       WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1356:54 - error TS2339: Property 'WorkItemExecutionStateChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1356           WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1368:50 - error TS2339: Property 'WorkItemExecutionStateDeliveryChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1368       WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1372:54 - error TS2339: Property 'WorkItemExecutionStateDeliveryChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1372           WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1608:50 - error TS2339: Property 'WorkItemExecutionStateChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1608       WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateChanged,
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/services/webSocketService.ts:1609:50 - error TS2339: Property 'WorkItemExecutionStateDeliveryChanged' does not exist on type '{ readonly MessageCreated: "message.created"; readonly MessageUpdated: "message.updated"; readonly MessageRealtime: "message.realtime"; readonly MessageDeleted: "message.deleted"; ... 40 more ...; readonly machine_security_event: "machine_security_event"; }'.
+
+1609       WebSocketSubscriptionRequestEventTypesEnum.WorkItemExecutionStateDeliveryChanged,
+                                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/test/fixtures/workItemStatuses.ts:1:15 - error TS2724: '"../../api/api"' has no exported member named 'WorkItemTypeStatus'. Did you mean 'WorkItemType'?
+
+1 import type { WorkItemTypeStatus } from "../../api/api";
+                ~~~~~~~~~~~~~~~~~~
+
+  ../contracts/dist/cjs/generated/api/models/work-item-type.d.ts:17:22
+    17 export declare const WorkItemType: {
+                            ~~~~~~~~~~~~
+    'WorkItemType' is declared here.
+
+src/test/statusDefinitionFixture.ts:20:31 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+20         label: getStatusLabel(name),
+                                 ~~~~
+
+src/utils/goalStatus.ts:76:16 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+76         entity.statusMeaning === "FINISHED" &&
+                  ~~~~~~~~~~~~~
+
+src/utils/goalStatus.ts:77:16 - error TS2339: Property 'completionBehavior' does not exist on type 'TrackedEntitySnapshot'.
+
+77         entity.completionBehavior !== "CANCELLED",
+                  ~~~~~~~~~~~~~~~~~~
+
+src/utils/goalStatus.ts:85:14 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+85       entity.statusMeaning === "FINISHED" &&
+                ~~~~~~~~~~~~~
+
+src/utils/goalStatus.ts:86:14 - error TS2339: Property 'completionBehavior' does not exist on type 'TrackedEntitySnapshot'.
+
+86       entity.completionBehavior !== "CANCELLED"
+                ~~~~~~~~~~~~~~~~~~
+
+src/utils/goalStatus.ts:98:14 - error TS2339: Property 'statusMeaning' does not exist on type 'TrackedEntitySnapshot'.
+
+98       entity.statusMeaning === "FINISHED" &&
+                ~~~~~~~~~~~~~
+
+src/utils/goalStatus.ts:99:14 - error TS2339: Property 'completionBehavior' does not exist on type 'TrackedEntitySnapshot'.
+
+99       entity.completionBehavior === "CANCELLED"
+                ~~~~~~~~~~~~~~~~~~
+
+src/utils/statusUtils.ts:214:19 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+214     ...definition.statuses.map((status) => status.name),
+                      ~~~~~~~~
+
+src/utils/statusUtils.ts:214:33 - error TS7006: Parameter 'status' implicitly has an 'any' type.
+
+214     ...definition.statuses.map((status) => status.name),
+                                    ~~~~~~
+
+src/utils/statusUtils.ts:216:34 - error TS2339: Property 'supportsSupersession' does not exist on type 'WorkItemTypeCapabilities'.
+
+216     ...(definition.capabilities?.supportsSupersession ? ["SUPERSEDED"] : []),
+                                     ~~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:10:3 - error TS2344: Type '"statuses" | "capabilities"' does not satisfy the constraint 'keyof WorkItemTypeDefinitionDto'.
+  Type '"statuses"' is not assignable to type 'keyof WorkItemTypeDefinitionDto'.
+
+10   "statuses" | "capabilities"
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:31:19 - error TS18046: 'vocabulary.statuses' is of type 'unknown'.
+
+31   const defined = vocabulary?.statuses.find(({ name }) => name === status);
+                     ~~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:31:48 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+31   const defined = vocabulary?.statuses.find(({ name }) => name === status);
+                                                  ~~~~
+
+src/utils/workItemStatusVocabulary.ts:37:27 - error TS2345: Argument of type 'string' is not assignable to parameter of type 'WorkStatus'.
+
+37     return getStatusLabel(status);
+                             ~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:56:11 - error TS18046: 'vocabulary.statuses' is of type 'unknown'.
+
+56   return !vocabulary.statuses.some(({ name }) => name === status);
+             ~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:56:39 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+56   return !vocabulary.statuses.some(({ name }) => name === status);
+                                         ~~~~
+
+src/utils/workItemStatusVocabulary.ts:67:6 - error TS18046: 'vocabulary.statuses' is of type 'unknown'.
+
+67   ...vocabulary.statuses.map(({ name }) => name),
+        ~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:67:33 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+67   ...vocabulary.statuses.map(({ name }) => name),
+                                   ~~~~
+
+src/utils/workItemStatusVocabulary.ts:157:51 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto' is not assignable to parameter of type 'WorkItemStatusVocabulary'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+157     for (const status of getWorkItemStatusChoices(definition)) {
+                                                      ~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:160:40 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto' is not assignable to parameter of type 'WorkItemStatusVocabulary'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+160         getWorkItemStatusLabel(status, definition),
+                                           ~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:165:34 - error TS2339: Property 'supportsSupersession' does not exist on type 'WorkItemTypeCapabilities'.
+
+165     if (definition.capabilities?.supportsSupersession) {
+                                     ~~~~~~~~~~~~~~~~~~~~
+
+src/utils/workItemStatusVocabulary.ts:188:38 - error TS2345: Argument of type 'WorkItemTypeDefinitionDto | undefined' is not assignable to parameter of type 'WorkItemStatusVocabulary | undefined'.
+  Property 'statuses' is missing in type 'WorkItemTypeDefinitionDto' but required in type 'WorkItemStatusVocabulary'.
+
+188       getWorkItemStatusLabel(status, definition),
+                                         ~~~~~~~~~~
+
+src/utils/workItemTypeComparison.ts:210:17 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+210       setText(p.statuses.map(({ name }) => name)),
+                    ~~~~~~~~
+
+src/utils/workItemTypeComparison.ts:210:33 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+210       setText(p.statuses.map(({ name }) => name)),
+                                    ~~~~
+
+src/utils/workItemTypeComparison.ts:211:17 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+211       setText(c.statuses.map(({ name }) => name)),
+                    ~~~~~~~~
+
+src/utils/workItemTypeComparison.ts:211:33 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+211       setText(c.statuses.map(({ name }) => name)),
+                                    ~~~~
+
+src/utils/workItemTypeComparison.ts:217:19 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+217     orderedText(p.statuses.map(({ name }) => name)),
+                      ~~~~~~~~
+
+src/utils/workItemTypeComparison.ts:217:35 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+217     orderedText(p.statuses.map(({ name }) => name)),
+                                      ~~~~
+
+src/utils/workItemTypeComparison.ts:218:19 - error TS2339: Property 'statuses' does not exist on type 'WorkItemTypeDefinitionDto'.
+
+218     orderedText(c.statuses.map(({ name }) => name)),
+                      ~~~~~~~~
+
+src/utils/workItemTypeComparison.ts:218:35 - error TS7031: Binding element 'name' implicitly has an 'any' type.
+
+218     orderedText(c.statuses.map(({ name }) => name)),
+                                      ~~~~
+
+
+Found 307 errors in 95 files.
+
+Errors  Files
+     9  src/clients/serviceClients.ts:1
+     7  src/components/Activity/mapActivityRecordToGraphData.ts:54
+     1  src/components/AgentSession/AgentSessionContinuationCard.tsx:13
+     4  src/components/AgentSession/agentSessionContinuationRecoveryState.ts:2
+     1  src/components/AgentSession/CollatedFileDiffModal/CollatedFileDiffModal.tsx:34
+     2  src/components/AgentSession/CollatedFileDiffModal/FullFileSplitView.tsx:1
+     6  src/components/AgentSession/runtime/directoryBindingApi.ts:10
+     2  src/components/AgentSession/useAgentSessionContinuation.ts:5
+     2  src/components/AgentSession/useAgentSessionContinuationRecovery.ts:3
+     2  src/components/Conversation/Components/__tests__/conversationTestUtils.tsx:465
+     1  src/components/Conversation/Components/ConversationMessage.tsx:18
+     5  src/components/Conversation/Components/MessageAuthorCaption.tsx:7
+     2  src/components/Conversation/hooks/useConversationSubmission.ts:107
+     5  src/components/Conversation/SecondaryActionRenderer.tsx:4
+     4  src/components/Entity/adapters.ts:200
+     3  src/components/EntityCollection/entityCollectionStatusTabs.ts:51
+     4  src/components/LlmForms/Registry/AgentPermissionRequestField.tsx:483
+     3  src/components/LlmForms/Registry/CodingPlanDiscrepancyField.tsx:27
+     1  src/components/LlmForms/Registry/EntityStatusChip.tsx:82
+     1  src/components/LlmForms/Registry/FinalAssessmentStructuredField.tsx:1829
+     3  src/components/LlmForms/Registry/QuestionGroupField.tsx:42
+     3  src/components/LlmForms/Registry/VerifyFeatureField.tsx:41
+     1  src/components/Plans/planStageTaskMonitorSetup.ts:214
+     1  src/components/Plans/PlanStageTaskMonitorSetupReview/index.tsx:121
+     1  src/components/ProjectApprovalSettings/ApprovalEffectiveRule.tsx:4
+     4  src/components/ProjectApprovalSettings/approvalRuleDocument.ts:3
+     1  src/components/ProjectApprovalSettings/approvalRuleFields.ts:1
+     4  src/components/ProjectApprovalSettings/ApprovalRuleModal.tsx:19
+     2  src/components/ProjectApprovalSettings/BuiltInRulesPanel.tsx:4
+     5  src/components/ProjectApprovalSettings/ProjectApprovalSettings.tsx:17
+     1  src/components/ProjectApprovalSettings/ProjectRulesPanel.tsx:4
+     2  src/components/ProjectApprovalSettings/useApprovalPolicySave.ts:4
+     5  src/components/ProjectApprovalSettings/useApprovalRuleForm.ts:3
+     5  src/components/ProposalDispatchers/approvalExplanationPresentation.ts:2
+     4  src/components/ProposalDispatchers/ExistingTaskPlanCreateRenderer.tsx:83
+     4  src/components/ProposalDispatchers/ProposalApprovalDetails.tsx:13
+     3  src/components/ProposalDispatchers/types.ts:594
+     3  src/components/ProposalDispatchers/WorkItemGraphChangeSummary.tsx:365
+     1  src/components/ProposalDispatchers/WorkItemGraphProposalRenderer.tsx:286
+     3  src/components/ProposalDispatchers/WorkItemTypeCreateProposalPresentation.tsx:296
+     1  src/components/ProposalDispatchers/WorkItemTypeCreateRenderer.tsx:121
+     3  src/components/ProposalDispatchers/workItemTypeDefinitionComparison.ts:85
+     3  src/components/ProposalReconciliation/ScopedResolutionEditor.tsx:88
+     4  src/components/Reports/ReportViewer.tsx:22
+     8  src/components/Reports/viewer/CodingResearchReport.tsx:39
+     3  src/components/Reports/viewer/codingResearchSubagentParentUncertainties.ts:148
+     1  src/components/Reports/viewer/FeatureSyncDecisionReport.tsx:591
+     1  src/components/Reports/viewer/MonitorNodeResultReport.tsx:2
+     1  src/components/Reports/viewer/rendererContract.ts:235
+     5  src/components/Selectors/WorkItemStatusSelector.tsx:76
+     1  src/components/shared/EntityHoverCard/EntityHoverCard.tsx:453
+     2  src/components/shared/EvalCaseInputsSection.tsx:13
+     1  src/components/shared/WorkItemComponents.tsx:37
+     7  src/components/shared/workItemGraphDraft.ts:13
+     3  src/components/SmarterTextAreaCard/slashCommands/WorkItemReferencePickerDialog.tsx:136
+     1  src/components/TaskMonitor/__tests__/taskMonitorTestFixtures.ts:23
+     2  src/components/TaskMonitor/TaskMonitor.tsx:145
+     6  src/components/TaskMonitor/TaskMonitorWorkspaceView.tsx:191
+     3  src/components/TaskMonitor/useMonitorKind.ts:1
+     5  src/components/WorkItem/StatusActionCompact.tsx:166
+     2  src/components/WorkItem/WorkItemEditor.tsx:409
+     1  src/components/WorkItem/WorkItemMetadata.tsx:102
+     1  src/contexts/EntityActivationContext.tsx:28
+     9  src/data/collections/agentSessionContinuation.ts:3
+     1  src/data/collections/agentSessions.ts:292
+     8  src/data/collections/evalRuns.ts:10
+     6  src/data/collections/projectApprovalPolicy.ts:3
+     3  src/data/collections/workItemExecutionState.ts:3
+     2  src/data/collections/workItemLists.ts:9
+     1  src/data/collections/workItemReferences.ts:38
+     1  src/data/collections/workItemTypes.ts:136
+     2  src/data/evalRunStatusLabel.ts:2
+     2  src/data/hooks/useAgentSessionContinuationStatus.ts:3
+     1  src/data/hooks/useEvalRunSession.ts:204
+     2  src/data/hooks/useExistingPlanTasks.ts:2
+     4  src/data/hooks/useOpenItemGoalWork.ts:7
+     9  src/data/hooks/useOpenItemSessionRename.ts:6
+     2  src/data/hooks/useProjectApprovalPolicy.ts:3
+     1  src/data/hooks/useProjectChanges.ts:3
+     7  src/data/hooks/useRecordedEdit.ts:8
+     2  src/data/hooks/useWorkItemExecutionState.ts:4
+     2  src/data/hooks/useWorkItemTypeCanonicalComparison.ts:2
+     3  src/data/hooks/useWorkItemTypeLifecycle.ts:15
+     3  src/data/openItemsAdapter.ts:471
+     3  src/data/openItemsMapping.ts:157
+     4  src/data/websockets/handler.ts:37
+     2  src/services/browserSessionDiagnostics.ts:3
+     2  src/services/localStartupDiagnostics.ts:7
+     8  src/services/webSocketService.ts:48
+     1  src/test/fixtures/workItemStatuses.ts:1
+     1  src/test/statusDefinitionFixture.ts:20
+     6  src/utils/goalStatus.ts:76
+     3  src/utils/statusUtils.ts:214
+    12  src/utils/workItemStatusVocabulary.ts:10
+     8  src/utils/workItemTypeComparison.ts:210
+zacdev@Zacs-MacBook-Pro graphql %

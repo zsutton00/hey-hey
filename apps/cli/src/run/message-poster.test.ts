@@ -212,62 +212,65 @@ describe('MessagePoster — typed EXTERNAL_AGENT completion', () => {
     },
   );
 
-  it.each([409, 422])('logs typed rejection diagnostics and does not retry a permanent %i', async (status) => {
-    const rejection = Object.assign(new Error('completion rejected'), {
-      response: {
-        status,
-        headers: {
-          'x-request-id': '11111111-1111-4111-8111-111111111111',
-          'x-correlation-id': '22222222-2222-4222-8222-222222222222',
+  it.each([409, 422])(
+    'logs typed rejection diagnostics and does not retry a permanent %i',
+    async (status) => {
+      const rejection = Object.assign(new Error('completion rejected'), {
+        response: {
+          status,
+          headers: {
+            'x-request-id': '11111111-1111-4111-8111-111111111111',
+            'x-correlation-id': '22222222-2222-4222-8222-222222222222',
+          },
+          data: {
+            code: 'STALE_TRIGGER',
+            reason: 'STALE_TRIGGER',
+            responseBodyPresent: true,
+          },
         },
-        data: {
-          code: 'STALE_TRIGGER',
-          reason: 'STALE_TRIGGER',
-          responseBodyPresent: true,
-        },
-      },
-    });
-    const apiClient = makeApiClient({
-      submitExternalAgentCompletion: vi.fn().mockRejectedValue(rejection),
-    });
-    const logger = makeLogger();
-    const poster = new MessagePoster({ apiClient, logger, dataDir });
-    const args = {
-      organizationId: asOrganizationId('org-1'),
-      projectId: asProjectId('proj-1'),
-      agentSessionId: asAgentSessionId('agent-session-1'),
-      effectId: '00000000-0000-4000-8000-000000000001',
-      request: {
-        conversationId: asConversationId('conv-1'),
-        workflowNodeId: 'implementation',
-        pendingTriggerMessageId: asMessageId('trigger-message-1'),
-        action: 'DONE',
-      },
-    };
-
-    await expect(poster.submitExternalAgentCompletion(args)).rejects.toBe(rejection);
-    expect(apiClient.submitExternalAgentCompletion).toHaveBeenCalledOnce();
-    expect(logger.warn).toHaveBeenCalledWith(
-      'local.message_poster.attempt_failed',
-      expect.objectContaining({
-        operation: 'external_agent_completion',
-        agentSessionId: 'agent-session-1',
+      });
+      const apiClient = makeApiClient({
+        submitExternalAgentCompletion: vi.fn().mockRejectedValue(rejection),
+      });
+      const logger = makeLogger();
+      const poster = new MessagePoster({ apiClient, logger, dataDir });
+      const args = {
+        organizationId: asOrganizationId('org-1'),
+        projectId: asProjectId('proj-1'),
+        agentSessionId: asAgentSessionId('agent-session-1'),
         effectId: '00000000-0000-4000-8000-000000000001',
-        workflowNodeId: 'implementation',
-        pendingTriggerMessageId: 'trigger-message-1',
-        action: 'DONE',
-        attempt: 1,
-        statusCode: status,
-        rejectionCode: 'STALE_TRIGGER',
-        rejectionReason: 'STALE_TRIGGER',
-        requestId: '11111111-1111-4111-8111-111111111111',
-        correlationId: '22222222-2222-4222-8222-222222222222',
-        responseBodyPresent: true,
-        transient: false,
-        retryScheduled: false,
-      }),
-    );
-  });
+        request: {
+          conversationId: asConversationId('conv-1'),
+          workflowNodeId: 'implementation',
+          pendingTriggerMessageId: asMessageId('trigger-message-1'),
+          action: 'DONE',
+        },
+      };
+
+      await expect(poster.submitExternalAgentCompletion(args)).rejects.toBe(rejection);
+      expect(apiClient.submitExternalAgentCompletion).toHaveBeenCalledOnce();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'local.message_poster.attempt_failed',
+        expect.objectContaining({
+          operation: 'external_agent_completion',
+          agentSessionId: 'agent-session-1',
+          effectId: '00000000-0000-4000-8000-000000000001',
+          workflowNodeId: 'implementation',
+          pendingTriggerMessageId: 'trigger-message-1',
+          action: 'DONE',
+          attempt: 1,
+          statusCode: status,
+          rejectionCode: 'STALE_TRIGGER',
+          rejectionReason: 'STALE_TRIGGER',
+          requestId: '11111111-1111-4111-8111-111111111111',
+          correlationId: '22222222-2222-4222-8222-222222222222',
+          responseBodyPresent: true,
+          transient: false,
+          retryScheduled: false,
+        }),
+      );
+    },
+  );
 });
 
 describe('MessagePosterApiClient surface no longer exposes getLatestMessageId', () => {
@@ -841,6 +844,8 @@ describe('failure messages use ordinary message publication', () => {
           data: expect.objectContaining({
             response:
               "Service Backend isn't bound to a folder on this machine. Bind a folder, then send your message again.",
+            presentation: 'notice',
+            noticeSeverity: 'warning',
             ragEnabled: false,
           }),
         }),

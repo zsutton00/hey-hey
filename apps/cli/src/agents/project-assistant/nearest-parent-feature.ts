@@ -154,6 +154,8 @@ const parentFeatureHeading = (feature: Pick<TaskResponseDto, 'id' | 'name'>): st
 /** With a filter, Jev picks which requirements load in full; anything that stops it keeps the full load. */
 export interface ParentFeatureFilterInput {
   settings: ParentRequirementsFilter;
+  /** Agent session the Run belongs to; stamped on the attempt log. */
+  sessionId: string;
   loaded: LoadedEntityPromptContext;
 }
 
@@ -188,7 +190,7 @@ export const loadNearestParentFeatureSection = async (
     }
 
     try {
-      const file = await writeAttemptRecord(attemptLogDir, record);
+      const file = await writeAttemptRecord(attemptLogDir, filter.sessionId, record);
       deps.logger.info('project_assistant.prepare.parent_feature.attempt_logged', { file });
     } catch (error) {
       deps.logger.warn('project_assistant.prepare.parent_feature.attempt_log_failed', {

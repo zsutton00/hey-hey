@@ -1,6 +1,8 @@
+import { localWebOrigin } from '../local-app/compose';
+import { resolveLocalWebPort } from '../local-app/local-port';
+
 const PRODUCTION_WEB_ORIGIN = 'https://heyhey.dev';
 const LOCAL_API_ORIGIN = 'http://localhost:3000';
-const LOCAL_WEB_ORIGIN = 'http://localhost:5173';
 
 export type PairingWebRoute = 'pairing' | 'add-controller';
 
@@ -9,7 +11,8 @@ export const resolvePairingWebOrigin = (env: NodeJS.ProcessEnv = process.env): s
   if (override) return new URL(override).origin;
 
   const apiUrl = env['HEYHEY_API_URL']?.trim();
-  if (apiUrl && new URL(apiUrl).origin === LOCAL_API_ORIGIN) return LOCAL_WEB_ORIGIN;
+  if (apiUrl && new URL(apiUrl).origin === LOCAL_API_ORIGIN)
+    return localWebOrigin(resolveLocalWebPort(env));
 
   return PRODUCTION_WEB_ORIGIN;
 };

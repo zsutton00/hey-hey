@@ -18,6 +18,10 @@ import type { PlanWorkItem } from "../../data/plans/canonicalPlan";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { getPathService, type PathService } from "../../services";
 import { formatStatus } from "../../utils/statusUtils";
+import {
+  getWorkItemStatusLabel,
+  isRetainedRemovedStatus,
+} from "../../utils/workItemStatusVocabulary";
 import { getWorkItemSectionContent } from "../../utils/workItemSections";
 import {
   getWorkItemCounts,
@@ -192,10 +196,19 @@ const resolveTaskStatus = (
     return task.status;
   }
 
-  return options.workItemTypeDefinition?.allowedStatuses.length
-    ? task.status
-    : undefined;
+  const definition = options.workItemTypeDefinition;
+  if (!definition?.statuses.length) {
+    return undefined;
+  }
+
+  return getWorkItemStatusLabel(task.status, definition);
 };
+
+const taskStatusNeedsReplacement = (
+  task: WorkItemResponseDto,
+  options: AdapterOptions,
+): boolean =>
+  isRetainedRemovedStatus(task.status, options.workItemTypeDefinition);
 
 /**
  * Format a date string to localized short date format
@@ -465,6 +478,7 @@ export const taskAdapter: EntityListItemAdapter<TaskListItem> = {
       title: task.name,
       description: getWorkItemSectionContent(task.sections, "description"),
       status: resolveTaskStatus(task, options),
+      statusNeedsReplacement: taskStatusNeedsReplacement(task, options),
       entityKindLabel: options.showEntityKind
         ? options.workItemTypeDefinition?.key === task.type
           ? options.workItemTypeDefinition.name

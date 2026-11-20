@@ -2,8 +2,14 @@ import { restrictTaskWhere } from 'src/read-restriction/read-policy';
 import { ReadVisibilityService } from 'src/read-restriction/read-visibility.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { ProposalReconciliationService } from '../proposal/proposal-reconciliation.service';
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
+import {
+  statusNamesInGroup,
+  type McpStatusGroup,
+} from '../tasks/work-item-status-groups';
 import {
   WORK_ITEM_TYPE_KEYS,
   type WorkItemTypeKey,
@@ -14,7 +20,6 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { WorkStatus } from '@prisma/client';
 
 import { WorkItemTypeRegistryService } from '../tasks/work-item-type-registry.service';
 import { TaskService, type TaskEntity } from '../tasks/task.service';
@@ -46,9 +51,18 @@ import {
 import { EntityType as EntityTypeEnum } from '@hey-hey/contracts/api/models';
 import { GraphsClientService } from 'src/services/graphs-client.service';
 import {
+  collectRequirementCitationIds,
+  findArchivedEntityIds,
+  omitArchivedCitations,
+} from './archived-entity-filter';
+import {
   selectRelatedEntities,
   type RelatedEntitySelectionPolicy,
 } from './related-entity-selection';
+import {
+  groupFeatureHierarchy,
+  groupRelatedEntities,
+} from './related-entity-grouping';
 import {
   AGENT_EDGE_LABELS,
   graphRelationshipToAgentEdge,
@@ -86,6 +100,7 @@ import {
   isAgentEdgeRelationshipType,
   isFlowAgentEdgeRelationshipType,
 } from './relationship-mapping';
+import { isPlanStageWorkType } from '../tasks/work-item-type-keys';
 import { projectContextProposalSummaries } from './proposal-history-projection';
 
 export type {
@@ -136,6 +151,8 @@ export interface EntityContextIncludeFlags {
   includeAvailableMcpTools?: boolean;
   relatedEntityDepth?: RelatedEntityDepth;
   relatedEntitySelection?: RelatedEntitySelectionPolicy;
+  /** Agent view: one entry per related entity and per hierarchy feature. */
+  groupRelationships?: boolean;
   proposalDetail?: ProposalDetail;
 }
 
@@ -339,6 +356,31 @@ function collectPlanPivotEntityIds(
  * entity renders. A null `materializedMarkdown` collapses to an empty
  * string — the section exists, it just has no content yet.
  */
+/**
+ * Returns a copy of the content whose requirements, structured and raw, omit
+ * citations to archived entities. Returns the content as-is when nothing is
+ * archived; the stored section is never modified.
+ */
+function omitArchivedRequirementCitations(
+  content: EntityContentDto,
+  archivedIds: ReadonlySet<string>,
+): EntityContentDto {
+  if (archivedIds.size === 0 || !content.requirementsSection) {
+    return content;
+  }
+
+  const pruned = omitArchivedCitations(
+    content.requirementsSection,
+    archivedIds,
+  );
+
+  return {
+    ...content,
+    requirementsSection: pruned,
+    sections: { ...content.sections, requirements: JSON.stringify(pruned) },
+  };
+}
+
 function formatSections(
   sections: {
     key: string;
@@ -430,8 +472,7 @@ export class EntityContextService {
     private readonly graphsClientService: GraphsClientService,
     private readonly workItemTypeRegistry: WorkItemTypeRegistryService,
     private readonly taskService: TaskService,
-    @Optional()
-    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService = new ProjectApprovalPolicyService(),
+    private readonly projectApprovalPolicyService: ProjectApprovalPolicyService,
   ) {
     this.visibility = new ReadVisibilityService(prisma);
   }
@@ -504,6 +545,7 @@ export class EntityContextService {
             {
               workItemTypeRegistry: this.workItemTypeRegistry,
               reconciliation: this.reconciliation,
+              omitUnresolvableTargets: true,
             },
           )
         : undefined;
@@ -703,13 +745,27 @@ export class EntityContextService {
       await Promise.all(reads).finally(() => Promise.allSettled(reads));
     const planContext = placement?.planContext ?? null;
 
+    // Agent view only: archived neighbors and citations are hidden from what
+    // agents read. Stored data and the internal pivot sets are untouched.
+    const archivedIds = includeFlags?.groupRelationships
+      ? await findArchivedEntityIds(this.prisma, [
+          ...(auxiliary.relatedEntities ?? []).map((e) => e.entityId),
+          ...(auxiliary.agentSessions ?? []).map((s) => s.entityId),
+          ...featureHierarchy.map((f) => f.id),
+          ...collectRequirementCitationIds(content?.requirementsSection),
+        ])
+      : new Set<string>();
+    const notArchived = (id: string) => !archivedIds.has(id);
+
     const result: FullEntityContextDto = { ...context };
     if (planContext) {
       result.planContext = planContext;
     }
     if (wantRelatedEntities) {
       const visibleRelated = await this.visibility.filterVisible(
-        auxiliary.relatedEntities ?? [],
+        (auxiliary.relatedEntities ?? []).filter((e) =>
+          notArchived(e.entityId),
+        ),
         (related) => ({
           entityType: related.entityType,
           entityId: related.entityId,
@@ -721,17 +777,32 @@ export class EntityContextService {
         auxiliary.graphOmittedCandidateCount ?? 0,
       );
       result.relatedEntities = selection.relatedEntities;
+      if (includeFlags?.groupRelationships) {
+        result.groupedRelatedEntities = groupRelatedEntities(
+          selection.relatedEntities,
+        );
+      }
       result.relatedEntitySelection = {
         candidateEntityCount: selection.candidateEntityCount,
         omittedEntityCount: selection.omittedEntityCount,
       };
-      result.agentSessions = auxiliary.agentSessions ?? [];
+      result.agentSessions = await this.visibility.filterVisible(
+        (auxiliary.agentSessions ?? []).filter((s) => notArchived(s.entityId)),
+        (session) => ({
+          entityType: session.entityType,
+          entityId: session.entityId,
+        }),
+      );
     }
     if (wantHierarchy) {
-      result.featureHierarchy = featureHierarchy;
+      result.featureHierarchy = includeFlags?.groupRelationships
+        ? groupFeatureHierarchy(
+            featureHierarchy.filter((f) => notArchived(f.id)),
+          )
+        : featureHierarchy;
     }
     if (content) {
-      result.content = content;
+      result.content = omitArchivedRequirementCitations(content, archivedIds);
     }
     if (conversationSeed) {
       result.conversationContext = conversationSeed.conversationContext;
@@ -1783,6 +1854,34 @@ export class EntityContextService {
     return items;
   }
 
+  private goalStatuses(projectId: ProjectId) {
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      WORK_ITEM_TYPE_KEYS.Goal,
+      projectId,
+    );
+    if (!rules) {
+      this.logger.warn(
+        'Goal type not resolved in project registry; no status meanings available',
+        { typeKey: WORK_ITEM_TYPE_KEYS.Goal, projectId },
+      );
+    }
+
+    return rules?.statuses ?? [];
+  }
+
+  private finishedGoalStatusNames(projectId: ProjectId): string[] {
+    return this.goalStatuses(projectId)
+      .filter((status) => status.meaning === 'FINISHED')
+      .map((status) => status.name);
+  }
+
+  private goalStatusNamesInGroup(
+    projectId: ProjectId,
+    group: McpStatusGroup,
+  ): string[] {
+    return statusNamesInGroup(this.goalStatuses(projectId), group);
+  }
+
   /**
    * Returns every GOAL-typed task in the project as a flat list.
    *
@@ -1802,22 +1901,26 @@ export class EntityContextService {
     projectId: ProjectId,
     limit: number,
     offset: number,
-    statuses?: WorkStatus[],
+    statusGroup?: McpStatusGroup,
   ): Promise<ListGoalsResponseDto> {
     this.logger.log('listGoals called', {
       organizationId,
       projectId,
       limit,
       offset,
-      statuses,
+      statusGroup,
     });
+
+    const statuses = statusGroup
+      ? this.goalStatusNamesInGroup(projectId, statusGroup)
+      : undefined;
 
     const where = {
       organizationId,
       projectId,
       type: WORK_ITEM_TYPE_KEYS.Goal,
       archivedAt: null,
-      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+      ...(statuses ? { status: { in: statuses } } : {}),
     };
 
     const [rows, total] = await this.prisma.db.$transaction([
@@ -1866,7 +1969,7 @@ export class EntityContextService {
   /**
    * Returns undated GOAL-typed tasks and dated Goals inside a fixed
    * look-ahead window for a user. "Active" means: not archived, status not
-   * in COMPLETED / CANCELLED / ARCHIVED, and no date or dueDate between now and
+   * in effective FINISHED statuses / ARCHIVED, and no date or dueDate between now and
    * `now + windowDays`.
    *
    * Audience is derived per goal from the goal_memberships join: zero
@@ -1905,9 +2008,8 @@ export class EntityContextService {
         archivedAt: null,
         status: {
           notIn: [
-            WorkStatus.COMPLETED,
-            WorkStatus.CANCELLED,
-            WorkStatus.ARCHIVED,
+            ...this.finishedGoalStatusNames(projectId),
+            WorkStatus.Archived,
           ],
         },
         OR: [{ dueDate: null }, { dueDate: { gte: now, lte: windowEnd } }],
@@ -2357,7 +2459,8 @@ export class EntityContextService {
       },
     });
     if (
-      task?.type === 'STANDARD' &&
+      task?.type != null &&
+      isPlanStageWorkType(task.type) &&
       task.parentTask?.type === 'PLAN_STAGE' &&
       task.parentTask.parentTask?.type === 'PLAN'
     ) {
@@ -2460,7 +2563,7 @@ export class EntityContextService {
     }
 
     if (
-      task.type === 'STANDARD' &&
+      isPlanStageWorkType(task.type) &&
       task.parentTask?.type === 'PLAN_STAGE' &&
       task.parentTask.parentTask?.type === 'PLAN'
     ) {
@@ -2616,7 +2719,8 @@ export class EntityContextService {
       }
 
       if (
-        task?.type === 'STANDARD' &&
+        task?.type != null &&
+        isPlanStageWorkType(task.type) &&
         task.parentTask?.type === 'PLAN_STAGE' &&
         task.parentTask.parentTask?.type === 'PLAN'
       ) {

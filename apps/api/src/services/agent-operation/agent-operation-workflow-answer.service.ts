@@ -12,6 +12,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   AgentOperation,
@@ -214,7 +215,7 @@ export class AgentOperationWorkflowAnswerService {
         select: { id: true, workflowId: true },
       });
       if (!conversation?.workflowId) {
-        throw new ConflictException({
+        throw new UnprocessableEntityException({
           code: 'WORKFLOW_ANSWER_BINDING_MISMATCH',
           message: 'The answer does not match an active workflow conversation.',
         });

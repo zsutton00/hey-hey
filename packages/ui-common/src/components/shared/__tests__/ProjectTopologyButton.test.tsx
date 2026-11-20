@@ -7,13 +7,11 @@ import {
   type ProjectTopologyButtonProps,
 } from "../ProjectTopologyButton";
 
-const renderButton = (
-  props: Partial<ProjectTopologyButtonProps> = {}
-) =>
+const renderButton = (props: Partial<ProjectTopologyButtonProps> = {}) =>
   render(
     <ThemeProvider theme={createHeyTheme("light")}>
       <ProjectTopologyButton onClick={vi.fn()} {...props} />
-    </ThemeProvider>
+    </ThemeProvider>,
   );
 
 describe("ProjectTopologyButton", () => {
@@ -21,8 +19,12 @@ describe("ProjectTopologyButton", () => {
     renderButton();
 
     const button = screen.getByTestId("project-topology-button");
-    expect(button).toHaveAccessibleName("Potential project sync issue");
-    expect(button).toHaveTextContent("Potential project sync issue");
+    expect(button).toHaveAccessibleName(
+      "Start a conversation to verify this feature",
+    );
+    expect(button).toHaveTextContent(
+      "Start a conversation to verify this feature",
+    );
     expect(button).toHaveAttribute("type", "button");
     expect(button).toHaveStyle({
       backgroundColor: "rgb(8, 126, 139)",
@@ -51,7 +53,7 @@ describe("ProjectTopologyButton", () => {
     const { rerender } = render(
       <ThemeProvider theme={createHeyTheme("light")}>
         <ProjectTopologyButton onClick={disabledClick} disabled />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const button = screen.getByTestId("project-topology-button");
@@ -63,7 +65,7 @@ describe("ProjectTopologyButton", () => {
     rerender(
       <ThemeProvider theme={createHeyTheme("light")}>
         <ProjectTopologyButton onClick={loadingClick} loading />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const loadingButton = screen.getByTestId("project-topology-button");

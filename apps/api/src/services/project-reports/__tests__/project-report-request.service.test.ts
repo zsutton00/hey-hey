@@ -125,7 +125,10 @@ describe('ProjectReportRequestService', () => {
         ...submission,
         question: 'Different question',
       }),
-    ).rejects.toThrow(ConflictException);
+    ).rejects.toMatchObject({
+      status: 422,
+      response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+    });
   });
 
   it('compares saved repository selection semantically and rejects a changed subset', async () => {
@@ -517,6 +520,55 @@ describe('ProjectReportRequestService', () => {
           reportId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         },
       },
+    });
+  });
+
+  it('answers 422 when a completed attempt receives a report with changed input', async () => {
+    const completed = {
+      ...row,
+      status: 'COMPLETED',
+      attempts: [
+        {
+          ...row.attempts[0],
+          status: 'COMPLETED',
+          failedAt: null,
+          failure: null,
+          agentSessionId,
+          conversationId,
+          reportId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          completedAt: now,
+        },
+      ],
+    };
+    const tx = {
+      $queryRaw: jest.fn(),
+      projectReportRequest: {
+        findFirst: jest.fn().mockResolvedValue(completed),
+      },
+    };
+    await expect(
+      service.assertReportSubmissionInTransaction(
+        tx as unknown as Prisma.TransactionClient,
+        organizationId,
+        projectId,
+        agentSessionId,
+        conversationId,
+        userId,
+        {
+          ...projectReportPayload,
+          question: `${submission.question} (changed)`,
+          scope: submission.scope,
+          exclusions: submission.exclusions,
+          provenance: {
+            ...projectReportPayload.provenance,
+            requestId: row.id,
+            attemptId,
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 422,
+      response: { code: 'IDEMPOTENCY_KEY_REUSED' },
     });
   });
 });

@@ -60,6 +60,12 @@ export interface UnifiedSearchCommonFilters {
      */
     'excludeReportTypes'?: Array<ReportType>;
     /**
+     * Internal. Entities removed from every search lane inside the retrieval query, before limits, offsets and totals. Normally produced from `excludeConnected` rather than supplied directly.
+     * @type {Array<string>}
+     * @memberof UnifiedSearchCommonFilters
+     */
+    'excludeEntityIds'?: Array<string>;
+    /**
      * Canonical statuses to apply across graph and embeddings searches.
      * @type {Array<string>}
      * @memberof UnifiedSearchCommonFilters

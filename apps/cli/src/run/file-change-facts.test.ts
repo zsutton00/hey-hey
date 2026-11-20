@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AgenticSession, AgenticSessionContextMetadata } from '../session/types';
 import {
-  groupFileChangeProjectionsByService,
   isConservativePathCorrection,
   latestFileChangeFacts,
   projectFileChanges,
   resolveRunFilePath,
   type CanonicalFileChangeFact,
+  extractFilePathsFromToolInput,
 } from './file-change-facts';
 
 const makeSession = (): AgenticSession => ({
@@ -90,17 +90,24 @@ describe('canonical file-change facts', () => {
     expect(latestFileChangeFacts(facts).map((entry) => entry.factId)).toEqual(['two', 'three']);
   });
 
-  it('groups canonical projections by service without conflating duplicate repo-relative paths', () => {
-    expect(
-      groupFileChangeProjectionsByService([
-        { serviceId: 'service-b', repoRelativePath: 'src/shared.ts' },
-        { serviceId: 'service-a', repoRelativePath: 'src/shared.ts' },
-        { serviceId: 'service-a', repoRelativePath: 'src/a.ts' },
-        { serviceId: 'service-a', repoRelativePath: 'src/a.ts' },
-      ]),
-    ).toEqual([
-      { serviceId: 'service-a', filesChanged: ['src/a.ts', 'src/shared.ts'] },
-      { serviceId: 'service-b', filesChanged: ['src/shared.ts'] },
+  it('names every file an apply_patch envelope and a notebook edit touch', () => {
+    const command = [
+      '*** Begin Patch',
+      '*** Update File: src/a.ts',
+      '*** Move to: src/b.ts',
+      '*** Add File: src/new.ts',
+      '*** Delete File: old.ts',
+      '*** End Patch',
+    ].join('\n');
+
+    expect(extractFilePathsFromToolInput('apply_patch', { command })).toEqual([
+      'src/a.ts',
+      'src/b.ts',
+      'src/new.ts',
+      'old.ts',
+    ]);
+    expect(extractFilePathsFromToolInput('NotebookEdit', { notebook_path: '/r/n.ipynb' })).toEqual([
+      '/r/n.ipynb',
     ]);
   });
 });

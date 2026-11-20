@@ -102,6 +102,11 @@ OpenItemPresentation:
       maxLength: 64
       nullable: true
       description: Registry work-item type key for registry-backed icons (work items only).
+    conversationId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Authoritative associated conversation identity for every Agent Session type; independent of navigation route fields.
     agentSessionType:
       type: string
       maxLength: 64
@@ -465,7 +470,8 @@ MigrateOpenItemsGroup:
 MigrateOpenItemsItem:
   type: object
   additionalProperties: false
-  required: [entityType, entityId, note, pinned, localGroupId, lineage, presentation]
+  required:
+    [entityType, entityId, note, pinned, localGroupId, lineage, presentation]
   description: Browser-local item. Array order is collection order; within a group, relative array order is member order.
   properties:
     entityType:
@@ -531,7 +537,15 @@ OpenItemsValidationError:
       enum: [false]
     code:
       type: string
-      enum: [INVALID_REQUEST, ITEM_NOT_OPEN, GROUP_NOT_FOUND, INVALID_PLACEMENT, INVALID_MIGRATION_MEMBERSHIP, COLLECTION_LIMIT_EXCEEDED]
+      enum:
+        [
+          INVALID_REQUEST,
+          ITEM_NOT_OPEN,
+          GROUP_NOT_FOUND,
+          INVALID_PLACEMENT,
+          INVALID_MIGRATION_MEMBERSHIP,
+          COLLECTION_LIMIT_EXCEEDED,
+        ]
     message:
       type: string
     violations:
@@ -563,7 +577,6 @@ OpenItemsConflictError:
       enum:
         - COLLECTION_ALREADY_EXISTS
         - COLLECTION_ABSENT
-        - IDEMPOTENCY_KEY_REUSED
     message:
       type: string
     currentCollectionRevision:
@@ -571,6 +584,27 @@ OpenItemsConflictError:
         - $ref: "#/OpenItemRevision"
       nullable: true
       description: Current canonical collection revision; null when the collection is absent. Clients re-read before retrying.
+
+OpenItemsIdempotencyKeyReusedError:
+  type: object
+  additionalProperties: false
+  required: [success, code, message, currentCollectionRevision]
+  description: The idempotency key was already recorded for a different request. A key reused while its first request is still running is not this error; Open Items mutations run in one transaction, so that case does not arise.
+  properties:
+    success:
+      type: boolean
+      enum: [false]
+    code:
+      type: string
+      enum:
+        - IDEMPOTENCY_KEY_REUSED
+    message:
+      type: string
+    currentCollectionRevision:
+      allOf:
+        - $ref: "#/OpenItemRevision"
+      nullable: true
+      description: Current canonical collection revision.
 
 OpenItemsTriageSession:
   type: object
@@ -651,3 +685,11 @@ PromoteGroupToGoalResult:
         $ref: "#/OpenItemRef"
     replayed:
       type: boolean
+
+RefreshOpenItemPresentationRequest:
+  type: object
+  additionalProperties: false
+  required: [idempotencyKey]
+  properties:
+    idempotencyKey:
+      $ref: "#/OpenItemIdempotencyKey"

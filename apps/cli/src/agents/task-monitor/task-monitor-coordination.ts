@@ -5,6 +5,9 @@ import type {
   TaskMonitorLifecycleCause,
 } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
+import type { TaskMonitorMachineContext } from './state-machine/context';
+import { currentJudgmentRequest } from './state-machine/current-judgment-request';
+import { isDeliveredStatus } from './task-finished-status';
 
 const reportTypeSchema = z.enum(Object.values(ReportType) as [ReportType, ...ReportType[]]);
 
@@ -54,7 +57,8 @@ export const taskMonitorCoordinationLocalStateFromContext = (
     readonly conversationId: string | null;
     readonly reviewRequest: { readonly requestId: string } | null;
     readonly settledRun: TaskMonitorCoordinationSettledRun | null;
-    readonly failureReason?: string | null;
+    readonly pendingJudgment?: TaskMonitorMachineContext['pendingJudgment'];
+    readonly coordinatorRecovery?: TaskMonitorMachineContext['coordinatorRecovery'];
   },
   control: TaskMonitorCoordinationLocalState['control'],
   work: string,
@@ -67,7 +71,7 @@ export const taskMonitorCoordinationLocalStateFromContext = (
   activeRunId: context.settledRun?.runId ?? null,
   conversationId: context.conversationId,
   reviewRequestId: context.reviewRequest?.requestId ?? null,
-  pendingJudgmentReason: context.failureReason ?? null,
+  pendingJudgmentReason: currentJudgmentRequest(context)?.request ?? null,
   committedEffectId: null,
   settledRun: context.settledRun
     ? {
@@ -201,8 +205,16 @@ export const validateTaskMonitorDecision = (
       }
       return { ok: true, value: decision };
     case 'ACCEPT_TASK': {
-      if (evidence.selectedTask.status !== 'COMPLETED') {
-        return { ok: false, reason: 'Task acceptance requires a canonically completed Task.' };
+      // Reusable operations are confirmed by the kind's retained-result admission and
+      // acceptance effects. Only item-completion policies require a completed definition.
+      if (
+        evidence.operationPolicy?.acceptance.type !== 'NO_STATUS_CHANGE' &&
+        !isDeliveredStatus(evidence.selectedTask.typeStatuses, evidence.selectedTask.status)
+      ) {
+        return {
+          ok: false,
+          reason: 'Task acceptance requires a Task in a finished, non-cancelled status.',
+        };
       }
       if (
         evidence.monitor.reviewMode === 'REQUIRE_REVIEW' &&

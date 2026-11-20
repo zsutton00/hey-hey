@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
   createTestMessagePoster,
@@ -19,6 +20,7 @@ import type { Runner } from '../turn/turn';
 import type { AgentSessionRunner } from '../agents/providers/session-runner';
 import { codingFreeformHandler, freeFormHandler } from '../agents/coding-conversation';
 import { implementHandler } from '../agents/implement/implement.handler';
+import { codingPlanHandler } from '../agents/coding-plan/coding-plan.handler';
 import { proposalRefinerHandler } from '../agents/proposal-refiner/proposal-refiner.handler';
 
 // Two stub handlers — Run.resolveTurnInputs looks up the handler keyed off
@@ -31,6 +33,7 @@ const handlerA: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -43,6 +46,7 @@ const handlerB: PromptTypeHandler<unknown> = {
   service: 'optional',
   launchEntity: 'required',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -55,6 +59,7 @@ const handlerC: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'required',
   implementationReadiness: 'gated_and_clarifiable',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -63,6 +68,7 @@ const handlerC: PromptTypeHandler<unknown> = {
 
 const missingIdHandler = {
   promptType: 'debug',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],
@@ -72,6 +78,7 @@ const missingIdHandler = {
 const subagentHandler = {
   id: 'commit',
   promptType: 'commit',
+  sessionRole: SessionRole.Implementation,
   runnerKind: 'subagent',
   providerSessionCountsForContext: false,
   reports: [],
@@ -87,6 +94,9 @@ const getHandler = (promptType: string | undefined): PromptTypeHandler<unknown> 
   if (promptType === 'coding_freeform') return handlerA;
   if (promptType === 'implement') {
     return implementHandler as PromptTypeHandler<unknown>;
+  }
+  if (promptType === 'startup_session') {
+    return codingPlanHandler as PromptTypeHandler<unknown>;
   }
   if (promptType === 'project_mode') {
     return { ...handlerA, id: 'project_mode', promptType: 'project_mode' };
@@ -415,6 +425,53 @@ describe('Run preserves provider session across same-handler turns', () => {
     expect(captured[1]!.run.hasProviderSession).toBe(true);
     expect(captured[1]!.run.session.provider_session_id).toBe('prov-existing');
     expect(captured[1]!.providerSessionMintReason).toBeUndefined();
+  });
+});
+
+describe('Run keeps one planner provider session across refinement rounds', () => {
+  const plannerSession = () =>
+    makeSession({
+      provider_session_agent_id: 'startup_session',
+      promptType: 'startup_session',
+      provider_session_history: [
+        {
+          providerSessionId: 'prov-existing',
+          providerConversationId: 'conv-existing',
+          providerSessionAgentId: 'startup_session',
+          observedAt: '2026-07-15T00:00:00.000Z',
+        },
+      ],
+    });
+  const plannerReply = (userMessage: string): InternalRunPromptRequest =>
+    ({
+      promptType: 'startup_session',
+      payload: { promptType: 'startup_session', userMessage },
+      references: { resolved: [], unresolved: [] },
+      triggerContext: null,
+    }) as unknown as InternalRunPromptRequest;
+
+  it('resumes the same session for consecutive replies without adding history entries', async () => {
+    resolveResult.promptTypeChanged = false;
+    const captured: RunnerContext[] = [];
+    const collaborators = makeCollaborators((ctx) => {
+      captured.push(ctx);
+      return { run: async () => {} };
+    });
+    const run = new Run(makeRunArgs({ session: plannerSession() }), collaborators);
+
+    await run.handleMessage(plannerReply('hold on, let us look at this'));
+    await drainMicrotasks();
+    await run.handleMessage(plannerReply('and also this'));
+    await drainMicrotasks();
+
+    expect(captured).toHaveLength(2);
+    for (const ctx of captured) {
+      expect(ctx.providerSessionDecision).toBe('resume');
+      expect(ctx.providerSessionMintReason).toBeUndefined();
+      expect(ctx.run.session.provider_session_id).toBe('prov-existing');
+    }
+    expect(collaborators.runStore.appendRunProviderSessionHistory).not.toHaveBeenCalled();
+    expect(run.session.provider_session_history).toHaveLength(1);
   });
 });
 

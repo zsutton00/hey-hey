@@ -1,6 +1,5 @@
 // @ts-nocheck
 import { Category } from './category.js';
-import { Disposition } from './disposition.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -19,9 +18,6 @@ import { Disposition } from './disposition.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { Category } from './category.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { Disposition } from './disposition.js';
 
 /**
  *
@@ -42,16 +38,35 @@ export interface CodingPlanEmittedDiscrepancyAllOf {
      */
     'category': Category;
     /**
-     *
-     * @type {Disposition}
+     * Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports.
+     * @type {string}
      * @memberof CodingPlanEmittedDiscrepancyAllOf
      */
-    'disposition': Disposition;
+    'disposition': CodingPlanEmittedDiscrepancyAllOfDispositionEnum;
 }
+
+
+
+export const CodingPlanEmittedDiscrepancyAllOfDispositionEnum = {
+    Open: 'open',
+    Accepted: 'accepted',
+    ChangesExistingBehavior: 'changes_existing_behavior',
+    Withdrawn: 'withdrawn',
+    "open": "open",
+    "accepted": "accepted",
+    "changes_existing_behavior": "changes_existing_behavior",
+    "withdrawn": "withdrawn",
+} as const;
+Object.defineProperty(CodingPlanEmittedDiscrepancyAllOfDispositionEnum, "open", { enumerable: false, value: CodingPlanEmittedDiscrepancyAllOfDispositionEnum["Open"] });
+Object.defineProperty(CodingPlanEmittedDiscrepancyAllOfDispositionEnum, "accepted", { enumerable: false, value: CodingPlanEmittedDiscrepancyAllOfDispositionEnum["Accepted"] });
+Object.defineProperty(CodingPlanEmittedDiscrepancyAllOfDispositionEnum, "changes_existing_behavior", { enumerable: false, value: CodingPlanEmittedDiscrepancyAllOfDispositionEnum["ChangesExistingBehavior"] });
+Object.defineProperty(CodingPlanEmittedDiscrepancyAllOfDispositionEnum, "withdrawn", { enumerable: false, value: CodingPlanEmittedDiscrepancyAllOfDispositionEnum["Withdrawn"] });
+
+export type CodingPlanEmittedDiscrepancyAllOfDispositionEnum = typeof CodingPlanEmittedDiscrepancyAllOfDispositionEnum[keyof typeof CodingPlanEmittedDiscrepancyAllOfDispositionEnum];
 
 export namespace CodingPlanEmittedDiscrepancyAllOf {
     export const CategoryEnum = Category;
     export type CategoryEnum = Category;
-    export const DispositionEnum = Disposition;
-    export type DispositionEnum = Disposition;
+    export const DispositionEnum = CodingPlanEmittedDiscrepancyAllOfDispositionEnum;
+    export type DispositionEnum = CodingPlanEmittedDiscrepancyAllOfDispositionEnum;
 }

@@ -19,12 +19,11 @@ import { MentionNode } from "../../SmarterTextAreaCard/MentionNode";
 // Keep real editor state, conversion, serialization and typed-intent reading in transport tests.
 const lexicalConfig = vi.hoisted(() => ({ nodes: [] as readonly unknown[] }));
 vi.mock("@lexical/react/LexicalComposer", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@lexical/react/LexicalComposer")
-  >();
+  const actual =
+    await importOriginal<typeof import("@lexical/react/LexicalComposer")>();
   return {
     LexicalComposer: (
-      props: React.ComponentProps<typeof actual.LexicalComposer>
+      props: React.ComponentProps<typeof actual.LexicalComposer>,
     ) => {
       lexicalConfig.nodes = props.initialConfig.nodes ?? [];
       return <actual.LexicalComposer {...props} />;
@@ -53,15 +52,15 @@ vi.mock("@lexical/react/LexicalHistoryPlugin", () => ({
 }));
 
 vi.mock("@lexical/react/LexicalOnChangePlugin", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@lexical/react/LexicalOnChangePlugin")
-  >();
-  const { useLexicalComposerContext } = await import(
-    "@lexical/react/LexicalComposerContext"
-  );
+  const actual =
+    await importOriginal<
+      typeof import("@lexical/react/LexicalOnChangePlugin")
+    >();
+  const { useLexicalComposerContext } =
+    await import("@lexical/react/LexicalComposerContext");
   return {
     OnChangePlugin: (
-      props: React.ComponentProps<typeof actual.OnChangePlugin>
+      props: React.ComponentProps<typeof actual.OnChangePlugin>,
     ) => {
       const [editor] = useLexicalComposerContext();
       return (
@@ -135,10 +134,10 @@ vi.mock(
           data-project-id={projectId ?? ""}
           data-focal-kind={surfaceContext.focalEntity.kind}
           data-subagent-available={String(
-            surfaceContext.subagentCommandAvailable
+            surfaceContext.subagentCommandAvailable,
           )}
           data-message-agent-available={String(
-            surfaceContext.messageAgentCommandAvailable
+            surfaceContext.messageAgentCommandAvailable,
           )}
         />
         {agentContext ? (
@@ -158,7 +157,7 @@ vi.mock(
         ) : null}
       </>
     ),
-  })
+  }),
 );
 
 vi.mock("../../SmarterTextAreaCard/fileReferences/FileReferencePlugin", () => ({
@@ -201,7 +200,7 @@ const renderComposer = (
   agentSessionMetadata?: AgentSessionMetadataValues,
   attachmentTarget: React.ComponentProps<
     typeof ExternalReplyComposer
-  >["attachmentTarget"] = null
+  >["attachmentTarget"] = null,
 ) =>
   render(
     <MemoryRouter>
@@ -217,7 +216,7 @@ const renderComposer = (
         onSubmitReply={onSubmitReply}
         {...(agentSessionMetadata ? { agentSessionMetadata } : {})}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {
@@ -250,11 +249,11 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onSubmitReply={vi.fn()}
           agentSessionMetadata={{ provider: "claude", model: "opus" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByTestId("run-stream-model-change-tooltip-target")
+      screen.queryByTestId("run-stream-model-change-tooltip-target"),
     ).not.toBeInTheDocument();
 
     rerender(
@@ -272,15 +271,15 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={vi.fn(async () => {})}
           agentSessionMetadata={{ provider: "claude", model: "opus" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.mouseOver(
-      screen.getByTestId("run-stream-model-change-tooltip-target")
+      screen.getByTestId("run-stream-model-change-tooltip-target"),
     );
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Start a new conversation to the change the model"
+      "Start a new conversation to the change the model",
     );
   });
 
@@ -306,7 +305,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
             worktree: "feature/current-worktree",
           }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const metadata = screen.getByTestId("agent-session-metadata");
@@ -314,12 +313,12 @@ describe("ExternalReplyComposer new-conversation button", () => {
     expect(actionRow).not.toBeNull();
     expect(actionRow).toHaveStyle({ flexWrap: "nowrap" });
     expect(actionRow).toContainElement(
-      screen.getByTestId("run-stream-external-reply-submit")
+      screen.getByTestId("run-stream-external-reply-submit"),
     );
     expect(actionRow).toContainElement(screen.getByTestId("run-stream-stop"));
     expect(metadata).toHaveAttribute("data-placement", "below-composer");
     expect(
-      screen.getByTestId("agent-session-metadata-worktree")
+      screen.getByTestId("agent-session-metadata-worktree"),
     ).toHaveTextContent("feature/current-worktree");
   });
 
@@ -363,11 +362,11 @@ describe("ExternalReplyComposer new-conversation button", () => {
           submittingPrompt={false}
           onSubmitReply={vi.fn()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByTestId("mock-feature-reference-discovery")
+      screen.queryByTestId("mock-feature-reference-discovery"),
     ).not.toBeInTheDocument();
   });
 
@@ -386,7 +385,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onSubmitReply={vi.fn()}
           fileReferenceScope={{ kind: "feature", featureId: "feature-1" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const plugin = screen.getByTestId("mock-file-reference-plugin");
@@ -412,7 +411,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const btn = screen.getByTestId("run-stream-new-conversation");
@@ -439,15 +438,15 @@ describe("ExternalReplyComposer new-conversation button", () => {
             <div data-testid="editable-model-selector" />
           }
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByTestId("editable-model-selector")
+      screen.queryByTestId("editable-model-selector"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-session-metadata")).toBeInTheDocument();
     expect(screen.getByTestId("run-stream-new-conversation")).toHaveTextContent(
-      "New conversation"
+      "New conversation",
     );
 
     fireEvent.click(screen.getByTestId("run-stream-new-conversation"));
@@ -475,16 +474,16 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("run-stream-new-conversation"));
 
     expect(
-      screen.getByRole("heading", { name: "Are your sure?" })
+      screen.getByRole("heading", { name: "Are your sure?" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("dialog").textContent).toContain(
-      "remains available in the Conversations tab"
+      "remains available in the Conversations tab",
     );
     expect(onCreateNewConversation).not.toHaveBeenCalled();
   });
@@ -506,7 +505,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -517,12 +516,12 @@ describe("ExternalReplyComposer new-conversation button", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole("heading", { name: "Are your sure?" })
+        screen.queryByRole("heading", { name: "Are your sure?" }),
       ).not.toBeInTheDocument();
     });
     expect(onCreateNewConversation).not.toHaveBeenCalled();
     expect(
-      screen.getByTestId("run-stream-external-reply-input")
+      screen.getByTestId("run-stream-external-reply-input"),
     ).toBeInTheDocument();
   });
 
@@ -543,7 +542,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const sendBtn = screen.getByTestId("run-stream-external-reply-submit");
@@ -571,7 +570,7 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -580,11 +579,11 @@ describe("ExternalReplyComposer new-conversation button", () => {
 
     fireEvent.click(screen.getByTestId("run-stream-new-conversation"));
     fireEvent.click(
-      screen.getByRole("button", { name: "Start new conversation" })
+      screen.getByRole("button", { name: "Start new conversation" }),
     );
 
     await waitFor(() =>
-      expect(onCreateNewConversation).toHaveBeenCalledWith("some draft text")
+      expect(onCreateNewConversation).toHaveBeenCalledWith("some draft text"),
     );
   });
 
@@ -605,16 +604,16 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           confirmBeforeNewConversation={false}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("run-stream-new-conversation"));
 
     await waitFor(() =>
-      expect(onCreateNewConversation).toHaveBeenCalledWith("")
+      expect(onCreateNewConversation).toHaveBeenCalledWith(""),
     );
     expect(
-      screen.queryByRole("heading", { name: "Are your sure?" })
+      screen.queryByRole("heading", { name: "Are your sure?" }),
     ).not.toBeInTheDocument();
   });
 
@@ -635,20 +634,65 @@ describe("ExternalReplyComposer new-conversation button", () => {
           onCreateNewConversation={onCreateNewConversation}
           initialDraft="carry this draft forward"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("run-stream-new-conversation"));
 
     await waitFor(() =>
       expect(onCreateNewConversation).toHaveBeenCalledWith(
-        "carry this draft forward"
-      )
+        "carry this draft forward",
+      ),
     );
   });
 });
 
 describe("ExternalReplyComposer post error handling", () => {
+  it("empties the draft as soon as submit is pressed, before the request settles, and restores it on failure", async () => {
+    let rejectPost: (error: Error) => void = () => {};
+    const onSubmitReply = vi.fn(
+      (_text: string): Promise<void> =>
+        new Promise<void>((_resolve, reject) => {
+          rejectPost = reject;
+        }),
+    );
+    const onDraftChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <ExternalReplyComposer
+          attachmentTarget={null}
+          subagentCapability={{
+            kind: "unavailable",
+            reason: "Subagent commands require an attached Agent Session.",
+          }}
+          availability={{ available: true }}
+          messageContext={messageContext}
+          submittingPrompt={false}
+          onSubmitReply={onSubmitReply}
+          onDraftChange={onDraftChange}
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "ship it" },
+    });
+    expect(onDraftChange).toHaveBeenLastCalledWith("ship it");
+
+    fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenLastCalledWith(""));
+    expect(onSubmitReply).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rejectPost(new Error("CLI rejected the message"));
+    });
+
+    await screen.findByTestId("run-stream-external-reply-error");
+    expect(onDraftChange).toHaveBeenLastCalledWith("ship it");
+  });
+
   it("retains a selected Skill through failure and retries the structured selection", async () => {
     const selectedSkill = {
       provider: "codex" as const,
@@ -681,12 +725,12 @@ describe("ExternalReplyComposer post error handling", () => {
             provider: "codex",
           }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByTestId("mock-select-skill"));
     expect(
-      screen.getByTestId("agent-skill-selection-summary")
+      screen.getByTestId("agent-skill-selection-summary"),
     ).toHaveTextContent("release-check");
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -699,10 +743,10 @@ describe("ExternalReplyComposer post error handling", () => {
       1,
       "ship it",
       selectedSkill,
-      []
+      [],
     );
     expect(
-      screen.getByTestId("agent-skill-selection-summary")
+      screen.getByTestId("agent-skill-selection-summary"),
     ).toHaveTextContent("release-check");
 
     fireEvent.click(screen.getByTestId("run-stream-external-reply-retry"));
@@ -711,12 +755,12 @@ describe("ExternalReplyComposer post error handling", () => {
       2,
       "ship it",
       selectedSkill,
-      []
+      [],
     );
     await waitFor(() =>
       expect(
-        screen.queryByTestId("agent-skill-selection-summary")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("agent-skill-selection-summary"),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -746,8 +790,8 @@ describe("ExternalReplyComposer post error handling", () => {
     // The draft was restored, so the user can retry without retyping.
     await waitFor(() =>
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
-      ).toBeEnabled()
+        screen.getByTestId("run-stream-external-reply-submit"),
+      ).toBeEnabled(),
     );
     expect(screen.getByTestId("run-stream-external-reply-retry")).toBeEnabled();
     fireEvent.click(screen.getByTestId("run-stream-external-reply-retry"));
@@ -755,8 +799,8 @@ describe("ExternalReplyComposer post error handling", () => {
     // The next attempt clears the inline error and resends the same draft.
     await waitFor(() =>
       expect(
-        screen.queryByTestId("run-stream-external-reply-error")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("run-stream-external-reply-error"),
+      ).not.toBeInTheDocument(),
     );
     expect(onSubmitReply).toHaveBeenCalledTimes(2);
     expect(onSubmitReply.mock.calls[1]![0]).toBe("ship it");
@@ -776,33 +820,33 @@ describe("ExternalReplyComposer post error handling", () => {
     fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
 
     const firstAlert = await screen.findByTestId(
-      "run-stream-external-reply-error"
+      "run-stream-external-reply-error",
     );
     const firstFailureIdentity = firstAlert.getAttribute(
-      "data-failure-identity"
+      "data-failure-identity",
     );
     expect(firstAlert).toHaveTextContent("The first post failed.");
 
     fireEvent.click(screen.getByTestId("run-stream-external-reply-retry"));
 
     const secondAlert = await screen.findByTestId(
-      "run-stream-external-reply-error"
+      "run-stream-external-reply-error",
     );
     expect(secondAlert).toHaveTextContent("The retry failed differently.");
     expect(secondAlert.getAttribute("data-failure-identity")).not.toBe(
-      firstFailureIdentity
+      firstFailureIdentity,
     );
     expect(onSubmitReply).toHaveBeenNthCalledWith(
       1,
       "retry this draft",
       undefined,
-      []
+      [],
     );
     expect(onSubmitReply).toHaveBeenNthCalledWith(
       2,
       "retry this draft",
       undefined,
-      []
+      [],
     );
   });
 
@@ -824,7 +868,7 @@ describe("ExternalReplyComposer post error handling", () => {
           submittingPrompt={false}
           onSubmitReply={onSubmitReply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -846,7 +890,7 @@ describe("ExternalReplyComposer post error handling", () => {
           onSubmitReply={onSubmitReply}
           availability={{ available: false, reason: "unavailable" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const retry = screen.getByTestId("run-stream-external-reply-retry");
@@ -873,7 +917,7 @@ describe("ExternalReplyComposer post error handling", () => {
           submittingPrompt={false}
           onSubmitReply={onSubmitReply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -895,14 +939,14 @@ describe("ExternalReplyComposer post error handling", () => {
           submittingPrompt={false}
           onSubmitReply={onSubmitReply}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByTestId("run-stream-external-reply-error")
+      screen.queryByTestId("run-stream-external-reply-error"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("run-stream-external-reply-retry")
+      screen.queryByTestId("run-stream-external-reply-retry"),
     ).not.toBeInTheDocument();
   });
 
@@ -922,7 +966,7 @@ describe("ExternalReplyComposer post error handling", () => {
           onSubmitReply={onSubmitReply}
           availability={{ available: false, reason: "unavailable" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
@@ -953,7 +997,7 @@ describe("ExternalReplyComposer post error handling", () => {
           onStopRun={onStopRun}
           runProcessing={false}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const idleStop = screen.getByTestId("run-stream-stop");
@@ -981,7 +1025,7 @@ describe("ExternalReplyComposer post error handling", () => {
           onStopRun={onStopRun}
           runProcessing
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const activeStop = screen.getByTestId("run-stream-stop");
@@ -1005,7 +1049,7 @@ describe("ExternalReplyComposer post error handling", () => {
           runProcessing
           stoppingRun
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByTestId("run-stream-stop")).toBeDisabled();
@@ -1026,7 +1070,7 @@ describe("ExternalReplyComposer post error handling", () => {
 
     await waitFor(() => expect(onSubmitReply).toHaveBeenCalledTimes(1));
     expect(
-      screen.queryByTestId("run-stream-external-reply-error")
+      screen.queryByTestId("run-stream-external-reply-error"),
     ).not.toBeInTheDocument();
   });
   it("reports unsent draft changes without opting into a creation control", async () => {
@@ -1047,13 +1091,13 @@ describe("ExternalReplyComposer post error handling", () => {
           onDraftChange={onDraftChange}
           initialDraft="Unsent follow-up"
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await waitFor(() =>
-      expect(onDraftChange).toHaveBeenLastCalledWith("Unsent follow-up")
+      expect(onDraftChange).toHaveBeenLastCalledWith("Unsent follow-up"),
     );
     expect(
-      screen.queryByTestId("run-stream-new-conversation")
+      screen.queryByTestId("run-stream-new-conversation"),
     ).not.toBeInTheDocument();
     expect(onSubmitReply).not.toHaveBeenCalled();
   });
@@ -1073,7 +1117,7 @@ describe("ExternalReplyComposer post error handling", () => {
             onSubmitReply={onSubmitReply}
             subagentCapability={{ kind: "ready", submit: onSubmitSubagent }}
           />
-        </MemoryRouter>
+        </MemoryRouter>,
       );
       fireEvent.change(screen.getByTestId("mock-editor-input"), {
         target: {
@@ -1089,11 +1133,11 @@ describe("ExternalReplyComposer post error handling", () => {
             capability: "research",
             objective: "Inspect the implementation",
           },
-          expect.stringMatching(/^[0-9a-f-]{36}$/)
-        )
+          expect.stringMatching(/^[0-9a-f-]{36}$/),
+        ),
       );
       expect(onSubmitReply).not.toHaveBeenCalled();
-    }
+    },
   );
 
   it("omits extra composer labels and blocks an empty objective", async () => {
@@ -1109,19 +1153,19 @@ describe("ExternalReplyComposer post error handling", () => {
           onSubmitReply={ordinary}
           subagentCapability={{ kind: "ready", submit }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
       target: { value: "/subagent " },
     });
     expect(
-      screen.queryByTestId("subagent-route-label")
+      screen.queryByTestId("subagent-route-label"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("subagent-missing-objective")
+      screen.queryByTestId("subagent-missing-objective"),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByTestId("run-stream-external-reply-submit")
+      screen.getByTestId("run-stream-external-reply-submit"),
     ).toBeDisabled();
     fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
     expect(submit).not.toHaveBeenCalled();
@@ -1144,7 +1188,7 @@ describe("ExternalReplyComposer post error handling", () => {
           onSubmitReply={ordinary}
           subagentCapability={{ kind: "ready", submit }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     const objective =
       "Read @[task:12345678-1234-1234-1234-123456789012|Investigation]\n\nReport findings";
@@ -1152,7 +1196,7 @@ describe("ExternalReplyComposer post error handling", () => {
       target: { value: `/subagent background research ${objective}` },
     });
     expect(
-      screen.queryByTestId("subagent-route-label")
+      screen.queryByTestId("subagent-route-label"),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
     await screen.findByTestId("run-stream-external-reply-error");
@@ -1163,20 +1207,20 @@ describe("ExternalReplyComposer post error handling", () => {
       objective,
     });
     expect(
-      screen.queryByTestId("subagent-route-label")
+      screen.queryByTestId("subagent-route-label"),
     ).not.toBeInTheDocument();
     await waitFor(() =>
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
-      ).toBeEnabled()
+        screen.getByTestId("run-stream-external-reply-submit"),
+      ).toBeEnabled(),
     );
     fireEvent.click(screen.getByTestId("run-stream-external-reply-retry"));
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
     expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0]);
     await waitFor(() =>
       expect(
-        screen.queryByTestId("run-stream-external-reply-error")
-      ).not.toBeInTheDocument()
+        screen.queryByTestId("run-stream-external-reply-error"),
+      ).not.toBeInTheDocument(),
     );
     expect(ordinary).not.toHaveBeenCalled();
   });
@@ -1193,7 +1237,7 @@ describe("ExternalReplyComposer post error handling", () => {
           subagentCapability={{ kind: "ready", submit: vi.fn() }}
           onSubmitMessageAgent={vi.fn()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     const menu = screen.getByTestId("mock-rich-slash-command-plugin");
     expect(menu).toHaveAttribute("data-subagent-available", "true");
@@ -1211,7 +1255,7 @@ describe("ExternalReplyComposer post error handling", () => {
           submittingPrompt={false}
           onSubmitReply={vi.fn()}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(menu).toHaveAttribute("data-subagent-available", "false");
     expect(menu).toHaveAttribute("data-message-agent-available", "false");
@@ -1252,8 +1296,8 @@ describe("desktop file attachments", () => {
     });
     await waitFor(() =>
       expect(
-        screen.getByTestId("run-stream-external-reply-submit")
-      ).toBeEnabled()
+        screen.getByTestId("run-stream-external-reply-submit"),
+      ).toBeEnabled(),
     );
     await act(async () => {
       fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
@@ -1278,8 +1322,8 @@ describe("desktop file attachments", () => {
         .mockReturnValueOnce(
           new Promise<Response>((resolve) => {
             finishUpload = resolve;
-          })
-        )
+          }),
+        ),
     );
     const composer = screen.getByTestId("run-stream-external-reply-composer");
     const editor = screen.getByTestId("mock-editor-input");
@@ -1297,12 +1341,12 @@ describe("desktop file attachments", () => {
     expect(indicator()).toBeNull();
     expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
       "data-upload-status",
-      "uploading"
+      "uploading",
     );
     await act(async () => finishUpload(uploaded("notes.md")));
     expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
       "data-upload-status",
-      "ready"
+      "ready",
     );
   });
 
@@ -1317,7 +1361,7 @@ describe("desktop file attachments", () => {
   ])("clears feedback when %s changes", async (change) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(json({ machineId: "owner", bindings: [] }))
+      vi.fn().mockResolvedValue(json({ machineId: "owner", bindings: [] })),
     );
     const view = renderComposer(vi.fn(), undefined, target);
     await act(async () => {});
@@ -1347,7 +1391,7 @@ describe("desktop file attachments", () => {
           onSubmitReply={vi.fn()}
           subagentCapability={{ kind: "unavailable", reason: "Unavailable" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(indicator()).toBeNull();
     if (
@@ -1361,7 +1405,7 @@ describe("desktop file attachments", () => {
     ) {
       fireEvent.dragOver(
         screen.getByTestId("run-stream-external-reply-composer"),
-        fileTransfer
+        fileTransfer,
       );
       expect(indicator()).toBeNull();
     }
@@ -1370,20 +1414,20 @@ describe("desktop file attachments", () => {
   it("suppresses feedback while ownership is checking", () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockReturnValue(new Promise<Response>(() => {}))
+      vi.fn().mockReturnValue(new Promise<Response>(() => {})),
     );
     renderComposer(vi.fn(), undefined, target);
     fireEvent.dragOver(screen.getByTestId("mock-editor-input"), fileTransfer);
     expect(indicator()).toBeNull();
     drop("notes.md");
     expect(screen.getByTestId("run-attachment-rejection")).toHaveTextContent(
-      "still being checked"
+      "still being checked",
     );
   });
 
   it("lets entity drag and drop reach the editor without interception", async () => {
     await local(
-      vi.fn().mockResolvedValue(json({ machineId: "owner", bindings: [] }))
+      vi.fn().mockResolvedValue(json({ machineId: "owner", bindings: [] })),
     );
     const editor = screen.getByTestId("mock-editor-input");
     for (const type of ["dragenter", "dragover", "dragleave", "drop"]) {
@@ -1413,14 +1457,14 @@ describe("desktop file attachments", () => {
     drop("file.pdf", "notes.md");
     await waitFor(() =>
       expect(screen.getByTestId("run-attachment-error")).toHaveTextContent(
-        "PDFs"
-      )
+        "PDFs",
+      ),
     );
     await waitFor(() =>
       expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
         "data-upload-status",
-        "ready"
-      )
+        "ready",
+      ),
     );
     await draftAndSend("  Read these\n");
     expect(submit).toHaveBeenCalledWith("  Read these\n", undefined, [
@@ -1441,23 +1485,23 @@ describe("desktop file attachments", () => {
     await act(async () => {});
     drop("one.txt", "two.txt");
     await waitFor(() =>
-      expect(screen.getAllByTestId("run-attachment-chip")).toHaveLength(2)
+      expect(screen.getAllByTestId("run-attachment-chip")).toHaveLength(2),
     );
     await waitFor(() =>
       expect(screen.getAllByTestId("run-attachment-chip")[0]).toHaveAttribute(
         "data-upload-status",
-        "ready"
-      )
+        "ready",
+      ),
     );
     fireEvent.click(screen.getAllByTestId("remove-run-attachment")[0]!);
     await draftAndSend();
     await waitFor(() =>
       expect(submit).toHaveBeenCalledWith("Read these", undefined, [
         { attachmentId: secondId, fileName: "two.txt" },
-      ])
+      ]),
     );
     await waitFor(() =>
-      expect(screen.queryByTestId("run-attachment-chip")).toBeNull()
+      expect(screen.queryByTestId("run-attachment-chip")).toBeNull(),
     );
   });
 
@@ -1473,8 +1517,8 @@ describe("desktop file attachments", () => {
             operation: "run.attachments.upload",
             error: { code: "FILE_TOO_LARGE", message: "File exceeds limit" },
           },
-          413
-        )
+          413,
+        ),
       )
       .mockResolvedValueOnce(uploaded("good.txt"));
     vi.stubGlobal("fetch", fetchMock);
@@ -1484,14 +1528,14 @@ describe("desktop file attachments", () => {
     drop("large.txt", "good.txt");
     await waitFor(() =>
       expect(screen.getByTestId("run-attachment-error")).toHaveTextContent(
-        "large.txt: FILE_TOO_LARGE: File exceeds limit"
-      )
+        "large.txt: FILE_TOO_LARGE: File exceeds limit",
+      ),
     );
     await draftAndSend();
     await waitFor(() =>
       expect(submit).toHaveBeenCalledWith("Read these", undefined, [
         { attachmentId, fileName: "good.txt" },
-      ])
+      ]),
     );
   });
 
@@ -1506,11 +1550,11 @@ describe("desktop file attachments", () => {
       expect(indicator()).toBeNull();
       drop("secret.txt");
       expect(screen.getByTestId("run-attachment-rejection")).toHaveTextContent(
-        "machine that owns this Run"
+        "machine that owns this Run",
       );
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("run-attachment-chip")).toBeNull();
-    }
+    },
   );
 
   it("retains a failed reply snapshot while later uploads remain for the next reply", async () => {
@@ -1525,7 +1569,7 @@ describe("desktop file attachments", () => {
         .fn()
         .mockResolvedValueOnce(json({ machineId: "owner", bindings: [] }))
         .mockResolvedValueOnce(uploaded("first.txt"))
-        .mockReturnValueOnce(late)
+        .mockReturnValueOnce(late),
     );
     const submit = vi
       .fn()
@@ -1534,7 +1578,7 @@ describe("desktop file attachments", () => {
         () =>
           new Promise<void>((resolve) => {
             finishSubmit = resolve;
-          })
+          }),
       );
     renderComposer(submit, undefined, target);
     await act(async () => {});
@@ -1542,14 +1586,14 @@ describe("desktop file attachments", () => {
     await waitFor(() =>
       expect(screen.getAllByTestId("run-attachment-chip")[0]).toHaveAttribute(
         "data-upload-status",
-        "ready"
-      )
+        "ready",
+      ),
     );
     await draftAndSend();
     await waitFor(() =>
       expect(
-        screen.getByTestId("run-stream-external-reply-error")
-      ).toHaveTextContent("Try again")
+        screen.getByTestId("run-stream-external-reply-error"),
+      ).toHaveTextContent("Try again"),
     );
     fireEvent.click(screen.getByTestId("run-stream-external-reply-retry"));
     await act(async () => {
@@ -1565,10 +1609,10 @@ describe("desktop file attachments", () => {
       { attachmentId, fileName: "first.txt" },
     ]);
     await waitFor(() =>
-      expect(screen.getAllByTestId("run-attachment-chip")).toHaveLength(1)
+      expect(screen.getAllByTestId("run-attachment-chip")).toHaveLength(1),
     );
     expect(screen.getByTestId("run-attachment-chip")).toHaveTextContent(
-      "late.txt"
+      "late.txt",
     );
   });
 
@@ -1584,8 +1628,8 @@ describe("desktop file attachments", () => {
           .mockReturnValueOnce(
             new Promise<Response>((resolve) => {
               finishUpload = resolve;
-            })
-          )
+            }),
+          ),
       );
       const submit = vi.fn();
       const view = renderComposer(submit, undefined, target);
@@ -1593,7 +1637,7 @@ describe("desktop file attachments", () => {
       drop("old.txt");
       expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
         "data-upload-status",
-        "uploading"
+        "uploading",
       );
       if (change === "removal")
         fireEvent.click(screen.getByTestId("remove-run-attachment"));
@@ -1617,14 +1661,14 @@ describe("desktop file attachments", () => {
                 reason: "Unavailable",
               }}
             />
-          </MemoryRouter>
+          </MemoryRouter>,
         );
       }
       await act(async () => {
         finishUpload(uploaded("old.txt"));
       });
       expect(screen.queryByTestId("run-attachment-chip")).toBeNull();
-    }
+    },
   );
 
   it("does not capture entity drags and rejects files when disabled", async () => {
@@ -1642,7 +1686,7 @@ describe("desktop file attachments", () => {
           onSubmitReply={vi.fn()}
           subagentCapability={{ kind: "unavailable", reason: "Unavailable" }}
         />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     await act(async () => {});
     const event = new Event("drop", { bubbles: true, cancelable: true });
@@ -1653,7 +1697,7 @@ describe("desktop file attachments", () => {
     expect(event.defaultPrevented).toBe(false);
     drop("file.txt");
     expect(screen.getByTestId("run-attachment-rejection")).toHaveTextContent(
-      "disabled"
+      "disabled",
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -1664,7 +1708,7 @@ describe("desktop file attachments", () => {
       vi
         .fn()
         .mockResolvedValueOnce(json({ machineId: "owner", bindings: [] }))
-        .mockResolvedValueOnce(uploaded("file.txt"))
+        .mockResolvedValueOnce(uploaded("file.txt")),
     );
     const submit = vi.fn();
     renderComposer(submit, undefined, target);
@@ -1673,8 +1717,8 @@ describe("desktop file attachments", () => {
     await waitFor(() =>
       expect(screen.getByTestId("run-attachment-chip")).toHaveAttribute(
         "data-upload-status",
-        "ready"
-      )
+        "ready",
+      ),
     );
     fireEvent.change(screen.getByTestId("mock-editor-input"), {
       target: {
@@ -1685,12 +1729,12 @@ describe("desktop file attachments", () => {
     fireEvent.click(screen.getByTestId("run-stream-external-reply-submit"));
     await waitFor(() =>
       expect(
-        screen.getByTestId("run-stream-external-reply-error")
-      ).toHaveTextContent("Remove the files before sending a command")
+        screen.getByTestId("run-stream-external-reply-error"),
+      ).toHaveTextContent("Remove the files before sending a command"),
     );
     expect(submit).not.toHaveBeenCalled();
     expect(screen.getByTestId("run-attachment-chip")).toHaveTextContent(
-      "file.txt"
+      "file.txt",
     );
   });
 });

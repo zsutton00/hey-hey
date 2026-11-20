@@ -1,3 +1,4 @@
+import type { CliState } from '../credentials/cli-state';
 import { DockerBoundary } from '../local-app/docker-boundary';
 import {
   type LocalApplicationNavigation,
@@ -19,6 +20,8 @@ import { PairingRequiredStartupRecovery } from './pairing-required-startup-recov
 import { PlatformUnavailableStartupPresenter } from './platform-unavailable-startup-presenter';
 
 export interface ServerCommandOptions {
+  state?: CliState;
+  recoverPairing?: () => Promise<boolean>;
   localApplicationDirectory?: string;
   localApplicationRelease?: ReleaseManifest;
   localApplicationNavigation?: LocalApplicationNavigation;
@@ -28,6 +31,8 @@ export interface ServerCommandOptions {
    * containers are intentionally absent and only the infrastructure containers exist.
    */
   localApplicationServices?: readonly string[];
+  /** The installation's Compose project. Only `heyhey local dev` sets this; see `LocalWorkspace`. */
+  localApplicationProject?: string;
   onLocalApplicationStopping?: () => void;
   preferredPort?: number;
   enableDailySession?: boolean;
@@ -40,6 +45,7 @@ export class LocalAgentServerStarter {
   public start(options: ServerCommandOptions = {}): Promise<LocalAgentServerRuntime> {
     return new LocalAgentServerBootstrap({
       host: 'localhost',
+      ...(options.state ? { state: options.state } : {}),
       ...(options.preferredPort !== undefined ? { preferredPort: options.preferredPort } : {}),
       ...(options.enableDailySession !== undefined
         ? { enableDailySession: options.enableDailySession }
@@ -171,7 +177,7 @@ export class ServerCommand {
             `A coordinated update to CLI ${update.target.cliVersion} is pending. Run heyhey local with that release to finish it before connecting.`,
           );
         }
-        const docker = new DockerBoundary();
+        const docker = new DockerBoundary(undefined, undefined, options.localApplicationProject);
         const observed = await docker.inspect();
         assertObservedRelease(observed, options.localApplicationRelease);
         const expectedServices = options.localApplicationServices ?? Object.keys(SERVICE_IMAGES);
@@ -202,7 +208,9 @@ export class ServerCommand {
         ) {
           throw error;
         }
-        const recovered = await this.presentation.recoverPairing(error.outcome);
+        const recovered = await (options.recoverPairing
+          ? options.recoverPairing()
+          : this.presentation.recoverPairing(error.outcome));
         if (!recovered) return false;
         localServer = await start();
       }

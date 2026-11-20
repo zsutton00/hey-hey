@@ -31,6 +31,7 @@ import { canonicalizeJson } from './jcs';
  */
 
 import type { ServerLogger } from '../logger';
+import type { ContinuationStartup } from '../services/continuation-startup';
 import type { ApiRuntime } from '../../shared/runtime/clients/shared';
 import type { KeyPairStore } from '../../credentials';
 import type { PlatformDeliveryContext, PlatformWebSocketEvent } from '../platform-ws';
@@ -171,6 +172,8 @@ export interface TriggerFrameRouterDependencies {
   };
   /** User-visible drop surfacing and recovery context. */
   dropSurfacing: TriggerDropSurfacingDependencies;
+  /** Confirms provider startup for a delivered continuation and reports it to the platform. */
+  continuationStartup: Pick<ContinuationStartup, 'confirm'>;
   logger: ServerLogger;
 }
 
@@ -259,6 +262,7 @@ export const toCreateRunRequest = (
   ...(payload.reasoningEffort !== undefined ? { reasoningEffort: payload.reasoningEffort } : {}),
   ...(payload.fastMode !== undefined ? { fastMode: payload.fastMode } : {}),
   ...(payload.skillSelection !== undefined ? { skillSelection: payload.skillSelection } : {}),
+  ...(payload.continuation !== undefined ? { continuation: payload.continuation } : {}),
 });
 
 /**
@@ -497,6 +501,35 @@ export class TriggerFrameRouter {
 
   public dispose(): void {
     this.controlTelemetry.dispose();
+  }
+
+  /**
+   * Starts provider-startup confirmation for a delivered continuation, after
+   * its receipt is acknowledged. Delivery receipt is not startup; the owner
+   * reports the startup outcome itself and logs every failure.
+   */
+  private beginContinuationStartup(
+    payload: StartRunTriggerPayload,
+    conversationId: string,
+    operationId: string,
+  ): void {
+    if (!payload.continuation) {
+      return;
+    }
+    this.dependencies.logger.info('agent_session.continuation.startup_scheduled', {
+      agentSessionId: payload.agentSessionId,
+      continuationId: payload.continuation.continuationId,
+      mode: payload.continuation.mode,
+      deliveryOperationId: operationId,
+    });
+    void this.dependencies.continuationStartup.confirm({
+      marker: payload.continuation,
+      agentSessionId: payload.agentSessionId,
+      organizationId: payload.contextMetadata.organizationId,
+      projectId: payload.contextMetadata.projectId,
+      conversationId,
+      deliveryOperationId: operationId,
+    });
   }
 
   private resolveConversationRun(conversationId: string): ConversationRunBinding | null {
@@ -1098,6 +1131,11 @@ export class TriggerFrameRouter {
             provider: payload.provider,
           },
         );
+        if (claim.state !== 'FAILED') {
+          // A redelivered continuation may have lost its startup report; the
+          // owner answers from its record without probing twice.
+          this.beginContinuationStartup(payload, conversationId, operationId);
+        }
         return claim.state === 'FAILED'
           ? ({
               status: 'REJECTED',
@@ -1150,6 +1188,7 @@ export class TriggerFrameRouter {
           throw new Error('Materialized Run is not bound to the conversation.');
         }
         await this.operationReceiptStore.complete(operationId, operationFingerprint, true);
+        this.beginContinuationStartup(payload, conversationId, operationId);
         this.dependencies.operationTimeline?.recordDurationAt(
           operationId,
           'materializeOnlyAckMs',

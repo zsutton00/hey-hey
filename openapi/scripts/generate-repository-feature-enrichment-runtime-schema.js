@@ -15,6 +15,7 @@ const ROOT_DEFINITIONS = [
   "RepositoryFeatureEnrichmentCompletion",
   "RepositoryFeatureEnrichmentDecisionCompletion",
   "RepositoryFeatureEnrichmentQuestions",
+  "RepositoryFeatureEnrichmentQuestionGroup",
   "RepositoryFeatureEnrichmentSuccess",
   "RepositoryFeatureEnrichmentSuccessDecision",
   "RepositoryFeatureEnrichmentRetryableFailure",

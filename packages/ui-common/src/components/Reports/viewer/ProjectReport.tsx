@@ -24,13 +24,13 @@ import {
   readProjectReportHeight,
   readProjectReportMention,
 } from "./projectReportCitationRuntime";
+import { readAuthoredBody } from "./projectReportBody";
 import { rewriteProjectReportMentions } from "./projectReportMentions";
 import { usePathService, useProjectContext } from "../../../contexts";
 import { navigateToEntity } from "../../WebUtils/navigateToEntity";
 import { logger } from "../../../utils/logger";
 import {
   ProjectReportCoverageStatusEnum,
-  type ProjectReportBody,
   type ProjectReportEvidenceReference,
   type ProjectReportPayload,
 } from "../../../api";
@@ -50,14 +50,6 @@ const PROJECT_REPORT_EVIDENCE_KEY_ATTRIBUTE = "data-evidence-key";
  * The frame then grows to its full content so the surrounding surface scrolls.
  */
 const PROJECT_REPORT_BODY_INITIAL_HEIGHT = 240;
-
-const readAuthoredBody = (body: unknown): ProjectReportBody | null => {
-  if (typeof body !== "object" || body === null) return null;
-  const { html, css } = body as Record<string, unknown>;
-  if (typeof html !== "string" || html.trim().length === 0) return null;
-  if (typeof css !== "string") return null;
-  return { html, css };
-};
 
 const readCitedEvidenceKeys = (html: string): string[] => {
   if (typeof DOMParser === "undefined") return [];

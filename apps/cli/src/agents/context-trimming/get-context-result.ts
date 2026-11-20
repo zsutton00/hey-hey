@@ -23,8 +23,14 @@ const relatedEntitySchema = z
     displayName: z.string(),
     status: z.string().optional(),
     taskType: z.string().optional(),
-    relationship: z.string(),
-    reasoning: z.string().optional(),
+    relationships: z.array(
+      z
+        .object({
+          relationship: z.string(),
+          reasoning: z.string().optional(),
+        })
+        .passthrough(),
+    ),
   })
   .passthrough();
 
@@ -83,9 +89,12 @@ export interface Slot {
   index(): Entry;
 }
 
+const sentenceSegmenter = new Intl.Segmenter('en', { granularity: 'sentence' });
+
 export const firstSentence = (text: string): string => {
   const flat = text.trim().replace(/\s+/g, ' ');
-  return /^.*?[.!?](?=\s|$)/.exec(flat)?.[0] ?? flat;
+  const first = sentenceSegmenter.segment(flat)[Symbol.iterator]().next();
+  return first.done ? flat : first.value.segment.trim();
 };
 
 const withSummary = (summary: string | null | undefined): { summary?: string } => {
@@ -115,7 +124,11 @@ const hierarchySlot = (
 };
 
 const relatedSlot = (entry: z.infer<typeof relatedEntitySchema>, position: number): Slot => {
-  const { entityId, entityType, displayName, status, taskType, relationship, reasoning } = entry;
+  const { entityId, entityType, displayName, status, taskType, relationships } = entry;
+  const labels = relationships.map(({ relationship }) => relationship);
+  const reasons = relationships.flatMap(({ relationship, reasoning }) =>
+    reasoning ? [`${relationship}: ${reasoning}`] : [],
+  );
   const label = [entityType, taskType].filter(Boolean).join(' ');
   const identity = {
     entityId,
@@ -131,13 +144,15 @@ const relatedSlot = (entry: z.infer<typeof relatedEntitySchema>, position: numbe
     candidate: {
       id: `related:${String(position)}`,
       kind: 'linked',
-      text: `${displayName} (${label}; ${relationship})${reasoning ? `: ${reasoning}` : ''}`,
+      text: `${displayName} (${label}; ${labels.join(', ')})${reasons.length > 0 ? `: ${reasons.join(' ')}` : ''}`,
     },
     short: (relationToFocal) => ({
       ...identity,
-      relationship,
+      relationships: relationships.map(({ relationship, reasoning }) => ({
+        relationship,
+        ...withSummary(reasoning),
+      })),
       relationToFocal,
-      ...withSummary(reasoning),
     }),
     index: () => ({ entityId, entityType, displayName }),
   };

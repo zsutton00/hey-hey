@@ -980,44 +980,28 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           ]
         },
         "questionGroup": {
-          "$ref": "#/definitions/RepositoryFirstWorkQuestions/properties/questionGroup"
+          "$ref": "#/definitions/RepositoryFeatureEnrichmentQuestionGroup"
         }
       }
     },
-    "RepositoryFirstWorkQuestions": {
+    "RepositoryFeatureEnrichmentQuestionGroup": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "outcome",
-        "questionGroup"
+        "questions"
       ],
       "properties": {
-        "outcome": {
-          "type": "string",
-          "enum": [
-            "questions"
-          ]
-        },
-        "questionGroup": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "questions"
-          ],
-          "properties": {
-            "questions": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 3,
-              "items": {
-                "type": "string",
-                "minLength": 1
-              }
-            }
-          },
-          "description": "Bounded specialization of the existing QuestionsGroupPayload shape so the standard question_group renderer can be reused without a second UI contract."
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
-      }
+      },
+      "description": "Bounded specialization of the existing QuestionsGroupPayload shape so the standard question_group renderer can be reused without a second UI contract."
     },
     "RepositoryFeatureEnrichmentSuccess": {
       "type": "object",
@@ -1428,6 +1412,25 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           "$ref": "#/definitions/RepositoryFirstWorkTerminalFailure"
         }
       ]
+    },
+    "RepositoryFirstWorkQuestions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "questionGroup"
+      ],
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "questions"
+          ]
+        },
+        "questionGroup": {
+          "$ref": "#/definitions/RepositoryFeatureEnrichmentQuestionGroup"
+        }
+      }
     },
     "RepositoryFirstWorkSuccess": {
       "type": "object",

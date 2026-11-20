@@ -400,6 +400,14 @@ pub async fn delete(
     let s = super::routes::scope(org, project)?;
     let mut tx = native::begin(&pool, &s).await?;
     let current = read(&mut tx, &s, &id).await?;
+    if current.is_none() {
+        // Structural edges are platform-owned: report them as not deletable here instead of a silent success.
+        let owned_by_platform: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM graph.edge WHERE organization_id=$1 AND project_id=$2 AND id=$3 AND NOT relationship_type=ANY($4))")
+            .bind(&s.organization).bind(&s.project).bind(&id).bind(LABELS).fetch_one(&mut *tx).await.map_err(anyhow::Error::from)?;
+        if owned_by_platform {
+            return Err(native::missing());
+        }
+    }
     if current.is_none() && q.expected_updated_at.is_some() {
         let receipt: Option<Value> = sqlx::query_scalar("SELECT jsonb_build_object('updatedAt',deleted_basis) FROM graph.agent_edge_deletion WHERE organization_id=$1 AND project_id=$2 AND id=$3")
             .bind(&s.organization).bind(&s.project).bind(&id).fetch_optional(&mut *tx).await.map_err(anyhow::Error::from)?;

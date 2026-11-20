@@ -113,6 +113,11 @@ export class KeyPairStore {
     return this.namespace;
   }
 
+  /** Throws the specific typed cause when protected storage cannot hold credentials right now. */
+  async ensureProtectedStorageReady(): Promise<void> {
+    await this.platformStore.ensureReady?.(this.namespace);
+  }
+
   private static selectDefaultPlatformStore(): PlatformStore {
     if (!KeyPairStore.backendLogged) {
       KeyPairStore.backendLogged = true;

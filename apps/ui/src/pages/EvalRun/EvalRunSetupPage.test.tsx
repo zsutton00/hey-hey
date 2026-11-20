@@ -14,6 +14,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 vi.mock("react-i18next", () => ({
+  initReactI18next: { type: "3rdParty", init: () => undefined },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) =>
       options ? `${key} ${JSON.stringify(options)}` : key,
@@ -21,7 +22,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
-  useUserIdentity: () => ({ currentOrgId: "org" }),
+  useUserIdentity: () => ({ currentOrgId: "org", userId: "user" }),
 }));
 
 vi.mock("@hey-hey/ui-common/services", () => ({
@@ -221,6 +222,47 @@ describe("EvalRunSetupPage", () => {
     expect(mockStart).not.toHaveBeenCalled();
   });
 
+  it("counts repeats into the attempts, shows the total on Run and records the repeat count", async () => {
+    render(<EvalRunSetupPage />);
+    addSetup("pick-sonnet-high");
+    expect(screen.getByTestId("eval-run-setting-repeats")).toHaveValue(1);
+
+    fireEvent.change(screen.getByTestId("eval-run-setting-repeats"), {
+      target: { value: "5" },
+    });
+    expect(screen.getByTestId("eval-run-attempt-count")).toHaveTextContent(
+      "eval.run.setup.attemptCountRepeats",
+    );
+    expect(screen.getByTestId("eval-run-attempt-count")).toHaveTextContent(
+      '"attempts":"eval.run.attempts {\\"count\\":10}"',
+    );
+    expect(screen.getByTestId("eval-run-start")).toHaveTextContent(
+      '"attempts":"eval.run.attempts {\\"count\\":10}"',
+    );
+    expect(screen.getByTestId("eval-run-live-project-note")).toHaveTextContent(
+      "eval.run.setup.liveProjectNoteRepeats",
+    );
+
+    fireEvent.change(screen.getByTestId("eval-run-setting-repeats"), {
+      target: { value: "11" },
+    });
+    expect(screen.getByTestId("eval-run-start")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("eval-run-setting-repeats"), {
+      target: { value: "10" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("eval-run-start"));
+    });
+    expect(mockLaunch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          settings: expect.objectContaining({ repeatsPerAttempt: 10 }),
+        }),
+      }),
+    );
+  });
+
   it("can't run without a machine", () => {
     mockMachineId = null;
     render(<EvalRunSetupPage />);
@@ -324,10 +366,12 @@ describe("EvalRunSetupPage", () => {
           model: "claude-sonnet-5-5",
           reasoningEffort: "medium",
         },
-        settings: { maxConcurrentAttempts: 3 },
+        settings: { maxConcurrentAttempts: 3, repeatsPerAttempt: 1 },
       },
     });
     expect(mockStart).toHaveBeenCalledWith({
+      userId: "user",
+      lineage: [{ entityType: "task", entityId: "eval-1" }],
       organizationId: "org",
       projectId: "p1",
       runId: "run-9",

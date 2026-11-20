@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { AgentEdgeType, TaskSource, WorkStatus } from "../../api";
 import type {
   CanonicalPlanAggregateStage,
@@ -7,7 +8,7 @@ import { buildCanonicalPlanExecutionGraphViewModel } from "./buildCanonicalPlanE
 
 const task = (
   id: string,
-  status: WorkStatus,
+  status: TaskResponseDto["status"],
   dependencies: string[] = [],
 ): PlanStageStandardTask => ({
   id,
@@ -96,5 +97,26 @@ describe("buildCanonicalPlanExecutionGraphViewModel", () => {
     expect(viewModel.nodes[1].notices?.[0].text).toBe(
       "Waiting on dependencies",
     );
+  });
+
+  it("shows every started Bug status as in progress, not eligible", () => {
+    const bugs = [
+      WorkStatus.Verifying,
+      WorkStatus.OnHold,
+      WorkStatus.Refining,
+    ].map((status) => ({
+      ...task(`bug-${status}`, status),
+      type: "BUG" as const,
+    }));
+    const viewModel = buildCanonicalPlanExecutionGraphViewModel({
+      orderedTasks: bugs,
+      dependenciesByTaskId: new Map(bugs.map((bug) => [bug.id, []])),
+    } as unknown as CanonicalPlanAggregateStage);
+
+    expect(viewModel.nodes.map((node) => node.state)).toEqual([
+      "active",
+      "active",
+      "active",
+    ]);
   });
 });

@@ -20,13 +20,19 @@ import addFormats from 'ajv-formats';
 import type {
   ApiErrorResponse,
   CreateReportCompletedAttemptError,
+  CreateReportValidationError,
+  CreateReportValidationIssue,
 } from '@hey-hey/contracts/api/models';
 import { reportErrorSchemas } from '../../shared/api/generated/report-error-schemas';
 import { extractOrganizationIdFromToken } from '../../auth/index';
 import { NOOP_LOGGER, type ServerLogger } from '../../server/logger';
 import type { ReportEmissionEvents } from './report-emission-events';
 import type { SubmissionToolAuth } from './submission-tool-auth';
-import type { SubmissionToolMcpContent } from './types';
+import {
+  SubmissionToolCorrectableError,
+  type SubmissionToolCorrectableFinding,
+  type SubmissionToolMcpContent,
+} from './types';
 
 const reportGuidanceSchema = z.object({
   actions: z.array(z.string()),
@@ -36,6 +42,9 @@ const errorValidator = new Ajv({ strict: false });
 addFormats(errorValidator);
 const parsePlatformError = errorValidator.compile<ApiErrorResponse>(
   reportErrorSchemas.ApiErrorResponse,
+);
+const parseValidationError = errorValidator.compile<CreateReportValidationError>(
+  reportErrorSchemas.CreateReportValidationError,
 );
 const parseCompletedAttempt = errorValidator.compile<CreateReportCompletedAttemptError>(
   reportErrorSchemas.CreateReportCompletedAttemptError,
@@ -168,6 +177,21 @@ export const isCreateReportPersistedFailure = (error: unknown): boolean =>
   error instanceof CreateReportProxyError &&
   (error.code === 'INVALID_RESPONSE' || error.code === 'MISSING_REPORT_ID');
 
+const toValidationFinding = (
+  issue: CreateReportValidationIssue,
+): SubmissionToolCorrectableFinding => ({
+  field: issue.path,
+  code: issue.keyword,
+  reason:
+    issue.keyword === 'required' && issue.missingProperty !== undefined
+      ? `missing required property "${issue.missingProperty}"`
+      : `${issue.message}${issue.allowedValues ? ` (${issue.allowedValues.map((value) => JSON.stringify(value)).join(', ')})` : ''}`,
+  correction:
+    issue.keyword === 'required'
+      ? `Add ${issue.path} to the payload, then submit the report again.`
+      : `Correct ${issue.path} to satisfy the report schema, then submit the report again.`,
+});
+
 const buildEndpointUrl = (apiBaseUrl: string, organizationId: string): string => {
   const trimmed = apiBaseUrl.replace(/\/$/u, '');
   return `${trimmed}/organizations/${encodeURIComponent(organizationId)}/reports`;
@@ -283,6 +307,14 @@ export class CreateReportProxy {
             attemptId: errorBody.data.attemptId,
           });
         }
+      }
+      if (response.status === 400 && parseValidationError(errorBody)) {
+        // The platform refused to persist: nothing was saved, so the agent can
+        // fix the listed fields and resubmit without completing the request.
+        throw new SubmissionToolCorrectableError({
+          reason: errorBody.message,
+          findings: errorBody.data.issues.map(toValidationFinding),
+        });
       }
       if (!completedReportId) {
         throw new CreateReportProxyError(

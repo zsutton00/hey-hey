@@ -2,11 +2,19 @@ import React, { useContext } from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderBare,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+
+const render = (ui: React.ReactElement) =>
+  renderBare(
+    <ThemeProvider theme={createHeyTheme("light")}>{ui}</ThemeProvider>,
+  );
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   InlineReconciliationBodyContext,
@@ -43,6 +51,17 @@ vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
 vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
   useWorkItemTypes: () => ({
     workItemTypes: [
+      {
+        definition: {
+          key: "STANDARD",
+          sections: [],
+          capabilities: { supportsSupersession: true },
+          statuses: [
+            { name: "BACKLOG", label: "Backlog", meaning: "NOT_STARTED" },
+            { name: "QA", label: "QA", meaning: "IN_PROGRESS" },
+          ],
+        },
+      },
       {
         definition: {
           key: "FEATURE",
@@ -293,6 +312,20 @@ describe("complete reconciliation review", () => {
     await screen.findByTestId("proposal-reconciliation-agent-fix");
     expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
     expect(screen.queryByText("Approve displayed revision")).toBeNull();
+  });
+  it("explains both resolution choices without approving or applying", async () => {
+    const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
+    const card = await screen.findByTestId("proposal-reconciliation-choices");
+    expect(card).toHaveAttribute("data-tone", "needsAnswer");
+    expect(card).toHaveTextContent("Choose sections:");
+    expect(card).toHaveTextContent("Work with agent:");
+    expect(card).toHaveTextContent(
+      "Neither choice approves or applies anything.",
+    );
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-agent-fix"));
+    expect(screen.getByTestId("proposal-agent-fix-confirm")).toBeVisible();
+    expect(screen.queryByText("Approve displayed revision")).toBeNull();
+    expect(apply).not.toHaveBeenCalled();
   });
   it("warns that Agent fix starts a session instead of linking to the proposal page", async () => {
     const apply = mount({ ...ready, status: "AGENT_FIX_REQUIRED" });
@@ -891,6 +924,19 @@ describe("same-page staged recovery", () => {
       ),
     ).toHaveLength(2);
   });
+  it("scrolls the conversation panel into view once when Agent fix starts", async () => {
+    const scrollIntoView = vi.mocked(Element.prototype.scrollIntoView);
+    mount(conflict);
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-agent-fix"),
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Launch recorded session"));
+    await screen.findByTestId("proposal-reconciliation-agent-panel");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("proposal-reconciliation-edit-by-hand"));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
   it("keeps the agent conversation open during manual editing", async () => {
     mount(conflict);
     fireEvent.click(
@@ -1006,6 +1052,42 @@ describe("same-page staged recovery", () => {
     expect(keep).toHaveAttribute("aria-pressed", "true");
     expect(current).toHaveAttribute("aria-pressed", "true");
   });
+  it("offers only the item type's own statuses plus Archived when resolving a status", async () => {
+    const statusBasis = {
+      ...basis,
+      content: { type: "STANDARD", name: "Same", status: "BACKLOG" },
+    };
+    mount({
+      ...conflict,
+      currentBases: [statusBasis],
+      revisions: [{ ...ready.revisions[0], proposedResult: { status: "QA" } }],
+      overlaps: [
+        {
+          path: "status",
+          currentValue: "BACKLOG",
+          proposedValue: "QA",
+          interveningProposalId: null,
+        },
+      ],
+    });
+    fireEvent.click(
+      await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+    );
+    const statusItem = screen
+      .getAllByTestId("resolution-item")
+      .find((item) => within(item).queryByText("Status"))!;
+    expect(within(statusItem).getAllByText("QA").length).toBeGreaterThan(0);
+
+    fireEvent.click(
+      within(statusItem).getByRole("button", { name: "Edit", exact: true }),
+    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Status" }));
+
+    const options = within(screen.getByRole("listbox"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(options).toEqual(["Backlog", "QA", "Archived"]);
+  });
   it("replaces the conflict review with the editor and restores it on Cancel", async () => {
     mount(conflict);
     fireEvent.click(
@@ -1042,4 +1124,59 @@ describe("same-page staged recovery", () => {
       proposalsClient.createProposalReconciliationCandidate,
     ).not.toHaveBeenCalled();
   });
+});
+
+it("saves a manually edited design-document status without a work-item definition", async () => {
+  const state: ProposalReconciliationState = {
+    ...ready,
+    status: "RECONCILIATION_REQUIRED",
+    currentBases: [
+      { ...basis, entityType: "DESIGN_DOC", content: { status: "DRAFT" } },
+    ],
+    revisions: [{ ...ready.revisions[0], proposedResult: { status: "READY" } }],
+    conflictingPaths: ["status"],
+    overlaps: [
+      {
+        path: "status",
+        currentValue: "DRAFT",
+        proposedValue: "READY",
+        interveningProposalId: null,
+      },
+    ],
+  };
+  vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+    data: { data: state },
+  } as never);
+  vi.mocked(
+    proposalsClient.createProposalReconciliationCandidate,
+  ).mockResolvedValue({ data: { data: ready } } as never);
+  render(
+    <ProposalReconciliationReview
+      proposal={{ ...proposal, targetEntityType: "DESIGN_DOC" }}
+      onApply={vi.fn()}
+    >
+      <Approve />
+    </ProposalReconciliationReview>,
+  );
+  fireEvent.click(
+    await screen.findByTestId("proposal-reconciliation-edit-by-hand"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+  fireEvent.change(screen.getByLabelText("Proposed content"), {
+    target: { value: "ARCHIVED" },
+  });
+  expect(screen.getByRole("button", { name: "Save edit" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save edit" }));
+  fireEvent.click(screen.getByTestId("proposal-reconciliation-manual-save"));
+  await waitFor(() =>
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createProposalReconciliationCandidate: expect.objectContaining({
+          proposedResult: { status: "ARCHIVED" },
+        }),
+      }),
+    ),
+  );
 });

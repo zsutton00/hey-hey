@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentGroupedPermissionRequest } from './agent-grouped-permission-request.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentQuestion } from './agent-question.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -170,6 +173,9 @@ import type { PlanGenerationVisualPreviewEntry } from './plan-generation-visual-
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PlanGenerationVisualPreviewPayload } from './plan-generation-visual-preview-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { QuestionsGroupConversationReply } from './questions-group-conversation-reply.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { QuestionsGroupPayload } from './questions-group-payload.js';

@@ -26,9 +26,11 @@ import {
 export function VerifyFeatureAction({
   check,
   context,
+  onLaunched,
 }: {
   check: VerifyFeaturePayload;
   context: SecondaryActionContext;
+  onLaunched: (agentSessionId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [guidance, setGuidance] = useState("");
@@ -107,14 +109,15 @@ export function VerifyFeatureAction({
             ? { launchServiceId: runtimeContext.launchServiceId }
             : {}),
         })
-        .then((succeeded) => {
-          if (succeeded) {
+        .then((result) => {
+          if (result) {
             setOpen(false);
             setGuidance("");
+            onLaunched(result.agentSessionId);
           }
         });
     },
-    [check, launcher, runtimeContext, selectedMachine],
+    [check, launcher, onLaunched, runtimeContext, selectedMachine],
   );
 
   const handleClose = useCallback(() => {

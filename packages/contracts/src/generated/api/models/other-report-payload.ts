@@ -61,6 +61,9 @@ import type { EvalAttemptStatus } from './eval-attempt-status.js';
 import type { EvalAttemptStopReason } from './eval-attempt-stop-reason.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalAttemptTurn } from './eval-attempt-turn.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConfiguration } from './eval-configuration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -74,6 +77,9 @@ import type { EvalModelSetting } from './eval-model-setting.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalRecordedChanges } from './eval-recorded-changes.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvalRecordedToolCalls } from './eval-recorded-tool-calls.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
@@ -127,10 +133,19 @@ import type { GoalProgressReportPayload } from './goal-progress-report-payload.j
 import type { GoalProgressReportPayloadAllOfGoalAnchor } from './goal-progress-report-payload-all-of-goal-anchor.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ImplementReportEdit } from './implement-report-edit.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ImplementReportPayload } from './implement-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ImplementReportPayloadAllOfDecisions } from './implement-report-payload-all-of-decisions.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MonitorNodeResultOutcome } from './monitor-node-result-outcome.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MonitorNodeResultReportPayload } from './monitor-node-result-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PhaseGroundingReportPayload } from './phase-grounding-report-payload.js';
@@ -202,4 +217,4 @@ import type { ValidationWalkthroughReportPayload } from './validation-walkthroug
  * @type OtherReportPayload
  * @export
  */
-export type OtherReportPayload = ChangeWalkthroughReportPayload | CodingResearchReportPayload | CommitReportPayload | CompetitiveAnalysisReportPayload | DailySessionReportPayload | DecisionNeededReportPayload | EvalAttemptReportPayload | EvalHumanReviewReportPayload | EvalRunReportPayload | EvidencePipelineReportPayload | FeatureSyncHandoffReportPayload | FeatureSyncReportPayload | FeatureTreeAnalysisReportPayload | GoalProgressReportPayload | ImplementReportPayload | PhaseGroundingReportPayload | PlanReportPayload | ProjectReportPayload | ReviewReportPayload | RiskAlertReportPayload | RollupProposalReportPayload | SessionMonitorDeferralReportPayload | SessionSummaryReportPayload | SnapshotReportPayload | ValidationWalkthroughReportPayload;
+export type OtherReportPayload = ChangeWalkthroughReportPayload | CodingResearchReportPayload | CommitReportPayload | CompetitiveAnalysisReportPayload | DailySessionReportPayload | DecisionNeededReportPayload | EvalAttemptReportPayload | EvalHumanReviewReportPayload | EvalRunReportPayload | EvidencePipelineReportPayload | FeatureSyncHandoffReportPayload | FeatureSyncReportPayload | FeatureTreeAnalysisReportPayload | GoalProgressReportPayload | ImplementReportPayload | MonitorNodeResultReportPayload | PhaseGroundingReportPayload | PlanReportPayload | ProjectReportPayload | ReviewReportPayload | RiskAlertReportPayload | RollupProposalReportPayload | SessionMonitorDeferralReportPayload | SessionSummaryReportPayload | SnapshotReportPayload | ValidationWalkthroughReportPayload;

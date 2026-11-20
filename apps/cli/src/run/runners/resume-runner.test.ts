@@ -1,3 +1,4 @@
+import { codingPlanHandler } from '../../agents/coding-plan/coding-plan.handler';
 import { asProjectId } from '../../test-utils/contract-ids';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -302,6 +303,41 @@ describe('ResumeRunner', () => {
 
     const call = resumeSession.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(call['additionalAllowedTools']).toEqual(['create_stage', 'create_step', 'move_step']);
+  });
+
+  it('forwards the planner read-only tool declaration into resumeSession', async () => {
+    const session = makeSession();
+    const run = new Run(makeRunArgs({ hasProviderSession: true, session }), makeCollaborators());
+    const resumeSession = vi.fn().mockResolvedValue({
+      providerSessionId: 'session-abc',
+      providerConversationId: 'conv-abc',
+      errorCount: 0,
+    });
+    const ctx: RunnerContext = {
+      run,
+      handler: codingPlanHandler as PromptTypeHandler<unknown>,
+      resolvedPrompt: 'revise the plan',
+      input: makeInput(),
+      preparedPayload: undefined,
+      cwd: '/tmp/test-cwd',
+      effectiveModel: null,
+      effectiveReasoningEffort: null,
+      priorReports: [],
+      providerSessionDecision: 'resume',
+      platformMcpAdditionalAllowedTools: [],
+    };
+
+    await new ResumeRunner(ctx, {
+      sessionRunnerFacade: sessionRunnerFacadeFor(resumeSession),
+      logger: makeLogger(),
+    }).run(new AbortController().signal);
+
+    expect(resumeSession.mock.calls[0]?.[0]).toMatchObject({
+      readOnlyFilesystem: true,
+      builtinTools: ['Read', 'Glob', 'Grep', 'ToolSearch'],
+      mcpToolUseCase: 'planning',
+      additionalAllowedTools: ['get_agent_sessions', 'list_services'],
+    });
   });
 
   it('forwards the scoped platform MCP proxy mount', async () => {

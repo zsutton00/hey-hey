@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import type {
+  RefreshOpenItemPresentationRequest,
   ActivateOpenItemRequest,
   AssignOpenItemsToGroupRequest,
   CreateOpenItemGroupRequest,
@@ -28,6 +29,7 @@ import { OpenItemsValidationException } from './open-items.errors';
 
 /** Request body type for each generated request schema. */
 export interface OpenItemsRequestTypes {
+  RefreshOpenItemPresentationRequest: RefreshOpenItemPresentationRequest;
   ActivateOpenItemRequest: ActivateOpenItemRequest;
   SetOpenItemNoteRequest: SetOpenItemNoteRequest;
   SetOpenItemPinRequest: SetOpenItemPinRequest;

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import type { PlanWorkItem } from "@hey-hey/ui-common/data";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import React from "react";
@@ -62,7 +63,12 @@ vi.mock("@hey-hey/ui-common", () => ({
   }),
 }));
 
-vi.mock("@hey-hey/ui-common/data", () => ({}));
+vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
+}));
 vi.mock("../../components/Plans/CreateFeaturePlanButton", () => ({
   CreateFeaturePlanButton: ({ featureId }: { featureId: string }) => (
     <button data-feature-id={featureId}>Create Plan</button>
@@ -522,7 +528,7 @@ describe("FeaturePageView structured requirements", () => {
           schemaRef: "#/components/schemas/FeatureRequirementsSection",
         },
       ],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     };
 
     renderView({
@@ -761,49 +767,49 @@ describe("FeaturePageView registry-driven children tabs", () => {
         name: "Feature",
         role: WorkItemTypeRole.ProjectInfo,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "BUG",
         name: "Bug",
         role: WorkItemTypeRole.WorkItem,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "CONTRACT",
         name: "Contract",
         role: WorkItemTypeRole.ProjectInfo,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "STANDARD",
         name: "Task",
         role: WorkItemTypeRole.WorkItem,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "TASK_MONITOR",
         name: "Task Monitor",
         role: WorkItemTypeRole.Monitor,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "workflow",
         name: "Workflow",
         role: WorkItemTypeRole.Scheduled,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
       {
         key: "ARCHIVED",
         name: "Archived Child",
         role: WorkItemTypeRole.WorkItem,
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       },
     ];
 

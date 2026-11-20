@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,12 +7,12 @@ import { EntityIcon } from "../EntityIcon";
 
 const definition = (
   key: string,
-  iconKey: WorkItemTypeDefinitionDto["iconKey"]
+  iconKey: WorkItemTypeDefinitionDto["iconKey"],
 ): WorkItemTypeDefinitionDto => ({
   key,
   name: key,
   sections: [],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   iconKey,
 });
 
@@ -27,11 +28,11 @@ describe("EntityIcon registry-backed work-item presentation", () => {
         entityType="task"
         workItemIcon={{ typeKey, definition: definition(typeKey, iconKey) }}
         data-testid="registry-work-item-icon"
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("registry-work-item-icon").querySelector("svg")
+      screen.getByTestId("registry-work-item-icon").querySelector("svg"),
     ).toHaveAttribute("viewBox", viewBox);
   });
 
@@ -44,7 +45,7 @@ describe("EntityIcon registry-backed work-item presentation", () => {
           definition: definition("mockup", "task"),
         }}
         data-testid="registry-work-item-icon"
-      />
+      />,
     );
 
     expect(screen.getByTestId("registry-work-item-icon")).toHaveStyle({
@@ -52,7 +53,7 @@ describe("EntityIcon registry-backed work-item presentation", () => {
       color: "rgb(255, 255, 255)",
     });
     expect(
-      screen.getByTestId("registry-work-item-icon").querySelector("svg")
+      screen.getByTestId("registry-work-item-icon").querySelector("svg"),
     ).toHaveAttribute("viewBox", "0 0 20 20");
   });
 
@@ -74,11 +75,11 @@ describe("EntityIcon registry-backed work-item presentation", () => {
           definition: definition("mockup", "decision"),
         }}
         data-testid="registry-work-item-icon"
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("registry-work-item-icon").querySelector("svg")
+      screen.getByTestId("registry-work-item-icon").querySelector("svg"),
     ).toHaveAttribute("viewBox", "0 0 24 24");
   });
 });
@@ -102,13 +103,13 @@ describe("custom color contrast in both themes", () => {
             }}
             data-testid="custom-color-icon"
           />
-        </ThemeProvider>
+        </ThemeProvider>,
       );
       expect(screen.getByTestId("custom-color-icon")).toHaveStyle({
         backgroundColor: theme.palette.secondary.main,
         color: theme.palette.secondary.contrastText,
       });
-    }
+    },
   );
   it("withholds a supplied color on a mismatched definition", () => {
     render(
@@ -120,7 +121,7 @@ describe("custom color contrast in both themes", () => {
           effectiveSource: "PROJECT_CUSTOM",
         }}
         data-testid="custom-color-icon"
-      />
+      />,
     );
     expect(screen.getByTestId("custom-color-icon")).not.toHaveStyle({
       backgroundColor: "#d32f2f",

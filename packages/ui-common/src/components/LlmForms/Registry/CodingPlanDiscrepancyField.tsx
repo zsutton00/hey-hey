@@ -1,4 +1,10 @@
-import { AccountTree, Error, Info, Warning } from "@mui/icons-material";
+import {
+  AccountTree,
+  Autorenew,
+  Error,
+  Info,
+  Warning,
+} from "@mui/icons-material";
 import { Stack, Typography } from "@mui/material";
 import type { CodingPlanDiscrepancy } from "../../../api";
 import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMentions";
@@ -13,12 +19,23 @@ const severityPresentation = {
   { Icon: typeof Error; color: string; label: string }
 >;
 
+type Disposition = NonNullable<CodingPlanDiscrepancy["disposition"]>;
+
 const dispositionLabels = {
   open: "Open",
   accepted: "Accepted",
-  repair_planned: "Repair planned",
+  changes_existing_behavior: "Changes existing behavior",
   withdrawn: "Withdrawn",
-} satisfies Record<NonNullable<CodingPlanDiscrepancy["disposition"]>, string>;
+} satisfies Record<Exclude<Disposition, "repair_planned">, string>;
+
+/** Plans saved before the rename carry `repair_planned`; show them under the current name. */
+function currentDisposition(
+  disposition: Disposition,
+): Exclude<Disposition, "repair_planned"> {
+  return disposition === "repair_planned"
+    ? "changes_existing_behavior"
+    : disposition;
+}
 
 export function CodingPlanDiscrepancyField({ config }: FieldComponentProps) {
   const issue = config.payload as CodingPlanDiscrepancy;
@@ -31,6 +48,12 @@ export function CodingPlanDiscrepancyCard({
   issue: CodingPlanDiscrepancy;
 }) {
   const { Icon, color, label } = severityPresentation[issue.severity];
+  const disposition = issue.disposition
+    ? currentDisposition(issue.disposition)
+    : undefined;
+  const dispositionLabel = disposition
+    ? dispositionLabels[disposition]
+    : undefined;
 
   return (
     <Stack
@@ -39,10 +62,22 @@ export function CodingPlanDiscrepancyCard({
       alignItems="flex-start"
       data-testid="coding-plan-discrepancy"
     >
-      <Icon
-        titleAccess={`${label} severity`}
-        sx={{ color, fontSize: 28, flexShrink: 0, mt: 0.25 }}
-      />
+      {disposition === "changes_existing_behavior" ? (
+        <Autorenew
+          titleAccess={dispositionLabel}
+          sx={{
+            color: "text.secondary",
+            fontSize: 28,
+            flexShrink: 0,
+            mt: 0.25,
+          }}
+        />
+      ) : (
+        <Icon
+          titleAccess={`${label} severity`}
+          sx={{ color, fontSize: 28, flexShrink: 0, mt: 0.25 }}
+        />
+      )}
       <Stack spacing={1} sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           {issue.category === "project_context" ? (
@@ -64,9 +99,9 @@ export function CodingPlanDiscrepancyCard({
           <Typography variant="caption" fontWeight={600}>
             {label}
           </Typography>
-          {issue.disposition ? (
+          {dispositionLabel ? (
             <Typography variant="caption" color="text.secondary">
-              {dispositionLabels[issue.disposition]}
+              {dispositionLabel}
             </Typography>
           ) : null}
         </Stack>

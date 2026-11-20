@@ -101,9 +101,15 @@ export const CodingPlanEmissionInputToolSchema = {
                   },
                   disposition: {
                     type: 'string',
-                    enum: ['open', 'accepted', 'repair_planned', 'withdrawn'],
+                    enum: [
+                      'open',
+                      'accepted',
+                      'changes_existing_behavior',
+                      'repair_planned',
+                      'withdrawn',
+                    ],
                     description:
-                      'Current state of the finding. Assent changes the disposition and never removes the finding.',
+                      'Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.',
                   },
                   implementationFollowThrough: {
                     type: 'string',
@@ -136,9 +142,9 @@ export const CodingPlanEmissionInputToolSchema = {
               },
               disposition: {
                 type: 'string',
-                enum: ['open', 'accepted', 'repair_planned', 'withdrawn'],
+                enum: ['open', 'accepted', 'changes_existing_behavior', 'withdrawn'],
                 description:
-                  'Current state of the finding. Assent changes the disposition and never removes the finding.',
+                  'Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports.',
               },
             },
           },
@@ -215,9 +221,9 @@ export const CodingPlanDiscrepancyToolSchema = {
     },
     disposition: {
       type: 'string',
-      enum: ['open', 'accepted', 'repair_planned', 'withdrawn'],
+      enum: ['open', 'accepted', 'changes_existing_behavior', 'repair_planned', 'withdrawn'],
       description:
-        'Current state of the finding. Assent changes the disposition and never removes the finding.',
+        'Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.',
     },
     implementationFollowThrough: {
       type: 'string',

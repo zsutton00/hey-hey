@@ -4,7 +4,7 @@ import {
   type OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum as WorkItemReferenceSortBy,
   type OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum as WorkItemReferenceSortOrder,
   type PaginatedWorkItemReferenceResponseDto,
-  type WorkStatus,
+  type TaskResponseDto,
   type WorkItemReferenceDto,
 } from "../../api";
 import {
@@ -36,7 +36,7 @@ export interface WorkItemReferencePageQuery extends WorkItemReferenceScope {
   page: number;
   limit: number;
   filter?: string;
-  statuses?: readonly WorkStatus[];
+  statuses?: readonly TaskResponseDto["status"][];
   sortBy?: WorkItemReferenceSortBy;
   sortOrder?: WorkItemReferenceSortOrder;
 }

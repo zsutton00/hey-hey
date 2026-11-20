@@ -81,6 +81,7 @@ const makeProjectionHarness = (initialStatus = 'ACTIVE') => {
     projectId: effect.projectId,
     status,
     definition: {
+      kind: 'task',
       executionPlan: [],
       launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' as const } },
       cursor: 0,
@@ -151,6 +152,18 @@ describe('TaskMonitorControlEffectHandler', () => {
       error: Object.assign(new Error('invalid monitor owner'), { response: { status: 403 } }),
       status: 'failed',
       outcomeType: 'TASK_MONITOR_STOP_FAILED',
+    },
+    {
+      name: 'request mismatch (422) as terminal',
+      error: Object.assign(new Error('binding mismatch'), { response: { status: 422 } }),
+      status: 'failed',
+      outcomeType: 'TASK_MONITOR_STOP_FAILED',
+    },
+    {
+      name: 'state conflict (409) as retryable',
+      error: Object.assign(new Error('state conflict'), { response: { status: 409 } }),
+      status: 'uncertain',
+      outcomeType: 'TASK_MONITOR_STOP_UNCERTAIN',
     },
     {
       name: 'cancellation',

@@ -62,6 +62,7 @@ import { SystemMessage } from "./Components/SystemMessage";
 import { ConversationDebugPanel } from "./ConversationDebugPanel";
 import type { ConversationNavigatorOrientation } from "./ConversationNavigator";
 import { ConversationNavigator } from "./ConversationNavigator";
+import { useBrandedAppearance } from "../BrandedFrame";
 import { ConversationToolbar, type ToolbarButton } from "./ConversationToolbar";
 import type { ProposalsAcceptedHandler } from "./hooks/proposalsAcceptedTypes";
 import {
@@ -120,10 +121,6 @@ export interface PersistedConversationViewerProps {
     creation?: GoalPmRoutingCreation,
   ) => Promise<GoalPmRoutingEnactmentResponse>;
   goalPmConversationLink?: GoalPmConversationLink;
-  /**
-   * Controls whether composer field values are preserved or cleared after successful submission.
-   */
-  composerResetMode?: "preserve" | "clearOnSuccess";
   /**
    * the type of loading animation to show. fun gives bubbles and games
    */
@@ -264,6 +261,11 @@ export interface PersistedConversationViewerProps {
    * When true, hide the "Next" button on analysis messages.
    */
   hideAnalysisAction?: boolean;
+  /**
+   * Suppress the in-timeline thinking placeholder for a processing system
+   * message. Set by owners that render the Run-state indicator themselves.
+   */
+  hideProcessingPlaceholder?: boolean;
 
   /**
    * Active coding session context for agent-session-scoped forms.
@@ -541,6 +543,7 @@ const ConversationViewerContent: React.FC<{
     isLoading: false,
   });
 
+  const isBranded = useBrandedAppearance();
   const isHorizontal = navigationOrientation === "horizontal";
   const showContent = true;
   const hasToolbar = toolbarButtons && toolbarButtons.length > 0;
@@ -659,7 +662,15 @@ const ConversationViewerContent: React.FC<{
           data-conversation-content
           {...slotProps?.paper}
           sx={{
-            p: { xs: 2, sm: 3, md: 4 },
+            ...(isBranded
+              ? {
+                  border: "none",
+                  backgroundColor: "transparent",
+                  backgroundImage: "none",
+                  boxShadow: "none",
+                }
+              : {}),
+            p: isBranded ? 0 : { xs: 2, sm: 3, md: 4 },
             flex: 1,
             minWidth: 0, // Prevent flex item from overflowing
             maxWidth: "100%",
@@ -888,13 +899,13 @@ const PersistedConversationViewer: React.FC<
   enableHistory = false,
   onHistoryConversationSelected,
   readOnly = false,
-  composerResetMode = "preserve",
   sidebarMode = "full",
   combineSameSections = false,
   timelineAnimationMode = "all",
   renderNestedUserMessages = false,
   renderTimestamp = false,
   hideAnalysisAction = false,
+  hideProcessingPlaceholder = false,
   agentSessionId,
   agentSessionCurrentState,
   showAgentSessionCurrentStateIndicator = false,
@@ -995,9 +1006,9 @@ const PersistedConversationViewer: React.FC<
       onConversationUpdated={onConversationUpdated}
       suggestionDecisions={suggestionDecisions}
       readOnly={readOnly}
-      composerResetMode={composerResetMode}
       renderNestedUserMessages={renderNestedUserMessages}
       hideAnalysisAction={hideAnalysisAction}
+      hideProcessingPlaceholder={hideProcessingPlaceholder}
       proposalDiffDefaultViewMode={proposalDiffDefaultViewMode}
       onProposalsAccepted={onProposalsAccepted}
       triageApplication={triageApplication}

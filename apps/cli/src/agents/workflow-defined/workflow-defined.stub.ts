@@ -1,5 +1,5 @@
 import type { PromptTypeHandler } from '../prompt-type-handler';
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { LocalPromptType, SessionRole } from '@hey-hey/contracts/agent-bridge';
 
 /**
  * Sentinel handler for `workflow-defined`. This promptType is never
@@ -13,6 +13,7 @@ export const workflowDefinedStub: PromptTypeHandler<unknown> = {
   service: 'required',
   launchEntity: 'none',
   implementationReadiness: 'none',
+  sessionRole: SessionRole.Research,
   runnerKind: 'provider_session',
   providerSessionCountsForContext: true,
   reports: [],

@@ -61,6 +61,9 @@ import type { EvalAttemptStatus } from './eval-attempt-status.js';
 import type { EvalAttemptStopReason } from './eval-attempt-stop-reason.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { EvalAttemptTurn } from './eval-attempt-turn.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { EvalConfiguration } from './eval-configuration.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -74,6 +77,9 @@ import type { EvalModelSetting } from './eval-model-setting.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalRecordedChanges } from './eval-recorded-changes.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvalRecordedToolCalls } from './eval-recorded-tool-calls.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvalResolvedExecution } from './eval-resolved-execution.js';
@@ -133,10 +139,19 @@ import type { GoalProgressReportPayload } from './goal-progress-report-payload.j
 import type { GoalProgressReportPayloadAllOfGoalAnchor } from './goal-progress-report-payload-all-of-goal-anchor.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ImplementReportEdit } from './implement-report-edit.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ImplementReportPayload } from './implement-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ImplementReportPayloadAllOfDecisions } from './implement-report-payload-all-of-decisions.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MonitorNodeResultOutcome } from './monitor-node-result-outcome.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { MonitorNodeResultReportPayload } from './monitor-node-result-report-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PhaseGroundingReportPayload } from './phase-grounding-report-payload.js';
@@ -208,6 +223,6 @@ import type { ValidationWalkthroughReportPayload } from './validation-walkthroug
  * @type ReportPayload
  * @export
  */
-export type ReportPayload = { reportType: 'CHANGE_WALKTHROUGH' } & ChangeWalkthroughReportPayload | { reportType: 'CODING_RESEARCH' } & CodingResearchReportPayload | { reportType: 'COMMIT' } & CommitReportPayload | { reportType: 'COMPETITIVE_ANALYSIS' } & CompetitiveAnalysisReportPayload | { reportType: 'DAILY_SESSION' } & DailySessionReportPayload | { reportType: 'DECISION_NEEDED' } & DecisionNeededReportPayload | { reportType: 'EVAL_ATTEMPT' } & EvalAttemptReportPayload | { reportType: 'EVAL_HUMAN_REVIEW' } & EvalHumanReviewReportPayload | { reportType: 'EVAL_RUN' } & EvalRunReportPayload | { reportType: 'EVIDENCE_PIPELINE' } & EvidencePipelineReportPayload | { reportType: 'FEATURE_SYNC' } & FeatureSyncReportPayload | { reportType: 'FEATURE_SYNC_DECISION' } & FeatureSyncDecisionReportPayload | { reportType: 'FEATURE_SYNC_HANDOFF' } & FeatureSyncHandoffReportPayload | { reportType: 'FEATURE_TREE_ANALYSIS' } & FeatureTreeAnalysisReportPayload | { reportType: 'GOAL_PROGRESS' } & GoalProgressReportPayload | { reportType: 'IMPLEMENT' } & ImplementReportPayload | { reportType: 'PHASE_GROUNDING' } & PhaseGroundingReportPayload | { reportType: 'PLAN' } & PlanReportPayload | { reportType: 'PROJECT_REPORT' } & ProjectReportPayload | { reportType: 'REVIEW' } & ReviewReportPayload | { reportType: 'RISK_ALERT' } & RiskAlertReportPayload | { reportType: 'ROLLUP_PROPOSAL' } & RollupProposalReportPayload | { reportType: 'SESSION_MONITOR_DEFERRAL' } & SessionMonitorDeferralReportPayload | { reportType: 'SESSION_SUMMARY' } & SessionSummaryReportPayload | { reportType: 'SNAPSHOT' } & SnapshotReportPayload | { reportType: 'VALIDATION_WALKTHROUGH' } & ValidationWalkthroughReportPayload;
+export type ReportPayload = { reportType: 'CHANGE_WALKTHROUGH' } & ChangeWalkthroughReportPayload | { reportType: 'CODING_RESEARCH' } & CodingResearchReportPayload | { reportType: 'COMMIT' } & CommitReportPayload | { reportType: 'COMPETITIVE_ANALYSIS' } & CompetitiveAnalysisReportPayload | { reportType: 'DAILY_SESSION' } & DailySessionReportPayload | { reportType: 'DECISION_NEEDED' } & DecisionNeededReportPayload | { reportType: 'EVAL_ATTEMPT' } & EvalAttemptReportPayload | { reportType: 'EVAL_HUMAN_REVIEW' } & EvalHumanReviewReportPayload | { reportType: 'EVAL_RUN' } & EvalRunReportPayload | { reportType: 'EVIDENCE_PIPELINE' } & EvidencePipelineReportPayload | { reportType: 'FEATURE_SYNC' } & FeatureSyncReportPayload | { reportType: 'FEATURE_SYNC_DECISION' } & FeatureSyncDecisionReportPayload | { reportType: 'FEATURE_SYNC_HANDOFF' } & FeatureSyncHandoffReportPayload | { reportType: 'FEATURE_TREE_ANALYSIS' } & FeatureTreeAnalysisReportPayload | { reportType: 'GOAL_PROGRESS' } & GoalProgressReportPayload | { reportType: 'IMPLEMENT' } & ImplementReportPayload | { reportType: 'MONITOR_NODE_RESULT' } & MonitorNodeResultReportPayload | { reportType: 'PHASE_GROUNDING' } & PhaseGroundingReportPayload | { reportType: 'PLAN' } & PlanReportPayload | { reportType: 'PROJECT_REPORT' } & ProjectReportPayload | { reportType: 'REVIEW' } & ReviewReportPayload | { reportType: 'RISK_ALERT' } & RiskAlertReportPayload | { reportType: 'ROLLUP_PROPOSAL' } & RollupProposalReportPayload | { reportType: 'SESSION_MONITOR_DEFERRAL' } & SessionMonitorDeferralReportPayload | { reportType: 'SESSION_SUMMARY' } & SessionSummaryReportPayload | { reportType: 'SNAPSHOT' } & SnapshotReportPayload | { reportType: 'VALIDATION_WALKTHROUGH' } & ValidationWalkthroughReportPayload;
 
-export const ReportPayloadDiscriminatorValues = ["EVIDENCE_PIPELINE","ROLLUP_PROPOSAL","DAILY_SESSION","GOAL_PROGRESS","RISK_ALERT","SESSION_SUMMARY","CODING_RESEARCH","SNAPSHOT","COMMIT","PLAN","IMPLEMENT","REVIEW","CHANGE_WALKTHROUGH","FEATURE_SYNC","FEATURE_SYNC_HANDOFF","FEATURE_SYNC_DECISION","DECISION_NEEDED","SESSION_MONITOR_DEFERRAL","PHASE_GROUNDING","VALIDATION_WALKTHROUGH","FEATURE_TREE_ANALYSIS","COMPETITIVE_ANALYSIS","PROJECT_REPORT","EVAL_RUN","EVAL_ATTEMPT","EVAL_HUMAN_REVIEW"] as const;
+export const ReportPayloadDiscriminatorValues = ["EVIDENCE_PIPELINE","ROLLUP_PROPOSAL","DAILY_SESSION","GOAL_PROGRESS","RISK_ALERT","SESSION_SUMMARY","CODING_RESEARCH","SNAPSHOT","COMMIT","PLAN","IMPLEMENT","REVIEW","CHANGE_WALKTHROUGH","FEATURE_SYNC","FEATURE_SYNC_HANDOFF","FEATURE_SYNC_DECISION","DECISION_NEEDED","SESSION_MONITOR_DEFERRAL","MONITOR_NODE_RESULT","PHASE_GROUNDING","VALIDATION_WALKTHROUGH","FEATURE_TREE_ANALYSIS","COMPETITIVE_ANALYSIS","PROJECT_REPORT","EVAL_RUN","EVAL_ATTEMPT","EVAL_HUMAN_REVIEW"] as const;

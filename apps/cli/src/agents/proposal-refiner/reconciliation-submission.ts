@@ -7,6 +7,20 @@ import type { ProposalReconciliationState } from '@hey-hey/contracts/api/models'
 import { proposalReconciliationCandidateSchema } from '@hey-hey/contracts/api/custom/proposal-reconciliation.schema';
 import { parseCandidate, parseReconciliationResponse } from './reconciliation-boundary';
 
+// MCP clients reject a tools/list whose tool schema has no root `type: "object"`, which
+// drops every submission tool on the server. The refiner only submits AGENT_FIX; MERGE and
+// suggestion decisions are user actions. Full-contract validation stays in `parseCandidate`.
+function agentFixInputSchemaFrom() {
+  const schema = proposalReconciliationCandidateSchema.oneOf.find((branch) =>
+    branch.properties.method.enum.some((method) => method === 'AGENT_FIX'),
+  );
+  if (!schema) {
+    throw new Error('Reconciliation contract has no AGENT_FIX candidate schema.');
+  }
+
+  return schema;
+}
+
 interface ReconciliationScope {
   proposalId: string;
   organizationId: string;
@@ -20,7 +34,7 @@ export class ProposalReconciliationSubmission implements PassThroughSubmissionTo
   readonly name = 'submit_proposal_reconciliation';
   readonly description =
     'Submit a complete reconciled proposal for user review. Scoped to this refiner proposal; never approves or applies.';
-  readonly inputSchema = proposalReconciliationCandidateSchema;
+  readonly inputSchema = agentFixInputSchemaFrom();
   private readonly scopes = new Map<string, ReconciliationScope>();
 
   private endpoint(

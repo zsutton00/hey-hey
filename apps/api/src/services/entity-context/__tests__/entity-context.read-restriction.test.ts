@@ -1,3 +1,4 @@
+import { createTestProjectApprovalPolicyService } from 'src/utils/testUtils';
 import { NotFoundException } from '@nestjs/common';
 import { ReadRestriction } from '@hey-hey/contracts/api/models';
 import { EntityType } from '@hey-hey/contracts/api/models';
@@ -78,6 +79,7 @@ const buildService = () => {
     {} as never,
     registry as never,
     {} as never,
+    createTestProjectApprovalPolicyService(),
   );
 
   return { service, prisma };

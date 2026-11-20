@@ -1,10 +1,15 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { NOOP_LOGGER } from './logger';
 import { createTestKeyPairStore } from '../credentials/keypair.test-support';
 import { createTestOAuthClient } from './__tests__/helpers/test-oauth-client';
 import { MachineChallengeSigner } from './machine-challenge';
 import { PlatformWebSocketManager } from './platform-ws';
+import { taskMonitorStateProjection } from './task-monitor-state-publication';
+import { RunWorktreeCollisionError } from '../agents/run-scope';
+import type { WorkItemExecutionStateObservation } from '@hey-hey/contracts/api/models';
 import type { CliReadResponseDto } from '@hey-hey/contracts/agent-bridge';
 import type { CliReadHandler } from './cli-read-handler';
 import type { ServerLogger } from './logger';
@@ -23,6 +28,7 @@ interface MockSocket extends EventEmitter {
   connected: boolean;
   id: string;
   _emits: EmitArgs[];
+  timeout?: (ms: number) => { emitWithAck: (event: string, payload: unknown) => Promise<unknown> };
 }
 
 const ioFactory = vi.fn<(url: string, opts: unknown) => MockSocket>();
@@ -184,6 +190,52 @@ describe('PlatformWebSocketManager (per Agent Session)', () => {
     expect(payload.conversationIds.sort()).toEqual(['conv-1', 'conv-2']);
   });
 
+  it('stops requesting rooms the platform reports as denied', async () => {
+    const client = new PlatformWebSocketManager({
+      serverUrl: 'http://test',
+      oauthClient: fakeOAuthClient('org-1'),
+      logger: NOOP_LOGGER,
+      keyPairStore: createPlatformKeyPairStore(),
+    });
+
+    client.subscribe('conv-live');
+    client.subscribe('conv-gone');
+    client.subscribeProject('project-live');
+    client.subscribeProject('project-gone');
+    await flush();
+    currentSocket.connected = true;
+    currentSocket.emit('connect');
+    await flush();
+    currentSocket.emit('authenticated', {
+      status: 'success',
+      projectIds: [],
+      conversationIds: [],
+    });
+    await flush();
+
+    currentSocket.emit('subscribed', {
+      status: 'success',
+      eventTypes: [],
+      projectIds: ['project-live'],
+      conversationIds: ['conv-live'],
+      initiativeIds: [],
+      designDocIds: [],
+      deniedScopes: [
+        { scopeType: 'project', id: 'project-gone' },
+        { scopeType: 'conversation', id: 'conv-gone' },
+      ],
+    });
+    currentSocket._emits.length = 0;
+    client.subscribe('conv-new');
+
+    const subscribeEmits = currentSocket._emits.filter((e) => e.event === 'subscribe');
+    expect(subscribeEmits).toHaveLength(1);
+    expect(subscribeEmits[0]!.payload).toMatchObject({
+      conversationIds: ['conv-live', 'conv-new'],
+      projectIds: ['project-live'],
+    });
+  });
+
   it('emits unsubscribe for a removed conversation and re-sends subscribe with the remaining set', async () => {
     const client = new PlatformWebSocketManager({
       serverUrl: 'http://test',
@@ -312,6 +364,122 @@ describe('PlatformWebSocketManager (per Agent Session)', () => {
       },
     });
     expect(currentSocket._emits.some(({ event }) => event === 'conversation.phase')).toBe(false);
+  });
+
+  it('reports work-item execution state through the shared seam with a matching receipt, and skips while disconnected', async () => {
+    // The platform and browser suites exercise these captured projections, so
+    // they must stay what the real Task Monitor owner publishes.
+    const captured = JSON.parse(
+      readFileSync(
+        resolve(
+          __dirname,
+          '../../../api/src/services/work-item-execution-state/__tests__/fixtures/task-monitor-state-projections.json',
+        ),
+        'utf8',
+      ),
+    );
+    const identity = {
+      machineType: 'TASK_MONITOR',
+      instanceId: '10000000-0000-4000-8000-000000000001',
+    };
+    const running = { control: 'ACTIVE', work: 'OBSERVING_RUN', intervention: 'CLEAR' };
+    const collision = new RunWorktreeCollisionError({
+      serviceId: '90000000-0000-4000-8000-000000000009',
+      repositoryPath: '/repos/service-a',
+      branch: 'feature/checkout',
+      authority: 'TASK_MONITOR',
+    }).failure;
+    const snapshots = {
+      running: { state: { RUNNING: running }, context: {} },
+      paused: {
+        state: { RUNNING: { ...running, control: 'PAUSED', work: 'AWAITING_REVIEW' } },
+        context: {},
+      },
+      // A committed worktree collision, as the machine stores it.
+      failed: {
+        state: { RUNNING: { ...running, control: 'PAUSED', work: 'RETRYABLE_LAUNCH' } },
+        context: {
+          failureReason: collision.message,
+          retryableLaunch: {
+            taskId: '60000000-0000-4000-8000-000000000006',
+            cursor: 0,
+            agentSessionId: '70000000-0000-4000-8000-000000000007',
+            conversationId: '80000000-0000-4000-8000-000000000008',
+            failedOperation: 'RUN_START',
+            failureReason: collision.message,
+            failure: collision,
+          },
+        },
+      },
+      completed: { state: 'COMPLETED', context: {} },
+    };
+    const published = Object.fromEntries(
+      Object.entries(snapshots).map(([name, snapshot]) => [
+        name,
+        taskMonitorStateProjection({ identity, revision: 4, ...snapshot } as never),
+      ]),
+    );
+    expect(published).toEqual(captured);
+
+    const client = new PlatformWebSocketManager({
+      serverUrl: 'http://test',
+      oauthClient: fakeOAuthClient('org-1'),
+      logger: NOOP_LOGGER,
+      keyPairStore: createPlatformKeyPairStore(),
+    });
+    await flush();
+    client.subscribe('conv-1');
+    await flush();
+    const observation: WorkItemExecutionStateObservation = {
+      workItemId: identity.instanceId,
+      machineId: '20000000-0000-4000-8000-000000000002',
+      sourceRevision: 4,
+      state: { type: 'TASK_MONITOR', projection: captured.failed },
+    };
+
+    await expect(client.reportWorkItemExecutionStateObservation(observation)).resolves.toEqual({
+      kind: 'SKIPPED',
+    });
+    expect(currentSocket._emits.map(({ event }) => event)).not.toContain(
+      'work_item.execution_state_observed',
+    );
+
+    currentSocket.connected = true;
+    const acknowledged: unknown[] = [];
+    currentSocket.timeout = vi.fn(() => ({
+      emitWithAck: async (event: string, payload: unknown) => {
+        acknowledged.push({ event, payload });
+        return acknowledged.length === 1
+          ? { workItemId: identity.instanceId, sourceRevision: 4, outcome: 'ACCEPTED', revision: 9 }
+          : acknowledged.length === 2
+            ? { workItemId: identity.instanceId, sourceRevision: 3, outcome: 'ACCEPTED' }
+            : Promise.reject(new Error('operation has timed out'));
+      },
+    }));
+
+    await expect(client.reportWorkItemExecutionStateObservation(observation)).resolves.toEqual({
+      kind: 'RECEIPT',
+      receipt: {
+        workItemId: identity.instanceId,
+        sourceRevision: 4,
+        outcome: 'ACCEPTED',
+        revision: 9,
+      },
+    });
+    expect(acknowledged[0]).toEqual({
+      event: 'work_item.execution_state_observed',
+      payload: observation,
+    });
+    // A receipt for a different report certifies nothing about this one.
+    await expect(client.reportWorkItemExecutionStateObservation(observation)).resolves.toEqual({
+      kind: 'NO_RECEIPT',
+      reason: 'RECEIPT_INVALID',
+    });
+    await expect(client.reportWorkItemExecutionStateObservation(observation)).resolves.toEqual({
+      kind: 'NO_RECEIPT',
+      reason: 'operation has timed out',
+    });
+    client.disconnect();
   });
 
   it('includes projectIds in the subscribe payload after subscribeProject', async () => {

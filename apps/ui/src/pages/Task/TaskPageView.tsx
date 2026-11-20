@@ -46,6 +46,7 @@ import {
   type UseTaskGenerationCapsuleActionResult,
 } from "@hey-hey/ui-common/components";
 import { TrackingProvider } from "@hey-hey/ui-common/context";
+import { useWorkItemStatusVocabularies } from "@hey-hey/ui-common/data";
 import { createNavigationLineageEntry, type Stable } from "@hey-hey/ui-common";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import AddIcon from "@mui/icons-material/Add";
@@ -163,7 +164,7 @@ export interface TaskPageViewProps {
   onDone?: (taskId: string) => void;
   onTabChange: TaskPageTabChange;
   onTitleChange: (newTitle: string) => Promise<void>;
-  onStatusChange: (newStatus: WorkStatus) => Promise<void>;
+  onStatusChange: (newStatus: TaskResponseDto["status"]) => Promise<void>;
   onPriorityChange: (newPriority: Priority) => Promise<void>;
   onDueDateChange: (newDueDate: string | null) => Promise<void>;
   onAssigneeChange: (newAssigneeId: string | null) => Promise<void>;
@@ -305,16 +306,22 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
     allowedChildTypes.includes(activeChildTypeKey);
 
   const [childSearchTerm, setChildSearchTerm] = useState("");
-  const [childStatusFilter, setChildStatusFilter] = useState<WorkStatus | "">(
-    "",
-  );
+  const [childStatusFilter, setChildStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [childSortBy, setChildSortBy] = useState("status");
 
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    children,
+  );
   const visibleChildren = useFilteredWorkItems<TaskResponseDto>(
     children,
     childSearchTerm,
     childStatusFilter,
     childSortBy,
+    definitions,
   );
 
   const activeChildTypeName = getWorkItemTypeDisplayName(
@@ -728,6 +735,7 @@ export const TaskPageView: React.FC<TaskPageViewProps> = ({
                           onSearchChange={setChildSearchTerm}
                           statusFilter={childStatusFilter}
                           onStatusFilterChange={setChildStatusFilter}
+                          statusOptions={statusOptions}
                           sortBy={childSortBy}
                           onSortByChange={setChildSortBy}
                         />

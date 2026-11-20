@@ -1,3 +1,7 @@
+import {
+  EvalCaseInputsSection,
+  EVAL_CASE_INPUTS_SCHEMA_REF,
+} from "../shared/EvalCaseInputsSection";
 import { useContext as useInlineBodyContext } from "react";
 import { InlineReconciliationBodyContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { useUpdateProposalExpansion } from "./useUpdateProposalExpansion";
@@ -300,6 +304,11 @@ export const TaskUpdateRenderer: React.FC<{
               ? proposedServiceNames.names
               : undefined,
           excludedSectionKeys: [
+            ...workItemTypeDefinition.sections
+              .filter(
+                (section) => section.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF,
+              )
+              .map((section) => section.key),
             ...(structuredRequirementsChange ? ["requirements"] : []),
             ...workItemTypeDefinition.sections
               .filter(({ kind }) => isVisualSectionKind(kind))
@@ -357,6 +366,46 @@ export const TaskUpdateRenderer: React.FC<{
         existingSections: existing.sections,
       }).filter(({ kind }) => isVisualSectionKind(kind)),
     [existing.sections, proposal.updates.sections, workItemTypeDefinition],
+  );
+  const inputSections = resolveProposalWorkItemSections({
+    definition: workItemTypeDefinition,
+    proposedSections: proposal.updates.sections,
+    existingSections: existing.sections,
+  }).filter(
+    (section) => section.definition.schemaRef === EVAL_CASE_INPUTS_SCHEMA_REF,
+  );
+  const inputs = (
+    <Stack spacing={1.5}>
+      {inputSections.map((section) => (
+        <Stack key={section.key} spacing={1}>
+          <Typography variant="caption" color="text.secondary">
+            {section.label}
+          </Typography>
+          {isApplied ? (
+            <EvalCaseInputsSection
+              content={section.proposedValue}
+              mentionConfig={modeMentionConfig}
+            />
+          ) : (
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+              {([section.existingValue, section.proposedValue] as const).map(
+                (content, index) => (
+                  <Stack key={index} spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption">
+                      {index === 0 ? "Before" : "After"}
+                    </Typography>
+                    <EvalCaseInputsSection
+                      content={content}
+                      mentionConfig={modeMentionConfig}
+                    />
+                  </Stack>
+                ),
+              )}
+            </Stack>
+          )}
+        </Stack>
+      ))}
+    </Stack>
   );
   const htmlCssSections = richPreviewSections.filter(
     ({ kind }) => kind === "html/css",
@@ -532,36 +581,32 @@ export const TaskUpdateRenderer: React.FC<{
           {isMockupReview && (
             <Stack spacing={1.5} data-testid="mockup-proposal-screen-first">
               {htmlCssSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <HtmlCssSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                    title={`${section.label} proposal preview`}
-                    organizationId={proposal.organizationId}
-                    projectId={proposal.projectId}
-                    mockupSource={{
-                      kind: "proposal",
-                      proposalId: proposal.id,
-                      sectionKey: section.key,
-                    }}
-                  />
-                </Stack>
+                <VisualProposalSectionComparison
+                  key={section.key}
+                  kind="html/css"
+                  label={section.label}
+                  definition={section.definition}
+                  before={section.existingValue}
+                  after={section.proposedValue}
+                  organizationId={proposal.organizationId}
+                  materializedProposalId={section.materializedProposalId}
+                  projectId={proposal.projectId}
+                  proposedMockupSource={{
+                    kind: "proposal",
+                    proposalId: proposal.id,
+                    sectionKey: section.key,
+                  }}
+                />
               ))}
               {structuredMockupSections.map((section) => (
-                <Stack key={section.key} spacing={0.5}>
-                  <Typography variant="caption" color="text.secondary">
-                    {section.label}
-                  </Typography>
-                  <StructuredMockupSectionRenderer
-                    content={section.proposedValue}
-                    definition={section.definition}
-                    context="inline"
-                  />
-                </Stack>
+                <VisualProposalSectionComparison
+                  key={section.key}
+                  kind="structured-mockup"
+                  label={section.label}
+                  definition={section.definition}
+                  before={section.existingValue}
+                  after={section.proposedValue}
+                />
               ))}
             </Stack>
           )}
@@ -579,6 +624,7 @@ export const TaskUpdateRenderer: React.FC<{
               )}
               <Stack spacing={1.5}>
                 {notice}
+                {inputs}
                 {proposedServiceIds !== undefined && servicesQuery.isLoading ? (
                   <Box
                     sx={{
@@ -617,41 +663,39 @@ export const TaskUpdateRenderer: React.FC<{
                         requirements={structuredRequirementsChange.after}
                       />
                     ) : null}
-                    {!isMockupReview &&
-                      htmlCssSections.map((section) => (
-                        <Stack key={section.key} spacing={0.5}>
-                          <Typography variant="caption" color="text.secondary">
-                            {section.label}
-                          </Typography>
-                          <HtmlCssSectionRenderer
-                            content={section.proposedValue}
-                            definition={section.definition}
-                            context="inline"
-                            title={`${section.label} approved proposal preview`}
-                            organizationId={proposal.organizationId}
-                            materializedProposalId={proposal.id}
-                            projectId={proposal.projectId}
-                            mockupSource={{
-                              kind: "proposal",
-                              proposalId: proposal.id,
-                              sectionKey: section.key,
-                            }}
-                          />
-                        </Stack>
-                      ))}
-                    {!isMockupReview &&
-                      structuredMockupSections.map((section) => (
-                        <Stack key={section.key} spacing={0.5}>
-                          <Typography variant="caption" color="text.secondary">
-                            {section.label}
-                          </Typography>
-                          <StructuredMockupSectionRenderer
-                            content={section.proposedValue}
-                            definition={section.definition}
-                            context="inline"
-                          />
-                        </Stack>
-                      ))}
+                    {htmlCssSections.map((section) => (
+                      <Stack key={section.key} spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {section.label}
+                        </Typography>
+                        <HtmlCssSectionRenderer
+                          content={section.proposedValue}
+                          definition={section.definition}
+                          context="inline"
+                          title={`${section.label} approved proposal preview`}
+                          organizationId={proposal.organizationId}
+                          materializedProposalId={proposal.id}
+                          projectId={proposal.projectId}
+                          mockupSource={{
+                            kind: "proposal",
+                            proposalId: proposal.id,
+                            sectionKey: section.key,
+                          }}
+                        />
+                      </Stack>
+                    ))}
+                    {structuredMockupSections.map((section) => (
+                      <Stack key={section.key} spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {section.label}
+                        </Typography>
+                        <StructuredMockupSectionRenderer
+                          content={section.proposedValue}
+                          definition={section.definition}
+                          context="inline"
+                        />
+                      </Stack>
+                    ))}
                     {modeFilesSections.map((section) => (
                       <Stack key={section.key} spacing={0.5}>
                         <Typography variant="caption" color="text.secondary">

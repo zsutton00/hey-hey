@@ -202,6 +202,40 @@ describe('prismaMessageResultToResponseDto', () => {
     });
   });
 
+  describe('automated notice classification on SYSTEM messages', () => {
+    const systemRow = (data: Record<string, unknown>): MessageQueryResult =>
+      ({
+        ...BASE_MESSAGE,
+        type: 'SYSTEM',
+        userId: 'system',
+        data,
+      }) as MessageQueryResult;
+
+    it('returns the stored notice marker and severity unchanged on read', () => {
+      const dto = prismaMessageResultToResponseDto(
+        systemRow({
+          type: 'AGENT',
+          response: 'Compact failed',
+          presentation: 'notice',
+          noticeSeverity: 'warning',
+        }),
+      );
+
+      expect(dto).toMatchObject({
+        data: { presentation: 'notice', noticeSeverity: 'warning' },
+      });
+    });
+
+    it('leaves historical messages without the fields unmarked', () => {
+      const dto = prismaMessageResultToResponseDto(
+        systemRow({ type: 'AGENT', response: 'Earlier reply' }),
+      );
+
+      expect(dto.data).not.toHaveProperty('presentation');
+      expect(dto.data).not.toHaveProperty('noticeSeverity');
+    });
+  });
+
   describe('user field on SYSTEM messages', () => {
     it('does not include a user field for system messages', () => {
       const result: MessageQueryResult = {

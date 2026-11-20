@@ -1,3 +1,4 @@
+import { useConversation } from "@hey-hey/ui-common/data";
 import React from "react";
 import { useParams } from "react-router-dom";
 import { CircularProgress, Box, Alert } from "@mui/material";
@@ -5,7 +6,8 @@ import {
   EntityConversationChat,
   OpenBrowserCapsuleAction,
   RunBrowserProvider,
-  SessionChangedFilesCapsuleAction,
+  SessionChangedFilesCapsuleActions,
+  useAgentSessionInteractionAccess,
   type ConversationScrollPolicy,
 } from "@hey-hey/ui-common/components";
 import {
@@ -120,6 +122,14 @@ export const EntityConversationPage: React.FC = () => {
     includeAvailableMcpTools: false,
   });
 
+  const titleConversationId =
+    routeConversationId ?? agentSession?.conversationId;
+  const { data: titleConversation } = useConversation(
+    organizationId,
+    projectId,
+    { conversationId: titleConversationId ?? "" },
+    { enabled: !!titleConversationId, enablePolling: false },
+  );
   const runtimeSelection = React.useMemo(
     () =>
       agentSession
@@ -130,6 +140,11 @@ export const EntityConversationPage: React.FC = () => {
           )
         : buildDefaultSurfaceSelection(),
     [agentSession],
+  );
+
+  const commitProvider = runtimeSelection?.provider ?? agentSession?.provider;
+  const commitInteractionAccess = useAgentSessionInteractionAccess(
+    agentSession?.machineId,
   );
 
   // The Run exists once the conversation does; before that the pencil on a
@@ -222,7 +237,7 @@ export const EntityConversationPage: React.FC = () => {
         entityId: aboutId,
         entityType: aboutType,
       },
-      agentSession.title === "Agent Session" ? undefined : agentSession.title,
+      titleConversation?.title,
       isTaskSubject
         ? (cachedSubjectFeature?.name ??
             subjectHierarchy?.task.name ??
@@ -264,7 +279,7 @@ export const EntityConversationPage: React.FC = () => {
             sessionMachineId={runBrowserContext.sessionMachineId}
             order={35}
           />
-          <SessionChangedFilesCapsuleAction
+          <SessionChangedFilesCapsuleActions
             organizationId={organizationId}
             projectId={projectId ?? ""}
             agentSessionId={agentSession.id}
@@ -272,6 +287,29 @@ export const EntityConversationPage: React.FC = () => {
             enabled={hasServiceInScope && Boolean(canonicalConversationId)}
             canonicalCurrentState={agentSession.currentState}
             order={100}
+            commitOrder={30}
+            commit={
+              commitProvider && canonicalConversationId
+                ? {
+                    runId: agentSession.id,
+                    providerRunId:
+                      agentSession.agentSessionId ?? agentSession.id,
+                    provider: commitProvider,
+                    organizationId,
+                    projectId: projectId ?? "",
+                    agentSessionId: agentSession.id,
+                    conversationId: canonicalConversationId,
+                    interactionAccess: commitInteractionAccess,
+                    catalogSource: agentSession.machineId
+                      ? {
+                          organizationId,
+                          projectId: projectId ?? "",
+                          machineId: agentSession.machineId,
+                        }
+                      : null,
+                  }
+                : undefined
+            }
           />
           <Box data-testid="entity-conversation-page">
             <PageBreadcrumbs

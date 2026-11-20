@@ -24,6 +24,9 @@ import type { AgentSessionEntryDto } from './agent-session-entry-dto.js';
 import type { AvailableMcpToolDto } from './available-mcp-tool-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ContextGroupedRelatedEntityDto } from './context-grouped-related-entity-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ContextRelatedEntityDto } from './context-related-entity-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore

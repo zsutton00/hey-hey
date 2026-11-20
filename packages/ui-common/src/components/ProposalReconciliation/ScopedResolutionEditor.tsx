@@ -7,7 +7,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
   Stack,
+  TextField,
   Typography,
   Tooltip,
 } from "@mui/material";
@@ -22,6 +24,10 @@ import {
 } from "../WorkItem/FeatureRequirementsSectionEditor";
 import { StructuredRequirementsView } from "../shared/StructuredRequirementsView";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
+import {
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+} from "../../utils/workItemStatusVocabulary";
 import { ReconciliationValue } from "./ReconciliationValue";
 import {
   reconciliationFieldLabel,
@@ -77,6 +83,11 @@ export function ScopedResolutionEditor({
   } | null>(null);
   const normalized = normalizeReconciliationContent(result);
   const display = (item: ResolutionItem, value: unknown) => {
+    if (item.path === "status" && typeof value === "string") {
+      return (
+        <Typography>{getWorkItemStatusLabel(value, definition)}</Typography>
+      );
+    }
     if (item.requirementId && value)
       return (
         <StructuredRequirementsView
@@ -95,6 +106,10 @@ export function ScopedResolutionEditor({
       />
     );
   };
+  const statusChoices =
+    editing?.item.path === "status" && definition
+      ? getWorkItemStatusChoices(definition)
+      : [];
   const editedRecord =
     editing?.item.requirementId && editing.value
       ? records({ records: [editing.value] })?.[0]
@@ -245,6 +260,30 @@ export function ScopedResolutionEditor({
                 setEditing((previous) => previous && { ...previous, value })
               }
             />
+          ) : editing?.item.path === "status" && definition ? (
+            <TextField
+              select
+              fullWidth
+              label="Status"
+              disabled={disabled}
+              value={
+                statusChoices.includes(String(editing.value))
+                  ? String(editing.value)
+                  : ""
+              }
+              onChange={(event) =>
+                setEditing(
+                  (previous) =>
+                    previous && { ...previous, value: event.target.value },
+                )
+              }
+            >
+              {statusChoices.map((status) => (
+                <MenuItem key={status} value={status}>
+                  {getWorkItemStatusLabel(status, definition)}
+                </MenuItem>
+              ))}
+            </TextField>
           ) : (
             <ResolutionTextEditor
               label="Proposed content"
@@ -261,7 +300,12 @@ export function ScopedResolutionEditor({
         <DialogActions>
           <Button onClick={() => setEditing(null)}>Cancel</Button>
           <Button
-            disabled={disabled}
+            disabled={
+              disabled ||
+              (editing?.item.path === "status" &&
+                presentation.kind === "work-item" &&
+                !statusChoices.includes(String(editing.value)))
+            }
             onClick={() => {
               if (editing)
                 onChange(writeResolution(result, editing.item, editing.value));

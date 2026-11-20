@@ -1,3 +1,4 @@
+import { useArchiveNavigation } from "../../navigation/useArchiveNavigation";
 import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
 import { Alert, Box } from "@mui/material";
 import { parseAsString, useQueryState } from "nuqs";
@@ -67,6 +68,7 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
   const location = useLocation();
   const params = useParams();
   const projectId = params.projectId ?? "";
+  const navigateAfterArchive = useArchiveNavigation(projectId);
   const taskId = params.taskId ?? "";
   const userIdentity = useUserIdentity();
   const organizationId = userIdentity?.currentOrgId || "";
@@ -328,7 +330,7 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
           sortBy: taskListPaging.sortBy,
           sortDir: taskListPaging.sortDir,
           status: taskListPaging.status
-            ? (taskListPaging.status as WorkStatus)
+            ? (taskListPaging.status as TaskResponseDto["status"])
             : undefined,
         }
       : {}),
@@ -523,7 +525,7 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
         return;
       }
 
-      const initialStatus = activeChildTypeDefinition.allowedStatuses[0];
+      const initialStatus = activeChildTypeDefinition.statuses[0]?.name;
       if (!initialStatus) {
         logger.warn(
           "ui",
@@ -594,7 +596,12 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
     try {
       setIsSubmittingAdminAction(true);
       if (confirmAction === "archive") {
-        await updateTask(task.id, { status: WorkStatus.Archived });
+        const updated = await updateTask(task.id, {
+          status: WorkStatus.Archived,
+        });
+        if (updated.status === WorkStatus.Archived) {
+          navigateAfterArchive(task.id);
+        }
         setConfirmAction(null);
       } else {
         await removeFeature(task.id, {
@@ -616,7 +623,15 @@ export const FeaturePage: React.FC<FeaturePageProps> = ({ task }) => {
     } finally {
       setIsSubmittingAdminAction(false);
     }
-  }, [confirmAction, navigate, projectId, removeFeature, task?.id, updateTask]);
+  }, [
+    confirmAction,
+    navigate,
+    navigateAfterArchive,
+    projectId,
+    removeFeature,
+    task?.id,
+    updateTask,
+  ]);
 
   const children = useMemo<TaskResponseDto[]>(
     () => childItemsForTab as TaskResponseDto[],

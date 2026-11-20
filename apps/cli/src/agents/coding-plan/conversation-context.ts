@@ -25,6 +25,13 @@ const messageSchema = z
       .passthrough(),
   })
   .passthrough();
+/** Plans saved before the rename carry `repair_planned`; Implement sees the current name. */
+function withCurrentDisposition<T extends { disposition?: string | undefined }>(issue: T): T {
+  return issue.disposition === 'repair_planned'
+    ? { ...issue, disposition: 'changes_existing_behavior' }
+    : issue;
+}
+
 export type PlanningConversationMessage = z.infer<typeof messageSchema>;
 
 export async function fetchCodingPlanConversation(
@@ -88,11 +95,15 @@ export function renderCodingPlanConversation(
       ...(message.data.uiElements ?? []).flatMap((element) => {
         if (element.type === 'coding_plan_version') {
           const version = CodingPlanVersionSchema.safeParse(element.payload);
-          if (!version.success) return [];
+          if (!version.success) {
+            return [
+              `Plan (${message.id}) is unavailable because its persisted evidence is invalid: ${version.error.message}`,
+            ];
+          }
           return [
             `Plan (${message.id}): ${version.data.markdown}`,
             ...(version.data.discrepancies ?? []).map(
-              (issue) => `Issue (${message.id}): ${JSON.stringify(issue)}`,
+              (issue) => `Issue (${message.id}): ${JSON.stringify(withCurrentDisposition(issue))}`,
             ),
           ];
         }
@@ -100,8 +111,8 @@ export function renderCodingPlanConversation(
         const issue = CodingPlanDiscrepancySchema.safeParse(element.payload);
         return [
           issue.success
-            ? `Issue (${message.id}): ${JSON.stringify(issue.data)}`
-            : `Issue (${message.id}) is unavailable because its persisted evidence is invalid.`,
+            ? `Issue (${message.id}): ${JSON.stringify(withCurrentDisposition(issue.data))}`
+            : `Issue (${message.id}) is unavailable because its persisted evidence is invalid: ${issue.error.message}`,
         ];
       }),
     ];

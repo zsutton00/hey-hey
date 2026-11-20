@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { toEvalRunCaseInput } from '../eval-case-input.mapper';
+import {
+  readEvalCaseTarget,
+  toEvalRunCaseInput,
+} from '../eval-case-input.mapper';
 
 const FOCAL = '11111111-1111-4111-8111-111111111111';
 const SUPPORT = '22222222-2222-4222-8222-222222222222';
@@ -9,12 +12,20 @@ const section = (key: string, materializedMarkdown: string | null) => ({
   materializedMarkdown,
 });
 
+const inputsSection = (...texts: string[]) =>
+  section(
+    'inputs',
+    JSON.stringify({
+      inputs: texts.map((text) => ({ kind: 'text_message', text })),
+    }),
+  );
+
 const completeCase = {
   id: '33333333-3333-4333-8333-333333333333',
   name: 'Mobile view needs a mockup',
   sections: [
     section('situation', 'A feature with no mobile layout.'),
-    section('request', 'Add a mobile view to the settings page.'),
+    inputsSection('Add a mobile view to the settings page.'),
     section(
       'items',
       `- @[task:${FOCAL}|Settings] is the focal item\n- @[task:${SUPPORT}|Mockup] supports it\n- @[task:${FOCAL}|Settings] again`,
@@ -51,7 +62,14 @@ describe('toEvalRunCaseInput', () => {
       focalItemId: FOCAL,
       focalItemType: 'TASK',
       supportingItemIds: [SUPPORT],
-      initiatingRequest: 'Add a mobile view to the settings page.',
+      inputs: {
+        inputs: [
+          {
+            kind: 'text_message',
+            text: 'Add a mobile view to the settings page.',
+          },
+        ],
+      },
       targetHandler: 'entity_conversation',
     });
     expect(input.grading).toEqual({
@@ -99,6 +117,24 @@ describe('toEvalRunCaseInput', () => {
     });
   });
 
+  it('records a focal item of any work-item type as a task', () => {
+    const input = toEvalRunCaseInput(
+      {
+        ...completeCase,
+        sections: completeCase.sections.map((entry) =>
+          entry.key === 'items'
+            ? section('items', `- @[mockup:${FOCAL}|Fixture] — focal item`)
+            : entry,
+        ),
+      },
+      new Set([FOCAL]),
+    );
+    expect(input.target).toMatchObject({
+      focalItemId: FOCAL,
+      focalItemType: 'TASK',
+    });
+  });
+
   it('keeps a case without a focal item unscoped', () => {
     const input = toEvalRunCaseInput({
       ...completeCase,
@@ -126,10 +162,58 @@ describe('toEvalRunCaseInput', () => {
     const input = toEvalRunCaseInput({
       ...completeCase,
       sections: completeCase.sections.map((entry) =>
-        entry.key === 'request' ? section('request', request) : entry,
+        entry.key === 'inputs' ? inputsSection(request) : entry,
       ),
     });
-    expect(input.target.initiatingRequest).toBe(request);
+    expect(input.target.inputs.inputs).toEqual([
+      { kind: 'text_message', text: request },
+    ]);
+  });
+
+  it.each([
+    ['an empty list', '{"inputs":[]}'],
+    ['an unknown kind', '{"inputs":[{"kind":"image","text":"x"}]}'],
+    ['blank text', '{"inputs":[{"kind":"text_message","text":"  "}]}'],
+    ['extra keys', '{"inputs":[{"kind":"text_message","text":"x"}],"extra":1}'],
+    ['malformed JSON', '{"inputs":'],
+  ])('rejects %s at launch', (_name, content) => {
+    expect(() =>
+      toEvalRunCaseInput({
+        ...completeCase,
+        sections: completeCase.sections.map((entry) =>
+          entry.key === 'inputs' ? section('inputs', content) : entry,
+        ),
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('records every message of a multi-message case and never leaks grading', () => {
+    const input = toEvalRunCaseInput({
+      ...completeCase,
+      sections: completeCase.sections.map((entry) =>
+        entry.key === 'inputs' ? inputsSection('First', 'Second') : entry,
+      ),
+    });
+    expect(input.target.inputs.inputs).toHaveLength(2);
+    expect(Object.keys(input.target).sort()).toEqual(
+      [
+        'focalItemId',
+        'focalItemType',
+        'inputs',
+        'situation',
+        'supportingItemIds',
+        'targetHandler',
+      ].sort(),
+    );
+  });
+
+  it('reads a run recorded with only an initiating request as a one-message list', () => {
+    const { inputs: _inputs, ...current } =
+      toEvalRunCaseInput(completeCase).target;
+    expect(
+      readEvalCaseTarget({ ...current, initiatingRequest: 'Old request' })
+        .inputs,
+    ).toEqual({ inputs: [{ kind: 'text_message', text: 'Old request' }] });
   });
 
   it('gives every recorded case input its own id', () => {
@@ -187,12 +271,46 @@ describe('toEvalRunCaseInput', () => {
     expect(recorded.target).not.toHaveProperty('coding');
   });
 
+  it('freezes the coding target into the run and never gives it to the attempt', () => {
+    const base = {
+      serviceId: '44444444-4444-4444-8444-444444444444',
+      pinnedCommit: { sha: 'b'.repeat(40), shortMessage: 'Add settings page' },
+    };
+    const targeted = {
+      ...base,
+      target: { kind: 'EXISTING', path: 'apps/ui/src/pages/Settings.tsx' },
+      mockupChecklist: {
+        mockupId: '55555555-5555-4555-8555-555555555555',
+        items: [{ id: 'save', description: 'Saving shows a confirmation' }],
+      },
+    };
+    const caseWith = (coding: object) => ({
+      ...withHandlers('free_form', ''),
+      sections: [
+        ...withHandlers('free_form', '').sections,
+        section('coding', JSON.stringify(coding)),
+      ],
+    });
+    const record = caseWith(targeted);
+
+    const recorded = toEvalRunCaseInput(record);
+    const untargeted = toEvalRunCaseInput(caseWith(base));
+    record.sections = caseWith({
+      ...targeted,
+      target: { kind: 'NEW', path: 'apps/ui/src/pages/Other.tsx' },
+    }).sections;
+
+    expect(recorded.coding?.target).toEqual(targeted.target);
+    expect(recorded.target).toEqual(untargeted.target);
+    expect(JSON.stringify(recorded.target)).not.toContain('Settings.tsx');
+  });
+
   it('rejects a case that cannot be run', () => {
     expect(() =>
       toEvalRunCaseInput({
         ...completeCase,
         sections: completeCase.sections.filter(
-          (candidate) => candidate.key !== 'request',
+          (candidate) => candidate.key !== 'inputs',
         ),
       }),
     ).toThrow(BadRequestException);

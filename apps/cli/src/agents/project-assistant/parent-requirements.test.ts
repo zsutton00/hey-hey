@@ -16,6 +16,8 @@ const FOCAL_ID = 'task-1';
 const record = (id: string, statement: string, fulfilledBy: string[] = []) => ({
   id,
   statement,
+  designedBy: [],
+  contracts: [],
   fulfilledBy: fulfilledBy.map((entityId) => ({
     entityId,
     entityType: 'TASK',
@@ -141,7 +143,7 @@ describe('filterParentRequirements', () => {
     );
 
     expect(result.requirementsMarkdown).toContain(
-      '- Fulfilled by the focal. Second sentence. (fulfilled by @[TASK:task-1|Title of task-1])',
+      '- Fulfilled by the focal. Second sentence. — fulfilled by @[TASK:task-1|Title of task-1]',
     );
     const sent = evaluate.mock.calls[0]?.[0];
     expect(Object.keys(sent?.questions ?? {})).toEqual(['requirement:1']);

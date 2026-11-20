@@ -1,3 +1,7 @@
+import { oneMessageInputs } from './eval-case-inputs.fixture';
+import { buildEvalFollowUp } from './eval-handler-launch';
+import { EvalTargetFailure } from './eval-runner';
+import { MAX_RECORDED_ARGUMENT_CHARS } from './eval-recorded-tool-calls';
 import { SessionTokenUsageReader } from '../../provider-usage/session-token-usage';
 import type { TokenUsage } from '../../session/types';
 import { WorkflowAboutReader } from '../submission-tools/search-messages-proxy';
@@ -178,6 +182,18 @@ const makeHarness = async () => {
   >(() =>
     Promise.resolve({ providerSessionId: null, providerConversationId: null, errorCount: 0 }),
   );
+  // A resumed provider session keeps the id it already had, as a real resume does.
+  const runPromptWithProviderSession = async (
+    ...args: Parameters<typeof runPrompt>
+  ): Promise<Awaited<ReturnType<typeof runPrompt>>> => {
+    const result = await runPrompt(...args);
+
+    return {
+      ...result,
+      providerSessionId:
+        (await runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id ?? null,
+    };
+  };
   const projectModeBundleMaterializer = new ProjectModeBundleMaterializer();
   const postMessage = vi.fn(() => Promise.resolve({ id: 'message' }));
   const updateMessage = vi.fn<MessagePosterApiClient['updateMessage']>(() => Promise.resolve({}));
@@ -195,15 +211,8 @@ const makeHarness = async () => {
     }),
     runStore,
     sessionRunner: {
-      runPrompt: async (...args) => {
-        const result = await runPrompt(...args);
-        return {
-          ...result,
-          providerSessionId:
-            (await runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id ?? null,
-        };
-      },
-      resumeSession: runPrompt,
+      runPrompt: runPromptWithProviderSession,
+      resumeSession: runPromptWithProviderSession,
     },
     oauthClient: createTestOAuthClient({
       getAccessToken: vi.fn(() => Promise.resolve({ success: true as const, data: 'test-token' })),
@@ -246,6 +255,7 @@ const startRunPayload = (overrides: Partial<StartRunTriggerPayload>): StartRunTr
 import { EvalAttemptExecution } from './eval-attempt-execution';
 import { SessionCostReader } from '../../provider-usage/session-cost';
 import type {
+  EvalAttemptTurn,
   EvalRecordedAttempt,
   EvalResolvedExecution,
   EvalTargetHandlerKey,
@@ -292,7 +302,7 @@ const attempt = (
         : {}),
       focalItemId: ENTITY.entityId,
       focalItemType: options.focalItemType ?? 'TASK',
-      initiatingRequest: 'Review this item.',
+      inputs: oneMessageInputs('Review this item.'),
       situation: 'SECRET-SITUATION',
     },
     grading: { checks: [], rubric: [], expectations: 'SECRET-EXPECTATIONS' },
@@ -328,6 +338,16 @@ const finishWith = async (
   });
 };
 
+const CASE_CREATED_AT = '2026-01-01T00:00:00.000Z';
+const CASE_SEARCH_SCOPE = {
+  createdBefore: CASE_CREATED_AT,
+  excludeConnectedTo: [
+    '66666666-6666-4666-8666-666666666666',
+    '99999999-9999-4999-8999-999999999999',
+  ],
+  hiddenEntityIds: ['66666666-6666-4666-8666-666666666666', '99999999-9999-4999-8999-999999999999'],
+};
+
 const coordinator = { contextMetadata: startRunPayload({}).contextMetadata } as AgenticSession;
 
 describe('eval attempts through ordinary Runs', () => {
@@ -340,6 +360,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       }
       const result = await execution.execute(coordinator, attempt(handler), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(result.researchMeasurements).toBeUndefined();
@@ -347,6 +368,7 @@ describe('eval attempts through ordinary Runs', () => {
       expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
       expect(wiring.runRegistry.get(AGENT_SESSION_ID)?.session).toMatchObject({
         inert: true,
+        searchScope: CASE_SEARCH_SCOPE,
         conversationId: CONVERSATION_ID,
         model: 'claude-test',
         reasoningEffort: 'high',
@@ -371,6 +393,7 @@ describe('eval attempts through ordinary Runs', () => {
       const { runStore, runPrompt, execution } = harness;
       await finishWith(harness, { research: 'Saved research.', finalMessage: 'Done.' });
       await execution.execute(coordinator, attempt('project_assistant'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -384,7 +407,7 @@ describe('eval attempts through ordinary Runs', () => {
       await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       const [research, answer] = promptsRun(runPrompt);
@@ -421,7 +444,7 @@ describe('eval attempts through ordinary Runs', () => {
       const result = await execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: true }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(runPrompt).toHaveBeenCalledTimes(2);
       expect(result.usage).toMatchObject({
@@ -437,6 +460,7 @@ describe('eval attempts through ordinary Runs', () => {
     it('runs the chosen handler without Project Assistant when preparation is off', async () => {
       const { runPrompt, execution } = await makeHarness();
       await execution.execute(coordinator, attempt('entity_conversation'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: new AbortController().signal,
       });
       expect(runPrompt).toHaveBeenCalledOnce();
@@ -453,6 +477,7 @@ describe('eval attempts through ordinary Runs', () => {
           finalMessage: 'Done, report saved.',
         });
         const result = await harness.execution.execute(coordinator, attempt('project_assistant'), {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: new AbortController().signal,
         });
         expect(result).toMatchObject({
@@ -471,6 +496,7 @@ describe('eval attempts through ordinary Runs', () => {
           coordinator,
           attempt('entity_conversation'),
           {
+            searchScope: CASE_SEARCH_SCOPE,
             signal: new AbortController().signal,
           },
         );
@@ -482,6 +508,7 @@ describe('eval attempts through ordinary Runs', () => {
         await finishWith(harness, { finalMessage: 'Here is what I found.' });
         await expect(
           harness.execution.execute(coordinator, attempt('project_assistant'), {
+            searchScope: CASE_SEARCH_SCOPE,
             signal: new AbortController().signal,
           }),
         ).rejects.toThrow(/research ended without saving a research report/);
@@ -493,6 +520,7 @@ describe('eval attempts through ordinary Runs', () => {
       // Feature sync declares it needs a Service folder, which attempts do not have.
       await expect(
         execution.execute(coordinator, attempt('feature_sync_analyze'), {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: new AbortController().signal,
         }),
       ).rejects.toThrow(/feature_sync_analyze failed before producing an answer/);
@@ -505,7 +533,7 @@ describe('eval attempts through ordinary Runs', () => {
         execution.execute(
           coordinator,
           attempt('feature_sync_analyze', { focalItemType: 'PROJECT' }),
-          { signal: new AbortController().signal },
+          { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
         ),
       ).rejects.toThrow(/feature_sync_analyze cannot start as the first agent/);
       expect(runPrompt).not.toHaveBeenCalled();
@@ -519,6 +547,7 @@ describe('eval attempts through ordinary Runs', () => {
     const controller = new AbortController();
     controller.abort();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: controller.signal,
     });
     expect(result.assistantCompleted).toBe(false);
@@ -535,6 +564,7 @@ describe('eval attempts through ordinary Runs', () => {
     execution.bind(service, runStore);
     const onTokenLimit = vi.fn();
     const result = await execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
       tokenBudget: 10,
       onTokenLimit,
@@ -564,6 +594,7 @@ describe('eval startup and execution cancellation', () => {
     const execution = executionFor(runStore);
     execution.bind(service, runStore);
     const result = execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: controller.signal,
     });
     controller.abort();
@@ -608,6 +639,7 @@ describe('eval startup and execution cancellation', () => {
       const onTokenLimit = vi.fn(() => controller.abort());
       const onProviderSessionIds = vi.fn(async () => undefined);
       const running = execution.execute(coordinator, attempt('agent_search'), {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: controller.signal,
         onProviderSessionIds,
         ...(reason === 'TOKEN_LIMIT' ? { tokenBudget: 10, onTokenLimit } : {}),
@@ -660,7 +692,10 @@ it.each(['USER', 'TOKEN_LIMIT'] as const)(
           },
         },
         async launchTarget(recorded, options) {
-          const result = await execution.execute(coordinator, recorded, options);
+          const result = await execution.execute(coordinator, recorded, {
+            ...options,
+            searchScope: CASE_SEARCH_SCOPE,
+          });
           controller.abort();
           return result;
         },
@@ -695,6 +730,7 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('project_assistant'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
     });
     expect((await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.provider_session_id).toBeNull();
@@ -735,7 +771,7 @@ describe('settled eval usage evidence', () => {
       const result = await h.execution.execute(
         coordinator,
         attempt('entity_conversation', { projectAssistantPrepares: prepares }),
-        { signal: new AbortController().signal },
+        { searchScope: CASE_SEARCH_SCOPE, signal: new AbortController().signal },
       );
       expect(result.usage).toMatchObject({
         inputTokens: 120,
@@ -786,7 +822,11 @@ describe('settled eval usage evidence', () => {
               patches.push(patch);
             },
           },
-          launchTarget: (item, options) => h.execution.execute(coordinator, item, options),
+          launchTarget: (item, options) =>
+            h.execution.execute(coordinator, item, {
+              ...options,
+              searchScope: CASE_SEARCH_SCOPE,
+            }),
           judge: async () => ({
             assessment: {
               checkResults: [],
@@ -828,12 +868,75 @@ describe('settled eval usage evidence', () => {
       return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
     });
     const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
       signal: new AbortController().signal,
       tokenBudget: 1,
     });
     expect(result.usage).not.toHaveProperty('inputTokens');
     expect(result.usage.outputTokens).toBe(8);
     expect(result.budgetExhausted).toBe(false);
+  });
+
+  it("records the tested agent's tool calls in order without results, bounded and without repeats", async () => {
+    const h = await makeHarness();
+    h.runPrompt.mockImplementationOnce(async () => {
+      const at = new Date().toISOString();
+      const search = {
+        toolName: 'unified_search',
+        toolUseId: 'use-1',
+        timestamp: at,
+        providerSessionId: null,
+        input: { queries: ['alpha'] },
+        result: 'SECRET-RESULT',
+      };
+      await h.runStore.addToolUsage(AGENT_SESSION_ID, [
+        search,
+        // A lifecycle event repeating the same call.
+        search,
+        {
+          toolName: 'get_full_entity',
+          toolUseId: 'use-2',
+          timestamp: at,
+          providerSessionId: null,
+          input: { text: 'x'.repeat(MAX_RECORDED_ARGUMENT_CHARS * 2) },
+        },
+        // A delegated child's call is not the tested handler's own.
+        {
+          toolName: 'child_tool',
+          toolUseId: 'use-3',
+          timestamp: at,
+          providerSessionId: 'child-session',
+          input: {},
+        },
+      ]);
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls?.state).toBe('COLLECTED');
+    expect(result.recordedToolCalls?.calls.map((call) => call.toolName)).toEqual([
+      'unified_search',
+      'get_full_entity',
+    ]);
+    expect(result.recordedToolCalls?.calls[0]).toMatchObject({
+      arguments: JSON.stringify({ queries: ['alpha'] }),
+      origin: 'RUN_OBSERVED',
+      truncated: false,
+    });
+    expect(result.recordedToolCalls?.calls[1]).toMatchObject({ truncated: true });
+    expect(result.recordedToolCalls?.calls[1]?.arguments).toHaveLength(MAX_RECORDED_ARGUMENT_CHARS);
+    expect(JSON.stringify(result.recordedToolCalls)).not.toContain('SECRET-RESULT');
+  });
+
+  it('reports tool calls as unavailable, not empty, when the Run retained none', async () => {
+    const h = await makeHarness();
+    const result = await h.execution.execute(coordinator, attempt('agent_search'), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    expect(result.recordedToolCalls).toEqual({ state: 'UNAVAILABLE', calls: [] });
   });
 
   it('isolates an unreadable result from a concurrent sibling attempt', async () => {
@@ -850,7 +953,10 @@ describe('settled eval usage evidence', () => {
     );
     const results = await Promise.allSettled(
       [first, second].map((item) =>
-        h.execution.execute(coordinator, item, { signal: new AbortController().signal }),
+        h.execution.execute(coordinator, item, {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: new AbortController().signal,
+        }),
       ),
     );
     expect(results[0]).toMatchObject({
@@ -1043,7 +1149,7 @@ describe('free-form coding attempt bound to a workspace directory', () => {
     await expect(handler('Bash', { command: 'pnpm install' })).resolves.toMatchObject({
       behavior: 'allow',
     });
-    for (const graphWrite of ['create_edge', 'delete_hint', 'update_edge']) {
+    for (const graphWrite of ['create_edge', 'delete_hint', 'update_hint', 'update_edge']) {
       await expect(handler(`mcp__heyhey-platform__${graphWrite}`, {})).resolves.toMatchObject({
         behavior: 'deny',
       });
@@ -1283,6 +1389,7 @@ describe('free-form coding attempts and their workspaces', () => {
 
       await execution
         .execute(coordinator, codingAttempt('44444444-4444-4444-8444-444444444444'), {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: controller.signal,
         })
         .catch(() => undefined);
@@ -1319,6 +1426,7 @@ describe('free-form coding attempts and their workspaces', () => {
 
     await execution
       .execute(coordinator, recorded, {
+        searchScope: CASE_SEARCH_SCOPE,
         signal: controller.signal,
         onWorkspaceSettled: async (settled) => {
           directoryExistedWhenSaved = existsSync(await boundDirectory());
@@ -1375,6 +1483,7 @@ describe('free-form coding attempts and their workspaces', () => {
         coordinator,
         codingAttempt('99999999-9999-4999-8999-999999999999'),
         {
+          searchScope: CASE_SEARCH_SCOPE,
           signal: new AbortController().signal,
           onWorkspaceSettled: async () => {
             directoryContents = await readdir(await boundDirectory());
@@ -1435,6 +1544,7 @@ describe('free-form coding attempts and their workspaces', () => {
         launchTarget: (recorded, options) =>
           execution.execute(coordinator, recorded, {
             ...options,
+            searchScope: CASE_SEARCH_SCOPE,
             onProviderSessionIds: async (ids) => {
               sessionIds.push(ids);
             },
@@ -1487,7 +1597,11 @@ describe('free-form coding attempts and their workspaces', () => {
             return Promise.resolve();
           },
         },
-        launchTarget: (recorded, options) => execution.execute(coordinator, recorded, options),
+        launchTarget: (recorded, options) =>
+          execution.execute(coordinator, recorded, {
+            ...options,
+            searchScope: CASE_SEARCH_SCOPE,
+          }),
         judge: vi.fn(async () => {
           throw new Error('judging is not part of this check');
         }),
@@ -1503,5 +1617,191 @@ describe('free-form coding attempts and their workspaces', () => {
     });
     expect(boundDuringSecond).toBeDefined();
     expect(await leftovers(root)).toEqual([]);
+  });
+});
+
+describe('scripted conversations through one continuing Run', () => {
+  const conversationAttempt = (messages: string[]): EvalRecordedAttempt => {
+    const base = attempt('entity_conversation');
+    delete base.caseInput.coding;
+
+    return {
+      ...base,
+      caseInput: {
+        ...base.caseInput,
+        target: {
+          ...base.caseInput.target,
+          inputs: { inputs: messages.map((text) => ({ kind: 'text_message' as const, text })) },
+        },
+      },
+    };
+  };
+  /** One real reply: the provider session owned by the handler answers and commits its message. */
+  const replyWith = async (
+    h: Awaited<ReturnType<typeof makeHarness>>,
+    finalMessage: string,
+  ): Promise<void> => {
+    h.runPrompt.mockImplementationOnce(async () => {
+      const turnId = (await h.runStore.getRunMetadata(AGENT_SESSION_ID))?.latestTurn?.turnId;
+      // The provider's counters are cumulative for the session: each reply adds 100 in, 10 out, $0.50.
+      const replies = h.runPrompt.mock.calls.length;
+      nativeReports.get(h.runStore)?.set('native-conversation-session', {
+        sessionId: 'native-conversation-session',
+        totalCost: 0.5 * replies,
+        inputTokens: 100 * replies,
+        outputTokens: 10 * replies,
+      });
+      await h.runStore.updateRunProviderIdentity(AGENT_SESSION_ID, {
+        providerSessionId: 'native-conversation-session',
+        providerSessionAgentId: 'entity_conversation',
+      });
+      await h.runStore.updateRunFinalAssistantMessage(AGENT_SESSION_ID, {
+        turnId: turnId ?? '',
+        messageId: `final-${finalMessage}`,
+        text: finalMessage,
+        committedAt: new Date().toISOString(),
+      });
+
+      return { providerSessionId: null, providerConversationId: null, errorCount: 0 };
+    });
+  };
+  const promptsRun = (runPrompt: ReturnType<typeof vi.fn>): string[] =>
+    runPrompt.mock.calls.map(
+      ([args]) => (args as import('../providers/session-runner').RunPromptArgs).prompt,
+    );
+
+  it('sends each message in order to the same Run, waits for each real reply and records every Turn', async () => {
+    const harness = await makeHarness();
+    const { runPrompt, execution, runStore } = harness;
+    const messages = ['First message.', 'Second message.', 'Message under test.'];
+    for (const reply of ['Reply one.', 'Reply two.', 'Reply three.']) {
+      await replyWith(harness, reply);
+    }
+    const recorded: EvalAttemptTurn[][] = [];
+
+    const result = await execution.execute(coordinator, conversationAttempt(messages), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+      onTurnsRecorded: (turns) => {
+        recorded.push(turns);
+
+        return Promise.resolve();
+      },
+    });
+
+    const prompts = promptsRun(runPrompt);
+    expect(prompts).toHaveLength(3);
+    messages.forEach((message, index) => expect(prompts[index]).toContain(message));
+    // A message never arrives before the reply to the one before it.
+    expect(prompts[0]).not.toContain('Second message.');
+    expect(prompts[1]).not.toContain('Message under test.');
+    expect(JSON.stringify(runPrompt.mock.calls)).not.toContain('SECRET-');
+    expect(result.assistantCompleted).toBe(true);
+    expect(result.outputText).toBe('Reply three.');
+    expect(result.judgedTurnIndex).toBe(2);
+    expect(result.turns?.map((turn) => [turn.index, turn.input, turn.state, turn.reply])).toEqual([
+      [0, 'First message.', 'COMPLETED', 'Reply one.'],
+      [1, 'Second message.', 'COMPLETED', 'Reply two.'],
+      [2, 'Message under test.', 'COMPLETED', 'Reply three.'],
+    ]);
+    expect(new Set(result.turns?.map((turn) => turn.turnId)).size).toBe(3);
+    // Each message carries only its own share of the cumulative counters, not the running total.
+    for (const turn of result.turns ?? []) {
+      expect(turn.measurement).toMatchObject({
+        scope: 'TARGET_HANDLER',
+        inputTokens: 100,
+        outputTokens: 10,
+        cost: { state: 'available', amount: 0.5 },
+      });
+      expect(turn.measurementPartial).toBeUndefined();
+    }
+    // Each Turn was saved as started, then as settled, before the next input.
+    expect(recorded.map((turns) => turns.map((turn) => turn.state).join(','))).toEqual([
+      'STARTED',
+      'COMPLETED',
+      'COMPLETED,STARTED',
+      'COMPLETED,COMPLETED',
+      'COMPLETED,COMPLETED,STARTED',
+      'COMPLETED,COMPLETED,COMPLETED',
+    ]);
+    expect((await runStore.getRunMetadata(AGENT_SESSION_ID))?.inert).toBe(true);
+  });
+
+  it('keeps a one-message case exactly as it was, with no conversation record', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Only reply.');
+    const onTurnsRecorded = vi.fn(() => Promise.resolve());
+
+    const result = await harness.execution.execute(coordinator, conversationAttempt(['One.']), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+      onTurnsRecorded,
+    });
+
+    expect(result.turns).toBeUndefined();
+    expect(result.judgedTurnIndex).toBeUndefined();
+    expect(onTurnsRecorded).not.toHaveBeenCalled();
+    expect(result.outputText).toBe('Only reply.');
+  });
+
+  it('refuses any follow-up that is not the next recorded message', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Reply one.');
+    await harness.execution.execute(coordinator, conversationAttempt(['One.']), {
+      searchScope: CASE_SEARCH_SCOPE,
+      signal: new AbortController().signal,
+    });
+    const outside = buildEvalFollowUp('Something nobody recorded.');
+    const callsBefore = harness.runPrompt.mock.calls.length;
+
+    // No authorization at all: the inert Run refuses ordinary follow-ups.
+    await expect(harness.service.sendSystemMessage(AGENT_SESSION_ID, outside)).rejects.toThrow(
+      /Inert Runs refuse follow-up input/,
+    );
+    // An authorization for different text does not admit this text, and is not left behind.
+    await expect(
+      harness.service.sendScriptedInertMessage(AGENT_SESSION_ID, outside, {
+        index: 1,
+        text: 'A different recorded message.',
+      }),
+    ).rejects.toThrow(/Inert Runs refuse follow-up input/);
+    await expect(
+      harness.service.sendSystemMessage(
+        AGENT_SESSION_ID,
+        buildEvalFollowUp('A different recorded message.'),
+      ),
+    ).rejects.toThrow(/Inert Runs refuse follow-up input/);
+    expect(harness.runPrompt.mock.calls).toHaveLength(callsBefore);
+  });
+
+  it('ends the attempt at a failed message, keeps the Turns already recorded and never reaches the judged message', async () => {
+    const harness = await makeHarness();
+    await replyWith(harness, 'Reply one.');
+    harness.runPrompt.mockRejectedValueOnce(new Error('provider fell over'));
+    const recorded: EvalAttemptTurn[][] = [];
+
+    await expect(
+      harness.execution.execute(
+        coordinator,
+        conversationAttempt(['One.', 'Two.', 'Message under test.']),
+        {
+          searchScope: CASE_SEARCH_SCOPE,
+          signal: new AbortController().signal,
+          onTurnsRecorded: (turns) => {
+            recorded.push(turns);
+
+            return Promise.resolve();
+          },
+        },
+      ),
+    ).rejects.toBeInstanceOf(EvalTargetFailure);
+
+    const saved = recorded.at(-1) ?? [];
+    expect(saved.map((turn) => [turn.index, turn.state])).toEqual([
+      [0, 'COMPLETED'],
+      [1, 'FAILED'],
+    ]);
+    expect(saved[0]?.reply).toBe('Reply one.');
+    expect(promptsRun(harness.runPrompt).join('\n')).not.toContain('Message under test.');
   });
 });

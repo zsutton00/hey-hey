@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
+import { validateEvalCaseInputsContent } from '../tasks/eval-case-inputs.validator';
 import { inspectFeatureRequirementsSection } from '../tasks/feature-requirements-reader';
 import { resolveWorkItemSectionContentKind } from '../tasks/task-section-schema-validator.registry';
 import { WORK_ITEM_TYPE_KEYS } from '../tasks/work-item-type-keys';
@@ -26,6 +27,17 @@ function requirementStatements(content: string): string {
     .join('\n');
 }
 
+function evalCaseInputTexts(content: string): string {
+  const result = validateEvalCaseInputsContent(content);
+  if (!result.success) {
+    logger.warn(
+      `Skipping mention scan of invalid Eval Case inputs section (${result.message})`,
+    );
+    return '';
+  }
+  return result.value.inputs.map((input) => input.text).join('\n');
+}
+
 /**
  * Sections whose stored form is not free prose get a kind-specific extractor
  * so only their prose reaches the `@[…]` scan. FEATURE requirement citation
@@ -40,6 +52,7 @@ const SECTION_MENTION_EXTRACTORS: ReadonlyMap<
     WORK_ITEM_TYPE_KEYS.Feature,
     new Map([['requirements', requirementStatements]]),
   ],
+  [WORK_ITEM_TYPE_KEYS.EvalCase, new Map([['inputs', evalCaseInputTexts]])],
 ]);
 
 /**

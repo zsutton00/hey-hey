@@ -105,11 +105,21 @@ describe('WebsocketGateway.handleAuthenticate', () => {
     } as unknown as jest.Mocked<any>;
 
     const websocketAuthorizationService = {
-      authorize: jest.fn().mockResolvedValue({ authorized: true }),
+      authorize: jest.fn().mockImplementation((request) => ({
+        authorized: true,
+        grantedScope: {
+          projectIds: request.projectIds,
+          conversationIds: request.conversationIds,
+          initiativeIds: request.initiativeIds,
+          designDocIds: request.designDocIds,
+        },
+        deniedScopes: [],
+      })),
       authorizeMachine: jest
         .fn()
         .mockImplementation((request: MachineRoomAuthorizationRequest) => ({
           authorized: true,
+          deniedScopes: [],
           organizationIds: request.organizationIds,
           projectIds: request.projectIds,
           conversationIds: request.conversationIds,

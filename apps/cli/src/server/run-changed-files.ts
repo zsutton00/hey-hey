@@ -1,3 +1,10 @@
+import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import { readRecordedEdit } from './recorded-edit-reader';
+import {
+  RecordedEditLedger,
+  RecordedEditLedgerUnavailableError,
+  type RecordedEditScope,
+} from './recorded-edit-ledger';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -273,7 +280,63 @@ export class RunChangedFilesReader {
   public constructor(
     private readonly repoStore: RepoMappingStore,
     private readonly logger: ServerLogger = NOOP_LOGGER,
+    private readonly recordedEdits: RecordedEditLedger | null = null,
   ) {}
+
+  public async getRecordedEdit(
+    run: AgenticSession,
+    scope: Pick<RecordedEditScope, 'organizationId' | 'projectId'>,
+    runId: string,
+    serviceId: string,
+    edit: ImplementReportEdit,
+  ): Promise<CliReadChangedFileDetail> {
+    // The stored IMPLEMENT reports, not the local file-change projection, say which edits
+    // belong to the Run: the projection can be gone while the report and objects remain.
+    // The anchor ref then bounds which retained versions may be read.
+    await this.assertRecordedEditMembership({ ...scope, agentSessionId: runId, serviceId }, edit);
+    const { repoPath } = await resolveRepoPathForService(run, this.repoStore, serviceId);
+    return readRecordedEdit(repoPath, runId, serviceId, edit);
+  }
+
+  private async assertRecordedEditMembership(
+    scope: RecordedEditScope,
+    edit: ImplementReportEdit,
+  ): Promise<void> {
+    if (this.recordedEdits === null) {
+      throw new RunChangedFilesContextError(
+        'The recorded edits cannot be checked on this computer.',
+        scope.serviceId,
+        'GIT_READ_FAILED',
+      );
+    }
+    let isMember: boolean;
+    try {
+      isMember = await this.recordedEdits.contains(scope, edit);
+    } catch (error) {
+      if (!(error instanceof RecordedEditLedgerUnavailableError)) {
+        throw error;
+      }
+      throw new RunChangedFilesContextError(
+        error.message,
+        scope.serviceId,
+        'GIT_READ_FAILED',
+        undefined,
+        { cause: error },
+      );
+    }
+    if (!isMember) {
+      this.logger.warn('local.run_changed_files.recorded_edit_not_in_record', {
+        runId: scope.agentSessionId,
+        serviceId: scope.serviceId,
+        path: edit.path,
+      });
+      throw new RunChangedFilesContextError(
+        `The selected edit is not part of this Run's recorded changes.`,
+        scope.serviceId,
+        'INVALID_FILE_MEMBERSHIP',
+      );
+    }
+  }
 
   public async getLiveRunChangedFilesInventory(
     run: AgenticSession,

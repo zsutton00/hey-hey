@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 import { TaskPriority } from './task-priority.js';
 import { FeatureTag } from './feature-tag.js';
 /* tslint:disable */
@@ -26,9 +25,6 @@ import type { TaskPriority } from './task-priority.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemChangeSetIdentity } from './work-item-change-set-identity.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  *
@@ -61,11 +57,11 @@ export interface WorkItemUpdateOperation {
      */
     'parent'?: WorkItemChangeSetIdentity | null;
     /**
-     *
-     * @type {WorkStatus}
+     * The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as \"Testing\", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.
+     * @type {string}
      * @memberof WorkItemUpdateOperation
      */
-    'status'?: WorkStatus;
+    'status'?: string;
     /**
      *
      * @type {TaskPriority}
@@ -109,8 +105,6 @@ export type WorkItemUpdateOperationOpEnum = typeof WorkItemUpdateOperationOpEnum
 export namespace WorkItemUpdateOperation {
     export const OpEnum = WorkItemUpdateOperationOpEnum;
     export type OpEnum = WorkItemUpdateOperationOpEnum;
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
     export const PriorityEnum = TaskPriority;
     export type PriorityEnum = TaskPriority;
     export const TagEnum = FeatureTag;

@@ -10,7 +10,7 @@ import {
   PLANNING_MCP_TOOLS,
   RESEARCH_MCP_TOOLS,
 } from '../mcp-server-config';
-import { CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS } from '../coding-plan/coding-plan.handler';
+import { codingPlanHandler } from '../coding-plan/coding-plan.handler';
 import { buildAnalyzePrompt } from '../feature-sync/prompts';
 import { buildFeatureTreeConversationPrompt } from '../feature-tree-conversation/feature-tree-conversation-prompt';
 import { buildProposedStagesPrompt, buildRefineStagePrompt } from '../plan-shaping/prompts';
@@ -33,8 +33,12 @@ describe('future-revision tool scoping', () => {
   });
 
   it('gives the read-only planner the explicit read but not authoring', () => {
-    expect(CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS).toContain('get_future_revision');
-    expect(CODING_PLAN_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('propose_future_revision');
+    const plannerTools = resolveMcpToolNames({
+      ...(codingPlanHandler.mcpToolUseCase ? { useCase: codingPlanHandler.mcpToolUseCase } : {}),
+      additionalTools: codingPlanHandler.additionalAllowedTools ?? [],
+    });
+    expect(plannerTools).toContain('get_future_revision');
+    expect(plannerTools).not.toContain('propose_future_revision');
     expect(PLANNING_MCP_TOOLS).not.toContain('propose_future_revision');
     expect(RESEARCH_MCP_TOOLS).not.toContain('propose_future_revision');
   });

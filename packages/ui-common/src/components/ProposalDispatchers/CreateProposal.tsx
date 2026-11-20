@@ -1,3 +1,4 @@
+import { OrdinaryProposalApprovalReview } from "./ProposalApprovalDetails";
 import { Box, Paper, Stack, Typography } from "@mui/material";
 import React, { useCallback, useMemo } from "react";
 import { ProposalAction } from "../../api";
@@ -5,6 +6,7 @@ import type { ProposalResponseDto, WorkItemTypeDefinitionDto } from "../../api";
 import type { CreateProposalProps } from "./types";
 import {
   isCreatePlanProposal,
+  isExistingTaskPlanProposal,
   isCreateTaskUpdates,
   isCreateWorkflowTaskUpdates,
   isCreateDesignDocUpdates,
@@ -17,6 +19,7 @@ import { useMarkWorkItemTypeDataStale } from "../../data/hooks/useWorkItemTypeLi
 import { TaskCreateRenderer } from "./TaskCreateRenderer";
 import { DesignDocCreateRenderer } from "./DesignDocCreateRenderer";
 import { WorkItemTypeCreateRenderer } from "./WorkItemTypeCreateRenderer";
+import { ExistingTaskPlanCreateRenderer } from "./ExistingTaskPlanCreateRenderer";
 import { PlanCreateRenderer } from "./PlanCreateRenderer";
 import { WorkflowProposalRenderer } from "./WorkflowProposalRenderer";
 import { getApprovalProgress } from "../../permissions";
@@ -236,7 +239,19 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
         : undefined;
 
       let rendered: React.ReactNode;
-      if (isWorkItemGraphProposal(proposal)) {
+      if (isExistingTaskPlanProposal(proposal)) {
+        rendered = (
+          <ExistingTaskPlanCreateRenderer
+            proposal={proposal}
+            onApply={onApply}
+            onApplied={onApplied}
+            onReject={onReject}
+            disabled={disabled}
+            siblingProposals={siblingProposals}
+            overrides={overrides}
+          />
+        );
+      } else if (isWorkItemGraphProposal(proposal)) {
         const graphStatus =
           getProposalMaterializationStatus(proposal) ?? status;
         rendered = (
@@ -355,12 +370,20 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
         </MentionExpansionProvider>
       );
 
-      return renderMode === "group-member" ? (
-        rendered
-      ) : (
-        <RejectedProposalCard proposal={proposal} status={status}>
-          {rendered}
-        </RejectedProposalCard>
+      return (
+        <OrdinaryProposalApprovalReview
+          proposal={proposal}
+          renderMode={renderMode}
+        >
+          {renderMode === "group-member" ||
+          isExistingTaskPlanProposal(proposal) ? (
+            rendered
+          ) : (
+            <RejectedProposalCard proposal={proposal} status={status}>
+              {rendered}
+            </RejectedProposalCard>
+          )}
+        </OrdinaryProposalApprovalReview>
       );
     },
     [
@@ -368,6 +391,8 @@ export const CreateProposal: React.FC<CreateProposalProps> = ({
       getState,
       handleApply,
       handleReject,
+      onApply,
+      onApplied,
       onReject,
       renderMode,
       siblingProposals,

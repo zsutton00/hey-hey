@@ -530,6 +530,24 @@ export class UnifiedApiClient {
     return this.clients.projects.findOneProject(...args);
   }
 
+  getProjectApprovalPolicy(
+    ...args: Parameters<ProjectsApi["getProjectApprovalPolicy"]>
+  ) {
+    return this.clients.projects.getProjectApprovalPolicy(...args);
+  }
+
+  replaceProjectApprovalPolicy(
+    ...args: Parameters<ProjectsApi["replaceProjectApprovalPolicy"]>
+  ) {
+    return this.clients.projects.replaceProjectApprovalPolicy(...args);
+  }
+
+  restoreProjectApprovalPolicyDefaults(
+    ...args: Parameters<ProjectsApi["restoreProjectApprovalPolicyDefaults"]>
+  ) {
+    return this.clients.projects.restoreProjectApprovalPolicyDefaults(...args);
+  }
+
   updateProject(...args: Parameters<ProjectsApi["updateProject"]>) {
     return this.clients.projects.updateProject(...args);
   }
@@ -1091,6 +1109,10 @@ export class UnifiedApiClient {
 
   listReports(...args: Parameters<ReportsApi["listReports"]>) {
     return this.clients.reports.listReports(...args);
+  }
+
+  listProjectChanges(...args: Parameters<ReportsApi["listProjectChanges"]>) {
+    return this.clients.reports.listProjectChanges(...args);
   }
 
   listProjectReports(...args: Parameters<ReportsApi["listProjectReports"]>) {

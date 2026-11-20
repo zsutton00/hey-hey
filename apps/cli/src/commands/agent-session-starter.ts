@@ -1,7 +1,7 @@
-import { findLaunchCheckoutConflict } from '../repo/launch-checkout';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
+import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
 import { SessionValidationError } from '../session/errors';
 import type {
   AgenticSession,
@@ -19,7 +19,6 @@ import type {
   ResolvedServiceBinding,
 } from '../shared/agent-bridge-contract/contract';
 import {
-  LocalPromptTaskType,
   LocalPromptType,
   RunCreatePayloadFreeFormAllOfPromptTypeEnum,
   RunCreatePayloadQuickAllOfPromptTypeEnum,
@@ -60,6 +59,7 @@ export interface StartAgenticSessionArgs {
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;
   inert?: boolean;
+  searchScope?: EvalSearchScope;
   /** Replaces the Run's Service set with this directory, which becomes its working directory and write root. */
   workspaceBinding?: LocalRunWorkspaceBinding;
   createProviderSessionId?: () => string;
@@ -98,6 +98,7 @@ export const startAgenticSession = async ({
   reasoningEffort,
   fastMode,
   inert,
+  searchScope,
   workspaceBinding,
   createProviderSessionId = defaultCreateProviderSessionId,
 }: StartAgenticSessionArgs): Promise<AgentSessionStartResult> => {
@@ -110,6 +111,10 @@ export const startAgenticSession = async ({
 
   if (workspaceBinding && inert !== true) {
     throw new SessionValidationError('Only an inert Run can be bound to a workspace directory.');
+  }
+
+  if (searchScope !== undefined && inert !== true) {
+    throw new SessionValidationError('Only an inert Run can carry a search scope.');
   }
 
   const pendingServices = workspaceBinding ? null : readPendingServices(context);
@@ -136,13 +141,11 @@ export const startAgenticSession = async ({
       services.push({ id, path: binding.repositoryPath });
     }
     launchServiceId = pendingServices.launchServiceId;
-    const launchPath = services.find((entry) => entry.id === launchServiceId)!.path;
-    const conflict = await findLaunchCheckoutConflict(launchPath, worktree?.enabled === true);
-    if (conflict) throw new SessionValidationError(conflict);
   }
 
   const sessionInput: CreateAgenticSessionInput = {
     ...(inert === undefined ? {} : { inert }),
+    ...(searchScope === undefined ? {} : { searchScope }),
     ...(workspaceBinding ? { workspaceBound: true } : {}),
     agentic_session_id: agentSessionId,
     entity,
@@ -188,12 +191,6 @@ export interface TaskMonitorCodingSessionLaunchInput {
   method: TaskMonitorLaunchConfig['method'];
   userMessage: string;
 }
-
-export const toTaskPromptType = (taskType: string): LocalPromptTaskType => {
-  if (taskType === LocalPromptTaskType.Standard) return LocalPromptTaskType.Standard;
-  if (taskType === LocalPromptTaskType.Bug) return LocalPromptTaskType.Bug;
-  throw new SessionValidationError(`Task Monitor cannot launch task type "${taskType}".`);
-};
 
 export const toCreateProvider = (
   provider: TaskMonitorLaunchConfig['provider'],
@@ -294,7 +291,6 @@ export const buildTaskMonitorRunEffectPayload = (
   conversationId: string,
   operationId: string,
 ): TaskMonitorRunEffectPayload => {
-  toTaskPromptType(input.task.type);
   const launchServiceId = input.task.serviceIds[0];
   if (!launchServiceId) {
     throw new SessionValidationError('Task Monitor task is missing its launch service.');

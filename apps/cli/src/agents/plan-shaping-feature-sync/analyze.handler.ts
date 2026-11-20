@@ -21,7 +21,7 @@ import { FUTURE_REVISION_MCP_TOOLS } from '../mcp-server-config';
  * mints iterate's own provider session and tool surface.
  */
 
-import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import { SessionRole, LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { LocalPlanShapingFeatureSyncAnalyzePromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import { ReportAudience, ReportType } from '../../shared/api/index';
 import { turnUserMessageBlock, type UserLaunchablePromptTypeHandler } from '../prompt-type-handler';
@@ -31,6 +31,7 @@ import { structuralAnalyzeSubmissionTools } from '../feature-sync/submission-too
 export const planShapingFeatureSyncAnalyzeHandler: UserLaunchablePromptTypeHandler<LocalPlanShapingFeatureSyncAnalyzePromptPayload> =
   {
     id: LocalPromptType.PlanShapingFeatureSyncAnalyze,
+    sessionRole: SessionRole.Planning,
     promptType: LocalPromptType.PlanShapingFeatureSyncAnalyze,
     service: 'optional',
     launchEntity: 'required',

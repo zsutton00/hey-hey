@@ -214,8 +214,8 @@ paths:
           description: Malformed input or empty included population
         "403":
           description: Scope is not authorized
-        "409":
-          description: Idempotency conflict or stale execution attempt
+        "422":
+          description: The idempotency key was already used for a different report request (`IDEMPOTENCY_KEY_REUSED`)
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/preview:
     post:
       operationId: previewProjectReportRequest
@@ -261,7 +261,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}:
     get:
       operationId: getProjectReportRequest
@@ -305,7 +305,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/retry:
     post:
       operationId: retryProjectReportRequest
@@ -357,7 +357,9 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
+        "422":
+          description: The retry key was already used for a different execution (`IDEMPOTENCY_KEY_REUSED`)
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/activity:
     get:
       operationId: getProjectReportActivityPage
@@ -422,7 +424,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:
     get:
       operationId: getProjectReportContextPage
@@ -782,6 +784,14 @@ paths:
         connected machine alone does not authorize host actions.
       operationId: getLocalSetupStatus
       tags: [Auth]
+      parameters:
+        - name: enrollmentId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Follow this account's exact pairing. Connection and execution facts are scoped to its machine; an unrelated connected machine cannot complete this setup.
       responses:
         "200":
           description: Current local setup and machine state.
@@ -797,6 +807,136 @@ paths:
                         $ref: "#/components/schemas/LocalSetupStatusDto"
         "401":
           description: Local browser session is unavailable.
+
+  /auth/local/repair:
+    get:
+      summary: Read the local passkey repair state
+      description: >-
+        Local-deployment-only. Reports whether this account's passkey repair
+        was requested, declined at the terminal or completed, so the setup
+        page can continue without the person working out what happened.
+      operationId: getLocalPasskeyRepair
+      tags: [Auth]
+      responses:
+        "200":
+          description: Current repair state for the local account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local browser session is unavailable.
+    post:
+      summary: Ask to repair the local account passkey
+      description: >-
+        Local-deployment-only. Accepted only from the setup session the CLI
+        opened on this computer, for a local account whose existing passkey
+        cannot be used. It changes nothing by itself: the person must confirm
+        at the terminal before any passkey is revoked.
+      operationId: requestLocalPasskeyRepair
+      tags: [Auth]
+      responses:
+        "200":
+          description: Repair is waiting for confirmation at the terminal.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local browser session or same-origin authority is unavailable.
+        "403":
+          description: >-
+            Repair is not available to this session. The error code is
+            LOCAL_REPAIR_SESSION_NOT_CLI_OPENED or LOCAL_REPAIR_NO_PASSKEY.
+
+  /auth/local/repair/request:
+    get:
+      summary: Read a pending local passkey repair request
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and learns whether the setup page it opened
+        asked for a repair, so it can ask the person at the terminal.
+      operationId: getLocalPasskeyRepairRequest
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current repair state for the local account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+
+  /auth/local/repair/decision:
+    post:
+      summary: Record the terminal decision on a local passkey repair
+      description: >-
+        Local-deployment-only machine operation. The CLI proves authority with
+        its installation secret and reports what the person answered at the
+        terminal. Approval revokes every live passkey of the local account with
+        its controller credentials, execution grants and browser bindings, and
+        ends every browser session except the setup session that asked, which
+        may then enroll a new first passkey. No user data is deleted.
+      operationId: decideLocalPasskeyRepair
+      tags: [Auth]
+      security: []
+      parameters:
+        - in: header
+          name: X-HeyHey-Local-Secret
+          required: true
+          description: Installation secret held by the local CLI.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocalPasskeyRepairDecisionRequestDto"
+      responses:
+        "200":
+          description: Repair state after the decision.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LocalPasskeyRepairStatusDto"
+        "401":
+          description: Local installation authority is invalid or unavailable.
+        "409":
+          description: No repair is waiting for a decision (LOCAL_REPAIR_NOT_REQUESTED).
 
   /auth/password-recovery:
     post:
@@ -1838,7 +1978,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "403":
-          description: Authenticated caller is not authorized to decide private-beta requests.
+          description: >-
+            Authenticated caller is not authorized to decide private-beta
+            requests, or private-beta access is closed (code
+            PRIVATE_BETA_ACCESS_CLOSED).
           content:
             application/json:
               schema:
@@ -2831,6 +2974,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/cancel:
     parameters:
@@ -2868,8 +3017,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Cancellation conflicts with the current lifecycle state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
           content:
             application/json:
               schema:
@@ -2907,6 +3068,18 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "403":
           description: Eligible organization membership required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
           content:
             application/json:
               schema:
@@ -2949,12 +3122,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Irreversible closure committed before reactivation
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganizationReactivationDeadlineLostResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/members:
     parameters:
@@ -3416,6 +3601,18 @@ paths:
             Graph traversal depth used only for relatedEntities and
             agentSessions. UI callers use the default one-hop neighborhood;
             agent callers may request two hops for broader orientation.
+        - name: groupRelationships
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: >
+            Agent view. Adds groupedRelatedEntities (one entry per related
+            entity carrying all of its relationships) and returns
+            featureHierarchy with one entry per feature, relationship type
+            and direction. relatedEntities is unchanged. Selection, ranking
+            and limits are identical to the default response.
         - name: includeFeatureHierarchy
           in: query
           required: false
@@ -3825,6 +4022,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/reports/changes:
+    get:
+      operationId: listProjectChanges
+      summary: List historical agent changes across project sessions
+      description: IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
+      tags: [Reports]
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentSessionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: featureId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: committed
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A page of change records, without file content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/reports.yaml#/ProjectChangesPage"
+        "400":
+          description: Invalid filters or pagination.
+        "401":
+          description: Authentication required.
+        "403":
+          description: Project access denied.
 
   /organizations/{organizationId}/projects/{projectId}/reports/usage-trends:
     parameters:
@@ -4681,6 +4958,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
 
+  /organizations/{organizationId}/projects/{projectId}/topology/connected-entities:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    post:
+      summary: List the entities connected to the given entities
+      description: >-
+        Returns the given entities together with the entities that link to or
+        mention them, and every message in any given conversation. Links the
+        given entities make themselves and structural hubs such as the project
+        or a parent feature are not followed. Returns IDs only.
+      operationId: getTopologyConnectedEntities
+      tags: [Topology]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectedEntitiesRequest"
+      responses:
+        "200":
+          description: Connected entities resolved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ConnectedEntitiesResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
   /organizations/{organizationId}/projects/{projectId}/topology/graph-topology:
     parameters:
       - name: organizationId
@@ -5030,7 +5357,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
           explode: false
           description: Filter by initiative statuses (comma-separated)
@@ -5993,10 +6320,10 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
-          explode: false
-          description: Filter by task statuses (comma-separated)
+          explode: true
+          description: Filter by task statuses; each repeated value is one exact status name
         - name: includeDesignDocCounts
           in: query
           required: false
@@ -6127,6 +6454,12 @@ paths:
                           $ref: "#/components/schemas/TaskResponseDto"
         "401":
           description: Unauthorized
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
     post:
       summary: Create a new task
@@ -6175,6 +6508,62 @@ paths:
           description: Bad Request - Invalid input provided.
         "401":
           description: Unauthorized
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch:
+    parameters:
+      - $ref: "#/components/parameters/OrganizationId"
+      - $ref: "#/components/parameters/ProjectId"
+    post:
+      operationId: batchReadWorkItemExecutionState
+      summary: Read current execution state for work items
+      description: >-
+        Resolve the latest retained execution state for a bounded set of
+        work-item identities in the requested project. Every requested
+        identity gets one result in request order: RETAINED with the complete
+        record and its freshness, or MISSING when no state is available. An
+        identity outside the requested project is reported MISSING without
+        disclosing whether it exists.
+      tags: [Tasks]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemExecutionStateBatchRequestDto"
+      responses:
+        "200":
+          description: One result per requested work item.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemExecutionStateBatchResponseDto"
+        "400":
+          description: >-
+            Invalid request. The request must contain 1–100 unique work-item
+            UUIDs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/references:
     parameters:
@@ -6236,10 +6625,10 @@ paths:
           schema:
             type: array
             items:
-              $ref: "#/components/schemas/WorkStatus"
+              $ref: "#/components/schemas/WorkItemStatus"
           style: form
-          explode: false
-          description: Optional status set applied before counting and pagination.
+          explode: true
+          description: Optional status set applied before counting and pagination. Each repeated value is one exact status name.
         - name: sortBy
           in: query
           required: false
@@ -6363,6 +6752,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
     patch:
       summary: Update a task
       description: |
@@ -6411,6 +6806,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
     delete:
       summary: Archive a task
@@ -6433,6 +6834,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/graph:
     parameters:
@@ -6948,6 +7355,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies:
     parameters:
@@ -7106,6 +7519,140 @@ paths:
         "404":
           description: Task dependency not found
 
+  /organizations/{organizationId}/projects/{projectId}/approval-policy:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization that owns the project.
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project whose approval policy is read or replaced.
+    get:
+      operationId: getProjectApprovalPolicy
+      summary: Get the effective project approval policy
+      description: >-
+        Return the API-owned effective policy, complete global first-match
+        order, rule provenance, protected fixed exceptions, unmatched fallback,
+        and concurrency revision. Any caller with project read access may
+        inspect the policy. A project with no saved override receives the
+        established code defaults at revision 0 unless a prior restore or
+        replacement has advanced its revision history. A malformed persisted
+        override is an error; it is never silently replaced with defaults.
+      tags: [Projects]
+      responses:
+        "200":
+          description: Effective project policy and concurrency revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Caller cannot read this project.
+        "404":
+          description: Project not found.
+        "500":
+          description: A saved policy could not be read or validated.
+    put:
+      operationId: replaceProjectApprovalPolicy
+      summary: Replace the editable project approval rules
+      description: >-
+        Replace the project-authored rule layer and each rule's approval count
+        using compare-and-swap expectedRevision. Only project
+        OWNER and ARCHITECT roles may manage this policy; proposal approver
+        eligibility does not grant management authority. The API resolves
+        selectors against the project's current effective work-item type
+        registry and rejects invalid documents without replacing the existing
+        override. Protected FIXED rules remain ahead of project rules, saved
+        project rules retain request order, and ordinary code defaults follow
+        them so project rules can override a default while unmatched proposals
+        keep established behavior. On success, revision increments once and
+        the complete effective snapshot is returned. A stale revision returns
+        409 and requires a fresh read.
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectApprovalPolicyReplaceRequest"
+      responses:
+        "200":
+          description: Complete effective policy after replacement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "400":
+          description: Invalid policy document or selector; prior configuration is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyValidationErrorResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Only project OWNER and ARCHITECT roles may manage the policy.
+        "404":
+          description: Project not found.
+        "409":
+          description: Expected revision is stale; reread the effective policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyRevisionConflictResponse"
+        "500":
+          description: A saved policy could not be read or validated.
+    post:
+      operationId: restoreProjectApprovalPolicyDefaults
+      summary: Restore the code-owned approval defaults
+      description: >-
+        Remove the current project override and return the effective code
+        defaults. Only project OWNER and ARCHITECT roles may restore defaults.
+        expectedRevision is checked atomically with the restore. Every
+        successful restore increments and retains the project revision, even
+        when no override is currently present, so absent configuration and
+        absent concurrency history remain distinct and stale first-save or
+        restore/recreate writes cannot succeed. A stale revision returns 409
+        and requires a fresh read.
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectApprovalPolicyRestoreRequest"
+      responses:
+        "200":
+          description: Effective code defaults and the advanced revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyResponse"
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Only project OWNER and ARCHITECT roles may manage the policy.
+        "404":
+          description: Project not found.
+        "409":
+          description: Expected revision is stale; reread the effective policy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectApprovalPolicyRevisionConflictResponse"
+        "500":
+          description: A saved policy could not be read or validated.
+
   /organizations/{organizationId}/projects/{projectId}/work-item-types:
     parameters:
       - name: organizationId
@@ -7205,6 +7752,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Suggest and resolve work-item statuses
+      operationId: resolveWorkItemTypeStatuses
+      tags: [WorkItemTypes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemStatusAuthoringRequest"
+      responses:
+        "200":
+          description: Suggestions and either a resolved definition or a clarification.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemStatusAuthoringResponse"
+        "400":
+          description: Invalid status names or finished selection.
+        "401":
+          description: Unauthorized.
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance:
     parameters:
@@ -7355,8 +7939,7 @@ paths:
         list endpoint returns. This registry-backed read is the source of
         truth for opening the edit page: callers use the generated
         WorkItemTypeSummaryDto/WorkItemTypeDefinitionDto shape directly,
-        including lifecycle, owning-project, canonical template key, accepted
-        template revision, latest available template revision, and
+        including lifecycle, owning project, effective source, and
         schema-backed section metadata such as `kind` and `schemaRef`.
       operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyGet
       tags: [WorkItemTypes]
@@ -7606,6 +8189,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404": { description: Work-item type not found. }
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/canonical-comparison:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: typeKey
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Read a canonical override next to the current canonical definition
+      description: >
+        Return the project's effective definition and the current canonical
+        definition for the same key, both complete and unmodified, so a caller
+        can show how the override differs. Read-only: nothing is merged,
+        created, or changed. Only available for a type whose effective source
+        is a canonical override.
+      operationId: organizationsOrganizationIdProjectsProjectIdWorkItemTypesTypeKeyCanonicalComparisonGet
+      tags: [WorkItemTypes]
+      responses:
+        "200":
+          description: The effective override and the current canonical definition.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemTypeCanonicalComparisonDto"
+        "401": { description: Unauthorized }
+        "404": { description: Work-item type not found. }
+        "409":
+          {
+            description: The type is not a project override of a canonical type.,
+          }
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/section-content-impact:
     parameters:
@@ -7860,17 +8486,16 @@ paths:
                       data:
                         $ref: "#/components/schemas/ProjectResponseDto"
         "403":
-          description: Insufficient permissions
+          description: >-
+            Insufficient permissions (ApiErrorResponse), or the organization
+            project limit is reached (ProjectLimitReachedDto with code
+            ORGANIZATION_PROJECT_LIMIT_REACHED).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-        "409":
-          description: Organization project limit reached
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProjectLimitReachedDto"
+                oneOf:
+                  - $ref: "#/components/schemas/ApiErrorResponse"
+                  - $ref: "#/components/schemas/ProjectLimitReachedDto"
 
   /organizations/{organizationId}/projects/{projectId}:
     parameters:
@@ -9699,6 +10324,23 @@ paths:
                     properties:
                       data:
                         nullable: true
+        "409":
+          description: >-
+            The same operation identity is still being admitted
+            (`AGENT_OPERATION_IN_PROGRESS`). Retry with the same operation identity and input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The operation fingerprint does not match the message submission
+            (`AGENT_OPERATION_FINGERPRINT_INVALID`), or the operation identity was already bound to
+            different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/messages/search:
     parameters:
@@ -11093,6 +11735,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: >-
+            The same operation identity is still being admitted
+            (`AGENT_OPERATION_IN_PROGRESS`). Retry with the same operation identity and input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The request does not match what it addresses: the operation
+            fingerprint is invalid (`AGENT_OPERATION_FINGERPRINT_INVALID`) or
+            the Agent Session in the body does not match the path
+            (`WORKFLOW_ANSWER_SESSION_MISMATCH`), or the operation identity was already bound to
+            different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/retry-open-trigger:
     parameters:
@@ -11210,12 +11871,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "403":
-          description: Command or bounded grant is invalid
+          description: Command or bounded grant is invalid, or the authenticated, addressed and delivery machines differ (TASK_MONITOR_MACHINE_MISMATCH)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "409":
-          description: Operation or binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+        "422":
+          description: Request does not match the bound task monitor, command or session; the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
@@ -11299,12 +11967,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "403":
-          description: Command or bounded grant is invalid
+          description: Command or bounded grant is invalid, or the authenticated, addressed and delivery machines differ (TASK_MONITOR_MACHINE_MISMATCH)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "409":
-          description: Operation, session, or conversation binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+        "422":
+          description: Request does not match the bound operation, session or conversation; the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
@@ -11359,7 +12034,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Operation identity, fingerprint, session, conversation, or workflow binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: Operation fingerprint, session, conversation or workflow binding does not match the request, or the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema:
@@ -11418,8 +12101,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Parent Agent Session not found (AGENT_SESSION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Decision identity or persisted Session Monitor binding mismatch
+          description: Decision identity conflicts with a recorded decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: Decision does not match the persisted Session Monitor binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (SESSION_MONITOR_DECISION_RESULT_INVALID)
           content:
             application/json:
               schema:
@@ -11476,17 +12177,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
-        "409":
-          description: Agent Session, conversation, workflow node, trigger, or action mismatch
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
         "422":
           description: >-
-            The payload does not satisfy the selected action's schema. Nothing
-            is recorded and the pending trigger stays open for a corrected
-            resubmission.
+            The payload does not satisfy the selected action's schema, or the
+            Agent Session, conversation, workflow node, trigger or action does
+            not match the request (`EXTERNAL_AGENT_COMPLETION_BINDING_MISMATCH`).
+            Nothing is recorded and the pending trigger stays open for a
+            corrected resubmission.
           content:
             application/json:
               schema:
@@ -12726,6 +13423,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/advance:
     parameters:
@@ -12888,7 +13591,7 @@ paths:
                                 type: string
                                 format: date-time
                               finalStatus:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
         "400":
           description: Bad request - not at acceptanceCriteria level
           content:
@@ -12972,7 +13675,7 @@ paths:
                                 enum: [description, details, acceptanceCriteria]
                                 nullable: true
                               status:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
                               progress:
                                 type: object
                                 properties:
@@ -14259,11 +14962,85 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
+
+  /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/presentation-refresh:
+    parameters:
+      - $ref: "#/components/parameters/OrganizationId"
+      - $ref: "#/components/parameters/ProjectId"
+      - name: entityType
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/EntityType"
+        description: Open Item entity type
+      - name: entityId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Open Item entity ID
+    post:
+      operationId: refreshOpenItemPresentation
+      tags: [OpenItems]
+      summary: Refresh an existing Agent Session Open Item title
+      description: "Scoped to the authenticated user and authorized project. Resolves the session conversation title authoritatively; missing or removed rows are successful no-ops. Preserves all working-set organization and never activates or opens a row."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshOpenItemPresentationRequest"
+      responses:
+        "200":
+          description: Canonical result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/OpenItemsMutationResult"
+        "400":
+          description: Contract-invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsValidationError"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Project access denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: Stale premise or collection state conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/note:
     parameters:
@@ -14321,11 +15098,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/pin:
     parameters:
@@ -14383,11 +15166,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/move:
     parameters:
@@ -14445,11 +15234,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/remove:
     parameters:
@@ -14507,11 +15302,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Collection absent or idempotency key reused with different input
+          description: Collection absent
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/remove:
     parameters:
@@ -14556,11 +15357,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Collection absent or idempotency key reused with different input
+          description: Collection absent
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/promotions:
     parameters:
@@ -14605,11 +15412,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-filter:
     parameters:
@@ -14665,11 +15478,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-disclosure:
     parameters:
@@ -14725,11 +15544,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups:
     parameters:
@@ -14774,11 +15599,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/rename:
     parameters:
@@ -14830,11 +15661,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/delete:
     parameters:
@@ -14886,11 +15723,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/disclosure:
     parameters:
@@ -14942,11 +15785,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/move:
     parameters:
@@ -14998,11 +15847,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/assign:
     parameters:
@@ -15054,11 +15909,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/ungroup:
     parameters:
@@ -15103,11 +15964,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/members/{entityType}/{entityId}/move:
     parameters:
@@ -15172,11 +16039,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/migration:
     parameters:
@@ -15221,11 +16094,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/reset:
     parameters:
@@ -15270,11 +16149,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/triage-session:
     parameters:
@@ -15503,6 +16388,49 @@ paths:
   # =============================================
   # Eval Runs
   # =============================================
+  /organizations/{organizationId}/projects/{projectId}/eval-session-statuses:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: getEvalSessionStatuses
+      tags: [EvalRuns]
+      summary: Read recorded evaluation status for coordinator sessions
+      description: Returns visible project runs and counts of every recorded repeat. Non-coordinator sessions are omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvalSessionStatusesRequest"
+      responses:
+        "200":
+          description: Recorded run status and attempt counts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/EvalSessionStatus"
+        "400":
+          description: Invalid session identifiers or batch size
+        "401":
+          description: Unauthorized
+        "403":
+          description: Project access denied
+
   /organizations/{organizationId}/projects/{projectId}/evals/{evalId}/runs:
     parameters:
       - name: organizationId
@@ -19275,7 +20203,11 @@ paths:
                   $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
                 }
         "403": { description: Source or target is not authorized }
-        "409": { description: Stale revision or conflicting identity }
+        "409": { description: Stale revision }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/subagent-interactions:
     post:
@@ -19322,7 +20254,11 @@ paths:
                   $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
                 }
         "403": { description: User does not own the source Agent Session }
-        "409": { description: Stale revision or conflicting identity }
+        "409": { description: Stale revision }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-message-interactions:
     post:
@@ -19369,7 +20305,11 @@ paths:
                 }
         "400": { description: Invalid command or target mention }
         "403": { description: Source or target is not authorized }
-        "409": { description: Conflicting identity }
+        "409": { description: Conflicting interaction state }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /session-message-targets:
     get:
@@ -20063,7 +21003,7 @@ paths:
         selected project are returned. When taskId is provided, only sessions
         whose TASK attachment matches that identifier are returned. Cursors are
         bound to the requested type selection, user, statuses, service, task,
-        user-message presence, and sort.
+        user-message presence, sort, and search term.
       operationId: listAgentSessionsPaginated
       tags: [AgentSessions]
       parameters:
@@ -20122,6 +21062,12 @@ paths:
           schema:
             $ref: "#/components/schemas/AgentSessionListSort"
             default: LAST_MESSAGE
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Case-insensitive literal substring of the session title. Surrounding whitespace is trimmed and an empty term means no search. Applied before ordering and the page limit.
         - name: limit
           in: query
           required: false
@@ -20259,6 +21205,12 @@ paths:
           description: Unauthorized
         "404":
           description: Owning work item not found.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}:
     parameters:
@@ -20460,6 +21412,12 @@ paths:
           description: Unauthorized
         "409":
           description: Conflict — agent session already has a conversation.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills:
     parameters:
@@ -20566,6 +21524,305 @@ paths:
           description: Forbidden — selected machine or controller authority is unavailable.
         "404":
           description: Project not found in the requested organization.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuation:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+    get:
+      summary: Read whether this session can continue on another computer
+      operationId: getAgentSessionContinuationStatus
+      description: >-
+        Server-confirmed state of the session's machine binding and its latest
+        continuation. Only a revoked or removed binding offers continuation; an
+        offline or unverifiable machine keeps its session.
+      tags: [AgentSessions]
+      responses:
+        "200":
+          description: Continuation status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationStatusDto"
+        "404":
+          description: Agent Session not found for this account and project.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/inspection:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Client-minted continuation identity; repeating it is idempotent.
+    post:
+      summary: Inspect a destination computer's provider state for continuation
+      operationId: inspectAgentSessionContinuation
+      description: >-
+        Under the destination's own controller authorization, asks its CLI
+        whether usable provider state for this session exists. Records the
+        inspection; moves nothing. Repeating the same continuation with the same
+        input returns the recorded inspection; different input is rejected.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectAgentSessionContinuationRequestDto"
+      responses:
+        "200":
+          description: Recorded inspection
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "403":
+          description: Destination or controller authority unavailable.
+        "404":
+          description: Agent Session not found for this account and project.
+        "409":
+          description: The session is not eligible, its binding changed, or the continuation input differs.
+        "502":
+          description: The destination could not be inspected; the cause is in the error code.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/commit:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Client-minted continuation identity; repeating it is idempotent.
+    post:
+      summary: Continue the session on the inspected destination
+      operationId: commitAgentSessionContinuation
+      description: >-
+        Atomically rebinds the session to the inspected destination, records the
+        previous machine, and delivers a materialize-only start_run for that
+        destination under its own controller authorization. Repeating while a
+        delivery is pending or succeeded returns the recorded attempt. On a
+        FAILED attempt it retries delivery to the same destination as a new
+        delivery generation, without a second rebind.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommitAgentSessionContinuationRequestDto"
+      responses:
+        "200":
+          description: Committed continuation
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "403":
+          description: Destination or controller authority unavailable.
+        "404":
+          description: Agent Session or continuation not found.
+        "409":
+          description: Binding changed, saved history not confirmed, or eligibility lost.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/startup:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Continuation attempt identity.
+    post:
+      summary: Report provider startup for a continuation delivery
+      operationId: reportAgentSessionContinuationStartup
+      description: >-
+        Machine-authenticated. Only the attempt's destination computer may
+        report. Applies the outcome to a PENDING or UNCERTAIN attempt whose
+        latest delivery is the reported operation; any other report is answered with
+        accepted false and changes nothing. Repeating an applied report
+        returns the same result.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentSessionContinuationStartupReport"
+      responses:
+        "200":
+          description: Report recorded or answered as no longer applicable
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationStartupReportResponseDto"
+        "400":
+          description: Malformed report.
+        "404":
+          description: Continuation not found for this computer.
+
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/continuations/{continuationId}/cancel:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: agentSessionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Agent Session ID
+      - name: continuationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Continuation attempt identity.
+    post:
+      summary: Decline a continuation attempt before anything starts
+      operationId: cancelAgentSessionContinuation
+      description: >-
+        Records that the person declined an INSPECTED or
+        AWAITING_HISTORY_CONFIRMATION attempt, so nothing is delivered or
+        started. A FAILED attempt, where no provider session started, may also
+        be cancelled while it still owns the session's binding: the binding
+        returns to the previous computer so the person can continue elsewhere.
+        Repeating returns the cancelled attempt.
+      tags: [AgentSessions]
+      responses:
+        "200":
+          description: Cancelled continuation attempt
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AgentSessionContinuationDto"
+        "404":
+          description: Agent Session or continuation not found.
+        "409":
+          description: The attempt already delivered or started and cannot be cancelled.
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/cli-reads:
     parameters:
@@ -21236,19 +22493,32 @@ paths:
                       data:
                         $ref: "#/components/schemas/CreateReportResponseDto"
         "400":
-          description: Bad request
+          description: Bad request, or a payload that fails its report schema (REPORT_PAYLOAD_INVALID with field-level issues).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                anyOf:
+                  - $ref: "#/components/schemas/CreateReportValidationError"
+                  - $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Attempt already persisted, or another submission conflict.
+          description: >-
+            The report attempt was already persisted. The recorded result is returned in the body
+            (`PROJECT_REPORT_ATTEMPT_COMPLETED`); this is a replay of the same submission, not key
+            reuse with different input. Also returned for another submission conflict.
           content:
             application/json:
               schema:
                 anyOf:
                   - $ref: "#/components/schemas/CreateReportCompletedAttemptError"
                   - $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The attempt was already persisted from different input, or the report differs from the
+            accepted request (`IDEMPOTENCY_KEY_REUSED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "401":
           description: Unauthorized
 
@@ -23981,6 +25251,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MachineEnrollmentInvalidTransitionErrorDto"
+        "429":
+          description: Poll arrived too soon. Retry the same enrollment after retryAfterSeconds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MachineEnrollmentPollRateLimitErrorDto"
 
   /machines/enrollments/{enrollmentId}/confirm:
     parameters:
@@ -24950,6 +26226,37 @@ components:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchRequest"
     UnifiedSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedSearchResponse"
+    ConnectedEntitiesRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: Entities whose connected entities are listed.
+        depth:
+          type: integer
+          minimum: 1
+          maximum: 2
+          default: 1
+          description: How many link hops from the given entities are followed.
+    ConnectedEntitiesResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - entityIds
+      properties:
+        entityIds:
+          type: array
+          items:
+            type: string
+          description: Distinct connected entities, including the given ones.
     UnifiedGraphSearchResponse:
       $ref: "../schemas/unified-search.yaml#/UnifiedGraphSearchResponse"
     UnifiedBatchGraphSearchOptions:
@@ -25121,6 +26428,8 @@ components:
       $ref: "../schemas/open-items.yaml#/OpenItemsMutationResult"
     ActivateOpenItemRequest:
       $ref: "../schemas/open-items.yaml#/ActivateOpenItemRequest"
+    RefreshOpenItemPresentationRequest:
+      $ref: "../schemas/open-items.yaml#/RefreshOpenItemPresentationRequest"
     SetOpenItemNoteRequest:
       $ref: "../schemas/open-items.yaml#/SetOpenItemNoteRequest"
     SetOpenItemPinRequest:
@@ -25159,6 +26468,8 @@ components:
       $ref: "../schemas/open-items.yaml#/OpenItemsValidationError"
     OpenItemsConflictError:
       $ref: "../schemas/open-items.yaml#/OpenItemsConflictError"
+    OpenItemsIdempotencyKeyReusedError:
+      $ref: "../schemas/open-items.yaml#/OpenItemsIdempotencyKeyReusedError"
     OpenItemGoalTrackedWorkFilter:
       $ref: "../schemas/open-items.yaml#/OpenItemGoalTrackedWorkFilter"
     SetOpenItemGoalFilterRequest:
@@ -25175,6 +26486,12 @@ components:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttempt"
     CreateReportCompletedAttemptError:
       $ref: "../schemas/reports.yaml#/CreateReportCompletedAttemptError"
+    CreateReportValidationIssue:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationIssue"
+    CreateReportValidationFailure:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationFailure"
+    CreateReportValidationError:
+      $ref: "../schemas/reports.yaml#/CreateReportValidationError"
     PlanSubmissionAdmissionRequest:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionRequest"
     PlanSubmissionAdmissionResponse:
@@ -25295,6 +26612,44 @@ components:
       $ref: "../schemas/proposals.yaml#/CreateProposalReconciliationCandidate"
     ProposalAgentFixRequest:
       $ref: "../schemas/proposals.yaml#/ProposalAgentFixRequest"
+    ProposalApprovalExplanationEvidence:
+      $ref: "../schemas/approval-policies.yaml#/ProposalApprovalExplanationEvidence"
+    ProposalApprovalExplanation:
+      $ref: "../schemas/approval-policies.yaml#/ProposalApprovalExplanation"
+    ProjectApprovalPolicyRuleSource:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRuleSource"
+    ProjectApprovalPolicyRequirement:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRequirement"
+    ProjectApprovalPolicyAuthor:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyAuthor"
+    ProjectApprovalPolicyAction:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyAction"
+    ProjectApprovalPolicyChangeSelector:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyChangeSelector"
+    ProjectApprovalPolicyConditions:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyConditions"
+    ProjectApprovalPolicyEffectiveConditions:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyEffectiveConditions"
+    ProjectApprovalPolicyRule:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRule"
+    ProjectApprovalPolicyEffectiveRule:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyEffectiveRule"
+    ProjectApprovalPolicyFallback:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyFallback"
+    ProjectApprovalPolicySnapshot:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicySnapshot"
+    ProjectApprovalPolicyReplaceRequest:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyReplaceRequest"
+    ProjectApprovalPolicyRestoreRequest:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRestoreRequest"
+    ProjectApprovalPolicyValidationIssue:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyValidationIssue"
+    ProjectApprovalPolicyValidationErrorResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyValidationErrorResponse"
+    ProjectApprovalPolicyRevisionConflictResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyRevisionConflictResponse"
+    ProjectApprovalPolicyResponse:
+      $ref: "../schemas/approval-policies.yaml#/ProjectApprovalPolicyResponse"
     ProposalResponseDto:
       $ref: "../schemas/proposals.yaml#/ProposalResponseDto"
     CreateProposalDto:
@@ -25431,6 +26786,10 @@ components:
       $ref: "../schemas/entity-context.yaml#/PlanContextEntryDto"
     ContextRelatedEntityDto:
       $ref: "../schemas/entity-context.yaml#/ContextRelatedEntityDto"
+    ContextGroupedRelatedEntityDto:
+      $ref: "../schemas/entity-context.yaml#/ContextGroupedRelatedEntityDto"
+    ContextEntityRelationshipDto:
+      $ref: "../schemas/entity-context.yaml#/ContextEntityRelationshipDto"
     RelatedEntitySelectionDto:
       $ref: "../schemas/entity-context.yaml#/RelatedEntitySelectionDto"
     RelatedEntityViaDto:
@@ -25681,6 +27040,12 @@ components:
       $ref: ../schemas/auth.yaml#/LocalNameRequestDto
     LocalSetupStatusDto:
       $ref: ../schemas/auth.yaml#/LocalSetupStatusDto
+    LocalPasskeyRepairState:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairState
+    LocalPasskeyRepairStatusDto:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairStatusDto
+    LocalPasskeyRepairDecisionRequestDto:
+      $ref: ../schemas/auth.yaml#/LocalPasskeyRepairDecisionRequestDto
     LocalCodingAgentAvailability:
       $ref: ../schemas/auth.yaml#/LocalCodingAgentAvailability
     LocalCodingAgentDetectionDto:
@@ -27684,7 +29049,10 @@ components:
             Required when the claim began in SHARED_NEW mode and rejected
             otherwise. Fresh account proof, answering a challenge issued for
             registering an account passkey, authorizing the credential's
-            sign-in eligibility.
+            sign-in eligibility. A local deployment may omit it for a
+            SHARED_NEW claim only when the acting session is the one the CLI
+            opened on this computer and the account has no passkey yet; every
+            other proofless SHARED_NEW completion is rejected.
 
     MachineEnrollmentLocalApprovalProof:
       type: string
@@ -27836,12 +29204,22 @@ components:
       description: >
         API-authored, browser-safe reason for a failed enrollment claim.
         Unknown codes, cross-account enrollments, and otherwise privacy-sensitive
-        failures use the generic unavailable value.
+        failures use the generic unavailable value. The account-proof, passkey
+        and session values concern only the signed-in account's own shared
+        sign-in passkey: the account already has a passkey and none was proven
+        (ACCOUNT_PROOF_REQUIRED), the supplied proof did not verify
+        (ACCOUNT_PROOF_FAILED), the new passkey is already registered
+        (PASSKEY_ALREADY_REGISTERED), or the acting browser session ended
+        before the claim completed (SESSION_ENDED).
       enum:
         - MACHINE_ENROLLMENT_CLAIM_UNAVAILABLE
         - MACHINE_ENROLLMENT_CLAIM_EXPIRED
         - MACHINE_ENROLLMENT_CLAIM_TERMINAL
         - MACHINE_ENROLLMENT_CLIENT_INCOMPATIBLE
+        - MACHINE_ENROLLMENT_ACCOUNT_PROOF_REQUIRED
+        - MACHINE_ENROLLMENT_ACCOUNT_PROOF_FAILED
+        - MACHINE_ENROLLMENT_PASSKEY_ALREADY_REGISTERED
+        - MACHINE_ENROLLMENT_SESSION_ENDED
 
     MachineEnrollmentClaimFailureErrorDto:
       type: object
@@ -27946,6 +29324,62 @@ components:
           type: string
           description: Request path.
           example: "/api/v1/machines/enrollments/claim/begin"
+
+    MachineEnrollmentPollRateLimitErrorDto:
+      type: object
+      additionalProperties: false
+      required:
+        - success
+        - message
+        - code
+        - data
+        - retryAfterSeconds
+        - timestamp
+        - statusCode
+        - path
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+          description: Always false for enrollment poll rate-limit responses.
+          example: false
+        message:
+          type: string
+          description: Authoritative, privacy-safe temporary-throttling guidance.
+          example: "Enrollment polled too soon."
+        code:
+          type: string
+          enum:
+            - MACHINE_ENROLLMENT_POLL_RATE_LIMITED
+          description: Stable discriminator for enrollment poll rate limits.
+          example: "MACHINE_ENROLLMENT_POLL_RATE_LIMITED"
+        data:
+          type: object
+          nullable: true
+          additionalProperties: false
+          description: Always null; no account, source, or enrollment detail is returned.
+          example: null
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
+          description: Minimum delay before the CLI may poll this enrollment again.
+          example: 1
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO timestamp of when the response was generated.
+          example: "2026-08-11T18:00:00.000Z"
+        statusCode:
+          type: integer
+          enum:
+            - 429
+          description: HTTP status code for enrollment poll rate limits.
+          example: 429
+        path:
+          type: string
+          description: Request path.
+          example: "/api/v1/machines/enrollments/{enrollmentId}/poll"
 
     MachineEnrollmentInvalidMachineMaterialErrorDto:
       type: object
@@ -28499,6 +29933,32 @@ components:
       $ref: "../schemas/task-monitor-state.yaml#/TaskMonitorStateProjection"
     TaskMonitorStateObservation:
       $ref: "../schemas/task-monitor-state.yaml#/TaskMonitorStateObservation"
+    TaskMonitorWorkItemExecutionState:
+      $ref: "../schemas/work-item-execution-state.yaml#/TaskMonitorWorkItemExecutionState"
+    WorkItemExecutionStatePayload:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStatePayload"
+    WorkItemExecutionStateObservation:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateObservation"
+    WorkItemExecutionStateObservationReceipt:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateObservationReceipt"
+    WorkItemExecutionFreshness:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionFreshness"
+    WorkItemExecutionState:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionState"
+    WorkItemExecutionStateBatchRequestDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchRequestDto"
+    WorkItemExecutionStateRetainedResult:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateRetainedResult"
+    WorkItemExecutionStateMissingResult:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateMissingResult"
+    WorkItemExecutionStateBatchItemDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchItemDto"
+    WorkItemExecutionStateBatchResponseDto:
+      $ref: "../schemas/work-item-execution-state.yaml#/WorkItemExecutionStateBatchResponseDto"
+    WebSocketWorkItemExecutionStateChangedEvent:
+      $ref: "../schemas/websockets.yaml#/WebSocketWorkItemExecutionStateChangedEvent"
+    WebSocketWorkItemExecutionStateDeliveryChangedEvent:
+      $ref: "../schemas/websockets.yaml#/WebSocketWorkItemExecutionStateDeliveryChangedEvent"
     ConversationPhaseObservation:
       $ref: "../schemas/websockets.yaml#/ConversationPhaseObservation"
 
@@ -28588,6 +30048,42 @@ components:
       oneOf:
         - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceSkillsListSuccessResponseDto"
         - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceSkillsListErrorResponseDto"
+    AgentSessionContinuationSourceState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationSourceState"
+    AgentSessionContinuationState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationState"
+    AgentSessionContinuationMode:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationMode"
+    AgentSessionContinuationNativeState:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationNativeState"
+    AgentSessionContinuationInspectionReason:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationInspectionReason"
+    AgentSessionContinuationMarker:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationMarker"
+    AgentSessionContinuationDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationDto"
+    AgentSessionContinuationStatusDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStatusDto"
+    InspectAgentSessionContinuationRequestDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/InspectAgentSessionContinuationRequestDto"
+    CommitAgentSessionContinuationRequestDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/CommitAgentSessionContinuationRequestDto"
+    AgentSessionContinuationInspectHostActionPreparation:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationInspectHostActionPreparation"
+    AgentSessionContinuationStartupOutcome:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupOutcome"
+    AgentSessionContinuationStartupReport:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupReport"
+    AgentSessionContinuationStartupReportResponseDto:
+      $ref: "../schemas/agent-session-continuations.yaml#/AgentSessionContinuationStartupReportResponseDto"
+    CliReadAgentSessionContinuationInspectEnvelopeBody:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectEnvelopeBody"
+    CliReadAgentSessionContinuationInspectResult:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectResult"
+    CliReadAgentSessionContinuationInspectSuccessResponseDto:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectSuccessResponseDto"
+    CliReadAgentSessionContinuationInspectErrorResponseDto:
+      $ref: "../schemas/websockets.yaml#/CliReadAgentSessionContinuationInspectErrorResponseDto"
     CliReadRuntimeModelCatalogGetRequest:
       $ref: "../schemas/websockets.yaml#/CliReadRuntimeModelCatalogGetRequest"
     RuntimeModelCatalogReadResponseDto:
@@ -28643,6 +30139,9 @@ components:
 
     WebSocketSubscribedResponse:
       $ref: "../schemas/websockets.yaml#/WebSocketSubscribedResponse"
+
+    WebSocketDeniedSubscriptionScope:
+      $ref: "../schemas/websockets.yaml#/WebSocketDeniedSubscriptionScope"
 
     WebSocketLeaveRoomRequest:
       $ref: "../schemas/websockets.yaml#/WebSocketLeaveRoomRequest"
@@ -29252,6 +30751,8 @@ components:
     # Schema references for initiatives
     WorkStatus:
       $ref: "../schemas/common.yaml#/WorkStatus"
+    WorkItemStatus:
+      $ref: "../schemas/common.yaml#/WorkItemStatus"
     InitiativeResponseDto:
       $ref: "../schemas/initiatives.yaml#/InitiativeResponseDto"
     CreateInitiativeDto:
@@ -29385,6 +30886,10 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceBatchDto"
     WorkItemTypeDefinitionDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    WorkItemStatusAuthoringRequest:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringRequest"
+    WorkItemStatusAuthoringResponse:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringResponse"
     WorkItemTypeSectionDefinition:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSectionDefinition"
     WorkItemHtmlCssSectionContent:
@@ -29439,6 +30944,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeWritingStandards"
     WorkItemTypeCapabilities:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCapabilities"
+    WorkItemTypeStatus:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeStatus"
+    WorkItemStatusMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaning"
+    WorkItemStatusCompletionBehavior:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
     WorkItemTypeGraphCapability:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGraphCapability"
     WorkItemTypeGraphReadExpansion:
@@ -29477,6 +30988,8 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEffectiveSource"
     WorkItemTypeSummaryDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSummaryDto"
+    WorkItemTypeCanonicalComparisonDto:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCanonicalComparisonDto"
     WorkItemTypeEditRequestDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeEditRequestDto"
     WorkItemTypeSectionContentImpactDto:
@@ -31582,6 +33095,8 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCoding"
     EvalCaseCodingCommit:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingCommit"
+    EvalCaseCodingTarget:
+      $ref: "../schemas/eval-runs.yaml#/EvalCaseCodingTarget"
     EvalCaseMockupChecklist:
       $ref: "../schemas/eval-runs.yaml#/EvalCaseMockupChecklist"
     EvalCaseMockupChecklistItem:
@@ -31600,6 +33115,10 @@ components:
       $ref: "../schemas/eval-runs.yaml#/EvalMeasurement"
     EvalAutomatedAssessment:
       $ref: "../schemas/eval-runs.yaml#/EvalAutomatedAssessment"
+    EvalSessionStatusesRequest:
+      $ref: "../schemas/eval-runs.yaml#/EvalSessionStatusesRequest"
+    EvalSessionStatus:
+      $ref: "../schemas/eval-runs.yaml#/EvalSessionStatus"
     LaunchEvalRunRequest:
       $ref: "../schemas/eval-runs.yaml#/LaunchEvalRunRequest"
     EvalRunReportPayload:

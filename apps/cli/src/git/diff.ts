@@ -35,14 +35,15 @@ const splitIntoPatchesByFile = (diffOutput: string): RawFilePatch[] => {
   const sections = diffOutput.split(/(?=^diff --git )/mu);
 
   for (const section of sections) {
-    const trimmed = section.trim();
-    if (!trimmed) {
+    // Whitespace at the end is part of the patch: a trailing blank context line
+    // or the final newline, and `git apply` rejects a hunk that lacks either.
+    if (!section.trim()) {
       continue;
     }
 
     // Extract file path from "diff --git a/<path> b/<path>".
     // Non-greedy on the a/ side to avoid mis-parsing paths containing " b/".
-    const headerMatch = /^diff --git a\/.+? b\/(.+)$/mu.exec(trimmed);
+    const headerMatch = /^diff --git a\/.+? b\/(.+)$/mu.exec(section);
     if (!headerMatch || !headerMatch[1]) {
       continue;
     }
@@ -54,7 +55,7 @@ const splitIntoPatchesByFile = (diffOutput: string): RawFilePatch[] => {
       continue;
     }
 
-    patches.push({ filePath, diff: trimmed });
+    patches.push({ filePath, diff: section });
   }
 
   return patches;
@@ -145,13 +146,99 @@ const findUntrackedPaths = async (repoPath: string, paths: string[]): Promise<Se
   }
 };
 
+/** Safe, loggable description of a failed git invocation. */
+export interface GitFailureDetail {
+  command: string;
+  exitCode: number | string | null;
+  message: string;
+}
+
+const MAX_GIT_FAILURE_MESSAGE_LENGTH = 500;
+
+const isExecFailure = (
+  error: unknown,
+): error is Error & { code?: number | string; cmd?: string; stderr?: string } =>
+  error instanceof Error;
+
+/** Extracts the git operation, exit code and error text from a failed `execFile` call. */
+export const describeGitFailure = (error: unknown): GitFailureDetail => {
+  if (!isExecFailure(error)) {
+    return { command: 'git', exitCode: null, message: String(error) };
+  }
+
+  const stderr = typeof error.stderr === 'string' ? error.stderr.trim() : '';
+  const message = (stderr || error.message).slice(0, MAX_GIT_FAILURE_MESSAGE_LENGTH);
+
+  return { command: error.cmd ?? 'git', exitCode: error.code ?? null, message };
+};
+
+const gitSucceeds = async (repoPath: string, args: string[]): Promise<boolean> => {
+  try {
+    await execFileAsync('git', args, { cwd: repoPath });
+    return true;
+  } catch (error) {
+    if (isExecFailure(error) && error.code === 1) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * True only when `HEAD` names a branch that has no commits yet. Any other
+ * failure to resolve `HEAD` (corrupt repository, detached bad ref, not a
+ * repository) is not an unborn branch and propagates with its original cause.
+ */
+const isUnbornBranch = async (repoPath: string): Promise<boolean> => {
+  let branchRef: string;
+  try {
+    const { stdout } = await execFileAsync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+      cwd: repoPath,
+    });
+    branchRef = stdout.trim();
+  } catch (error) {
+    if (isExecFailure(error) && error.code === 1) {
+      return false;
+    }
+
+    throw error;
+  }
+
+  const branchExists = await gitSucceeds(repoPath, ['show-ref', '--verify', '--quiet', branchRef]);
+
+  return !branchExists;
+};
+
+/**
+ * Ref that working-tree changes are measured against. A repository whose
+ * branch has no commits has no `HEAD` commit, so it uses the empty tree and
+ * every indexed file counts as added. Other `HEAD` failures are rethrown.
+ */
+const resolveWorkingTreeBaseRef = async (repoPath: string): Promise<string> => {
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repoPath });
+    return 'HEAD';
+  } catch (headError) {
+    if (!(await isUnbornBranch(repoPath))) {
+      throw headError;
+    }
+
+    const { stdout } = await execFileAsync('git', ['hash-object', '-t', 'tree', '/dev/null'], {
+      cwd: repoPath,
+    });
+    return stdout.trim();
+  }
+};
+
 /**
  * Lists every currently dirty path relative to `repoPath`, including staged,
  * unstaged, deleted, renamed, and untracked files.
  */
 export const listGitChangedFilePaths = async (repoPath: string): Promise<string[]> => {
+  const baseRef = await resolveWorkingTreeBaseRef(repoPath);
   const [{ stdout: trackedOutput }, { stdout: untrackedOutput }] = await Promise.all([
-    execFileAsync('git', ['diff', '--name-only', '-z', 'HEAD'], {
+    execFileAsync('git', ['diff', '--name-only', '-z', baseRef], {
       cwd: repoPath,
       maxBuffer: MAX_DIFF_BUFFER,
     }),
@@ -244,8 +331,12 @@ export const getGitChangedFileDetail = async (options: {
  * and hooks are switched off, and every filter driver it defined is emptied.
  * Diff commands also pass `--no-ext-diff --no-textconv` themselves.
  */
-const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): Promise<string> => {
-  const env = stripCredentialEnvironment(process.env);
+export const untrustedCheckoutGit = async (
+  repoPath: string,
+  args: readonly string[],
+  options: { input?: string; env?: Readonly<Record<string, string>> } = {},
+): Promise<string> => {
+  const env = { ...stripCredentialEnvironment(process.env), ...options.env };
   delete env['GIT_EXTERNAL_DIFF'];
   const overrides = [
     '-c',
@@ -254,11 +345,15 @@ const untrustedCheckoutGit = async (repoPath: string, args: readonly string[]): 
     'core.hooksPath=/dev/null',
     ...(await disabledFilterOverrides(repoPath, env)),
   ];
-  const { stdout } = await execFileAsync('git', [...overrides, ...args], {
+  const execution = execFileAsync('git', [...overrides, ...args], {
     cwd: repoPath,
     env,
     maxBuffer: MAX_DIFF_BUFFER,
   });
+  if (options.input !== undefined) {
+    execution.child.stdin?.end(options.input);
+  }
+  const { stdout } = await execution;
 
   return stdout;
 };
@@ -337,14 +432,12 @@ const diffUntrackedFile = async (
     const stdout = options.untrusted
       ? await untrustedCheckoutGit(repoPath, diffArgs)
       : (await execFileAsync('git', diffArgs, { cwd: repoPath })).stdout;
-    const trimmed = stdout.trim();
-    return trimmed ? { filePath, diff: trimmed } : null;
+    return stdout.trim() ? { filePath, diff: stdout } : null;
   } catch (error: unknown) {
     // git diff --no-index exits with code 1 when files differ (normal case).
     const execError = error as { code?: number; stdout?: string };
     if (execError.code === 1 && execError.stdout) {
-      const trimmed = execError.stdout.trim();
-      return trimmed ? { filePath, diff: trimmed } : null;
+      return execError.stdout.trim() ? { filePath, diff: execError.stdout } : null;
     }
     return null;
   }
@@ -363,7 +456,8 @@ const diffUntrackedFile = async (
 export const getGitDiff = async (options: GetGitDiffOptions): Promise<LocalDiffFilePatch[]> => {
   const { repoPath, base, paths } = options;
 
-  const args: string[] = ['diff', '--unified=3', base ? `${base}..HEAD` : 'HEAD'];
+  const diffTarget = base ? `${base}..HEAD` : await resolveWorkingTreeBaseRef(repoPath);
+  const args: string[] = ['diff', '--unified=3', diffTarget];
 
   if (paths && paths.length > 0) {
     args.push('--', ...paths);

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../test/setup/legacy-status.fixture';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import { ProjectAccessGuard } from '../../auth/guards/project-access.guard';
 import { ProjectService } from '../../services/project.service';
@@ -7,6 +8,7 @@ import {
 } from '../work-item-type.controller';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpStatus,
   NotFoundException,
@@ -72,7 +74,7 @@ const definition: WorkItemTypeDefinitionDto = {
       schemaRef: '#/components/schemas/TaskMonitorExecutionDefinition',
     },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   capabilities: { showsInExplorerSidebar: true },
 };
 
@@ -137,6 +139,7 @@ describe('WorkItemTypeController', () => {
     getGuidanceBatch: jest.fn(),
     getDefinitions: jest.fn(),
     getDefinition: jest.fn(),
+    getCanonicalComparison: jest.fn(),
   };
   const projectService = { findOne: jest.fn() };
   const proposalService = {
@@ -512,6 +515,7 @@ describe('WorkItemTypeController', () => {
         buildWorkItemTypeEditProposal({
           typeKey: 'MARKETING',
           definition: row.definition,
+          currentDefinition: row.definition,
           requestorContext: dto.requestorContext,
         }),
       );
@@ -565,10 +569,39 @@ describe('WorkItemTypeController', () => {
         buildWorkItemTypeEditProposal({
           typeKey: 'STANDARD',
           definition: row.definition,
+          currentDefinition: row.definition,
           acknowledgeCanonicalCustomization: true,
           requestorContext: dto.requestorContext,
         }),
       );
+    });
+
+    it('keeps a narrowed agent-settable list when an edit omits it', async () => {
+      const current = summary('MARKETING');
+      current.definition = {
+        ...current.definition,
+        agentSettableStatuses: ['BACKLOG', 'ARCHIVED'],
+      };
+      registry.getDefinition.mockReturnValue(current);
+      proposalService.create.mockResolvedValue({ id: 'proposal-omit' });
+      const { agentSettableStatuses: _omitted, ...edited } = {
+        ...current.definition,
+        name: 'Campaign',
+      };
+
+      await controller.edit(
+        user,
+        ORG_ID,
+        PROJECT_ID,
+        'MARKETING',
+        { definition: edited },
+        makeRequest(),
+      );
+
+      expect(
+        proposalService.create.mock.calls[0][3].updates.definition
+          .agentSettableStatuses,
+      ).toEqual(['BACKLOG', 'ARCHIVED']);
     });
 
     it('submits authorable semantic edits for review', async () => {
@@ -584,7 +617,7 @@ describe('WorkItemTypeController', () => {
           definition: {
             ...definition,
             name: 'Campaign',
-            allowedStatuses: [WorkStatus.Active],
+            statuses: legacyStatuses([WorkStatus.Active]),
           },
         },
         makeRequest(),
@@ -635,6 +668,52 @@ describe('WorkItemTypeController', () => {
         ),
       ).resolves.toEqual({ id: 'proposal-canonical' });
       expect(proposalService.create).toHaveBeenCalledTimes(1);
+    });
+
+    describe('canonical comparison', () => {
+      const canonical: WorkItemTypeDefinitionDto = {
+        ...definition,
+        key: 'STANDARD',
+        maintenanceGuidance: 'Keep it current.',
+        sessionRoleGuidance: { review: 'Check it.' },
+      };
+
+      it('returns the override and canonical definitions unchanged', () => {
+        const effective = {
+          ...summary('STANDARD'),
+          effectiveSource: WorkItemTypeEffectiveSource.CanonicalOverride,
+        };
+        registry.getCanonicalComparison.mockReturnValue({
+          effective,
+          canonical,
+        });
+
+        expect(
+          controller.getCanonicalComparison(PROJECT_ID, 'STANDARD'),
+        ).toEqual({ effective, canonical });
+      });
+
+      it('answers 404 for an unknown type', () => {
+        registry.getCanonicalComparison.mockReturnValue(undefined);
+
+        expect(() =>
+          controller.getCanonicalComparison(PROJECT_ID, 'NOPE'),
+        ).toThrow(NotFoundException);
+      });
+
+      it.each([
+        WorkItemTypeEffectiveSource.Canonical,
+        WorkItemTypeEffectiveSource.ProjectCustom,
+      ])('answers 409 for %s definitions', (effectiveSource) => {
+        registry.getCanonicalComparison.mockReturnValue({
+          effective: { ...summary('STANDARD'), effectiveSource },
+          canonical,
+        });
+
+        expect(() =>
+          controller.getCanonicalComparison(PROJECT_ID, 'STANDARD'),
+        ).toThrow(ConflictException);
+      });
     });
 
     it('submits reset-to-canonical only for a canonical override', async () => {

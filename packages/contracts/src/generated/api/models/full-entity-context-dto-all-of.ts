@@ -19,6 +19,9 @@
 import type { AgentSessionEntryDto } from './agent-session-entry-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ContextGroupedRelatedEntityDto } from './context-grouped-related-entity-dto.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ContextRelatedEntityDto } from './context-related-entity-dto.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -48,6 +51,12 @@ export interface FullEntityContextDtoAllOf {
      * @memberof FullEntityContextDtoAllOf
      */
     'relatedEntities'?: Array<ContextRelatedEntityDto>;
+    /**
+     * Agent view of relatedEntities, present only when the request sets groupRelationships. The same selected entities in the same order, one entry per entity with every relationship it has to the seed.
+     * @type {Array<ContextGroupedRelatedEntityDto>}
+     * @memberof FullEntityContextDtoAllOf
+     */
+    'groupedRelatedEntities'?: Array<ContextGroupedRelatedEntityDto>;
     /**
      *
      * @type {RelatedEntitySelectionDto}

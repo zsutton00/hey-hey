@@ -39,4 +39,10 @@ export interface EvalRunSettings {
      * @memberof EvalRunSettings
      */
     'attemptTokenLimit'?: number;
+    /**
+     * How many separate fresh attempts the run makes for each case and configuration. Absent on runs recorded before repeats existed, which are read as 1.
+     * @type {number}
+     * @memberof EvalRunSettings
+     */
+    'repeatsPerAttempt'?: number;
 }

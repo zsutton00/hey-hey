@@ -15,6 +15,8 @@ import {
 import { ConversationController } from '../../../controllers/conversation.controller';
 import { ExecutionGrantService } from '../../../services/controller-authorization/execution-grant.service';
 import { AuthService } from '../auth.service';
+import { LocalAccessService } from '../../../local/local-access.service';
+import { LocalFirstPasskeyAuthority } from '../../../local/local-first-passkey-authority';
 import { BrowserSessionService } from '../browser-session.service';
 import { AccountEntitlementService } from '../../../services/account-entitlement.service';
 import { JwtKeysService } from '../jwt-keys.service';
@@ -160,6 +162,19 @@ describeDatabase('AuthService registration browser session handoff', () => {
     authService = createAuthService();
   });
 
+  // A fresh owner per call stands in for an API restart between saves.
+  const createLocalAccess = (): LocalAccessService =>
+    new LocalAccessService(
+      userService,
+      organizationService,
+      authService,
+      browserSessionService,
+      prisma,
+      redisService as never,
+      localDefaultProjects(),
+      new LocalFirstPasskeyAuthority(redisService as never),
+    );
+
   const createAuthService = (): AuthService =>
     new AuthService(
       userService,
@@ -171,8 +186,6 @@ describeDatabase('AuthService registration browser session handoff', () => {
       prisma,
       {} as never,
       {} as never,
-      redisService as never,
-      localDefaultProjects(),
       {
         issuer: 'https://hosted.test/api',
         browserAudience: 'https://hosted.test',
@@ -312,10 +325,12 @@ describeDatabase('AuthService registration browser session handoff', () => {
       ),
     );
 
+    const localAccess = createLocalAccess();
+
     try {
       const [firstHandoff, secondHandoff] = await Promise.all([
-        authService.createLocalHandoff(installationSecret),
-        authService.createLocalHandoff(installationSecret),
+        localAccess.createLocalHandoff(installationSecret),
+        localAccess.createLocalHandoff(installationSecret),
       ]);
       const identity = createHmac('sha256', installationSecret)
         .update('heyhey-local-identity-v1')
@@ -354,7 +369,7 @@ describeDatabase('AuthService registration browser session handoff', () => {
       });
       connectedMachineIds.add(simulatedMachine.id);
 
-      const session = await authService.completeLocalHandoff(
+      const session = await localAccess.completeLocalHandoff(
         firstHandoff.handoffToken,
         { userAgent: 'local-handoff-integration-test' },
       );
@@ -368,11 +383,11 @@ describeDatabase('AuthService registration browser session handoff', () => {
       // Concurrent first saves, a retry and a save after restart all
       // converge on the single project pairing will grant access to.
       const statuses = await Promise.all([
-        authService.updateLocalDisplayName(localUserId, 'Ada Lovelace'),
-        createAuthService().updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+        localAccess.updateLocalDisplayName(localUserId, 'Ada Lovelace'),
+        createLocalAccess().updateLocalDisplayName(localUserId, 'Ada Lovelace'),
       ]);
-      await authService.updateLocalDisplayName(localUserId, 'Ada Lovelace');
-      const afterRestart = await createAuthService().updateLocalDisplayName(
+      await localAccess.updateLocalDisplayName(localUserId, 'Ada Lovelace');
+      const afterRestart = await createLocalAccess().updateLocalDisplayName(
         localUserId,
         'Ada Lovelace',
       );
@@ -406,7 +421,7 @@ describeDatabase('AuthService registration browser session handoff', () => {
         isLocalAccount: true,
       });
       await expect(
-        authService.getLocalStatus(users[0]!.id as UserId),
+        localAccess.getLocalStatus(users[0]!.id as UserId),
       ).resolves.toMatchObject({
         browserSession: true,
         machineConnected: true,
@@ -418,7 +433,7 @@ describeDatabase('AuthService registration browser session handoff', () => {
         data: { status: 'ACTIVE' },
       });
       await expect(
-        authService.getLocalStatus(localUserId),
+        localAccess.getLocalStatus(localUserId),
       ).resolves.toMatchObject({ hasProjects: true, setupProjectId: null });
       await prisma.db.project.update({
         where: { id: projects[0]!.id },
@@ -492,7 +507,7 @@ describeDatabase('AuthService registration browser session handoff', () => {
       ).toBe(0);
 
       await expect(
-        authService.completeLocalHandoff(firstHandoff.handoffToken, {}),
+        localAccess.completeLocalHandoff(firstHandoff.handoffToken, {}),
       ).rejects.toThrow('Local browser handoff expired');
 
       const persistedFamily = await prisma.db.browserSessionFamily.findUnique({

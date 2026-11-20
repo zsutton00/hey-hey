@@ -20,9 +20,11 @@ import {
 } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 
+import { RepeatCellContent } from "./RepeatCellContent";
 import {
   attemptCellView,
   formatElapsed,
+  repeatCellView,
   setupLabel,
   type AttemptCellView,
 } from "./evalRunView";
@@ -177,7 +179,18 @@ export interface AttemptGridProps {
   now: number;
 }
 
-/** Every recorded case under every recorded setup, one cell per attempt. */
+/** Whole cell colour for several repeats: the most pressing state wins. */
+const repeatCellKind = (
+  view: ReturnType<typeof repeatCellView>,
+): AttemptCellView["kind"] => {
+  if (view.errored.length > 0) return "error";
+  if (view.running.length > 0) return "running";
+  if (view.stopped.length > 0) return "stopped";
+  if (view.ended === view.total) return "finished";
+  return "queued";
+};
+
+/** Every recorded case under every recorded setup, one cell per case and setup. */
 export const AttemptGrid: React.FC<AttemptGridProps> = ({
   organizationId,
   projectId,
@@ -188,12 +201,11 @@ export const AttemptGrid: React.FC<AttemptGridProps> = ({
   const { t } = useTranslation();
   const { cases, configurations, settings, coordinatorAgentSessionId } =
     run.payload;
-  const byCell = new Map(
-    attempts.map((attempt) => [
-      `${attempt.payload.caseInputId}|${attempt.payload.configuration.id}`,
-      attempt,
-    ]),
-  );
+  const byCell = new Map<string, EvalAttemptReport[]>();
+  for (const attempt of attempts) {
+    const key = `${attempt.payload.caseInputId}|${attempt.payload.configuration.id}`;
+    byCell.set(key, [...(byCell.get(key) ?? []), attempt]);
+  }
   return (
     <Box sx={{ overflowX: "auto" }}>
       <Table size="small" data-testid="eval-attempt-grid">
@@ -214,9 +226,36 @@ export const AttemptGrid: React.FC<AttemptGridProps> = ({
                 {caseInput.title}
               </TableCell>
               {configurations.map((configuration) => {
-                const attempt = byCell.get(
-                  `${caseInput.id}|${configuration.id}`,
-                );
+                const cellAttempts =
+                  byCell.get(`${caseInput.id}|${configuration.id}`) ?? [];
+                const testId = `eval-attempt-cell-${caseInput.id}-${configuration.id}`;
+                if (cellAttempts.length > 1) {
+                  const view = repeatCellView(
+                    cellAttempts,
+                    settings,
+                    now,
+                    coordinatorAgentSessionId,
+                  );
+                  const kind = repeatCellKind(view);
+                  return (
+                    <TableCell
+                      key={configuration.id}
+                      data-testid={testId}
+                      data-state={kind}
+                      sx={{
+                        verticalAlign: "top",
+                        bgcolor: cellBackground[kind],
+                      }}
+                    >
+                      <RepeatCellContent
+                        projectId={projectId}
+                        cellTestId={testId}
+                        view={view}
+                      />
+                    </TableCell>
+                  );
+                }
+                const attempt = cellAttempts[0];
                 const view = attempt
                   ? attemptCellView(
                       attempt,
@@ -228,7 +267,7 @@ export const AttemptGrid: React.FC<AttemptGridProps> = ({
                 return (
                   <TableCell
                     key={configuration.id}
-                    data-testid={`eval-attempt-cell-${caseInput.id}-${configuration.id}`}
+                    data-testid={testId}
                     data-state={view?.kind ?? "missing"}
                     sx={{
                       verticalAlign: "top",

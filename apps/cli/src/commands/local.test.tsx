@@ -1,5 +1,17 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { MachineControllerAuthority } from '../auth/machine-controller-authority';
+import { OAuthClient } from '../auth/oauth-client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { runLocalCommand } from './local';
+import { runPairCommand } from './pair';
+import { openBrowser } from '../local-app/open-browser';
+import { LocalApprovalSecret } from '../auth/local-approval';
+import { localWebOrigin } from '../local-app/compose';
+import { DEFAULT_LOCAL_WEB_PORT } from '../local-app/local-port';
+
+const LOCAL_WEB_ORIGIN = localWebOrigin(DEFAULT_LOCAL_WEB_PORT);
 import { KeyPairStore } from '../credentials';
 import { accountNamespace } from '../credentials/keypair';
 import { CredentialStore } from '../credentials/store';
@@ -10,21 +22,31 @@ const fakeJwt = [
   'signature',
 ].join('.');
 
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    homedir: () => join(actual.tmpdir(), `heyhey-local-command-home-${process.pid}`),
+  };
+});
+
 const mocks = vi.hoisted(() => ({ server: vi.fn() }));
 vi.mock('../local-app/local-application', () => ({
   LocalApplication: class {
     state = {
       kind: 'ready',
-      url: 'http://localhost:5173',
+      url: LOCAL_WEB_ORIGIN,
       reconnectCommand: 'heyhey local',
       stopCommand: 'heyhey local stop',
     };
+    webPort = DEFAULT_LOCAL_WEB_PORT;
     releases = { read: async () => ({ cliVersion: '4.2.1' }) };
     async run() {}
   },
 }));
 vi.mock('../local-app/installation-store', () => ({
   InstallationStore: class {
+    directory = '/tmp/heyhey-local-command-test';
     async secrets() {
       return { admin: 'test-secret' };
     }
@@ -46,7 +68,8 @@ vi.mock('./pair-server', () => ({
   },
 }));
 
-afterEach(() => {
+afterEach(async () => {
+  await rm(homedir(), { recursive: true, force: true });
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -63,7 +86,20 @@ it.each([
   async ({ machineId, origin, rpId }) => {
     vi.stubEnv('HEYHEY_CONTROLLER_ORIGIN', origin);
     vi.stubEnv('HEYHEY_CONTROLLER_RP_ID', rpId);
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
     vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(machineId);
+    vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
+      success: true,
+      data: fakeJwt,
+    });
+    vi.spyOn(MachineControllerAuthority.prototype, 'readReadiness').mockResolvedValue({
+      state: machineId ? 'ready' : 'unpaired',
+      machineId,
+      machine: null,
+      localControllers: [],
+      serverControllers: [],
+      serverExecutionReadiness: null,
+    });
     vi.stubEnv('HEYHEY_API_URL', undefined);
     vi.stubEnv('HEYHEY_WEB_ORIGIN', 'https://previous.example');
     vi.spyOn(process, 'stdin', 'get').mockReturnValue(
@@ -92,7 +128,11 @@ it.each([
               refreshToken: 'local-refresh-token',
               expiresInSeconds: 86_400,
             })
-          : envelope(url, { handoffToken: 'a'.repeat(43), expiresInSeconds: 120 }),
+          : envelope(url, {
+              handoffToken: 'a'.repeat(43),
+              expiresInSeconds: 120,
+              accountHasPasskey: false,
+            }),
       ),
     );
     const storeCredential = vi.spyOn(CredentialStore.prototype, 'store').mockResolvedValue();
@@ -100,12 +140,12 @@ it.each([
       await Promise.resolve();
       // The bridge must find its token already stored, so it never opens a login page.
       expect(storeCredential).toHaveBeenCalledWith(
-        'heyhey:oauth:localhost:3000',
+        'heyhey:oauth:local-application',
         expect.objectContaining({ accessToken: fakeJwt, refreshToken: 'local-refresh-token' }),
       );
       expect(process.env['HEYHEY_API_URL']).toBe('http://localhost:3000');
-      expect(process.env['HEYHEY_WEB_ORIGIN']).toBe('http://localhost:5173');
-      expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin ?? 'http://localhost:5173');
+      expect(process.env['HEYHEY_WEB_ORIGIN']).toBe(LOCAL_WEB_ORIGIN);
+      expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin ?? LOCAL_WEB_ORIGIN);
       expect(process.env['HEYHEY_CONTROLLER_RP_ID']).toBe(rpId ?? 'localhost');
       expect(new KeyPairStore().getAccountNamespace()).toBe(
         accountNamespace('http://localhost:3000'),
@@ -117,5 +157,67 @@ it.each([
     expect(process.env['HEYHEY_WEB_ORIGIN']).toBe('https://previous.example');
     expect(process.env['HEYHEY_CONTROLLER_ORIGIN']).toBe(origin);
     expect(process.env['HEYHEY_CONTROLLER_RP_ID']).toBe(rpId);
+  },
+);
+
+it.each([
+  { accountHasPasskey: false, approves: 'with its one-time approval' },
+  { accountHasPasskey: true, approves: 'at the terminal, with no approval secret' },
+])(
+  'pairs an account whose passkey state is $accountHasPasskey $approves',
+  async ({ accountHasPasskey }) => {
+    vi.spyOn(KeyPairStore.prototype, 'ensureProtectedStorageReady').mockResolvedValue();
+    vi.spyOn(KeyPairStore.prototype, 'loadCurrentMachineId').mockResolvedValue(null);
+    vi.spyOn(OAuthClient.prototype, 'getAccessToken').mockResolvedValue({
+      success: true,
+      data: fakeJwt,
+    });
+    vi.spyOn(MachineControllerAuthority.prototype, 'readReadiness').mockResolvedValue({
+      state: 'unpaired',
+      machineId: null,
+      machine: null,
+      localControllers: [],
+      serverControllers: [],
+      serverExecutionReadiness: null,
+    });
+    vi.spyOn(process, 'stdin', 'get').mockReturnValue(
+      Object.assign(Object.create(process.stdin), { isTTY: true }),
+    );
+    vi.spyOn(process, 'stdout', 'get').mockReturnValue(
+      Object.assign(Object.create(process.stdout), { isTTY: true }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify({
+              data: url.endsWith('/auth/local/cli-credentials')
+                ? { accessToken: fakeJwt, refreshToken: 'refresh', expiresInSeconds: 86_400 }
+                : { handoffToken: 'a'.repeat(43), expiresInSeconds: 120, accountHasPasskey },
+            }),
+          ),
+      ),
+    );
+    vi.spyOn(CredentialStore.prototype, 'store').mockResolvedValue();
+    mocks.server.mockResolvedValue(true);
+    vi.mocked(runPairCommand).mockClear();
+    vi.mocked(openBrowser).mockClear();
+
+    expect(await runLocalCommand([])).toBe(true);
+
+    const pairing = vi.mocked(runPairCommand).mock.calls[0]![0]!;
+    pairing.onBrowserHandoff!('BCDFG-HJKLM');
+    const opened = new URL(vi.mocked(openBrowser).mock.calls[0]![0]);
+    const fragment = new URLSearchParams(opened.hash.slice(1));
+
+    expect(fragment.get('code')).toBe('BCDFG-HJKLM');
+    if (accountHasPasskey) {
+      expect(pairing.localApproval).toBeUndefined();
+      expect(fragment.has('approval')).toBe(false);
+    } else {
+      expect(pairing.localApproval).toBeInstanceOf(LocalApprovalSecret);
+      expect(fragment.get('approval')).toBe(pairing.localApproval!.fragmentValue);
+    }
   },
 );

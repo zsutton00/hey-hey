@@ -363,6 +363,18 @@ services:
     ports:
       - "127.0.0.1:${STACK_API_PORT}:3000"
 
+  # One-time projection rebuild. Never part of up/resume: it runs only through
+  # `migration-stack replay`, with the API stopped.
+  event-replay:
+    image: ${COMPOSE_PROJECT_NAME}-api:local
+    profiles: ["replay"]
+    restart: "no"
+    logging: *default-logging
+    entrypoint: ["node", "scripts/migration-stack-replay.js"]
+    environment:
+      PROJECT_DATABASE_URL: postgresql://${STACK_POSTGRES_USER}:${STACK_POSTGRES_PASSWORD}@postgres:5432/${STACK_POSTGRES_DB}?schema=public
+      REDIS_URL: redis://:${STACK_REDIS_PASSWORD}@redis:6379
+
   ui:
     build:
       context: ${API_ROOT}

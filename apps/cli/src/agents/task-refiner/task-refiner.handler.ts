@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalTaskRefinerPromptPayload } from '@hey-hey/contracts/agent-bridge';
 import {
   defaultAddUserMessage,
@@ -27,6 +28,7 @@ const parseTaskRefinerResponse = (text: string): string | null => {
 
 export const taskRefinerHandler: UserLaunchablePromptTypeHandler<LocalTaskRefinerPromptPayload> = {
   id: 'task_refiner',
+  sessionRole: SessionRole.Planning,
   promptType: 'task_refiner',
   service: 'required',
   launchEntity: 'required',

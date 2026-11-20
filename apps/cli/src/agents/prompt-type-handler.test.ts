@@ -8,8 +8,12 @@ import type { AgenticSession } from '../session/types';
 const session = {} as AgenticSession;
 
 describe('resolveHandlerSessionRole', () => {
-  it('uses the shared implementation default for an undeclared handler', () => {
+  it('returns the role a handler declares', () => {
     expect(resolveHandlerSessionRole(freeFormHandler, session)).toBe(SessionRole.Implementation);
+  });
+  it('has no fallback for a handler that declares no role', () => {
+    const { sessionRole: _declared, ...undeclared } = freeFormHandler;
+    expect(() => resolveHandlerSessionRole(undeclared, session)).toThrow(/does not declare/);
   });
   it.each(Object.values(SessionRole))('honors an explicit %s declaration', (sessionRole) => {
     expect(resolveHandlerSessionRole({ ...freeFormHandler, sessionRole }, session)).toBe(

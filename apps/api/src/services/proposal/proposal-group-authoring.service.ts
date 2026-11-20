@@ -37,6 +37,7 @@ import type { OrganizationId, ProjectId, UserId } from 'src/types';
 import { assertWorkflowProposalLinksStructurallyValid } from './proposal-validation.engine';
 import { assertProposalStructurallyValid } from './proposal-validation.engine';
 import {
+  createdProposalTargetType,
   ProposalValidationEngine,
   type AdmittedProposalCandidate,
   type ProposalAuthoringAdmission,
@@ -73,6 +74,34 @@ export type GroupReservedEntity = {
   entityType: string;
   workItemType?: string;
 };
+
+/**
+ * The reserved identity a group member's CREATE will take, with the work-item
+ * type it creates. Change-set CREATEs carry their type on the root create
+ * operation, not on `updates.type`, so read it through the shared resolver.
+ */
+export function groupMemberReservedEntity(member: {
+  reservedTargetEntityId: string | null;
+  proposal: { targetEntityType: string; updates: unknown };
+}): GroupReservedEntity[] {
+  if (!member.reservedTargetEntityId) {
+    return [];
+  }
+
+  const { targetEntityType, updates } = member.proposal;
+  const workItemType =
+    targetEntityType === 'WORK_ITEM_TYPE'
+      ? (updates as { key?: string }).key
+      : createdProposalTargetType(member.proposal);
+
+  return [
+    {
+      entityId: member.reservedTargetEntityId,
+      entityType: targetEntityType,
+      ...(workItemType ? { workItemType } : {}),
+    },
+  ];
+}
 
 @Injectable()
 export class ProposalGroupAuthoringService {
@@ -1000,21 +1029,7 @@ export class ProposalGroupAuthoringService {
         },
       },
     });
-    return members.map(
-      (member: {
-        reservedTargetEntityId: string | null;
-        proposal: { targetEntityType: string; updates: unknown };
-      }) => ({
-        entityId: member.reservedTargetEntityId as string,
-        entityType: member.proposal.targetEntityType,
-        workItemType:
-          member.proposal.targetEntityType === 'TASK'
-            ? (member.proposal.updates as { type?: string }).type
-            : member.proposal.targetEntityType === 'WORK_ITEM_TYPE'
-              ? (member.proposal.updates as { key?: string }).key
-              : undefined,
-      }),
-    );
+    return members.flatMap(groupMemberReservedEntity);
   }
 
   private async lockBuildingGroup(

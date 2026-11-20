@@ -34,6 +34,8 @@ import {
   type MachineEnrollmentCeremonyPorts,
   type MachineEnrollmentCeremonyStep,
 } from '../auth/machine-enrollment-ceremony';
+import { isCredentialError } from '../credentials/errors';
+import { describeProtectedStorageProblem } from '../credentials/storage-guidance';
 import { ExecutionGrantStore } from '../server/controller-authorization/execution-grant-store';
 import { StructuredServerLogger, type ServerLogger } from '../server/logger';
 import { resolvePairingUrl } from './pairing-web-url';
@@ -60,6 +62,7 @@ export interface PairCommandDependencies {
   controllerRegistryStore?: ControllerRegistryStore;
   executionGrantStore?: ExecutionGrantStore;
   existingMachineClient?: MachineControllerManagementClient;
+  replaceUnrecognizedMachineId?: string;
   confirmation?: MachineEnrollmentConfirmation;
   prompter?: Pick<CredentialPrompter, 'confirm'>;
   onBrowserHandoff?: (userCode: string) => void;
@@ -210,6 +213,9 @@ const clearRevokedMachineAuthority = async (
 export const resolvePairDependencies = (
   dependencies: Partial<PairCommandDependencies>,
 ): PairCommandDependencies => ({
+  ...(dependencies.replaceUnrecognizedMachineId
+    ? { replaceUnrecognizedMachineId: dependencies.replaceUnrecognizedMachineId }
+    : {}),
   keyPairStore: dependencies.keyPairStore ?? new KeyPairStore(),
   machinesApi: dependencies.machinesApi ?? createDefaultMachinesApi(),
   generateKeyPair: dependencies.generateKeyPair ?? generateMachineKeyPair,
@@ -276,6 +282,19 @@ export const pairMachine = async (
   deps: PairCommandDependencies,
   ports: MachineEnrollmentCeremonyPorts,
 ): Promise<MachineEnrollmentConfirmationResult> => {
+  // Storage problems surface before an enrollment is allocated or a saved attempt is detached.
+  try {
+    await deps.keyPairStore.ensureProtectedStorageReady();
+  } catch (error) {
+    deps.logger.debug('local.pairing.failure', { error });
+    deps.logger.debug('pair.protected_storage.not_ready', {
+      code: isCredentialError(error) ? error.code : 'UNKNOWN',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    problem(ports, describeProtectedStorageProblem(error));
+    return FAILED;
+  }
+
   const detachedEnrollmentId = await detachSavedAttemptForExplicitPair(
     deps.keyPairStore,
     deps.logger,
@@ -288,7 +307,7 @@ export const pairMachine = async (
   }
 
   const existingMachineId = await deps.keyPairStore.loadCurrentMachineId();
-  if (existingMachineId) {
+  if (existingMachineId && existingMachineId !== deps.replaceUnrecognizedMachineId) {
     const [machineCredential, privateKey] = await Promise.all([
       deps.keyPairStore.loadMachineCredential(existingMachineId),
       deps.keyPairStore.loadPrivateKey(existingMachineId),
@@ -307,6 +326,7 @@ export const pairMachine = async (
         deps.existingMachineClient ?? createDefaultExistingMachineClient(deps.keyPairStore)
       ).createExistingMachineControllerEnrollment(existingMachineId);
     } catch (error) {
+      deps.logger.debug('local.pairing.failure', { error });
       if (isMachineRevokedAuthenticationError(error)) {
         deps.logger.debug('pair.existing_machine.machine_revoked', {
           machineId: existingMachineId,
@@ -373,6 +393,7 @@ export const pairMachine = async (
           }),
         );
       } catch (error) {
+        deps.logger.debug('local.pairing.failure', { error });
         const confirmation = createConfirmationOwner(deps);
         try {
           await confirmation.discardPendingEnrollment(enrollment.enrollmentId);
@@ -416,6 +437,7 @@ export const pairMachine = async (
     machineName = deps.getMachineName();
     osFamily = deps.getOsFamily();
   } catch (error) {
+    deps.logger.debug('local.pairing.failure', { error });
     problem(
       ports,
       `Enrollment failed: could not prepare local machine identity. ${
@@ -438,6 +460,7 @@ export const pairMachine = async (
   try {
     response = await deps.machinesApi.createMachineEnrollment(request);
   } catch (error) {
+    deps.logger.debug('local.pairing.failure', { error });
     problem(
       ports,
       describeEnrollmentFailure(
@@ -490,6 +513,7 @@ export const pairMachine = async (
       }),
     );
   } catch (error) {
+    deps.logger.debug('local.pairing.failure', { error });
     const confirmation = createConfirmationOwner(deps);
     try {
       await confirmation.discardPendingEnrollment(enrollment.enrollmentId);

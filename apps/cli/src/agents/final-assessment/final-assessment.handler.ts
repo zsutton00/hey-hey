@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalFinalAssessmentPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { PromptTypeHandler, PromptTypeHandlerContext } from '../prompt-type-handler';
 import { buildFinalAssessmentPrompt } from '../prompts/final-assessment';
@@ -47,6 +48,7 @@ export const FINAL_ASSESSMENT_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
 
 export const finalAssessmentHandler: PromptTypeHandler<LocalFinalAssessmentPromptPayload> = {
   id: 'final_assessment',
+  sessionRole: SessionRole.Review,
   promptType: 'final_assessment',
   service: 'required',
   launchEntity: 'none',

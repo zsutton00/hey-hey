@@ -1,9 +1,11 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import type { ComponentProps } from "react";
+import type React from "react";
 import { ConversationMessage as ResolvedConversationMessage } from "../ConversationMessage";
 import { resolveConversationForm } from "../../utils/conversationResponseModel";
 
@@ -58,6 +60,10 @@ import {
 } from "../../../../api";
 
 // Mock dependencies
+const openModal = vi.hoisted(() => vi.fn());
+vi.mock("../../../../contexts/ModalContext", () => ({
+  useModal: () => ({ openModal }),
+}));
 vi.mock("../ConversationContext", () => ({
   useConversationContext: vi.fn(),
 }));
@@ -153,6 +159,11 @@ vi.mock("../../../Reports/reportConfig", async (importOriginal) => {
   };
 });
 
+const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+const renderThemed = (ui: React.ReactElement) =>
+  render(ui, { wrapper: HeyTheme });
 describe("ConversationMessage", () => {
   const mockProject: ProjectResponseDto = {
     id: "project-1",
@@ -363,6 +374,44 @@ describe("ConversationMessage", () => {
     expect(
       screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens Discuss scoped to the current agent session, seeded with the statement", async () => {
+    vi.mocked(useConversationContext).mockReturnValue({
+      ...mockConversationContext,
+      agentSessionId: "session-1",
+    });
+    const data: AgentUncertaintySystemMessageData = {
+      type: SystemMessageDataTypeEnum.AgentUncertainty,
+      severity: "low",
+      category: "lack_of_evidence",
+      statement: "Nothing confirms this detail.",
+    };
+    const conversationMessage = createMockConversationMessage({
+      message: { ...createMockConversationMessage().message, data },
+    });
+
+    render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ConversationMessage
+          conversationMessage={conversationMessage}
+          messageIndex={0}
+          totalMessages={1}
+        />
+      </ThemeProvider>,
+    );
+    await userEvent.click(screen.getByTestId("uncertainty-discuss-control"));
+
+    expect(openModal).toHaveBeenCalledWith({
+      type: "discuss",
+      organizationId: mockProject.organizationId,
+      projectId: mockProject.id,
+      entityId: "session-1",
+      entityType: "AGENT_SESSION",
+      contextPreview: expect.stringContaining(
+        "Uncertainty: Nothing confirms this detail.",
+      ),
+    });
   });
 
   it("routes a Task Monitor intervention through its typed renderer", () => {
@@ -1195,6 +1244,82 @@ describe("ConversationMessage", () => {
     expect(screen.queryByTestId("agent-caption-msg-1")).not.toBeInTheDocument();
   });
 
+  describe("automated notices", () => {
+    const renderSystemMessage = (data: Record<string, unknown>) =>
+      renderThemed(
+        <ConversationMessage
+          conversationMessage={createMockConversationMessage({
+            message: {
+              ...createMockConversationMessage().message,
+              data: { type: "AGENT", response: "Body text", ...data } as never,
+            },
+          })}
+          messageIndex={0}
+          totalMessages={1}
+        />,
+      );
+
+    it("captions a marked notice as a System notice without fabricating an agent author", () => {
+      renderSystemMessage({
+        presentation: "notice",
+        promptHandler: "coding_freeform",
+      });
+
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveTextContent(
+        "System notice",
+      );
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveAttribute(
+        "data-notice-severity",
+        "info",
+      );
+      expect(
+        screen.queryByTestId("agent-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("system-message-retry")).toBeInTheDocument();
+    });
+
+    it("renders warning severity independently of the notice marker", () => {
+      renderSystemMessage({
+        presentation: "notice",
+        noticeSeverity: "warning",
+      });
+
+      expect(screen.getByTestId("notice-caption-msg-1")).toHaveAttribute(
+        "data-notice-severity",
+        "warning",
+      );
+      expect(screen.getByRole("status")).toHaveAttribute(
+        "data-severity",
+        "warning",
+      );
+    });
+
+    it("does not treat severity alone as a notice", () => {
+      renderSystemMessage({
+        noticeSeverity: "warning",
+        promptHandler: "free_form",
+      });
+
+      expect(
+        screen.queryByTestId("notice-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
+        "Free Form agent",
+      );
+    });
+
+    it("keeps unmarked historical agent replies on the agent caption", () => {
+      renderSystemMessage({ promptHandler: "startup_session" });
+
+      expect(
+        screen.queryByTestId("notice-caption-msg-1"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("agent-caption-msg-1")).toHaveTextContent(
+        "Startup Session agent",
+      );
+    });
+  });
+
   it("renders session-monitor provenance USER messages with the monitor treatment", () => {
     const conversationMessage = createMockConversationMessage({
       message: {
@@ -1217,7 +1342,7 @@ describe("ConversationMessage", () => {
       },
     });
 
-    render(
+    renderThemed(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}
@@ -1258,7 +1383,7 @@ describe("ConversationMessage", () => {
       },
     });
 
-    render(
+    renderThemed(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}

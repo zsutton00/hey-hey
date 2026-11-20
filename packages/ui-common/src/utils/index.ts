@@ -1,5 +1,6 @@
 export {
   formatStatus,
+  getWorkItemTypeStatusNames,
   getStatusColorMapping,
   getPlanStatusLabel,
 } from "./statusUtils";
@@ -75,3 +76,23 @@ export type { HighlightedToken } from "./highlightLine";
 export * from "./openItemSelection";
 
 export { getErrorMessage } from "./errorUtils";
+export { compareWorkItemTypeDefinitions } from "./workItemTypeComparison";
+export type {
+  ComparisonEntry,
+  ComparisonGroup,
+  ComparisonGroupId,
+  ComparisonStatus,
+  DefinitionComparison,
+  FieldLabeler,
+} from "./workItemTypeComparison";
+export {
+  buildWorkItemStatusFilterOptions,
+  matchesWorkItemStatusFilter,
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+  getWorkItemStatusOrder,
+  isReservedWorkItemStatus,
+  isRetainedRemovedStatus,
+  type WorkItemStatusFilterOption,
+  type WorkItemStatusVocabulary,
+} from "./workItemStatusVocabulary";

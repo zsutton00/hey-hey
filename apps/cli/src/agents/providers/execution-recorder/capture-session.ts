@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { ToolExecutionHookLaunch } from '../../../agent-runtime/index';
 import type { Run } from '../../../run/run';
 import type { ResolvedRunWorkspace } from '../../run-scope';
@@ -8,6 +9,12 @@ import type { ServerLogger } from '../../../server/logger';
 import type { ExecutionRecorder } from './execution-recorder';
 import type { CaptureGap, CaptureIdentity, CaptureRoot } from './observation';
 import { HookChannel, type HookInput } from './hook-channel';
+import { CaptureDeadline } from './capture-deadline';
+import {
+  confirmCodexHookLaunch,
+  manualCodexHookConfig,
+} from '../../../agent-runtime/node/codex-hook-launch';
+import { extractFilePathsFromToolInput } from '../../../run/file-change-facts';
 
 export interface CaptureScope {
   sessionId: string;
@@ -23,11 +30,48 @@ interface AdmittedTool {
 }
 const execFileAsync = promisify(execFile);
 
+const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
+
+/**
+ * Narrows each root to the files an edit tool names, so the before and after reads
+ * touch nothing else. Null when the input names no file inside any root.
+ */
+const scopeRootsToToolInput = (
+  roots: readonly CaptureRoot[],
+  toolName: string,
+  toolInput: unknown,
+): CaptureRoot[] | null => {
+  const input =
+    typeof toolInput === 'string'
+      ? { command: toolInput }
+      : typeof toolInput === 'object' && toolInput !== null
+        ? (toolInput as Record<string, unknown>)
+        : {};
+  const named = extractFilePathsFromToolInput(toolName, input);
+  const scoped: CaptureRoot[] = [];
+  for (const root of roots) {
+    const relatives = named
+      .map((name) => path.relative(root.root, path.resolve(root.root, name)))
+      .filter(
+        (relative) => relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative),
+      );
+    if (relatives.length > 0) {
+      scoped.push({
+        ...root,
+        paths: [...new Set(relatives.map((r) => r.split(path.sep).join('/')))],
+      });
+    }
+  }
+  return scoped.length > 0 ? scoped : null;
+};
+
 /** Captures host-owned scope before a tool can use the hook channel; hook input cannot widen it. */
 export class ExecutionCaptureSession {
-  private readonly channel = new HookChannel(this);
+  private readonly channel: HookChannel;
   private scope: CaptureScope | null = null;
   private readonly tools = new Map<string, AdmittedTool>();
+  /** The roots each admitted tool's Pre hook read, so its Post hook reads the same files. */
+  private readonly toolRoots = new Map<string, CaptureRoot[]>();
   private readonly observed = new Set<string>();
   private readonly outcomes = new Map<string, 'success' | 'failure' | 'denied'>();
   private readonly finalized = new Set<string>();
@@ -38,7 +82,9 @@ export class ExecutionCaptureSession {
     private readonly provider: 'codex' | 'claude',
     private readonly recorder: ExecutionRecorder,
     private readonly logger: ServerLogger,
-  ) {}
+  ) {
+    this.channel = new HookChannel(this, logger);
+  }
 
   public async open(
     run: Run,
@@ -62,7 +108,7 @@ export class ExecutionCaptureSession {
         const result = await execFileAsync(this.provider, ['--version'], { timeout: 5000 });
         this.version = result.stdout.trim();
       }
-      return await this.start({
+      const launch = await this.start({
         sessionId: run.session.agentic_session_id,
         runId: run.runId,
         turnId,
@@ -70,8 +116,40 @@ export class ExecutionCaptureSession {
         roots,
         harnessVersion: this.version,
       });
-    } catch {
-      await this.transportFailure();
+      if (launch === undefined || this.provider !== 'codex') {
+        return launch;
+      }
+      return await this.withCodexLaunchConfig(launch, roots[0]!.root);
+    } catch (error) {
+      this.logger.warn('execution_capture.open_failed', {
+        provider: this.provider,
+        runId: run.runId,
+        cause: error instanceof Error ? error.message : String(error),
+      });
+      await this.transportFailure(error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Codex reads hooks from its own config, so the launch carries them as config overrides
+   * and Codex is asked whether it registered and trusted them. When it did not, nothing is
+   * recorded for this launch, the cause is logged, and the entries are shown for manual use.
+   */
+  private async withCodexLaunchConfig(
+    launch: ToolExecutionHookLaunch,
+    cwd: string,
+  ): Promise<ToolExecutionHookLaunch | undefined> {
+    try {
+      const configOverrides = await confirmCodexHookLaunch(launch.command, cwd);
+      return { ...launch, configOverrides };
+    } catch (error) {
+      this.logger.warn('execution_capture.codex_hooks_unavailable', {
+        cause: error instanceof Error ? error.message : String(error),
+        manualConfig: manualCodexHookConfig(launch.command),
+      });
+      await this.channel.close();
+      await this.gap('hook_not_observed');
       return undefined;
     }
   }
@@ -175,7 +253,19 @@ export class ExecutionCaptureSession {
         await this.gap('identity_unresolved');
         return;
       }
-      await this.recorder.begin(identity, scope.roots, scope.harnessVersion);
+      const roots = EDIT_TOOLS.has(identity.toolName)
+        ? scopeRootsToToolInput(scope.roots, identity.toolName, input.tool_input)
+        : scope.roots;
+      if (roots === null) {
+        this.logger.warn('execution_capture.edit_paths_unresolved', {
+          runId: scope.runId,
+          toolName: identity.toolName,
+        });
+        await this.gap('identity_unresolved');
+        return;
+      }
+      this.toolRoots.set(toolKey, roots);
+      await this.recorder.begin(identity, roots, scope.harnessVersion, signal);
       if (signal.aborted || this.scope !== scope)
         await this.recorder.interrupt(scope.runId, scope.turnId);
     } else {
@@ -192,37 +282,43 @@ export class ExecutionCaptureSession {
               : 'unknown');
       await this.recorder.finish(
         identity,
-        scope.roots,
+        this.toolRoots.get(toolKey) ?? scope.roots,
         scope.harnessVersion,
         outcome,
         identity.toolName !== 'Bash' && !signal.aborted,
+        signal,
       );
       this.finalized.add(toolKey);
     }
   }
 
-  private async gap(reason: CaptureGap): Promise<void> {
+  private async gap(reason: CaptureGap, cause?: unknown): Promise<void> {
     const scope = this.scope;
     this.logger.debug('execution_capture.coverage_gap', {
       provider: this.provider,
       runId: scope?.runId,
       turnId: scope?.turnId,
       reason,
+      ...(cause === undefined ? {} : { error: cause }),
     });
     if (scope) {
+      const capture = new CaptureDeadline();
       try {
-        await this.recorder.store.coverage({ ...scope, reason });
-      } catch {
+        await capture.wait(this.recorder.store.coverage({ ...scope, reason }));
+      } catch (error) {
         this.logger.warn('execution_capture.coverage_persist_failed', {
           provider: this.provider,
           reason,
+          error,
         });
+      } finally {
+        capture.close();
       }
     }
   }
 
-  public transportFailure(): Promise<void> {
-    return this.gap('snapshot_failure');
+  public transportFailure(cause?: unknown): Promise<void> {
+    return this.gap('snapshot_failure', cause);
   }
 
   public async end(): Promise<void> {
@@ -254,12 +350,13 @@ export class ExecutionCaptureSession {
             ...admitted.identity,
             elapsedMs: Date.now() - confirmStartedAt,
           });
-        } catch {
+        } catch (error) {
           this.logger.warn('execution_capture.settlement_confirm_failed', {
             ...admitted.identity,
             elapsedMs: Date.now() - confirmStartedAt,
+            error,
           });
-          await this.transportFailure();
+          await this.transportFailure(error);
         }
       }
       if (
@@ -295,12 +392,13 @@ export class ExecutionCaptureSession {
           ...admitted.identity,
           elapsedMs: Date.now() - toolStartedAt,
         });
-      } catch {
+      } catch (error) {
         this.logger.warn('execution_capture.settlement_tool_failed', {
           ...admitted.identity,
           elapsedMs: Date.now() - toolStartedAt,
+          error,
         });
-        await this.transportFailure();
+        await this.transportFailure(error);
       }
     }
     const interruptStartedAt = Date.now();
@@ -317,14 +415,15 @@ export class ExecutionCaptureSession {
         provider: this.provider,
         elapsedMs: Date.now() - interruptStartedAt,
       });
-    } catch {
+    } catch (error) {
       this.logger.warn('execution_capture.settlement_interrupt_failed', {
         runId: scope.runId,
         turnId: scope.turnId,
         provider: this.provider,
         elapsedMs: Date.now() - interruptStartedAt,
+        error,
       });
-      await this.transportFailure();
+      await this.transportFailure(error);
     }
     this.scope = null;
     this.providerTurn = null;
@@ -352,10 +451,11 @@ export class ExecutionCaptureSession {
         ...diagnostic,
         elapsedMs: Date.now() - startedAt,
       });
-    } catch {
-      this.logger.warn('execution_capture.channel_close_failed', diagnostic);
+    } catch (error) {
+      this.logger.warn('execution_capture.channel_close_failed', { ...diagnostic, error });
     }
     this.tools.clear();
+    this.toolRoots.clear();
     this.observed.clear();
     this.outcomes.clear();
     this.finalized.clear();

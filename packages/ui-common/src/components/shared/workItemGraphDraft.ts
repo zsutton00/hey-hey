@@ -10,6 +10,7 @@ import type {
   WorkItemChangeSetPosition,
   WorkItemChangeSetRelationshipIdentity,
   WorkItemCreateOperation,
+  ProjectedDesignDoc,
   WorkItemGraphLayoutNodeRef,
   WorkItemGraphLayoutPreferenceValue,
   WorkItemLayoutClearOperation,
@@ -53,6 +54,7 @@ interface RootGraphInput {
   root: ProjectedWorkItem;
   children: readonly ProjectedWorkItem[];
   incidentRelationships: readonly ProjectedWorkItemRelationship[];
+  designDocs?: readonly ProjectedDesignDoc[];
   typeDefinition: WorkItemTypeDefinitionDto;
 }
 
@@ -60,6 +62,7 @@ interface MutableRootGraphInput {
   root: ProjectedWorkItem;
   children: ProjectedWorkItem[];
   incidentRelationships: ProjectedWorkItemRelationship[];
+  designDocs: ProjectedDesignDoc[];
   typeDefinition: WorkItemTypeDefinitionDto;
 }
 
@@ -67,6 +70,7 @@ interface ProjectedRootGraphInput {
   projectedRoot: ProjectedWorkItem;
   children: readonly ProjectedWorkItem[];
   incidentRelationships: readonly ProjectedWorkItemRelationship[];
+  designDocs?: readonly ProjectedDesignDoc[];
   typeDefinition: WorkItemTypeDefinitionDto;
 }
 
@@ -77,6 +81,7 @@ export interface ResolvedWorkItemGraphContext {
   root: ProjectedWorkItem;
   children: readonly ProjectedWorkItem[];
   incidentRelationships: readonly ProjectedWorkItemRelationship[];
+  designDocs?: readonly ProjectedDesignDoc[];
   typeDefinition: WorkItemTypeDefinitionDto;
   graphCapability: WorkItemTypeGraphCapability;
   layoutSectionKey: string;
@@ -205,6 +210,7 @@ function asRootGraphInput(input: HydratedWorkItemGraphInput): RootGraphInput {
     root: input.projectedRoot,
     children: input.children,
     incidentRelationships: input.incidentRelationships,
+    designDocs: input.designDocs,
     typeDefinition: input.typeDefinition,
   };
 }
@@ -250,6 +256,7 @@ export function resolveWorkItemGraphDraftContext(
 
   const graphCapability = resolveGraphCapability(normalized.typeDefinition);
   return {
+    designDocs: normalized.designDocs,
     root: normalized.root,
     children: normalized.children,
     incidentRelationships: normalized.incidentRelationships,
@@ -287,6 +294,7 @@ function cloneProjectionInput(
   context: ResolvedWorkItemGraphContext,
 ): MutableRootGraphInput {
   return {
+    designDocs: (context.designDocs ?? []).map((doc) => ({ ...doc })),
     root: cloneNode(context.root),
     children: context.children.map(cloneNode),
     incidentRelationships: context.incidentRelationships.map(cloneRelationship),
@@ -537,6 +545,14 @@ function applyOperation(
       : undefined;
 
   switch (operation.op) {
+    case "designDoc.create":
+      input.designDocs.push({
+        identity: operation.ref,
+        name: operation.name,
+        markdown: operation.markdown,
+        parent: operation.parent,
+      });
+      break;
     case "workItem.create": {
       const created: ProjectedWorkItem = {
         identity: operation.ref,
@@ -795,6 +811,7 @@ function buildProjection(
 
   return {
     valid: true,
+    designDocs: input.designDocs,
     projectedRoot: input.root,
     children,
     sections: input.root.sections,

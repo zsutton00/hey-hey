@@ -1,4 +1,4 @@
-import { Box, Divider, Link, Stack, Typography } from "@mui/material";
+import { Box, Link, Stack, Typography } from "@mui/material";
 import React, { useId } from "react";
 
 export interface CardProps {
@@ -13,7 +13,21 @@ export interface CardProps {
   dataTestId?: string;
   /** Keep the title and action on one row at every width instead of stacking on xs. */
   inlineActionOnMobile?: boolean;
+  /** `translucent` is the branded filled panel for pages on the `#333` frame background. */
+  appearance?: CardAppearance;
 }
+
+export type CardAppearance = "outlined" | "translucent";
+
+const appearanceSx = {
+  outlined: { border: 1, borderColor: "divider", borderRadius: 1, p: 2 },
+  translucent: {
+    border: "1px solid rgb(255 255 255 / 22%)",
+    borderRadius: "10px",
+    bgcolor: "rgb(255 255 255 / 8%)",
+    p: "1.5rem",
+  },
+} as const;
 
 export const Card: React.FC<CardProps> = ({
   title,
@@ -24,6 +38,7 @@ export const Card: React.FC<CardProps> = ({
   children,
   dataTestId = "card",
   inlineActionOnMobile = false,
+  appearance = "outlined",
 }) => {
   const headingId = useId();
 
@@ -33,10 +48,7 @@ export const Card: React.FC<CardProps> = ({
       aria-labelledby={headingId}
       data-testid={dataTestId}
       sx={{
-        border: 1,
-        borderColor: "divider",
-        borderRadius: 1,
-        p: 2,
+        ...appearanceSx[appearance],
         width: "100%",
         minWidth: 0,
         overflow: "hidden",
@@ -61,7 +73,7 @@ export const Card: React.FC<CardProps> = ({
               component="h2"
               id={headingId}
               variant="h6"
-              color="heyhey.main"
+              color="heyheyText.main"
               sx={(theme) => ({
                 fontSize: "1rem",
                 textTransform: "uppercase",
@@ -77,7 +89,7 @@ export const Card: React.FC<CardProps> = ({
                   borderBottom: 0,
                   fontFamily: theme.typography.h6.fontFamily,
                   lineHeight: theme.typography.h6.lineHeight,
-                  color: "heyhey.main",
+                  color: "heyheyText.main",
                   ...(onTitleClick && {
                     textTransform: "none",
                     letterSpacing: "normal",
@@ -117,7 +129,6 @@ export const Card: React.FC<CardProps> = ({
           </Stack>
           {action && <Box sx={{ flex: "0 0 auto" }}>{action}</Box>}
         </Stack>
-        <Divider />
         <Box sx={{ minWidth: 0 }}>{children}</Box>
       </Stack>
     </Box>

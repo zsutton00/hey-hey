@@ -272,6 +272,10 @@ export const AgenticAgentSessionPage = ({
       stageId: resolvedStageId,
       stepId: resolvedStepId,
       taskId: taskData?.id ?? routeTaskId,
+      parentAgentSessionId:
+        agentSession.entityType === EntityType.AgentSession
+          ? agentSession.entityId
+          : undefined,
       presentation: buildAgentSessionPresentation(
         agentSession,
         undefined,

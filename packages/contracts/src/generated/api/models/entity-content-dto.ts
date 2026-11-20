@@ -31,7 +31,7 @@ export interface EntityContentDto {
      */
     'sections': { [key: string]: string; };
     /**
-     * Current work status of the entity. A WorkStatus for task-backed content, a design-doc status string for design-doc content, or a PlanStepStatus for un-backed step content. Absent for non-status-bearing work-item types (FEATURE, GOAL).
+     * Current work status of the entity. A WorkItemStatus for task-backed content, a design-doc status string for design-doc content, or a PlanStepStatus for un-backed step content. Absent for non-status-bearing work-item types (FEATURE, GOAL).
      * @type {string}
      * @memberof EntityContentDto
      */

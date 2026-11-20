@@ -51,7 +51,7 @@ import { isLocalApplication } from '../../deployment-environment';
 
 const REQUIRED_ACCESS_TTL_SECONDS = 900;
 const REQUIRED_INACTIVITY_TTL_SECONDS = 7 * 24 * 60 * 60;
-const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
+export const REQUIRED_ABSOLUTE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const REFRESH_SECRET_BYTES = 32;
 const MAX_IP_ADDRESS_LENGTH = 45;
 const MAX_USER_AGENT_LENGTH = 512;
@@ -169,6 +169,7 @@ export class BrowserSessionService {
       );
 
       this.logger.log('Browser session established', {
+        event: 'browser_session.established',
         userId: principal.userId,
         selectedOrganizationId: established.response.user.currentOrganizationId,
         sessionId: established.sessionId,
@@ -457,6 +458,7 @@ export class BrowserSessionService {
 
     if (result.status === 'rotated') {
       this.logger.log('Browser session refreshed', {
+        event: 'browser_session.refreshed',
         userId: result.userId,
         selectedOrganizationId: result.response.user.currentOrganizationId,
         organizationSelection:
@@ -545,8 +547,10 @@ export class BrowserSessionService {
     userId: UserId,
     revokedAt: Date,
     reason: string,
+    /** A session that stays live, for a change that must leave the acting browser signed in. */
+    keepSessionId?: string,
   ): Promise<BrowserSessionRevocationResult> {
-    const matches = await tx.$queryRaw<RevocableBrowserSessionRow[]>`
+    const live = await tx.$queryRaw<RevocableBrowserSessionRow[]>`
       SELECT
         family."id" AS "familyRowId",
         family."family_id" AS "familyId",
@@ -557,6 +561,9 @@ export class BrowserSessionService {
       ORDER BY family."id"
       FOR UPDATE OF family
     `;
+    const matches = live.filter(
+      (match: RevocableBrowserSessionRow) => match.sessionId !== keepSessionId,
+    );
 
     if (matches.length > 0) {
       await tx.browserSessionFamily.updateMany({

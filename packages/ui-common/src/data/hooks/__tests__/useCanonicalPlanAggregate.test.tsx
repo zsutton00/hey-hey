@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -72,6 +73,21 @@ const task: PlanStageStandardTask = {
   source: TaskSource.System,
 };
 
+const bug: PlanStageStandardTask = {
+  ...task,
+  id: "bug-1",
+  name: "Crash on save",
+  type: "BUG",
+  edges: [
+    {
+      id: "edge-bug-1",
+      sourceNodeId: "bug-1",
+      targetNodeId: "task-1",
+      type: AgentEdgeType.DependsOn,
+    } as never,
+  ],
+};
+
 const registryItem = (key: string): WorkItemTypeSummaryDto => ({
   id: `${key}-definition`,
   projectId: plan.projectId,
@@ -84,15 +100,15 @@ const registryItem = (key: string): WorkItemTypeSummaryDto => ({
       key === "PLAN"
         ? [{ key: "planConfiguration", label: "Plan configuration" }]
         : key === "PLAN_STAGE"
-        ? [{ key: "description", label: "Description" }]
-        : [{ key: "acceptanceCriteria", label: "Acceptance criteria" }],
-    allowedStatuses: [WorkStatus.Backlog],
+          ? [{ key: "description", label: "Description" }]
+          : [{ key: "acceptanceCriteria", label: "Acceptance criteria" }],
+    statuses: legacyStatuses([WorkStatus.Backlog]),
     allowedParentTypes:
       key === "PLAN"
         ? ["FEATURE"]
         : key === "PLAN_STAGE"
-        ? ["PLAN"]
-        : ["PLAN_STAGE"],
+          ? ["PLAN"]
+          : ["PLAN_STAGE"],
     capabilities: { requiresParent: key !== "PLAN" },
     edgeTargets:
       key === "PLAN_STAGE" || key === "STANDARD"
@@ -108,7 +124,7 @@ const registry = [
 ];
 
 const collectionResult = (
-  workItems: readonly (PlanStageWorkItem | PlanStageStandardTask)[]
+  workItems: readonly (PlanStageWorkItem | PlanStageStandardTask)[],
 ) => ({
   workItems,
   isLoading: false,
@@ -135,10 +151,11 @@ describe("useCanonicalPlanAggregate", () => {
       error: null,
     });
     mocks.useWorkItems.mockImplementation(
-      (_organizationId, _entityType, _projectId, _conversationId, options) =>
-        options?.parentTaskIds
-          ? collectionResult([task])
-          : collectionResult([stage])
+      (_organizationId, _entityType, _projectId, _conversationId, options) => {
+        if (!options?.parentTaskIds) return collectionResult([stage]);
+        // The server filters by type, so the custom child never comes back.
+        return collectionResult(options.taskType === "BUG" ? [bug] : [task]);
+      },
     );
   });
 
@@ -150,20 +167,26 @@ describe("useCanonicalPlanAggregate", () => {
       error: null,
     });
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
     expect(result.current.status).toBe("ready");
     expect(result.current.aggregate?.plan.parentTaskId).toBeUndefined();
-    expect(result.current.aggregate?.stages[0]?.orderedTasks).toEqual([task]);
+    expect(result.current.aggregate?.stages[0]?.orderedTasks).toEqual([
+      task,
+      bug,
+    ]);
   });
 
   it("loads all direct Stage children and Standard grandchildren in batches", () => {
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
 
     expect(result.current.status).toBe("ready");
-    expect(result.current.aggregate?.stages[0]?.orderedTasks).toEqual([task]);
+    expect(result.current.aggregate?.stages[0]?.orderedTasks).toEqual([
+      task,
+      bug,
+    ]);
     expect(mocks.useWorkItems).toHaveBeenNthCalledWith(
       1,
       "org-1",
@@ -175,7 +198,7 @@ describe("useCanonicalPlanAggregate", () => {
         taskType: "PLAN_STAGE",
         includeEdges: true,
         limit: 201,
-      })
+      }),
     );
     expect(mocks.useWorkItems).toHaveBeenNthCalledWith(
       2,
@@ -188,8 +211,26 @@ describe("useCanonicalPlanAggregate", () => {
         taskType: "STANDARD",
         includeServiceRelations: true,
         limit: 500,
-      })
+      }),
     );
+    expect(mocks.useWorkItems).toHaveBeenNthCalledWith(
+      3,
+      "org-1",
+      "task",
+      "project-1",
+      undefined,
+      expect.objectContaining({
+        parentTaskIds: ["stage-1"],
+        taskType: "BUG",
+        limit: 500,
+      }),
+    );
+    // A permitted custom stage child is never requested, so it cannot
+    // invalidate the Plan or consume the response limit.
+    const requestedTypes = mocks.useWorkItems.mock.calls.map(
+      ([, , , , options]) => options?.taskType,
+    );
+    expect(requestedTypes).not.toContain(undefined);
   });
 
   it("fails closed before hierarchy reads when the registry is incomplete", () => {
@@ -203,7 +244,7 @@ describe("useCanonicalPlanAggregate", () => {
     });
 
     const { result } = renderHook(() =>
-      useCanonicalPlanAggregate("org-1", "project-1", "plan-1")
+      useCanonicalPlanAggregate("org-1", "project-1", "plan-1"),
     );
 
     expect(result.current.status).toBe("error");
@@ -214,7 +255,7 @@ describe("useCanonicalPlanAggregate", () => {
       expect.anything(),
       expect.anything(),
       undefined,
-      expect.objectContaining({ enabled: false })
+      expect.objectContaining({ enabled: false }),
     );
   });
 });

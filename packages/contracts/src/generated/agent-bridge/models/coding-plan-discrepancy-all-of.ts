@@ -52,7 +52,7 @@ export interface CodingPlanDiscrepancyAllOf {
      */
     'userDirection'?: string;
     /**
-     * Current state of the finding. Assent changes the disposition and never removes the finding.
+     * Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.
      * @type {string}
      * @memberof CodingPlanDiscrepancyAllOf
      */
@@ -86,15 +86,18 @@ export type CodingPlanDiscrepancyAllOfCategoryEnum = typeof CodingPlanDiscrepanc
 export const CodingPlanDiscrepancyAllOfDispositionEnum = {
     Open: 'open',
     Accepted: 'accepted',
+    ChangesExistingBehavior: 'changes_existing_behavior',
     RepairPlanned: 'repair_planned',
     Withdrawn: 'withdrawn',
     "open": "open",
     "accepted": "accepted",
+    "changes_existing_behavior": "changes_existing_behavior",
     "repair_planned": "repair_planned",
     "withdrawn": "withdrawn",
 } as const;
 Object.defineProperty(CodingPlanDiscrepancyAllOfDispositionEnum, "open", { enumerable: false, value: CodingPlanDiscrepancyAllOfDispositionEnum["Open"] });
 Object.defineProperty(CodingPlanDiscrepancyAllOfDispositionEnum, "accepted", { enumerable: false, value: CodingPlanDiscrepancyAllOfDispositionEnum["Accepted"] });
+Object.defineProperty(CodingPlanDiscrepancyAllOfDispositionEnum, "changes_existing_behavior", { enumerable: false, value: CodingPlanDiscrepancyAllOfDispositionEnum["ChangesExistingBehavior"] });
 Object.defineProperty(CodingPlanDiscrepancyAllOfDispositionEnum, "repair_planned", { enumerable: false, value: CodingPlanDiscrepancyAllOfDispositionEnum["RepairPlanned"] });
 Object.defineProperty(CodingPlanDiscrepancyAllOfDispositionEnum, "withdrawn", { enumerable: false, value: CodingPlanDiscrepancyAllOfDispositionEnum["Withdrawn"] });
 

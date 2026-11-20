@@ -1,3 +1,8 @@
+import type {
+  ProjectApprovalPolicyEffectiveConditions,
+  ProjectApprovalPolicyRuleSource,
+  ProposalApprovalExplanation,
+} from 'src/generated';
 import type { ProjectApprovalPolicy } from './project-approval-policy.service';
 
 export interface ApprovalConfig {
@@ -48,9 +53,11 @@ export interface ProposalMatch {
   toolName?: string;
   hasContentChange?: boolean;
   statusOnlyChange?: boolean;
+  contentChange?: boolean;
 }
 
 export interface PermissionRule {
+  source?: ProjectApprovalPolicyRuleSource;
   match: {
     entity?: EntityMatch;
     proposal?: ProposalMatch;
@@ -62,7 +69,7 @@ export interface PermissionRule {
 export const AUTO_APPROVED = 0;
 export type RuleThreshold =
   | { readonly policy: 'IMMEDIATE' }
-  | { readonly policy: 'PROJECT_REQUIRED' }
+  | { readonly policy: 'PROJECT_REQUIRED'; readonly requiredApprovals?: number }
   | { readonly policy: 'FIXED_REQUIRED'; readonly requiredApprovals: number };
 
 export type RuleApprovalConfig = Omit<ApprovalConfig, 'threshold'> & {
@@ -141,6 +148,13 @@ export function matchesRule(
         return false;
       }
     }
+    if (
+      match.proposal.contentChange !== undefined &&
+      match.proposal.contentChange !==
+        proposal.changedFields.some((field) => field !== 'status')
+    ) {
+      return false;
+    }
     if (match.proposal.statusOnlyChange !== undefined) {
       if (
         match.proposal.statusOnlyChange !==
@@ -154,11 +168,11 @@ export function matchesRule(
   return true;
 }
 
-export function evaluatePermissions(
+export function evaluateApprovalPolicy(
   entity: EntityContext,
   proposal: ProposalContext,
   projectPolicy: ProjectApprovalPolicy,
-): ApprovalConfig {
+): ApprovalEvaluation {
   if (
     !Array.isArray(proposal.eligibleProjectMemberIds) ||
     proposal.eligibleProjectMemberIds.length === 0
@@ -173,10 +187,14 @@ export function evaluatePermissions(
 
   for (const rule of projectPolicy.rules) {
     if (matchesRule(entity, proposal, rule.match)) {
-      return resolveApprovalConfig(rule.config, proposal, projectPolicy);
+      return evaluationForRule(rule, proposal, projectPolicy);
     }
   }
-  return resolveApprovalConfig(projectPolicy.fallback, proposal, projectPolicy);
+  return evaluationForRule(
+    { match: {}, config: projectPolicy.fallback, source: 'DEFAULT' },
+    proposal,
+    projectPolicy,
+  );
 }
 
 function resolveApprovalConfig(
@@ -209,6 +227,9 @@ function resolveRuleThreshold(
     case 'IMMEDIATE':
       return AUTO_APPROVED;
     case 'PROJECT_REQUIRED':
+      if (threshold.requiredApprovals !== undefined) {
+        return threshold.requiredApprovals;
+      }
       if (
         !Number.isInteger(projectPolicy.requiredApprovals) ||
         projectPolicy.requiredApprovals < 1
@@ -229,4 +250,83 @@ function resolveRuleThreshold(
       }
       return threshold.requiredApprovals;
   }
+}
+
+export interface ApprovalEvaluation {
+  proposal: ProposalContext;
+  config: ApprovalConfig;
+  explanation: Pick<
+    ProposalApprovalExplanation,
+    | 'source'
+    | 'conditions'
+    | 'requirement'
+    | 'changedFields'
+    | 'changedFieldClassification'
+  >;
+}
+
+export function ruleConditions(
+  rule: PermissionRule,
+): ProjectApprovalPolicyEffectiveConditions {
+  const { entity, proposal } = rule.match;
+  return {
+    ...(entity?.type === undefined ? {} : { typeKey: entity.type }),
+    ...(entity?.topLevel === undefined ? {} : { topLevel: entity.topLevel }),
+    ...(proposal?.source === undefined
+      ? {}
+      : { author: proposal.source === 'user' ? 'USER' : 'AGENT' }),
+    ...(proposal?.action === undefined ? {} : { action: proposal.action }),
+    ...(proposal?.toolName === undefined
+      ? {}
+      : { toolName: proposal.toolName }),
+    ...(proposal?.hasContentChange === undefined
+      ? {}
+      : { featureContentChange: proposal.hasContentChange }),
+    ...(proposal?.statusOnlyChange
+      ? { change: 'STATUS_ONLY' }
+      : proposal?.contentChange
+        ? { change: 'CONTENT_CHANGE' }
+        : {}),
+  };
+}
+
+function evaluationForRule(
+  rule: PermissionRule,
+  proposal: ProposalContext,
+  policy: ProjectApprovalPolicy,
+): ApprovalEvaluation {
+  const config = resolveApprovalConfig(rule.config, proposal, policy);
+  if (rule.source === undefined) {
+    throw new Error(
+      'Resolved approval rules must carry authoritative provenance',
+    );
+  }
+  return {
+    proposal,
+    config,
+    explanation: {
+      source: rule.source,
+      conditions: ruleConditions(rule),
+      requirement: {
+        category: rule.config.threshold.policy,
+        requiredApprovals: config.threshold,
+      },
+      changedFields: [...proposal.changedFields],
+      changedFieldClassification: {
+        statusOnlyChange: isStatusOnlyChange(proposal.changedFields),
+        contentChange: proposal.changedFields.some(
+          (field) => field !== 'status',
+        ),
+        featureContentChange: hasContentChange(proposal.changedFields),
+      },
+    },
+  };
+}
+
+export function evaluatePermissions(
+  entity: EntityContext,
+  proposal: ProposalContext,
+  policy: ProjectApprovalPolicy,
+): ApprovalConfig {
+  return evaluateApprovalPolicy(entity, proposal, policy).config;
 }

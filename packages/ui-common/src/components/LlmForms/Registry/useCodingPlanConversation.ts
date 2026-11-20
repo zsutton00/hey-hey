@@ -1,7 +1,6 @@
 import { getErrorMessage } from "../../../utils/errorUtils";
 import { useState } from "react";
 import { LocalPromptType, MessageType, WorkflowName } from "../../../api";
-import { workflowsClient } from "../../../clients/serviceClients";
 import {
   toOpenApiConversationId,
   toOpenApiMessageId,
@@ -40,10 +39,6 @@ export function useCodingPlanConversation(context: FieldComponentContext) {
         projectId: context.projectId,
         conversationId: context.conversationId,
       };
-      const node = (await workflowsClient.getConversationWorkflowNode(scope))
-        .data.data;
-      if (node?.currentNodeId !== CODING_PLAN_REVIEW_NODE)
-        throw new Error("Planning is no longer awaiting approval.");
       if ("reply" in input) {
         if (!access.isDeviceEnabled)
           throw new Error(access.unavailable.message);
@@ -70,15 +65,6 @@ export function useCodingPlanConversation(context: FieldComponentContext) {
               : operation.message,
           );
       } else {
-        const gate = (await workflowsClient.getConversationPromptType(scope))
-          .data.data;
-        if (
-          gate?.workflowState !== "agent-pending" ||
-          gate.nodeId !== CODING_PLAN_REVIEW_NODE ||
-          !gate.triggerMessageId
-        ) {
-          throw new Error("There is no pending planning approval.");
-        }
         await submitControllerAuthorizedWorkflowAnswer({
           ...scope,
           operationId: crypto.randomUUID(),

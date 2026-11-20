@@ -49,6 +49,7 @@ import {
 } from './input-admission-codec';
 import type { OperationTimelineRegistry } from './operation-timeline';
 import { projectionDiagnostics } from './projection-diagnostics';
+import { startupFailureCause } from '../../run/failure-message';
 
 const id = z.string().uuid();
 const isTerminalInputDeliveryRejection = (error: unknown): boolean =>
@@ -564,6 +565,10 @@ export class InputAdmissionLifecycle implements RunFollowUpAdmission {
                 : error instanceof RunAttachmentNotFoundError
                   ? 'ATTACHMENT_NOT_FOUND'
                   : 'STARTUP_FAILED',
+            ...(error instanceof MissingServiceBindingError ||
+            error instanceof RunAttachmentNotFoundError
+              ? {}
+              : { cause: startupFailureCause(error), reference: `run ${picked.runId}` }),
             inert: session?.inert === true,
             serviceNames,
           });

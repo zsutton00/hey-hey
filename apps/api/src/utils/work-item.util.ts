@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { invert } from 'lodash';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 
@@ -290,7 +291,7 @@ export function canUpdateMultipleFieldsAtLevel(
   return level !== 'description';
 }
 
-export function getWorkItemSections(status: WorkStatus) {
+export function getWorkItemSections(status: TaskResponseDto['status']) {
   const currentSection = getCurrentSectionFromStatus(status);
   const isGenerating = isGeneratingStatus(status);
   const nextSection = isGenerating
@@ -300,7 +301,7 @@ export function getWorkItemSections(status: WorkStatus) {
   return { currentSection, nextSection };
 }
 
-export const isRefining = (status: WorkStatus) => {
+export const isRefining = (status: TaskResponseDto['status']) => {
   return (
     [
       WorkStatus.RefiningAcceptanceCriteria,

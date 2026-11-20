@@ -342,7 +342,7 @@ describe('extractEventIds', () => {
           title: 'Coding Research',
           payload: {
             reportType: 'CODING_RESEARCH',
-            format: 'STRUCTURED',
+            format: 'SELF_RESEARCH',
             summary: 'Research stub.',
             analysis: '',
             frame: {},

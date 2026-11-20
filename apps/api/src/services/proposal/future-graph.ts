@@ -69,6 +69,12 @@ export function graphContentBasis(graph: ProjectedWorkItemChangeSetResponse) {
       },
     ]);
   return {
+    designDocs: Object.fromEntries(
+      (graph.designDocs ?? []).map((doc) => [
+        graphIdentityKey(doc.identity),
+        doc,
+      ]),
+    ),
     nodes: Object.fromEntries(nodes),
     relationships: Object.fromEntries(relationships),
   };
@@ -120,6 +126,17 @@ export function graphChangeSet(
   after: ProjectedWorkItemChangeSetResponse,
 ): WorkItemChangeSetValidationRequest {
   const operations: WorkItemChangeSetOperation[] = [];
+  for (const doc of after.designDocs ?? []) {
+    if (doc.identity.refType === 'temporary') {
+      operations.push({
+        op: 'designDoc.create',
+        ref: doc.identity,
+        name: doc.name,
+        markdown: doc.markdown,
+        parent: doc.parent,
+      });
+    }
+  }
   const beforeNodes = new Map(
     [before.projectedRoot, ...before.children]
       .filter((n) => !n.deleted)
@@ -282,6 +299,8 @@ export function graphChangeSet(
           ...base,
           edgeType: edge.edgeType,
           category: 'meta',
+          sourceEntityType: edge.sourceEntityType,
+          targetEntityType: edge.targetEntityType,
           ...(edge.direction ? { direction: edge.direction } : {}),
         });
     } else {
@@ -337,7 +356,8 @@ export function assertFutureGraphBoundary(
     ]),
   );
   for (const op of request.operations) {
-    if (op.op === 'workItem.create') nodes.add(graphIdentityKey(op.ref));
+    if (op.op === 'workItem.create' || op.op === 'designDoc.create')
+      nodes.add(graphIdentityKey(op.ref));
     if (op.op === 'relationship.create') {
       edges.add(graphIdentityKey(op.ref));
       endpoints.set(graphIdentityKey(op.ref), {
@@ -441,6 +461,11 @@ export function remapGraphProjection(
   const root = node(graph.projectedRoot);
   return {
     ...graph,
+    designDocs: (graph.designDocs ?? []).map((doc) => ({
+      ...doc,
+      identity: ref(doc.identity),
+      parent: ref(doc.parent),
+    })),
     projectedRoot: root,
     sections: root.sections,
     children: graph.children.filter((entry) => !entry.deleted).map(node),

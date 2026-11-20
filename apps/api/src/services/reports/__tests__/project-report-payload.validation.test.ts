@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ReportAudience, ReportType } from '@hey-hey/contracts/api/models';
 import type { OrganizationId, UserId } from 'src/types';
 import { ReportService } from '../report.service';
-import { validateProjectReportPayload } from '../project-report-payload.validation';
+import { validateReportPayload } from '../report-payload.validation';
 import { projectReportPayload } from './project-report.fixture';
 import {
   createMockPrismaService,
@@ -19,6 +19,7 @@ describe('PROJECT_REPORT submission boundary', () => {
     prisma.db.report.findFirst.mockResolvedValue({
       id: 'report-id',
       reportType: 'PROJECT_REPORT',
+      schemaVersion: 1,
       payload: projectReportPayload,
     });
     const service = new ReportService(
@@ -61,23 +62,32 @@ describe('PROJECT_REPORT submission boundary', () => {
   });
   it('rejects a project report submitted under another envelope type', () => {
     expect(() =>
-      validateProjectReportPayload(ReportType.Snapshot, projectReportPayload),
+      validateReportPayload({
+        reportType: ReportType.Snapshot,
+        payload: projectReportPayload,
+        schemaVersion: 1,
+      }),
     ).toThrow(BadRequestException);
   });
   it('accepts both complete and explicitly incomplete coverage', () => {
     expect(() =>
-      validateProjectReportPayload(
-        ReportType.ProjectReport,
-        projectReportPayload,
-      ),
+      validateReportPayload({
+        reportType: ReportType.ProjectReport,
+        payload: projectReportPayload,
+        schemaVersion: 1,
+      }),
     ).not.toThrow();
     expect(() =>
-      validateProjectReportPayload(ReportType.ProjectReport, {
-        ...projectReportPayload,
-        coverage: {
-          ...projectReportPayload.coverage,
-          status: 'INCOMPLETE',
-          limitations: ['Evidence read interrupted.'],
+      validateReportPayload({
+        reportType: ReportType.ProjectReport,
+        schemaVersion: 1,
+        payload: {
+          ...projectReportPayload,
+          coverage: {
+            ...projectReportPayload.coverage,
+            status: 'INCOMPLETE',
+            limitations: ['Evidence read interrupted.'],
+          },
         },
       }),
     ).not.toThrow();
@@ -97,7 +107,11 @@ describe('PROJECT_REPORT submission boundary', () => {
     { ...projectReportPayload, reportType: 'SNAPSHOT' },
   ])('rejects malformed report payloads', (payload) => {
     expect(() =>
-      validateProjectReportPayload(ReportType.ProjectReport, payload),
+      validateReportPayload({
+        reportType: ReportType.ProjectReport,
+        payload,
+        schemaVersion: 1,
+      }),
     ).toThrow(BadRequestException);
   });
 

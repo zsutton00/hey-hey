@@ -10,7 +10,7 @@ import {
   type EntityContextInput,
 } from '../entity-context-resolver';
 import { evaluatePermissions } from '../permission-evaluation';
-import { DEFAULT_PROJECT_APPROVAL_POLICY } from '../project-approval-policy.service';
+import { createDefaultProjectApprovalPolicy } from '../project-approval-policy.service';
 import { proposalWriteFacts } from '../task-proposal-change-set-conversion';
 
 const rootId = '11111111-1111-4111-8111-111111111111';
@@ -81,7 +81,7 @@ describe('proposal write facts', () => {
             eligibleProjectMemberIds: [rootId],
             changedFields: await deriveChangedFields(noDb, proposal),
           },
-          DEFAULT_PROJECT_APPROVAL_POLICY,
+          createDefaultProjectApprovalPolicy(),
         ),
       ).toMatchObject({
         threshold: 1,
@@ -159,7 +159,7 @@ describe('proposal write facts', () => {
             input('UPDATE', graph),
           ),
         },
-        DEFAULT_PROJECT_APPROVAL_POLICY,
+        createDefaultProjectApprovalPolicy(),
       ),
     ).toMatchObject({ threshold: 1 });
   });

@@ -26,6 +26,15 @@ interface LocalPairingScreenProps {
   onCancel: () => void;
   /** Only true when the deployment lets this passkey double as the sign-in passkey. */
   sharedPasskeysAllowed?: boolean;
+  /** This computer was set up before: the button asks for the existing passkey. */
+  returning?: boolean;
+  /**
+   * False when the terminal confirms this pairing: the passkey then grants no
+   * time-boxed access, so no duration is asked for.
+   */
+  grantsAccess?: boolean;
+  /** The Repair explanation and action, when the existing passkey can't be used here. */
+  repair?: React.ReactNode;
 }
 
 const DURATION_OPTIONS = [
@@ -74,6 +83,9 @@ export function LocalPairingScreen({
   onCreatePasskey,
   onCancel,
   sharedPasskeysAllowed = false,
+  returning = false,
+  grantsAccess = true,
+  repair = null,
 }: LocalPairingScreenProps): React.JSX.Element {
   const { t } = useTranslation();
   const noneFound =
@@ -129,25 +141,37 @@ export function LocalPairingScreen({
         <strong>{computerName}</strong>
       </p>
 
-      <fieldset data-testid="local-pairing-duration" disabled={busy}>
-        <legend>{t("localSetup.pairing.duration.heading")}</legend>
-        {DURATION_OPTIONS.map((option) => (
-          <label key={option}>
-            <input
-              type="radio"
-              name="local-pairing-duration"
-              value={option}
-              data-testid={`local-pairing-duration-${option}`}
-              checked={cadence === option}
-              onChange={() => onCadenceChange(option)}
-            />
-            {t(DURATION_KEYS[option])}
-          </label>
-        ))}
-        <p data-testid="local-pairing-permission">
-          {t("localSetup.pairing.duration.permission")}
+      {returning ? (
+        <p role="status" data-testid="local-pairing-returning">
+          {t("localSetup.pairing.returning.note")}
         </p>
-      </fieldset>
+      ) : null}
+
+      {grantsAccess ? (
+        <fieldset data-testid="local-pairing-duration" disabled={busy}>
+          <legend>{t("localSetup.pairing.duration.heading")}</legend>
+          {DURATION_OPTIONS.map((option) => (
+            <label key={option}>
+              <input
+                type="radio"
+                name="local-pairing-duration"
+                value={option}
+                data-testid={`local-pairing-duration-${option}`}
+                checked={cadence === option}
+                onChange={() => onCadenceChange(option)}
+              />
+              {t(DURATION_KEYS[option])}
+            </label>
+          ))}
+          <p data-testid="local-pairing-permission">
+            {t("localSetup.pairing.duration.permission")}
+          </p>
+        </fieldset>
+      ) : (
+        <p data-testid="local-pairing-terminal-confirmation">
+          {t("localSetup.pairing.terminalConfirmation")}
+        </p>
+      )}
 
       {sharedPasskeysAllowed ? (
         <p
@@ -176,6 +200,8 @@ export function LocalPairingScreen({
         </p>
       ) : null}
 
+      {repair}
+
       <div className="local-pairing__actions">
         <button
           className="local-pairing__cancel"
@@ -191,11 +217,16 @@ export function LocalPairingScreen({
         >
           {!ready
             ? t("localSetup.pairing.preparing")
-            : retryMessage
-              ? t("localSetup.pairing.tryAgain")
-              : t("localSetup.pairing.createPasskey")}
+            : returning
+              ? t("localSetup.pairing.returning.usePasskey")
+              : retryMessage
+                ? t("localSetup.pairing.tryAgain")
+                : t("localSetup.pairing.createPasskey")}
         </button>
       </div>
+      <p data-testid="local-pairing-signin-note">
+        {t("localSetup.pairing.signInNote")}
+      </p>
     </div>
   );
 }

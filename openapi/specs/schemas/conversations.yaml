@@ -2196,6 +2196,9 @@ QuestionsGroupUserMessage:
             type: string
             description: User's answer
         description: User response to a clarifying question
+    note:
+      type: string
+      description: Free-form note added alongside the answers
 
 PlanApprovalUserMessage:
   type: object
@@ -3818,6 +3821,8 @@ TaskMonitorInterventionSystemMessageData:
         expiresAt:
           type: string
           format: date-time
+          nullable: true
+          description: Provider deadline, or null when the request has no deadline.
         choices:
           type: array
           minItems: 2
@@ -4339,6 +4344,20 @@ SystemMessageData:
     ragEnabled:
       type: boolean
       description: Whether this message should be included in RAG retrieval
+    presentation:
+      type: string
+      enum: [notice]
+      description: >-
+        Set by the publisher when the message is an automated runtime notice
+        rather than an agent reply. Absent on agent replies and on historical
+        messages; never inferred from response text or missing provenance.
+    noticeSeverity:
+      type: string
+      enum: [info, warning]
+      description: >-
+        Severity of an automated notice, independent of the notice
+        classification. Only meaningful when presentation is "notice"; a
+        notice without it renders as info.
     reasoning:
       type: string
       description: LLM's reasoning for the intent detection
@@ -5008,6 +5027,8 @@ QuestionGroupElement:
     - type: object
       required:
       properties:
+        payload:
+          $ref: "#/QuestionsGroupPayload"
   x-discriminator-value: question_group
 
 RepositoryGroundingElement:
@@ -5095,6 +5116,10 @@ VerifyFeaturePayload:
   properties:
     feature:
       $ref: "#/VerifyFeatureReference"
+    lead:
+      type: string
+      minLength: 1
+      description: One sentence naming the specific discrepancy, shown as the card's lead. The explanation carries the detail. Suggestions saved before the field existed have no lead.
     explanation:
       type: string
       minLength: 1
@@ -6118,7 +6143,26 @@ QuestionsGroupPayload:
       items:
         type: string
       description: Clarifying questions for scope and constraints
+    conversationReply:
+      $ref: "#/QuestionsGroupConversationReply"
   description: Plan scope constraints payload for UI rendering
+
+QuestionsGroupConversationReply:
+  type: object
+  required:
+    - noteLabel
+    - notePlaceholder
+  properties:
+    noteLabel:
+      type: string
+      description: Label of the free-form note box shown under the questions
+    notePlaceholder:
+      type: string
+      description: Placeholder of the free-form note box
+  description: >-
+    Present when the answers are an ordinary conversation message rather than a
+    workflow reply. Shows a free-form note box and lets the group be submitted
+    with every answer blank.
 
 PlanApprovalPayload:
   type: object
@@ -6397,7 +6441,38 @@ AgentRequestPermissionPayload:
       format: date-time
       nullable: true
       description: ISO timestamp of when the decision was recorded
+    groupedRequests:
+      type: array
+      description: >
+        Present when this card lists several same-tool requests. Each entry
+        carries its own decision. The first entry is the request described by
+        permissionRequest, decision and decidedAt.
+      items:
+        $ref: "#/AgentGroupedPermissionRequest"
   description: Structured payload for permission-request UI elements
+
+AgentGroupedPermissionRequest:
+  type: object
+  required:
+    - requestId
+    - description
+  properties:
+    requestId:
+      type: string
+      description: Permission request id this entry answers
+    description:
+      type: string
+      description: What this request is for, such as a search query or network host
+    decision:
+      type: string
+      enum: [approve, always_approve, whitelist, deny]
+      nullable: true
+      description: The user's decision for this request, once recorded
+    decidedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: ISO timestamp of when this request's decision was recorded
 
 AgentQuestionOption:
   type: object
@@ -7018,8 +7093,15 @@ CodingPlanDiscrepancy:
           description: The direction or assent the user gave about this finding.
         disposition:
           type: string
-          enum: [open, accepted, repair_planned, withdrawn]
-          description: Current state of the finding. Assent changes the disposition and never removes the finding.
+          enum:
+            [
+              open,
+              accepted,
+              changes_existing_behavior,
+              repair_planned,
+              withdrawn,
+            ]
+          description: Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports. repair_planned is the legacy name of changes_existing_behavior, accepted on read only so plans saved before the rename stay valid.
         implementationFollowThrough:
           type: string
           description: What implementation must address or verify for this finding.
@@ -7039,7 +7121,9 @@ CodingPlanEmittedDiscrepancy:
         category:
           $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/category"
         disposition:
-          $ref: "#/CodingPlanDiscrepancy/allOf/1/properties/disposition"
+          type: string
+          enum: [open, accepted, changes_existing_behavior, withdrawn]
+          description: Current state of the finding. Assent changes the disposition and never removes the finding. changes_existing_behavior marks a planned change to existing behavior that recorded design supports.
   description: A finding as emitted with a new plan version; carries the required finding metadata.
 
 CodingPlanConversationalApproval:
@@ -7417,7 +7501,7 @@ CodingPromptFinalAssessmentStatusRecommendation:
     - reason
   properties:
     status:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     reason:
       type: string
   description: Recommended task status and supporting reason

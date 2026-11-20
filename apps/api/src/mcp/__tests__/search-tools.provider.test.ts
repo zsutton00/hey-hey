@@ -1,3 +1,6 @@
+import { ok } from 'node:assert/strict';
+import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
+import { Test } from '@nestjs/testing';
 import { z } from 'zod';
 import {
   SearchToolsProvider,
@@ -14,11 +17,13 @@ import { UnifiedSearchService } from '../../services/unified-search/unified-sear
 import { HelpService } from '../../services/help.service';
 import { SearchCacheService } from '../tools/search-cache.service';
 import { UnifiedSearchResult } from '@hey-hey/contracts/api/models';
+import { buildMatchParagraphs } from '../../services/unified-search/match-paragraphs';
 
 type SearchResult = z.infer<typeof searchResultOutput>;
 
 const mockSearchService = {
   search: jest.fn(),
+  resolveExcludedEntityIds: jest.fn(),
 } as unknown as jest.Mocked<UnifiedSearchService>;
 
 const mockCacheService = {
@@ -116,6 +121,8 @@ function makeSearchResponse(
   };
 }
 
+const mockRegistry = { getRulesForProject: jest.fn() };
+
 describe('SearchToolsProvider', () => {
   let provider: SearchToolsProvider;
 
@@ -128,10 +135,22 @@ describe('SearchToolsProvider', () => {
     mockSearchReceipts.issue.mockResolvedValue(
       '00000000-0000-4000-8000-000000000006',
     );
+    mockRegistry.getRulesForProject.mockReturnValue({
+      statuses: [
+        { name: 'ACTIVE', label: 'Active', meaning: 'IN_PROGRESS' },
+        {
+          name: 'COMPLETED',
+          label: 'Completed',
+          meaning: 'FINISHED',
+          completionBehavior: 'COMPLETED',
+        },
+      ],
+    });
     provider = new SearchToolsProvider(
       mockSearchService as unknown as UnifiedSearchService,
       mockCacheService as unknown as SearchCacheService,
       mockHelpService as unknown as HelpService,
+      mockRegistry as unknown as WorkItemTypeRegistryService,
       mockSearchReceipts as any,
     );
   });
@@ -483,8 +502,9 @@ describe('SearchToolsProvider', () => {
         makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
       )) as SearchResult;
 
-      expect(result.results[0]!.snippet.length).toBeLessThanOrEqual(300);
-      expect(result.results[0]!.snippet.endsWith('…')).toBe(true);
+      const { snippet } = result.results[0]!;
+      expect(snippet!.length).toBeLessThanOrEqual(300);
+      expect(snippet!.endsWith('…')).toBe(true);
     });
 
     it('falls back to topologySummary when content is absent', async () => {
@@ -592,15 +612,19 @@ describe('SearchToolsProvider', () => {
     });
 
     it.each([true, false])(
-      'returns exact match text independently of snippet (spans: %s)',
+      'returns match paragraphs in place of the snippet, keeping the snippet only without them (spans: %s)',
       async (withSpans) => {
-        const matchText = 'A 😀 matching passage';
-        const matchSpans = [{ start: 2, end: 4, strength: 0.9 }];
+        const matchParagraphs = [
+          {
+            text: 'A 😀 matching passage',
+            matchSpans: [{ start: 2, end: 4, strength: 0.9 }],
+          },
+        ];
         (mockSearchService.search as jest.Mock).mockResolvedValue(
           makeSearchResponse([
             makeResult({
               content: 'Different display text '.repeat(30),
-              embeddings: withSpans ? { text: matchText, matchSpans } : {},
+              embeddings: withSpans ? { matchParagraphs } : {},
             }),
           ]),
         );
@@ -611,13 +635,12 @@ describe('SearchToolsProvider', () => {
         )) as SearchResult;
         const hit = searchResultOutput.parse(result).results[0]!;
         if (withSpans) {
-          expect(hit.matchSpans).toEqual(matchSpans);
-          expect(hit.matchText).toBe(matchText);
-          expect(hit.matchText!.slice(2, 4)).toBe('😀');
-          expect(hit.snippet).not.toBe(matchText);
-        } else {
-          expect(hit).not.toHaveProperty('matchSpans');
+          expect(hit.matchParagraphs).toEqual(matchParagraphs);
           expect(hit).not.toHaveProperty('matchText');
+          expect(hit).not.toHaveProperty('snippet');
+        } else {
+          expect(hit).not.toHaveProperty('matchParagraphs');
+          expect(hit.snippet).toContain('Different display text');
         }
       },
     );
@@ -817,18 +840,21 @@ describe('SearchToolsProvider', () => {
             ),
         );
 
-        const result = (await provider.unifiedSearch(
-          {
-            queries: ['auth', 'billing'],
-            limit: 25,
-            offset,
-          },
-          dummyContext as any,
-          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
-        )) as { groups: Array<{ query: string } & SearchResult> };
+        const result = unifiedSearchResultOutput.parse(
+          await provider.unifiedSearch(
+            {
+              queries: ['auth', 'billing'],
+              limit: 25,
+              offset,
+            },
+            dummyContext as any,
+            makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+          ),
+        );
 
         expect(mockSearchService.search).toHaveBeenCalledTimes(2);
         expect(result.searchReceiptId).toMatch(/^[0-9a-f-]{36}$/i);
+        ok(result.groups);
         expect(mockSearchReceipts.issue).toHaveBeenCalledWith(
           expect.objectContaining({ projectId: PROJECT_ID }),
           'unified_search',
@@ -852,6 +878,165 @@ describe('SearchToolsProvider', () => {
         expect(validation.success).toBe(true);
       },
     );
+
+    describe('excludeConnected (internal, set by the platform for eval attempts)', () => {
+      const EXCLUDE = {
+        entityIds: [ENTITY_ID, OWNER_ID],
+        depth: 1,
+      };
+      const RESOLVED = [ENTITY_ID, OWNER_ID, PROJECT_ID];
+
+      it('resolves the exclusion once for a batch and every query carries the same entities', async () => {
+        (
+          mockSearchService.resolveExcludedEntityIds as jest.Mock
+        ).mockResolvedValue(RESOLVED);
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse([]),
+        );
+
+        await provider.unifiedSearch(
+          {
+            queries: ['one', 'two', 'three'],
+            excludeConnected: EXCLUDE,
+            limit: 5,
+            offset: 0,
+          },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        );
+
+        expect(
+          mockSearchService.resolveExcludedEntityIds,
+        ).toHaveBeenCalledTimes(1);
+        expect(mockSearchService.resolveExcludedEntityIds).toHaveBeenCalledWith(
+          ORG_ID,
+          PROJECT_ID,
+          EXCLUDE,
+          'tok',
+        );
+        const calls = (mockSearchService.search as jest.Mock).mock.calls;
+        expect(calls).toHaveLength(3);
+        for (const call of calls) {
+          expect(call[2].common.excludeEntityIds).toEqual(RESOLVED);
+        }
+      });
+
+      describe('with the real result cache', () => {
+        const A = [ENTITY_ID, OWNER_ID];
+        const B = [ENTITY_ID, OWNER_ID, PROJECT_ID];
+        const C = [ENTITY_ID];
+        let cached: SearchToolsProvider;
+
+        const run = (
+          query: string,
+          excludeConnected: typeof EXCLUDE | null = EXCLUDE,
+        ) =>
+          cached.unifiedSearch(
+            {
+              query,
+              ...(excludeConnected ? { excludeConnected } : {}),
+              limit: 5,
+              offset: 0,
+            },
+            dummyContext as any,
+            makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+          );
+
+        beforeEach(() => {
+          cached = new SearchToolsProvider(
+            mockSearchService as unknown as UnifiedSearchService,
+            new SearchCacheService(),
+            mockHelpService as unknown as HelpService,
+            mockRegistry as unknown as WorkItemTypeRegistryService,
+            mockSearchReceipts as any,
+          );
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock).mockReset();
+          (mockSearchService.search as jest.Mock)
+            .mockReset()
+            .mockResolvedValue(makeSearchResponse([]));
+        });
+
+        it('searches again when the same seeds now resolve to a different set, for identical and similar queries', async () => {
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock)
+            .mockResolvedValueOnce(A)
+            .mockResolvedValueOnce(B)
+            .mockResolvedValueOnce(C);
+
+          await run('retry failed attempts');
+          await run('retry failed attempts');
+          await run('retry failed attempt');
+
+          const sent = (mockSearchService.search as jest.Mock).mock.calls.map(
+            ([, , request]) => request.common.excludeEntityIds,
+          );
+          expect(sent).toEqual([A, B, C]);
+        });
+
+        it('still reuses a cached page when the resolved set is the same, in any order', async () => {
+          (mockSearchService.resolveExcludedEntityIds as jest.Mock)
+            .mockResolvedValueOnce(B)
+            .mockResolvedValueOnce([...B].reverse());
+
+          await run('retry failed attempts');
+          await run('retry failed attempts');
+
+          expect(mockSearchService.search).toHaveBeenCalledTimes(1);
+        });
+
+        it('never serves an excluded page to a search without the exclusion, or the reverse', async () => {
+          (
+            mockSearchService.resolveExcludedEntityIds as jest.Mock
+          ).mockResolvedValue(B);
+
+          await run('retry failed attempts');
+          await run('retry failed attempts', null);
+          await run('retry failed attempts');
+
+          expect(mockSearchService.search).toHaveBeenCalledTimes(2);
+        });
+      });
+
+      it('makes no exclusion call and adds nothing to the request when the option is absent', async () => {
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse([]),
+        );
+
+        await provider.unifiedSearch(
+          { queries: ['one', 'two'], limit: 5, offset: 0 },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        );
+
+        expect(
+          mockSearchService.resolveExcludedEntityIds,
+        ).not.toHaveBeenCalled();
+        for (const call of (mockSearchService.search as jest.Mock).mock.calls) {
+          expect(call[2].common).not.toHaveProperty('excludeEntityIds');
+          expect(call[2]).not.toHaveProperty('excludeConnected');
+        }
+      });
+
+      it('returns a search error, never unexcluded results, when the exclusion cannot be resolved', async () => {
+        (
+          mockSearchService.resolveExcludedEntityIds as jest.Mock
+        ).mockRejectedValue(new Error('graph unavailable'));
+
+        const result = (await provider.unifiedSearch(
+          {
+            queries: ['one', 'two'],
+            excludeConnected: EXCLUDE,
+            limit: 5,
+            offset: 0,
+          },
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as { isError?: boolean; content: Array<{ text: string }> };
+
+        expect(result.isError).toBe(true);
+        expect(result.content[0]?.text).toContain('graph unavailable');
+        expect(mockSearchService.search).not.toHaveBeenCalled();
+      });
+    });
 
     it('forwards shared filters and limit to every query in the batch', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -893,7 +1078,7 @@ describe('SearchToolsProvider', () => {
         Array.from({ length: count }, (_, i) =>
           makeResult({
             entityId: `${prefix}-${i}`,
-            title: 't'.repeat(300),
+            title: 't'.repeat(1000),
             content: 'x'.repeat(1000),
           }),
         );
@@ -914,7 +1099,7 @@ describe('SearchToolsProvider', () => {
 
         const { result, length } = await run({ query: 'wide' });
 
-        expect(length).toBeLessThanOrEqual(32_000);
+        expect(length).toBeLessThanOrEqual(48_000);
         expect(result.results.length).toBeLessThan(50);
         expect(result.total).toBe(result.results.length);
         expect(result.hasMore).toBe(true);
@@ -946,7 +1131,7 @@ describe('SearchToolsProvider', () => {
           queries: ['a', 'b', 'c', 'd', 'e'],
         });
 
-        expect(length).toBeLessThanOrEqual(32_000);
+        expect(length).toBeLessThanOrEqual(48_000);
         expect(result.groups.map((group: any) => group.query)).toEqual([
           'a',
           'b',
@@ -961,6 +1146,123 @@ describe('SearchToolsProvider', () => {
           expect(group.omittedForSize).toBe(50 - group.results.length);
         }
         expect(unifiedSearchResultOutput.safeParse(result).success).toBe(true);
+      });
+    });
+
+    describe('compact hits through the real paragraph builder', () => {
+      const words = ['token', 'refresh', 'retry', 'monitor', 'failed'];
+      const paragraph = (length: number, seed: number) =>
+        Array.from(
+          { length: Math.ceil(length / 6) },
+          (_, i) => words[(i + seed) % 5],
+        )
+          .join(' ')
+          .slice(0, length);
+      const realisticHit = (id: string, lengths: number[]) => {
+        const text = lengths.map(paragraph).join('\n\n');
+        const spans = [...text.matchAll(/retry/g)].slice(0, 6).map((m, k) => ({
+          start: m.index,
+          end: m.index + 5,
+          strength: 0.9 - k * 0.1,
+        }));
+        return makeResult({
+          entityId: id,
+          title: `Retry failed attempts in task monitor ${id}`,
+          content: text,
+          embeddings: { matchParagraphs: buildMatchParagraphs(text, spans) },
+        });
+      };
+      const shapes = [
+        [400, 700, 900, 500],
+        [300, 1200, 600],
+        [800, 350, 1500, 400],
+        [500, 500, 500],
+        [400, 6000, 900],
+      ];
+      const batch = async (queryCount: number, perQuery: number) => {
+        (mockSearchService.search as jest.Mock).mockImplementation(
+          async (_org, _project, request) =>
+            makeSearchResponse(
+              Array.from({ length: perQuery }, (_, i) =>
+                realisticHit(
+                  `${request.query}-${i}`,
+                  shapes[i % shapes.length]!,
+                ),
+              ),
+            ),
+        );
+        const result = (await provider.unifiedSearch(
+          {
+            queries: Array.from({ length: queryCount }, (_, i) => `q${i}`),
+            limit: perQuery,
+            offset: 0,
+          } as any,
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as any;
+        return result;
+      };
+
+      it('returns all eight requested hits for each of four typical batched queries', async () => {
+        const result = await batch(4, 8);
+
+        expect(result.groups.map((g: any) => g.results.length)).toEqual([
+          8, 8, 8, 8,
+        ]);
+        for (const group of result.groups) {
+          expect(group).not.toHaveProperty('omittedForSize');
+          for (const hit of group.results) {
+            expect(hit).not.toHaveProperty('snippet');
+            for (const p of hit.matchParagraphs) {
+              expect(p.text.length).toBeLessThanOrEqual(300);
+              for (const span of p.matchSpans) {
+                expect(p.text.slice(span.start, span.end)).toBe('retry');
+              }
+            }
+          }
+        }
+        expect(unifiedSearchResultOutput.safeParse(result).success).toBe(true);
+      });
+
+      it('still cuts from the end and reports omittedForSize when a batch is oversized', async () => {
+        const result = await batch(5, 50);
+
+        expect(JSON.stringify(result).length).toBeLessThanOrEqual(48_000);
+        for (const group of result.groups) {
+          expect(group.results.length).toBeGreaterThan(0);
+          expect(group.hasMore).toBe(true);
+          expect(group.omittedForSize).toBe(50 - group.results.length);
+        }
+      });
+
+      it('admits responses between the former 32,000 and new 48,000 character limits', async () => {
+        const result = await batch(4, 8);
+        const length = JSON.stringify(result).length;
+
+        // Typical compact batches are well under the former limit; a larger
+        // body of plain hits must still pass until 48,000.
+        expect(length).toBeLessThanOrEqual(48_000);
+        (mockSearchService.search as jest.Mock).mockResolvedValue(
+          makeSearchResponse(
+            Array.from({ length: 30 }, (_, i) =>
+              makeResult({
+                entityId: `plain-${i}`,
+                title: 't'.repeat(1000),
+                content: 'x'.repeat(1000),
+              }),
+            ),
+          ),
+        );
+        const plain = (await provider.unifiedSearch(
+          { query: 'plain', limit: 30, offset: 0 } as any,
+          dummyContext as any,
+          makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+        )) as any;
+        const plainLength = JSON.stringify(plain).length;
+        expect(plainLength).toBeGreaterThan(32_000 - 1);
+        expect(plainLength).toBeLessThanOrEqual(48_000);
+        expect(plain.results).toHaveLength(30);
+        expect(plain).not.toHaveProperty('omittedForSize');
       });
     });
 
@@ -1136,6 +1438,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
         mockSearchReceipts as any,
       );
 
@@ -1242,6 +1545,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         new SearchCacheService(),
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
         mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1274,6 +1578,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         new SearchCacheService(),
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
         mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1371,6 +1676,7 @@ describe('SearchToolsProvider', () => {
         mockSearchService as unknown as UnifiedSearchService,
         realCache,
         mockHelpService as unknown as HelpService,
+        mockRegistry as unknown as WorkItemTypeRegistryService,
         mockSearchReceipts as any,
       );
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1403,6 +1709,64 @@ describe('SearchToolsProvider', () => {
   });
 
   describe('taskSearch handler', () => {
+    it('groups statuses by meaning, so a custom finished status matches DONE', async () => {
+      mockRegistry.getRulesForProject.mockReturnValue({
+        statuses: [
+          { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+          {
+            name: 'DELIVERED',
+            label: 'Delivered',
+            meaning: 'FINISHED',
+            completionBehavior: 'COMPLETED',
+          },
+          {
+            name: 'DROPPED',
+            label: 'Dropped',
+            meaning: 'FINISHED',
+            completionBehavior: 'CANCELLED',
+          },
+        ],
+      });
+      const withStatus = (entityId: string, status: string) =>
+        makeResult({
+          entityId,
+          status,
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
+        });
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([
+          withStatus('delivered', 'DELIVERED'),
+          withStatus('dropped', 'DROPPED'),
+          withStatus('removed', 'COMPLETED'),
+        ]),
+      );
+
+      const result = (await provider.taskSearch(
+        { query: 'q', status: 'DONE', limit: 10, offset: 0 },
+        dummyContext as any,
+        makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+      )) as SearchResult;
+
+      expect(result.results.map((r) => r.id)).toEqual(['delivered']);
+    });
+
+    it('filters a hit without type metadata by the default type, as the fixed status names did', async () => {
+      (mockSearchService.search as jest.Mock).mockResolvedValue(
+        makeSearchResponse([
+          makeResult({ entityId: 'done-1', status: 'COMPLETED' }),
+          makeResult({ entityId: 'active-1', status: 'ACTIVE' }),
+        ]),
+      );
+
+      const result = (await provider.taskSearch(
+        { query: 'q', status: 'DONE', limit: 10, offset: 0 },
+        dummyContext as any,
+        makeRequest({ orgId: ORG_ID, token: 'tok' }) as any,
+      )) as SearchResult;
+
+      expect(result.results.map((r) => r.id)).toEqual(['done-1']);
+    });
+
     it('returns search results for tasks', async () => {
       (mockSearchService.search as jest.Mock).mockResolvedValue(
         makeSearchResponse([
@@ -1519,11 +1883,13 @@ describe('SearchToolsProvider', () => {
         entityId: 'active-1',
         status: 'ACTIVE',
         graph: { node: {} },
+        embeddings: { metadata: { taskType: 'STANDARD' } as any },
       });
       const completedTask = makeResult({
         entityId: 'completed-1',
         status: 'COMPLETED',
         graph: { node: {} },
+        embeddings: { metadata: { taskType: 'STANDARD' } as any },
       });
 
       (mockSearchService.search as jest.Mock).mockResolvedValue(
@@ -1615,6 +1981,7 @@ describe('SearchToolsProvider', () => {
           entityId: `task-${i}`,
           status: 'ACTIVE',
           graph: { node: {} },
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
         }),
       );
 
@@ -1646,6 +2013,7 @@ describe('SearchToolsProvider', () => {
           entityId: `task-${i}`,
           status: 'ACTIVE',
           graph: { node: {} },
+          embeddings: { metadata: { taskType: 'STANDARD' } as any },
         }),
       );
 
@@ -2757,6 +3125,24 @@ describe('SearchToolsProvider', () => {
           tool: 'plan_search',
           status: 'IN_PROGRESS',
         }),
+      );
+    });
+  });
+
+  describe('dependency injection', () => {
+    it('is constructed by Nest with the globally provided type registry', async () => {
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          SearchToolsProvider,
+          { provide: UnifiedSearchService, useValue: mockSearchService },
+          { provide: SearchCacheService, useValue: mockCacheService },
+          { provide: HelpService, useValue: mockHelpService },
+          { provide: WorkItemTypeRegistryService, useValue: mockRegistry },
+        ],
+      }).compile();
+
+      expect(moduleRef.get(SearchToolsProvider)).toBeInstanceOf(
+        SearchToolsProvider,
       );
     });
   });

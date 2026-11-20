@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
@@ -22,31 +23,24 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import type { Priority, ServiceDto, WorkStatus } from "../../api";
+import type { Priority, ServiceDto } from "../../api";
 import { WorkStatus as WorkStatusEnum } from "../../api";
-import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  useServices,
-  useTaskAllowedStatuses,
-  useUsers,
-} from "../../data/hooks";
+import { useServices, useUsers, useWorkItemTypeByKey } from "../../data/hooks";
 import {
   getPriorityColor,
   getPriorityLabel,
   getStatusColorMapping,
-  getStatusLabel,
 } from "../../utils/statusUtils";
 import { isMachineManagedStatus } from "../../utils/workItemUtils";
+import {
+  getWorkItemStatusChoices,
+  getWorkItemStatusLabel,
+} from "../../utils/workItemStatusVocabulary";
 import { SupersedeTaskDialog } from "./SupersedeTaskDialog";
 import type { WorkItemMetadataFields } from "./WorkItemMetadata";
 
 const SELECTABLE_PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH"];
-
-const featureStatusLabel = (status: WorkStatus): string => {
-  if (status === WorkStatusEnum.Active) return "Ready";
-  return getStatusLabel(status);
-};
 
 const formatDueDateLabel = (value: string | null): string => {
   if (!value) return "No due date";
@@ -130,8 +124,8 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
     projectId,
     enabled: servicesEnabled,
   });
-  const { getAllowedStatuses, isLoading: statusesLoading } =
-    useTaskAllowedStatuses({ organizationId, projectId });
+  const { workItemTypeDefinition: definition, isLoading: statusesLoading } =
+    useWorkItemTypeByKey(organizationId, projectId, taskType);
 
   const members = useMemo(
     () =>
@@ -161,22 +155,25 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
 
   const closeMenu = useCallback(() => setOpenMenu(null), []);
 
-  const isFeature = taskType === FEATURE_TASK_TYPE;
-  // The backend per-type set is the source of truth for status validity; the
+  // The type's effective definition owns the choices and their order; the
   // picker still drops system-managed generating/refining states (a user never
-  // picks those) and only offers SUPERSEDED when there is a task to supersede.
+  // picks those) and only offers SUPERSEDED when the type supports it and
+  // there is a task to supersede.
   const statuses = useMemo(
     () =>
-      getAllowedStatuses(taskType).filter(
-        (s) =>
-          !isMachineManagedStatus(s) &&
-          (s !== WorkStatusEnum.Superseded || Boolean(taskId)),
-      ),
-    [getAllowedStatuses, taskType, taskId],
+      definition
+        ? [
+            ...getWorkItemStatusChoices(definition),
+            ...(definition.capabilities?.supportsSupersession && taskId
+              ? [WorkStatusEnum.Superseded]
+              : []),
+          ].filter((s) => !isMachineManagedStatus(s))
+        : [],
+    [definition, taskId],
   );
   const resolveStatusLabel = useCallback(
-    (s: WorkStatus) => (isFeature ? featureStatusLabel(s) : getStatusLabel(s)),
-    [isFeature],
+    (s: TaskResponseDto["status"]) => getWorkItemStatusLabel(s, definition),
+    [definition],
   );
 
   const currentStatusLabel = status ? resolveStatusLabel(status) : null;
@@ -202,7 +199,7 @@ export const StatusActionCompact: React.FC<StatusActionCompactProps> = ({
           selectedServiceIds.length === 1 ? "" : "s"
         }`;
 
-  const handleStatusSelect = (next: WorkStatus): void => {
+  const handleStatusSelect = (next: TaskResponseDto["status"]): void => {
     if (fields.status?.mode !== "editable") return;
     // SUPERSEDED never travels the plain status-update path — it requires a
     // named successor, collected in the supersede dialog.

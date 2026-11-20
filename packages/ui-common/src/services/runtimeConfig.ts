@@ -1,4 +1,5 @@
 export interface RuntimeConfigShape {
+  deployment?: string;
   apiProtocol?: string;
   apiHost?: string;
   apiPort?: string;
@@ -147,6 +148,8 @@ const resolveRuntimeConfig = (): RuntimeConfigShape => {
     return {};
   }
   return {
+    deployment:
+      "deployment" in value ? readRuntimeString(value.deployment) : undefined,
     botCheckSiteKey:
       "botCheckSiteKey" in value
         ? readRuntimeString(value.botCheckSiteKey)
@@ -171,14 +174,14 @@ const buildHttpUrl = (
   protocol: string,
   host: string,
   port: string,
-  basePath: string
+  basePath: string,
 ): string => `${protocol}://${host}:${port}${basePath}`;
 
 const buildWsUrl = (
   protocol: string,
   host: string,
   port: string,
-  basePath: string
+  basePath: string,
 ): string => {
   const wsProtocol = protocol === "https" ? "wss" : "ws";
   return buildHttpUrl(wsProtocol, host, port, basePath);
@@ -227,7 +230,7 @@ export const getWsUrl = (): string => {
   const host = normalizeOptional(runtime.apiHost) || DEFAULT_API_HOST;
   const port = normalizeOptional(runtime.apiPort) || DEFAULT_API_PORT;
   const basePath = stripApiVersionSuffix(
-    normalizeBasePath(runtime.apiBasePath)
+    normalizeBasePath(runtime.apiBasePath),
   );
   return buildWsUrl(protocol, host, port, basePath);
 };
@@ -250,3 +253,11 @@ export const getLocalAgentPort = (): string | undefined =>
 export const getBotCheckSiteKey = (): string | undefined =>
   normalizeOptional(resolveRuntimeConfig().botCheckSiteKey) ||
   normalizeOptional(import.meta.env?.VITE_BOT_CHECK_SITE_KEY);
+
+/** Deployment identity is explicit; a localhost URL alone does not select local behavior. */
+export const getDeployment = (): "local" | "hosted" => {
+  const deployment =
+    normalizeOptional(resolveRuntimeConfig().deployment) ??
+    normalizeOptional(import.meta.env?.VITE_DEPLOYMENT);
+  return deployment === "local" ? "local" : "hosted";
+};

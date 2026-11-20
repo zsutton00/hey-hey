@@ -5,7 +5,7 @@ EvalRunStatus:
 
 EvalAttemptStatus:
   type: string
-  description: Lifecycle of one case x configuration attempt.
+  description: Lifecycle of one attempt at a case, configuration and repeat.
   enum: [QUEUED, PREPARING, RUNNING, JUDGING, COMPLETED, ERROR, STOPPED]
 
 EvalAttemptStopReason:
@@ -29,6 +29,14 @@ EvalRunSettings:
     attemptTokenLimit:
       type: integer
       minimum: 1
+    repeatsPerAttempt:
+      type: integer
+      minimum: 1
+      maximum: 10
+      description: >
+        How many separate fresh attempts the run makes for each case and
+        configuration. Absent on runs recorded before repeats existed, which
+        are read as 1.
 
 EvalMeasurementScope:
   type: string
@@ -156,8 +164,8 @@ EvalResolvedExecution:
 
 EvalCaseTarget:
   type: object
-  description: Recorded case context. Only the initiating request and focal entity reach the target; situation and supporting items are reviewer and judge context.
-  required: [situation, initiatingRequest, targetHandler]
+  description: Recorded case context. Only the inputs and focal entity reach the target; situation and supporting items are reviewer and judge context. Runs recorded before inputs existed carry `initiatingRequest` instead and are read as a one-message list.
+  required: [situation, inputs, targetHandler]
   properties:
     situation:
       type: string
@@ -175,9 +183,8 @@ EvalCaseTarget:
       items:
         type: string
         format: uuid
-    initiatingRequest:
-      type: string
-      description: The single request that starts the case.
+    inputs:
+      $ref: "#/EvalCaseInputs"
     targetHandler:
       $ref: "#/EvalTargetHandlerKey"
       description: Registry key of the handler under test.
@@ -188,6 +195,44 @@ EvalCaseTarget:
         Present exactly when `targetHandler` is `project_assistant`: the real
         handler whose policy, tools and prompt Project Assistant runs under.
         Always explicit; there is no default.
+
+EvalCaseTextMessageInput:
+  type: object
+  additionalProperties: false
+  description: A fixed user message, worded as the user would type it.
+  required: [kind, text]
+  properties:
+    kind:
+      type: string
+      enum: [text_message]
+    text:
+      type: string
+      minLength: 1
+      description: The message text, with any inline entity mentions as written.
+
+EvalCaseInput:
+  description: One input of an Eval Case. `kind` selects the member.
+  oneOf:
+    - $ref: "#/EvalCaseTextMessageInput"
+  discriminator:
+    propertyName: kind
+    mapping:
+      text_message: "#/EvalCaseTextMessageInput"
+
+EvalCaseInputs:
+  type: object
+  additionalProperties: false
+  description: >
+    Inputs section of an Eval Case: the ordered inputs that start and drive the
+    case. Never holds situation, expectations, checks or rubric. Checked at
+    authoring, approval and launch, and recorded with each run.
+  required: [inputs]
+  properties:
+    inputs:
+      type: array
+      minItems: 1
+      items:
+        $ref: "#/EvalCaseInput"
 
 EvalCheckDefinition:
   type: object
@@ -261,22 +306,41 @@ EvalCaseMockupChecklist:
   type: object
   additionalProperties: false
   description: >
-    What a coding case built from a Mockup is judged against. For a NEW Mockup
-    the items cover every control; for an UPDATE only the parts that changed.
-  required: [mockupId, kind, items]
+    What a coding case built from a Mockup is judged against. Whether the
+    Mockup is new or a change to an existing interface comes from the Coding
+    section's `target`, which is required when a checklist is present. For a
+    new interface the items cover every control; for an existing one only the
+    parts that changed.
+  required: [mockupId, items]
   properties:
     mockupId:
       type: string
       format: uuid
       description: The source Mockup, which must be in the case's project.
-    kind:
-      type: string
-      enum: [NEW, UPDATE]
     items:
       type: array
       minItems: 1
       items:
         $ref: "#/EvalCaseMockupChecklistItem"
+
+EvalCaseCodingTarget:
+  type: object
+  additionalProperties: false
+  description: >
+    What a coding case is about: whether the work is a new screen or component
+    or a change to an existing one, and optionally where it lives in the
+    case's Service. For the judge and results viewer only; never passed to the
+    evaluated attempt.
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [NEW, EXISTING]
+      description: NEW for a new screen or component; EXISTING for a change to one.
+    path:
+      type: string
+      minLength: 1
+      description: Path of the screen or component within the case's Service.
 
 EvalCaseCoding:
   type: object
@@ -285,7 +349,8 @@ EvalCaseCoding:
     Coding section of an Eval Case whose handler is `free_form`. For the runner,
     coordinator and judge only; never passed to the target. Valid exactly when
     the case's handler is `free_form`; checked at approval and at launch, and
-    recorded with each run.
+    recorded with each run. A section with a `mockupChecklist` must also have a
+    `target`.
   required: [serviceId, pinnedCommit]
   properties:
     serviceId:
@@ -304,6 +369,8 @@ EvalCaseCoding:
       description: >
         Optional reference for the judge: a change that plausibly looks right
         but fails the case. Never passed to the target.
+    target:
+      $ref: "#/EvalCaseCodingTarget"
     mockupChecklist:
       $ref: "#/EvalCaseMockupChecklist"
 
@@ -331,7 +398,7 @@ EvalRunCaseInput:
 
 EvalRecordedAttempt:
   type: object
-  description: One case x configuration attempt as recorded for the coordinator.
+  description: One attempt at a case, configuration and repeat as recorded for the coordinator.
   required:
     [
       attemptId,
@@ -359,6 +426,13 @@ EvalRecordedAttempt:
       $ref: "#/EvalRunCaseInput"
     configuration:
       $ref: "#/EvalConfiguration"
+    repeat:
+      type: integer
+      minimum: 1
+      maximum: 10
+      description: >
+        1-based repeat this attempt is, copied from its attempt report. Absent
+        when the attempt report has none.
 
 EvalAttemptError:
   type: object
@@ -560,6 +634,11 @@ LaunchEvalRunRequest:
         attemptTokenLimit:
           type: integer
           minimum: 1
+        repeatsPerAttempt:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Separate fresh attempts per case and configuration. Omitted means 1.
 
 EvalRunReportPayload:
   description: >
@@ -664,9 +743,101 @@ EvalRecordedChanges:
       items:
         $ref: "#/EvalRecordedFileChange"
 
+EvalRecordedToolCall:
+  type: object
+  additionalProperties: false
+  description: >
+    One tool call an attempt's tested agent made. The call's result is never
+    kept. Evidence only; never shown to the tested agent or other attempts.
+  required: [toolName, origin, truncated]
+  properties:
+    toolName:
+      type: string
+    arguments:
+      type: string
+      description: Serialized arguments the agent passed, cut to a fixed size when large.
+    origin:
+      type: string
+      enum: [RUN_OBSERVED, INTERCEPTED]
+      description: >
+        RUN_OBSERVED calls come from the Run's retained tool usage. INTERCEPTED
+        is reserved for calls the CLI answered itself without performing them.
+    agentText:
+      type: string
+      description: Text the agent wrote with an INTERCEPTED call.
+    truncated:
+      type: boolean
+      description: True when arguments were cut.
+
+EvalRecordedToolCalls:
+  type: object
+  additionalProperties: false
+  description: >
+    The tool calls one attempt made, in order. UNAVAILABLE means they could not
+    be collected, which is different from COLLECTED with no calls.
+  required: [state, calls]
+  properties:
+    state:
+      type: string
+      enum: [COLLECTED, UNAVAILABLE]
+    calls:
+      type: array
+      description: Empty when state is UNAVAILABLE.
+      items:
+        $ref: "#/EvalRecordedToolCall"
+    omittedCalls:
+      type: integer
+      minimum: 1
+      description: Number of further calls left out once the list reached its cap.
+
+EvalAttemptTurn:
+  type: object
+  additionalProperties: false
+  description: >
+    One scripted message an attempt sent and what came of it, saved as soon as
+    the message settles. `index` is the message's position in the case's frozen
+    inputs. Evidence only; never shown to the tested agent.
+  required: [index, input, state]
+  properties:
+    index:
+      type: integer
+      minimum: 0
+      description: Position of the message in the frozen inputs, from 0.
+    turnId:
+      type: string
+      description: The Run's Turn that handled the message. Absent until the Turn started.
+    input:
+      type: string
+      description: The exact message text sent.
+    state:
+      type: string
+      enum: [STARTED, COMPLETED, FAILED, STOPPED]
+    reply:
+      type: string
+      description: The agent's reply to this message. Absent when none was produced.
+    startedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type: string
+      format: date-time
+    recordedToolCalls:
+      allOf:
+        - $ref: "#/EvalRecordedToolCalls"
+      description: Only the calls made while handling this message.
+    measurement:
+      allOf:
+        - $ref: "#/EvalMeasurement"
+      description: >
+        Time, tokens and cost attributed to this message. Absent values were
+        not reported and are never zero.
+    measurementPartial:
+      type: boolean
+      description: True when some of this message's usage could not be attributed to it alone.
+
 EvalAttemptReportPayload:
   description: >
-    Payload for EVAL_ATTEMPT reports, one per case and configuration. The
+    Payload for EVAL_ATTEMPT reports, one per case, configuration and repeat. The
     report id is the attempt's identity; parentReportId is the run report.
     Status is updated in place. The attempt's output is whatever its target
     session wrote while the attempt was in flight. The target session is
@@ -688,6 +859,11 @@ EvalAttemptReportPayload:
           description: Id of the EvalRunCaseInput recorded in the run report's cases.
         configuration:
           $ref: "#/EvalConfiguration"
+        repeat:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: 1-based repeat this attempt is. Absent on attempts recorded before repeats existed, which are read as repeat 1.
         execution:
           allOf:
             - $ref: "#/EvalResolvedExecution"
@@ -730,6 +906,14 @@ EvalAttemptReportPayload:
         judgeProviderSessionId:
           type: string
           description: Real provider session id of the child that judged this attempt. Never a pending placeholder.
+        judgeSessionId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Agent Session of the judge, recorded as soon as it is created so
+            a running judge is already known as an eval session. The finished
+            assessment repeats it.
         measurements:
           type: array
           description: At most one each of TARGET_PREPARATION and TARGET_HANDLER. Older attempts may also hold a JUDGE entry, which is never shown.
@@ -744,6 +928,24 @@ EvalAttemptReportPayload:
           allOf:
             - $ref: "#/EvalRecordedChanges"
           description: Present for coding attempts once their changes were saved.
+        recordedToolCalls:
+          allOf:
+            - $ref: "#/EvalRecordedToolCalls"
+          description: >
+            The tested agent's own tool calls, without results. Absent on
+            attempts recorded before tool calls were kept.
+        turns:
+          type: array
+          description: >
+            The scripted messages the attempt started, in order, each saved as
+            it settled. Absent on attempts recorded before scripted
+            conversations, which ran only their final message.
+          items:
+            $ref: "#/EvalAttemptTurn"
+        judgedTurnIndex:
+          type: integer
+          minimum: 0
+          description: Index of the message the judge assessed. Absent when no final assessment happened.
         judgedOutput:
           type: string
           nullable: true
@@ -778,3 +980,28 @@ EvalHumanReviewReportPayload:
           nullable: true
         challengeCase:
           type: boolean
+
+EvalSessionStatusesRequest:
+  type: object
+  additionalProperties: false
+  required: [agentSessionIds]
+  properties:
+    agentSessionIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items: { type: string, format: uuid }
+
+EvalSessionStatus:
+  type: object
+  additionalProperties: false
+  required: [agentSessionId, runId, evalId, status, total, ended, errors]
+  properties:
+    agentSessionId: { type: string, format: uuid }
+    runId: { type: string, format: uuid }
+    evalId: { type: string, format: uuid }
+    status:
+      $ref: "#/EvalRunStatus"
+    total: { type: integer, minimum: 0 }
+    ended: { type: integer, minimum: 0 }
+    errors: { type: integer, minimum: 0 }

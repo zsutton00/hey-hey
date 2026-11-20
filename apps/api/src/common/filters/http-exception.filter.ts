@@ -3,7 +3,9 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from '@nestjs/common';
+import { ServerStateException } from '../exceptions/server-state.exceptions';
 import type { ProposalApprovalFailureErrorResponse } from '@hey-hey/contracts/api/models';
 import { toProposalApprovalFailureDiagnostic } from 'src/services/proposal/proposal-approval-failure-diagnostic';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +14,8 @@ import { Request, Response } from 'express';
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -19,6 +23,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
 
     const exceptionResponse = exception.getResponse();
+
+    if (exception instanceof ServerStateException) {
+      this.logger.error({
+        event: 'server_state_inconsistent',
+        code: exception.errorCode,
+        diagnostic: exception.diagnostic,
+        method: request.method,
+        path: request.url,
+      });
+    }
 
     let message: string;
     let code: string | undefined;

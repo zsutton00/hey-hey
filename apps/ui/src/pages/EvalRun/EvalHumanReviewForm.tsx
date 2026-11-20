@@ -57,6 +57,8 @@ export interface EvalHumanReviewFormProps {
   projectId: string;
   evalId: string;
   attempt: EvalAttemptReport;
+  /** Which repeat this is when the run made several; null otherwise. */
+  repeat: number | null;
 }
 
 /**
@@ -68,6 +70,7 @@ export const EvalHumanReviewForm: React.FC<EvalHumanReviewFormProps> = ({
   projectId,
   evalId,
   attempt,
+  repeat,
 }) => {
   const { t } = useTranslation();
   const reviews = useEvalHumanReviews(organizationId, attempt.id);
@@ -120,7 +123,9 @@ export const EvalHumanReviewForm: React.FC<EvalHumanReviewFormProps> = ({
       data-testid="eval-human-review-form"
     >
       <Typography variant="subtitle2" component="h3" sx={{ mb: 1 }}>
-        {t("eval.results.review.title")}
+        {repeat === null
+          ? t("eval.results.review.title")
+          : t("eval.results.review.titleRepeat", { repeat })}
       </Typography>
       <Stack spacing={1.5}>
         <Box>

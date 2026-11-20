@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import React, { useState } from "react";
 import {
@@ -18,7 +19,7 @@ export interface PlanArchiveDeleteDialogProps {
   onClose: () => void;
   planId: string;
   planName: string;
-  planStatus: WorkStatus;
+  planStatus: TaskResponseDto["status"];
   organizationId: string;
   projectId: string;
   onComplete?: () => void;

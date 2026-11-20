@@ -1,3 +1,5 @@
+import { AgentSessionContinuationInspector } from '../agent-session-continuation-inspector';
+import { ContinuationStartup } from '../services/continuation-startup';
 import type { DiagnosticFeed } from '../diagnostic-feed';
 import type { PromptTypeRegistry } from '../../agents/prompt-type-registry';
 import path from 'node:path';
@@ -32,6 +34,9 @@ import {
 } from './verify';
 
 export interface TriggerVerificationRuntimeDependencies {
+  dataDirectory?: string;
+  /** Platform API origin for machine-credential reports such as continuation startup. */
+  apiBaseUrl: string;
   keyPairStore: KeyPairStore;
   initialAccessToken: string;
   machinesApi: ApiRuntime['clients']['machines'];
@@ -177,12 +182,12 @@ export class TriggerVerificationRuntime {
       runRegistry,
       runRestoreCoordinator,
       permissionDecisionAuditFilePath: path.join(
-        resolveBaseDir(),
+        this.dependencies.dataDirectory ?? resolveBaseDir(),
         'runs',
         'permission-decisions.audit.jsonl',
       ),
       operationReceiptStorePath: path.join(
-        resolveBaseDir(),
+        this.dependencies.dataDirectory ?? resolveBaseDir(),
         'runs',
         'agent-operation-receipts.jsonl',
       ),
@@ -195,6 +200,15 @@ export class TriggerVerificationRuntime {
         projectContext,
         initialMachineId: machineId,
       },
+      continuationStartup: new ContinuationStartup({
+        runStore,
+        inspector: new AgentSessionContinuationInspector(runStore, logger),
+        providers: agentService,
+        keyPairStore,
+        apiBaseUrl: this.dependencies.apiBaseUrl,
+        dataDirectory: this.dependencies.dataDirectory ?? resolveBaseDir(),
+        logger,
+      }),
       logger,
     });
     logger.info('trigger-verification.enabled', {

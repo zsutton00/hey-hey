@@ -13,7 +13,9 @@ import type {
 } from "../../../api";
 import {
   AgentSessionCurrentState,
+  EntityType,
   MessageType,
+  SystemMessageDataNoticeSeverityEnum,
   SystemMessageDataTypeEnum,
 } from "../../../api";
 import type { ConversationMessage as ConversationMessageType } from "../../../types/conversation";
@@ -21,13 +23,23 @@ import { readUserMessageDisplayText } from "../../../utils/conversationMessageTe
 import { AnalysisMessage } from "../AnalysisMessage";
 import { useConversationContext } from "./ConversationContext";
 import { ConversationFormRenderer } from "./ConversationFormRenderer";
-import { MessageAuthorCaption } from "./MessageAuthorCaption";
+import {
+  getNoticeSeverity,
+  getNoticeVisualTreatmentSx,
+  MessageAuthorCaption,
+} from "./MessageAuthorCaption";
 import { MessageProposals } from "./MessageProposals";
 import {
   getMonitorVisualTreatmentSx,
   UserMessageBubble,
 } from "./UserMessageBubble";
 import { SystemMessageWithRetry } from "./SystemMessageWithRetry";
+import {
+  SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR,
+  SYSTEM_MESSAGE_INLINE_CODE_BG_VAR,
+  SYSTEM_MESSAGE_LINK_COLOR_VAR,
+} from "./systemMessageStyleVars";
+import { SolidAlert } from "../Card/SolidAlert";
 import { SupervisionDecisionMessage } from "./SupervisionDecisionMessage";
 import { TaskMonitorInterventionMessage } from "./TaskMonitorInterventionMessage";
 import { ReportActions } from "../../shared/ReportActions";
@@ -39,7 +51,12 @@ import {
 } from "../../LlmForms/Registry";
 import { getInterstitialTiming } from "./interstitialTiming";
 import { useRetryConversationOpenTrigger } from "../../../data/hooks";
-import { UncertaintyItem } from "../../Uncertainties";
+import {
+  UncertaintyItem,
+  buildUncertaintyDiscussContext,
+} from "../../Uncertainties";
+import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
+import { useModal } from "../../../contexts/ModalContext";
 
 const TERMINAL_CAPACITY_MESSAGE =
   "The provider is temporarily at capacity for the selected model. Please retry.";
@@ -102,6 +119,26 @@ const toUserMessageDisplayText = (
  * @param props - Component props (significantly reduced due to context)
  * @returns JSX element displaying a single conversation message
  */
+/** Strips the agent bubble's chrome so a warning notice reads as plain text on the solid alert. */
+const FLAT_ALERT_BODY_SX = {
+  backgroundColor: "transparent",
+  border: "none",
+  boxShadow: "none",
+  minHeight: "auto",
+  minWidth: 0,
+  maxWidth: "100%",
+  p: 0,
+  mb: 0,
+  opacity: 1,
+  color: "inherit",
+  "& *": { color: "inherit" },
+  [SYSTEM_MESSAGE_LINK_COLOR_VAR]: "currentcolor",
+  // Code keeps the alert's dark foreground, so its fill must be a shade over
+  // the amber rather than the bubble's dark-mode grey.
+  [SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR]: "rgba(0, 0, 0, 0.12)",
+  [SYSTEM_MESSAGE_INLINE_CODE_BG_VAR]: "rgba(0, 0, 0, 0.12)",
+} as const;
+
 export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
   ({
     conversationMessage,
@@ -125,7 +162,9 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       handleRetrySuccess,
       isReadOnly,
       hideAnalysisAction,
+      hideProcessingPlaceholder,
     } = useConversationContext();
+    const modal = useModal();
     const retryOpenTrigger = useRetryConversationOpenTrigger({
       onSuccess: handleRetrySuccess,
     });
@@ -142,6 +181,10 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       : null;
 
     const shouldHideSystemMessage = useMemo(() => {
+      const isProcessingPlaceholder =
+        conversationMessage.state === "system_processing" &&
+        !conversationMessage.message.responses?.length;
+      if (hideProcessingPlaceholder && isProcessingPlaceholder) return true;
       const uiElements = (
         conversationMessage.message.data as
           QuestionsSystemMessageData | undefined
@@ -152,7 +195,12 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
         const entry = type ? FIELD_REGISTRY[type] : undefined;
         return entry?.hideSystemMessage === true;
       });
-    }, [conversationMessage.message.data]);
+    }, [
+      conversationMessage.message.data,
+      conversationMessage.message.responses,
+      conversationMessage.state,
+      hideProcessingPlaceholder,
+    ]);
 
     const proposalsRenderConfig = useMemo(() => {
       const uiElements = (
@@ -176,11 +224,18 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
       (conversationMessage.message.data?.type === "AGENT" ||
         conversationMessage.message.data?.type === "SESSION_MONITOR") &&
       conversationMessage.state !== "system_processing";
-    const agentMessageData = isAgentSystemMessage
-      ? (conversationMessage.message.data as AgentSystemMessageData)
-      : isInterstitialSystemMessage
-        ? (conversationMessage.message.data as AgentSystemMessageData)
+    const systemMessageData =
+      conversationMessage.message.type === MessageType.System
+        ? conversationMessage.message.data
         : undefined;
+    const noticeSeverity = getNoticeSeverity(systemMessageData);
+    const agentMessageData = noticeSeverity
+      ? systemMessageData
+      : isAgentSystemMessage
+        ? (conversationMessage.message.data as AgentSystemMessageData)
+        : isInterstitialSystemMessage
+          ? (conversationMessage.message.data as AgentSystemMessageData)
+          : undefined;
     const parsedInterstitialTiming = isInterstitialSystemMessage
       ? getInterstitialTiming(
           conversationMessage.message.type === MessageType.System
@@ -282,36 +337,76 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
               ) : taskMonitorSupervisionData ? (
                 <SupervisionDecisionMessage data={taskMonitorSupervisionData} />
               ) : agentUncertaintyData ? (
-                <UncertaintyItem
-                  category={agentUncertaintyData.category}
-                  severity={agentUncertaintyData.severity}
-                  statement={agentUncertaintyData.statement}
-                  testId="conversation-agent-uncertainty"
-                />
+                <Box
+                  data-testid="conversation-agent-uncertainty-width"
+                  sx={{
+                    width: "fit-content",
+                    maxWidth: SYSTEM_MESSAGE_MAX_WIDTH,
+                  }}
+                >
+                  <UncertaintyItem
+                    category={agentUncertaintyData.category}
+                    severity={agentUncertaintyData.severity}
+                    statement={agentUncertaintyData.statement}
+                    testId="conversation-agent-uncertainty"
+                    onDiscuss={
+                      agentSessionId && modal
+                        ? () =>
+                            modal.openModal({
+                              type: "discuss",
+                              organizationId: project.organizationId,
+                              projectId: project.id,
+                              entityId: agentSessionId,
+                              entityType: EntityType.AgentSession,
+                              contextPreview:
+                                buildUncertaintyDiscussContext(
+                                  agentUncertaintyData,
+                                ),
+                            })
+                        : undefined
+                    }
+                  />
+                </Box>
               ) : (
                 /* Show system response with typing animation */
                 (conversationMessage.message.data?.response ||
                   inlineReports.length > 0 ||
                   conversationMessage.state === "error") &&
-                !shouldHideSystemMessage && (
-                  <SystemMessageWithRetry
-                    animationType={animationType}
-                    enableTypingAnimation={enableTypingAnimation}
-                    uiHints={uiHints}
-                    message={conversationMessage.message}
-                    state={conversationMessage.state}
-                    project={project}
-                    onRetrySuccess={handleRetrySuccess}
-                    renderTimestamp={renderTimestamp}
-                    sx={
-                      conversationMessage.message.data?.type ===
-                      "SESSION_MONITOR"
-                        ? getMonitorVisualTreatmentSx(theme)
-                        : undefined
-                    }
-                    inlineReports={inlineReports}
-                  />
-                )
+                !shouldHideSystemMessage &&
+                (() => {
+                  const isWarningNotice =
+                    noticeSeverity ===
+                    SystemMessageDataNoticeSeverityEnum.Warning;
+                  const body = (
+                    <SystemMessageWithRetry
+                      animationType={animationType}
+                      enableTypingAnimation={enableTypingAnimation}
+                      uiHints={uiHints}
+                      message={conversationMessage.message}
+                      state={conversationMessage.state}
+                      project={project}
+                      onRetrySuccess={handleRetrySuccess}
+                      renderTimestamp={renderTimestamp}
+                      sx={
+                        isWarningNotice
+                          ? FLAT_ALERT_BODY_SX
+                          : noticeSeverity
+                            ? getNoticeVisualTreatmentSx(theme)
+                            : conversationMessage.message.data?.type ===
+                                "SESSION_MONITOR"
+                              ? getMonitorVisualTreatmentSx(theme)
+                              : undefined
+                      }
+                      inlineReports={inlineReports}
+                    />
+                  );
+
+                  return isWarningNotice ? (
+                    <SolidAlert severity="warning">{body}</SolidAlert>
+                  ) : (
+                    body
+                  );
+                })()
               )}
 
               {conversationMessage.message.type === MessageType.System &&

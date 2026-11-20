@@ -26,14 +26,17 @@ export const SessionRole = {
     Research: 'research',
     Planning: 'planning',
     Review: 'review',
+    Sync: 'sync',
     "implementation": "implementation",
     "research": "research",
     "planning": "planning",
     "review": "review",
+    "sync": "sync",
 } as const;
 Object.defineProperty(SessionRole, "implementation", { enumerable: false, value: SessionRole["Implementation"] });
 Object.defineProperty(SessionRole, "research", { enumerable: false, value: SessionRole["Research"] });
 Object.defineProperty(SessionRole, "planning", { enumerable: false, value: SessionRole["Planning"] });
 Object.defineProperty(SessionRole, "review", { enumerable: false, value: SessionRole["Review"] });
+Object.defineProperty(SessionRole, "sync", { enumerable: false, value: SessionRole["Sync"] });
 
 export type SessionRole = typeof SessionRole[keyof typeof SessionRole];

@@ -11,6 +11,9 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@hey-hey/contracts/monitor-kind-policy": [
+        "../../packages/contracts/dist/cjs/monitor-kind-policy"
+      ],
       "@hey-hey/contracts/api": ["../../packages/contracts/dist/cjs/generated/api/index"],
       "@hey-hey/contracts/api/models": [
         "../../packages/contracts/dist/cjs/generated/api/models/index"
@@ -33,7 +36,10 @@
         "../../packages/contracts/dist/cjs/generated/local/models/index"
       ],
       "@hey-hey/contracts/local/*": ["../../packages/contracts/dist/cjs/generated/local/*"],
-      "@hey-hey/contracts/brands": ["../../packages/contracts/dist/cjs/brands"]
+      "@hey-hey/contracts/brands": ["../../packages/contracts/dist/cjs/brands"],
+      "@hey-hey/contracts/platform-environments": [
+        "../../packages/contracts/dist/cjs/platform-environments"
+      ]
     },
     "strict": true,
     "noUncheckedIndexedAccess": true,

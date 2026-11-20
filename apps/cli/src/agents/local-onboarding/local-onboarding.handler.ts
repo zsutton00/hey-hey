@@ -3,6 +3,7 @@ import { ConversationsApi } from '@hey-hey/contracts/api';
 import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { LocalOnboardingStepRequest } from '@hey-hey/contracts/api/models';
 import {
+  SessionRole,
   LocalPromptType,
   type RunCreatePayloadLocalOnboarding,
 } from '@hey-hey/contracts/agent-bridge';
@@ -15,6 +16,7 @@ import {
 export const localOnboardingHandler: UserLaunchablePromptTypeHandler<RunCreatePayloadLocalOnboarding> =
   {
     id: 'local_onboarding',
+    sessionRole: SessionRole.Research,
     promptType: LocalPromptType.LocalOnboarding,
     service: 'optional',
     launchEntity: 'none',

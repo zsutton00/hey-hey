@@ -20,13 +20,14 @@ export const NAVIGATION_LINEAGE_ENTITY_TYPES = [
   "plan",
   "plan_stage",
   "plan_step",
+  "agent_session",
 ] as const;
 
 export type NavigationLineageEntityType =
   (typeof NAVIGATION_LINEAGE_ENTITY_TYPES)[number];
 
 export type NavigationLineageEntityId<
-  T extends NavigationLineageEntityType = NavigationLineageEntityType
+  T extends NavigationLineageEntityType = NavigationLineageEntityType,
 > = string & {
   readonly __brand: "NavigationLineageEntityId";
   readonly __entityType: T;
@@ -45,7 +46,7 @@ export type NavigationLineage = readonly NavigationLineageEntry[];
 
 export function navigationLineagesEqual(
   left: NavigationLineage | null,
-  right: NavigationLineage | null
+  right: NavigationLineage | null,
 ): boolean {
   if (left === right) {
     return true;
@@ -58,12 +59,12 @@ export function navigationLineagesEqual(
   return left.every(
     (entry, index) =>
       entry.entityType === right[index]?.entityType &&
-      entry.entityId === right[index]?.entityId
+      entry.entityId === right[index]?.entityId,
   );
 }
 
 export function createNavigationLineageEntry<
-  T extends NavigationLineageEntityType
+  T extends NavigationLineageEntityType,
 >(entityType: T, entityId: string): NavigationLineageEntryFor<T> {
   return {
     entityType,
@@ -734,19 +735,19 @@ export interface EventAnalytics {
 
 // Type guards for event discrimination
 export function isInitiativeEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is InitiativeEvent {
   return event.category === "initiative";
 }
 
 export function isWorkflowEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is WorkflowEvent {
   return event.category === "workflow";
 }
 
 export function isNavigationEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is NavigationEvent {
   return event.category === "navigation";
 }
@@ -756,25 +757,25 @@ export function isFormEvent(event: UserTrackingEvent): event is FormEvent {
 }
 
 export function isUIInteractionEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is UIInteractionEvent {
   return event.category === "ui_interaction";
 }
 
 export function isCliTelemetryEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is CliTelemetryEvent {
   return event.category === "cli_telemetry";
 }
 
 export function isAuthenticationEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is AuthenticationEvent {
   return event.category === "authentication";
 }
 
 export function isIntegrationEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is IntegrationEvent {
   return event.category === "integration";
 }
@@ -784,7 +785,7 @@ export function isErrorEvent(event: UserTrackingEvent): event is ErrorEvent {
 }
 
 export function isPerformanceEvent(
-  event: UserTrackingEvent
+  event: UserTrackingEvent,
 ): event is PerformanceEvent {
   return event.category === "performance";
 }
@@ -800,7 +801,7 @@ export const CLI_EVENT_TYPE_TO_ACTION: Record<
 };
 
 export function mapCliTelemetryInputToTrackingEvent(
-  event: CliTelemetryEventInput
+  event: CliTelemetryEventInput,
 ): CliTelemetryTrackingEventInput {
   switch (event.eventType) {
     case "agent_session.created":
@@ -831,7 +832,7 @@ export function mapCliTelemetryInputToTrackingEvent(
 }
 
 export function getCliTelemetryEventType(
-  event: CliTelemetryEvent
+  event: CliTelemetryEvent,
 ): CliTelemetryEventType {
   switch (event.action) {
     case "agent_session_created":

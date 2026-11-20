@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { ServerStateException } from '../../common/exceptions/server-state.exceptions';
 import {
   AccountEntitlement,
   PaymentProviderBinding,
@@ -11,6 +12,7 @@ import {
   PaymentProviderEventProcessingStatus,
   Prisma,
 } from '@prisma/client';
+import { MissingRecordException } from '../../common/exceptions/missing-record.exceptions';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { OrganizationId } from '../../types';
 import { AccountEntitlementService } from '../account-entitlement.service';
@@ -125,12 +127,23 @@ export class PaymentEntitlementReconciliationService extends PaymentEntitlementR
       }
     } catch (error) {
       if (
+        error instanceof ServerStateException &&
+        error.errorCode === 'PAYMENT_PROVIDER_BINDING_AMBIGUOUS'
+      ) {
+        uncorrelatedReason = 'AMBIGUOUS_BINDING';
+        this.logger.warn({
+          event: 'payment_entitlement_reconciliation_correlation_ambiguous',
+          provider: event.provider,
+          environment: event.environment,
+          providerEventId: event.providerEventId,
+          code: error.errorCode,
+          diagnostic: error.diagnostic,
+        });
+      } else if (
         error instanceof ConflictException ||
         error instanceof BadRequestException
       ) {
-        uncorrelatedReason = error.message.includes('multiple')
-          ? 'AMBIGUOUS_BINDING'
-          : 'MISMATCHED_BINDING';
+        uncorrelatedReason = 'MISMATCHED_BINDING';
         this.logger.debug({
           event: 'payment_entitlement_reconciliation_correlation_rejected',
           provider: event.provider,
@@ -578,7 +591,10 @@ export class PaymentEntitlementReconciliationService extends PaymentEntitlementR
       `,
     );
     if (rows.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
   }
 

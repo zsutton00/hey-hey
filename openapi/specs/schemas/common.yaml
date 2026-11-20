@@ -361,6 +361,13 @@ ApiErrorResponse:
       type: string
       description: Request path
       example: "/api/v1/projects/123"
+    code:
+      type: string
+      description: >-
+        Optional stable machine-readable failure discriminator, independent of
+        the message text. Clients must treat an unrecognized or absent value as
+        a generic failure of the reported status.
+      example: "ORGANIZATION_NOT_FOUND"
 
 MessageCursorNotFoundErrorDto:
   description: |
@@ -637,7 +644,21 @@ WorkStatus:
     - CANCELLED
     - ARCHIVED
     - SUPERSEDED
-  description: Unified work status for initiatives and tasks
+  description: >
+    Platform-defined status names: the vocabulary canonical work-item types are
+    seeded with, plus the universal ARCHIVED and the protected SUPERSEDED. A
+    type may define its own ordinary statuses, so a work item's current status
+    is a WorkItemStatus, not necessarily one of these.
+
+WorkItemStatus:
+  type: string
+  minLength: 1
+  description: >
+    The status a work item currently holds. Either the name of one of its
+    type's ordinary statuses (a platform-defined name such as BACKLOG or a
+    custom name such as "Testing", stored exactly as defined), the universal
+    ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective
+    type definition's `statuses` is the authority for what a type allows.
 
 TopologyCategory:
   type: string

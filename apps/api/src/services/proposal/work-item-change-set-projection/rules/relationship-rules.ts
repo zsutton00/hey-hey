@@ -1,6 +1,7 @@
 import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { FeatureRequirementAuthoringService } from '../../../tasks/feature-requirement-authoring.service';
 import { validateFeatureRequirementsSection } from '../../../tasks/feature-requirements-section.validator';
+import { isPlanStageWorkType } from '../../../tasks/work-item-type-keys';
 import type { Load, ProjectionRule, RuleContext } from '../projection-rule';
 import {
   existingId,
@@ -103,6 +104,18 @@ export const relationshipEndpointsRule: ProjectionRule<RefsScope> = {
         identity: ProjectedEdge['source'],
         field: string,
       ): ProjectedNode | undefined => {
+        const doc = state.designDocs?.get(nodeKey(identity));
+        if (doc) {
+          return {
+            identity: doc.identity,
+            name: doc.name,
+            label: doc.name,
+            type: 'DESIGN_DOC',
+            parent: doc.parent,
+            sections: [],
+            deleted: false,
+          };
+        }
         const node = state.nodes.get(nodeKey(identity));
         if (!node) {
           ctx.addIssue(
@@ -114,6 +127,33 @@ export const relationshipEndpointsRule: ProjectionRule<RefsScope> = {
         }
         return node;
       };
+      const checkEndpointType = (
+        identity: ProjectedEdge['source'],
+        declaredType: string | undefined,
+        field: string,
+      ) => {
+        const actualType = state.designDocs?.has(nodeKey(identity))
+          ? 'DESIGN_DOC'
+          : 'TASK';
+        if ((declaredType ?? 'TASK') !== actualType) {
+          ctx.addIssue(
+            field,
+            'endpoint_type_mismatch',
+            `Relationship endpoint resolves to ${actualType}, but its declared type is ${declaredType ?? 'TASK'}.`,
+            REFERENTIAL,
+          );
+        }
+      };
+      checkEndpointType(
+        edge.source,
+        edge.sourceEntityType,
+        `relationships.${key}.sourceEntityType`,
+      );
+      checkEndpointType(
+        edge.target,
+        edge.targetEntityType,
+        `relationships.${key}.targetEntityType`,
+      );
       const source = resolve(edge.source, `relationships.${key}.source`);
       const target = resolve(edge.target, `relationships.${key}.target`);
       if (!source || !target || source.deleted || target.deleted) {
@@ -301,6 +341,7 @@ export const dependencyTopologyRule: ProjectionRule<DependencyTopologyScope> = {
 type PlanBoundaryScope = {
   touched: { ref: RelKey; source?: NodeKey; target?: NodeKey }[];
   reparented: NodeKey[];
+  adopted: NodeKey[];
 };
 
 export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
@@ -322,13 +363,27 @@ export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
           ({ node, parentChange }) =>
             parentChange &&
             !facts.creates.some((create) => create.node === node) &&
-            facts.typeOf(node) === 'STANDARD' &&
+            isPlanStageWorkType(facts.typeOf(node)) &&
             (mayBeStage(parentChange.from) || mayBeStage(parentChange.to)),
         )
         .map(({ node }) => node),
     );
     return touched.length > 0 || reparented.length > 0
-      ? { touched, reparented }
+      ? {
+          touched,
+          reparented,
+          adopted: reparented.filter((node) => {
+            const stage = facts.updates.find((update) => update.node === node)
+              ?.parentChange?.to;
+            return facts.creates.some(
+              (create) =>
+                create.node === stage &&
+                create.type === 'PLAN_STAGE' &&
+                create.parent !== null &&
+                facts.typeOf(create.parent) === 'PLAN',
+            );
+          }),
+        }
       : null;
   },
   loads(scope) {
@@ -359,6 +414,12 @@ export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
     for (const key of keys) {
       const relationship = liveDependency(state, key);
       if (!relationship) continue;
+      if (
+        scope.adopted.includes(nodeKey(relationship.source)) ||
+        scope.adopted.includes(nodeKey(relationship.target))
+      ) {
+        continue;
+      }
       const source = endpointView(state, ctx, nodeKey(relationship.source));
       const target = endpointView(state, ctx, nodeKey(relationship.target));
       if (!source || !target) continue;
@@ -366,8 +427,8 @@ export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
       const planStageEdge =
         source.type === 'PLAN_STAGE' || target.type === 'PLAN_STAGE';
       const planTaskEdge =
-        source.type === 'STANDARD' &&
-        target.type === 'STANDARD' &&
+        isPlanStageWorkType(source.type) &&
+        isPlanStageWorkType(target.type) &&
         (source.parentType === 'PLAN_STAGE' ||
           target.parentType === 'PLAN_STAGE');
       if (

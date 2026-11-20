@@ -10,8 +10,12 @@ import { FlowExecutionService } from '../../src/services/workflows/flow-executio
 import { NodeExecutionService } from '../../src/services/workflows/node-execution.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { EntityRegistryService } from '../../src/services/entity-registry/entity-registry.service';
+import { ProjectReportRequestService } from '../../src/services/project-reports/project-report-request.service';
 import { DomainEventPublisher } from '../../src/core/events/domain-event-publisher';
+import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
 import { JwtAuthGuard } from '../../src/auth/guards/jwt-auth.guard';
+import { ProjectAccessService } from '../../src/auth/services/project-access.service';
+import { ProjectAccessGuard } from '../../src/auth/guards/project-access.guard';
 import { OrganizationGuard } from '../../src/auth/guards/organization.guard';
 import { ReportAudience, ReportType } from '../../src/generated';
 import { NodeType } from '../../src/types/flow-internal.types';
@@ -165,10 +169,9 @@ describe('report creation REST integration', () => {
 
     const mockPrisma = TestUtils.createMockPrismaService();
     (mockPrisma.db as { report?: unknown }).report = reportTable;
-    (
-      mockPrisma.db as { $transaction: unknown }
-    ).$transaction = async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> =>
-      fn(mockPrisma.db);
+    (mockPrisma.db as { $transaction: unknown }).$transaction = async <T>(
+      fn: (tx: unknown) => Promise<T>,
+    ): Promise<T> => fn(mockPrisma.db);
 
     const mockEntityRegistry = {
       getEntitiesByIds: jest.fn().mockResolvedValue([]),
@@ -208,6 +211,16 @@ describe('report creation REST integration', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EntityRegistryService, useValue: mockEntityRegistry },
         { provide: DomainEventPublisher, useValue: mockEventPublisher },
+        { provide: ProjectReportRequestService, useValue: {} },
+        {
+          provide: ProjectAccessService,
+          useValue: {
+            assertProjectAccess: jest.fn(),
+            accessibleProjectIds: jest
+              .fn()
+              .mockResolvedValue([testIds.project]),
+          },
+        },
         { provide: FlowExecutionService, useValue: mockFlowExecutionService },
         { provide: NodeExecutionService, useValue: mockNodeExecutionService },
       ],
@@ -216,9 +229,12 @@ describe('report creation REST integration', () => {
       .useValue({ canActivate: () => true })
       .overrideGuard(OrganizationGuard)
       .useValue({ canActivate: () => true })
+      .overrideGuard(ProjectAccessGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = module.createNestApplication();
+    app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
 
     getReportSchemaTool = module.get(GetReportSchemaToolsProvider);
@@ -290,10 +306,14 @@ describe('report creation REST integration', () => {
   it('returns reportGuidance for CODING_RESEARCH submissions through run-scoped REST headers', async () => {
     const payload = {
       reportType: ReportType.CodingResearch,
-      summary: 'Research completed with the graph context needed for the implementation.',
+      format: 'SELF_RESEARCH',
+      summary:
+        'Research completed with the graph context needed for the implementation.',
       analysis: 'The REST response needs server-built report guidance.',
       frame: {},
       provenance: { discoveryCalls: [], edgesTraversed: [] },
+      updates: [],
+      uncertainties: [],
     };
 
     const createResponse = await request(app.getHttpServer())
@@ -312,10 +332,76 @@ describe('report creation REST integration', () => {
     expect(createResponse.body).toMatchObject({
       reportType: ReportType.CodingResearch,
       sourceExecutionId: AGENT_SESSION_ID,
-      messageId: expect.any(String),
       reportGuidance: {
         actions: ['done', 'needs_input'],
       },
     });
+  });
+
+  it('rejects a schema-invalid report with correction details, then persists the corrected resubmission', async () => {
+    const reportsUrl = `/api/v1/organizations/${testIds.organization}/reports`;
+    const submit = (payload: Record<string, unknown>) =>
+      request(app.getHttpServer())
+        .post(reportsUrl)
+        .set('Authorization', 'Bearer test-token')
+        .send({
+          projectId: testIds.project,
+          reportType: ReportType.FeatureSync,
+          audience: ReportAudience.ProjectVisible,
+          payload,
+        });
+    const corrected = {
+      reportType: ReportType.FeatureSync,
+      summary: 'Two findings need reconciliation.',
+      discrepancies: [
+        {
+          sourceType: 'feature',
+          source: {
+            entityType: 'feature',
+            entityId: testIds.project,
+            title: 'Reports',
+          },
+          description: 'The feature no longer matches the code.',
+        },
+      ],
+      reconciliationOptions: [
+        { description: 'Update the feature.', discrepancyIndices: [0] },
+      ],
+    };
+    const { discrepancies: _missing, ...invalid } = corrected;
+    const storedBefore = reportStore.length;
+
+    const rejected = await submit(invalid).expect(400);
+
+    expect(rejected.body).toMatchObject({
+      success: false,
+      code: 'REPORT_PAYLOAD_INVALID',
+      message: expect.stringContaining('/discrepancies'),
+      data: {
+        reportType: ReportType.FeatureSync,
+        schemaVersion: 1,
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            path: '/discrepancies',
+            keyword: 'required',
+            missingProperty: 'discrepancies',
+          }),
+        ]),
+      },
+    });
+    expect(reportStore).toHaveLength(storedBefore);
+
+    const accepted = await submit(corrected).expect(201);
+
+    expect(reportStore).toHaveLength(storedBefore + 1);
+    const listed = await request(app.getHttpServer())
+      .get(reportsUrl)
+      .set('Authorization', 'Bearer test-token')
+      .expect(200);
+    expect(
+      (listed.body as Array<Record<string, unknown>>).find(
+        (report) => report.id === accepted.body.id,
+      ),
+    ).toMatchObject({ payload: corrected });
   });
 });

@@ -1,12 +1,18 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { SyncAlt } from "@mui/icons-material";
+import { Chip } from "@mui/material";
 import { useMemo } from "react";
 import type {
   VerifyFeaturePayload,
   VerifyImpactedEntityReference,
 } from "../../../api";
-import { MentionBadgeInner } from "../../SmarterTextAreaCard/MentionBadge";
+import {
+  ConversationCard,
+  ConversationCardRelatedRows,
+  ConversationCardSection,
+} from "../../Conversation/Card";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import type { FieldComponentProps } from "./types";
+import { splitExplanation } from "./verifyFeatureExplanation";
 
 const getUniqueImpactedEntities = (
   entities: VerifyImpactedEntityReference[] | undefined,
@@ -24,42 +30,58 @@ const getUniqueImpactedEntities = (
 
 export function VerifyFeatureField({
   value,
+  footerActions,
 }: FieldComponentProps<VerifyFeaturePayload>) {
   const impactedEntities = useMemo(
     () => getUniqueImpactedEntities(value?.impactedEntities),
     [value?.impactedEntities],
   );
+  const { lead, details } = useMemo(() => {
+    // Suggestions saved before the lead field existed have none.
+    if (value?.lead) {
+      return { lead: value.lead, details: value.explanation };
+    }
+    return splitExplanation(value?.explanation ?? "");
+  }, [value?.lead, value?.explanation]);
+
   return (
-    <Box data-testid="verify-feature-field">
-      <MarkdownRenderer allowMentionEscapes>
-        {value?.explanation ?? ""}
-      </MarkdownRenderer>
-      {impactedEntities.length > 0 && (
-        <Stack data-testid="verify-feature-impacted-entities" spacing={0.5}>
-          <Typography color="text.secondary" variant="caption">
-            Possibly affected
-          </Typography>
-          <Stack
-            direction="row"
-            flexWrap="wrap"
-            spacing={0.5}
-            sx={{ rowGap: 0.5 }}
-          >
-            {impactedEntities.map((entity) => (
-              <MentionBadgeInner
-                key={`${entity.entityType}-${entity.entityId}`}
-                mention={{
+    <ConversationCard
+      data-testid="verify-feature-field"
+      tone={{ role: "projectSync" }}
+      icon={<SyncAlt fontSize="small" />}
+      kindLabel="Project sync · Possible issue"
+      chips={
+        <Chip size="small" variant="outlined" label="After implementation" />
+      }
+      lead={
+        lead ? (
+          <MarkdownRenderer allowMentionEscapes>{lead}</MarkdownRenderer>
+        ) : undefined
+      }
+      footer={footerActions ? { content: footerActions } : undefined}
+    >
+      {details ? (
+        <ConversationCardSection label="Details">
+          <MarkdownRenderer allowMentionEscapes>{details}</MarkdownRenderer>
+        </ConversationCardSection>
+      ) : null}
+      {impactedEntities.length > 0 ? (
+        <div data-testid="verify-feature-impacted-entities">
+          <ConversationCardSection label="Possibly affected">
+            <ConversationCardRelatedRows
+              rows={impactedEntities.map((entity) => ({
+                key: `${entity.entityType}-${entity.entityId}`,
+                mention: {
                   entityType: entity.entityType,
                   entityId: entity.entityId,
                   // Saved references that predate titles fall back to the id.
                   entityName: entity.title ?? entity.entityId,
-                }}
-                mode="full"
-              />
-            ))}
-          </Stack>
-        </Stack>
-      )}
-    </Box>
+                },
+              }))}
+            />
+          </ConversationCardSection>
+        </div>
+      ) : null}
+    </ConversationCard>
   );
 }

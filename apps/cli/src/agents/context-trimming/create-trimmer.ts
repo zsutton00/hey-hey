@@ -11,6 +11,7 @@ import {
 } from '../project-assistant/nearest-parent-feature';
 import { allSectionsText, workItemFocal } from './entity-focal';
 import { GetContextTrimmer, type DecisionModel } from './context-trimmer';
+import { writeGraphResultAttemptRecord } from './get-context-attempt-log';
 
 /** The handlers whose `get_context` results are trimmed: Project Assistant and Feature Sync. */
 const TRIMMED_PROMPT_TYPES: ReadonlySet<string> = new Set([
@@ -84,9 +85,48 @@ export interface CreateContextTrimmerInput {
   payload: unknown;
   deps: TrimmingDeps;
   logger: ServerLogger;
-  /** Where narrowed get_context calls write development traces; null or absent writes none. */
+  /** Agent session the Run belongs to; stamped on every development trace. */
+  sessionId: string;
+  /** Where get_context attempts write development traces; null or absent writes none. */
   attemptLogDir?: string | null;
+  /** Where get_edges attempts write development traces; null or absent writes none. */
+  edgesAttemptLogDir?: string | null;
 }
+
+/**
+ * Why a Turn whose `get_context` results could be narrowed never narrows them. Logged and, with
+ * an attempt directory, written as a development trace; a trace that cannot be written only warns.
+ */
+const recordNotStarted = async (
+  input: CreateContextTrimmerInput,
+  event: string,
+  reason: string,
+  fields: Record<string, unknown> = {},
+): Promise<undefined> => {
+  input.logger.warn(event, { reason, ...fields });
+  if (!input.attemptLogDir) {
+    return undefined;
+  }
+
+  try {
+    await writeGraphResultAttemptRecord(input.attemptLogDir, input.sessionId, {
+      outcome: 'not_started',
+      at: new Date().toISOString(),
+      promptType: input.promptType,
+      focalEntityId: input.loadedEntityContext?.focalEntity.entityId ?? null,
+      reason,
+      fields: {
+        ...fields,
+        focalEntityType: input.loadedEntityContext?.focalEntity.entityType ?? null,
+      },
+    });
+  } catch (error) {
+    input.logger.warn('local.platform_mcp_proxy.get_context_trim.attempt_log_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+  return undefined;
+};
 
 /**
  * The trimmer for one Turn, or undefined when the Turn's `get_context` results stay as the
@@ -102,45 +142,57 @@ export const createContextTrimmer = async (
   ) {
     return undefined;
   }
+
   let decisionModelEnabled = false;
   try {
     decisionModelEnabled = await input.isDecisionModelEnabled();
   } catch (error) {
-    input.logger.warn('local.platform_mcp_proxy.context_selection.disabled', {
-      reason: 'option_unavailable',
-      errorName: error instanceof Error ? error.name : 'unknown',
-    });
+    return recordNotStarted(
+      input,
+      'local.platform_mcp_proxy.context_selection.disabled',
+      'option_unavailable',
+      { errorName: error instanceof Error ? error.name : 'unknown' },
+    );
+  }
+  if (!decisionModelEnabled) {
     return undefined;
   }
-  if (!decisionModelEnabled) return undefined;
+
   const loaded = input.loadedEntityContext;
   if (!loaded) {
-    input.logger.warn('local.platform_mcp_proxy.get_context_trim.disabled', {
-      reason: 'focal_context_not_loaded',
-    });
-    return undefined;
+    return recordNotStarted(
+      input,
+      'local.platform_mcp_proxy.get_context_trim.disabled',
+      'focal_context_not_loaded',
+    );
   }
+
   const userMessage = userMessageSchema.safeParse(input.payload).data?.userMessage.trim();
   let focal: Focal | null;
   try {
     focal = await resolveFocal(loaded, userMessage, input.deps);
   } catch (error) {
-    input.logger.warn('local.platform_mcp_proxy.get_context_trim.disabled', {
-      reason: 'focal_unavailable',
-      errorName: error instanceof Error ? error.name : 'unknown',
-    });
-    return undefined;
+    return recordNotStarted(
+      input,
+      'local.platform_mcp_proxy.get_context_trim.disabled',
+      'focal_unavailable',
+      { errorName: error instanceof Error ? error.name : 'unknown' },
+    );
   }
   if (focal === null) {
-    input.logger.warn('local.platform_mcp_proxy.get_context_trim.disabled', {
-      reason: 'no_focal_work',
-    });
-    return undefined;
+    return recordNotStarted(
+      input,
+      'local.platform_mcp_proxy.get_context_trim.disabled',
+      'no_focal_work',
+      { hasUserMessage: Boolean(userMessage) },
+    );
   }
+
   return new GetContextTrimmer({
     decisionModel: input.decisionModel,
     focal,
     focalEntityId: loaded.focalEntity.entityId,
+    sessionId: input.sessionId,
     ancestorEntityIds: new Set(
       (loaded.context.featureHierarchy ?? [])
         .filter((entry) => entry.relationship === 'ancestor')
@@ -148,5 +200,6 @@ export const createContextTrimmer = async (
     ),
     logger: input.logger,
     ...(input.attemptLogDir ? { attemptLogDir: input.attemptLogDir } : {}),
+    ...(input.edgesAttemptLogDir ? { edgesAttemptLogDir: input.edgesAttemptLogDir } : {}),
   });
 };

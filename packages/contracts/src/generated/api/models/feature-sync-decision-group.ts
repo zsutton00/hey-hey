@@ -16,13 +16,13 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { FeatureSyncDecisionChoice } from './feature-sync-decision-choice.js';
+import type { FeatureSyncDecisionAffectedEntity } from './feature-sync-decision-affected-entity.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { FeatureSyncReportSourceRef } from './feature-sync-report-source-ref.js';
+import type { FeatureSyncDecisionChoice } from './feature-sync-decision-choice.js';
 
 /**
- * One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence.
+ * One independent decision, not an entity-set bucket. Group ids are unique within the report; choice ids and typed targets are unique within a group. Independent groups may share targets. Producers validate these identities and exactly one no-change choice before persistence. An affected entity\'s optional reason is display-only: it plays no part in group identity, target uniqueness or the user\'s response.
  * @export
  * @interface FeatureSyncDecisionGroup
  */
@@ -35,10 +35,10 @@ export interface FeatureSyncDecisionGroup {
     'id': string;
     /**
      *
-     * @type {Array<FeatureSyncReportSourceRef>}
+     * @type {Array<FeatureSyncDecisionAffectedEntity>}
      * @memberof FeatureSyncDecisionGroup
      */
-    'affectedEntities': Array<FeatureSyncReportSourceRef>;
+    'affectedEntities': Array<FeatureSyncDecisionAffectedEntity>;
     /**
      *
      * @type {string}

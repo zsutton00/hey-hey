@@ -108,6 +108,8 @@ export const getWorkItemTypePluralDisplayName = (
       return "Goals";
     case WORK_ITEM_TYPE_KEYS.Contract:
       return "Contracts";
+    case WORK_ITEM_TYPE_KEYS.Eval:
+      return name === "Eval" ? "Evals" : name;
     default:
       return name;
   }
@@ -177,7 +179,7 @@ export const workItemTypeSurfacesLifecycleScalars = (
 
 export const workItemTypeOffersStatusChoice = (
   definition: WorkItemTypeDefinitionDto | undefined,
-): boolean => (definition?.allowedStatuses.length ?? 0) > 1;
+): boolean => (definition?.statuses.length ?? 0) > 1;
 
 export const canWorkItemTypeOwnAgentSessions = (
   definition: WorkItemTypeDefinitionDto | undefined,

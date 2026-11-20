@@ -22,6 +22,7 @@ import { openItemsRows } from "../openItemsMapping";
 
 const id = "550e8400-e29b-41d4-a716-446655440000";
 const otherId = "550e8400-e29b-41d4-a716-446655440001";
+const thirdId = "550e8400-e29b-41d4-a716-446655440002";
 const groupId = "550e8400-e29b-41d4-a716-446655440002";
 const now = "2026-10-07T00:00:00.000Z";
 const scope = { organizationId: "org", projectId: "project", userId: "user" };
@@ -128,12 +129,32 @@ describe("canonical Open Items adapter", () => {
   it("returns scoped online results to triage without enqueueing a failed explicit application", async () => {
     const api = new OpenItemsApi();
     vi.spyOn(api, "getOpenItems").mockResolvedValue(response(present()));
-    const result: OpenItemsMutationResult = {collectionRevision: 2, items: [], groups: [group], deletedGroupIds: [], replayed: false};
+    const result: OpenItemsMutationResult = {
+      collectionRevision: 2,
+      items: [],
+      groups: [group],
+      deletedGroupIds: [],
+      replayed: false,
+    };
     vi.spyOn(api, "createOpenItemGroup").mockResolvedValue(response(result));
     const adapter = load(api);
-    expect(await adapter.mutateWithResult({kind: "createOpenItemGroup", parameters: {createOpenItemGroupRequest: {name: group.name, idempotencyKey: "create-key"}}})).toBe(result);
-    vi.spyOn(api, "setOpenItemNote").mockRejectedValue(new AxiosError("Connection lost"));
-    await expect(adapter.mutateWithResult(noteOperation())).rejects.toThrow("Connection lost");
+    expect(
+      await adapter.mutateWithResult({
+        kind: "createOpenItemGroup",
+        parameters: {
+          createOpenItemGroupRequest: {
+            name: group.name,
+            idempotencyKey: "create-key",
+          },
+        },
+      }),
+    ).toBe(result);
+    vi.spyOn(api, "setOpenItemNote").mockRejectedValue(
+      new AxiosError("Connection lost"),
+    );
+    await expect(adapter.mutateWithResult(noteOperation())).rejects.toThrow(
+      "Connection lost",
+    );
     expect(adapter.getStatus().queued).toBe(0);
   });
   it("preserves base row identity across disclosure-only preference changes", () => {
@@ -328,7 +349,7 @@ describe("canonical Open Items adapter", () => {
       };
       let revision = 1;
       vi.spyOn(api, "getOpenItems").mockImplementation(async () =>
-        response(present([parent, session], [group], revision))
+        response(present([parent, session], [group], revision)),
       );
       // Provider replacement is modeled here; this is not evidence of live server behavior.
       const activate = vi
@@ -352,11 +373,11 @@ describe("canonical Open Items adapter", () => {
           kind: "agent_session",
           label: "Coding session",
           sessionType: "CODING",
-        }
+        },
       );
       expect(
         view(adapter).record.items.find((row) => row.entityId === otherId)
-          ?.lineage
+          ?.lineage,
       ).toEqual([]);
       // Task-route opening, followed by the equivalent general-route activation.
       await adapter.activate(activation);
@@ -371,11 +392,11 @@ describe("canonical Open Items adapter", () => {
             agentSessionType: AgentSessionType.Coding,
             routeParams: { lineageKinds: "t" },
           },
-        }
+        },
       );
       const assertRepaired = (candidate: OpenItemsAdapter) => {
         expect(
-          view(candidate).record.items.find((row) => row.entityId === otherId)
+          view(candidate).record.items.find((row) => row.entityId === otherId),
         ).toMatchObject({
           lineage: [{ entityType: "task", entityId: id }],
           groupId,
@@ -393,7 +414,7 @@ describe("canonical Open Items adapter", () => {
       assertRepaired(reloaded);
       await reloaded.refresh();
       assertRepaired(reloaded);
-    }
+    },
   );
 
   it("reconciles inherited lineage and only server-selected removal tombstones across refresh and cache reload", async () => {
@@ -1006,6 +1027,50 @@ describe("canonical Open Items adapter", () => {
     ]);
     expect(mapped[0]?.lineage?.[0]?.entityType).toBe("plan");
     await adapter.activate(
+      createEntityActivation(
+        "agent_session",
+        id,
+        [
+          createNavigationLineageEntry("task", otherId),
+          createNavigationLineageEntry("agent_session", thirdId),
+        ],
+        {
+          kind: "agent_session",
+          label: "Child",
+          sessionType: AgentSessionType.Coding,
+        },
+      ),
+    );
+    const sessionRequest = activate.mock.calls[1]?.[0].activateOpenItemRequest;
+    expect(sessionRequest).toMatchObject({
+      lineage: [
+        { entityType: "TASK", entityId: otherId },
+        { entityType: "AGENT_SESSION", entityId: thirdId },
+      ],
+      presentation: { routeParams: { lineageKinds: "ta" } },
+    });
+    const sessionRows = openItemsRows([
+      {
+        ...item(),
+        entityType: "AGENT_SESSION" as never,
+        lineage: sessionRequest!.lineage,
+        presentation: sessionRequest!.presentation,
+      },
+    ]);
+    expect(sessionRows[0]?.lineage).toEqual([
+      { entityType: "task", entityId: otherId },
+      { entityType: "agent_session", entityId: thirdId },
+    ]);
+    const legacyRows = openItemsRows([
+      {
+        ...item(),
+        entityType: "AGENT_SESSION" as never,
+        lineage: sessionRequest!.lineage,
+        presentation: { ...sessionRequest!.presentation, routeParams: {} },
+      },
+    ]);
+    expect(legacyRows[0]?.lineage).toEqual(sessionRows[0]?.lineage);
+    await adapter.activate(
       createEntityActivation("task", id, null, {
         kind: "task",
         label: "Plan work item",
@@ -1013,7 +1078,7 @@ describe("canonical Open Items adapter", () => {
       }),
     );
     const planWorkItem =
-      activate.mock.calls[1]![0].activateOpenItemRequest.presentation;
+      activate.mock.calls[2]![0].activateOpenItemRequest.presentation;
     expect(
       openItemsRows([{ ...item(), presentation: planWorkItem }])[0]?.entityType,
     ).toBe("task");
@@ -1024,7 +1089,7 @@ describe("canonical Open Items adapter", () => {
       }),
     );
     const planRoute =
-      activate.mock.calls[2]![0].activateOpenItemRequest.presentation;
+      activate.mock.calls[3]![0].activateOpenItemRequest.presentation;
     expect(
       openItemsRows([{ ...item(), presentation: planRoute }])[0]?.entityType,
     ).toBe("plan");

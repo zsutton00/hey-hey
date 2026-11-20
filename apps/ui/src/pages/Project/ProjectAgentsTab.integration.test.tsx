@@ -36,6 +36,10 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     return { workItems: [evalItem], isLoading: false };
   },
   useWorkItem: () => ({ workItem: evalItem, isLoading: false, error: null }),
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
 }));
 vi.mock("@hey-hey/ui-common/hooks", () => ({
   useUserIdentity: () => ({ currentOrgId: "org-1" }),

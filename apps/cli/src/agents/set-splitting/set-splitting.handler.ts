@@ -1,3 +1,4 @@
+import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import type { LocalSetSplittingPromptPayload } from '../../shared/agent-bridge-contract/index';
 import type { PromptTypeHandler, PromptTypeHandlerContext } from '../prompt-type-handler';
 import { buildSetSplittingPrompt } from '../prompts/set-splitting';
@@ -5,6 +6,7 @@ import { buildStartingMessage as buildStartingMessageForPromptType } from '../pr
 
 export const setSplittingHandler: PromptTypeHandler<LocalSetSplittingPromptPayload> = {
   id: 'set_splitting',
+  sessionRole: SessionRole.Planning,
   promptType: 'set_splitting',
   service: 'required',
   launchEntity: 'required',

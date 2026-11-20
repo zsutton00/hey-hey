@@ -33,20 +33,21 @@ export interface ScreenNextOption {
 export interface ScreenNextOptionGroup {
   /** Null groups the transitions that record no role. */
   role: WorkflowTransitionRole | null;
-  title: string;
+  /** Null for the role-less group, which is listed without a heading. */
+  title: string | null;
   options: ScreenNextOption[];
 }
 
 /** Fixed display order; roles are recorded on the transition and never inferred. */
 const GROUP_ORDER: readonly {
   role: WorkflowTransitionRole | null;
-  title: string;
+  title: string | null;
 }[] = [
   { role: "PRIMARY_PROGRESSION", title: "Main path" },
   { role: "ERROR_PATH", title: "Error path" },
   { role: "RECOVERY", title: "Recovery" },
   { role: "RETURN", title: "Return" },
-  { role: null, title: "Other options" },
+  { role: null, title: null },
 ];
 
 /** Every outgoing transition of a screen, in the flow's own order. */

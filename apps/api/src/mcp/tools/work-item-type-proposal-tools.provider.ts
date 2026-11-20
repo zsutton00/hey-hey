@@ -1,3 +1,4 @@
+import { workItemTypeStatusesSchema } from '../../services/tasks/work-item-type-status.schema';
 import { workItemTypeSessionRoleGuidanceSchema } from '../../services/tasks/work-item-type-agent-guidance.schema';
 import { diagramElementPolicySchema } from '../../services/tasks/diagram-metadata';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -25,7 +26,6 @@ import type { WorkItemTypeEdgeTarget } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeEffectiveSource } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeScalarField } from '@hey-hey/contracts/api/models';
 import { WorkItemTypeSectionDefinition } from '@hey-hey/contracts/api/models';
-import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { WorkItemConfigKind } from '@hey-hey/contracts/api/models';
 import { ProposalService } from '../../services/proposal/proposal.service';
 import { AdminGuard } from '../../auth/guards/admin.guard';
@@ -315,7 +315,7 @@ const workItemTypeCapabilitiesSchema = z
   .object({
     requiresParent: z.boolean().optional(),
     planEligible: z.boolean().optional(),
-    hasSetInitialStatus: z.boolean().optional(),
+    supportsSupersession: z.boolean().optional(),
     rendersInline: z.boolean().optional(),
     showsInExplorerSidebar: z.boolean().optional(),
     graph: workItemTypeGraphCapabilitySchema.optional(),
@@ -399,12 +399,9 @@ export const createWorkItemTypeParameters = z
           'field from the closed WorkItemTypeScalarField set; membership here ' +
           'means the field is rejected on items of this type.',
       ),
-    allowedStatuses: z
-      .array(z.nativeEnum(WorkStatus))
-      .describe(
-        'The work statuses an item of this type may occupy. Reuses the shared ' +
-          'WorkStatus enum rather than declaring a type-local status set.',
-      ),
+    statuses: workItemTypeStatusesSchema.describe(
+      'Ordered ordinary status names and their resolved internal meanings; first is initial. Call resolve_work_item_type_statuses to obtain suggestions, preserve existing meanings, and resolve clarification before submitting.',
+    ),
     allowedParentTypes: z
       .array(z.string())
       .optional()
@@ -434,12 +431,14 @@ export const createWorkItemTypeParameters = z
           'type keys may track this target type.',
       ),
     agentSettableStatuses: z
-      .array(z.nativeEnum(WorkStatus))
+      .array(z.string().min(1))
       .optional()
       .describe(
-        'Statuses from allowedStatuses that agents may propose directly. ' +
-          'Defaults to all allowedStatuses when omitted; pass a narrower list ' +
-          '(or an empty one) only to restrict agents on purpose.',
+        'Ordinary status names plus ARCHIVED that agents may propose directly. ' +
+          "Every entry must be one of the type's ordinary status names or ARCHIVED. " +
+          'When omitted on create, defaults to all of them; when omitted on edit, the ' +
+          "type's current list is kept. Pass a narrower list (or an empty one) only to " +
+          'restrict agents on purpose, and update it when renaming statuses.',
       ),
     anchorableReportTypes: z
       .array(z.nativeEnum(ReportType))
@@ -750,6 +749,7 @@ export class WorkItemTypeProposalToolsProvider {
       const dto = buildWorkItemTypeEditProposal({
         typeKey: params.typeKey,
         definition: params.definition,
+        currentDefinition: existing.definition,
         requestorContext,
         influences: provenance.influences,
         conversationId,

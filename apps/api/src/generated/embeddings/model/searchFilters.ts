@@ -110,6 +110,10 @@ export interface SearchFilters {
    * Task types removed inside the query, before hits, offsets and totals. Never narrows which document schemas are searched; only task documents carry a taskType, and documents of other schemas are unaffected. Wins over taskTypes.
    */
   excludeTaskTypes?: Array<string>;
+  /**
+   * Entity identifiers removed inside the query, before hits, offsets and totals. Matches each document\'s own id; a document is one record, so an excluded document is removed whole. Never narrows which document schemas are searched.
+   */
+  excludeEntityIds?: Array<string>;
   created_after?: SearchFiltersCreatedAfter;
   created_before?: SearchFiltersCreatedBefore;
   updated_after?: SearchFiltersUpdatedAfter;

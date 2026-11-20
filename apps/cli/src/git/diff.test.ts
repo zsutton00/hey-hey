@@ -11,6 +11,7 @@ import {
   countChangedFilesInPaths,
   captureChangesSinceCommit,
   getGitDiff,
+  listGitChangedFilePaths,
   listGitChangedFilePathsExcludingIgnored,
 } from './diff';
 
@@ -467,5 +468,66 @@ describe('captureChangesSinceCommit', () => {
 
     expect(files.map((file) => file.path)).toEqual([`--output=${outside}`]);
     await expect(fs.stat(outside)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('saves patches that join into one patch applying cleanly to the pinned commit', async () => {
+    const repo = await createTempRepo();
+    await writeFile(repo, 'edit.txt', 'head\nx\ny\n\n');
+    await writeFile(repo, 'src/app.ts', 'export const a = 1;\nexport const b = 2;\n');
+    await runGit(repo, ['add', '.']);
+    await runGit(repo, ['commit', '-qm', 'base']);
+    const commit = await runGit(repo, ['rev-parse', 'HEAD']);
+    // The edit's last hunk line is a blank context line, and the new file has no final newline.
+    await writeFile(repo, 'edit.txt', 'HEAD\nx\ny\n\n');
+    await writeFile(repo, 'src/app.ts', 'export const a = 1;\nexport const b = 3;\n');
+    await writeFile(repo, 'src/new.ts', 'export const c = 4;\n');
+    await writeFile(repo, 'no-newline.txt', 'no final newline');
+    await fs.writeFile(path.join(repo, 'blob.bin'), Buffer.from([0, 1, 2, 0, 255]));
+
+    const files = await captureChangesSinceCommit({ repoPath: repo, commit });
+    const binary = files.filter((file) => /^Binary files .* differ$/mu.test(file.patch));
+    const joined = files
+      .filter((file) => !binary.includes(file))
+      .map((file) => file.patch)
+      .join('');
+
+    expect(binary.map((file) => file.path)).toEqual(['blob.bin']);
+    const fresh = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-apply-')), 'wt');
+    tempRoots.push(path.dirname(fresh));
+    await runGit(repo, ['worktree', 'add', '-q', fresh, commit]);
+    await fs.writeFile(path.join(path.dirname(fresh), 'out.patch'), joined, 'utf8');
+    const patchFile = path.join(path.dirname(fresh), 'out.patch');
+    await runGit(fresh, ['apply', '--check', patchFile]);
+    await runGit(fresh, ['apply', patchFile]);
+
+    for (const changed of ['edit.txt', 'src/app.ts', 'src/new.ts', 'no-newline.txt']) {
+      expect(await fs.readFile(path.join(fresh, changed), 'utf8')).toBe(
+        await fs.readFile(path.join(repo, changed), 'utf8'),
+      );
+    }
+  });
+});
+
+describe('dirty paths in a repository with no commits', () => {
+  it('lists staged and untracked files and diffs them', async () => {
+    const repo = await createTempRepo();
+    await fs.mkdir(path.join(repo, 'src'));
+    await fs.writeFile(path.join(repo, 'src', 'staged.ts'), 'a\n');
+    await fs.writeFile(path.join(repo, 'untracked.ts'), 'b\n');
+    await runGit(repo, ['add', 'src/staged.ts']);
+
+    const paths = await listGitChangedFilePaths(repo);
+    expect(paths.sort()).toEqual(['src/staged.ts', 'untracked.ts']);
+
+    const patches = await getGitDiff({ repoPath: repo, paths });
+    expect(patches.map((patch) => patch.filePath).sort()).toEqual(paths.sort());
+  });
+
+  it('does not treat an unresolvable HEAD on a non-branch as an empty repository', async () => {
+    const repo = await createTempRepo();
+    await fs.writeFile(path.join(repo, 'file.ts'), 'a\n');
+    await fs.writeFile(path.join(repo, '.git', 'HEAD'), `${'a'.repeat(40)}\n`);
+
+    await expect(listGitChangedFilePaths(repo)).rejects.toThrow();
   });
 });
