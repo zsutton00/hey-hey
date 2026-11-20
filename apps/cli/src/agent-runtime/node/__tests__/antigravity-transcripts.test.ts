@@ -3,11 +3,17 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { redactSensitiveText } from '../../../agents/providers/agent-event-redaction';
 import { SCENARIOS } from '../../../scripts/antigravity-capture-scenarios';
 
 const FIXTURE_DIR = join(process.cwd(), 'src/agent-runtime/node/__fixtures__/antigravity');
 const PRINT_READS = ['models', 'skills', 'quota'] as const;
-const PRINT_LABELS = ['quota-before', 'quota-after', 'models', 'signed-out'] as const;
+const PRINT_BATCHES: Record<string, readonly string[]> = {
+  'quota-before': ['quota'],
+  'quota-after': ['quota'],
+  models: ['models', 'skills'],
+  'signed-out': ['models', 'skills', 'quota'],
+};
 const DIRECTIONS = ['client->agent', 'agent->client', 'driver'];
 
 const fixtureFiles = readdirSync(FIXTURE_DIR);
@@ -29,7 +35,7 @@ const SECRET_PATTERNS: Record<string, RegExp> = {
   'home directory': /\/(?:Users|home)\/(?!<user>)[^/\s"'\\]+/,
   'OAuth parameter': /[?&](?:state|code|code_challenge|client_id)=(?!\[REDACTED\])[^&\s"'\\]+/,
   'provider API key':
-    /(?:ya29\.[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{30,})/,
+    /\b(?:ya29\.[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{30,})/,
 };
 
 describe('Antigravity captured transcripts', () => {
@@ -61,23 +67,25 @@ describe('Antigravity captured transcripts', () => {
     });
   });
 
-  describe.each(PRINT_LABELS)('print snapshot %s', (label) => {
-    it('has a metadata sidecar and a parseable record for every read it ran', () => {
-      const meta = readJson(`${label}.meta.json`) as { agyVersion: { stdout: string } };
+  describe.each(Object.entries(PRINT_BATCHES))('print snapshot %s', (label, reads) => {
+    it('has a record for exactly the reads its sidecar says were run', () => {
+      const meta = readJson(`${label}.meta.json`) as {
+        agyVersion: { stdout: string };
+        outcomes: Record<string, { file: string; exitCode: number }>;
+      };
       expect(meta.agyVersion.stdout).toMatch(/\d+\.\d+\.\d+/);
+      expect(Object.keys(meta.outcomes).sort()).toEqual([...reads].sort());
 
-      const records = fixtureFiles.filter(
-        (name) => name.startsWith(`${label}-`) && name.endsWith('.json'),
-      );
-      expect(records.length).toBeGreaterThan(0);
+      for (const readName of reads) {
+        const file = `${label}-${readName}.json`;
+        expect(fixtureFiles).toContain(file);
 
-      for (const name of records) {
-        const record = readJson(name);
-        expect(PRINT_READS).toContain(record['read']);
+        const record = readJson(file);
+        expect(record['read']).toBe(readName);
         expect(record['label']).toBe(label);
         expect(record).toHaveProperty('stdout');
         expect(record).toHaveProperty('stderr');
-        expect(typeof record['exitCode']).toBe('number');
+        expect(record['exitCode']).toBe(meta.outcomes[readName]?.exitCode);
       }
     });
   });
@@ -101,6 +109,22 @@ describe('Antigravity captured transcripts', () => {
     it.each(Object.entries(SECRET_PATTERNS))('contains no %s in any file', (_label, pattern) => {
       const offenders = captured.filter((name) => pattern.test(read(name)));
       expect(offenders).toEqual([]);
+    });
+  });
+
+  describe('credential guard', () => {
+    const SYNTHETIC_KEYS = [
+      `AIza${'a1B2c3D4e5'.repeat(4)}`,
+      `ya29.${'a1B2c3D4e5'.repeat(3)}`,
+      `sk-${'a1B2c3D4e5'.repeat(3)}`,
+      `ghp_${'a1B2c3D4e5'.repeat(4)}`,
+    ];
+
+    it.each(SYNTHETIC_KEYS)('detects an unredacted key and accepts it once redacted: %s', (key) => {
+      const text = `{"stdout":"key is ${key} here"}`;
+
+      expect(SECRET_PATTERNS['provider API key']?.test(text)).toBe(true);
+      expect(SECRET_PATTERNS['provider API key']?.test(redactSensitiveText(text))).toBe(false);
     });
   });
 });
