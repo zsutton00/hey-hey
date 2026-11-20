@@ -4,6 +4,7 @@ import {
   AgentSessionConfigV2TypeEnum,
   AgentSessionConfigV2VersionEnum,
   AgentSessionDtoProviderEnum,
+  AgentSessionServicePlaceKind,
   type AgentSessionDto,
 } from "../../../api";
 import { describe, expect, it } from "vitest";
@@ -11,7 +12,7 @@ import { resolveAgentSessionMetadata } from "../resolveAgentSessionMetadata";
 
 const sessionWithConfig = (
   config: NonNullable<AgentSessionDto["config"]>,
-  provider: AgentSessionDtoProviderEnum = AgentSessionDtoProviderEnum.Codex
+  provider: AgentSessionDtoProviderEnum = AgentSessionDtoProviderEnum.Codex,
 ) =>
   ({
     config,
@@ -19,31 +20,87 @@ const sessionWithConfig = (
   }) satisfies Pick<AgentSessionDto, "config" | "provider">;
 
 describe("resolveAgentSessionMetadata", () => {
-  it("resolves only selected canonical names in selection order and omits unavailable names", () => {
+  it("resolves one place per selected Service with a known name, never reading config.worktree", () => {
+    const recordedAt = "2026-11-19T00:00:00.000Z";
     const session = {
       ...sessionWithConfig({
         type: AgentSessionConfigV2TypeEnum.CodingSession,
         version: AgentSessionConfigV2VersionEnum.V2,
         model: "gpt-5-codex",
-        worktree: " feature/metadata ",
+        worktree: "feature/from-config",
       }),
-      serviceIds: ["web", "missing", "api", "blank", "web"],
+      serviceIds: ["web", "missing", "api", "blank", "web", "docs", "demos"],
+      servicePlaces: [
+        {
+          serviceId: "web",
+          kind: AgentSessionServicePlaceKind.Worktree,
+          branch: "feature-x",
+          worktreePath: "/w/web",
+          recordedAt,
+        },
+        {
+          serviceId: "api",
+          kind: AgentSessionServicePlaceKind.MainFolder,
+          branch: "dev",
+          recordedAt,
+        },
+        {
+          serviceId: "docs",
+          kind: AgentSessionServicePlaceKind.MainFolder,
+          branch: null,
+          recordedAt,
+        },
+      ],
     };
     const services = [
       { id: "api", name: "API" },
       { id: "web", name: "Web UI" },
       { id: "blank", name: " " },
+      { id: "docs", name: "Docs" },
+      { id: "demos", name: "Demos" },
       { id: "unselected", name: "Other" },
     ];
-    expect(resolveAgentSessionMetadata(session, services)).toEqual({
+    const resolved = resolveAgentSessionMetadata(session, services);
+
+    expect(resolved).toEqual({
       provider: "codex",
       model: "gpt-5-codex",
-      worktree: "feature/metadata",
-      serviceNames: ["Web UI", "API"],
+      servicePlaces: [
+        {
+          serviceName: "Web UI",
+          place: { kind: "worktree", branch: "feature-x" },
+        },
+        { serviceName: "API", place: { kind: "main-folder", branch: "dev" } },
+        { serviceName: "Docs", place: { kind: "main-folder", branch: null } },
+        { serviceName: "Demos", place: { kind: "not-recorded" } },
+      ],
     });
-    expect(resolveAgentSessionMetadata(session)).not.toHaveProperty("serviceNames");
-    expect(resolveAgentSessionMetadata({ ...session, serviceIds: [] }, services))
-      .not.toHaveProperty("serviceNames");
+    expect(resolved).not.toHaveProperty("worktree");
+    expect(resolveAgentSessionMetadata(session)).not.toHaveProperty(
+      "servicePlaces",
+    );
+    expect(
+      resolveAgentSessionMetadata({ ...session, serviceIds: [] }, services),
+    ).not.toHaveProperty("servicePlaces");
+  });
+
+  it("shows Not recorded for sessions without place records even when config.worktree is set", () => {
+    const session = {
+      ...sessionWithConfig({
+        type: AgentSessionConfigV2TypeEnum.CodingSession,
+        version: AgentSessionConfigV2VersionEnum.V2,
+        model: "gpt-5-codex",
+        worktree: "legacy-branch",
+      }),
+      serviceIds: ["api"],
+      servicePlaces: [],
+    };
+
+    expect(
+      resolveAgentSessionMetadata(session, [{ id: "api", name: "API" }]),
+    ).toMatchObject({
+      servicePlaces: [{ serviceName: "API", place: { kind: "not-recorded" } }],
+    });
   });
 
   it("projects the durable provider, trimmed model, and effort", () => {
@@ -70,7 +127,7 @@ describe("resolveAgentSessionMetadata", () => {
           version: AgentSessionConfigEntityConversationV1VersionEnum.V1,
           model: "gpt-5-codex",
         },
-      })
+      }),
     ).toBeUndefined();
     expect(
       resolveAgentSessionMetadata({
@@ -80,7 +137,7 @@ describe("resolveAgentSessionMetadata", () => {
           version: AgentSessionConfigEntityConversationV1VersionEnum.V1,
           model: "   ",
         },
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -120,7 +177,7 @@ describe("resolveAgentSessionMetadata", () => {
         model: "claude-opus-5-5",
         fastMode: true,
       },
-      AgentSessionDtoProviderEnum.Claude
+      AgentSessionDtoProviderEnum.Claude,
     );
 
     expect(resolveAgentSessionMetadata(session)).toEqual({
@@ -144,7 +201,7 @@ describe("resolveAgentSessionMetadata", () => {
         model: "claude-opus-5-5",
         fastMode: false,
       },
-      AgentSessionDtoProviderEnum.Claude
+      AgentSessionDtoProviderEnum.Claude,
     );
 
     expect(resolveAgentSessionMetadata(disabled)).toEqual({
@@ -154,35 +211,6 @@ describe("resolveAgentSessionMetadata", () => {
     expect(resolveAgentSessionMetadata(claude)).toEqual({
       provider: "claude",
       model: "claude-opus-5-5",
-    });
-  });
-
-  it("projects and trims the durable coding-session worktree", () => {
-    const session = sessionWithConfig({
-      type: AgentSessionConfigV2TypeEnum.CodingSession,
-      version: AgentSessionConfigV2VersionEnum.V2,
-      model: "gpt-5-codex",
-      worktree: " feature/current-worktree ",
-    });
-
-    expect(resolveAgentSessionMetadata(session)).toEqual({
-      provider: "codex",
-      model: "gpt-5-codex",
-      worktree: "feature/current-worktree",
-    });
-  });
-
-  it("omits an empty durable coding-session worktree", () => {
-    const session = sessionWithConfig({
-      type: AgentSessionConfigV2TypeEnum.CodingSession,
-      version: AgentSessionConfigV2VersionEnum.V2,
-      model: "gpt-5-codex",
-      worktree: "   ",
-    });
-
-    expect(resolveAgentSessionMetadata(session)).toEqual({
-      provider: "codex",
-      model: "gpt-5-codex",
     });
   });
 });

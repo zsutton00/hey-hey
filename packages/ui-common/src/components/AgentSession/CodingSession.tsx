@@ -42,8 +42,7 @@ import { resolvePromptModelSelection } from "./promptModelSelection";
 import { useRuntimeModelCatalog } from "./useRuntimeModelCatalog";
 import { supportsFastMode } from "./capabilityCatalog";
 import { isLocalRuntimeUnavailable } from "./agenticRuntimeUtils";
-import { resolveAgentSessionMetadata } from "./resolveAgentSessionMetadata";
-import { useServices } from "../../data/hooks/useServices";
+import { useAgentSessionMetadata } from "./useAgentSessionMetadata";
 import { OpenBrowserCapsuleAction } from "./OpenBrowserCapsuleAction";
 import { RunBrowserProvider } from "./runtime/RunBrowserContext";
 import {
@@ -520,14 +519,7 @@ const CodingSessionActive = memo(
       effectiveModel && supportsFastMode(localProvider, effectiveModel)
         ? (fastModeFromConfig ?? localFastMode ?? false)
         : undefined;
-    const metadataServices = useServices(agentSession.organizationId, {
-      projectId: agentSession.projectId,
-      enabled: (agentSession.serviceIds?.length ?? 0) > 0,
-    });
-    const sessionMetadata = resolveAgentSessionMetadata(
-      agentSession,
-      metadataServices.services,
-    );
+    const sessionMetadata = useAgentSessionMetadata(agentSession);
     const launchWorktree = useMemo<StartRunWorktree | undefined>(() => {
       const branch = configV2?.worktree?.trim();
       if (!branch) return undefined;

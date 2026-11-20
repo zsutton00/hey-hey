@@ -64,7 +64,7 @@ import {
   readEntityConversationSessionConfig,
   resolveEntityConversationRuntimeSelection,
 } from "./entityConversationSessionConfig";
-import { resolveAgentSessionMetadata } from "./resolveAgentSessionMetadata";
+import { useAgentSessionMetadata } from "./useAgentSessionMetadata";
 import { resolveFileReferenceScope } from "../SmarterTextAreaCard/fileReferences/types";
 import type { ConversationScrollPolicy } from "../Conversation/ConversationViewer";
 
@@ -240,6 +240,7 @@ const EntityConversationActive: React.FC<EntityConversationActiveProps> = ({
   const { mutate: createAgentSessionConversation } =
     useCreateAgentSessionConversation();
   const conversationId = localConversationId ?? agentSession.conversationId;
+  const agentSessionMetadata = useAgentSessionMetadata(agentSession);
   const latestProviderSessionId = useLatestProviderSessionId(
     organizationId,
     projectId,
@@ -787,7 +788,7 @@ const EntityConversationActive: React.FC<EntityConversationActiveProps> = ({
         stoppingRun={lifecycle.stoppingRun}
         scrollable={scrollable}
         scrollPolicy={scrollPolicy}
-        agentSessionMetadata={resolveAgentSessionMetadata(agentSession)}
+        agentSessionMetadata={agentSessionMetadata}
         newConversationModelSelector={newConversationModelSelector}
         actionsSlot={actionsSlot}
         fileReferenceScope={fileReferenceScope ?? undefined}
