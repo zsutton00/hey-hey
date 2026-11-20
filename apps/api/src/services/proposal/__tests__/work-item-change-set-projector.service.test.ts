@@ -4256,6 +4256,9 @@ describe('existing-task Plan producer through generic review projection', () => 
         get: () => ({ edgeBasis: async () => ({ version: 'absent' }) }),
       } as never,
     );
+    const operationIndexOfDesignDocCreate = request.operations.findIndex(
+      (operation) => operation.op === 'designDoc.create',
+    );
     const remaining = await recovery.remainingCandidate(
       { targetEntityId: planId } as never,
       request as never,
@@ -4270,8 +4273,10 @@ describe('existing-task Plan producer through generic review projection', () => 
         relationshipIdMappings: {},
         checkpoints: request.operations.map((operation, operationIndex) => ({
           operationIndex,
+          // Operations 0-3 (plan, its two sections and the design document)
+          // were applied before the interruption.
           status:
-            operationIndex < 3
+            operationIndex <= operationIndexOfDesignDocCreate
               ? 'COMPLETED'
               : operation.op === 'relationship.create'
                 ? 'FAILED'

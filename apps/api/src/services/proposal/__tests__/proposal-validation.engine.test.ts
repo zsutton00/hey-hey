@@ -6325,6 +6325,7 @@ describe('ProposalValidationEngine', () => {
         const customModule = await Test.createTestingModule({
           providers: [
             ProposalValidationEngine,
+            reconciliationProvider,
             WorkItemParentageValidator,
             { provide: PrismaService, useValue: mockPrisma },
             { provide: WorkItemTypeRegistryService, useValue: customRegistry },
