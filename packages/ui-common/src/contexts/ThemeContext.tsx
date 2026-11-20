@@ -57,6 +57,7 @@ declare module "@mui/material/styles" {
     actionable: Palette["primary"];
     interactive: Palette["primary"];
     heyhey: Palette["primary"];
+    heyheyText: Palette["primary"];
     task: Palette["primary"];
     feature: Palette["primary"];
     coding: Palette["primary"];
@@ -80,6 +81,7 @@ declare module "@mui/material/styles" {
     actionable?: PaletteOptions["primary"];
     interactive?: PaletteOptions["primary"];
     heyhey?: PaletteOptions["primary"];
+    heyheyText?: PaletteOptions["primary"];
     task?: PaletteOptions["primary"];
     feature?: PaletteOptions["primary"];
     coding?: PaletteOptions["primary"];
@@ -262,6 +264,13 @@ export const createHeyTheme = (mode: ThemeMode) => {
         main: "rgb(8, 126, 139)",
         light: "rgb(28, 146, 159)",
         dark: "rgb(0, 106, 119)",
+        contrastText: "#ffffff",
+      },
+      // Readable text variant of heyhey (cadetblue); use for text instead of heyhey.main.
+      heyheyText: {
+        main: "#5F9EA0",
+        light: "#7FB6B8",
+        dark: "#4A7F81",
         contrastText: "#ffffff",
       },
       task: {
