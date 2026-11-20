@@ -28,7 +28,12 @@ describe("initial prompt submission", () => {
     ).toMatchObject({ ok: true, attachments: [] });
   });
   it.each<RunAttachmentEntry>([
-    { key: "upload", status: "uploading", fileName: "pending.txt" },
+    {
+      key: "upload",
+      status: "uploading",
+      fileName: "pending.txt",
+      file: new File(["x"], "pending.txt"),
+    },
     {
       key: "error",
       status: "error",

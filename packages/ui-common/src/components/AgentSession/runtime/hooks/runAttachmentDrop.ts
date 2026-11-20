@@ -55,11 +55,13 @@ export function attachmentDropRejection(
 }
 
 export type RunAttachmentEntry =
-  | { key: string; fileName: string; status: "uploading" }
+  | { key: string; fileName: string; status: "uploading"; file: File }
   | {
       key: string;
       fileName: string;
       status: "ready";
+      /** Browser-only; used for chip thumbnail and preview. Never sent or persisted. Absent for a reference whose original file is gone. */
+      file?: File;
       reference: RunAttachmentReference;
     }
   | {

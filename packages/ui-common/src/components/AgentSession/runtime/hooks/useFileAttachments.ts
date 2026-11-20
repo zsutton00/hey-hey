@@ -81,6 +81,7 @@ async function uploadEntry(
       key,
       fileName: attachment.fileName,
       status: "ready",
+      file,
       reference: {
         attachmentId: attachment.attachmentId,
         fileName: attachment.fileName,
@@ -121,7 +122,7 @@ export function useFileAttachments(
           ...current,
           entries: [
             ...current.entries,
-            { key, fileName: file.name, status: "uploading" },
+            { key, fileName: file.name, status: "uploading", file },
           ],
         }));
         void uploadEntry(api, target, file, key).then((result) =>
