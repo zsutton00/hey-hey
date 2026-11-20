@@ -457,13 +457,6 @@ export const TaskMonitorWorkspaceView = ({
             {snapshot.failure.correctiveGuidance}
           </Alert>
         ) : null}
-        {snapshot?.pendingJudgment ? (
-          <Alert severity="info" data-testid="task-monitor-pending-judgment">
-            {snapshot.pendingJudgment.request}
-            <br />
-            {snapshot.pendingJudgment.guidance}
-          </Alert>
-        ) : null}
         {coordinatorStartError || operationalErrorMessage ? (
           <Alert severity="error" data-testid="task-monitor-start-error">
             {coordinatorStartError ?? operationalErrorMessage}
