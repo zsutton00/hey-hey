@@ -14,7 +14,7 @@ import { WorkItemPrioritySelector } from "../Selectors/WorkItemPrioritySelector"
 import { WorkItemStatusSelector } from "../Selectors/WorkItemStatusSelector";
 import { useWorkItemTypeByKey } from "../../data/hooks";
 import { isRetainedRemovedStatus } from "../../utils/workItemStatusVocabulary";
-import { RetainedStatusPanel } from "./RetainedStatusPanel";
+import { RetainedStatusWarning } from "./RetainedStatusWarning";
 import { StatusActionCompact } from "./StatusActionCompact";
 
 export type ReadOnlyMetadataField<Value> = {
@@ -97,7 +97,7 @@ export const WorkItemMetadata: React.FC<WorkItemMetadataProps> = ({
   );
   const statusField = fields.status;
   const showRetainedStatus =
-    statusField?.mode === "editable" &&
+    statusField !== undefined &&
     definition !== undefined &&
     isRetainedRemovedStatus(statusField.value, definition);
   const assigneeId = fields.assignee?.value;
@@ -153,14 +153,6 @@ export const WorkItemMetadata: React.FC<WorkItemMetadataProps> = ({
 
   return (
     <Box className={rootClassName} sx={[baseSx, ...normalizeRootSx(rootSx)]}>
-      {showRetainedStatus && definition && statusField?.mode === "editable" && (
-        <RetainedStatusPanel
-          status={statusField.value}
-          definition={definition}
-          disabled={disabled}
-          onReplace={statusField.onChange}
-        />
-      )}
       {isCompact ? (
         <Box
           sx={{
@@ -180,6 +172,7 @@ export const WorkItemMetadata: React.FC<WorkItemMetadataProps> = ({
             taskServices={taskServices}
             disabled={disabled}
           />
+          {showRetainedStatus && <RetainedStatusWarning />}
         </Box>
       ) : (
         <>
@@ -208,6 +201,7 @@ export const WorkItemMetadata: React.FC<WorkItemMetadataProps> = ({
                 fullWidth
                 size={size}
               />
+              {showRetainedStatus && <RetainedStatusWarning />}
             </Box>
           )}
 
