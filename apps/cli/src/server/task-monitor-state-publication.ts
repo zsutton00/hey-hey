@@ -175,6 +175,7 @@ const pendingPermissionJudgment = (
     target: pending.target,
     fingerprint: pending.fingerprint,
     reason: pending.escalationReason ?? LEGACY_HUMAN_OWNED_REASON,
+    ...(pending.escalatedAt ? { escalatedAt: pending.escalatedAt } : {}),
     answer: { command: 'HUMAN_DECISION', choices: ['APPROVE', 'DENY'] },
   };
 };

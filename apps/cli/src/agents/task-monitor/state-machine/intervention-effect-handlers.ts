@@ -219,6 +219,8 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
     if (delivery.outcome === 'delivered') {
       this.logger.info('task_monitor.intervention.decision.delivered', {
         ...logContext,
+        owner: 'SETTLED',
+        decidedBy: effect.human ? 'HUMAN' : 'MONITOR',
         callbackType: delivery.callbackType,
       });
       return {
@@ -315,6 +317,11 @@ export class TaskMonitorDecisionApplicationEffectHandler implements EffectHandle
 
 const MONITOR_DECISION_FAILED_PREFIX = 'The Task Monitor could not decide this request';
 
+/** How long the monitor may take before a request it still holds goes to the person. */
+export const MONITOR_PERMISSION_DECISION_DEADLINE_MS = 5 * 60 * 1000;
+
+const DEADLINE = Symbol('monitor-decision-deadline');
+
 /**
  * Asks the Task Monitor agent to decide one pending provider permission request.
  * Anything the monitor cannot judge becomes an escalation carrying the reason,
@@ -343,6 +350,7 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     private readonly runRegistry: RunRegistry,
     private readonly logger: ServerLogger,
     private readonly now: () => number = Date.now,
+    private readonly decisionDeadlineMs: number = MONITOR_PERMISSION_DECISION_DEADLINE_MS,
   ) {}
 
   public async execute(
@@ -432,7 +440,14 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
         return this.failed(effect, 'the monitor agent could not be started', logContext);
       }
 
-      const result = await this.decisionStore.wait(identity.runId);
+      const result = await this.waitWithinDeadline(identity.runId);
+      if (result === DEADLINE) {
+        return this.failed(
+          effect,
+          `no decision arrived within ${Math.round(this.decisionDeadlineMs / 1000)} seconds`,
+          logContext,
+        );
+      }
       if (result.status === 'INVALID') {
         return this.failed(
           effect,
@@ -462,6 +477,20 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
         error instanceof Error ? error.message : String(error),
         logContext,
       );
+    }
+  }
+
+  private async waitWithinDeadline(
+    runId: string,
+  ): Promise<Awaited<ReturnType<TaskMonitorDecisionStore['wait']>> | typeof DEADLINE> {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<typeof DEADLINE>((resolve) => {
+      timer = setTimeout(() => resolve(DEADLINE), this.decisionDeadlineMs);
+    });
+    try {
+      return await Promise.race([this.decisionStore.wait(runId), deadline]);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -502,12 +531,22 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
     effect: DecideTaskMonitorPermissionEffect,
     reason: string,
   ): TaskMonitorMachineEffectOutcome {
+    this.logger.warn('task_monitor.permission_decision.escalated', {
+      taskMonitorId: effect.taskMonitorId,
+      interventionId: effect.interventionId,
+      providerActionId: effect.providerActionId,
+      runId: effect.runId,
+      owner: 'HUMAN',
+      cause: reason,
+    });
+
     return {
       type: 'MONITOR_PERMISSION_ESCALATED',
       taskMonitorId: effect.taskMonitorId,
       interventionId: effect.interventionId,
       providerActionId: effect.providerActionId,
       reason,
+      escalatedAt: new Date(this.now()).toISOString(),
     };
   }
 }

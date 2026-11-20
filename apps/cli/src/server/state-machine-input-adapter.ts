@@ -2,7 +2,10 @@ import type {
   MonitorCommandAcknowledgement,
   MonitorCommandBody1 as MonitorCommandBody,
 } from '@hey-hey/contracts/agent-bridge';
-import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
+import {
+  interventionHold,
+  type TaskMonitorMachineContext,
+} from '../agents/task-monitor/state-machine/context';
 import type {
   TaskMonitorMachineEffect,
   TaskMonitorMachineEffectOutcome,
@@ -170,6 +173,34 @@ export class TaskMonitorStateMachineInputAdapter {
     };
   }
 
+  /**
+   * Only a running monitor answers permission requests. A stopped, completed or missing monitor
+   * cannot admit a decision, so its requests are answered on the provider path instead of being
+   * rejected by a machine that no longer handles them.
+   */
+  public async isAdmittingPermissionDecisions(taskMonitorId: string): Promise<boolean> {
+    if (!this.stateStore) {
+      return false;
+    }
+    const instance = await this.stateStore.findByInstanceId(taskMonitorId);
+    const running =
+      instance !== null &&
+      instance.snapshot.identity.machineType === 'TASK_MONITOR' &&
+      typeof instance.snapshot.state !== 'string';
+    this.logger.debug('task_monitor.permission_decision.monitor_availability', {
+      taskMonitorId,
+      running,
+      state:
+        instance === null
+          ? 'absent'
+          : typeof instance.snapshot.state === 'string'
+            ? instance.snapshot.state
+            : 'RUNNING',
+    });
+
+    return running;
+  }
+
   public async admitPermissionDecision(
     input: TaskMonitorPermissionDecisionInput,
   ): Promise<TaskMonitorVerifiedAdmissionResult> {
@@ -186,6 +217,12 @@ export class TaskMonitorStateMachineInputAdapter {
     });
     const instance = await this.stateStore.findByInstanceId(input.taskMonitorId);
     const pending = instance?.snapshot.context.pendingIntervention ?? null;
+    const logContext = {
+      taskMonitorId: input.taskMonitorId,
+      runId: input.runId,
+      providerActionId: input.providerActionId,
+      ingressId: input.ingressId,
+    };
     if (
       !instance ||
       instance.snapshot.identity.machineType !== 'TASK_MONITOR' ||
@@ -194,21 +231,40 @@ export class TaskMonitorStateMachineInputAdapter {
       pending.providerActionId !== input.providerActionId ||
       pending.providerSessionId !== input.providerSessionId
     ) {
-      this.logger.warn('task_monitor.permission_decision.snapshot_lookup.rejected', {
-        taskMonitorId: input.taskMonitorId,
-        runId: input.runId,
-        providerActionId: input.providerActionId,
-        ingressId: input.ingressId,
-        reason: !instance
-          ? 'machine_not_found'
-          : pending === null
-            ? 'no_pending_intervention'
-            : 'pending_intervention_mismatch',
+      const cause = !instance
+        ? 'machine_not_found'
+        : pending === null
+          ? 'no_pending_intervention'
+          : 'pending_intervention_mismatch';
+      this.logger.warn('task_monitor.permission_decision.rejected', {
+        ...logContext,
+        owner: null,
+        cause,
       });
       return {
         status: 'rejected',
         code: 'input_rejected',
-        reason: 'The durable Task Monitor has no matching pending intervention.',
+        reason:
+          'This request is no longer waiting for an answer: it was already decided or is not held by this Task Monitor.',
+      };
+    }
+
+    const hold = interventionHold(pending);
+    if (hold !== 'HUMAN_HELD') {
+      const cause = hold === 'SETTLED' ? 'already_settled' : 'held_by_monitor';
+      this.logger.warn('task_monitor.permission_decision.rejected', {
+        ...logContext,
+        interventionId: pending.interventionId,
+        owner: hold,
+        cause,
+      });
+      return {
+        status: 'rejected',
+        code: 'input_rejected',
+        reason:
+          hold === 'SETTLED'
+            ? 'This request was already decided, so this answer was not applied.'
+            : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.',
       };
     }
 

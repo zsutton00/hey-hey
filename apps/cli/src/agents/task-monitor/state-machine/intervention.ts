@@ -86,6 +86,7 @@ export const pendingInterventionFromRequest = (
     request.userRequired === true
       ? 'The request is marked USER_REQUIRED, so only a person can decide it.'
       : null,
+  escalatedAt: request.userRequired === true ? request.createdAt : null,
   decision: null,
   applicationFailure: null,
 });
@@ -149,6 +150,30 @@ export const matchesPendingMonitorDecision = ({ context, event }: InterventionAr
   event.type === 'MONITOR_PERMISSION_DECIDED' &&
   matchesMonitorPermissionOutcome({ context, event }) &&
   event.fingerprint === context.pendingIntervention?.fingerprint;
+
+/**
+ * Stopping the monitor leaves the Running state that answers requests, so a provider request it
+ * still holds would have no answerer. The Run already owns a Service scope request's card, and its
+ * wait is handed over when the decision turn ends, so only provider permission requests move here.
+ */
+export const hasMonitorHeldProviderRequest = ({ context }: InterventionArguments): boolean => {
+  const pending = context.pendingIntervention;
+  return (
+    pending !== null &&
+    pending.decision === null &&
+    pending.owner === 'MONITOR' &&
+    pending.requestKind !== 'SERVICE_SCOPE'
+  );
+};
+
+export const stopProjectionParameters = ({ context }: InterventionArguments) => {
+  const pending = context.pendingIntervention;
+  if (pending === null) {
+    throw new Error('Expected a pending request to hand to a person on stop.');
+  }
+
+  return projectTaskMonitorInterventionEffect(context, pending);
+};
 
 export const matchesPendingMonitorEscalation = (arguments_: InterventionArguments): boolean =>
   arguments_.event.type === 'MONITOR_PERMISSION_ESCALATED' &&

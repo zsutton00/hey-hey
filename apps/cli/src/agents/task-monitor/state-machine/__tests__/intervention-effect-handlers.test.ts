@@ -416,6 +416,39 @@ describe('Task Monitor permission decision', () => {
     });
   });
 
+  it('hands a request the monitor never answers to the human, with the reason and time', async () => {
+    const store = new TaskMonitorDecisionStore(
+      NOOP_LOGGER,
+      new TaskMonitorManagedTurnRuntime(NOOP_LOGGER),
+    );
+    const runTaskMonitor = vi.fn(
+      (command: { correlationId: string; coordinatorAttemptId?: string }) => {
+        store.bind(COORDINATOR_RUN_ID, command.correlationId, command.coordinatorAttemptId);
+        return Promise.resolve({
+          runId: COORDINATOR_RUN_ID,
+          coordinatorAgentSessionId: 'coordinator-session-1',
+        });
+      },
+    );
+    const handler = new TaskMonitorPermissionDecisionEffectHandler(
+      { runTaskMonitor } as unknown as TaskMonitorCoordinatorRunner,
+      store,
+      createTestRunRegistryWiring().runRegistry,
+      NOOP_LOGGER,
+      () => Date.parse('2026-08-09T12:00:30.000Z'),
+      20,
+    );
+
+    await expect(handler.execute(decideEffect, execution)).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        reason: expect.stringContaining('no decision arrived'),
+        escalatedAt: '2026-08-09T12:00:30.000Z',
+      },
+    });
+  });
+
   it('hands the request to the human with the monitor’s reason when it escalates', async () => {
     const { handler } = withMonitorAnswer({
       status: 'DECISION',

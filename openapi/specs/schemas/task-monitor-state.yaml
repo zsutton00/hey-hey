@@ -169,6 +169,10 @@ TaskMonitorPendingJudgment:
     reason:
       type: string
       description: Why a person, not the monitor, must decide this request.
+    escalatedAt:
+      type: string
+      format: date-time
+      description: When the request went to a person. Omitted for a request raised before the time was recorded.
     answer:
       $ref: "#/TaskMonitorPendingJudgmentAnswer"
   description: >-

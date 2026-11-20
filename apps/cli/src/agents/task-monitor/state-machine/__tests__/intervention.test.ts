@@ -379,6 +379,55 @@ describe('Task Monitor exact-action intervention', () => {
     });
   });
 
+  it('hands a request the monitor still holds to the person when the monitor is stopped', () => {
+    const { definition, snapshot } = observing();
+    const [pending] = transition(definition.machine, snapshot, exactAction);
+    const stop = { type: 'STOP' as const, taskMonitorId: MONITOR_ID };
+
+    const [halted, actions] = transition(definition.machine, pending, stop);
+
+    expect(halted.value).toBe('HALTED');
+    expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
+      'HALT_TASK_MONITOR_CONTROL',
+      'PROJECT_TASK_MONITOR_INTERVENTION',
+    ]);
+    expect(halted.context.pendingIntervention).toMatchObject({
+      owner: 'HUMAN',
+      escalationReason: 'The Task Monitor was stopped, so this request is waiting for a person.',
+      escalatedAt: null,
+    });
+
+    const [stamped] = transition(definition.machine, halted, {
+      type: 'TASK_MONITOR_STOP_SUCCEEDED',
+      taskMonitorId: MONITOR_ID,
+      stoppedAt: '2026-08-08T12:03:00.000Z',
+    });
+    expect(stamped.context.pendingIntervention).toMatchObject({
+      owner: 'HUMAN',
+      escalatedAt: '2026-08-08T12:03:00.000Z',
+    });
+  });
+
+  it('shows nothing new when the monitor is stopped with no request, or one the person already holds', () => {
+    const { definition, snapshot } = observing();
+    const stop = { type: 'STOP' as const, taskMonitorId: MONITOR_ID };
+
+    const [, idleActions] = transition(definition.machine, snapshot, stop);
+    expect(effectsOf(definition, idleActions).map((effect) => effect.type)).toEqual([
+      'HALT_TASK_MONITOR_CONTROL',
+    ]);
+
+    const { escalated } = humanOwned();
+    const [halted, heldActions] = transition(definition.machine, escalated, stop);
+    expect(effectsOf(definition, heldActions).map((effect) => effect.type)).toEqual([
+      'HALT_TASK_MONITOR_CONTROL',
+    ]);
+    expect(halted.context.pendingIntervention).toMatchObject({
+      owner: 'HUMAN',
+      escalationReason: 'The monitor cannot judge this safely.',
+    });
+  });
+
   it('applies a monitor denial through the same effect as a human one', () => {
     const { definition, snapshot } = observing();
     const [pending] = transition(definition.machine, snapshot, exactAction);

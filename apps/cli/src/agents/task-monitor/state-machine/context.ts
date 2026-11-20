@@ -109,6 +109,20 @@ export type TaskMonitorInterventionOwner = 'MONITOR' | 'HUMAN';
  */
 export type TaskMonitorRequestKind = 'PROVIDER_PERMISSION' | 'SERVICE_SCOPE';
 
+/** Who holds a request right now, derived from the durable pending intervention. */
+export type TaskMonitorInterventionHold = 'MONITOR_HELD' | 'HUMAN_HELD' | 'SETTLED';
+
+/** State persisted before the monitor decided requests carries no owner and is human-held. */
+export const interventionHold = (
+  pending: Pick<TaskMonitorPendingIntervention, 'owner' | 'decision'>,
+): TaskMonitorInterventionHold => {
+  if (pending.decision !== null) {
+    return 'SETTLED';
+  }
+
+  return pending.owner === 'MONITOR' ? 'MONITOR_HELD' : 'HUMAN_HELD';
+};
+
 /** Exactly one of `human` (a person decided) or `monitorRationale` (the monitor decided) is set. */
 export interface TaskMonitorInterventionDecision {
   readonly resolution: TaskMonitorHumanDecisionResolution;
@@ -135,6 +149,8 @@ export interface TaskMonitorPendingIntervention {
   readonly owner?: TaskMonitorInterventionOwner | undefined;
   /** Why the monitor handed the request to the human. */
   readonly escalationReason?: string | null | undefined;
+  /** When the human took the request: the escalation time, or creation for a USER_REQUIRED request. */
+  readonly escalatedAt?: string | null | undefined;
   readonly decision: TaskMonitorInterventionDecision | null;
   readonly applicationFailure: string | null;
 }

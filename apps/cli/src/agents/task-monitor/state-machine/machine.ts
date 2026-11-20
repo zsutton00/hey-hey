@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
+import { and, assign, setup } from 'xstate';
 import { currentJudgmentRequest } from './current-judgment-request';
-import { assign, setup } from 'xstate';
 import { ReportType, TaskMonitorReasoningEffort, WorkStatus } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorJudgmentResponse } from '@hey-hey/contracts/agent-bridge';
 
@@ -82,9 +82,11 @@ import {
   pendingInterventionFromRequest,
   queuedInterventions,
   matchesPendingMonitorDecision,
+  hasMonitorHeldProviderRequest,
   matchesPendingMonitorEscalation,
   matchesPendingServiceScopeEscalation,
   matchesApplyingDecision,
+  stopProjectionParameters,
   matchesPendingInterventionProjection,
   matchesPendingHumanDecision,
   taskMonitorInterventionStates,
@@ -303,6 +305,7 @@ const pendingInterventionSchema = z
     requestKind: requestKindSchema.optional(),
     owner: z.enum(['MONITOR', 'HUMAN']).optional(),
     escalationReason: z.string().nullable().optional(),
+    escalatedAt: z.string().nullable().optional(),
     decision: interventionDecisionSchema.nullable(),
     applicationFailure: z.string().nullable(),
   })
@@ -1278,6 +1281,7 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('TASK_MONITOR_STOP_SUCCEEDED'),
       taskMonitorId: z.string(),
+      stoppedAt: z.string().datetime().optional(),
     })
     .strict(),
   z
@@ -1424,6 +1428,7 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
       interventionId: z.string(),
       providerActionId: z.string(),
       reason: z.string(),
+      escalatedAt: z.string().datetime().optional(),
     })
     .strict(),
   z
@@ -1609,6 +1614,7 @@ const taskMonitorMachine = setup({
     hasQueuedMonitorOwnedIntervention,
     hasQueuedUserRequiredIntervention,
     matchesPendingMonitorDecision,
+    hasMonitorHeldProviderRequest,
     matchesPendingMonitorEscalation,
     matchesPendingServiceScopeEscalation,
     matchesPendingHumanDecision,
@@ -2036,8 +2042,33 @@ const taskMonitorMachine = setup({
     storeInterventionEscalation: assign({
       pendingIntervention: ({ context, event }) =>
         event.type === 'MONITOR_PERMISSION_ESCALATED' && context.pendingIntervention !== null
-          ? { ...context.pendingIntervention, owner: 'HUMAN', escalationReason: event.reason }
+          ? {
+              ...context.pendingIntervention,
+              owner: 'HUMAN',
+              escalationReason: event.reason,
+              escalatedAt: event.escalatedAt ?? null,
+            }
           : context.pendingIntervention,
+    }),
+    stampStopEscalationTime: assign({
+      pendingIntervention: ({ context, event }) =>
+        event.type === 'TASK_MONITOR_STOP_SUCCEEDED' &&
+        context.pendingIntervention?.owner === 'HUMAN' &&
+        context.pendingIntervention.escalatedAt === null
+          ? { ...context.pendingIntervention, escalatedAt: event.stoppedAt ?? null }
+          : context.pendingIntervention,
+    }),
+    handPendingRequestToHumanOnStop: assign({
+      pendingIntervention: ({ context }) =>
+        context.pendingIntervention === null
+          ? null
+          : {
+              ...context.pendingIntervention,
+              owner: 'HUMAN',
+              escalationReason:
+                'The Task Monitor was stopped, so this request is waiting for a person.',
+              escalatedAt: null,
+            },
     }),
     storeInterventionDecision: assign({
       pendingIntervention: ({ context, event }) =>
@@ -2236,14 +2267,28 @@ const taskMonitorMachine = setup({
           guard: 'matchesTaskMonitor',
           actions: 'storeGuidance',
         },
-        STOP: {
-          guard: 'matchesTaskMonitor',
-          target: 'HALTED',
-          actions: {
-            type: 'haltTaskMonitorControl',
-            params: haltControlParameters,
+        STOP: [
+          {
+            guard: and(['matchesTaskMonitor', 'hasMonitorHeldProviderRequest']),
+            target: 'HALTED',
+            actions: [
+              {
+                type: 'haltTaskMonitorControl',
+                params: haltControlParameters,
+              },
+              'handPendingRequestToHumanOnStop',
+              { type: 'projectTaskMonitorIntervention', params: stopProjectionParameters },
+            ],
           },
-        },
+          {
+            guard: 'matchesTaskMonitor',
+            target: 'HALTED',
+            actions: {
+              type: 'haltTaskMonitorControl',
+              params: haltControlParameters,
+            },
+          },
+        ],
       },
       states: {
         control: {
@@ -2485,7 +2530,10 @@ const taskMonitorMachine = setup({
     },
     HALTED: {
       on: {
-        TASK_MONITOR_STOP_SUCCEEDED: { guard: 'matchesTaskMonitor' },
+        TASK_MONITOR_STOP_SUCCEEDED: {
+          guard: 'matchesTaskMonitor',
+          actions: 'stampStopEscalationTime',
+        },
         TASK_MONITOR_STOP_FAILED: {
           guard: 'matchesTaskMonitor',
           actions: 'storeFailure',

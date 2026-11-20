@@ -1,5 +1,5 @@
 import type { PermissionDecisionRoutingInput } from '../../agents/permission-response-routing';
-import type { RunRegistry } from '../../run/run-registry';
+import type { PermissionDecisionOwner, RunRegistry } from '../../run/run-registry';
 import type { RunStore } from '../../run-store/run-store';
 import type { ServerLogger } from '../logger';
 import type { RunReadRestoreCoordinator } from '../restore-persisted-runs';
@@ -58,6 +58,35 @@ export class PermissionDecisionControlDispatcher {
     });
   }
 
+  /** A request whose monitor is stopped or gone is held by the person, who answers it on the provider path. */
+  private async routeByMonitorAvailability(
+    owner: PermissionDecisionOwner,
+    input: PermissionDecisionControlInput,
+    runId: string,
+  ): Promise<PermissionDecisionOwner> {
+    if (owner.kind !== 'task_monitor_intervention') {
+      return owner;
+    }
+    const admitting = await this.taskMonitorStateMachineInputAdapter.isAdmittingPermissionDecisions(
+      owner.taskMonitorId,
+    );
+    if (admitting) {
+      return owner;
+    }
+
+    this.logger.warn('trigger-verification.control.permission_decision.monitor_not_running', {
+      conversationId: input.conversationId,
+      runId,
+      requestId: input.requestId,
+      taskMonitorId: owner.taskMonitorId,
+      owner: 'HUMAN',
+      cause: 'task_monitor_not_running',
+      nonce: input.nonce,
+    });
+
+    return { kind: 'provider_permission' };
+  }
+
   private async deliver(runId: string, input: PermissionDecisionControlInput): Promise<void> {
     const activeRun = this.runRegistry.get(runId);
     const ownedRun = activeRun ?? (await this.runReadRestoreCoordinator.restore(runId));
@@ -80,12 +109,13 @@ export class PermissionDecisionControlDispatcher {
       deciderUserId: input.userId,
       ...(input.routingUserId ? { userId: input.routingUserId } : {}),
     };
-    const owner = await this.runRegistry.classifyPermissionDecisionOwner(
+    const classified = await this.runRegistry.classifyPermissionDecisionOwner(
       runId,
       input.requestId,
       input.idempotencyToken,
       ownedRun.taskMonitorId,
     );
+    const owner = await this.routeByMonitorAvailability(classified, input, runId);
     if (owner.kind === 'settled_specialized_request') {
       this.logger.warn(
         'trigger-verification.control.permission_decision.specialized_request_settled',

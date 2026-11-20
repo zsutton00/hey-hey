@@ -152,6 +152,22 @@ describe('Task Monitor durable finish machine', () => {
         }),
       );
 
+      // A late answer from the other surface is rejected and never reaches the provider again.
+      const lateAnswer = await owners.taskMonitorStateMachineInputAdapter.admitPermissionDecision({
+        taskMonitorId: MONITOR_ID,
+        runId: RUN_ID,
+        providerActionId,
+        providerSessionId,
+        decision: providerDecision,
+        decidedAt: new Date(NOW).toISOString(),
+        userId: USER_ID,
+        authenticatedAt: new Date(NOW).toISOString(),
+        ingressId: 'a7000000-0000-4000-8000-000000000099',
+      });
+      expect(lateAnswer).toMatchObject({ status: 'rejected', code: 'input_rejected' });
+      await drainDurableTaskMonitorWork(owners.effectRunner);
+      expect(submit).toHaveBeenCalledOnce();
+
       const restarted = await reconstruct(owners);
       await drainDurableTaskMonitorWork(restarted.runner);
       expect(submit).toHaveBeenCalledOnce();

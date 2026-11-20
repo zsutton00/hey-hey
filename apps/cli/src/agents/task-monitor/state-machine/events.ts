@@ -215,6 +215,8 @@ interface TaskMonitorPermissionEscalatedEvent {
   readonly interventionId: string;
   readonly providerActionId: string;
   readonly reason: string;
+  /** Absent only on outcomes persisted before escalation time was recorded. */
+  readonly escalatedAt?: string | undefined;
 }
 
 /** The supervision record of a committed monitor permission outcome was written. */
@@ -538,6 +540,8 @@ interface TaskMonitorLaunchPersistenceFailedEvent {
 interface TaskMonitorStopSucceededEvent {
   readonly type: 'TASK_MONITOR_STOP_SUCCEEDED';
   readonly taskMonitorId: string;
+  /** Absent only on outcomes persisted before the stop time was recorded. */
+  readonly stoppedAt?: string | undefined;
 }
 
 interface TaskMonitorStopFailedEvent {

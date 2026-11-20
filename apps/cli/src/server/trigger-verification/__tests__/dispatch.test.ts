@@ -116,6 +116,8 @@ interface TestRouterDependencies {
   readUserMessage?: LocalAgentService['readUserMessage'];
   restoreRun?: RunReadRestoreCoordinator['restore'];
   taskMonitorId?: string;
+  /** Whether the Task Monitor machine is running and can admit decisions; defaults to running. */
+  taskMonitorRunning?: boolean;
   hostActionAdmission?: HostActionAdmission;
   machineControllerAuthority?: Pick<MachineControllerAuthority, 'applyVerifiedAuthorityReduction'>;
   dropSurfacing?: TestDropSurfacingDependencies;
@@ -261,6 +263,9 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
         reason: 'ROUTE_REJECTED',
         message: 'Task Monitor command admission is not configured.',
       })),
+  );
+  vi.spyOn(taskMonitorStateMachineInputAdapter, 'isAdmittingPermissionDecisions').mockResolvedValue(
+    dependencies.taskMonitorRunning ?? true,
   );
   if (dependencies.admitTaskMonitorPermissionDecision) {
     vi.spyOn(taskMonitorStateMachineInputAdapter, 'admitPermissionDecision').mockImplementation(
@@ -3503,6 +3508,50 @@ describe('createTestRouter', () => {
         runId: 'binding-run',
         taskMonitorId: '10000000-0000-4000-8000-000000000001',
         requestId: 'req-1',
+      }),
+    ]);
+  });
+
+  it('answers a request on the provider path when its Task Monitor is no longer running', async () => {
+    const verifier = buildVerifier({
+      ok: true,
+      verified: buildVerifiedPermissionDecisionControl(),
+    });
+    const submitPermissionDecision = vi.fn().mockResolvedValue({ outcome: 'delivered' });
+    const admitTaskMonitorPermissionDecision = vi.fn();
+    const logger = noopLogger();
+    const router = createTestRouter({
+      verifier,
+      resolveConversationRun: () => ({
+        runId: 'binding-run',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
+      }),
+      sendMessage: vi.fn(),
+      createRun: vi.fn(),
+      stopRun: vi.fn().mockResolvedValue(undefined),
+      compactRun: vi.fn().mockResolvedValue(undefined),
+      submitPermissionDecision,
+      permissionDecisionAuditFilePath: path.join(
+        tmpdir(),
+        `hey-hey-permission-audit-${randomUUID()}.jsonl`,
+      ),
+      taskMonitorId: '10000000-0000-4000-8000-000000000001',
+      taskMonitorRunning: false,
+      admitTaskMonitorPermissionDecision,
+      logger,
+    });
+
+    router.handlePlatformEvent(controlFrameEvent);
+    await settle();
+
+    expect(admitTaskMonitorPermissionDecision).not.toHaveBeenCalled();
+    expect(submitPermissionDecision).toHaveBeenCalledTimes(1);
+    expect(logger.warnCalls).toContainEqual([
+      'trigger-verification.control.permission_decision.monitor_not_running',
+      expect.objectContaining({
+        requestId: 'req-1',
+        owner: 'HUMAN',
+        cause: 'task_monitor_not_running',
       }),
     ]);
   });
