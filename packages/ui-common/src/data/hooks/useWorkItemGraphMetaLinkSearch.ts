@@ -27,9 +27,7 @@ export interface WorkItemGraphMetaLinkTarget {
 }
 
 export type WorkItemGraphMetaLinkSearchIdleReason =
-  | "missing-context"
-  | "empty-query"
-  | "no-searchable-targets";
+  "missing-context" | "empty-query" | "no-searchable-targets";
 
 interface WorkItemGraphMetaLinkSearchStateBase {
   results: WorkItemGraphMetaLinkTarget[];
@@ -81,7 +79,7 @@ export interface UseWorkItemGraphMetaLinkSearchInput {
 }
 
 function idleState(
-  reason: WorkItemGraphMetaLinkSearchIdleReason
+  reason: WorkItemGraphMetaLinkSearchIdleReason,
 ): WorkItemGraphMetaLinkSearchState {
   return {
     status: "idle",
@@ -106,8 +104,8 @@ function normalizeTypeKeys(typeKeys: readonly string[] | undefined): string[] {
     new Set(
       (typeKeys ?? [])
         .map((typeKey) => typeKey.trim())
-        .filter((typeKey) => typeKey.length > 0)
-    )
+        .filter((typeKey) => typeKey.length > 0),
+    ),
   );
 }
 
@@ -122,7 +120,7 @@ function extractWorkItemTypeKey(result: UnifiedSearchResult): string | null {
 function mapAllowedResults(
   results: readonly UnifiedSearchResult[],
   allowedWorkItemTypeKeys: ReadonlySet<string>,
-  sourceChildId: string | null
+  sourceChildId: string | null,
 ): WorkItemGraphMetaLinkTarget[] {
   const deduplicated = new Map<string, WorkItemGraphMetaLinkTarget>();
 
@@ -165,7 +163,7 @@ function toError(error: unknown): Error {
 function buildRequest(
   query: string,
   targetWorkItemTypeKeys: string[],
-  limit: number
+  limit: number,
 ): UnifiedSearchRequest {
   return {
     intent: UnifiedSearchIntent.Hybrid,
@@ -197,14 +195,14 @@ export function useWorkItemGraphMetaLinkSearch({
   const trimmedProjectId = projectId?.trim() ?? "";
   const trimmedQuery = query.trim();
   const targetTypesKey = normalizeTypeKeys(
-    searchTarget?.targetWorkItemTypeKeys
+    searchTarget?.targetWorkItemTypeKeys,
   ).join("\u0000");
   const relationshipEdgeType = searchTarget?.edgeType ?? null;
   const targetEntityTypesKey =
     searchTarget?.targetEntityTypes.join("\u0000") ?? "";
   const includesTaskTargets =
     searchTarget?.targetEntityTypes.includes(
-      AgentEdgeEndpointEntityType.Task
+      AgentEdgeEndpointEntityType.Task,
     ) ?? false;
   const hasSourceChild = sourceChild !== null;
   const hasSearchTarget = searchTarget !== null;
@@ -220,7 +218,7 @@ export function useWorkItemGraphMetaLinkSearch({
       ? Math.min(Math.floor(limit), DEFAULT_RESULT_LIMIT)
       : DEFAULT_RESULT_LIMIT;
   const [state, setState] = useState<WorkItemGraphMetaLinkSearchState>(() =>
-    idleState("missing-context")
+    idleState("missing-context"),
   );
 
   useEffect(() => {
@@ -256,7 +254,7 @@ export function useWorkItemGraphMetaLinkSearch({
         unifiedSearchRequest: buildRequest(
           trimmedQuery,
           targetWorkItemTypeKeys,
-          boundedLimit
+          boundedLimit,
         ),
       })
       .then((response) => {
@@ -264,7 +262,7 @@ export function useWorkItemGraphMetaLinkSearch({
         const results = mapAllowedResults(
           response.data?.data?.results ?? [],
           allowedWorkItemTypeKeys,
-          sourceChildId
+          sourceChildId,
         );
         setState(
           results.length > 0
@@ -281,7 +279,7 @@ export function useWorkItemGraphMetaLinkSearch({
                 isLoading: false,
                 isSelectable: false,
                 error: null,
-              }
+              },
         );
       })
       .catch((error: unknown) => {

@@ -1,4 +1,7 @@
-import { editHistoryQueryOptions, type EditHistoryEntry } from "../collections/editHistory";
+import {
+  editHistoryQueryOptions,
+  type EditHistoryEntry,
+} from "../collections/editHistory";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
@@ -29,11 +32,14 @@ export const useWorkItemEditHistory = ({
   const isEnabled = enabled && !!organizationId && !!workItemId && !!entityType;
   const { result, state } = useDataLayerQuery(
     editHistoryQueryOptions(organizationId, workItemId, entityType),
-    { enabled: isEnabled }
+    { enabled: isEnabled },
   );
-  useWebsocketSubscriptions({ initiativeIds: [workItemId] }, { enabled: isEnabled });
+  useWebsocketSubscriptions(
+    { initiativeIds: [workItemId] },
+    { enabled: isEnabled },
+  );
   return {
-    editHistory: isEnabled ? result.data ?? [] : [],
+    editHistory: isEnabled ? (result.data ?? []) : [],
     isLoading: state.isLoading,
     error: state.error,
     refetch: state.refetch,
