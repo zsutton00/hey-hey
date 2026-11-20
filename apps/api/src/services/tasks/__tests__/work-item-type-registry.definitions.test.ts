@@ -1,4 +1,5 @@
 import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import { Logger } from '@nestjs/common';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
@@ -269,29 +270,40 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
     participatesInFeatureHierarchy: false,
   };
 
-  it.each([
-    ['project-owned row', false],
-    ['canonical template', true],
-  ])(
-    'fails warmup for obsolete capabilities in a %s',
-    async (_label, template) => {
-      const taskMonitor = buildRow({
-        typeKey: 'TASK_MONITOR',
-        projectId: template ? null : PROJECT_A,
-        isSystem: template,
-        capabilities: obsoleteTaskMonitorCapabilities,
-      });
-      const service = makeService(
-        template ? [] : [taskMonitor],
-        template ? [taskMonitor] : [],
-        [PROJECT_A],
-      );
+  it('fails warmup for obsolete capabilities in a canonical template', async () => {
+    const taskMonitor = buildRow({
+      typeKey: 'TASK_MONITOR',
+      projectId: null,
+      isSystem: true,
+      capabilities: obsoleteTaskMonitorCapabilities,
+    });
+    const service = makeService([], [taskMonitor], [PROJECT_A]);
 
-      await expect(service.refresh()).rejects.toThrow(
-        /Unrecognized key\(s\) in object/,
-      );
-    },
-  );
+    await expect(service.refresh()).rejects.toThrow(
+      /Unrecognized key\(s\) in object/,
+    );
+  });
+
+  it('skips only a project-owned row with obsolete capabilities and logs why', async () => {
+    const errorLog = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const taskMonitor = buildRow({
+      typeKey: 'TASK_MONITOR',
+      projectId: PROJECT_A,
+      isSystem: false,
+      capabilities: obsoleteTaskMonitorCapabilities,
+    });
+    const service = makeService([taskMonitor], [], [PROJECT_A]);
+
+    await expect(service.refresh()).resolves.toBeUndefined();
+
+    expect(service.getDefinition(PROJECT_A, 'TASK_MONITOR')).toBeUndefined();
+    expect(String(errorLog.mock.calls[0]?.[0])).toMatch(
+      /'TASK_MONITOR'.*Unrecognized key\(s\) in object/,
+    );
+    errorLog.mockRestore();
+  });
 
   it('serves a corrected Task Monitor definition through the public list snapshot', async () => {
     const taskMonitor = buildRow({
@@ -677,7 +689,10 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
     expect(service.getDefinition(PROJECT_B, 'RETIRED')).toBeUndefined();
   });
 
-  it('rejects rows whose rich definition columns were never backfilled', async () => {
+  it('skips a project row whose rich definition columns were never backfilled and logs why', async () => {
+    const errorLog = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     const service = makeService([
       buildRow({
         typeKey: 'HALF',
@@ -686,10 +701,14 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         name: null,
       }),
     ]);
-    await expect(service.refresh()).rejects.toThrow(
-      "Cannot load work-item type 'HALF'",
-    );
+
+    await expect(service.refresh()).resolves.toBeUndefined();
+
     expect(service.getDefinitions(PROJECT_A)).toEqual([]);
+    expect(String(errorLog.mock.calls[0]?.[0])).toMatch(
+      /'HALF'.*not a complete definition/,
+    );
+    errorLog.mockRestore();
   });
 
   it('preserves JSON section metadata on definition reads and rules', async () => {
