@@ -9,8 +9,8 @@ export const INVALID_SERVICE_PLACE_CHOICES = 'INVALID_SERVICE_PLACE_CHOICES';
 export interface LaunchPlaceContext {
   /** Services the launch runs against. */
   serviceIds: readonly string[];
-  /** The session-wide worktree branch sent with the launch, if any. */
-  worktreeBranch?: string;
+  /** The session-wide worktree sent with the launch, if any. */
+  worktree?: { enabled: boolean; branch?: string };
   /** The Plan's locked branch, when the launch belongs to a Plan. */
   planLockedBranch?: string;
 }
@@ -36,7 +36,7 @@ function assertUniqueAndWellFormed(choices: readonly ServicePlaceChoice[]) {
     seen.add(choice.serviceId);
 
     if (choice.kind === AgentSessionServicePlaceKind.MainFolder) {
-      if (choice.branch !== undefined || choice.newBranch) {
+      if ('branch' in choice || 'newBranch' in choice) {
         reject(
           choice.serviceId,
           'works in its main folder, so it cannot name a branch or a new branch. Remove them or choose a worktree.',
@@ -72,12 +72,30 @@ function assertBranchMatches(
   }
 }
 
+function assertSessionWorktreeMatches(
+  choices: readonly ServicePlaceChoice[],
+  branch: string | undefined,
+) {
+  if (branch === undefined) {
+    reject(
+      choices[0]?.serviceId ?? 'unknown',
+      'cannot take a place choice while the launch sets a session-wide worktree without a branch. Name the worktree branch or remove the session-wide worktree.',
+    );
+  }
+
+  assertBranchMatches(
+    choices,
+    branch,
+    'the launch sets a session-wide worktree',
+  );
+}
+
 /** Checks a launch's per-Service places before they reach the CLI. */
 export function assertLaunchServicePlaceChoices(
   choices: readonly ServicePlaceChoice[] | undefined,
   context: LaunchPlaceContext,
 ): void {
-  if (!choices) {
+  if (!choices?.length) {
     return;
   }
 
@@ -92,12 +110,8 @@ export function assertLaunchServicePlaceChoices(
     }
   }
 
-  if (context.worktreeBranch !== undefined) {
-    assertBranchMatches(
-      choices,
-      context.worktreeBranch,
-      'the launch sets a session-wide worktree',
-    );
+  if (context.worktree?.enabled) {
+    assertSessionWorktreeMatches(choices, context.worktree.branch);
   }
 
   if (context.planLockedBranch !== undefined) {
@@ -114,7 +128,7 @@ export function assertDecisionServicePlaceChoices(
   choices: readonly ServicePlaceChoice[] | undefined,
   decision: string,
 ): void {
-  if (!choices) {
+  if (!choices?.length) {
     return;
   }
 

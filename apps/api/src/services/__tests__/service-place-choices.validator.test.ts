@@ -67,7 +67,7 @@ describe('launch service place choices', () => {
     expect(() =>
       assertLaunchServicePlaceChoices(undefined, {
         ...launch,
-        worktreeBranch: 'feature/x',
+        worktree: { enabled: true, branch: 'feature/x' },
         planLockedBranch: 'plan/y',
       }),
     ).not.toThrow();
@@ -81,6 +81,11 @@ describe('launch service place choices', () => {
     ],
     ['newBranch on the main folder', [{ ...main(api), newBranch: true }], api],
     ['a branch on the main folder', [{ ...main(api), branch: 'x' }], api],
+    [
+      'an explicit newBranch false on the main folder',
+      [{ ...main(api), newBranch: false }],
+      api,
+    ],
     ['a Service outside the launch', [main(cli), main(outsider)], outsider],
     ['a Service chosen twice', [main(api), worktree(api, 'x')], api],
   ])('rejects %s and names the Service', (_name, choices, serviceId) => {
@@ -94,7 +99,10 @@ describe('launch service place choices', () => {
   });
 
   it('requires choices to agree with the session-wide worktree', () => {
-    const context = { ...launch, worktreeBranch: 'feature/x' };
+    const context = {
+      ...launch,
+      worktree: { enabled: true, branch: 'feature/x' },
+    };
 
     expect(() =>
       assertLaunchServicePlaceChoices(
@@ -120,6 +128,18 @@ describe('launch service place choices', () => {
     );
   });
 
+  it('requires a branch on the session-wide worktree when choices are sent', () => {
+    const context = { ...launch, worktree: { enabled: true } };
+
+    expectRejectedNaming(
+      () => assertLaunchServicePlaceChoices([main(api)], context),
+      api,
+    );
+    expect(() =>
+      assertLaunchServicePlaceChoices(undefined, context),
+    ).not.toThrow();
+  });
+
   it('requires choices to use the Plan-locked branch', () => {
     const context = { ...launch, planLockedBranch: 'plan/y' };
 
@@ -137,6 +157,26 @@ describe('launch service place choices', () => {
         ),
       cli,
     );
+  });
+});
+
+describe('launch without place choices', () => {
+  it.each([
+    ['omitted', undefined],
+    ['an empty list', []],
+  ])('behaves as today when choices are %s', (_label, choices) => {
+    const context = {
+      ...launch,
+      worktree: { enabled: true },
+      planLockedBranch: 'plan/y',
+    };
+
+    expect(() =>
+      assertLaunchServicePlaceChoices(choices, context),
+    ).not.toThrow();
+    expect(() =>
+      assertDecisionServicePlaceChoices(choices, 'deny'),
+    ).not.toThrow();
   });
 });
 
@@ -166,7 +206,10 @@ describe('decision service place choices', () => {
     expectRejectedNaming(
       () =>
         assertDecisionServicePlaceChoices(
-          [{ serviceId: cli, kind: AgentSessionServicePlaceKind.Worktree }],
+          [
+            // @ts-expect-error untrusted input: a WORKTREE choice without a branch
+            { serviceId: cli, kind: AgentSessionServicePlaceKind.Worktree },
+          ],
           'approve',
         ),
       cli,
