@@ -327,7 +327,7 @@ describe("Open Items triage modal", () => {
     expect(page).toHaveAttribute("data-requests", "");
     expect(
       screen.getByRole("dialog", { name: "Open Items triage" }),
-    ).toHaveStyle({ width: "720px" });
+    ).toHaveStyle({ width: "80vw" });
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/projects/project-1/tasks/t",
     );
