@@ -198,7 +198,11 @@ import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
 import type { AgentSessionCurrentStateObservation } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import { ConversationPhaseOwner } from './conversation-phase';
-import { RunCompaction } from './run-compaction';
+import {
+  DEFAULT_AUTO_COMPACT_THRESHOLD,
+  DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+  RunCompaction,
+} from './run-compaction';
 import { RunProposalTracker, type ProposalDecisionNotices } from './run-proposal-tracker';
 import { setAgentSessionOutputAttentionReady } from './agent-session-output-attention';
 import {
@@ -1016,7 +1020,15 @@ export class Run {
       broadcaster: this.broadcaster,
       autoCompact:
         args.autoCompact?.enabled === true
-          ? { threshold: args.autoCompact.threshold ?? 150_000 }
+          ? args.autoCompact.threshold !== undefined
+            ? { threshold: args.autoCompact.threshold }
+            : args.provider === 'antigravity'
+              ? // Gemini's window is several times larger, so the default follows the window the model reports.
+                {
+                  threshold: DEFAULT_AUTO_COMPACT_THRESHOLD,
+                  windowFraction: DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+                }
+              : { threshold: DEFAULT_AUTO_COMPACT_THRESHOLD }
           : null,
       runner: () => this.runner ?? undefined,
       isProcessing: () => this._processing,

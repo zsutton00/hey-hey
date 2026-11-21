@@ -8,6 +8,7 @@ import {
   type ExecutableSubagentCommand,
   type InlineEntitySearchCommand,
   SKILL_PICKER,
+  SKILL_PROVIDERS,
   type SurfaceContext,
   type AttachedAgentComposerContext,
 } from "./types";
@@ -121,7 +122,7 @@ const COMMAND_NAME_OVERRIDES: Record<string, string> = {
 };
 
 const isTypedInlineEntitySearchCommand = (
-  command: Command
+  command: Command,
 ): command is InlineEntitySearchCommand & { typeRef: string } =>
   command.kind === "inline-entity-search" &&
   typeof command.typeRef === "string" &&
@@ -129,7 +130,7 @@ const isTypedInlineEntitySearchCommand = (
 
 const filterCommandsForSurface = (
   commands: ReadonlyArray<Command>,
-  commandSurface: SurfaceContext["commandSurface"]
+  commandSurface: SurfaceContext["commandSurface"],
 ): Command[] => {
   if (commandSurface !== "entity-insertion-only") {
     return [...commands];
@@ -153,7 +154,7 @@ function workItemTypeToCommand(type: WorkItemTypeSummaryDto): Command {
 }
 
 export function useSlashCommandRegistry(
-  options: UseSlashCommandRegistryOptions
+  options: UseSlashCommandRegistryOptions,
 ): SlashCommandRegistry {
   const { organizationId, projectId, surfaceContext, query, agentContext } =
     options;
@@ -171,17 +172,17 @@ export function useSlashCommandRegistry(
 
     const derived = workItemTypes.map(workItemTypeToCommand);
     const skillCommand =
-      agentContext?.provider === "codex"
+      agentContext && SKILL_PROVIDERS.has(agentContext.provider)
         ? SKILL_COMMAND
         : surfaceContext.unavailableSkillCommandReason
-        ? {
-            ...SKILL_COMMAND,
-            availability: {
-              state: "disabled" as const,
-              reason: surfaceContext.unavailableSkillCommandReason,
-            },
-          }
-        : null;
+          ? {
+              ...SKILL_COMMAND,
+              availability: {
+                state: "disabled" as const,
+                reason: surfaceContext.unavailableSkillCommandReason,
+              },
+            }
+          : null;
     const attachedAgentCommands = skillCommand ? [skillCommand] : [];
     const heyHey = filterCommandsForSurface(
       [
@@ -193,7 +194,7 @@ export function useSlashCommandRegistry(
           ? [MESSAGE_AGENT_COMMAND]
           : []),
       ].filter(matches),
-      commandSurface
+      commandSurface,
     );
 
     return { heyHey };

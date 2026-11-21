@@ -78,7 +78,23 @@ export const errorResponseSchema = responseEnvelope.extend({
   error: z.object({ code: z.number(), message: z.string() }),
 });
 
-const sessionModels = z.object({ currentModelId: z.string().optional() }).nullish();
+const sessionModels = z
+  .object({
+    currentModelId: z.string().optional(),
+    availableModels: z.array(z.object({ modelId: z.string().min(1), name: z.string() })).optional(),
+  })
+  .nullish();
+const sessionConfigOptions = z
+  .array(
+    z
+      .object({
+        id: z.string(),
+        currentValue: z.string().optional(),
+        options: z.array(z.object({ value: z.string(), name: z.string() })).optional(),
+      })
+      .passthrough(),
+  )
+  .optional();
 const sessionModes = z.object({ currentModeId: z.string().optional() }).nullish();
 export const acpResultSchemas = {
   initialize: z.object({ protocolVersion: z.literal(1) }),
@@ -86,15 +102,35 @@ export const acpResultSchemas = {
     sessionId: z.string().min(1),
     modes: sessionModes,
     models: sessionModels,
+    configOptions: sessionConfigOptions,
   }),
   'session/resume': z.object({
     modes: sessionModes,
     models: sessionModels,
+    configOptions: sessionConfigOptions,
     sessionId: z.string().min(1).optional(),
   }),
+  'session/set_config_option': z.object({ configOptions: sessionConfigOptions }),
   'session/set_mode': z.object({}),
-  'session/prompt': z.object({ stopReason: z.string() }),
+  'session/prompt': z.object({
+    stopReason: z.string(),
+    usage: z
+      .object({
+        inputTokens: z.number().nonnegative(),
+        outputTokens: z.number().nonnegative(),
+        cachedReadTokens: z.number().nonnegative().optional(),
+        cachedWriteTokens: z.number().nonnegative().optional(),
+        thoughtTokens: z.number().nonnegative().optional(),
+        totalTokens: z.number().nonnegative(),
+      })
+      .optional(),
+  }),
 };
 
+export type AcpConfigOptions = NonNullable<z.infer<typeof sessionConfigOptions>>;
+
+export type AcpPromptUsage = NonNullable<
+  z.infer<(typeof acpResultSchemas)['session/prompt']>['usage']
+>;
 export type AcpUpdate = z.infer<typeof updateSchema>;
 export type AcpInboundCall = z.infer<typeof inboundCallSchema>;

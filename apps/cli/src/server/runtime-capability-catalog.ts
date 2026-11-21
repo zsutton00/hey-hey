@@ -1,10 +1,10 @@
-import { CodingAgentDetector } from '../local-app/coding-agent-detection';
 import {
   installCapabilityCatalog,
   validateCapabilityCatalogRows,
   type CapabilityCatalogModel,
   type CapabilityCatalogRow,
 } from '../shared/runtime/components/AgentSession/capabilityCatalog';
+import { AntigravityModelReader } from './model-catalog/antigravity-models';
 import { ClaudeModelReader } from './model-catalog/claude-models';
 import { CodexModelReader } from './model-catalog/codex-models';
 import { OpenCodeModelReader } from './model-catalog/opencode-models';
@@ -32,20 +32,7 @@ const defaultReaders = (): readonly ProviderModelReader[] => [
   new ClaudeModelReader(),
   new CodexModelReader(),
   new OpenCodeModelReader(),
-  {
-    provider: 'antigravity',
-    displayName: 'Antigravity',
-    async readModels() {
-      const { antigravity } = await new CodingAgentDetector().detect();
-      if (antigravity === 'not-found') {
-        throw new ProviderNotInstalledError('Antigravity', 'agy');
-      }
-      if (antigravity === 'check-failed') {
-        throw new Error('Could not check agy on PATH.');
-      }
-      throw new Error('runner not available.');
-    },
-  },
+  new AntigravityModelReader(),
 ];
 
 /** What the rest of the CLI may ask of the catalog: wait for it, or retry providers that are not ready. */

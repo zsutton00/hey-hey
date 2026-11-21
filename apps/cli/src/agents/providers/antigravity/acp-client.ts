@@ -3,6 +3,11 @@ import { createInterface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
 import { z } from 'zod';
 
+import {
+  AntigravityNotReadyError,
+  classifyAntigravityFailure,
+  sanitizeAntigravityDiagnostic,
+} from './antigravity-readiness';
 import type { ServerLogger } from '../../../server/logger';
 import {
   acpResultSchemas,
@@ -57,12 +62,14 @@ const frameDiscriminator = z.object({
   error: z.unknown().optional(),
 });
 const REQUEST_TIMEOUT_MS = 30_000;
+const STDERR_TAIL_CHARS = 2000;
 
 export class AntigravityAcpClient {
-  private readonly child: ChildProcessByStdio<Writable, Readable, null>;
+  private readonly child: ChildProcessByStdio<Writable, Readable, Readable>;
   private readonly requests = new Map<number, PendingRequest>();
   private nextId = 0;
   private closed = false;
+  private stderrTail = '';
 
   constructor(
     cwd: string,
@@ -74,14 +81,23 @@ export class AntigravityAcpClient {
   ) {
     this.child = spawn(executable, ['acp', '--process-per-session', ...launchArgs], {
       cwd,
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.child.on('spawn', () => logger.debug('antigravity.acp.spawn', { pid: this.child.pid }));
     this.child.on('error', (error) => this.close(error));
     this.child.stdin.on('error', (error) => this.close(error));
+    this.child.stderr.on('data', (chunk: Buffer) => {
+      this.stderrTail = (this.stderrTail + chunk.toString('utf8')).slice(-STDERR_TAIL_CHARS);
+    });
     this.child.on('exit', (code, signal) => {
-      logger.debug('antigravity.acp.exit', { code, signal });
-      this.close(new Error(`ACP exited (${code ?? signal})`));
+      const stderr = sanitizeAntigravityDiagnostic(this.stderrTail);
+      const cause = classifyAntigravityFailure(this.stderrTail);
+      logger.debug('antigravity.acp.exit', { code, signal, cause, stderr });
+      this.close(
+        cause
+          ? new AntigravityNotReadyError(cause, this.stderrTail)
+          : new Error(`ACP exited (${code ?? signal})${stderr ? `: ${stderr}` : ''}`),
+      );
     });
 
     const lines = createInterface({ input: this.child.stdout, crlfDelay: Infinity });
@@ -102,6 +118,10 @@ export class AntigravityAcpClient {
 
   setMode(sessionId: string, modeId: string) {
     return this.request('session/set_mode', { sessionId, modeId });
+  }
+
+  setConfigOption(sessionId: string, configId: string, value: string) {
+    return this.request('session/set_config_option', { sessionId, configId, value });
   }
 
   prompt(sessionId: string, prompt: AcpPromptContent[]) {
@@ -137,6 +157,20 @@ export class AntigravityAcpClient {
     }
     this.requests.clear();
     this.child.kill();
+  }
+
+  /** A sign-in wait looks like a timeout; keep the cause agy printed while it waited. */
+  private timeoutError(method: AcpMethod): Error {
+    const cause = classifyAntigravityFailure(this.stderrTail);
+    if (cause) {
+      this.logger.debug('antigravity.acp.timeout_cause', {
+        method,
+        cause,
+        stderr: sanitizeAntigravityDiagnostic(this.stderrTail),
+      });
+      return new AntigravityNotReadyError(cause, this.stderrTail);
+    }
+    return new Error(`ACP ${method} timed out`);
   }
 
   private send(frame: Record<string, unknown>): void {
@@ -194,7 +228,7 @@ export class AntigravityAcpClient {
       });
       if (method !== 'session/prompt') {
         timeout = setTimeout(
-          () => this.requests.get(id)?.reject(new Error(`ACP ${method} timed out`)),
+          () => this.requests.get(id)?.reject(this.timeoutError(method)),
           REQUEST_TIMEOUT_MS,
         );
         timeout.unref();

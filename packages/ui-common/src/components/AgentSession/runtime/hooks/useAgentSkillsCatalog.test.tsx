@@ -51,7 +51,7 @@ const baseOptions = {
 };
 
 const makeEntry = (
-  overrides: Partial<AgentSkillCatalogEntry> = {}
+  overrides: Partial<AgentSkillCatalogEntry> = {},
 ): AgentSkillCatalogEntry => ({
   provider: "codex",
   name: "release-check",
@@ -62,7 +62,7 @@ const makeEntry = (
 });
 
 const makeResult = (
-  overrides: Partial<CliReadRunSkillsListSuccessResponseDtoResult> = {}
+  overrides: Partial<CliReadRunSkillsListSuccessResponseDtoResult> = {},
 ): CliReadRunSkillsListSuccessResponseDtoResult => ({
   runId: baseOptions.runId,
   provider: "codex",
@@ -72,7 +72,7 @@ const makeResult = (
 });
 
 const resolveRead = (
-  result: CliReadRunSkillsListSuccessResponseDtoResult
+  result: CliReadRunSkillsListSuccessResponseDtoResult,
 ): void => {
   mocks.read.mockResolvedValue({
     data: {
@@ -111,7 +111,7 @@ beforeEach(() => {
 describe("useAgentSkillsCatalog", () => {
   it("stays idle when the Skill picker is closed", () => {
     const { result } = renderHook(() =>
-      useAgentSkillsCatalog({ ...baseOptions, enabled: false })
+      useAgentSkillsCatalog({ ...baseOptions, enabled: false }),
     );
 
     expect(result.current.state).toEqual({ status: "idle" });
@@ -134,7 +134,7 @@ describe("useAgentSkillsCatalog", () => {
         action: expect.objectContaining({
           targetId: baseOptions.agentSessionId,
         }),
-      })
+      }),
     );
     expect(mocks.read).toHaveBeenCalledWith({
       organizationId: baseOptions.organizationId,
@@ -149,12 +149,52 @@ describe("useAgentSkillsCatalog", () => {
     expect(JSON.stringify(mocks.read.mock.calls[0])).not.toContain("/private/");
   });
 
+  it("reads the Skills of a started Antigravity Run", async () => {
+    const catalog = makeResult({
+      provider: "antigravity",
+      skills: [
+        makeEntry({
+          provider: "antigravity",
+          name: "swarm",
+          catalogScope: "system",
+        }),
+      ],
+    });
+    resolveRead(catalog);
+
+    const { result } = renderHook(() =>
+      useAgentSkillsCatalog({ ...baseOptions, provider: "antigravity" }),
+    );
+
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    expect(result.current.state).toEqual({ status: "ready", catalog });
+  });
+
+  it("explains that Antigravity Skills need a started session", () => {
+    const { result } = renderHook(() =>
+      useAgentSkillsCatalog({
+        enabled: true,
+        organizationId: "org-1",
+        projectId: "project-1",
+        machineId: "machine-1",
+        provider: "antigravity",
+        catalogContext: { policy: "non_repository" },
+      }),
+    );
+
+    expect(result.current.state).toEqual({
+      status: "bridge-unavailable",
+      message: "Antigravity Skills are available once the session has started.",
+    });
+    expect(mocks.read).not.toHaveBeenCalled();
+  });
+
   it("distinguishes an empty catalog from a discovery failure", async () => {
     resolveRead(makeResult({ skills: [], errors: [] }));
     const { result, rerender } = renderHook(
       ({ reloadKey }: { reloadKey: number }) =>
         useAgentSkillsCatalog({ ...baseOptions, runId: `run-${reloadKey}` }),
-      { initialProps: { reloadKey: 1 } }
+      { initialProps: { reloadKey: 1 } },
     );
 
     await waitFor(() => expect(result.current.state.status).toBe("empty"));
@@ -168,12 +208,12 @@ describe("useAgentSkillsCatalog", () => {
             message: "The repo Skill directory is unreadable.",
           },
         ],
-      })
+      }),
     );
     rerender({ reloadKey: 2 });
 
     await waitFor(() =>
-      expect(result.current.state.status).toBe("discovery-error")
+      expect(result.current.state.status).toBe("discovery-error"),
     );
     expect(result.current.state).toEqual({
       status: "discovery-error",
@@ -196,7 +236,7 @@ describe("useAgentSkillsCatalog", () => {
     const { result } = renderHook(() => useAgentSkillsCatalog(baseOptions));
 
     await waitFor(() =>
-      expect(result.current.state.status).toBe("bridge-unavailable")
+      expect(result.current.state.status).toBe("bridge-unavailable"),
     );
     expect(result.current.state).toEqual({
       status: "bridge-unavailable",
@@ -252,7 +292,7 @@ describe("pre-conversation catalogs", () => {
           provider: "codex",
           catalogContext: { policy: "non_repository" },
         }),
-      })
+      }),
     );
     expect(mocks.workspaceRead).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -273,7 +313,7 @@ describe("pre-conversation catalogs", () => {
         () =>
           new Promise((resolve) => {
             finish = resolve;
-          })
+          }),
       )
       .mockResolvedValue(response("repository"));
     const { result, rerender } = renderHook(
@@ -284,7 +324,7 @@ describe("pre-conversation catalogs", () => {
             ? { policy: "service_workspace", serviceId }
             : { policy: "non_repository" },
         }),
-      { initialProps: { serviceId: null as string | null } }
+      { initialProps: { serviceId: null as string | null } },
     );
     await waitFor(() => expect(mocks.workspaceRead).toHaveBeenCalledTimes(1));
     rerender({ serviceId: "service-1" });
@@ -304,7 +344,7 @@ describe("pre-conversation catalogs", () => {
             serviceId: "service-1",
           },
         }),
-      })
+      }),
     );
   });
   it.each(["CATALOG_BUSY", "TIMEOUT", "PROVIDER_FAILURE"] as const)(
@@ -329,10 +369,10 @@ describe("pre-conversation catalogs", () => {
           code,
           message: "Try again",
           retryable: true,
-        })
+        }),
       );
       act(() => result.current.reload());
       await waitFor(() => expect(result.current.state.status).toBe("ready"));
-    }
+    },
   );
 });

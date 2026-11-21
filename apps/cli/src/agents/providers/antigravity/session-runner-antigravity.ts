@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { OAuthClient } from '../../../auth/index';
 import type { Run } from '../../../run/run';
+import type { AgentSkillCatalog } from '../agent-skills';
 import type { RunStore } from '../../../run-store/run-store';
 import type { LocalAgentEndpoint } from '../../../server/local-base-url';
 import type { ServerLogger } from '../../../server/logger';
@@ -32,7 +33,8 @@ import {
   type AcpHttpServer,
   type AcpPromptContent,
 } from './acp-client';
-import type { AcpInboundCall } from './acp-schemas';
+import type { AcpConfigOptions, AcpInboundCall, AcpPromptUsage } from './acp-schemas';
+import { listAntigravitySkills } from './antigravity-skill-catalog';
 import {
   mapAntigravityPermission,
   mapAntigravityUpdate,
@@ -68,7 +70,11 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private activePrompt: ActivePrompt | undefined;
   private usage: { used: number; size: number } | undefined;
   private model: string | undefined;
+  /** The Run whose token totals this provider session's prompts count against. */
+  private owningRunId: string | undefined;
   private expectedMode: 'default' | undefined;
+  private configOptions: AcpConfigOptions = [];
+  private commands = new Set<string>();
 
   constructor(private readonly dependencies: Dependencies) {}
 
@@ -110,6 +116,189 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     };
   }
 
+  /**
+   * Compacts through Antigravity's own `/compact` command, which ACP advertises
+   * in its available commands. The summary is a normal prompt turn, so it is
+   * refused while another prompt is active and unsupported when `agy` does not
+   * advertise the command.
+   */
+  async compact(providerSessionId?: string): Promise<void> {
+    const { logger } = this.dependencies;
+    const client = this.client;
+    const sessionId = this.sessionId;
+    if (!client || !sessionId || (providerSessionId && providerSessionId !== sessionId)) {
+      throw new AgentSessionRunnerError(
+        'NO_ACTIVE_SESSION',
+        'No active Antigravity session is available to compact.',
+      );
+    }
+    if (!this.commands.has('compact')) {
+      logger.warn('antigravity.compact.unsupported', { sessionId });
+      throw new AgentSessionRunnerError(
+        'NOT_SUPPORTED',
+        'This Antigravity session does not advertise a compact command.',
+      );
+    }
+    if (this.busy) {
+      throw new AgentSessionRunnerError('RUN_BUSY', 'Antigravity already has an active prompt.');
+    }
+
+    this.busy = true;
+    logger.debug('antigravity.compact.started', { sessionId });
+    try {
+      const result = await client.prompt(sessionId, [{ type: 'text', text: '/compact' }]);
+      if (this.owningRunId) {
+        await this.recordTokenUsage(this.owningRunId, result.usage);
+      }
+      if (result.stopReason !== 'end_turn') {
+        throw new AgentSessionRunnerError(
+          'RUN_FAILED',
+          `Antigravity compaction stopped with reason ${result.stopReason}.`,
+        );
+      }
+      logger.debug('antigravity.compact.succeeded', { sessionId });
+    } catch (error) {
+      logger.warn('antigravity.compact.failed', { sessionId, error: String(error) });
+      throw error;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Makes the session run the model and thinking level the launch selected.
+   * The catalog offers model families and levels as separate choices, which are
+   * the `model` and `thought_level` config options. Each is applied only when it
+   * differs from what the session reports, and the provider's reply must confirm
+   * it: a session that would run a different model fails the launch instead.
+   * A level Antigravity does not list for the model keeps the provider default.
+   */
+  private async applySelection(
+    client: AntigravityAcpClient,
+    sessionId: string,
+    args: PromptArgs,
+  ): Promise<void> {
+    const { logger } = this.dependencies;
+    const model = args.model ?? args.session.model ?? undefined;
+    const effort = args.reasoningEffort ?? args.session.reasoningEffort ?? undefined;
+    if (model) {
+      await this.selectModel(client, sessionId, model);
+    }
+    if (effort && effort !== 'default') {
+      const applied = await this.setOption(client, sessionId, 'thought_level', effort, {
+        required: false,
+      });
+      if (!applied) {
+        logger.warn('antigravity.thought_level.not_applied', { sessionId, effort });
+      }
+    }
+    const family = this.currentOption('model');
+    const level = this.currentOption('thought_level');
+    if (family) {
+      this.model = level ? `${family}-${level}` : family;
+    }
+  }
+
+  /**
+   * Without a `model` config option the session can only run the model it
+   * reported as current, which is the one model the catalog then lists.
+   */
+  private async selectModel(
+    client: AntigravityAcpClient,
+    sessionId: string,
+    model: string,
+  ): Promise<void> {
+    const hasModelOption = this.configOptions.some((option) => option.id === 'model');
+    if (hasModelOption) {
+      await this.setOption(client, sessionId, 'model', model, { required: true });
+      return;
+    }
+    if (model !== this.model) {
+      throw new AgentSessionRunnerError(
+        'RUN_FAILED',
+        `Antigravity offers no model choice for this session and is running "${this.model ?? 'unknown'}", not "${model}".`,
+      );
+    }
+  }
+
+  private currentOption(id: string): string | undefined {
+    return this.configOptions.find((option) => option.id === id)?.currentValue;
+  }
+
+  private async setOption(
+    client: AntigravityAcpClient,
+    sessionId: string,
+    id: string,
+    value: string,
+    { required }: { required: boolean },
+  ): Promise<boolean> {
+    const option = this.configOptions.find((entry) => entry.id === id);
+    if (option?.currentValue === value) {
+      return true;
+    }
+    if (!option?.options?.some((entry) => entry.value === value)) {
+      if (!required) {
+        return false;
+      }
+      throw new AgentSessionRunnerError(
+        'RUN_FAILED',
+        `Antigravity does not list ${id} "${value}" for this session.`,
+      );
+    }
+
+    const reply = await client.setConfigOption(sessionId, id, value);
+    this.configOptions = reply.configOptions ?? this.configOptions;
+    const effective = this.currentOption(id);
+    this.dependencies.logger.debug('antigravity.config_option.applied', {
+      sessionId,
+      id,
+      requested: value,
+      effective,
+    });
+    if (effective !== value) {
+      throw new AgentSessionRunnerError(
+        'RUN_FAILED',
+        `Antigravity kept ${id} "${effective ?? 'unknown'}" instead of "${value}".`,
+      );
+    }
+    return true;
+  }
+
+  listSkills(): Promise<AgentSkillCatalog> {
+    return listAntigravitySkills(this.commands.size > 0 ? this.commands : undefined);
+  }
+
+  /**
+   * Adds the turn's tokens the way ACP reports them. A turn with no `usage`
+   * adds nothing, so a Run that never got any stays unavailable instead of zero.
+   * Cache counts are kept only when ACP reports both read and write.
+   */
+  private async recordTokenUsage(runId: string, usage: AcpPromptUsage | undefined): Promise<void> {
+    const { logger, runStore } = this.dependencies;
+    if (!usage) {
+      logger.debug('antigravity.token_usage.unavailable', { runId });
+      return;
+    }
+    const { cachedReadTokens, cachedWriteTokens } = usage;
+    const cache =
+      cachedReadTokens !== undefined && cachedWriteTokens !== undefined
+        ? {
+            cacheReadInputTokens: cachedReadTokens,
+            cacheCreationInputTokens: cachedWriteTokens,
+            cacheAvailability: 'reported' as const,
+          }
+        : {};
+    try {
+      await runStore.updateRunTokenUsage(runId, {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        ...cache,
+      });
+    } catch (error) {
+      logger.warn('antigravity.token_usage.persist_failed', { runId, error: String(error) });
+    }
+  }
+
   async submitPermissionDecision({
     dispatch,
     session,
@@ -143,7 +332,10 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     this.sessionId = null;
     this.usage = undefined;
     this.model = undefined;
+    this.owningRunId = undefined;
     this.expectedMode = undefined;
+    this.configOptions = [];
+    this.commands = new Set();
     this.mountIdentity = undefined;
     this.agentName = undefined;
     const directory = this.directory;
@@ -190,6 +382,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       if (fresh || (this.sessionId && this.sessionId !== resumeId)) {
         await this.discardSession();
       }
+      this.owningRunId = args.session.agentic_session_id;
       const mcpServers = this.serversFor(args);
       const mountIdentity = JSON.stringify(mcpServers);
       if (!this.client || this.mountIdentity !== mountIdentity) {
@@ -223,10 +416,12 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
           }
           this.sessionId = resumeId;
           this.model = resumed.models?.currentModelId;
+          this.configOptions = resumed.configOptions ?? [];
         } else {
           const created = await client.createSession(config);
           this.sessionId = created.sessionId;
           this.model = created.models?.currentModelId;
+          this.configOptions = created.configOptions ?? [];
         }
         this.mountIdentity = mountIdentity;
         this.emit(this.sessionId, 'session_started', { messageType: 'provider_event' });
@@ -245,6 +440,8 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         this.expectedMode = mode;
         await client.setMode(sessionId, mode);
       }
+
+      await this.applySelection(client, sessionId, args);
 
       if (args.prompt !== undefined) {
         const attachments = await this.attachments.read(
@@ -277,6 +474,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         try {
           const result = await client.prompt(sessionId, content);
           args.signal?.removeEventListener('abort', cancel);
+          await this.recordTokenUsage(args.session.agentic_session_id, result.usage);
           if (result.stopReason === 'cancelled') {
             this.dependencies.agentOutputOwner.activeTurn?.abort();
           }
@@ -447,6 +645,12 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     sessionId,
     update,
   }: Extract<AcpInboundCall, { method: 'session/update' }>['params']): void {
+    // agy advertises its commands right behind the session/new reply, before the
+    // runner has bound the session id, so that one update is accepted unbound.
+    if (update.sessionUpdate === 'available_commands_update' && this.sessionId === null) {
+      this.commands = new Set(update.availableCommands.map((command) => command.name));
+      return;
+    }
     if (sessionId !== this.sessionId) {
       return;
     }
@@ -463,6 +667,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     }
     if (update.sessionUpdate === 'usage_update') {
       this.usage = update;
+    }
+    if (update.sessionUpdate === 'available_commands_update') {
+      this.commands = new Set(update.availableCommands.map((command) => command.name));
     }
     if (!this.activePrompt) {
       return;

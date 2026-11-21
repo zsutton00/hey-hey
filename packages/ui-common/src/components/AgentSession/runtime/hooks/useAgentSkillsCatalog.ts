@@ -106,11 +106,15 @@ export function useAgentSkillsCatalog(
       };
     }
 
-    if (provider !== "codex") {
+    // Codex lists Skills for any context. Antigravity lists them from its live
+    // session, so it needs a started run.
+    if (provider !== "codex" && !(provider === "antigravity" && runId)) {
       setState({
         status: "bridge-unavailable",
         message:
-          "Installed Skills are currently available for Codex sessions only.",
+          provider === "antigravity"
+            ? "Antigravity Skills are available once the session has started."
+            : "Installed Skills are currently available for Codex and Antigravity sessions only.",
       });
       return () => {
         isCurrent = false;

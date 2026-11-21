@@ -10,6 +10,10 @@ import type { SubAgentContextReading } from './subagent';
 import type { SystemMessageDataNoticeSeverityEnum as NoticeSeverity } from '../shared/api/index';
 import type { Turn } from '../turn/turn';
 
+export const DEFAULT_AUTO_COMPACT_THRESHOLD = 150_000;
+/** 150k of a 200k window: the same point, scaled to whatever window the model reports. */
+export const DEFAULT_AUTO_COMPACT_WINDOW_FRACTION = 0.75;
+
 /** The only way `RunCompaction` sees the Run that owns it. */
 export interface RunCompactionDeps {
   runId: string;
@@ -17,7 +21,7 @@ export interface RunCompactionDeps {
   logger: ServerLogger;
   broadcaster: RunEventPublisher;
   /** Resolved auto-compact policy. Null when disabled or absent. */
-  autoCompact: { threshold: number } | null;
+  autoCompact: { threshold: number; windowFraction?: number } | null;
   runner(): AgentSessionRunner | undefined;
   isProcessing(): boolean;
   session(): AgenticSession;
@@ -142,7 +146,7 @@ export class RunCompaction {
   private async maybeAutoCompact(): Promise<void> {
     if (this.pendingCompact !== null) return; // defense-in-depth: coalescing guard
     if (this.deps.autoCompact === null) return;
-    const { threshold } = this.deps.autoCompact;
+    const { threshold: fixedThreshold, windowFraction } = this.deps.autoCompact;
     let usage: LocalContextData | undefined;
     try {
       usage = await this.deps.runner()?.getContextUsage();
@@ -153,7 +157,12 @@ export class RunCompaction {
       });
       return;
     }
-    if (!usage || usage.totalTokens <= threshold) return;
+    if (!usage) return;
+    const threshold =
+      windowFraction !== undefined && usage.maxTokens > 0
+        ? Math.floor(usage.maxTokens * windowFraction)
+        : fixedThreshold;
+    if (usage.totalTokens <= threshold) return;
     try {
       await this.compact({ silent: true });
     } catch (error) {
