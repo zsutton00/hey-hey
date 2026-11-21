@@ -1,5 +1,59 @@
 # Changelog
 
+## v1.4.0
+
+### Work item types and statuses
+
+- Added custom statuses owned by each work item type, with a status editor in type settings.
+- Added Bugs as allowed items inside plan stages and Task Monitor task kinds.
+- Updated work item lists, filters and status controls to show each type's own statuses, including retained statuses that have since been removed.
+- Updated goal progress to follow what each status means instead of its name.
+- Updated status filters to match exactly and to keep the All tab selection.
+- Fixed one malformed work item type breaking the others.
+
+### Task Monitor
+
+- Added monitor kinds, each with its own declared policy, and a choice of launch method per kind.
+- Updated the Task Monitor workspace to adapt to live execution state, with lifecycle controls moved into an action capsule.
+- Updated Task Monitor runs to use each provider's auto mode.
+- Updated monitor completion to separate finishing an operation from finishing an item, and recovery now honors a finished operation.
+- Fixed Task Monitor judgments being reported as failures.
+
+### Open Items and uncertainties
+
+- Added a preview of the changes an Open Items triage would make before you apply it, and suggestions that stay pending.
+- Added a Discuss action on uncertainty cards, which carries the uncertainty's context into the discussion.
+
+### Agent sessions and reviews
+
+- Added a Feature Sync session role.
+- Added change walkthroughs that orient reviewers, with Markdown rendered in their reports.
+- Added previews for pending attachment chips.
+- Updated Claude permission prompts with clearer context and options.
+- Fixed file changes not being tracked in repositories with no commits.
+- Fixed entity conversations being unable to look up Service IDs.
+- Fixed context reads not resuming when a Claude session ends.
+- Fixed replies after continuing a session going to the wrong computer.
+- Fixed review guidance for planned changes and for Feature Sync analysis.
+- Fixed hints appearing in graph search traversal.
+- Fixed top-level item edits not allowing self-approval.
+
+### Interface
+
+- Updated card title contrast.
+- Fixed a removed-status warning to appear beneath the status control.
+- Removed the session picker.
+
+### API behavior
+
+- Updated API errors for missing records, inconsistent server state, idempotency-key reuse and rate limiting to return accurate HTTP statuses (404, 500, 429) instead of 409.
+
+### Upgrade and release artifacts
+
+- Updated the API database schema for per-type statuses, monitor kinds and session role guidance. Apply the release's Flyway migrations before starting the updated API.
+- Updated the CLI source to version 4.5.0. After publication, install it with `npm install -g @hey-hey/cli@4.5.0`; its release manifest pins the selected container images.
+- Source and artifact publication do not establish that the hosted application has been upgraded.
+
 ## v1.3.3
 
 ### Agent sessions and change history
