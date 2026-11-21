@@ -694,6 +694,10 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
     completeAgentSession = true,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
     switch (decision.action) {
+      case 'APPROVE_PERMISSION':
+      case 'DENY_PERMISSION':
+      case 'ESCALATE_PERMISSION':
+        throw new Error(`${decision.action} decides a permission request, not a settled Run.`);
       case 'REQUEST_REVIEW':
         if (
           effect.terminalOutcome === 'COMPLETED' &&

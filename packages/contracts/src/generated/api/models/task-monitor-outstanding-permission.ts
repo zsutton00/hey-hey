@@ -81,6 +81,18 @@ export interface TaskMonitorOutstandingPermission {
      * @memberof TaskMonitorOutstandingPermission
      */
     'answerable': boolean;
+    /**
+     * Why a person, not the monitor, must decide this request. Omitted while the monitor still holds it.
+     * @type {string}
+     * @memberof TaskMonitorOutstandingPermission
+     */
+    'reason'?: string;
+    /**
+     * When the request went to a person. Omitted while the monitor holds it or when the time was not recorded.
+     * @type {string}
+     * @memberof TaskMonitorOutstandingPermission
+     */
+    'escalatedAt'?: string;
 }
 
 

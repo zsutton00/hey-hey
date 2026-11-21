@@ -3479,6 +3479,7 @@ export * from './task-monitor-state-failure.js';
 export * from './task-monitor-state-observation.js';
 export * from './task-monitor-state-pending-judgment.js';
 export * from './task-monitor-state-projection.js';
+export * from './task-monitor-state-projection-pending-judgment.js';
 export * from './task-monitor-stop-command.js';
 export * from './task-monitor-supervision-system-message-data.js';
 export * from './task-monitor-task-activity-state.js';

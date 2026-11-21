@@ -317,6 +317,69 @@ export const taskMonitorCoordinatorDecisionJsonSchema = {
           "maxLength": 5000
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Approve the pending provider permission request for the exact action and target.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "APPROVE_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Deny the pending provider permission request.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "DENY_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Hand the pending request to the human because the monitor cannot judge it safely; rationale is the reason shown to them.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "ESCALATE_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   ],
   "discriminator": {
@@ -327,7 +390,10 @@ export const taskMonitorCoordinatorDecisionJsonSchema = {
       "ACCEPT_TASK": "#/components/schemas/LocalTaskMonitorAcceptTaskDecision",
       "WAIT": "#/components/schemas/LocalTaskMonitorWaitDecision",
       "REQUEST_JUDGMENT": "#/components/schemas/LocalTaskMonitorRequestJudgmentDecision",
-      "HALT": "#/components/schemas/LocalTaskMonitorHaltDecision"
+      "HALT": "#/components/schemas/LocalTaskMonitorHaltDecision",
+      "APPROVE_PERMISSION": "#/components/schemas/LocalTaskMonitorApprovePermissionDecision",
+      "DENY_PERMISSION": "#/components/schemas/LocalTaskMonitorDenyPermissionDecision",
+      "ESCALATE_PERMISSION": "#/components/schemas/LocalTaskMonitorEscalatePermissionDecision"
     }
   }
 } as const;
