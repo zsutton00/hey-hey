@@ -4,6 +4,8 @@ import { usePreviewPresentation } from "../../contexts/PreviewPresentationContex
 
 export interface DetailPageHeaderProps {
   title: React.ReactNode;
+  /** Rendered beside the title; wraps below it only when the row is too narrow. */
+  titleAdornment?: React.ReactNode;
   subtitle?: string;
   metadataComponent?: React.ReactNode;
   priorityChip?: React.ReactNode;
@@ -14,6 +16,7 @@ export interface DetailPageHeaderProps {
 
 export const DetailPageHeader: React.FC<DetailPageHeaderProps> = ({
   title,
+  titleAdornment,
   subtitle,
   metadataComponent,
   metadata,
@@ -57,6 +60,7 @@ export const DetailPageHeader: React.FC<DetailPageHeaderProps> = ({
             ) : (
               title
             )}
+            {titleAdornment}
           </Stack>
 
           {subtitle && (
