@@ -248,8 +248,35 @@ describe('TaskController', () => {
       },
     );
 
+    it('passes each repeated status through as one exact status name', async () => {
+      mockTaskService.findReferences.mockResolvedValue({} as never);
+
+      await controller.findReferences(
+        testIds.project,
+        testIds.organization,
+        WORK_ITEM_TYPE_KEYS.Feature,
+        '1',
+        '20',
+        undefined,
+        ['In Review, round 2', 'In Review, round 2', 'Shipped'],
+        undefined,
+        undefined,
+      );
+
+      expect(mockTaskService.findReferences).toHaveBeenCalledWith(
+        testIds.organization,
+        testIds.project,
+        WORK_ITEM_TYPE_KEYS.Feature,
+        1,
+        20,
+        undefined,
+        ['In Review, round 2', 'Shipped'],
+        'name',
+        expect.anything(),
+      );
+    });
+
     it.each([
-      ['invalid status', ['NOT_A_STATUS'], undefined, undefined],
       ['invalid sort field', undefined, 'updatedAt', undefined],
       ['invalid sort order', undefined, undefined, 'sideways'],
     ])(

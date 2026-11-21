@@ -14,12 +14,21 @@ const TASK_USER_SETTABLE = [
   'ARCHIVED',
 ] as const;
 
+// Task and feature statuses are owned by the work item type, so the caller
+// supplies the allowed list; design docs use their fixed AdrStatus set.
+const configuredStatusesFor = (target: string) =>
+  target === 'DESIGN_DOC' ? undefined : TASK_USER_SETTABLE;
+
 describe('validateProposalUpdateStatus', () => {
   describe('APPROVED is rejected for every known target type', () => {
     it.each(['TASK', 'FEATURE', 'DESIGN_DOC'])(
       'rejects APPROVED for %s',
       (target) => {
-        const result = validateProposalUpdateStatus(target, 'APPROVED');
+        const result = validateProposalUpdateStatus(
+          target,
+          'APPROVED',
+          configuredStatusesFor(target),
+        );
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toContain(target);
@@ -31,7 +40,9 @@ describe('validateProposalUpdateStatus', () => {
 
   describe('TASK', () => {
     it.each(TASK_USER_SETTABLE)('accepts %s', (status) => {
-      expect(validateProposalUpdateStatus('TASK', status)).toEqual({
+      expect(
+        validateProposalUpdateStatus('TASK', status, TASK_USER_SETTABLE),
+      ).toEqual({
         ok: true,
       });
     });
@@ -46,7 +57,11 @@ describe('validateProposalUpdateStatus', () => {
       'REJECTED',
       'DRAFT',
     ])('rejects cross-type value %s', (status) => {
-      const result = validateProposalUpdateStatus('TASK', status);
+      const result = validateProposalUpdateStatus(
+        'TASK',
+        status,
+        TASK_USER_SETTABLE,
+      );
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error).toContain('TASK');
@@ -65,13 +80,19 @@ describe('validateProposalUpdateStatus', () => {
 
   describe('FEATURE', () => {
     it.each(TASK_USER_SETTABLE)('accepts %s', (status) => {
-      expect(validateProposalUpdateStatus('FEATURE', status)).toEqual({
+      expect(
+        validateProposalUpdateStatus('FEATURE', status, TASK_USER_SETTABLE),
+      ).toEqual({
         ok: true,
       });
     });
 
     it('rejects READY (a design-doc status) for FEATURE', () => {
-      const result = validateProposalUpdateStatus('FEATURE', 'READY');
+      const result = validateProposalUpdateStatus(
+        'FEATURE',
+        'READY',
+        TASK_USER_SETTABLE,
+      );
       expect(result.ok).toBe(false);
     });
   });
@@ -101,7 +122,11 @@ describe('validateProposalUpdateStatus', () => {
 
   describe('error message shape', () => {
     it('lists the full set of valid values for the target type', () => {
-      const result = validateProposalUpdateStatus('TASK', 'APPROVED');
+      const result = validateProposalUpdateStatus(
+        'TASK',
+        'APPROVED',
+        TASK_USER_SETTABLE,
+      );
       expect(result.ok).toBe(false);
       if (!result.ok) {
         for (const valid of TASK_USER_SETTABLE) {
@@ -131,17 +156,21 @@ describe('validateProposalUpdateStatus', () => {
 });
 
 describe('getAllowedProposalUpdateStatuses', () => {
-  it('returns the task user-settable subset for TASK', () => {
-    expect(getAllowedProposalUpdateStatuses('TASK')).toEqual(
-      TASK_USER_SETTABLE,
-    );
-  });
+  it.each(['TASK', 'FEATURE'])(
+    'returns the type-owned statuses the caller configured for %s',
+    (target) => {
+      expect(
+        getAllowedProposalUpdateStatuses(target, TASK_USER_SETTABLE),
+      ).toEqual(TASK_USER_SETTABLE);
+    },
+  );
 
-  it('returns the task user-settable subset for FEATURE', () => {
-    expect(getAllowedProposalUpdateStatuses('FEATURE')).toEqual(
-      TASK_USER_SETTABLE,
-    );
-  });
+  it.each(['TASK', 'FEATURE'])(
+    'defers %s statuses to the work item type when none are configured',
+    (target) => {
+      expect(getAllowedProposalUpdateStatuses(target)).toBeUndefined();
+    },
+  );
 
   it('returns AdrStatus values for DESIGN_DOC', () => {
     expect(getAllowedProposalUpdateStatuses('DESIGN_DOC')).toEqual(

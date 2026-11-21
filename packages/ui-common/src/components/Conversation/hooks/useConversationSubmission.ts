@@ -1,3 +1,4 @@
+import { CancelledError } from "@tanstack/react-query";
 import { useState, useCallback, useEffect } from "react";
 import { useConversationEvents } from "./useConversationEvents";
 import type {
@@ -373,105 +374,149 @@ export const useConversationSubmission = ({
           : null;
 
       try {
-        if (isOnboardingConversation) {
-          if (!onSubmitOnboardingReply) {
-            throw new Error(
-              "This onboarding conversation has no reply submission owner.",
-            );
-          }
+        try {
+          if (isOnboardingConversation) {
+            if (!onSubmitOnboardingReply) {
+              throw new Error(
+                "This onboarding conversation has no reply submission owner.",
+              );
+            }
 
-          await onSubmitOnboardingReply({
-            parentMessageId,
-            answers: projectOnboardingReviewAnswers(data),
-          });
-        } else if (isRepositoryImportConversation) {
-          if (!onSubmitRepositoryImportReply) {
-            throw new Error(
-              "This repository import has no reply submission owner.",
-            );
-          }
-          await onSubmitRepositoryImportReply({
-            parentMessageId,
-            expectedConversationVersion: activeConversation.version,
-            answers: projectRepositoryImportReviewAnswers(data),
-          });
-        } else if (workflowSubmission?.kind === "structured-answer") {
-          // Workflow answers reuse the operation identity allocated above, so
-          // transport retries remain safe on their dedicated durable rail.
-          await retryWithBackoff(
-            async () => {
-              if (!workflowAnswerOperationId) {
-                throw new Error(
-                  "The workflow answer is missing its operation identity.",
-                );
-              }
-              if (!agentSessionId) {
-                throw new Error(
-                  "Agent session is required before submitting a workflow answer.",
-                );
-              }
-              const nodeId =
-                options?.nodeId?.trim() ||
-                getLatestSystemNodeId(conversationMessages.orderedData);
-              if (!nodeId) {
-                throw new Error(
-                  "The workflow answer is missing the source message nodeId.",
-                );
-              }
-              await submitControllerAuthorizedWorkflowAnswer({
-                operationId: workflowAnswerOperationId,
-                organizationId: project.organizationId,
-                projectId: project.id,
-                agentSessionId,
-                conversationId: activeConversation.id,
-                workflowName: activeConversation.workflowName,
-                nodeId,
-                parentMessageId,
-                action: workflowSubmission.action,
-                payload: workflowSubmission.payload,
-              });
-            },
-            { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
-            `workflow-answer-${activeConversation.id}`,
-          );
-        } else {
-          if (onDirectTrigger) {
-            // One explicit gesture creates one operation. A changed-intent
-            // conflict is surfaced for a fresh user-confirmed submission rather
-            // than replaying operation creation under generic backoff.
-            await onDirectTrigger(userMessage);
-          } else if (onPersistMessage) {
+            await onSubmitOnboardingReply({
+              parentMessageId,
+              answers: projectOnboardingReviewAnswers(data),
+            });
+          } else if (isRepositoryImportConversation) {
+            if (!onSubmitRepositoryImportReply) {
+              throw new Error(
+                "This repository import has no reply submission owner.",
+              );
+            }
+            await onSubmitRepositoryImportReply({
+              parentMessageId,
+              expectedConversationVersion: activeConversation.version,
+              answers: projectRepositoryImportReviewAnswers(data),
+            });
+          } else if (workflowSubmission?.kind === "structured-answer") {
+            // Workflow answers reuse the operation identity allocated above, so
+            // transport retries remain safe on their dedicated durable rail.
             await retryWithBackoff(
-              () => onPersistMessage(userMessage),
-              {
-                maxRetries: 3,
-                baseDelay: 1000,
-                maxDelay: 5000,
-                onRetry: (_attempt: number, error: unknown) => {
-                  if (
-                    isVersionConflictError(error) &&
-                    error.latestConversation
-                  ) {
-                    userMessage.expectedConversationVersion =
-                      error.latestConversation.version;
-                  }
-                },
+              async () => {
+                if (!workflowAnswerOperationId) {
+                  throw new Error(
+                    "The workflow answer is missing its operation identity.",
+                  );
+                }
+                if (!agentSessionId) {
+                  throw new Error(
+                    "Agent session is required before submitting a workflow answer.",
+                  );
+                }
+                const nodeId =
+                  options?.nodeId?.trim() ||
+                  getLatestSystemNodeId(conversationMessages.orderedData);
+                if (!nodeId) {
+                  throw new Error(
+                    "The workflow answer is missing the source message nodeId.",
+                  );
+                }
+                await submitControllerAuthorizedWorkflowAnswer({
+                  operationId: workflowAnswerOperationId,
+                  organizationId: project.organizationId,
+                  projectId: project.id,
+                  agentSessionId,
+                  conversationId: activeConversation.id,
+                  workflowName: activeConversation.workflowName,
+                  nodeId,
+                  parentMessageId,
+                  action: workflowSubmission.action,
+                  payload: workflowSubmission.payload,
+                });
               },
-              `message-persistence-${activeConversation.id}`,
+              { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
+              `workflow-answer-${activeConversation.id}`,
             );
           } else {
-            throw new Error(
-              "This conversation has no message submission owner.",
+            if (onDirectTrigger) {
+              // One explicit gesture creates one operation. A changed-intent
+              // conflict is surfaced for a fresh user-confirmed submission rather
+              // than replaying operation creation under generic backoff.
+              await onDirectTrigger(userMessage);
+            } else if (onPersistMessage) {
+              await retryWithBackoff(
+                () => onPersistMessage(userMessage),
+                {
+                  maxRetries: 3,
+                  baseDelay: 1000,
+                  maxDelay: 5000,
+                  onRetry: (_attempt: number, error: unknown) => {
+                    if (
+                      isVersionConflictError(error) &&
+                      error.latestConversation
+                    ) {
+                      userMessage.expectedConversationVersion =
+                        error.latestConversation.version;
+                    }
+                  },
+                },
+                `message-persistence-${activeConversation.id}`,
+              );
+            } else {
+              throw new Error(
+                "This conversation has no message submission owner.",
+              );
+            }
+          }
+        } catch (error) {
+          if (isVersionConflictError(error)) {
+            // The conflict dialog owns the retry; the form must not stay locked
+            // behind a message that was never accepted.
+            emit({
+              type: "submission-error",
+              payload: { error, data, parentMessageId },
+            });
+
+            // Emit version conflict event instead of direct function call
+            emit({
+              type: "version-conflict",
+              payload: {
+                error,
+                retryFn: async (retryData: Record<string, FormValue>) => {
+                  await handleNext(retryData, parentMessageId, options);
+                },
+                originalFormData: data,
+                parentMessageId,
+                options,
+              },
+            });
+          } else {
+            console.error("Failed to send user message:", error);
+
+            // Emit error event
+            emit({
+              type: "submission-error",
+              payload: { error, data, parentMessageId },
+            });
+          }
+
+          return;
+        }
+
+        // The reply was accepted. Nothing below may report it as "not sent".
+        console.log("📤 Message sent successfully, waiting for updates...");
+        setAwaitingParentMessageId(parentMessageId);
+        try {
+          await onConversationUpdated?.();
+        } catch (error) {
+          // A newer refresh replacing this one is routine, not a failure.
+          if (!(error instanceof CancelledError)) {
+            console.error(
+              "Message was sent but refreshing the conversation failed:",
+              error,
             );
           }
         }
 
-        console.log("📤 Message sent successfully, waiting for updates...");
-
-        setAwaitingParentMessageId(parentMessageId);
-        await onConversationUpdated?.();
-
-        // Emit success event
         emit({
           type: "submission-success",
           payload: {
@@ -479,37 +524,6 @@ export const useConversationSubmission = ({
             data,
           },
         });
-      } catch (error) {
-        if (isVersionConflictError(error)) {
-          // The conflict dialog owns the retry; the form must not stay locked
-          // behind a message that was never accepted.
-          emit({
-            type: "submission-error",
-            payload: { error, data, parentMessageId },
-          });
-
-          // Emit version conflict event instead of direct function call
-          emit({
-            type: "version-conflict",
-            payload: {
-              error,
-              retryFn: async (retryData: Record<string, FormValue>) => {
-                await handleNext(retryData, parentMessageId, options);
-              },
-              originalFormData: data,
-              parentMessageId,
-              options,
-            },
-          });
-        } else {
-          console.error("Failed to send user message:", error);
-
-          // Emit error event
-          emit({
-            type: "submission-error",
-            payload: { error, data, parentMessageId },
-          });
-        }
       } finally {
         setIsSubmitting(false);
       }

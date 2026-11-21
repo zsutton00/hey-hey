@@ -60,7 +60,7 @@ const fillRequest = async () => {
   fireEvent.change(screen.getByLabelText(/^Name/), {
     target: { value: "Ada Lovelace" },
   });
-  fireEvent.change(screen.getByLabelText(/^Work email/), {
+  fireEvent.change(screen.getByLabelText(/^Email/), {
     target: { value: "ada@example.com" },
   });
   fireEvent.change(screen.getByLabelText(/^Organization name/), {
@@ -81,7 +81,9 @@ describe("RequestAccessPage", () => {
     submitRequest.mockResolvedValue(acceptedResponse);
     await renderRequestAccessPage();
     expect(
-      screen.getByText(/Hey Hey is in beta, and we are currently reviewing new signups/),
+      screen.getByText(
+        /Hey Hey is in beta, and we are currently reviewing new signups/,
+      ),
     ).toBeInTheDocument();
     const user = await fillRequest();
     await user.click(screen.getByRole("button", { name: "Sign up" }));
@@ -128,7 +130,7 @@ describe("RequestAccessPage", () => {
     expect(
       screen.getByRole("heading", { name: "Sign up for the beta" }),
     ).toBeInTheDocument();
-    for (const label of ["Name", "Work email", "Organization name"]) {
+    for (const label of ["Name", "Email", "Organization name"]) {
       expect(screen.getByLabelText(new RegExp(`^${label}`))).toBeRequired();
     }
     expect(screen.queryByLabelText(/Team size/)).not.toBeInTheDocument();
@@ -149,12 +151,12 @@ describe("RequestAccessPage", () => {
     await user.click(screen.getByRole("button", { name: "Sign up" }));
     expect(submitRequest).not.toHaveBeenCalled();
     expect(screen.getByText("Enter your name.")).toBeInTheDocument();
-    expect(screen.getByText("Enter your work email.")).toBeInTheDocument();
+    expect(screen.getByText("Enter your email.")).toBeInTheDocument();
     expect(
       screen.getByText("Enter your organization name."),
     ).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/^Work email/), "invalid");
-    expect(screen.getByText("Enter a valid work email.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/^Email/), "invalid");
+    expect(screen.getByText("Enter a valid email.")).toBeInTheDocument();
   });
 
   it("trims the three fields, prevents parallel submission, and confirms durable receipt", async () => {
@@ -208,9 +210,7 @@ describe("RequestAccessPage", () => {
       const user = await fillRequest();
       await user.click(screen.getByRole("button", { name: "Sign up" }));
       expect(await screen.findByRole("alert")).toBeInTheDocument();
-      expect(screen.getByLabelText(/^Work email/)).toHaveValue(
-        "ada@example.com",
-      );
+      expect(screen.getByLabelText(/^Email/)).toHaveValue("ada@example.com");
       fireEvent.change(screen.getByLabelText(/^Organization name/), {
         target: { value: "Updated Engines" },
       });

@@ -582,6 +582,7 @@ describe('Task Monitor state publication through the shared seam', () => {
       ingressId: 'effect-outcome:MONITOR_LOADED',
       event: {
         type: 'MONITOR_LOADED',
+        kindKey: 'task',
         taskMonitorId: MONITOR_ID,
         organizationId: context.organizationId!,
         projectId: context.projectId!,

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
@@ -50,7 +51,7 @@ function row(typeKey: string, projectId: string | null, advice: Advice | null) {
     ],
     requiredScalars: [],
     forbiddenScalars: [],
-    allowedStatuses: ['ACTIVE'],
+    statuses: legacyStatuses(['ACTIVE']),
     allowedParentTypes: [],
     edgeTargets: [],
     parentage: { allowedParentEntityTypes: [] },

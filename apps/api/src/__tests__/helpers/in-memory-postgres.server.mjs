@@ -52,9 +52,23 @@ const callback = readFileSync(join(flywayDirectory, beforeEachMigrate), 'utf8');
 const migrations = readdirSync(flywayDirectory)
   .filter((file) => /^[BV].*\.sql$/.test(file))
   .sort(compareVersions);
+// Flyway records each applied migration; some migrations read that history.
+await database.exec(`
+  CREATE TABLE flyway_schema_history (
+    version VARCHAR(50),
+    description VARCHAR(200) NOT NULL,
+    installed_on TIMESTAMP NOT NULL DEFAULT now(),
+    success BOOLEAN NOT NULL
+  )
+`);
 for (const migration of migrations) {
   await database.exec(callback);
   await database.exec(readFileSync(join(flywayDirectory, migration), 'utf8'));
+  const [version, description] = migration.replace(/^[BV]/, '').split('__');
+  await database.query(
+    'INSERT INTO flyway_schema_history (version, description, success) VALUES ($1, $2, true)',
+    [version, description.replace(/\.sql$/, '')],
+  );
 }
 
 const port = await freePort();
