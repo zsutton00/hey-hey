@@ -8,6 +8,7 @@ import { ConversationMessageHistoryCursorError } from '../../../services/convers
 import { ConversationService } from '../../../services/conversation.service';
 import { MessageService } from '../../../services/message.service';
 import type { GraphQLRequestContext } from '../../graphql-request-context';
+import { EventContextManager } from '../../../core/events/observable-event.context';
 import { ConversationResolver } from '../conversation.resolver';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
@@ -55,9 +56,10 @@ describe('ConversationResolver', () => {
     getLatestMessage: jest.fn(),
   };
 
-  const query = async (body: string) => {
+  const query = async (body: string, viewer?: string) => {
     const response = await request(app.getHttpServer())
       .post(`/o/${ORG}/p/${PROJECT}/graphql`)
+      .set(viewer ? { 'x-viewer': viewer } : {})
       .send({ query: body });
 
     return response.body;
@@ -82,6 +84,12 @@ describe('ConversationResolver', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
+    // Stands in for the auth guard: the signed-in viewer comes from the header.
+    app.use((req: any, _res: unknown, next: () => void) => {
+      const viewer = req.headers['x-viewer'];
+      req.user = viewer ? { userId: viewer } : undefined;
+      next();
+    });
     await app.init();
   });
 
@@ -313,6 +321,46 @@ describe('ConversationResolver', () => {
       true,
       true,
     );
+  });
+
+  it('reads proposals as the signed-in viewer so eligibility follows who has voted', async () => {
+    const REVIEWER = 'reviewer-1';
+    const voters = new Set<string>();
+    // The proposal mapper decides eligibility from the event-context viewer.
+    messageService.getMessagesForAdapter.mockImplementation(async () => {
+      const viewer =
+        EventContextManager.getInstance().getCurrentContext()?.userId;
+
+      return [
+        message('m1', {
+          proposals: [
+            {
+              id: 'p1',
+              status: voters.size ? 'APPROVED' : 'PENDING',
+              approvalExplanation: {
+                viewerEligibility: {
+                  eligibleToApprove: !!viewer && !voters.has(viewer),
+                },
+              },
+            },
+          ],
+        }),
+      ];
+    });
+    const read = async () =>
+      (
+        await query(
+          `{ conversation(id: "${CONVERSATION}") { messages { nodes { proposals } } } }`,
+          REVIEWER,
+        )
+      ).data.conversation.messages.nodes[0].proposals[0].approvalExplanation
+        .viewerEligibility.eligibleToApprove;
+
+    expect(await read()).toBe(true);
+
+    voters.add(REVIEWER);
+
+    expect(await read()).toBe(false);
   });
 
   it('lists the project conversations through the REST read', async () => {

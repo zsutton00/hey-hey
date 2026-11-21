@@ -22,6 +22,7 @@ import type { GraphQLResolveInfo } from 'graphql';
 import { ConversationService } from '../../services/conversation.service';
 import { MessageService } from '../../services/message.service';
 import type { GraphQLRequestContext } from '../graphql-request-context';
+import { runAsViewer } from '../run-as-viewer';
 import { selectedFieldNames } from '../selected-fields';
 import { UseRestErrorCodes } from '../use-rest-error-codes.decorator';
 import {
@@ -214,6 +215,7 @@ export class ConversationResolver {
   @ResolveField(() => MessageConnection)
   async messages(
     @Parent() conversation: ConversationNode,
+    @Context() context: GraphQLRequestContext,
     @Info() info: GraphQLResolveInfo,
     @Args('after', { type: () => ID, nullable: true }) after?: MessageId | null,
     @Args('last', {
@@ -245,22 +247,26 @@ export class ConversationResolver {
       );
     }
 
-    const result = await this.messageService.getMessagesForAdapter(
-      {
-        conversationId: conversation.id as ConversationId,
+    // Proposal eligibility is per viewer, and nested fields run outside the
+    // root field's event context.
+    const result = await runAsViewer(context, () =>
+      this.messageService.getMessagesForAdapter(
+        {
+          conversationId: conversation.id as ConversationId,
+          projectId,
+          since: forwardCursor,
+          ...(newestFirst && {
+            mode: MessageReadMode.ReverseHistory,
+            limit: pageSize,
+            historyCursor,
+          }),
+        },
+        organizationId,
         projectId,
-        since: forwardCursor,
-        ...(newestFirst && {
-          mode: MessageReadMode.ReverseHistory,
-          limit: pageSize,
-          historyCursor,
-        }),
-      },
-      organizationId,
-      projectId,
-      false,
-      selected.has('proposals'),
-      selected.has('reports'),
+        false,
+        selected.has('proposals'),
+        selected.has('reports'),
+      ),
     );
 
     if (Array.isArray(result)) {

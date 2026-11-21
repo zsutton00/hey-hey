@@ -12,7 +12,17 @@ import {
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PassportModule, PassportStrategy } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
-import { Args, Query, Resolver } from '@nestjs/graphql';
+import {
+  Args,
+  Context,
+  Field,
+  ObjectType,
+  Query,
+  ResolveField,
+  Resolver,
+} from '@nestjs/graphql';
+import { runAsViewer } from '../run-as-viewer';
+import type { GraphQLRequestContext } from '../graphql-request-context';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { Prisma } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
@@ -136,6 +146,41 @@ class UndecoratedResolver {
   }
 }
 
+@ObjectType()
+class ViewerProbe {
+  @Field(() => String)
+  rootViewer!: string;
+
+  @Field(() => String)
+  bareNestedViewer!: string;
+
+  @Field(() => String)
+  nestedViewer!: string;
+}
+
+const currentViewer = () =>
+  String(EventContextManager.getInstance().getCurrentContext()?.userId);
+
+@Resolver(() => ViewerProbe)
+class ViewerProbeResolver {
+  @Query(() => ViewerProbe)
+  viewerProbe(): Partial<ViewerProbe> {
+    return { rootViewer: currentViewer() };
+  }
+
+  @ResolveField(() => String)
+  async bareNestedViewer(): Promise<string> {
+    await Promise.resolve();
+
+    return currentViewer();
+  }
+
+  @ResolveField(() => String)
+  nestedViewer(@Context() context: GraphQLRequestContext): Promise<string> {
+    return runAsViewer(context, async () => currentViewer());
+  }
+}
+
 /** Reads what the interceptors established around a root query field. */
 @Resolver()
 @UseRestErrorCodes()
@@ -173,6 +218,7 @@ class StubProjectAccessModule {}
     StubApiKeyStrategy,
     UndecoratedResolver,
     ProbeResolver,
+    ViewerProbeResolver,
     { provide: APP_INTERCEPTOR, useClass: EventContextInterceptor },
     { provide: APP_GUARD, useClass: FlexibleAuthGuard },
     { provide: APP_GUARD, useClass: ScopePathParamsGuard },
@@ -337,6 +383,20 @@ describe('read-only GraphQL endpoint access', () => {
     expect(response.body.data.eventScope).toBe(
       [ORG, PROJECT, MEMBER].join('|'),
     );
+  });
+
+  it('gives nested fields the signed-in viewer only through runAsViewer', async () => {
+    const response = await query(
+      graphqlPath(),
+      token(MEMBER),
+      '{ viewerProbe { rootViewer bareNestedViewer nestedViewer } }',
+    ).expect(200);
+
+    expect(response.body.data.viewerProbe).toEqual({
+      rootViewer: MEMBER,
+      bareNestedViewer: 'undefined',
+      nestedViewer: MEMBER,
+    });
   });
 
   describe('errors thrown inside a resolver', () => {
