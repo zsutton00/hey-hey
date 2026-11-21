@@ -115,6 +115,7 @@ export class TaskMonitorMachineOwner {
       agentService: dependencies.agentService,
       runStore: dependencies.runStore,
       decisionStore: dependencies.decisionStore,
+      monitorRuntime: this.runtime,
       logger: dependencies.logger.child({ component: 'task-monitor.coordinator' }),
     });
     const launchPersistence = new TaskMonitorLaunchPersistenceEffectHandler(

@@ -794,6 +794,27 @@ TaskMonitorExecutionNodeLaunchConfiguration:
       type: boolean
       description: Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections.
 
+TaskMonitorRuntimeSelection:
+  type: object
+  additionalProperties: false
+  description: >
+    Provider, model and reasoning effort a monitor-level agent runs on. Used for
+    the coordinator runtime; never a fallback for task-session launches.
+  required:
+    - provider
+    - model
+  properties:
+    provider:
+      $ref: "#/TaskMonitorLaunchProvider"
+    model:
+      $ref: "#/TaskMonitorLaunchModel"
+    reasoningEffort:
+      $ref: "#/TaskMonitorReasoningEffort"
+      description: Omitted for models whose catalog entry offers no effort choices.
+    fastMode:
+      type: boolean
+      description: Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections.
+
 TaskMonitorExecutionPlanNode:
   type: object
   additionalProperties: false
@@ -880,6 +901,11 @@ TaskMonitorExecutionDefinition:
         $ref: "#/TaskMonitorExecutionPlanNode"
     launchPolicy:
       $ref: "#/TaskMonitorLaunchPolicy"
+    coordinatorRuntime:
+      $ref: "#/TaskMonitorRuntimeSelection"
+      description: >
+        Optional runtime the monitor's own coordinator runs on. Absent on monitors
+        saved before this setting existed; the provider default applies then.
     cursor:
       type: integer
       minimum: 0

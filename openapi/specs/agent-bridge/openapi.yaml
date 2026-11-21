@@ -472,6 +472,8 @@ components:
       $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionDefinition
     TaskMonitorExecutionNodeLaunchConfiguration:
       $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionNodeLaunchConfiguration
+    TaskMonitorRuntimeSelection:
+      $ref: ../schemas/work-items.yaml#/TaskMonitorRuntimeSelection
     TaskMonitorExecutionPlanNode:
       $ref: ../schemas/work-items.yaml#/TaskMonitorExecutionPlanNode
     TaskMonitorLaunchPolicy:

@@ -1224,22 +1224,7 @@ export class TaskMonitorLaunchPersistenceEffectHandler implements EffectHandler<
         });
       }
       const coordinatorIdentity = await this.coordinatorRunner.ensureTaskMonitorRun(
-        {
-          monitorId: effect.taskMonitorId,
-          launchConfig: {
-            taskId: entry.taskId,
-            method: entry.launchConfiguration.method,
-            provider: entry.launchConfiguration.provider,
-            model: entry.launchConfiguration.model,
-            reasoningEffort: entry.launchConfiguration.reasoningEffort,
-            ...(entry.launchConfiguration.fastMode === undefined
-              ? {}
-              : { fastMode: entry.launchConfiguration.fastMode }),
-            ...(monitor.definition.launchPolicy.worktree
-              ? { worktree: monitor.definition.launchPolicy.worktree }
-              : {}),
-          },
-        },
+        { monitorId: effect.taskMonitorId },
         { organizationId: effect.organizationId, projectId: effect.projectId },
       );
       if (!coordinatorIdentity) {
@@ -1526,7 +1511,7 @@ export class TaskMonitorMachineEffectHandler implements EffectHandler<
       case 'PROJECT_TASK_MONITOR_INTERVENTION':
         return this.interventionProjection.recovery.reconcile(effect);
       case 'DECIDE_TASK_MONITOR_PERMISSION':
-        return this.permissionDecision.recovery.reconcile(effect);
+        return this.permissionDecision.recovery.reconcile(effect, execution);
       case 'APPLY_TASK_MONITOR_DECISION':
         return this.intervention.recovery.reconcile(effect);
       case 'PROJECT_TASK_MONITOR_OUTCOME_JUDGMENT':

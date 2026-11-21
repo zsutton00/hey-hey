@@ -7,6 +7,7 @@ import {
   type AgentSessionDto,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorExecutionNodeLaunchConfiguration,
+  type TaskMonitorRuntimeSelection,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
 import { agentSessionListQueryOptions } from "../../data/collections/agentSessions";
@@ -57,6 +58,9 @@ export interface UseTaskMonitorProjectionResult {
   saveLaunchConfiguration: (
     taskId: string,
     configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+  ) => Promise<void>;
+  saveCoordinatorRuntime: (
+    runtime: TaskMonitorRuntimeSelection,
   ) => Promise<void>;
 }
 
@@ -308,6 +312,40 @@ export const useTaskMonitorProjection = ({
       projectId,
     ],
   );
+  const saveCoordinatorRuntime = useCallback(
+    async (runtime: TaskMonitorRuntimeSelection): Promise<void> => {
+      if (!parsed.definition || isSavingLaunchConfiguration) {
+        throw new Error("The Task Monitor setup is unavailable.");
+      }
+      setIsSavingLaunchConfiguration(true);
+      try {
+        await unifiedApiClient.updateTask({
+          organizationId,
+          projectId,
+          taskId: monitorId,
+          updateTaskDto: {
+            sections: [
+              {
+                key: EXECUTION_DEFINITION_SECTION,
+                content: { ...parsed.definition, coordinatorRuntime: runtime },
+              },
+            ],
+          },
+        });
+        await monitorQuery.refetch();
+      } finally {
+        setIsSavingLaunchConfiguration(false);
+      }
+    },
+    [
+      isSavingLaunchConfiguration,
+      monitorId,
+      monitorQuery,
+      organizationId,
+      parsed.definition,
+      projectId,
+    ],
+  );
   return {
     monitor: monitorQuery.workItem,
     definition: parsed.definition,
@@ -328,5 +366,6 @@ export const useTaskMonitorProjection = ({
     isSavingLaunchConfiguration,
     reconcileAfterCommand,
     saveLaunchConfiguration,
+    saveCoordinatorRuntime,
   };
 };

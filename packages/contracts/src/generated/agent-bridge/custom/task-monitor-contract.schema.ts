@@ -171,6 +171,48 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
         }
       }
     },
+    "coordinatorRuntime": {
+      "description": "Optional runtime the monitor's own coordinator runs on. Absent on monitors saved before this setting existed; the provider default applies then.\n",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex",
+            "opencode"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra",
+            "default"
+          ],
+          "description": "Omitted for models whose catalog entry offers no effort choices."
+        },
+        "fastMode": {
+          "type": "boolean",
+          "description": "Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections."
+        }
+      }
+    },
     "cursor": {
       "type": "integer",
       "minimum": 0

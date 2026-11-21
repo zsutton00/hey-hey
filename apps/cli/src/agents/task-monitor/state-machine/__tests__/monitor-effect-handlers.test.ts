@@ -819,17 +819,8 @@ describe('Task Monitor launch persistence effect', () => {
       agentSessionId: launchPersistenceEffect().agentSessionId,
     });
     expect(coordinatorRunner.ensureTaskMonitorRun).toHaveBeenCalledWith(
-      {
-        monitorId: MONITOR_ID,
-        launchConfig: {
-          taskId: TASK_A_ID,
-          method: 'quick',
-          provider: 'codex',
-          model: 'gpt-6-sol',
-          reasoningEffort: 'high',
-          fastMode: true,
-        },
-      },
+      // The coordinator's runtime comes from the monitor's own saved setting, never the task's.
+      { monitorId: MONITOR_ID },
       { organizationId: ORGANIZATION_ID, projectId: PROJECT_ID },
     );
   });
