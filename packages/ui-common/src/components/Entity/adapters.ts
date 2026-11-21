@@ -205,7 +205,7 @@ const resolveTaskStatus = (
 };
 
 const taskStatusNeedsReplacement = (
-  task: WorkItemResponseDto,
+  task: Pick<TaskListItem, "status">,
   options: AdapterOptions,
 ): boolean =>
   isRetainedRemovedStatus(task.status, options.workItemTypeDefinition);
