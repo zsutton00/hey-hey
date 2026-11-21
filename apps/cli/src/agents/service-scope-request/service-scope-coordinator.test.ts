@@ -15,7 +15,10 @@ import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
 import type { AgenticSession } from '../../session/types';
 import { toRepositoryPath, toServiceId } from '../../repo';
-import type { TaskMonitorServiceScopeAdmission } from '../../server/task-monitor-service-scope-admission';
+import { TaskMonitorServiceScopeAdmission } from '../../server/task-monitor-service-scope-admission';
+import type { TaskMonitorStateMachineInputAdapter } from '../../server/state-machine-input-adapter';
+import type { TaskMonitorStateStore } from '../task-monitor/state-machine/machine';
+import { NOOP_LOGGER } from '../../server/logger';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
 import {
   createTestRunEventPublisher,
@@ -483,6 +486,89 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
       expect(grantCalls(fetchImpl)).toHaveLength(1);
       expect(resume).toHaveBeenCalledOnce();
       expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(false);
+    });
+
+    describe('after a restart', () => {
+      /** The Task Monitor machine's durable record of this request, as a restarted process reads it. */
+      const machineRecord = (owner: 'MONITOR' | 'HUMAN' | 'GONE') => {
+        const held = {
+          interventionId: 'intervention-scope-1',
+          providerActionId: request.id,
+          providerSessionId: request.sessionId,
+          runId: 'run-1',
+          agentSessionId: 'run-1',
+          action: 'Give the coding session access to additional project Services',
+          target: 'Services: API',
+          fingerprint: 'service-scope:fingerprint',
+          createdAt: request.timestamp,
+          expiresAt: null,
+          userRequired: false,
+          requestKind: 'SERVICE_SCOPE' as const,
+          owner: 'MONITOR' as const,
+          escalationReason: null,
+          escalatedAt: null,
+          decision: null,
+          applicationFailure: null,
+        };
+        // An escalated Service scope request is dropped from the machine; the Run's card holds it.
+        const pendingIntervention = owner === 'MONITOR' ? held : null;
+        const stateStore = {
+          findByInstanceId: vi.fn(async () => ({
+            snapshot: { context: { pendingIntervention, queuedInterventions: [] } },
+          })),
+        } as unknown as TaskMonitorStateStore;
+
+        return new TaskMonitorServiceScopeAdmission(
+          {} as unknown as TaskMonitorStateMachineInputAdapter,
+          stateStore,
+          NOOP_LOGGER,
+        );
+      };
+      const restoredRun = (admission: TaskMonitorServiceScopeAdmission | null) => {
+        const fetchImpl = scopeFetch();
+        const harness = makeHarness({
+          fetchImpl,
+          taskMonitorId: 'task-monitor-1',
+          taskMonitorServiceScopeAdmission: () => admission,
+        });
+        vi.spyOn(harness.run.serviceScope, 'resumeAfterServiceScopeApproval').mockResolvedValue(
+          undefined,
+        );
+        return { ...harness, fetchImpl };
+      };
+      const personAnswer = { ...decision('approve'), reason: null };
+      const monitorAnswer = { requestId: request.id, decision: 'approve' as const, reason: null };
+
+      it('keeps a request the monitor still holds with the monitor, so only it can settle it', async () => {
+        const { run, fetchImpl } = restoredRun(machineRecord('MONITOR'));
+
+        await expect(run.serviceScopeCoordinator.decide(personAnswer)).resolves.toEqual({
+          outcome: 'dropped',
+          reason: 'service_scope_request_owned_by_monitor',
+        });
+        expect(grantCalls(fetchImpl)).toHaveLength(0);
+
+        await expect(
+          run.serviceScopeCoordinator.decideByMonitor(monitorAnswer),
+        ).resolves.toMatchObject({ outcome: 'delivered' });
+        expect(grantCalls(fetchImpl)).toHaveLength(1);
+        expect(run.serviceScope.hasPendingServiceScopeRequest()).toBe(false);
+      });
+
+      it('gives a request already handed to the person only to the person', async () => {
+        const { run, fetchImpl } = restoredRun(machineRecord('GONE'));
+
+        await expect(run.serviceScopeCoordinator.decideByMonitor(monitorAnswer)).resolves.toEqual({
+          outcome: 'dropped',
+          reason: 'service_scope_request_owned_by_person',
+        });
+        expect(grantCalls(fetchImpl)).toHaveLength(0);
+
+        await expect(run.serviceScopeCoordinator.decide(personAnswer)).resolves.toMatchObject({
+          outcome: 'delivered',
+        });
+        expect(grantCalls(fetchImpl)).toHaveLength(1);
+      });
     });
   });
 

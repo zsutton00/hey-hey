@@ -407,6 +407,28 @@ export const swapInAnsweredQueuedRequest = (arguments_: InterventionArguments) =
   };
 };
 
+/** Enough undelivered records to explain recent failures without growing the state forever. */
+const UNDELIVERED_RECORD_LIMIT = 50;
+
+/**
+ * A decided request whose answer could not be delivered stays settled with its decision and its
+ * specific delivery outcome, so it is never delivered again. It leaves the front, so the requests
+ * behind it can still be decided and answered.
+ */
+export const retireUndeliveredIntervention = ({ context }: InterventionArguments) => {
+  const pending = context.pendingIntervention;
+  if (pending === null) {
+    return {};
+  }
+
+  return {
+    pendingIntervention: null,
+    undeliveredInterventions: [...(context.undeliveredInterventions ?? []), pending].slice(
+      -UNDELIVERED_RECORD_LIMIT,
+    ),
+  };
+};
+
 export const matchesApplyingDecision = ({ context, event }: InterventionArguments): boolean => {
   const pending = context.pendingIntervention;
   return (
@@ -548,6 +570,19 @@ const escalateQueuedRequestTransitions = [
   },
 ] as const;
 
+/** Keeps the undelivered request's specific outcome, then frees the front for the next request. */
+const retireUndelivered = [
+  'storeInterventionApplicationFailure',
+  'retireUndeliveredIntervention',
+  'promoteQueuedIntervention',
+] as const;
+
+/** In the Running region CLEAR promotes the next request itself. */
+const undeliveredToClear = [
+  'storeInterventionApplicationFailure',
+  'retireUndeliveredIntervention',
+] as const;
+
 /**
  * A stopped monitor has no intervention region, but a request it handed to a person is still
  * answered through the machine: the answer is recorded before it reaches the provider, so the first
@@ -575,22 +610,18 @@ export const taskMonitorHaltedInterventionEvents = {
     guard: 'matchesApplyingDecision',
     actions: ['clearPendingIntervention', 'promoteQueuedIntervention'],
   },
-  DECISION_APPLICATION_FAILED: {
-    guard: 'matchesApplyingDecision',
-    actions: 'storeInterventionApplicationFailure',
-  },
-  DECISION_APPLICATION_STALE: {
-    guard: 'matchesApplyingDecision',
-    actions: 'storeInterventionApplicationFailure',
-  },
-  DECISION_APPLICATION_CANCELLED: {
-    guard: 'matchesApplyingDecision',
-    actions: 'storeInterventionApplicationFailure',
-  },
-  DECISION_APPLICATION_UNCERTAIN: {
-    guard: 'matchesApplyingDecision',
-    actions: 'storeInterventionApplicationFailure',
-  },
+  DECISION_APPLICATION_FAILED: { guard: 'matchesApplyingDecision', actions: retireUndelivered },
+  DECISION_APPLICATION_STALE: { guard: 'matchesApplyingDecision', actions: retireUndelivered },
+  DECISION_APPLICATION_CANCELLED: { guard: 'matchesApplyingDecision', actions: retireUndelivered },
+  DECISION_APPLICATION_UNCERTAIN: { guard: 'matchesApplyingDecision', actions: retireUndelivered },
+} as const;
+
+/**
+ * Earlier state parked an undelivered request at the front in one of these states, which left the
+ * requests behind it unanswerable. Such state now retires the request at once and moves on.
+ */
+const retiredOnEntry = {
+  always: { target: 'CLEAR', actions: 'retireUndeliveredIntervention' },
 } as const;
 
 /** Independent intervention-region policy composed by the Task Monitor machine. */
@@ -736,36 +767,29 @@ export const taskMonitorInterventionStates = {
             target: 'CLEAR',
             actions: 'clearPendingIntervention',
           },
-          {
-            guard: 'matchesApplyingDecision',
-            target: 'APPLICATION_FAILED',
-            actions: 'storeInterventionApplicationFailure',
-          },
+          { guard: 'matchesApplyingDecision', target: 'CLEAR', actions: undeliveredToClear },
         ],
         DECISION_APPLICATION_STALE: {
           guard: 'matchesApplyingDecision',
-          target: 'APPLICATION_STALE',
-          actions: 'storeInterventionApplicationFailure',
+          target: 'CLEAR',
+          actions: undeliveredToClear,
         },
         DECISION_APPLICATION_CANCELLED: {
           guard: 'matchesApplyingDecision',
-          target: 'APPLICATION_CANCELLED',
-          actions: 'storeInterventionApplicationFailure',
+          target: 'CLEAR',
+          actions: undeliveredToClear,
         },
+        // An uncertain delivery may have reached the provider, so it is never sent again.
         DECISION_APPLICATION_UNCERTAIN: {
           guard: 'matchesApplyingDecision',
-          target: 'APPLICATION_UNCERTAIN',
-          actions: 'storeInterventionApplicationFailure',
+          target: 'CLEAR',
+          actions: undeliveredToClear,
         },
       },
     },
-    APPLICATION_FAILED: { on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions } },
-    APPLICATION_STALE: { on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions } },
-    APPLICATION_CANCELLED: {
-      on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions },
-    },
-    APPLICATION_UNCERTAIN: {
-      on: { MONITOR_PERMISSION_ESCALATED: escalateQueuedRequestTransitions },
-    },
+    APPLICATION_FAILED: retiredOnEntry,
+    APPLICATION_STALE: retiredOnEntry,
+    APPLICATION_CANCELLED: retiredOnEntry,
+    APPLICATION_UNCERTAIN: retiredOnEntry,
   },
 } as const;

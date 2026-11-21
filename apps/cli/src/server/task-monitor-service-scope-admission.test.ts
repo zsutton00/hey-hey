@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { NOOP_LOGGER } from './logger';
 import type { TaskMonitorStateMachineInputAdapter } from './state-machine-input-adapter';
+import type { TaskMonitorStateStore } from '../agents/task-monitor/state-machine/machine';
 import {
   TaskMonitorServiceScopeAdmission,
   serviceScopeFingerprint,
@@ -21,11 +22,15 @@ const request: AgentSessionServiceScopeRequest = {
   reason: 'The Task also changes the API.',
 };
 
+/** Admission never reads ownership, so no store is consulted. */
+const unreadStateStore = {} as unknown as TaskMonitorStateStore;
+
 describe('Service scope request admission to the Task Monitor', () => {
   it('admits the request as a monitor-owned Service scope action keyed to its own request id', async () => {
     const admitVerified = vi.fn(async () => ({ status: 'accepted' as const }));
     const admission = new TaskMonitorServiceScopeAdmission(
       { admitVerified } as unknown as TaskMonitorStateMachineInputAdapter,
+      unreadStateStore,
       NOOP_LOGGER,
     );
 
@@ -61,6 +66,7 @@ describe('Service scope request admission to the Task Monitor', () => {
           reason: 'Task Monitor is not observing a Run.',
         })),
       } as unknown as TaskMonitorStateMachineInputAdapter,
+      unreadStateStore,
       NOOP_LOGGER,
     );
 

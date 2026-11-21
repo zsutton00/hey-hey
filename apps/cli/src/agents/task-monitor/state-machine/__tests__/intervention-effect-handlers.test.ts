@@ -21,6 +21,7 @@ import {
   TaskMonitorPermissionRecordEffectHandler,
 } from '../intervention-effect-handlers';
 import type { TaskMonitorCoordinatorRunner } from '../../../../server/monitors/runner';
+import type { TaskMonitorStateMachineInputAdapter } from '../../../../server/state-machine-input-adapter';
 import { TaskMonitorManagedTurnRuntime } from '../../../../server/task-monitor-managed-turn-runtime';
 import {
   TaskMonitorDecisionStore,
@@ -495,40 +496,43 @@ describe('Task Monitor permission deadline', () => {
     dueAt: '2026-08-09T12:00:30.000Z',
   };
 
-  it('hands the request to the person at once when its due time passed while nothing ran, such as after a restart', async () => {
-    const handler = new TaskMonitorPermissionDeadlineEffectHandler(
-      createTestRunRegistryWiring().runRegistry,
-      NOOP_LOGGER,
-      () => Date.parse('2026-08-09T12:10:00.000Z'),
-    );
+  it('frees the effect queue at once and hands the request to the person when its due time arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      let clock = Date.parse('2026-08-09T12:00:00.000Z');
+      const handler = new TaskMonitorPermissionDeadlineEffectHandler(
+        createTestRunRegistryWiring().runRegistry,
+        NOOP_LOGGER,
+        () => clock,
+      );
+      const admitVerified = vi.fn(() =>
+        Promise.resolve({ status: 'accepted' as const, effects: [] }),
+      );
+      handler.connectInput({ admitVerified } as unknown as TaskMonitorStateMachineInputAdapter);
 
-    await expect(handler.execute(watchEffect, execution)).resolves.toMatchObject({
-      status: 'succeeded',
-      outcome: {
-        type: 'MONITOR_PERMISSION_ESCALATED',
-        interventionId: watchEffect.interventionId,
-        providerActionId: watchEffect.providerActionId,
-        reason: expect.stringContaining('did not decide'),
-        escalatedAt: '2026-08-09T12:10:00.000Z',
-      },
-    });
-  });
+      // Settling at once is what lets the ruling it watches run behind it.
+      await expect(handler.execute(watchEffect, execution)).resolves.toMatchObject({
+        status: 'succeeded',
+        outcome: { type: 'PERMISSION_DEADLINE_ARMED', dueAt: watchEffect.dueAt },
+      });
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(admitVerified).not.toHaveBeenCalled();
 
-  it('hands the request to the person once its due time arrives, whatever the monitor is doing', async () => {
-    let clock = Date.parse('2026-08-09T12:00:29.980Z');
-    const handler = new TaskMonitorPermissionDeadlineEffectHandler(
-      createTestRunRegistryWiring().runRegistry,
-      NOOP_LOGGER,
-      () => {
-        const value = clock;
-        clock += 20;
-        return value;
-      },
-    );
-
-    await expect(handler.execute(watchEffect, execution)).resolves.toMatchObject({
-      outcome: { type: 'MONITOR_PERMISSION_ESCALATED' },
-    });
+      clock = Date.parse(watchEffect.dueAt);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(admitVerified).toHaveBeenCalledOnce();
+      expect(admitVerified).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'PERMISSION_DEADLINE_REACHED',
+          interventionId: watchEffect.interventionId,
+          providerActionId: watchEffect.providerActionId,
+          reason: expect.stringContaining('did not decide'),
+        }),
+      );
+      handler.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

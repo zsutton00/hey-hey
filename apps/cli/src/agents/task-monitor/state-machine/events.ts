@@ -219,6 +219,15 @@ interface TaskMonitorPermissionEscalatedEvent {
   readonly escalatedAt?: string | undefined;
 }
 
+/** The due time of a request the monitor holds is being watched outside the effect queue. */
+interface TaskMonitorPermissionDeadlineArmedEvent {
+  readonly type: 'PERMISSION_DEADLINE_ARMED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly dueAt: string;
+}
+
 /** The supervision record of a committed monitor permission outcome was written. */
 interface TaskMonitorPermissionDecisionRecordedEvent {
   readonly type: 'PERMISSION_DECISION_RECORDED';
@@ -707,6 +716,7 @@ export type TaskMonitorMachineEvent =
   | TaskMonitorPermissionDecidedEvent
   | TaskMonitorPermissionEscalatedEvent
   | TaskMonitorPermissionDecisionRecordedEvent
+  | TaskMonitorPermissionDeadlineArmedEvent
   | TaskMonitorPermissionDecisionRecordFailedEvent
   | TaskMonitorInterventionProjectedEvent
   | TaskMonitorInterventionProjectionFailedEvent
@@ -829,6 +839,16 @@ export interface VerifiedTaskMonitorHumanDecisionInput extends AddressedTaskMoni
   readonly human: TaskMonitorHumanDecisionEvidence;
 }
 
+/** A request the monitor still held reached its due time, so it goes to a person. */
+export interface VerifiedTaskMonitorPermissionDeadlineInput extends AddressedTaskMonitorInput {
+  readonly source: 'PERMISSION_DEADLINE_REACHED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
+  readonly escalatedAt: string;
+}
+
 interface VerifiedTaskMonitorConversationInput extends AddressedTaskMonitorInput {
   readonly source: 'CONVERSATION_MESSAGE';
   readonly taskMonitorId: string;
@@ -844,6 +864,7 @@ export type VerifiedTaskMonitorInput =
   | VerifiedTaskMonitorExecutionTurnReleasedInput
   | VerifiedTaskMonitorLaunchFailureInput
   | VerifiedTaskMonitorHumanDecisionInput
+  | VerifiedTaskMonitorPermissionDeadlineInput
   | VerifiedTaskMonitorConversationInput;
 
 export const taskMonitorEventFromVerifiedInput = (
@@ -853,6 +874,7 @@ export const taskMonitorEventFromVerifiedInput = (
   | TaskMonitorRunSettledEvent
   | TaskMonitorLaunchFailureReportedEvent
   | TaskMonitorHumanDecisionEvent
+  | TaskMonitorPermissionEscalatedEvent
   | TaskMonitorConversationMessageReceivedEvent => {
   switch (input.source) {
     case 'PROVIDER_INTERVENTION':
@@ -909,6 +931,15 @@ export const taskMonitorEventFromVerifiedInput = (
         providerDecision: input.providerDecision,
         decidedAt: input.decidedAt,
         human: input.human,
+      };
+    case 'PERMISSION_DEADLINE_REACHED':
+      return {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: input.taskMonitorId,
+        interventionId: input.interventionId,
+        providerActionId: input.providerActionId,
+        reason: input.reason,
+        escalatedAt: input.escalatedAt,
       };
     case 'CONVERSATION_MESSAGE':
       return {

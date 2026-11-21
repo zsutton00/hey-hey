@@ -87,6 +87,7 @@ import {
   dropQueuedRequest,
   escalateQueuedRequest,
   swapInAnsweredQueuedRequest,
+  retireUndeliveredIntervention,
   handQueuedRequestsToHumanOnStop,
   stopProjectionParameters,
   STOP_ESCALATION_REASON,
@@ -612,6 +613,7 @@ const taskMonitorContextSchema = z
     coordinatorConversationId: z.string().nullable(),
     pendingIntervention: pendingInterventionSchema.nullable(),
     queuedInterventions: z.array(queuedInterventionSchema).optional(),
+    undeliveredInterventions: z.array(pendingInterventionSchema).optional(),
     settledRun: settledRunSchema.nullable(),
     reviewRequest: reviewRequestSchema.nullable().default(null),
     input: conversationInputSchema,
@@ -1478,6 +1480,15 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('PERMISSION_DEADLINE_ARMED'),
+      taskMonitorId: z.string(),
+      interventionId: z.string(),
+      providerActionId: z.string(),
+      dueAt: z.string().datetime(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('PERMISSION_DECISION_RECORDED'),
       taskMonitorId: z.string(),
       interventionId: z.string(),
@@ -2154,6 +2165,7 @@ const taskMonitorMachine = setup({
           : context.pendingIntervention,
     }),
     clearPendingIntervention: assign({ pendingIntervention: null }),
+    retireUndeliveredIntervention: assign(retireUndeliveredIntervention),
     storeInterventionApplicationFailure: assign({
       pendingIntervention: ({ context, event }) =>
         context.pendingIntervention !== null && 'reason' in event
@@ -2291,6 +2303,11 @@ const taskMonitorMachine = setup({
       actions: 'storeFailure',
     },
     PERMISSION_DECISION_RECORDED: { guard: 'matchesTaskMonitor' },
+    PERMISSION_DEADLINE_ARMED: { guard: 'matchesTaskMonitor' },
+    // First answer wins: a ruling or due time for a request that is already answered, handed to a
+    // person or gone changes nothing. Accepting it keeps it from blocking the effects behind it.
+    MONITOR_PERMISSION_DECIDED: { guard: 'matchesTaskMonitor' },
+    MONITOR_PERMISSION_ESCALATED: { guard: 'matchesTaskMonitor' },
     PERMISSION_DECISION_RECORD_FAILED: {
       guard: 'matchesTaskMonitor',
       actions: 'storeFailure',

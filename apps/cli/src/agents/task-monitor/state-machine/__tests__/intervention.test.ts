@@ -517,7 +517,7 @@ describe('Task Monitor exact-action intervention', () => {
     expect(actions).toEqual([]);
   });
 
-  it('keeps failed application evidence explicit and ignores a duplicate of the pending request', () => {
+  it('keeps an undelivered answer settled with its cause and ignores a duplicate of the pending request', () => {
     const { definition, escalated: pending } = humanOwned();
     const [duplicate, duplicateActions] = transition(definition.machine, pending, exactAction);
     expect(duplicate).toBe(pending);
@@ -535,16 +535,19 @@ describe('Task Monitor exact-action intervention', () => {
       RUNNING: {
         control: 'ACTIVE',
         work: 'OBSERVING_RUN',
-        intervention: 'APPLICATION_FAILED',
+        intervention: 'CLEAR',
         input: 'WAITING_FOR_INPUT',
       },
     });
-    expect(failed.context.pendingIntervention).toMatchObject({
-      interventionId: INTERVENTION_ID,
-      applicationFailure: 'provider callback failed',
-      decision: { resolution: 'APPROVE' },
-    });
-    expect(transition(definition.machine, failed, decision())[0]).toBe(failed);
+    expect(failed.context.pendingIntervention).toBeNull();
+    expect(failed.context.undeliveredInterventions).toEqual([
+      expect.objectContaining({
+        interventionId: INTERVENTION_ID,
+        applicationFailure: 'provider callback failed',
+        decision: expect.objectContaining({ resolution: 'APPROVE' }),
+      }),
+    ]);
+    expect(transition(definition.machine, failed, decision())[1]).toEqual([]);
   });
   it('accepts a monitor decision at any time for a request with no deadline', () => {
     const { definition, snapshot } = observing();

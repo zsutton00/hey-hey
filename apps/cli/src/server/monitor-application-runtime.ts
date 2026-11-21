@@ -173,9 +173,11 @@ export class MonitorApplicationRuntime {
       this.dependencies.logger.child({ component: 'task-monitor.provider-events' }),
     );
     this.taskMonitorProviderEventAdmission.start(events);
+    this.connectPermissionDeadlines(inputAdapter, stateStore);
     this.dependencies.runRegistry.setTaskMonitorServiceScopeAdmission(
       new TaskMonitorServiceScopeAdmission(
         inputAdapter,
+        stateStore,
         this.dependencies.logger.child({ component: 'task-monitor.service-scope-admission' }),
       ),
     );
@@ -198,7 +200,25 @@ export class MonitorApplicationRuntime {
     this.taskMonitorLaunchFailureAdapter.start();
   }
 
+  /**
+   * Due times are watched on timers that a restart loses, so they are rebuilt from the machine's
+   * record as soon as the input path that applies them exists.
+   */
+  private connectPermissionDeadlines(
+    inputAdapter: TaskMonitorStateMachineInputAdapter,
+    stateStore: TaskMonitorStateStore,
+  ): void {
+    const deadlines = this.taskMonitorMachineOwner.effectHandler.permissionDeadline;
+    deadlines.connectInput(inputAdapter);
+    void deadlines.rearm(stateStore).catch((error: unknown) => {
+      this.dependencies.logger.error('task_monitor.permission_decision.deadline_rearm_failed', {
+        error,
+      });
+    });
+  }
+
   public dispose(): void {
+    this.taskMonitorMachineOwner.effectHandler.permissionDeadline.dispose();
     this.taskMonitorMachineOwner.statePublication?.dispose();
     this.taskMonitorLaunchFailureAdapter?.dispose();
     this.taskMonitorLaunchFailureAdapter = null;

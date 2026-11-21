@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { MessagePoster } from '../../../run/message-poster';
 import type { Run } from '../../../run/run';
 import type { PermissionDecisionDeliveryOutcome, RunRegistry } from '../../../run/run-registry';
@@ -28,6 +29,13 @@ import {
   type WatchTaskMonitorPermissionDeadlineEffect,
 } from './effects';
 import type { TaskMonitorMachineEffectOutcome } from './events';
+import type {
+  TaskMonitorMachineContext,
+  TaskMonitorPendingIntervention,
+  TaskMonitorQueuedIntervention,
+} from './context';
+import type { TaskMonitorStateStore } from './machine';
+import type { TaskMonitorStateMachineInputAdapter } from '../../../server/state-machine-input-adapter';
 
 const reasonFrom = (error: unknown): string =>
   error instanceof Error ? error.message : 'Task Monitor intervention delivery failed.';
@@ -366,16 +374,24 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
   DecideTaskMonitorPermissionEffect,
   TaskMonitorMachineEffectOutcome
 > {
+  /**
+   * A ruling cut off by a restart is only a judgment, never a provider action, so it is resumed at
+   * once rather than handed over or left for the due time. It keeps the request's original due time,
+   * and runs as a new coordinator attempt because the interrupted one cannot finish.
+   */
   public readonly recovery = {
     strategy: 'reconcile' as const,
-    reconcile: (effect: DecideTaskMonitorPermissionEffect) =>
-      Promise.resolve({
-        status: 'uncertain' as const,
-        outcome: this.escalation(
-          effect,
-          `${MONITOR_DECISION_FAILED_PREFIX}: the decision was interrupted before it finished.`,
-        ),
-      }),
+    reconcile: (effect: DecideTaskMonitorPermissionEffect, execution: EffectExecutionIdentity) => {
+      this.logger.info('task_monitor.permission_decision.resumed_after_restart', {
+        taskMonitorId: effect.taskMonitorId,
+        interventionId: effect.interventionId,
+        providerActionId: effect.providerActionId,
+        runId: effect.runId,
+        effectId: execution.effectId,
+      });
+
+      return this.execute(effect, execution, `${execution.effectId}:resumed:${randomUUID()}`);
+    },
   };
 
   public constructor(
@@ -389,6 +405,7 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
   public async execute(
     effect: DecideTaskMonitorPermissionEffect,
     execution: EffectExecutionIdentity,
+    attemptId: string = execution.effectId,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
     const logContext = {
       taskMonitorId: effect.taskMonitorId,
@@ -396,12 +413,13 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
       providerActionId: effect.providerActionId,
       runId: effect.runId,
       effectId: execution.effectId,
+      attemptId,
     };
     this.logger.info('task_monitor.permission_decision.started', logContext);
 
     const outcome = effect.monitorPaused
       ? this.pausedEscalation(effect, logContext)
-      : await this.decide(effect, execution, logContext);
+      : await this.decide(effect, attemptId, logContext);
     if (outcome.type === 'MONITOR_PERMISSION_ESCALATED' && effect.requestKind === 'SERVICE_SCOPE') {
       this.handServiceScopeToHuman(effect, outcome.reason, logContext);
     }
@@ -445,7 +463,7 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
 
   private async decide(
     effect: DecideTaskMonitorPermissionEffect,
-    execution: EffectExecutionIdentity,
+    attemptId: string,
     logContext: Record<string, string>,
   ): Promise<TaskMonitorMachineEffectOutcome> {
     try {
@@ -454,7 +472,7 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
           monitorId: effect.taskMonitorId,
           cause: 'PERMISSION_REQUEST',
           correlationId: effect.interventionId,
-          coordinatorAttemptId: execution.effectId,
+          coordinatorAttemptId: attemptId,
           monitoredPermissionRequest: {
             interventionId: effect.interventionId,
             providerActionId: effect.providerActionId,
@@ -588,19 +606,50 @@ export class TaskMonitorPermissionDecisionEffectHandler implements EffectHandler
   }
 }
 
+/** Requests the monitor holds and has not yet ruled on: the front one and those queued behind it. */
+const undecidedMonitorHeldRequests = (
+  context: TaskMonitorMachineContext,
+): readonly (TaskMonitorPendingIntervention | TaskMonitorQueuedIntervention)[] => {
+  const pending = context.pendingIntervention;
+  const front =
+    pending !== null &&
+    pending.decision === null &&
+    pending.owner === 'MONITOR' &&
+    pending.userRequired !== true
+      ? [pending]
+      : [];
+
+  return [
+    ...front,
+    ...(context.queuedInterventions ?? []).filter(
+      (request) => request.userRequired !== true && request.owner !== 'HUMAN',
+    ),
+  ];
+};
+
+/** One request whose due time is being watched. */
+type WatchedPermissionRequest = Omit<WatchTaskMonitorPermissionDeadlineEffect, 'type'>;
+
 /**
  * Hands a request the monitor still holds to the person once its due time passes. The due time is
  * stamped when the request is admitted, so a request waiting behind another, or one whose monitor
- * never started, reaches a person on the same clock as one being judged. A request already answered
- * by then is ignored by the machine, and moving a Service scope wait that is no longer the
- * monitor's is a no-op.
+ * never started, reaches a person on the same clock as one being judged.
+ *
+ * Effects run one at a time, so the wait happens on a timer, not inside the effect: a five-minute
+ * sleep there would hold up the ruling it watches and every other monitor's work. The effect only
+ * arms the timer. When it fires, the escalation enters the machine as input, and the machine
+ * ignores it if the request was answered first. Timers do not survive a restart, so `rearm` rebuilds
+ * them from the machine's durable record; a request already overdue goes to the person at once.
  */
 export class TaskMonitorPermissionDeadlineEffectHandler implements EffectHandler<
   WatchTaskMonitorPermissionDeadlineEffect,
   TaskMonitorMachineEffectOutcome
 > {
-  /** After a restart the watch simply runs again, and fires at once when the due time has passed. */
+  /** Arming is instant and idempotent, so a restart simply arms again. */
   public readonly recovery = { strategy: 'retry' as const };
+
+  private readonly timers = new Map<string, NodeJS.Timeout>();
+  private inputAdapter: TaskMonitorStateMachineInputAdapter | null = null;
 
   public constructor(
     private readonly runRegistry: RunRegistry,
@@ -608,56 +657,161 @@ export class TaskMonitorPermissionDeadlineEffectHandler implements EffectHandler
     private readonly now: () => number = Date.now,
   ) {}
 
-  public async execute(
+  /** Due times are applied through the machine's input path, connected once the monitor runtime is up. */
+  public connectInput(inputAdapter: TaskMonitorStateMachineInputAdapter): void {
+    this.inputAdapter = inputAdapter;
+  }
+
+  public execute(
     effect: WatchTaskMonitorPermissionDeadlineEffect,
     execution: EffectExecutionIdentity,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
-    const logContext = {
-      taskMonitorId: effect.taskMonitorId,
-      interventionId: effect.interventionId,
-      providerActionId: effect.providerActionId,
-      runId: effect.runId,
-      effectId: execution.effectId,
-      dueAt: effect.dueAt,
-    };
-    this.logger.debug('task_monitor.permission_decision.deadline_watch.started', logContext);
+    this.arm(effect, execution.effectId);
 
-    await this.untilDue(effect.dueAt);
-
-    const reason = `The Task Monitor did not decide this request within ${Math.round(MONITOR_PERMISSION_DECISION_DEADLINE_MS / 60000)} minutes, so it is waiting for a person.`;
-    this.logger.warn('task_monitor.permission_decision.deadline_reached', {
-      ...logContext,
-      owner: 'HUMAN',
-      cause: reason,
-    });
-    if (effect.requestKind === 'SERVICE_SCOPE') {
-      this.runRegistry
-        .get(effect.runId)
-        ?.serviceScopeCoordinator.handToHuman(effect.providerActionId, reason);
-    }
-
-    return {
+    return Promise.resolve({
       status: 'succeeded',
       outcome: {
-        type: 'MONITOR_PERMISSION_ESCALATED',
+        type: 'PERMISSION_DEADLINE_ARMED',
         taskMonitorId: effect.taskMonitorId,
         interventionId: effect.interventionId,
         providerActionId: effect.providerActionId,
-        reason,
-        escalatedAt: new Date(this.now()).toISOString(),
+        dueAt: effect.dueAt,
       },
-    };
+    });
   }
 
-  private untilDue(dueAt: string): Promise<void> {
-    const remainingMs = Date.parse(dueAt) - this.now();
-    if (remainingMs <= 0) {
-      return Promise.resolve();
+  /** Re-arms every request the monitor still holds, from each machine's durable record. */
+  public async rearm(stateStore: TaskMonitorStateStore): Promise<void> {
+    const instances = await stateStore.listInstances();
+    let armed = 0;
+    for (const { snapshot } of instances) {
+      for (const request of undecidedMonitorHeldRequests(snapshot.context)) {
+        this.arm(
+          {
+            taskMonitorId: snapshot.context.taskMonitorId,
+            interventionId: request.interventionId,
+            providerActionId: request.providerActionId,
+            runId: request.runId,
+            agentSessionId: request.agentSessionId,
+            ...(request.requestKind ? { requestKind: request.requestKind } : {}),
+            dueAt: monitorDecisionDueAt(request.createdAt),
+          },
+          'restart',
+        );
+        armed += 1;
+      }
+    }
+    this.logger.info('task_monitor.permission_decision.deadline_watch.rearmed', {
+      instanceCount: instances.length,
+      armed,
+    });
+  }
+
+  public dispose(): void {
+    for (const timer of this.timers.values()) {
+      clearTimeout(timer);
+    }
+    this.timers.clear();
+  }
+
+  private arm(request: WatchedPermissionRequest, armedBy: string): void {
+    const logContext = {
+      taskMonitorId: request.taskMonitorId,
+      interventionId: request.interventionId,
+      providerActionId: request.providerActionId,
+      runId: request.runId,
+      dueAt: request.dueAt,
+      armedBy,
+    };
+    if (this.timers.has(request.interventionId)) {
+      this.logger.debug(
+        'task_monitor.permission_decision.deadline_watch.already_armed',
+        logContext,
+      );
+      return;
     }
 
-    return new Promise((resolve) => {
-      setTimeout(resolve, remainingMs).unref();
+    const remainingMs = Math.max(0, Date.parse(request.dueAt) - this.now());
+    const timer = setTimeout(() => {
+      this.timers.delete(request.interventionId);
+      void this.fire(request).catch((error: unknown) => {
+        this.logger.error('task_monitor.permission_decision.deadline_escalation_failed', {
+          ...logContext,
+          error,
+        });
+      });
+    }, remainingMs);
+    timer.unref();
+    this.timers.set(request.interventionId, timer);
+    this.logger.debug('task_monitor.permission_decision.deadline_watch.started', {
+      ...logContext,
+      remainingMs,
     });
+  }
+
+  private async fire(request: WatchedPermissionRequest): Promise<void> {
+    const reason = `The Task Monitor did not decide this request within ${Math.round(MONITOR_PERMISSION_DECISION_DEADLINE_MS / 60000)} minutes, so it is waiting for a person.`;
+    const logContext = {
+      taskMonitorId: request.taskMonitorId,
+      interventionId: request.interventionId,
+      providerActionId: request.providerActionId,
+      runId: request.runId,
+      dueAt: request.dueAt,
+    };
+    const inputAdapter = this.inputAdapter;
+    if (inputAdapter === null) {
+      this.logger.error('task_monitor.permission_decision.deadline_input_unavailable', {
+        ...logContext,
+        cause: 'The Task Monitor input path is not connected, so the due time cannot be applied.',
+      });
+      return;
+    }
+
+    const result = await inputAdapter.admitVerified({
+      source: 'PERMISSION_DEADLINE_REACHED',
+      identity: { machineType: 'TASK_MONITOR', instanceId: request.taskMonitorId },
+      ingressId: `permission-deadline:${request.interventionId}`,
+      taskMonitorId: request.taskMonitorId,
+      interventionId: request.interventionId,
+      providerActionId: request.providerActionId,
+      reason,
+      escalatedAt: new Date(this.now()).toISOString(),
+    });
+    if (result.status === 'rejected') {
+      this.logger.error('task_monitor.permission_decision.deadline_rejected', {
+        ...logContext,
+        code: result.code,
+        cause: result.reason,
+      });
+      return;
+    }
+
+    // Only a real hand-over records the escalation; a due time reached after an answer changes nothing.
+    const handedOver = result.effects.some(
+      (effect) =>
+        effect.type === 'RECORD_TASK_MONITOR_PERMISSION_DECISION' &&
+        effect.interventionId === request.interventionId,
+    );
+    if (!handedOver) {
+      this.logger.debug('task_monitor.permission_decision.deadline_after_answer', {
+        ...logContext,
+        admission: result.status,
+      });
+      return;
+    }
+    this.logger.warn('task_monitor.permission_decision.deadline_reached', {
+      ...logContext,
+      admission: result.status,
+      owner: 'HUMAN',
+      cause: reason,
+    });
+    // The Run moves its Service scope wait only once the machine has handed the request over, so
+    // the Run and the machine never disagree about who holds it.
+    if (request.requestKind === 'SERVICE_SCOPE') {
+      this.runRegistry
+        .get(request.runId)
+        ?.serviceScopeCoordinator.handToHuman(request.providerActionId, reason);
+    }
   }
 }
 

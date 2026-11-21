@@ -329,6 +329,57 @@ export class AgentSessionServiceScopeCoordinator {
     return { outcome: 'dropped', reason: 'service_scope_request_already_decided' };
   }
 
+  /**
+   * A request raised in this process carries its owner in memory. One restored after a restart
+   * lost that marker, so the Task Monitor machine's durable record decides it, and the Run and the
+   * monitor agree. When the machine cannot be read the person owns it, as when the monitor is
+   * unavailable at request time.
+   */
+  private async decisionOwner(requestId: string): Promise<ServiceScopeDecider> {
+    const deps = this.dependencies;
+    const scope = deps.serviceScope;
+    const taskMonitorId = deps.taskMonitorId();
+    if (!scope.isRestoredServiceScopeRequest(requestId) || taskMonitorId === null) {
+      return scope.serviceScopeDecisionOwner(requestId);
+    }
+
+    const admission = deps.taskMonitorAdmission();
+    if (admission === null) {
+      deps.logger.warn('local.service_scope.decision.restored_owner_unavailable', {
+        runId: deps.runId,
+        requestId,
+        taskMonitorId,
+        owner: 'person',
+        cause: 'The Task Monitor runtime is not available to report who holds this request.',
+      });
+      return 'person';
+    }
+    try {
+      const monitorHolds = await admission.monitorHoldsRequest({
+        taskMonitorId,
+        runId: deps.runId,
+        requestId,
+      });
+      const owner = monitorHolds ? 'monitor' : 'person';
+      deps.logger.info('local.service_scope.decision.restored_owner_resolved', {
+        runId: deps.runId,
+        requestId,
+        taskMonitorId,
+        owner,
+      });
+      return owner;
+    } catch (error) {
+      deps.logger.error('local.service_scope.decision.restored_owner_read_failed', {
+        runId: deps.runId,
+        requestId,
+        taskMonitorId,
+        owner: 'person',
+        error,
+      });
+      return 'person';
+    }
+  }
+
   private async decideAs(
     decider: ServiceScopeDecider,
     input: ServiceScopeDecisionInput,
@@ -339,7 +390,7 @@ export class AgentSessionServiceScopeCoordinator {
     if (!pending) {
       return this.settledResult(input.requestId, decider, input.decision);
     }
-    const owner = scope.serviceScopeDecisionOwner(input.requestId);
+    const owner = await this.decisionOwner(input.requestId);
     if (owner !== decider) {
       deps.logger.warn('local.service_scope.decision.wrong_owner', {
         runId: deps.runId,

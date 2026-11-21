@@ -132,7 +132,10 @@ export interface TaskMonitorRecordedRequest {
 
 /** Finds the machine's record of one provider request, which is what decides who may answer it. */
 export const findMonitoredRequest = (
-  context: Pick<TaskMonitorMachineContext, 'pendingIntervention' | 'queuedInterventions'>,
+  context: Pick<
+    TaskMonitorMachineContext,
+    'pendingIntervention' | 'queuedInterventions' | 'undeliveredInterventions'
+  >,
   runId: string,
   providerActionId: string,
 ): TaskMonitorRecordedRequest | null => {
@@ -149,7 +152,10 @@ export const findMonitoredRequest = (
     (request) => request.runId === runId && request.providerActionId === providerActionId,
   );
   if (queued === undefined) {
-    return null;
+    const undelivered = [...(context.undeliveredInterventions ?? [])]
+      .reverse()
+      .find((request) => request.runId === runId && request.providerActionId === providerActionId);
+    return undelivered === undefined ? null : { request: undelivered, hold: 'SETTLED' };
   }
   if (queued.userRequired === true) {
     return { request: queued, hold: 'QUEUED' };
@@ -280,6 +286,13 @@ export interface TaskMonitorMachineContext {
   readonly pendingIntervention: TaskMonitorPendingIntervention | null;
   /** Requests admitted behind the pending one, in arrival order. Absent in older state. */
   readonly queuedInterventions?: readonly TaskMonitorQueuedIntervention[] | undefined;
+  /**
+   * Decided requests whose answer could not be delivered, or whose delivery is uncertain, newest
+   * last. Each keeps its decision and the specific delivery outcome. They stay settled: none is
+   * ever delivered again, and they no longer hold up the requests behind them. Absent in older
+   * state.
+   */
+  readonly undeliveredInterventions?: readonly TaskMonitorPendingIntervention[] | undefined;
   readonly settledRun: TaskMonitorSettledRun | null;
   readonly reviewRequest: TaskMonitorReviewRequest | null;
   readonly input: TaskMonitorConversationInputContext;
