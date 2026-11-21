@@ -7,7 +7,7 @@ import type { Run } from '../../../run/run';
 import type { ResolvedRunWorkspace } from '../../run-scope';
 import type { ServerLogger } from '../../../server/logger';
 import type { ExecutionRecorder } from './execution-recorder';
-import type { CaptureGap, CaptureIdentity, CaptureRoot } from './observation';
+import type { CaptureGap, CaptureIdentity, CaptureProvider, CaptureRoot } from './observation';
 import { HookChannel, type HookInput } from './hook-channel';
 import { CaptureDeadline } from './capture-deadline';
 import {
@@ -15,12 +15,13 @@ import {
   manualCodexHookConfig,
 } from '../../../agent-runtime/node/codex-hook-launch';
 import { extractFilePathsFromToolInput } from '../../../run/file-change-facts';
+import { canonicalizePotentialPath } from '../../workspace-write-boundary';
 
 export interface CaptureScope {
   sessionId: string;
   runId: string;
   turnId: string;
-  provider: 'codex' | 'claude';
+  provider: CaptureProvider;
   roots: CaptureRoot[];
   harnessVersion: string;
 }
@@ -32,15 +33,46 @@ const execFileAsync = promisify(execFile);
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
 
+/** The binary that reports the harness version recorded with each observation. */
+const VERSION_COMMAND: Record<CaptureProvider, string> = {
+  codex: 'codex',
+  claude: 'claude',
+  antigravity: 'agy',
+};
+
+/**
+ * Antigravity's tools by the names its event stream and hooks share, mapped to the tool classes
+ * the recorder snapshots. Only tools whose hook payloads were captured from agy are listed
+ * (`write_file` takes its path as `Path`); any other tool is an explicit coverage gap, never
+ * a guess. Hooks and events are matched by tool-call id; the name never pairs two calls.
+ */
+const ANTIGRAVITY_TOOLS: Readonly<Record<string, 'Bash' | 'Write'>> = {
+  run_command: 'Bash',
+  write_file: 'Write',
+};
+export const ANTIGRAVITY_HOOK_MATCHER = `^(${Object.keys(ANTIGRAVITY_TOOLS).join('|')})$`;
+
+export const antigravityToolClass = (toolName: string): string | undefined =>
+  Object.hasOwn(ANTIGRAVITY_TOOLS, toolName) ? ANTIGRAVITY_TOOLS[toolName] : undefined;
+
+/** agy names the edited file `Path`; the shared path extraction reads `file_path`. */
+const antigravityToolInput = (toolInput: unknown): unknown => {
+  const record = typeof toolInput === 'object' && toolInput !== null ? toolInput : null;
+  const edited = (record as { Path?: unknown } | null)?.Path;
+  return typeof edited === 'string' ? { file_path: edited } : toolInput;
+};
+
 /**
  * Narrows each root to the files an edit tool names, so the before and after reads
- * touch nothing else. Null when the input names no file inside any root.
+ * touch nothing else. A name is compared by where it really leads, so a path through an
+ * alias of the root (e.g. /tmp for /private/tmp) counts and a link out of the root does not.
+ * Null when the input names no file inside any root.
  */
-const scopeRootsToToolInput = (
+const scopeRootsToToolInput = async (
   roots: readonly CaptureRoot[],
   toolName: string,
   toolInput: unknown,
-): CaptureRoot[] | null => {
+): Promise<CaptureRoot[] | null> => {
   const input =
     typeof toolInput === 'string'
       ? { command: toolInput }
@@ -50,8 +82,11 @@ const scopeRootsToToolInput = (
   const named = extractFilePathsFromToolInput(toolName, input);
   const scoped: CaptureRoot[] = [];
   for (const root of roots) {
-    const relatives = named
-      .map((name) => path.relative(root.root, path.resolve(root.root, name)))
+    const targets = await Promise.all(
+      named.map((name) => canonicalizePotentialPath(path.resolve(root.root, name))),
+    );
+    const relatives = targets
+      .map((target) => path.relative(root.root, target))
       .filter(
         (relative) => relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative),
       );
@@ -72,14 +107,18 @@ export class ExecutionCaptureSession {
   private readonly tools = new Map<string, AdmittedTool>();
   /** The roots each admitted tool's Pre hook read, so its Post hook reads the same files. */
   private readonly toolRoots = new Map<string, CaptureRoot[]>();
+  /** Tools whose Pre hook is already being handled, so a repeated delivery cannot begin twice. */
+  private readonly starting = new Set<string>();
   private readonly observed = new Set<string>();
   private readonly outcomes = new Map<string, 'success' | 'failure' | 'denied'>();
   private readonly finalized = new Set<string>();
+  /** Tools whose Post hook is already being settled, so a repeated delivery cannot settle twice. */
+  private readonly settling = new Set<string>();
   private version: string | null = null;
   private providerTurn: { sessionId: string; turnId: string } | null = null;
 
   public constructor(
-    private readonly provider: 'codex' | 'claude',
+    private readonly provider: CaptureProvider,
     private readonly recorder: ExecutionRecorder,
     private readonly logger: ServerLogger,
   ) {
@@ -105,7 +144,9 @@ export class ExecutionCaptureSession {
       }
       if (roots.length === 0) return undefined;
       if (this.version === null) {
-        const result = await execFileAsync(this.provider, ['--version'], { timeout: 5000 });
+        const result = await execFileAsync(VERSION_COMMAND[this.provider], ['--version'], {
+          timeout: 5000,
+        });
         this.version = result.stdout.trim();
       }
       const launch = await this.start({
@@ -178,6 +219,9 @@ export class ExecutionCaptureSession {
   ): void {
     const scope = this.scope;
     if (!scope) return;
+    const supportedName =
+      this.provider === 'antigravity' ? antigravityToolClass(toolName) : toolName;
+    if (supportedName === undefined) return;
     const identity: CaptureIdentity = {
       sessionId: scope.sessionId,
       runId: scope.runId,
@@ -186,9 +230,20 @@ export class ExecutionCaptureSession {
       providerSessionId,
       providerTurnId,
       toolCallId,
-      toolName,
+      toolName: supportedName,
     };
     this.tools.set(`${providerSessionId}:${toolCallId}`, { identity, scope });
+  }
+
+  /** The provider could not be given its hooks, so none will arrive for this launch. */
+  public async hooksUnavailable(cause: unknown): Promise<void> {
+    await this.channel.close();
+    await this.gap('hook_not_observed', cause);
+  }
+
+  /** A tool the provider reports that this session cannot snapshot: stated, not skipped silently. */
+  public unsupportedTool(): Promise<void> {
+    return this.gap('unsupported_tool');
   }
 
   public bindProviderTurn(sessionId: string, turnId: string): void {
@@ -211,11 +266,17 @@ export class ExecutionCaptureSession {
       toolCallId: input.tool_use_id,
       toolName: input.tool_name,
     });
+    const toolName =
+      this.provider === 'antigravity' ? antigravityToolClass(input.tool_name) : input.tool_name;
+    const toolInput =
+      this.provider === 'antigravity' ? antigravityToolInput(input.tool_input) : input.tool_input;
     const supported =
       this.provider === 'codex'
         ? ['Bash', 'apply_patch']
-        : ['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
-    if (!supported.includes(input.tool_name)) {
+        : this.provider === 'antigravity'
+          ? ['Bash', 'Write']
+          : ['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+    if (toolName === undefined || !supported.includes(toolName)) {
       await this.gap('unsupported_tool');
       return;
     }
@@ -226,19 +287,19 @@ export class ExecutionCaptureSession {
       input.hook_event_name === 'PreToolUse' &&
       this.providerTurn?.sessionId === input.session_id &&
       this.providerTurn.turnId === input.turn_id &&
-      ['Bash', 'apply_patch'].includes(input.tool_name)
+      ['Bash', 'apply_patch'].includes(toolName)
     ) {
       this.admit(
         this.providerTurn.sessionId,
         this.providerTurn.turnId,
         input.tool_use_id,
-        input.tool_name,
+        toolName,
       );
     }
     const admitted = this.tools.get(`${input.session_id}:${input.tool_use_id}`);
     if (
       !admitted ||
-      admitted.identity.toolName !== input.tool_name ||
+      admitted.identity.toolName !== toolName ||
       (this.provider === 'codex' && admitted.identity.providerTurnId !== input.turn_id)
     ) {
       await this.gap('identity_unresolved');
@@ -249,12 +310,16 @@ export class ExecutionCaptureSession {
     if (this.finalized.has(toolKey)) return;
     this.observed.add(`${scope.turnId}:${identity.toolCallId}`);
     if (input.hook_event_name === 'PreToolUse') {
+      // agy can deliver a hook event more than once (recorded: once per workspace path naming
+      // the same directory, e.g. /var and /private/var); a repeat changes nothing.
+      if (this.starting.has(toolKey)) return;
+      this.starting.add(toolKey);
       if (this.scope !== scope) {
         await this.gap('identity_unresolved');
         return;
       }
       const roots = EDIT_TOOLS.has(identity.toolName)
-        ? scopeRootsToToolInput(scope.roots, identity.toolName, input.tool_input)
+        ? await scopeRootsToToolInput(scope.roots, identity.toolName, toolInput)
         : scope.roots;
       if (roots === null) {
         this.logger.warn('execution_capture.edit_paths_unresolved', {
@@ -269,6 +334,8 @@ export class ExecutionCaptureSession {
       if (signal.aborted || this.scope !== scope)
         await this.recorder.interrupt(scope.runId, scope.turnId);
     } else {
+      if (this.settling.has(toolKey)) return;
+      this.settling.add(toolKey);
       const outcome =
         this.outcomes.get(toolKey) ??
         (input.hook_event_name === 'PostToolUseFailure'
@@ -456,9 +523,11 @@ export class ExecutionCaptureSession {
     }
     this.tools.clear();
     this.toolRoots.clear();
+    this.starting.clear();
     this.observed.clear();
     this.outcomes.clear();
     this.finalized.clear();
+    this.settling.clear();
     this.logger.debug('execution_capture.close_completed', {
       ...diagnostic,
       elapsedMs: Date.now() - startedAt,

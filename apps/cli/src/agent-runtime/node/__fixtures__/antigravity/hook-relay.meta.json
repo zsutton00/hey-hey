@@ -1,13 +1,13 @@
 {
   "scenario": "hook-relay",
   "mode": "default",
-  "cwd": "/tmp/agy-capture-hook-relay-7lUnOA",
+  "cwd": "/tmp/agy-capture-hook-relay-bRBjUT",
   "agyVersion": {
     "output": "1.5.13",
     "exitCode": 0
   },
-  "startedAt": "2026-11-20T07:19:26.520Z",
-  "finishedAt": "2026-11-20T07:20:00.642Z",
+  "startedAt": "2026-11-21T20:33:26.778Z",
+  "finishedAt": "2026-11-21T20:33:49.442Z",
   "ok": true,
   "error": null,
   "mcpConfigError": null,
@@ -27,8 +27,8 @@
   ],
   "mcpNote": "buildMcpServerConfig returns only heyhey-platform; heyhey-submission-tools and heyhey-browser are mounted only via --submission-mcp-url / --browser-mcp-url. A run with fewer than three servers is not the full set.",
   "observations": {
-    "hookSettingsPath": "/tmp/agy-capture-hook-relay-7lUnOA/.agy/settings.json",
-    "hookSettingsFormat": "assumed-claude-style (unverified against agy)",
+    "hookSettingsPath": "/tmp/agy-capture-hook-relay-bRBjUT/.agents/hooks.json",
+    "hookSettingsFormat": "agy hooks.json (.agents/hooks.json, documented in the agy binary)",
     "initializeResult": {
       "protocolVersion": 1,
       "agentCapabilities": {
@@ -93,7 +93,7 @@
       ]
     },
     "sessionNew": {
-      "sessionId": "3dea1016-db7e-4ac3-8d89-6688ad047cbf",
+      "sessionId": "f2658f84-003a-49c3-bf3e-db1e0a57b1e2",
       "models": {
         "availableModels": [
           {
@@ -330,14 +330,14 @@
     "promptResult": {
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 31397,
-        "outputTokens": 779,
-        "cachedReadTokens": 49302,
+        "inputTokens": 34093,
+        "outputTokens": 800,
+        "cachedReadTokens": 75907,
         "cachedWriteTokens": 0,
-        "thoughtTokens": 444,
-        "totalTokens": 81478
+        "thoughtTokens": 361,
+        "totalTokens": 110800
       }
     },
-    "hookPayloadCount": 0
+    "hookPayloadCount": 12
   }
 }

@@ -10,7 +10,12 @@ import { ExecutionRecorder } from './execution-recorder';
 import { ContentSnapshot } from './content-snapshot';
 import { CodexExecutionCaptureHooks } from '../codex/execution-capture-hooks';
 import { ClaudeExecutionCaptureHooks } from '../claude/execution-capture-hooks';
-import type { ExecutionCaptureSession } from './capture-session';
+import {
+  AntigravityExecutionCaptureHooks,
+  antigravityHookSettings,
+} from '../antigravity/execution-capture-hooks';
+import type { AcpInboundCall } from '../antigravity/acp-schemas';
+import { ANTIGRAVITY_HOOK_MATCHER, type ExecutionCaptureSession } from './capture-session';
 import type { HookInput } from './hook-channel';
 
 const exec = promisify(execFile);
@@ -500,5 +505,247 @@ describe.each(['codex', 'claude'] as const)('%s execution capture', (provider) =
     expect(await recorder.store.read()).toEqual([]);
     const coverageNames = await fs.readdir(path.join(directory, 'evidence', 'coverage'));
     expect(coverageNames.length).toBeGreaterThan(0);
+  });
+});
+
+type SessionUpdate = Extract<AcpInboundCall, { method: 'session/update' }>['params'];
+interface AgyHookPayload {
+  hookEventName: 'PreToolUse' | 'PostToolUse';
+  conversationId: string;
+  toolCall: { id: string; name: string; args: Record<string, unknown> };
+  error?: string;
+}
+type RecordedStep =
+  | { kind: 'update'; update: SessionUpdate }
+  | { kind: 'hook'; hook: AgyHookPayload };
+type RecordedLine =
+  | { direction: 'hook'; frame: { payload: AgyHookPayload } }
+  | { direction: 'agent->client'; frame: { method?: string; params: SessionUpdate } }
+  | { direction: 'client->agent' | 'driver'; frame: unknown };
+
+/** The scratch directory agy worked in when the hook-relay recording was made (redacted form). */
+const RECORDED_ROOT = '/tmp/agy-capture-hook-relay-bRBjUT';
+
+/**
+ * The real agy hook-relay recording, in transcript order, with its directory moved to an alias
+ * of `root`: agy named the workspace /tmp/..., which this host resolves to /private/tmp/....
+ */
+const recordedSteps = async (): Promise<RecordedStep[]> => {
+  const alias = path.join(directory, 'workspace-alias');
+  await fs.symlink(root, alias).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'EEXIST') {
+      throw error;
+    }
+  });
+  const text = await fs.readFile(
+    'src/agent-runtime/node/__fixtures__/antigravity/hook-relay.ndjson',
+    'utf8',
+  );
+  return text
+    .split('\n')
+    .filter(Boolean)
+    .map((line): RecordedLine => JSON.parse(line.replaceAll(RECORDED_ROOT, alias)) as RecordedLine)
+    .flatMap((entry): RecordedStep[] => {
+      if (entry.direction === 'hook') {
+        return [{ kind: 'hook', hook: entry.frame.payload }];
+      }
+      if (entry.direction === 'agent->client' && entry.frame.method === 'session/update') {
+        return [{ kind: 'update', update: entry.frame.params }];
+      }
+      return [];
+    });
+};
+
+/** Runs the hook command exactly as installed in hooks.json, with no capture variables in scope. */
+const runInstalledHook = (command: string, payload: AgyHookPayload): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([name]) => !name.startsWith('HEY_HEY_CAPTURE_')),
+    );
+    const child = spawn('/bin/sh', ['-c', command], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('exit', (code) =>
+      code === 0 ? resolve(output) : reject(new Error(`Hook exited with ${String(code)}`)),
+    );
+    child.stdin.end(JSON.stringify(payload));
+  });
+
+const coverageReasons = async (): Promise<string[]> => {
+  const coverage = path.join(directory, 'evidence', 'coverage');
+  const names = await fs.readdir(coverage).catch(() => []);
+  return Promise.all(
+    names.map(async (name) => {
+      const text = await fs.readFile(path.join(coverage, name), 'utf8');
+      return (JSON.parse(text) as { payload: { reason: string } }).payload.reason;
+    }),
+  );
+};
+
+describe('antigravity execution capture from the hook-relay recording', () => {
+  const setup = async () => {
+    const recorder = new ExecutionRecorder(path.join(directory, 'evidence'), NOOP_LOGGER);
+    const adapter = new AntigravityExecutionCaptureHooks(recorder, NOOP_LOGGER);
+    sessions.push(adapter.session);
+    const launch = await adapter.session.start({
+      sessionId: 'agent-session',
+      runId: 'run',
+      turnId: 'run-turn',
+      provider: 'antigravity',
+      roots: [{ serviceId: 'service', root }],
+      harnessVersion: '1.5.13',
+    });
+    const settings = antigravityHookSettings(launch!)['hey-hey-capture']!;
+    const command = settings.PreToolUse[0]!.hooks[0]!.command;
+    return {
+      recorder,
+      adapter,
+      launch,
+      command,
+      matcher: new RegExp(settings.PreToolUse[0]!.matcher),
+    };
+  };
+
+  it('pairs each recorded hook with the ACP tool call of the same id', async () => {
+    const { recorder, adapter, command, matcher } = await setup();
+    const steps = await recordedSteps();
+    const written = new Set<string>();
+    for (const step of steps) {
+      if (step.kind === 'update') {
+        adapter.observe(step.update);
+        continue;
+      }
+      const { hook } = step;
+      // agy runs only the hooks whose matcher names the tool.
+      if (!matcher.test(hook.toolCall.name)) {
+        continue;
+      }
+      if (
+        hook.hookEventName === 'PostToolUse' &&
+        hook.toolCall.name === 'write_file' &&
+        !written.has(hook.toolCall.id)
+      ) {
+        // What agy's write_file did between its hooks.
+        await fs.writeFile(
+          String(hook.toolCall.args['Path']),
+          String(hook.toolCall.args['Content']),
+        );
+        written.add(hook.toolCall.id);
+      }
+      // Capture only observes: agy keeps its normal permission flow.
+      expect(await runInstalledHook(command, hook)).toBe(
+        hook.hookEventName === 'PreToolUse' ? '{"decision":"ask"}' : '{}',
+      );
+    }
+    await adapter.session.end();
+
+    const recordedCalls = steps.flatMap((step) =>
+      step.kind === 'update' && step.update.update.sessionUpdate === 'tool_call'
+        ? [{ id: step.update.update.toolCallId, name: step.update.update.name }]
+        : [],
+    );
+    const observations = await recorder.store.read();
+    // Repeated hook deliveries and the read-only call add nothing.
+    expect(
+      observations.map(({ identity }) => [identity.toolCallId, identity.toolName]).sort(),
+    ).toEqual(
+      recordedCalls
+        .filter(({ name }) => name !== 'read_file')
+        .map(({ id, name }) => [id, name === 'run_command' ? 'Bash' : 'Write'])
+        .sort(),
+    );
+    for (const observation of observations) {
+      expect(observation.identity).toMatchObject({
+        provider: 'antigravity',
+        providerSessionId: steps.find((step) => step.kind === 'hook')!.hook.conversationId,
+      });
+      expect(observation.outcome).toBe('success');
+    }
+    const write = observations.find(({ identity }) => identity.toolName === 'Write')!;
+    const before = write.before!.entries.find((entry) => entry.path === 'hook-probe.txt');
+    const after = write.after!.entries.find((entry) => entry.path === 'hook-probe.txt')!;
+    expect(before?.hash ?? null).toBeNull();
+    expect((await recorder.store.readBlob(after.hash!)).toString()).toBe('probe');
+    expect(await coverageReasons()).not.toContain('identity_unresolved');
+  });
+
+  it('records an identity gap for a hook whose id no ACP tool call announced', async () => {
+    const { recorder, adapter, command } = await setup();
+    const steps = await recordedSteps();
+    const recorded = steps.find(
+      (step): step is Extract<RecordedStep, { kind: 'hook' }> =>
+        step.kind === 'hook' && step.hook.toolCall.name === 'run_command',
+    )!.hook;
+    // The stream announced a different call, so the two must not be paired.
+    adapter.observe({
+      sessionId: recorded.conversationId,
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'call_announced_elsewhere',
+        name: 'run_command',
+        kind: 'execute',
+      },
+    });
+    expect(await runInstalledHook(command, recorded)).toBe('{"decision":"ask"}');
+    await adapter.session.end();
+
+    expect(await recorder.store.read()).toEqual([]);
+    expect(await coverageReasons()).toContain('identity_unresolved');
+  });
+
+  it('lets the session run without hooks when the hook file cannot be written, removing the old one', async () => {
+    const { adapter, launch } = await setup();
+    const launchDirectory = path.join(directory, 'launch');
+    const stale = path.join(launchDirectory, '.agents', 'hooks.json');
+    await fs.mkdir(path.dirname(stale), { recursive: true });
+    await fs.writeFile(stale, '{"stale":{}}', { mode: 0o400 });
+    await expect(adapter.install(launchDirectory, launch)).resolves.toBeUndefined();
+
+    await expect(fs.access(stale)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await coverageReasons()).toContain('hook_not_observed');
+  });
+
+  it('refuses the launch when a hook file it cannot replace also cannot be removed', async () => {
+    const { adapter, launch } = await setup();
+    const launchDirectory = path.join(directory, 'launch');
+    // A directory where the hook file belongs can be neither overwritten nor force-removed.
+    await fs.mkdir(path.join(launchDirectory, '.agents', 'hooks.json'), { recursive: true });
+    await expect(adapter.install(launchDirectory, launch)).rejects.toThrow();
+  });
+
+  it('records no file evidence for a write through a link leading out of the workspace', async () => {
+    const { recorder, adapter, command } = await setup();
+    const outside = path.join(directory, 'outside');
+    await fs.mkdir(outside);
+    await fs.symlink(outside, path.join(root, 'escape'));
+    const steps = await recordedSteps();
+    const announced = steps.find(
+      (step): step is Extract<RecordedStep, { kind: 'update' }> =>
+        step.kind === 'update' &&
+        step.update.update.sessionUpdate === 'tool_call' &&
+        step.update.update.name === 'write_file',
+    )!.update;
+    const recordedWrite = steps.find(
+      (step): step is Extract<RecordedStep, { kind: 'hook' }> =>
+        step.kind === 'hook' &&
+        step.hook.hookEventName === 'PreToolUse' &&
+        step.hook.toolCall.name === 'write_file',
+    )!.hook;
+    const escaping = {
+      ...recordedWrite,
+      toolCall: {
+        ...recordedWrite.toolCall,
+        args: { ...recordedWrite.toolCall.args, Path: path.join(root, 'escape', 'hook-probe.txt') },
+      },
+    };
+    adapter.observe(announced);
+    await runInstalledHook(command, escaping);
+    await adapter.session.end();
+
+    expect(await recorder.store.read()).toEqual([]);
+    expect(await coverageReasons()).toContain('identity_unresolved');
   });
 });

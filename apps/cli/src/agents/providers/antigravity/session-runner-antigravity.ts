@@ -15,6 +15,8 @@ import { buildPlatformSystemPrompt } from '../../prompts/common';
 import { readSessionStartContext } from '../../prompts/session-start-context';
 import { buildSubmissionToolsMcpConfig } from '../../submission-tools/mcp-config';
 import type { SubmissionToolRegistry } from '../../submission-tools/registry';
+import type { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
+import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { IsolatedProviderWorkingDirectory } from '../isolated-provider-working-directory';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { nativeProviderSessionId, recordPermissionDecisionSubmitted } from '../runner-common';
@@ -34,7 +36,9 @@ import {
   type AcpPromptContent,
 } from './acp-client';
 import type { AcpConfigOptions, AcpInboundCall, AcpPromptUsage } from './acp-schemas';
+import { AntigravityNotReadyError } from './antigravity-readiness';
 import { listAntigravitySkills } from './antigravity-skill-catalog';
+import { AntigravityExecutionCaptureHooks } from './execution-capture-hooks';
 import {
   mapAntigravityPermission,
   mapAntigravityUpdate,
@@ -44,6 +48,35 @@ import {
 type PermissionRequest = Extract<AcpInboundCall, { method: 'session/request_permission' }>;
 type PromptArgs = RunPromptArgs | ResumeArgs;
 
+// Tool kinds that change files; reads outside the Run roots stay allowed.
+const WRITING_TOOL_KINDS = new Set(['edit', 'delete', 'move']);
+const PATH_INPUT_KEY = /path|file|target|destination/i;
+
+/** Absolute or relative paths a write-capable tool call says it will change. */
+const writeTargetsOf = ({ kind, content, rawInput }: PermissionRequest['params']['toolCall']) => {
+  const diffPaths = (content ?? []).flatMap((entry) => (entry.type === 'diff' ? [entry.path] : []));
+  if (!kind || !WRITING_TOOL_KINDS.has(kind)) {
+    return diffPaths;
+  }
+  const input = rawInput && typeof rawInput === 'object' ? Object.entries(rawInput) : [];
+  const inputPaths = input.flatMap(([key, value]) =>
+    PATH_INPUT_KEY.test(key) && typeof value === 'string' ? [value] : [],
+  );
+  return [...diffPaths, ...inputPaths];
+};
+
+/** An Error's message; anything else is stringified without throwing. */
+const describeCause = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  try {
+    return typeof error === 'string' ? error : (JSON.stringify(error) ?? String(error));
+  } catch {
+    return String(error);
+  }
+};
+
 interface Dependencies {
   runStore: RunStore;
   oauthClient: OAuthClient;
@@ -51,6 +84,8 @@ interface Dependencies {
   localAgentEndpoint: LocalAgentEndpoint;
   agentOutputOwner: Run;
   logger: ServerLogger;
+  /** Present only for a Run started with precise file change tracking on. */
+  executionRecorder?: ExecutionRecorder;
 }
 
 interface ActivePrompt {
@@ -62,6 +97,8 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private readonly attachments = new RunAttachmentContentReader();
   private readonly permissions = new Map<string, PermissionRequest>();
   private directory: IsolatedProviderWorkingDirectory | undefined;
+  /** Set for repository-bound sessions: the Run roots agy is sandboxed to. */
+  private boundary: RunWorkspaceWriteBoundary | undefined;
   private client: AntigravityAcpClient | undefined;
   private sessionId: string | null = null;
   private mountIdentity: string | undefined;
@@ -75,8 +112,13 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private expectedMode: 'default' | undefined;
   private configOptions: AcpConfigOptions = [];
   private commands = new Set<string>();
+  private readonly executionCapture: AntigravityExecutionCaptureHooks | null;
 
-  constructor(private readonly dependencies: Dependencies) {}
+  constructor(private readonly dependencies: Dependencies) {
+    this.executionCapture = dependencies.executionRecorder
+      ? new AntigravityExecutionCaptureHooks(dependencies.executionRecorder, dependencies.logger)
+      : null;
+  }
 
   runPrompt(args: RunPromptArgs): Promise<AgentRunResult> {
     return this.run(args, null, args);
@@ -316,6 +358,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         kind,
       });
     }
+    if (!option || option.kind.startsWith('reject')) {
+      this.executionCapture?.denied(request.params.sessionId, request.params.toolCall.toolCallId);
+    }
     this.client.respondToPermission(request.id, option);
     await recordPermissionDecisionSubmitted({
       dispatch,
@@ -338,6 +383,8 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     this.commands = new Set();
     this.mountIdentity = undefined;
     this.agentName = undefined;
+    this.boundary = undefined;
+    await this.executionCapture?.close();
     const directory = this.directory;
     this.directory = undefined;
     await directory?.cleanup();
@@ -349,21 +396,23 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
 
   private async run(args: PromptArgs, resumeId: string | null, fresh?: RunPromptArgs) {
     const { logger } = this.dependencies;
-    if (
+    const boundary = args.workspaceWriteBoundary;
+    const repositoryBound =
       args.workspace ||
-      args.workspaceWriteBoundary ||
+      boundary ||
       args.session.services?.length ||
       args.session.launchServiceId ||
       args.session.workspaceBound ||
-      args.session.scope
-    ) {
+      args.session.scope;
+    if (repositoryBound && !boundary) {
       const error = new AgentSessionRunnerError(
         'ANTIGRAVITY_CONTAINMENT_REQUIRED',
-        'Antigravity requires workspace write containment before it can run against a repository.',
+        'Antigravity could not be contained to the Run roots for this repository session, so it was not started.',
       );
       logger.warn('antigravity.run.refused', {
         runId: args.session.agentic_session_id,
         code: error.code,
+        hasWorkspace: Boolean(args.workspace),
       });
       throw error;
     }
@@ -384,7 +433,21 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       }
       this.owningRunId = args.session.agentic_session_id;
       const mcpServers = this.serversFor(args);
-      const mountIdentity = JSON.stringify(mcpServers);
+      const readOnlyFilesystem = args.readOnlyFilesystem === true;
+      const hookLaunch = args.workspace?.ok
+        ? await this.executionCapture?.session.open(
+            this.dependencies.agentOutputOwner,
+            args.workspace,
+          )
+        : undefined;
+      // agy reads its hooks at launch, so a different capture channel needs a new process.
+      const mountIdentity = JSON.stringify({
+        mcpServers,
+        roots: boundary?.allowedRepositoryRoots,
+        cwd: boundary?.cwd,
+        readOnlyFilesystem,
+        captureChannel: hookLaunch?.environment.HEY_HEY_CAPTURE_URL,
+      });
       if (!this.client || this.mountIdentity !== mountIdentity) {
         // Platform and browser mounts expire with the Turn. Attach their current
         // URLs by resuming the same native session in a new ACP process.
@@ -392,20 +455,34 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         this.client = undefined;
         this.expectedMode = undefined;
         this.directory ??= await IsolatedProviderWorkingDirectory.create();
-        const cwd = this.directory.path;
+        // The Run agent file lives in the isolated launch directory, never in a repository.
+        const launchDirectory = this.directory.path;
         if (!this.agentName) {
-          await this.writeAgent(cwd, fresh);
+          await this.writeAgent(launchDirectory, fresh);
         }
-        const config = { cwd, mcpServers };
+        await this.executionCapture?.install(launchDirectory, hookLaunch);
+        this.boundary = boundary;
+        const config = { cwd: boundary?.cwd ?? launchDirectory, mcpServers };
+        const containment = boundary?.antigravityContainment(readOnlyFilesystem);
+        logger.debug('antigravity.run.launching', {
+          runId: args.session.agentic_session_id,
+          contained: Boolean(containment),
+          resume: Boolean(resumeId),
+          roots: boundary?.allowedRepositoryRoots,
+          readOnlyFilesystem,
+          executionCapture: Boolean(hookLaunch),
+        });
         const client = new AntigravityAcpClient(
-          cwd,
+          launchDirectory,
           logger,
           (update) => this.onUpdate(update),
           (request) => this.onPermission(request),
           ['--agent', 'heyhey-run', '--include-default-customizations=false'],
+          undefined,
+          containment,
         );
         this.client = client;
-        await client.initialize();
+        await this.initialize(client, Boolean(containment));
         if (resumeId) {
           const resumed = await client.resumeSession(resumeId, config);
           if (resumed.sessionId && resumed.sessionId !== resumeId) {
@@ -534,7 +611,24 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     } finally {
       this.activePrompt = undefined;
       this.permissions.clear();
+      await this.executionCapture?.session.end();
       this.busy = false;
+    }
+  }
+
+  /** A contained session whose sandbox cannot start is refused with that cause, not a generic failure. */
+  private async initialize(client: AntigravityAcpClient, contained: boolean): Promise<void> {
+    try {
+      await client.initialize();
+    } catch (error) {
+      if (!contained || error instanceof AntigravityNotReadyError) {
+        throw error;
+      }
+      throw new AgentSessionRunnerError(
+        'ANTIGRAVITY_CONTAINMENT_REQUIRED',
+        `Antigravity could not start inside the Run sandbox: ${describeCause(error)}`,
+        error,
+      );
     }
   }
 
@@ -671,6 +765,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     if (update.sessionUpdate === 'available_commands_update') {
       this.commands = new Set(update.availableCommands.map((command) => command.name));
     }
+    this.executionCapture?.observe({ sessionId, update });
     if (!this.activePrompt) {
       return;
     }
@@ -688,10 +783,50 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   }
 
   private onPermission(request: PermissionRequest): void {
+    void this.handlePermission(request).catch((error: unknown) => {
+      this.dependencies.logger.warn('antigravity.permission.failed', {
+        id: request.id,
+        error: String(error),
+      });
+      this.client?.respondToPermission(request.id, undefined);
+    });
+  }
+
+  /**
+   * The sandbox is the boundary; this only keeps the user from being asked about,
+   * or auto-approving, a write the sandbox would refuse. Approval never widens it.
+   */
+  private async refusesOutsideRoots(request: PermissionRequest): Promise<boolean> {
+    const boundary = this.boundary;
+    if (!boundary) {
+      return false;
+    }
+    try {
+      await boundary.assertWriteTargets(writeTargetsOf(request.params.toolCall));
+      return false;
+    } catch (error) {
+      this.dependencies.logger.warn('antigravity.permission.outside_run_roots', {
+        id: request.id,
+        sessionId: request.params.sessionId,
+        error: String(error),
+      });
+      return true;
+    }
+  }
+
+  private async handlePermission(request: PermissionRequest): Promise<void> {
     const { id, params } = request;
     const prompt = this.activePrompt;
     if (!prompt || params.sessionId !== this.sessionId) {
       this.client?.respondToPermission(id, undefined);
+      return;
+    }
+    if (await this.refusesOutsideRoots(request)) {
+      this.executionCapture?.denied(params.sessionId, params.toolCall.toolCallId);
+      this.client?.respondToPermission(
+        id,
+        params.options.find((option) => option.kind === 'reject_once'),
+      );
       return;
     }
     if (prompt.skipPermissions) {

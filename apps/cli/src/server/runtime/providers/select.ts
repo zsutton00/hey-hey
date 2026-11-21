@@ -123,7 +123,7 @@ export class SessionRunnerFacade {
     if (!enabled) {
       return;
     }
-    if (providerId === 'opencode' || providerId === 'antigravity') {
+    if (providerId === 'opencode') {
       this.dependencies.logger.info('select.precise_tracking.provider_without_hooks', {
         runId: run.runId,
         provider: providerId,
@@ -169,6 +169,7 @@ export class SessionRunnerFacade {
     if (providerId === 'antigravity') {
       runner = new AntigravityAgentSessionRunner({
         ...common,
+        ...(executionRecorder ? { executionRecorder } : {}),
         logger: this.dependencies.logger.child({ component: 'runner.antigravity' }),
       });
     } else if (providerId === 'codex') {
