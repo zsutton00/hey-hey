@@ -4,7 +4,7 @@ import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { useCallback, useMemo, useState } from "react";
 import { EntityType, WorkStatus } from "../../api";
-import { useCanonicalPlanMutations } from "../../data";
+import { useCanonicalPlanMutations, useFutureOffers } from "../../data";
 import {
   EntityConversationPromptDialog,
   type EntityConversationPromptRuntimeSelection,
@@ -69,6 +69,7 @@ export const PlanCompletionAction = ({
     resetKey: null,
   });
   const { updatePlan } = useCanonicalPlanMutations(organizationId, projectId);
+  const futureOffers = useFutureOffers();
   const conversationLauncher = useEntityConversationLauncher({
     organizationId,
     projectId,
@@ -180,6 +181,10 @@ export const PlanCompletionAction = ({
       try {
         await completePlan();
         setCompletionSucceeded(true);
+        // Futures waiting on this Plan are offered by the completion itself;
+        // the review must not open (and navigate away) until the user has
+        // resolved that offer.
+        await futureOffers?.checkTask(planId);
         await launchReview(prompt);
       } catch (failure) {
         setCompletionError(
@@ -188,7 +193,14 @@ export const PlanCompletionAction = ({
         setCompletionState("idle");
       }
     },
-    [completionState, completionSucceeded, completePlan, launchReview],
+    [
+      completionState,
+      completionSucceeded,
+      completePlan,
+      futureOffers,
+      planId,
+      launchReview,
+    ],
   );
 
   const complete = useCallback(async () => {

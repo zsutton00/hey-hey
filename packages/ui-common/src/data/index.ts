@@ -196,6 +196,7 @@ export type {
 } from "./triage/application";
 
 export { FutureOfferProvider } from "./futureOffers/FutureOfferProvider";
+export { useFutureOffers } from "./futureOffers/FutureOfferContext";
 export * from "./hooks/useProviderSessionTranscript";
 
 export { evalRunStatusLabel } from "./evalRunStatusLabel";

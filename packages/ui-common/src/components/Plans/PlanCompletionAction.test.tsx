@@ -7,13 +7,14 @@ import { useCanonicalPlanMutations } from "../../data";
 import { buildEntityConversationPrompt } from "../InteractionComponent/entityConversationPrompt";
 import { useEntityConversationLauncher } from "../InteractionComponent/useEntityConversationLauncher";
 import { useMachineResolution } from "../AgentSession/runtime/coding/useMachineResolution";
+import { FutureOfferContext } from "../../data/futureOffers/FutureOfferContext";
 import { PlanCompletionAction } from "./PlanCompletionAction";
 
 const updatePlan = vi.fn();
 const launch = vi.fn();
 const mockUseCanonicalPlanMutations = vi.mocked(useCanonicalPlanMutations);
 const mockUseEntityConversationLauncher = vi.mocked(
-  useEntityConversationLauncher
+  useEntityConversationLauncher,
 );
 const mockUseMachineResolution = vi.mocked(useMachineResolution);
 
@@ -50,7 +51,7 @@ vi.mock("../InteractionComponent/EntityConversationPromptDialog", () => ({
   EntityConversationPromptDialog: (
     props: React.ComponentProps<
       typeof import("../InteractionComponent/EntityConversationPromptDialog").EntityConversationPromptDialog
-    >
+    >,
   ) => (
     <div data-testid="plan-completion-dialog">
       <textarea
@@ -73,8 +74,8 @@ vi.mock("../InteractionComponent/EntityConversationPromptDialog", () => ({
           props.onSubmit(
             buildEntityConversationPrompt(
               props.preCannedPrompt,
-              props.userInput
-            )
+              props.userInput,
+            ),
           )
         }
       >
@@ -105,7 +106,7 @@ const renderAction = () =>
         planTitle="Release planning"
         planStatus={WorkStatus.Verifying}
       />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 describe("PlanCompletionAction", () => {
@@ -143,7 +144,7 @@ describe("PlanCompletionAction", () => {
     await waitFor(() =>
       expect(updatePlan).toHaveBeenCalledWith("plan-1", {
         status: WorkStatus.Completed,
-      })
+      }),
     );
     expect(launch).not.toHaveBeenCalled();
   });
@@ -167,7 +168,7 @@ describe("PlanCompletionAction", () => {
 
     await waitFor(() => expect(launch).toHaveBeenCalledOnce());
     expect(updatePlan.mock.invocationCallOrder[0]).toBeLessThan(
-      launch.mock.invocationCallOrder[0]
+      launch.mock.invocationCallOrder[0],
     );
     expect(launch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -177,8 +178,39 @@ describe("PlanCompletionAction", () => {
           entityType: EntityType.Project,
         },
         machineId: "machine-1",
-      })
+      }),
     );
+  });
+
+  it("waits for the future-revisions offer to be resolved before launching the review", async () => {
+    let resolveOffer = () => {};
+    const checkTask = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOffer = resolve;
+        }),
+    );
+    render(
+      <MemoryRouter>
+        <FutureOfferContext.Provider value={{ checkTask }}>
+          <PlanCompletionAction
+            organizationId="org-1"
+            projectId="project-1"
+            planId="plan-1"
+            planTitle="Release planning"
+            planStatus={WorkStatus.Verifying}
+          />
+        </FutureOfferContext.Provider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("capsule-action-complete-plan"));
+    fireEvent.click(screen.getByTestId("plan-completion-complete-and-review"));
+
+    await waitFor(() => expect(checkTask).toHaveBeenCalledWith("plan-1"));
+    expect(launch).not.toHaveBeenCalled();
+
+    resolveOffer();
+    await waitFor(() => expect(launch).toHaveBeenCalledOnce());
   });
 
   it("does not launch when completion fails", async () => {
@@ -188,7 +220,7 @@ describe("PlanCompletionAction", () => {
     fireEvent.click(screen.getByTestId("plan-completion-complete-and-review"));
 
     await waitFor(() =>
-      expect(screen.getByText("completion failed")).toBeInTheDocument()
+      expect(screen.getByText("completion failed")).toBeInTheDocument(),
     );
     expect(launch).not.toHaveBeenCalled();
   });
@@ -201,8 +233,8 @@ describe("PlanCompletionAction", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/project review could not be started/i)
-      ).toBeInTheDocument()
+        screen.getByText(/project review could not be started/i),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByTestId("plan-completion-complete-and-review"));
 
