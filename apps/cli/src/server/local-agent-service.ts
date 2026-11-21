@@ -428,6 +428,11 @@ export class LocalAgentService {
     await this.requireSessionRunnerFacade().readContextUsageByResume(session);
   }
 
+  /** Resolves once this computer's provider catalog has finished loading, so it can be validated against. */
+  public async waitForCapabilityCatalog(): Promise<void> {
+    await this.capabilityCatalog.settled();
+  }
+
   /** Whether this computer's provider catalog reports at least one launchable model. */
   public async isProviderAvailable(provider: string): Promise<boolean> {
     await this.capabilityCatalog.settled();
