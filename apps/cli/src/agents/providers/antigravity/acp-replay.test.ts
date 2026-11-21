@@ -89,12 +89,13 @@ describe('Antigravity ACP replay', () => {
       const child = Object.assign(new EventEmitter(), {
         stdin: new PassThrough(),
         stdout: new PassThrough(),
+        stderr: new PassThrough(),
         kill: vi.fn(),
       });
       vi.mocked(spawn).mockImplementation(
         () =>
           Object.assign(child, {
-            stderr: null,
+            stderr: child.stderr,
             pid: 123,
             stdin: child.stdin,
             stdout: child.stdout,
@@ -257,6 +258,7 @@ it('expires a prompt whose malformed reply is never replaced', async () => {
   const child = Object.assign(new EventEmitter(), {
     stdin: new PassThrough(),
     stdout: new PassThrough(),
+    stderr: new PassThrough(),
     kill: vi.fn(),
   });
   vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
@@ -371,6 +373,7 @@ describe('Antigravity Run ownership', () => {
       const child = Object.assign(new EventEmitter(), {
         stdin: new PassThrough(),
         stdout: new PassThrough(),
+        stderr: new PassThrough(),
         kill: vi.fn(),
       });
       child.stdin.on('data', (chunk: Buffer) => {
