@@ -3,6 +3,12 @@ import { Badge, Button, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActionFeedbackSurface } from "./ActionFeedbackSurface";
 import { buttonColors } from "./capsuleActionButtonColors";
+import {
+  CAPSULE_CHIP_SIZE,
+  CAPSULE_ICON_SIZE,
+  GRID_CELL_MIN_WIDTH,
+  GRID_ICON_CHIP_SIZE,
+} from "./capsuleChipSize";
 import { getFailureIdentityKey } from "../AgentSession/codingSessionFeedback";
 import type { CapsuleActionRegistration } from "./types";
 import { useGuidableTarget } from "../GuidedWalkthrough/useGuidableTarget";
@@ -37,9 +43,6 @@ const actionIconStylesById: Record<string, React.CSSProperties> = {
     color: "#fff",
   },
 };
-
-const GRID_CELL_MIN_WIDTH = 72;
-const GRID_ICON_CHIP_SIZE = 44;
 
 export interface CapsuleActionButtonProps {
   /** Action data to display */
@@ -131,7 +134,7 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
   const actionTextColor = action.textColor ?? defaultTextColor;
 
   const Icon = action.icon ? (
-    <action.icon sx={{ color: iconColor }} />
+    <action.icon sx={{ color: iconColor, fontSize: CAPSULE_ICON_SIZE }} />
   ) : undefined;
 
   const button = (
@@ -177,12 +180,11 @@ export const CapsuleActionButton: React.FC<CapsuleActionButtonProps> = ({
           lineHeight: 0,
           marginLeft: "0px",
           marginRight: "0px",
-          padding: gridCell ? 0 : "8px",
+          boxSizing: "border-box",
+          padding: 0,
           borderRadius: "50%",
-          ...(gridCell && {
-            width: GRID_ICON_CHIP_SIZE,
-            height: GRID_ICON_CHIP_SIZE,
-          }),
+          width: gridCell ? GRID_ICON_CHIP_SIZE : CAPSULE_CHIP_SIZE,
+          height: gridCell ? GRID_ICON_CHIP_SIZE : CAPSULE_CHIP_SIZE,
           ...colorStyle,
           ...(preserveIconChipWhenDisabled && {
             opacity: 0.85,
