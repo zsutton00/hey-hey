@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -91,7 +92,7 @@ const linkedSessionIds = (
   );
 
 const taskStatusToVisualStatus = (
-  status: WorkStatus,
+  status: TaskResponseDto["status"],
 ): TaskMonitorNodeVisualStatus => {
   switch (status) {
     case WorkStatus.Active:
@@ -118,6 +119,7 @@ const taskStatusToVisualStatus = (
     case WorkStatus.GeneratingDescriptionAndDetails:
     case WorkStatus.GeneratingAcceptanceCriteria:
     case WorkStatus.GeneratingAll:
+    default:
       return "idle";
   }
 };

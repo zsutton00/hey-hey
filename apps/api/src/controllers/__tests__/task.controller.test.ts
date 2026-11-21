@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { ProjectAccessService } from '../../auth/services/project-access.service';
 import { ProjectResourceAccessService } from '../../auth/services/project-resource-access.service';
 import {
@@ -247,8 +248,35 @@ describe('TaskController', () => {
       },
     );
 
+    it('passes each repeated status through as one exact status name', async () => {
+      mockTaskService.findReferences.mockResolvedValue({} as never);
+
+      await controller.findReferences(
+        testIds.project,
+        testIds.organization,
+        WORK_ITEM_TYPE_KEYS.Feature,
+        '1',
+        '20',
+        undefined,
+        ['In Review, round 2', 'In Review, round 2', 'Shipped'],
+        undefined,
+        undefined,
+      );
+
+      expect(mockTaskService.findReferences).toHaveBeenCalledWith(
+        testIds.organization,
+        testIds.project,
+        WORK_ITEM_TYPE_KEYS.Feature,
+        1,
+        20,
+        undefined,
+        ['In Review, round 2', 'Shipped'],
+        'name',
+        expect.anything(),
+      );
+    });
+
     it.each([
-      ['invalid status', ['NOT_A_STATUS'], undefined, undefined],
       ['invalid sort field', undefined, 'updatedAt', undefined],
       ['invalid sort order', undefined, undefined, 'sideways'],
     ])(
@@ -925,7 +953,7 @@ describe('TaskController', () => {
       expect(result).toEqual(expectedTasks);
     });
 
-    it('should normalize comma-separated statuses for filtering', async () => {
+    it('should keep each repeated status exact, including names with commas', async () => {
       const expectedTasks = [TestUtils.createMockTaskResponseDto()];
       mockTaskService.findAllByOrganizationForAdapter.mockResolvedValue(
         expectedTasks,
@@ -941,7 +969,7 @@ describe('TaskController', () => {
         undefined,
         undefined,
         undefined,
-        `${WorkStatus.Active},${WorkStatus.Completed}`,
+        [WorkStatus.Active, 'Ready, pending sign-off'],
       );
 
       expect(
@@ -955,7 +983,7 @@ describe('TaskController', () => {
         includeTrackedWorkSummary: false,
         userToken: null,
         projectId: testIds.project,
-        statuses: [WorkStatus.Active, WorkStatus.Completed],
+        statuses: [WorkStatus.Active, 'Ready, pending sign-off'],
         sortBy: 'createdAt',
         sortDir: 'desc',
       });
@@ -1591,7 +1619,7 @@ describe('TaskController', () => {
         id: testIds.task,
         type: WORK_ITEM_TYPE_KEYS.Feature,
         parentTaskId: undefined,
-        status: 'ACTIVE' as WorkStatus,
+        status: 'ACTIVE' as TaskResponseDto['status'],
         priority: 'HIGH',
       });
 
@@ -1818,7 +1846,9 @@ describe('TaskController', () => {
     });
 
     it('appends a USER influence with empty reasoning on a status-only PATCH (no reason text)', async () => {
-      const updateTaskDto: UpdateTaskDto = { status: 'BACKLOG' as WorkStatus };
+      const updateTaskDto: UpdateTaskDto = {
+        status: 'BACKLOG' as TaskResponseDto['status'],
+      };
 
       mockProposalService.create.mockResolvedValue(
         buildProposalResponse({ status: 'APPROVED' as ProposalStatus }),

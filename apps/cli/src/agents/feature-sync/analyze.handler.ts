@@ -46,7 +46,7 @@ interface EnrichedFeatureSyncAnalyzePromptPayload extends LocalFeatureSyncAnalyz
 export const featureSyncAnalyzeHandler: UserLaunchablePromptTypeHandler<LocalFeatureSyncAnalyzePromptPayload> =
   {
     id: 'feature_sync_analyze',
-    sessionRole: SessionRole.Planning,
+    sessionRole: SessionRole.Sync,
     promptType: LocalPromptType.FeatureSyncAnalyze,
     service: 'required',
     launchEntity: 'required',

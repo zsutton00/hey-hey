@@ -39,7 +39,7 @@ const buildTypeDefinition = (
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: [],
 });
 
 const featureTypeDefinition: WorkItemTypeDefinitionDto = {

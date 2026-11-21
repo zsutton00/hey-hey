@@ -361,6 +361,7 @@ export function OpenItemsTriagePage({
             projectId={projectId}
             conversationId={agentSession.conversationId}
             application={canonical.collection ? application : undefined}
+            collection={canonical.collection ?? undefined}
             itemHref={(item) => href(projectId, item)}
             pending={pending}
             disabled={preview || !runtime.ready}

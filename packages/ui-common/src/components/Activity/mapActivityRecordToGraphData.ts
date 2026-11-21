@@ -17,7 +17,6 @@ import {
   ActivityGanttLaneRole,
   ActivityGanttOverallStatus,
   ActivityGanttRelationshipType,
-  isActivityGanttEntityStatus,
   toActivityGanttEntityId,
   type ActivityGanttBreadcrumbSegment,
   type ActivityGanttChartData,
@@ -87,12 +86,12 @@ const resolveEntityStatus = (input: {
   status?: string | null;
   fallback: ActivityGanttEntityStatusType;
 }): ActivityGanttEntityStatusType => {
-  const status = input.status?.trim();
+  const status = input.status;
   if (!status) {
     return input.fallback;
   }
 
-  return isActivityGanttEntityStatus(status) ? status : input.fallback;
+  return status;
 };
 
 const getFallbackOriginStatus = (

@@ -15,6 +15,7 @@ import { OpenItemsRepository, OpenItemsScope } from './open-items.repository';
 import { openItemsFingerprint } from './open-items.service';
 import {
   OpenItemsConflictException,
+  OpenItemsIdempotencyKeyReusedException,
   OpenItemsValidationException,
 } from './open-items.errors';
 import { publishGroupPromotion } from './open-items.domain';
@@ -249,8 +250,7 @@ export class OpenItemsGoalPromotionService {
       record.operation !== OPERATION ||
       record.requestFingerprint !== fingerprint
     ) {
-      throw OpenItemsConflictException.of(
-        'IDEMPOTENCY_KEY_REUSED',
+      throw OpenItemsIdempotencyKeyReusedException.of(
         'This idempotency key was already used for a different request.',
         revision,
       );

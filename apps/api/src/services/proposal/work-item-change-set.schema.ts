@@ -22,7 +22,6 @@ import {
   WorkItemSectionReplaceOperation,
   WorkItemStandardRelationshipCreateOperation,
   WorkItemUpdateOperation,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import type {
   RelationshipDecision,
@@ -44,9 +43,9 @@ import {
   workflowEdgePredicateSchema,
 } from './workflow-proposal-link.schema';
 
-// Closed vocabularies come directly from generated OpenAPI runtime values.
+// Status names are open strings; other vocabularies use generated values.
 // Never duplicate these lists in a handwritten validation schema.
-const workStatusSchema = z.nativeEnum(WorkStatus);
+const workStatusSchema = z.string().min(1);
 const taskPrioritySchema = z.nativeEnum(TaskPriority);
 const featureTagSchema = z.nativeEnum(FeatureTag);
 const agentEdgeTypeSchema = z.nativeEnum(AgentEdgeType);

@@ -73,7 +73,7 @@ export const Card: React.FC<CardProps> = ({
               component="h2"
               id={headingId}
               variant="h6"
-              color="heyhey.main"
+              color="heyheyText.main"
               sx={(theme) => ({
                 fontSize: "1rem",
                 textTransform: "uppercase",
@@ -89,7 +89,7 @@ export const Card: React.FC<CardProps> = ({
                   borderBottom: 0,
                   fontFamily: theme.typography.h6.fontFamily,
                   lineHeight: theme.typography.h6.lineHeight,
-                  color: "heyhey.main",
+                  color: "heyheyText.main",
                   ...(onTitleClick && {
                     textTransform: "none",
                     letterSpacing: "normal",

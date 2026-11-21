@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, renderHook, screen, waitFor } from "@testing-library/react";
@@ -14,19 +15,19 @@ const waitForDiagramArranged = () =>
   waitFor(
     () => {
       expect(
-        document.querySelector('[data-workflow-view-mode="arranging"]')
+        document.querySelector('[data-workflow-view-mode="arranging"]'),
       ).toBeNull();
       document
         .querySelectorAll(
-          '[data-workflow-view-mode="natural-size"], [data-workflow-view-mode="fit-to-view"]'
+          '[data-workflow-view-mode="natural-size"], [data-workflow-view-mode="fit-to-view"]',
         )
         .forEach((surface) =>
           expect(
-            surface.querySelector('[data-testid="workflow-inline-step"]')
-          ).not.toBeNull()
+            surface.querySelector('[data-testid="workflow-inline-step"]'),
+          ).not.toBeNull(),
         );
     },
-    { timeout: 5000 }
+    { timeout: 5000 },
   );
 
 const hookMocks = vi.hoisted(() => ({
@@ -88,7 +89,7 @@ const projectWrapper: React.FC<{ children: React.ReactNode }> = ({
 );
 
 const makeTask = (
-  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">
+  overrides: Partial<TaskResponseDto> & Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto => ({
   id: overrides.id,
   name: overrides.name,
@@ -103,7 +104,7 @@ const makeTask = (
 
 const makeWorkflow = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow" } => ({
   ...makeTask(overrides),
   type: "workflow",
@@ -111,7 +112,7 @@ const makeWorkflow = (
 
 const makeWorkflowStep = (
   overrides: Omit<Partial<TaskResponseDto>, "type"> &
-    Pick<TaskResponseDto, "id" | "name">
+    Pick<TaskResponseDto, "id" | "name">,
 ): TaskResponseDto & { type: "workflow_step" } => ({
   ...makeTask(overrides),
   type: "workflow_step",
@@ -134,7 +135,7 @@ const setDefaultHookMocks = (): void => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow",
     },
     isLoading: false,
@@ -171,7 +172,7 @@ describe("useReadViewMarkdownComponents", () => {
     render(
       <CodeComponent className="language-mermaid">
         {"graph TD;\nA-->B;"}
-      </CodeComponent>
+      </CodeComponent>,
     );
 
     const mermaidBlock = await screen.findByTestId("mock-mermaid-code-block");
@@ -185,13 +186,13 @@ describe("useReadViewMarkdownComponents", () => {
       components.code as React.ComponentType<MarkdownCodeProps>;
 
     render(
-      <CodeComponent className="language-ts">const value = 1;</CodeComponent>
+      <CodeComponent className="language-ts">const value = 1;</CodeComponent>,
     );
 
     const codeElement = screen.getByText("const value = 1;");
     expect(codeElement.tagName.toLowerCase()).toBe("code");
     expect(
-      screen.queryByTestId("mock-mermaid-code-block")
+      screen.queryByTestId("mock-mermaid-code-block"),
     ).not.toBeInTheDocument();
   });
 
@@ -203,13 +204,13 @@ describe("useReadViewMarkdownComponents", () => {
     render(
       <CodeComponent inline className="language-mermaid">
         {"inline value"}
-      </CodeComponent>
+      </CodeComponent>,
     );
 
     const codeElement = screen.getByText("inline value");
     expect(codeElement.tagName.toLowerCase()).toBe("code");
     expect(
-      screen.queryByTestId("mock-mermaid-code-block")
+      screen.queryByTestId("mock-mermaid-code-block"),
     ).not.toBeInTheDocument();
   });
 
@@ -228,7 +229,7 @@ describe("useReadViewMarkdownComponents", () => {
             {React.createElement("p", {}, "List item")}
           </ListItemComponent>
         </ul>
-      </>
+      </>,
     );
 
     const anchor = screen.getByRole("link", { name: "Example" });
@@ -284,16 +285,16 @@ describe("useReadViewMarkdownComponents", () => {
           {React.createElement(
             "p",
             {},
-            "Use @[workflow:wf-1|Review workflow]."
+            "Use @[workflow:wf-1|Review workflow].",
           )}
         </ListItemComponent>
       </ul>,
-      { wrapper: projectWrapper }
+      { wrapper: projectWrapper },
     );
     await waitForDiagramArranged();
 
     expect(screen.getByTestId("workflow-inline-diagram")).toHaveTextContent(
-      "Review workflow"
+      "Review workflow",
     );
     expect(screen.getByText("Review implementation")).toBeInTheDocument();
     expect(screen.queryByTestId("mention-badge")).not.toBeInTheDocument();
@@ -310,18 +311,18 @@ describe("useReadViewMarkdownComponents", () => {
           {React.createElement(
             "p",
             {},
-            "Use @\\[workflow:wf-1\\|Review workflow]."
+            "Use @\\[workflow:wf-1\\|Review workflow].",
           )}
         </ListItemComponent>
       </ul>,
-      { wrapper: projectWrapper }
+      { wrapper: projectWrapper },
     );
 
     expect(
-      screen.getByTestId("workflow-inline-diagram-unavailable")
+      screen.getByTestId("workflow-inline-diagram-unavailable"),
     ).toHaveTextContent("Review workflow");
     expect(
-      screen.queryByTestId("workflow-inline-diagram")
+      screen.queryByTestId("workflow-inline-diagram"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTestId("mention-badge")).not.toBeInTheDocument();
   });

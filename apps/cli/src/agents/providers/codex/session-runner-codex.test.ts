@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { retainProviderTestUsage } from '../provider-owner.test-support';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import fs from 'node:fs/promises';
@@ -162,9 +163,9 @@ vi.mock('../../prompts/session-start-context', () => ({
 // point with each in turn and assert the prepended platform prompt tracks
 // whichever the stubbed read returns — proving a registry change alone
 // re-shapes the next session's ontology with no builder or runner edit.
-const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 const baselineContract: WorkItemTypeDefinitionDto = {
   ...TYPE_DEF_BASE,
@@ -791,6 +792,52 @@ describe('session-runner-codex', () => {
     expect(runStore.updateRunStatus).toHaveBeenLastCalledWith('agentic-1', 'complete');
   });
 
+  it('routes approvals to the automatic reviewer when a native mode is requested, on launch and resume', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const newRunner = () =>
+      new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+
+    await newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Run.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'codex-thread-1' }),
+      prompt: 'Continue.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+
+    expect(sdkStartSessionMock.mock.calls[0]?.[0]).toMatchObject({
+      approvalsReviewer: 'auto_review',
+    });
+    expect(sdkResumeSessionMock.mock.calls[0]?.[1]).toMatchObject({
+      approvalsReviewer: 'auto_review',
+    });
+  });
+
+  it('keeps the user as approval reviewer when no native mode is requested', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+    });
+
+    await runner.runPrompt({ session: makeSession(), prompt: 'Run.' });
+
+    expect(sdkStartSessionMock.mock.calls[0]?.[0]).not.toHaveProperty('approvalsReviewer');
+  });
+
   it('isolates project reports from repository, generic context, and native provider tools', async () => {
     localAgentEndpoint.set('http://127.0.0.1:3847');
     const registration = submissionToolRegistry.register({
@@ -1144,6 +1191,42 @@ describe('session-runner-codex', () => {
         fs.rm(workspaceDir, { recursive: true, force: true }),
         fs.rm(codexHome, { recursive: true, force: true }),
       ]);
+    }
+  });
+
+  it('keeps the user as reviewer for a read-only monitored run, on launch and resume', async () => {
+    sdkStartSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    sdkResumeSessionMock.mockImplementation(completedTurn('codex-thread-1'));
+    const newRunner = () =>
+      new CodexAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+
+    await newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Review.',
+      readOnlyFilesystem: true,
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'codex-thread-1' }),
+      prompt: 'Review again.',
+      readOnlyFilesystem: true,
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+
+    for (const config of [
+      sdkStartSessionMock.mock.calls[0]?.[0],
+      sdkResumeSessionMock.mock.calls[0]?.[1],
+    ] as Array<Record<string, unknown>>) {
+      expect(config['sandbox']).toBe('read-only');
+      expect(config['config']).toMatchObject({ approvals_reviewer: 'user' });
+      expect(config).not.toHaveProperty('approvalsReviewer');
     }
   });
 

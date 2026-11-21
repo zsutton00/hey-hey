@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -88,10 +89,10 @@ describe("PlanDocumentStructuredField", () => {
     mockUsePathService.mockReturnValue({
       designDoc: vi.fn(
         ({ projectId, designDocId }) =>
-          `/projects/${projectId}/design-docs/${designDocId}`
+          `/projects/${projectId}/design-docs/${designDocId}`,
       ),
       task: vi.fn(
-        ({ projectId, taskId }) => `/projects/${projectId}/tasks/${taskId}`
+        ({ projectId, taskId }) => `/projects/${projectId}/tasks/${taskId}`,
       ),
     });
     mockUseNavigate.mockReturnValue(mockNavigate);
@@ -107,7 +108,7 @@ describe("PlanDocumentStructuredField", () => {
         key: "workflow",
         name: "Workflow",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "workflow",
       },
       isLoading: false,
@@ -123,11 +124,11 @@ describe("PlanDocumentStructuredField", () => {
         config={mockConfig}
         context={mockContext}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-empty-plan-document")
+      screen.getByTestId("plan-document-structured-field-empty-plan-document"),
     ).toBeInTheDocument();
   });
 
@@ -144,18 +145,20 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-loading-plan-document")
+      screen.getByTestId(
+        "plan-document-structured-field-loading-plan-document",
+      ),
     ).toBeInTheDocument();
     expect(mockUseDesignDoc).toHaveBeenCalledWith(
       "org-1",
       "design-doc-1",
       expect.objectContaining({
         enabled: true,
-      })
+      }),
     );
   });
 
@@ -166,11 +169,13 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-missing-plan-document")
+      screen.getByTestId(
+        "plan-document-structured-field-missing-plan-document",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -181,16 +186,18 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createPayloadValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-missing-plan-document")
+      screen.getByTestId(
+        "plan-document-structured-field-missing-plan-document",
+      ),
     ).toBeInTheDocument();
     expect(mockUseDesignDoc).toHaveBeenCalledWith(
       "org-1",
       "design-doc-1",
-      expect.objectContaining({ enabled: true })
+      expect.objectContaining({ enabled: true }),
     );
   });
 
@@ -217,13 +224,13 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
       screen.getByTestId(
-        "plan-document-structured-field-template-mismatch-plan-document"
-      )
+        "plan-document-structured-field-template-mismatch-plan-document",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -256,20 +263,20 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-plan-document")
+      screen.getByTestId("plan-document-structured-field-plan-document"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("design-doc-read-view")).toBeInTheDocument();
     expect(
-      screen.getByTestId("plan-document-structured-field-edit-plan-document")
+      screen.getByTestId("plan-document-structured-field-edit-plan-document"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId(
-        "plan-document-structured-field-looks-good-plan-document"
-      )
+        "plan-document-structured-field-looks-good-plan-document",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -303,12 +310,12 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(screen.getByTestId("design-doc-read-view")).toBeInTheDocument();
     const unavailableWorkflow = screen.getByTestId(
-      "workflow-inline-diagram-unavailable"
+      "workflow-inline-diagram-unavailable",
     );
     expect(unavailableWorkflow).toHaveTextContent("Review workflow");
     expect(unavailableWorkflow).toHaveAttribute("data-workflow-id", "wf-1");
@@ -317,7 +324,7 @@ describe("PlanDocumentStructuredField", () => {
       "org-1",
       "project-1",
       "wf-1",
-      { enabled: true }
+      { enabled: true },
     );
   });
 
@@ -350,18 +357,18 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue("BRAINSTORM")}
         isSubmitted={false}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-document-structured-field-plan-document")
+      screen.getByTestId("plan-document-structured-field-plan-document"),
     ).toBeInTheDocument();
   });
 
   it("navigates to the design doc editor when Edit Plan Document is clicked", () => {
     const designDocPath = vi.fn(
       ({ projectId, designDocId }) =>
-        `/projects/${projectId}/design-docs/${designDocId}`
+        `/projects/${projectId}/design-docs/${designDocId}`,
     );
     mockUsePathService.mockReturnValue({
       designDoc: designDocPath,
@@ -395,11 +402,11 @@ describe("PlanDocumentStructuredField", () => {
         context={mockContext}
         value={createStructuredValue()}
         isSubmitted={false}
-      />
+      />,
     );
 
     fireEvent.click(
-      screen.getByTestId("plan-document-structured-field-edit-plan-document")
+      screen.getByTestId("plan-document-structured-field-edit-plan-document"),
     );
 
     expect(designDocPath).toHaveBeenCalledWith({
@@ -407,7 +414,7 @@ describe("PlanDocumentStructuredField", () => {
       designDocId: "design-doc-1",
     });
     expect(mockNavigate).toHaveBeenCalledWith(
-      "/projects/project-1/design-docs/design-doc-1"
+      "/projects/project-1/design-docs/design-doc-1",
     );
   });
 
@@ -442,13 +449,13 @@ describe("PlanDocumentStructuredField", () => {
         value={createStructuredValue()}
         onChange={onChange}
         isSubmitted={false}
-      />
+      />,
     );
 
     fireEvent.click(
       screen.getByTestId(
-        "plan-document-structured-field-looks-good-plan-document"
-      )
+        "plan-document-structured-field-looks-good-plan-document",
+      ),
     );
 
     expect(onChange).toHaveBeenCalledWith({

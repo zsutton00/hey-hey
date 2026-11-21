@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import {
   EntityType,
   WorkItemGraphDerivedReferenceProjectionKindEnum,
@@ -229,7 +230,7 @@ describe("workflow work-item helpers", () => {
       key: "workflow",
       name: "Workflow",
       sections: [],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
       iconKey: "workflow" as const,
     };
 

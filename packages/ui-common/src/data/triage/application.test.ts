@@ -39,7 +39,9 @@ function setup() {
     remove: vi.fn(async (item) => {
       targets.set(item.entityId, { open: false, groupId: null, pinned: false });
     }),
-    reopen: vi.fn(async (item) => {
+    openCount: () => [...targets.values()].filter((t) => t.open).length,
+    reopen: vi.fn(async (item, _key, recheck) => {
+      if (!(await recheck())) return;
       targets.set(item.entityId, { open: true, groupId: null, pinned: false });
     }),
     createGroup: vi.fn(async () => {
@@ -134,7 +136,11 @@ describe("triage manual application coordinator", () => {
     };
     await owner.apply("reply", reopen);
     expect(ports.reopen).toHaveBeenCalledTimes(1);
-    expect(ports.reopen).toHaveBeenCalledWith(a, expect.any(String));
+    expect(ports.reopen).toHaveBeenCalledWith(
+      a,
+      expect.any(String),
+      expect.any(Function),
+    );
   });
   it("warns on interim moves while grouping independent items and accepting the same destination", async () => {
     const { owner, ports, targets } = setup();
@@ -286,5 +292,83 @@ describe("triage manual application coordinator", () => {
       { ...remove, suggestionId: "overlap" },
     ]);
     expect(ports.remove).toHaveBeenCalledTimes(2);
+  });
+
+  describe("reopen capacity", () => {
+    const reopenOf = (
+      items: OpenItemsTriageItem[],
+    ): OpenItemsTriageSuggestion => ({
+      ...base,
+      suggestionId: "reopen-capacity",
+      kind: "reopenItems",
+      items,
+    });
+    const fill = (targets: Map<string, TriageTarget>, count: number) => {
+      for (let index = 0; index < count; index++) {
+        targets.set(`fill-${index}`, {
+          open: true,
+          groupId: null,
+          pinned: false,
+        });
+      }
+    };
+    const closed = (id: string): [string, TriageTarget] => [
+      id,
+      { open: false, groupId: null, pinned: false },
+    ];
+
+    it("skips a new reopen at 100 and never sends activation", async () => {
+      const { owner, ports, targets } = setup();
+      targets.clear();
+      fill(targets, 100);
+      targets.set(...closed("a"));
+      await owner.apply("reply", reopenOf([a]));
+      expect(ports.reopen).not.toHaveBeenCalled();
+      expect(owner.outcome("reply", reopenOf([a])).items[0].error).toMatch(
+        /full/,
+      );
+    });
+
+    it("lets the first of two reopens take the last slot at 99", async () => {
+      const { owner, ports, targets } = setup();
+      targets.clear();
+      fill(targets, 99);
+      targets.set(...closed("a"));
+      targets.set(...closed("b"));
+      await owner.apply("reply", reopenOf([a, b]));
+      expect(ports.reopen).toHaveBeenCalledTimes(1);
+      expect(
+        owner.outcome("reply", reopenOf([a, b])).items.map((i) => i.state),
+      ).toEqual(["success", "failure"]);
+    });
+
+    it("treats an already-open target at capacity as a no-op", async () => {
+      const { owner, ports, targets } = setup();
+      targets.clear();
+      fill(targets, 99);
+      targets.set("a", { open: true, groupId: null, pinned: false });
+      await owner.apply("reply", reopenOf([a]));
+      expect(ports.reopen).not.toHaveBeenCalled();
+      expect(owner.outcome("reply", reopenOf([a])).state).toBe("success");
+    });
+
+    it("rechecks capacity after the target resolves, before activation", async () => {
+      const { owner, ports, targets } = setup();
+      targets.clear();
+      fill(targets, 99);
+      targets.set(...closed("a"));
+      vi.mocked(ports.reopen).mockImplementationOnce(
+        async (_i, _k, recheck) => {
+          targets.set("fill-race", {
+            open: true,
+            groupId: null,
+            pinned: false,
+          });
+          await recheck();
+        },
+      );
+      await owner.apply("reply", reopenOf([a]));
+      expect(owner.outcome("reply", reopenOf([a])).state).toBe("failure");
+    });
   });
 });

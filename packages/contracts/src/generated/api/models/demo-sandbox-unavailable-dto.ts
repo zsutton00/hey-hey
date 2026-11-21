@@ -29,7 +29,9 @@ import type { DemoSandboxUnavailableDtoAllOf } from './demo-sandbox-unavailable-
  * @type DemoSandboxUnavailableDto
  * @export
  */
-export interface DemoSandboxUnavailableDto extends ApiErrorResponse, DemoSandboxUnavailableDtoAllOf {}
+export interface DemoSandboxUnavailableDto extends ApiErrorResponse, DemoSandboxUnavailableDtoAllOf {
+    'code': Exclude<DemoSandboxUnavailableDtoAllOf['code'], undefined>;
+}
 
 export namespace DemoSandboxUnavailableDto {
     export const CodeEnum = DemoSandboxUnavailableCode;

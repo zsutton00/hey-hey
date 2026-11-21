@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import type {
   CodingPromptStartupPlanPayload,
   CodingPromptStartupPlanStep,
@@ -6,7 +7,6 @@ import type {
   DesignDocSectionUpdateSource,
   TaskSectionUpdateSource,
   UpdateDesignDocDto,
-  WorkStatus,
   ProjectModeSelection,
 } from "../../api";
 import type { WorkItemTypeKey } from "../../constants/taskTypes";
@@ -87,7 +87,7 @@ export interface StartupTaskNeighborhoodTaskInput {
   taskType?: WorkItemTypeKey | undefined;
   description: string;
   acceptanceCriteria?: string | undefined;
-  status?: WorkStatus | undefined;
+  status?: TaskResponseDto["status"] | undefined;
 }
 
 export interface StartupTaskNeighborhoodChildTaskInput extends StartupTaskNeighborhoodTaskInput {
@@ -278,7 +278,7 @@ export interface FinalTaskAssessment {
   target: FinalAssessmentTargetRef<"task">;
   verdict: FinalAssessmentVerdict;
   statusRecommendation: {
-    status: WorkStatus;
+    status: TaskResponseDto["status"];
     reason: string;
   };
   summary: string;
@@ -288,7 +288,7 @@ export interface FinalTaskStatusUpdateSuggestion {
   target: FinalAssessmentTargetRef<"task">;
   updateType: "task_status";
   updatePayload: {
-    status: WorkStatus;
+    status: TaskResponseDto["status"];
     sectionUpdateSource?: TaskSectionUpdateSource | undefined;
   };
   reasoning: string;

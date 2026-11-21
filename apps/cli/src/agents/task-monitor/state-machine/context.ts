@@ -77,6 +77,8 @@ export interface TaskMonitorLaunchDeclaration {
   readonly executionOrder: readonly string[];
   readonly dependsOnTaskIds: readonly string[];
   readonly terminalPolicy: TaskMonitorTerminalPolicy;
+  /** Key of the monitor's kind, carried opaquely; null in state persisted before monitors recorded one. */
+  readonly kindKey?: string | null | undefined;
 }
 
 export interface TaskMonitorRetryableLaunch {
@@ -156,10 +158,18 @@ interface TaskMonitorCoordinatorRecovery {
   readonly deliveryFailure: string | null;
 }
 
+export interface TaskMonitorPendingJudgment {
+  readonly request: string;
+  /** The posted request an answer must name; null only for requests settled before it was recorded. */
+  readonly requestMessageId: string | null;
+}
+
 export interface TaskMonitorMachineContext {
   readonly taskMonitorId: string;
   readonly organizationId: string | null;
   readonly projectId: string | null;
+  /** Key of the monitor's kind, carried opaquely; null in state persisted before monitors recorded one. */
+  readonly kindKey?: string | null | undefined;
   readonly authorityCommandId?: string | null | undefined;
   readonly coordinationCause?: TaskMonitorCoordinationCause | null | undefined;
   readonly coordinationCorrelationId?: string | null | undefined;
@@ -181,5 +191,7 @@ export interface TaskMonitorMachineContext {
   readonly reviewRequest: TaskMonitorReviewRequest | null;
   readonly input: TaskMonitorConversationInputContext;
   readonly failureReason: string | null;
+  /** The coordinator's posted request awaiting the user's judgment; absent in state persisted before it was recorded. */
+  readonly pendingJudgment?: TaskMonitorPendingJudgment | null | undefined;
   readonly coordinatorRecovery?: TaskMonitorCoordinatorRecovery | null | undefined;
 }

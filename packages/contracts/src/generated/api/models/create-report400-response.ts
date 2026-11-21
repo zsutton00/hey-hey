@@ -64,24 +64,9 @@ export interface CreateReport400Response {
      */
     'path'?: string;
     /**
-     *
+     * Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.
      * @type {string}
      * @memberof CreateReport400Response
      */
-    'code': CreateReport400ResponseCodeEnum;
-}
-
-
-
-export const CreateReport400ResponseCodeEnum = {
-    ReportPayloadInvalid: 'REPORT_PAYLOAD_INVALID',
-    "REPORT_PAYLOAD_INVALID": "REPORT_PAYLOAD_INVALID",
-} as const;
-Object.defineProperty(CreateReport400ResponseCodeEnum, "REPORT_PAYLOAD_INVALID", { enumerable: false, value: CreateReport400ResponseCodeEnum["ReportPayloadInvalid"] });
-
-export type CreateReport400ResponseCodeEnum = typeof CreateReport400ResponseCodeEnum[keyof typeof CreateReport400ResponseCodeEnum];
-
-export namespace CreateReport400Response {
-    export const CodeEnum = CreateReport400ResponseCodeEnum;
-    export type CodeEnum = CreateReport400ResponseCodeEnum;
+    'code': string;
 }

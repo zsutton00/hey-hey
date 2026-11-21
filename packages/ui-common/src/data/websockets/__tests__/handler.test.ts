@@ -1,3 +1,5 @@
+import { reportKeys } from "../../collections/reports";
+import type { ReportDto, WebSocketSystemNotificationEvent } from "../../../api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createStore } from "jotai";
 import { WebSocketHandler } from "../handler";
@@ -63,7 +65,7 @@ const createQueryClient = () =>
 
 const isInvalidated = (
   queryClient: QueryClient,
-  queryKey: readonly unknown[]
+  queryKey: readonly unknown[],
 ) => queryClient.getQueryState(queryKey)?.isInvalidated ?? false;
 
 describe("WebSocketHandler", () => {
@@ -82,12 +84,91 @@ describe("WebSocketHandler", () => {
       .mockImplementation(() => {});
   });
 
+  it("refreshes only canonical reports for the signalled selected session", async () => {
+    const client = createQueryClient();
+    const reports: ReportDto[] = [
+      {
+        id: "report-1",
+        organizationId: "org-1",
+        projectId: "project-1",
+        title: "Implementation evidence",
+        reportType: "IMPLEMENT",
+        audience: "PROJECT_VISIBLE",
+        version: 1,
+        schemaVersion: 1,
+        sourceExecutionId: "session-1",
+        createdAt: "2026-11-18T12:00:00Z",
+        expiresAt: null,
+        payload: {
+          reportType: "IMPLEMENT",
+          summary:
+            "The selected task implementation is complete with feature-level checks and recorded limitations.",
+          filesChanged: ["src/feature.ts"],
+        },
+        entities: [
+          {
+            entityType: "AGENT_SESSION",
+            entityId: "session-1",
+            relation: "PRIMARY",
+          },
+        ],
+      },
+    ];
+    const selected = [
+      ...reportKeys.entityList("org-1", "project-1"),
+      { entityType: "AGENT_SESSION", entityId: "session-1" },
+    ];
+    const unrelated = [
+      ...reportKeys.entityList("org-1", "project-1"),
+      { entityType: "AGENT_SESSION", entityId: "session-2" },
+    ];
+    const otherProject = [
+      ...reportKeys.entityList("org-1", "project-2"),
+      { entityType: "AGENT_SESSION", entityId: "session-1" },
+    ];
+    [selected, unrelated, otherProject].forEach((key) =>
+      client.setQueryData(key, reports),
+    );
+    const handler = new WebSocketHandler(createStore(), mockDebugger, client);
+    const event = {
+      type: "system.notification",
+      timestamp: "2026-11-18T12:01:00Z",
+      organizationId: "org-1",
+      projectId: "project-1",
+      notification: {
+        id: "notification-1",
+        entityId: "session-1",
+        entityType: "AGENT_SESSION",
+        entityTitle: "Implement restricted conversations",
+        eventType: "session_report_ready",
+        status: "UNREAD",
+        createdAt: "2026-11-18T12:01:00Z",
+        affectedEntities: [],
+        payload: {
+          sessionId: "session-1",
+          sessionTitle: "Implement restricted conversations",
+          reportId: "report-1",
+          reportTitle: "Implementation evidence",
+          reportType: "IMPLEMENT",
+        },
+      },
+      delivery: { channel: "in-app", transport: "websocket" },
+      clientHints: { shouldBadge: true },
+    } satisfies WebSocketSystemNotificationEvent;
+    handler.handleEvent(event);
+    expect(isInvalidated(client, selected)).toBe(true);
+    expect(isInvalidated(client, unrelated)).toBe(false);
+    expect(isInvalidated(client, otherProject)).toBe(false);
+    expect(client.getQueryData(selected)).toEqual(reports);
+    client.clear();
+  });
+
   describe("Agent Session events", () => {
     const session = createAgentSession("session-1");
     const detailKey = agentSessionKeys.detail(
       "org-1",
       "project-1",
-      "session-1"
+      "session-1",
     );
     const listKey = agentSessionKeys.list("org-1", "project-1", {});
     const otherProjectListKey = agentSessionKeys.list("org-1", "project-2", {});
@@ -95,17 +176,17 @@ describe("WebSocketHandler", () => {
     const currentStateKey = agentSessionKeys.currentState(
       "org-1",
       "project-1",
-      "session-1"
+      "session-1",
     );
     const contextSizeKey = agentSessionKeys.contextSize(
       "org-1",
       "project-1",
-      "session-1"
+      "session-1",
     );
     const outputAttentionKey = agentSessionKeys.outputAttention(
       "org-1",
       "project-1",
-      "session-1"
+      "session-1",
     );
     const lifecycle = {
       timestamp: "2026-07-18T00:00:00.000Z",
@@ -128,7 +209,7 @@ describe("WebSocketHandler", () => {
       const handler = new WebSocketHandler(
         createStore(),
         mockDebugger,
-        queryClient
+        queryClient,
       );
       return { queryClient, handler };
     };
@@ -163,7 +244,7 @@ describe("WebSocketHandler", () => {
       expect(isInvalidated(queryClient, feedKey)).toBe(true);
       expect(isInvalidated(queryClient, currentStateKey)).toBe(false);
       expect(queryClient.getQueryData<AgentSessionDto>(detailKey)?.status).toBe(
-        AgentSessionStatus.InProgress
+        AgentSessionStatus.InProgress,
       );
     });
 
@@ -289,14 +370,14 @@ describe("WebSocketHandler", () => {
       queryClient.setQueryData(outputAttentionKey, { state: "NONE" });
       await handler.refreshLoadedAgentSessionCurrentStates(
         "org-1",
-        "project-1"
+        "project-1",
       );
       expect(isInvalidated(queryClient, currentStateKey)).toBe(true);
       expect(isInvalidated(queryClient, outputAttentionKey)).toBe(false);
       expect(isInvalidated(queryClient, detailKey)).toBe(false);
       await handler.refreshLoadedAgentSessionOutputAttention(
         "org-1",
-        "project-1"
+        "project-1",
       );
       expect(isInvalidated(queryClient, outputAttentionKey)).toBe(true);
 
@@ -308,9 +389,10 @@ describe("WebSocketHandler", () => {
   });
 
   it("should require store parameter", () => {
-    expect(() => new WebSocketHandler(null as any, mockDebugger, createQueryClient())).toThrow(
-      "WebSocketHandler requires a store instance"
-    );
+    expect(
+      () =>
+        new WebSocketHandler(null as any, mockDebugger, createQueryClient()),
+    ).toThrow("WebSocketHandler requires a store instance");
   });
 
   it("invalidates the conversation's messages, not its envelope, on conversation.updated", () => {
@@ -319,7 +401,7 @@ describe("WebSocketHandler", () => {
     const envelopeKey = conversationKeys.envelope(
       "org-456",
       "proj-789",
-      "test-123"
+      "test-123",
     );
     const listKey = messageKeys.list("org-456", "proj-789", "test-123");
     const latestKey = messageKeys.latest("org-456", "proj-789", "test-123");
@@ -352,7 +434,7 @@ describe("WebSocketHandler", () => {
     const conversationListKey = conversationKeys.list(
       "org-456",
       "proj-789",
-      {}
+      {},
     );
     queryClient.setQueryData(conversationListKey, []);
     const initiativeListKey = initiativeKeys.list("org-456", {
@@ -391,7 +473,7 @@ describe("WebSocketHandler", () => {
     const handler1 = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      queryClient1
+      queryClient1,
     );
     new WebSocketHandler(createStore(), mockDebugger, queryClient2);
 
@@ -421,7 +503,7 @@ describe("WebSocketHandler", () => {
         projectId: "proj-789",
         timestamp: new Date().toISOString(),
         changedFields: ["status"],
-      } as WebSocketConversationUpdatedEvent)
+      } as WebSocketConversationUpdatedEvent),
     ).not.toThrow();
   });
 
@@ -437,7 +519,7 @@ describe("WebSocketHandler", () => {
     const singleKey = conversationKeys.envelope(
       "org-456",
       "proj-123",
-      "conv-shared"
+      "conv-shared",
     );
     sharedQueryClient.setQueryData(listKey, [conversation]);
     sharedQueryClient.setQueryData(singleKey, conversation);
@@ -445,7 +527,7 @@ describe("WebSocketHandler", () => {
     const handler = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      sharedQueryClient
+      sharedQueryClient,
     );
 
     handler.handleEvent({
@@ -473,7 +555,7 @@ describe("WebSocketHandler", () => {
           "org-789",
           "project-1",
           "task-123",
-          { includeEdges: true }
+          { includeEdges: true },
         ),
         projectlessDetail: workItemKeys.detail("org-789", "", "task-123"),
         otherDetail: workItemKeys.detail("org-789", "project-1", "task-other"),
@@ -500,7 +582,7 @@ describe("WebSocketHandler", () => {
       const handler = new WebSocketHandler(
         createStore(),
         mockDebugger,
-        queryClient
+        queryClient,
       );
 
       handler.handleEvent({
@@ -522,7 +604,7 @@ describe("WebSocketHandler", () => {
         expect.objectContaining({
           eventType: "task.created",
           taskId: "task-new",
-        })
+        }),
       );
     });
 
@@ -534,7 +616,7 @@ describe("WebSocketHandler", () => {
         const handler = new WebSocketHandler(
           createStore(),
           mockDebugger,
-          queryClient
+          queryClient,
         );
 
         handler.handleEvent({
@@ -551,14 +633,14 @@ describe("WebSocketHandler", () => {
 
         expect(isInvalidated(queryClient, keys.changedDetail)).toBe(true);
         expect(isInvalidated(queryClient, keys.changedDetailWithEdges)).toBe(
-          true
+          true,
         );
         expect(isInvalidated(queryClient, keys.projectlessDetail)).toBe(true);
         expect(isInvalidated(queryClient, keys.list)).toBe(true);
         expect(isInvalidated(queryClient, keys.hierarchy)).toBe(true);
         expect(isInvalidated(queryClient, keys.otherDetail)).toBe(false);
         expect(isInvalidated(queryClient, keys.otherProjectList)).toBe(false);
-      }
+      },
     );
 
     it("removes a deleted item from cached lists, hierarchies and single reads", () => {
@@ -567,7 +649,7 @@ describe("WebSocketHandler", () => {
       const handler = new WebSocketHandler(
         createStore(),
         mockDebugger,
-        queryClient
+        queryClient,
       );
 
       handler.handleEvent({
@@ -581,7 +663,7 @@ describe("WebSocketHandler", () => {
       expect(queryClient.getQueryData(keys.list)).toEqual([]);
       expect(
         (queryClient.getQueryData(keys.hierarchy) as { children: unknown[] })
-          .children
+          .children,
       ).toEqual([]);
       expect(queryClient.getQueryState(keys.changedDetail)).toBeUndefined();
       expect(queryClient.getQueryState(keys.projectlessDetail)).toBeUndefined();
@@ -589,7 +671,7 @@ describe("WebSocketHandler", () => {
       expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "workItems",
         "deleted:task-123",
-        expect.objectContaining({ eventType: "task.deleted" })
+        expect.objectContaining({ eventType: "task.deleted" }),
       );
     });
 
@@ -599,7 +681,7 @@ describe("WebSocketHandler", () => {
       const handler = new WebSocketHandler(
         createStore(),
         mockDebugger,
-        queryClient
+        queryClient,
       );
 
       handler.markAllStale();
@@ -612,7 +694,7 @@ describe("WebSocketHandler", () => {
         "all-queries",
         expect.objectContaining({
           reason: expect.stringContaining("reconnected"),
-        })
+        }),
       );
     });
 
@@ -621,7 +703,7 @@ describe("WebSocketHandler", () => {
       const conversationListKey = conversationKeys.list(
         "org-456",
         "proj-789",
-        {}
+        {},
       );
       queryClient.setQueryData(conversationListKey, []);
       const initiativeListKey = initiativeKeys.list("org-456", {
@@ -634,7 +716,7 @@ describe("WebSocketHandler", () => {
       const handler = new WebSocketHandler(
         createStore(),
         mockDebugger,
-        queryClient
+        queryClient,
       );
 
       handler.handleEvent({
@@ -670,7 +752,11 @@ describe("WebSocketHandler", () => {
 
     it("keys the latest bindings by machineId", () => {
       const store = createStore();
-      const handler = new WebSocketHandler(store, mockDebugger, createQueryClient());
+      const handler = new WebSocketHandler(
+        store,
+        mockDebugger,
+        createQueryClient(),
+      );
 
       handler.handleEvent({
         type: "machine.repo_bindings",
@@ -687,7 +773,11 @@ describe("WebSocketHandler", () => {
 
     it("does not clobber other machines and overwrites with empty bindings on disconnect", () => {
       const store = createStore();
-      const handler = new WebSocketHandler(store, mockDebugger, createQueryClient());
+      const handler = new WebSocketHandler(
+        store,
+        mockDebugger,
+        createQueryClient(),
+      );
 
       handler.handleEvent({
         type: "machine.repo_bindings",

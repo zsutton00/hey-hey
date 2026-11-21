@@ -1,18 +1,18 @@
+import type { TaskResponseDto } from "../../api/api";
 import { WorkStatus } from "../../api";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 
 export type TaskMonitorInspectorPresentation =
-  | { kind: "session" }
-  | { kind: "waiting-for-session" };
+  { kind: "session" } | { kind: "waiting-for-session" };
 
 export interface ResolveTaskMonitorInspectorPresentationOptions {
-  monitorStatus: WorkStatus;
+  monitorStatus: TaskResponseDto["status"];
   node: TaskMonitorProjectedNode;
 }
 
 export const resolveTaskMonitorInspectorNode = (
   nodes: readonly TaskMonitorProjectedNode[],
-  explicitTaskId: string | null
+  explicitTaskId: string | null,
 ): TaskMonitorProjectedNode | null => {
   const explicit = explicitTaskId
     ? nodes.find((node) => node.taskId === explicitTaskId)

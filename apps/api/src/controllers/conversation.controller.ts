@@ -22,6 +22,7 @@ import {
   Req,
   ServiceUnavailableException,
   UseGuards,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { validate as isUuid, v4 as uuidv4 } from 'uuid';
 import * as crypto from 'node:crypto';
@@ -1157,7 +1158,7 @@ export class ConversationController implements IConversationControllerSpec {
         requestDto,
       });
     if (requestDto.operationFingerprint !== expectedFingerprint) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'AGENT_OPERATION_FINGERPRINT_INVALID',
         message: 'The operation fingerprint does not match the start request.',
       });
@@ -1629,7 +1630,7 @@ export class ConversationController implements IConversationControllerSpec {
       );
     }
     if (requestDto.agentSessionId !== agentSessionId) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'WORKFLOW_ANSWER_SESSION_MISMATCH',
         message: 'The request does not match the Agent Session path.',
       });
@@ -1644,7 +1645,7 @@ export class ConversationController implements IConversationControllerSpec {
       { organizationId, projectId },
     );
     if (requestDto.operationFingerprint !== expectedFingerprint) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'AGENT_OPERATION_FINGERPRINT_INVALID',
         message:
           'The operation fingerprint does not match the workflow answer.',

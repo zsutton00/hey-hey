@@ -11,6 +11,8 @@ import type {
   WorkItemTypeDefinitionDto,
   WorkItemTypeEditRequestDto,
   WorkItemTypeTrackingLinkRevocationImpactDto,
+  WorkItemStatusAuthoringRequest,
+  WorkItemStatusAuthoringResponse,
 } from "../../api";
 import {
   getWorkItemTypesApi,
@@ -21,6 +23,26 @@ import type { WorkItemResponseDto } from "../collections/workItems";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
 import type { MutationOptions } from "../core/useMutation";
 import { useMutation } from "../core/useMutation";
+
+export function useResolveWorkItemTypeStatuses() {
+  return useMutation(
+    async (input: {
+      organizationId: string;
+      projectId: string;
+      request: WorkItemStatusAuthoringRequest;
+    }): Promise<WorkItemStatusAuthoringResponse> => {
+      const response = await getWorkItemTypesApi().resolveWorkItemTypeStatuses({
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        workItemStatusAuthoringRequest: input.request,
+      });
+      if (!response.data.data) {
+        throw new Error("Status authoring response is missing.");
+      }
+      return response.data.data;
+    },
+  );
+}
 
 export interface EditWorkItemTypeVariables {
   organizationId: string;

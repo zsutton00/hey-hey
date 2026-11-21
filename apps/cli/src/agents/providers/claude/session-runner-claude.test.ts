@@ -4,6 +4,7 @@ import { taskMonitorEventFromVerifiedInput } from '../../task-monitor/state-mach
 import { normalizeEvent } from '../../../run/normalize';
 import { taskMonitorExactActionInputFromProviderEvent } from '../../task-monitor/state-machine/provider-event-adapter';
 import type { AgentOutputMessage } from '../../agent-event-stream';
+import { legacyStatuses } from '../../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,10 @@ import { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { ExecutionCaptureSession } from '../execution-recorder/capture-session';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
+} from '../../../agent-runtime/index';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 import type { ProjectMaturity, WorkItemTypeDefinitionDto } from '../../../shared/api/index';
 import { intentFirstGuidance, takingShapeGuidance } from '../../prompts/common';
@@ -111,9 +116,9 @@ vi.mock('../../prompts/session-start-context', () => ({
 // point with each in turn and assert the delivered prompt tracks whichever the
 // stubbed read returns — proving a registry change alone re-shapes the next
 // session's ontology with no builder or runner edit.
-const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'allowedStatuses'> = {
+const TYPE_DEF_BASE: Pick<WorkItemTypeDefinitionDto, 'sections' | 'statuses'> = {
   sections: [],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 };
 const baselineContract: WorkItemTypeDefinitionDto = {
   ...TYPE_DEF_BASE,
@@ -2157,6 +2162,65 @@ describe('session-runner-claude', () => {
     },
   );
 
+  it('starts Claude in auto mode with write tools kept on the permission callback, and keeps it on a cold resume', async () => {
+    const newRunner = () =>
+      new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+        oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+      });
+
+    const launched = newRunner().runPrompt({
+      session: makeSession(),
+      prompt: 'Run.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await launched;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      permissionMode: 'auto',
+      alwaysAskTools: ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'],
+    });
+
+    const resumed = newRunner().resumeSession({
+      session: makeSession({ provider_session_id: 'provider-session-1' }),
+      prompt: 'Continue.',
+      skipPermissions: false,
+      providerPermissionMode: 'auto',
+    });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await resumed;
+
+    expect(startSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({ permissionMode: 'auto' });
+  });
+
+  it('keeps the default mode when no provider mode is requested', async () => {
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      oauthClient: createProviderTestOAuthClient({ success: true, data: 'test-token' }),
+    });
+
+    const run = runner.runPrompt({ session: makeSession(), prompt: 'Run.' });
+    await waitForEventHandler();
+    emitClaudeEvent({ type: 'result' });
+    await run;
+
+    const config = startSessionMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(config).toMatchObject({ permissionMode: 'default' });
+    expect(config).not.toHaveProperty('alwaysAskTools');
+  });
+
   it('passes mcpServers and allowedTools to startSession when oauthClient is provided', async () => {
     const mockMcpConfig = {
       mcpServers: {
@@ -3726,6 +3790,28 @@ describe('session-runner-claude', () => {
     await expect(runner.getContextUsage('provider-session-1')).resolves.toEqual(contextData);
     expect(getContextUsageMock).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    ['disconnects', new ControlRequestDisconnectedError('get_context_usage')],
+    ['is aborted by Turn cancellation', new ControlRequestAbortedError('get_context_usage')],
+  ])(
+    'throws NO_ACTIVE_SESSION when the live client %s while the read is pending',
+    async (_label, failure) => {
+      const runner = new ClaudeAgentSessionRunner({
+        localAgentEndpoint,
+        submissionToolRegistry,
+        toolRuleStore,
+        runStore: makeRunStore(),
+        repoStore: makeRepoStore(),
+      });
+      getSessionIdMock.mockReturnValue('provider-session-1');
+      getContextUsageMock.mockRejectedValue(failure);
+
+      await expect(runner.getContextUsage()).rejects.toEqual(
+        expect.objectContaining({ code: 'NO_ACTIVE_SESSION' }),
+      );
+    },
+  );
 
   it('throws NO_ACTIVE_SESSION when no provider session is active', async () => {
     const runner = new ClaudeAgentSessionRunner({

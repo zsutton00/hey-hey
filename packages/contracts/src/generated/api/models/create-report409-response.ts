@@ -64,24 +64,9 @@ export interface CreateReport409Response {
      */
     'path'?: string;
     /**
-     *
+     * Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.
      * @type {string}
      * @memberof CreateReport409Response
      */
-    'code': CreateReport409ResponseCodeEnum;
-}
-
-
-
-export const CreateReport409ResponseCodeEnum = {
-    ProjectReportAttemptCompleted: 'PROJECT_REPORT_ATTEMPT_COMPLETED',
-    "PROJECT_REPORT_ATTEMPT_COMPLETED": "PROJECT_REPORT_ATTEMPT_COMPLETED",
-} as const;
-Object.defineProperty(CreateReport409ResponseCodeEnum, "PROJECT_REPORT_ATTEMPT_COMPLETED", { enumerable: false, value: CreateReport409ResponseCodeEnum["ProjectReportAttemptCompleted"] });
-
-export type CreateReport409ResponseCodeEnum = typeof CreateReport409ResponseCodeEnum[keyof typeof CreateReport409ResponseCodeEnum];
-
-export namespace CreateReport409Response {
-    export const CodeEnum = CreateReport409ResponseCodeEnum;
-    export type CodeEnum = CreateReport409ResponseCodeEnum;
+    'code': string;
 }

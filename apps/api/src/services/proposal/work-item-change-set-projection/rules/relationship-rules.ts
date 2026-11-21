@@ -1,6 +1,7 @@
 import type { FeatureRequirementsSection } from '@hey-hey/contracts/api/models';
 import { FeatureRequirementAuthoringService } from '../../../tasks/feature-requirement-authoring.service';
 import { validateFeatureRequirementsSection } from '../../../tasks/feature-requirements-section.validator';
+import { isPlanStageWorkType } from '../../../tasks/work-item-type-keys';
 import type { Load, ProjectionRule, RuleContext } from '../projection-rule';
 import {
   existingId,
@@ -362,7 +363,7 @@ export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
           ({ node, parentChange }) =>
             parentChange &&
             !facts.creates.some((create) => create.node === node) &&
-            facts.typeOf(node) === 'STANDARD' &&
+            isPlanStageWorkType(facts.typeOf(node)) &&
             (mayBeStage(parentChange.from) || mayBeStage(parentChange.to)),
         )
         .map(({ node }) => node),
@@ -426,8 +427,8 @@ export const planDependenciesBoundaryRule: ProjectionRule<PlanBoundaryScope> = {
       const planStageEdge =
         source.type === 'PLAN_STAGE' || target.type === 'PLAN_STAGE';
       const planTaskEdge =
-        source.type === 'STANDARD' &&
-        target.type === 'STANDARD' &&
+        isPlanStageWorkType(source.type) &&
+        isPlanStageWorkType(target.type) &&
         (source.parentType === 'PLAN_STAGE' ||
           target.parentType === 'PLAN_STAGE');
       if (

@@ -15,7 +15,7 @@ export type WorkItemTypeFormField =
       | "sections"
       | "requiredScalars"
       | "forbiddenScalars"
-      | "allowedStatuses"
+      | "statuses"
       | "agentSettableStatuses"
       | "allowedParentTypes"
       | "allowedParentEntityTypes"
@@ -83,7 +83,7 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
     label: "Availability",
     help: "Choose whether this field is optional, required, or unavailable for the type.",
   },
-  allowedStatuses: {
+  statuses: {
     label: "Available statuses",
     help: "Statuses an item of this type may occupy. The first status is the default initial status.",
   },
@@ -129,7 +129,7 @@ export const WORK_ITEM_TYPE_FIELD_PRESENTATION = {
   },
   sessionRoleGuidance: {
     label: "Session-role guidance",
-    help: "Optional instructions for implementation, research, planning and review sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards and maintenance advice.",
+    help: "Optional instructions for implementation, research, planning, review and sync (Feature Sync) sessions. Session role describes the work being performed, separately from the type’s classification role, create/edit writing standards and maintenance advice.",
   },
   maintenanceGuidance: {
     label: "Maintenance guidance",
@@ -201,4 +201,30 @@ export function formatCapabilityKey(key: string): string {
   return spaced.length === 0
     ? WORK_ITEM_TYPE_FIELD_PRESENTATION["capabilities.key"].label
     : spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
+}
+
+const PLATFORM_RESERVED_STATUS_NAMES = ["archived", "superseded"];
+
+const normalizeStatusName = (name: string): string => name.trim().toLowerCase();
+
+/** Archived and Superseded belong to the platform; duplicates are ambiguous. */
+export function isReservedOrDuplicateStatus(
+  name: string,
+  existing: string[],
+): boolean {
+  return [
+    ...PLATFORM_RESERVED_STATUS_NAMES,
+    ...existing.map(normalizeStatusName),
+  ].includes(normalizeStatusName(name));
+}
+
+export function hasInvalidStatusNames(names: string[]): boolean {
+  return names.some(
+    (name, index) =>
+      !name.trim() ||
+      PLATFORM_RESERVED_STATUS_NAMES.includes(normalizeStatusName(name)) ||
+      names.findIndex(
+        (other) => normalizeStatusName(other) === normalizeStatusName(name),
+      ) !== index,
+  );
 }

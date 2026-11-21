@@ -2311,7 +2311,14 @@ export class Run {
       }
       const evidenceCapture = await captureFileChangeEvidence(resolved, candidate.providerPatch);
       if (attributionSource === 'agent_report' && evidenceCapture.gitDiffError !== null) {
-        throw new ReportedFileChangeFailure('git_read_failed');
+        this.logger.warn('local.run.file_change.agent_report.evidence_capture_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          serviceId: resolved.serviceId,
+          repoRelativePath: resolved.repoRelativePath,
+          gitFailure: evidenceCapture.gitDiffError,
+        });
+        throw new ReportedFileChangeFailure('git_read_failed', evidenceCapture.gitDiffError);
       }
       this.logger.debug('local.run.file_change.evidence_captured', {
         runId: this.runId,

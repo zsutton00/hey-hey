@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { IdempotencyKeyReusedException } from '../../common/exceptions/idempotency-key-reuse.exception';
 import { Prisma, ProjectReportStatus as DbStatus } from '@prisma/client';
 import { isDeepStrictEqual } from 'node:util';
 import type {
@@ -249,7 +250,7 @@ export class ProjectReportRequestService {
             (attempt) => attempt.attemptNumber === sameKey.attemptNumber - 1,
           )?.id !== input.expectedAttemptId
         ) {
-          throw new ConflictException(
+          throw new IdempotencyKeyReusedException(
             'Retry key belongs to a different execution',
           );
         }
@@ -468,6 +469,11 @@ export class ProjectReportRequestService {
       latest.conversationId === conversationId &&
       latest.status === DbStatus.COMPLETED
     ) {
+      if (!this.payloadMatchesSubmission(payload, submission)) {
+        throw new IdempotencyKeyReusedException(
+          'PROJECT_REPORT differs from the report already recorded for this attempt',
+        );
+      }
       if (!latest.reportId) {
         throw new ConflictException(
           'Completed project report attempt has no report',
@@ -492,9 +498,22 @@ export class ProjectReportRequestService {
       latest.conversationId !== conversationId ||
       latest.status !== DbStatus.RUNNING ||
       latest.reportId ||
-      payload.question !== submission.question ||
-      !isDeepStrictEqual(payload.preset, submission.preset) ||
-      !isDeepStrictEqual(
+      !this.payloadMatchesSubmission(payload, submission)
+    ) {
+      throw new ConflictException(
+        'PROJECT_REPORT does not match the active accepted execution',
+      );
+    }
+  }
+
+  private payloadMatchesSubmission(
+    payload: ProjectReportPayload,
+    submission: CreateProjectReportRequestDto,
+  ): boolean {
+    return (
+      payload.question === submission.question &&
+      isDeepStrictEqual(payload.preset, submission.preset) &&
+      isDeepStrictEqual(
         semanticSubmission({
           ...submission,
           scope: payload.scope,
@@ -502,11 +521,7 @@ export class ProjectReportRequestService {
         }),
         semanticSubmission(submission),
       )
-    ) {
-      throw new ConflictException(
-        'PROJECT_REPORT does not match the active accepted execution',
-      );
-    }
+    );
   }
 
   private replay(
@@ -520,7 +535,7 @@ export class ProjectReportRequestService {
         semanticSubmission(submission),
       )
     ) {
-      throw new ConflictException(
+      throw new IdempotencyKeyReusedException(
         'Idempotency key was reused with a different report request',
       );
     }

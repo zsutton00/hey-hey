@@ -4,7 +4,12 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import { z } from 'zod';
 import type { ReportedChangedFile } from '../agents/completion-reconciliation/schemas';
-import { getGitDiff, listGitChangedFilePaths } from '../git/index';
+import {
+  describeGitFailure,
+  getGitDiff,
+  listGitChangedFilePaths,
+  type GitFailureDetail,
+} from '../git/index';
 import type { AgenticSession } from '../session/types';
 
 type FileChangeProvider = 'claude' | 'codex' | 'opencode';
@@ -33,7 +38,7 @@ type CanonicalFileChangeEvidence =
 export interface FileChangeEvidenceCapture {
   evidence: CanonicalFileChangeEvidence;
   source: 'git_diff' | 'provider_baseline';
-  gitDiffError: string | null;
+  gitDiffError: GitFailureDetail | null;
 }
 
 export interface CanonicalFileChangeFact {
@@ -209,7 +214,7 @@ export const captureFileChangeEvidence = async (
   resolved: ResolvedRunFilePath,
   providerPatch: string | null,
 ): Promise<FileChangeEvidenceCapture> => {
-  let gitDiffError: string | null = null;
+  let gitDiffError: GitFailureDetail | null = null;
   try {
     const patches = await getGitDiff({
       repoPath: resolved.repositoryRoot,
@@ -230,7 +235,7 @@ export const captureFileChangeEvidence = async (
       };
     }
   } catch (error) {
-    gitDiffError = error instanceof Error ? error.message : String(error);
+    gitDiffError = describeGitFailure(error);
     // Provider evidence remains usable when git cannot be queried (for
     // example a just-created path or a transient repository state).
   }
@@ -261,12 +266,20 @@ export interface ReportedFileChangeResolution {
   admitted: ResolvedRunFilePath[];
   corrected: Array<{ claim: ReportedChangedFile; path: string }>;
   rejected: Array<
-    ReportedChangedFile & { reason: ReportedFileChangeRejectionReason; suggestion?: string }
+    ReportedChangedFile & {
+      reason: ReportedFileChangeRejectionReason;
+      suggestion?: string;
+      /** Underlying git failure when `reason` is `git_read_failed`. */
+      gitFailure?: GitFailureDetail;
+    }
   >;
 }
 
 export class ReportedFileChangeFailure extends Error {
-  public constructor(public readonly reason: 'git_read_failed' | 'persistence_failed') {
+  public constructor(
+    public readonly reason: 'git_read_failed' | 'persistence_failed',
+    public readonly gitFailure?: GitFailureDetail,
+  ) {
     super(reason);
   }
 }
@@ -316,7 +329,10 @@ export const resolveReportedFileChanges = async (
   readTrackedPaths: (repositoryRoot: string) => Promise<string[]> = listTrackedPaths,
 ): Promise<ReportedFileChangeResolution> => {
   const roots = new Map(resolveRunServiceRoots(session).map((entry) => [entry.serviceId, entry]));
-  const changedPathsByRoot = new Map<string, Promise<Set<string> | null>>();
+  const changedPathsByRoot = new Map<
+    string,
+    Promise<{ paths: Set<string> } | { failure: GitFailureDetail }>
+  >();
   const admittedKeys = new Set<string>();
   const resolution: ReportedFileChangeResolution = { admitted: [], corrected: [], rejected: [] };
 
@@ -339,20 +355,31 @@ export const resolveReportedFileChanges = async (
     let changedPaths = changedPathsByRoot.get(resolved.repositoryRoot);
     if (!changedPaths) {
       changedPaths = listChangedPaths(resolved.repositoryRoot).then(
-        (paths) => new Set(paths),
-        () => null,
+        (paths) => ({ paths: new Set(paths) }),
+        (error: unknown) => ({ failure: describeGitFailure(error) }),
       );
       changedPathsByRoot.set(resolved.repositoryRoot, changedPaths);
     }
-    const dirty = await changedPaths;
-    if (dirty === null) {
-      resolution.rejected.push({ ...file, reason: 'git_read_failed' });
-    } else if (!dirty.has(resolved.repoRelativePath)) {
+    const dirtyRead = await changedPaths;
+    if ('failure' in dirtyRead) {
+      resolution.rejected.push({
+        ...file,
+        reason: 'git_read_failed',
+        gitFailure: dirtyRead.failure,
+      });
+      continue;
+    }
+    const dirty = dirtyRead.paths;
+    if (!dirty.has(resolved.repoRelativePath)) {
       let tracked: string[];
       try {
         tracked = await readTrackedPaths(resolved.repositoryRoot);
-      } catch {
-        resolution.rejected.push({ ...file, reason: 'git_read_failed' });
+      } catch (error) {
+        resolution.rejected.push({
+          ...file,
+          reason: 'git_read_failed',
+          gitFailure: describeGitFailure(error),
+        });
         continue;
       }
       if (tracked.includes(resolved.repoRelativePath)) {
@@ -365,7 +392,11 @@ export const resolveReportedFileChanges = async (
         continue;
       } catch (error) {
         if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
-          resolution.rejected.push({ ...file, reason: 'git_read_failed' });
+          resolution.rejected.push({
+            ...file,
+            reason: 'git_read_failed',
+            gitFailure: describeGitFailure(error),
+          });
           continue;
         }
       }

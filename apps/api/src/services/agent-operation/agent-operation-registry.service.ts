@@ -2,7 +2,9 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
+import { IdempotencyKeyReusedException } from '../../common/exceptions/idempotency-key-reuse.exception';
 import {
   AgentOperation,
   AgentOperationKind as PrismaAgentOperationKind,
@@ -114,7 +116,7 @@ export class AgentOperationRegistryService {
       select: { id: true },
     });
     if (!session) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'AGENT_OPERATION_SESSION_MISMATCH',
         message: 'The operation does not match the bound Agent Session.',
       });
@@ -464,10 +466,10 @@ export class AgentOperationRegistryService {
       operation.kind !== input.kind ||
       operation.fingerprint !== input.fingerprint
     ) {
-      throw new ConflictException({
-        code: 'AGENT_OPERATION_FINGERPRINT_MISMATCH',
-        message: 'The operation identity is already bound to different work.',
-      });
+      throw new IdempotencyKeyReusedException(
+        'The operation identity is already bound to different work.',
+        'AGENT_OPERATION_FINGERPRINT_MISMATCH',
+      );
     }
   }
 

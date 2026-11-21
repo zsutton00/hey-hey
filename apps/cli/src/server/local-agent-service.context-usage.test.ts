@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentSessionRunnerError } from '../agents/providers/session-runner';
 import { SessionCostAdapter } from './services/session-cost-adapter';
@@ -13,6 +15,14 @@ import {
 } from './__tests__/helpers/test-run-registry';
 import { PromptTypeRegistry } from '../agents/prompt-type-registry';
 import { PROMPT_TYPE_REGISTRY_TEST_DEPENDENCIES } from '../agents/prompt-type-registry.test-support';
+import { ClaudeAgentSessionRunner } from '../agents/providers/claude/session-runner-claude';
+import {
+  ControlRequestAbortedError,
+  ControlRequestDisconnectedError,
+} from '../agent-runtime/index';
+import { SubmissionToolRegistry } from '../agents/submission-tools/registry';
+import { ToolRuleStore } from '../session/tool-rules';
+import { LocalAgentEndpoint } from './local-base-url';
 import { Run } from '../run/run';
 import type { ProviderSessionHistoryEntry } from '../session/types';
 import type { CliReadRunContextUsageResult } from '../shared/agent-bridge-contract/contract';
@@ -34,7 +44,7 @@ const member = (
 });
 const fixture = (
   read: () => Promise<string>,
-  context: () => Promise<typeof contextData>,
+  context: (providerSessionId?: string) => Promise<typeof contextData>,
   history: ProviderSessionHistoryEntry[] = [member('selected', null)],
 ) => {
   const runStore = createTestRunStore();
@@ -200,6 +210,48 @@ describe('selected context and cost reads', () => {
       expect(result.providerSessionId).toBe(providerSessionId);
       expect(resume).toHaveBeenCalledWith(run.session, providerSessionId);
       expect(result.contextData).toBe(contextData);
+    },
+  );
+});
+
+describe('live Claude read interrupted by Turn teardown', () => {
+  it.each([
+    ['the Turn ends and the client disconnects', ControlRequestDisconnectedError],
+    ['the Turn is cancelled and the read is aborted', ControlRequestAbortedError],
+  ])(
+    'returns Context data for the same provider session when %s mid-read',
+    async (_label, TeardownError) => {
+      // Real Claude runner and real service fallback; only the provider client is stubbed.
+      const runner = new ClaudeAgentSessionRunner({
+        localAgentEndpoint: new LocalAgentEndpoint(),
+        submissionToolRegistry: new SubmissionToolRegistry(),
+        toolRuleStore: new ToolRuleStore(join(tmpdir(), 'context-usage-tool-rules.json')),
+        runStore: createTestRunStore(),
+        repoStore: createTestRepoMappingStore(),
+      });
+      let rejectRead!: (error: Error) => void;
+      const liveRead = vi.fn(
+        () =>
+          new Promise<never>((_resolve, reject) => {
+            rejectRead = reject;
+          }),
+      );
+      Object.assign(runner as unknown as { client: object }, {
+        client: { getSessionId: () => 'selected', getContextUsage: liveRead },
+      });
+
+      const { service, run, resume } = fixture(
+        async () => '{"sessions":[]}',
+        (providerSessionId) => runner.getContextUsage(providerSessionId),
+      );
+
+      const pending = service.readRunContextUsage(run, 'selected');
+      await vi.waitFor(() => expect(liveRead).toHaveBeenCalledTimes(1));
+      rejectRead(new TeardownError('get_context_usage'));
+      const result = await pending;
+
+      expect(resume).toHaveBeenCalledWith(run.session, 'selected');
+      expect(result).toMatchObject({ providerSessionId: 'selected', contextData });
     },
   );
 });

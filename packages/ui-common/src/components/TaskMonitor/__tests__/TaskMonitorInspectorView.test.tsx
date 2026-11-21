@@ -1,3 +1,4 @@
+import { TaskMonitorLaunchConfigurationEditor } from "../TaskMonitorLaunchConfigurationEditor";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +30,14 @@ import {
 
 const { useTaskMonitorConversationMock } = vi.hoisted(() => ({
   useTaskMonitorConversationMock: vi.fn(),
+}));
+
+const { useWorkItemTypeByKeyMock } = vi.hoisted(() => ({
+  useWorkItemTypeByKeyMock: vi.fn(),
+}));
+
+vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
+  useWorkItemTypeByKey: useWorkItemTypeByKeyMock,
 }));
 
 vi.mock("../useTaskMonitorSessionReports", () => ({
@@ -87,7 +96,7 @@ vi.mock("../TaskMonitorSessionActivityIndicator", () => ({
 }));
 
 const node = (
-  overrides: Partial<TaskMonitorProjectedNode> = {}
+  overrides: Partial<TaskMonitorProjectedNode> = {},
 ): TaskMonitorProjectedNode => ({
   position: 0,
   taskId: firstTaskId,
@@ -113,6 +122,34 @@ describe("TaskMonitorInspectorView", () => {
     vi.clearAllMocks();
     localStorage.clear();
     resetModelSelectionFavoritesForTests();
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: {
+        capabilities: {
+          monitorKinds: [
+            {
+              key: "task",
+              allowedNodeTypes: ["STANDARD"],
+              allowedLaunchMethods: ["plan", "open", "quick"],
+              allowedRuntimeProviders: ["claude", "codex", "opencode"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "STATUS_TRANSITION", status: "ACTIVE" },
+              done: { type: "ITEM_STATUS", status: "COMPLETED" },
+              supervision: { type: "COORDINATOR_REVIEW" },
+            },
+            {
+              key: "requirement-test",
+              allowedNodeTypes: ["REQUIREMENT_TEST"],
+              allowedLaunchMethods: ["quick"],
+              allowedRuntimeProviders: ["codex"],
+              allowedReasoningEfforts: ["high"],
+              start: { type: "NO_STATUS_CHANGE" },
+              done: { type: "NORMALIZED_RESULT" },
+              supervision: { type: "DIRECT_ACCEPTANCE" },
+            },
+          ],
+        },
+      },
+    });
     useTaskMonitorConversationMock.mockReturnValue({
       conversation: null,
       project: null,
@@ -131,23 +168,23 @@ describe("TaskMonitorInspectorView", () => {
         node={node()}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("task-monitor-session-title-link")
+      screen.getByTestId("task-monitor-session-title-link"),
     ).toHaveTextContent("Second task session");
     expect(
-      screen.getByTestId("task-monitor-session-title-link")
+      screen.getByTestId("task-monitor-session-title-link"),
     ).toHaveAttribute(
       "href",
-      "/projects/project-1/resolve-agent-session-by-id/33333333-3333-4333-8333-333333333333"
+      "/projects/project-1/resolve-agent-session-by-id/33333333-3333-4333-8333-333333333333",
     );
     expect(
-      screen.queryByTestId("task-monitor-open-session")
+      screen.queryByTestId("task-monitor-open-session"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("task-monitor-waiting-for-session")
+      screen.queryByTestId("task-monitor-waiting-for-session"),
     ).not.toBeInTheDocument();
   });
 
@@ -167,16 +204,16 @@ describe("TaskMonitorInspectorView", () => {
         node={node()}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(screen.getByTestId("mock-conversation-pane")).toHaveAttribute(
       "data-loading",
-      "true"
+      "true",
     );
     expect(screen.getByTestId("mock-conversation-pane")).toHaveAttribute(
       "data-error",
-      "The canonical conversation could not be loaded."
+      "The canonical conversation could not be loaded.",
     );
   });
 
@@ -203,16 +240,16 @@ describe("TaskMonitorInspectorView", () => {
         })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(screen.getByTestId("mock-session-metadata")).toHaveAttribute(
       "data-model",
-      "gpt-5-codex"
+      "gpt-5-codex",
     );
     expect(screen.getByTestId("mock-session-metadata")).toHaveAttribute(
       "data-effort",
-      "high"
+      "high",
     );
   });
 
@@ -225,17 +262,17 @@ describe("TaskMonitorInspectorView", () => {
         node={node()}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(screen.getByTestId("mock-conversation-pane")).toHaveTextContent(
-      "This session does not have a conversation."
+      "This session does not have a conversation.",
     );
     expect(
-      screen.getByTestId("task-monitor-session-title-link")
+      screen.getByTestId("task-monitor-session-title-link"),
     ).toHaveAttribute(
       "href",
-      "/projects/project-1/resolve-agent-session-by-id/33333333-3333-4333-8333-333333333333"
+      "/projects/project-1/resolve-agent-session-by-id/33333333-3333-4333-8333-333333333333",
     );
   });
 
@@ -256,11 +293,11 @@ describe("TaskMonitorInspectorView", () => {
         })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(screen.getByTestId("mock-session-activity")).toHaveTextContent(
-      sessionId
+      sessionId,
     );
   });
 
@@ -273,32 +310,33 @@ describe("TaskMonitorInspectorView", () => {
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("task-monitor-waiting-for-session")
+      screen.getByTestId("task-monitor-waiting-for-session"),
     ).toHaveTextContent("Waiting for session to start");
     expect(
       screen.getByRole("progressbar", {
         name: "Waiting for session to start",
-      })
+      }),
     ).toBeVisible();
     expect(
-      screen.queryByTestId("mock-conversation-pane")
+      screen.queryByTestId("mock-conversation-pane"),
     ).not.toBeInTheDocument();
   });
 
   it("saves method changes against the selected task's canonical configuration", async () => {
     render(
-      <TaskMonitorInspectorView
+      <TaskMonitorLaunchConfigurationEditor
         organizationId="org-1"
         projectId="project-1"
-        monitorStatus={WorkStatus.Backlog}
+        machineId={null}
+        monitorKindKey="task"
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
@@ -311,7 +349,7 @@ describe("TaskMonitorInspectorView", () => {
         model: "gpt-5.6-sol",
         reasoningEffort: "high",
         fastMode: false,
-      })
+      }),
     );
     expect(readSurfaceSelection(TASK_MONITOR_SETUP_SURFACE_ID)).toEqual({
       provider: "codex",
@@ -321,27 +359,92 @@ describe("TaskMonitorInspectorView", () => {
     });
   });
 
-  it("saves explicit Fast mode against the reopened task configuration", async () => {
+  it("offers only the node's current method until the effective kind has loaded", () => {
+    useWorkItemTypeByKeyMock.mockReturnValue({
+      workItemTypeDefinition: undefined,
+    });
+
     render(
-      <TaskMonitorInspectorView
+      <TaskMonitorLaunchConfigurationEditor
         organizationId="org-1"
         projectId="project-1"
-        monitorStatus={WorkStatus.Backlog}
+        monitorKindKey="task"
+        machineId={null}
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick"]);
+  });
+
+  it("offers every launch method of a Task monitor's kind", () => {
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorKindKey="task"
+        machineId={null}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Plan", "Open", "Quick"]);
+  });
+
+  it("offers only the launch methods the monitor's own kind allows when the type declares two", () => {
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorKindKey="requirement-test"
+        machineId={null}
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Method" }));
+
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["Quick"]);
+  });
+
+  it("saves explicit Fast mode against the reopened task configuration", async () => {
+    render(
+      <TaskMonitorLaunchConfigurationEditor
+        organizationId="org-1"
+        projectId="project-1"
+        machineId={null}
+        monitorKindKey="task"
+        node={node({ session: { kind: "none" } })}
+        isSavingLaunchConfiguration={false}
+        onSaveLaunchConfiguration={saveLaunchConfiguration}
+      />,
     );
 
     fireEvent.click(
-      screen.getByTestId("task-monitor-node-runtime-fast-mode-switch")
+      screen.getByTestId("task-monitor-node-runtime-fast-mode-switch"),
     );
 
     await waitFor(() =>
       expect(saveLaunchConfiguration).toHaveBeenCalledWith(
         firstTaskId,
-        expect.objectContaining({ fastMode: true })
-      )
+        expect.objectContaining({ fastMode: true }),
+      ),
     );
   });
 
@@ -352,19 +455,18 @@ describe("TaskMonitorInspectorView", () => {
       reasoningEffort: "medium",
     });
     render(
-      <TaskMonitorInspectorView
+      <TaskMonitorLaunchConfigurationEditor
         organizationId="org-1"
         projectId="project-1"
-        monitorStatus={WorkStatus.Backlog}
+        machineId={null}
+        monitorKindKey="task"
         node={node({ session: { kind: "none" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
 
-    fireEvent.mouseDown(
-      screen.getByRole("combobox", { name: "Favorite" })
-    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Favorite" }));
     fireEvent.click(screen.getByRole("option", { name: "Claude focused" }));
 
     await waitFor(() =>
@@ -373,7 +475,7 @@ describe("TaskMonitorInspectorView", () => {
         provider: "claude",
         model: "claude-sonnet-5-5",
         reasoningEffort: "medium",
-      })
+      }),
     );
   });
 
@@ -386,10 +488,10 @@ describe("TaskMonitorInspectorView", () => {
         node={node({ task: { kind: "missing" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("task-monitor-inspector-missing-task")
+      screen.getByTestId("task-monitor-inspector-missing-task"),
     ).toBeVisible();
 
     rerender(
@@ -400,10 +502,10 @@ describe("TaskMonitorInspectorView", () => {
         node={node({ session: { kind: "missing" } })}
         isSavingLaunchConfiguration={false}
         onSaveLaunchConfiguration={saveLaunchConfiguration}
-      />
+      />,
     );
     expect(
-      screen.getByTestId("task-monitor-inspector-missing-session")
+      screen.getByTestId("task-monitor-inspector-missing-session"),
     ).toBeVisible();
   });
 });

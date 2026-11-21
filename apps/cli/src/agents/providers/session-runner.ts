@@ -7,6 +7,7 @@ import type {
   LocalReasoningEffort,
 } from '../../shared/agent-bridge-contract/contract';
 import type { McpToolUseCase } from '../mcp-server-config';
+import type { ProviderPermissionMode } from './provider-config';
 import type {
   AgentPermissionDecisionDispatch,
   PermissionCallbackType,
@@ -78,6 +79,12 @@ export interface RunPromptArgs {
   startingMessage?: string;
   /** When true, auto-approve all permission requests without waiting for user input. */
   skipPermissions?: boolean;
+  /**
+   * The provider's own permission mode for this Run, kept apart from
+   * `skipPermissions` (which approves everything). Set only for providers that
+   * report a native mode; the runner falls back to its default mode otherwise.
+   */
+  providerPermissionMode?: ProviderPermissionMode;
   /**
    * Which MCP tool use case this turn runs under. Sourced from the initiating
    * handler's `mcpToolUseCase`; defaults to `'coding'` when absent. Only
@@ -197,6 +204,8 @@ export interface ResumeArgs {
   builtinTools?: readonly string[];
   /** See `RunPromptArgs.skipPermissions`. */
   skipPermissions?: boolean;
+  /** See `RunPromptArgs.providerPermissionMode`. */
+  providerPermissionMode?: ProviderPermissionMode;
   /** See `RunPromptArgs.workspace`. */
   workspace?: ResolvedRunWorkspace;
   /** See `RunPromptArgs.workspaceWriteBoundary`. */

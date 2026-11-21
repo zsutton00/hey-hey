@@ -15,7 +15,7 @@ describe('project MODE settings schema', () => {
     schemaRef: PROJECT_MODE_SETTINGS_SCHEMA_REF,
   };
 
-  it.each(['implementation', 'research', 'planning', 'review'])(
+  it.each(['implementation', 'research', 'planning', 'review', 'sync'])(
     'retains the %s role and existing settings for multiple modes',
     (sessionRole) => {
       const content = {

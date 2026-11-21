@@ -38,6 +38,11 @@ export interface ConversationCardProps {
   lead?: React.ReactNode;
   /** Sections and related rows. */
   children?: React.ReactNode;
+  /**
+   * Optional left column inside the body, level with the first line of the
+   * lead. When set, the lead and children share the column to its right.
+   */
+  leading?: React.ReactNode;
   footer?: ConversationCardFooter;
   "data-testid"?: string;
 }
@@ -54,10 +59,21 @@ export const ConversationCard: React.FC<ConversationCardProps> = ({
   chips,
   lead,
   children,
+  leading,
   footer,
   "data-testid": dataTestId,
 }) => {
   const toneKey = "role" in tone ? tone.role : tone.severity;
+  const leadNode = lead ? (
+    <Typography
+      component="div"
+      data-testid="conversation-card-lead"
+      variant="body1"
+      sx={{ fontWeight: 600 }}
+    >
+      {lead}
+    </Typography>
+  ) : null;
 
   return (
     <Box
@@ -108,29 +124,53 @@ export const ConversationCard: React.FC<ConversationCardProps> = ({
         ) : null}
       </Box>
 
-      {lead ? (
-        <Typography
-          component="div"
-          data-testid="conversation-card-lead"
-          variant="body1"
-          sx={{ fontWeight: 600, px: 1.5, pt: 1.5 }}
+      {leading ? (
+        <Box
+          data-testid="conversation-card-body"
+          sx={{
+            px: 1.5,
+            py: 1.5,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 1.5,
+          }}
         >
-          {lead}
-        </Typography>
-      ) : null}
-
-      <Box
-        data-testid="conversation-card-body"
-        sx={{
-          px: 1.5,
-          py: 1.5,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        {children}
-      </Box>
+          <Box
+            data-testid="conversation-card-leading"
+            sx={{ width: 44, flexShrink: 0 }}
+          >
+            {leading}
+          </Box>
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {leadNode}
+            {children}
+          </Box>
+        </Box>
+      ) : (
+        <>
+          {lead ? <Box sx={{ px: 1.5, pt: 1.5 }}>{leadNode}</Box> : null}
+          <Box
+            data-testid="conversation-card-body"
+            sx={{
+              px: 1.5,
+              py: 1.5,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {children}
+          </Box>
+        </>
+      )}
 
       {footer ? (
         <Box

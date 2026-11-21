@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../test/fixtures/workItemStatuses";
 import React, { type ReactNode } from "react";
 import { act, render } from "@testing-library/react";
 import { Provider, createStore } from "jotai";
@@ -160,7 +161,7 @@ describe("MessageProposals accept/reject cache invalidation", () => {
           key: "JOB_APPLICATION_RECORD",
           name: "Job application record",
           role: "work-item",
-          allowedStatuses: ["NOT_STARTED"],
+          statuses: legacyStatuses(["NOT_STARTED"]),
           sections: [
             {
               key: "application",

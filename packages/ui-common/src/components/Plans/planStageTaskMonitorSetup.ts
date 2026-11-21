@@ -8,7 +8,10 @@ import type {
   CanonicalPlanStageSource,
   PlanStageStandardTask,
 } from "../../data/plans/canonicalPlan";
-import { buildCanonicalPlanTaskGraph } from "../../data/plans/canonicalPlan";
+import {
+  buildCanonicalPlanTaskGraph,
+  isPlanStageWorkFinished,
+} from "../../data/plans/canonicalPlan";
 
 export {
   parseCanonicalPlanStageSource,
@@ -64,6 +67,12 @@ export type PlanStageTaskMonitorSetupResult =
   | { ok: true; draft: PlanStageTaskMonitorSetupDraft }
   | { ok: false; error: PlanStageTaskMonitorSetupError };
 
+/**
+ * The monitor kind Plan-stage setup records on the monitors it creates: it
+ * selects a stage's Tasks, so it always creates Task monitors.
+ */
+export const PLAN_STAGE_TASK_MONITOR_KIND_KEY = "task";
+
 const isNonEmpty = (value: string | null | undefined): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -82,9 +91,7 @@ const isArchived = (task: PlanStageStandardTask): boolean =>
   task.status === WorkStatus.Archived || isNonEmpty(task.archivedAt);
 
 const isExecutable = (task: PlanStageStandardTask): boolean =>
-  task.status !== WorkStatus.Completed &&
-  task.status !== WorkStatus.Cancelled &&
-  !isArchived(task);
+  !isPlanStageWorkFinished(task.status) && !isArchived(task);
 
 const validateSource = (
   input: PlanStageTaskMonitorSetupInput,
@@ -182,7 +189,7 @@ export const composePlanStageTaskMonitorSetup = (
       ok: false,
       error: {
         code: "no-executable-work",
-        messages: ["This Plan Stage has no executable STANDARD Tasks."],
+        messages: ["This Plan Stage has no executable Tasks or Bugs."],
       },
     };
   }
@@ -204,6 +211,7 @@ export const composePlanStageTaskMonitorSetup = (
       },
       executableTasks,
       definition: {
+        kind: PLAN_STAGE_TASK_MONITOR_KIND_KEY,
         executionPlan: executableTasks.map((task) => ({
           taskId: task.taskId,
           dependsOnTaskIds: (

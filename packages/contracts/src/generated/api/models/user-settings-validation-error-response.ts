@@ -30,7 +30,9 @@ import type { UserSettingsValidationIssue } from './user-settings-validation-iss
  * Explicit validation failure for a User Settings request.
  * @export
  */
-export interface UserSettingsValidationErrorResponse extends ApiErrorResponse, UserSettingsValidationErrorResponseAllOf {}
+export interface UserSettingsValidationErrorResponse extends ApiErrorResponse, UserSettingsValidationErrorResponseAllOf {
+    'code': Exclude<UserSettingsValidationErrorResponseAllOf['code'], undefined>;
+}
 
 export namespace UserSettingsValidationErrorResponse {
     export const CodeEnum = UserSettingsValidationErrorResponseAllOfCodeEnum;

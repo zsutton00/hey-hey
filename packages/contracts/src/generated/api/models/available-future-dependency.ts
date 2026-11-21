@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { WorkStatus } from './work-status.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -15,9 +14,6 @@ import { WorkStatus } from './work-status.js';
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkStatus } from './work-status.js';
 
 /**
  *
@@ -51,10 +47,10 @@ export interface AvailableFutureDependency {
     'workItemType': string;
     /**
      * Current status on approved future reads only; absent on pending previews.
-     * @type {WorkStatus}
+     * @type {string}
      * @memberof AvailableFutureDependency
      */
-    'status'?: WorkStatus;
+    'status'?: string;
 }
 
 
@@ -70,6 +66,4 @@ export type AvailableFutureDependencyAvailabilityEnum = typeof AvailableFutureDe
 export namespace AvailableFutureDependency {
     export const AvailabilityEnum = AvailableFutureDependencyAvailabilityEnum;
     export type AvailabilityEnum = AvailableFutureDependencyAvailabilityEnum;
-    export const StatusEnum = WorkStatus;
-    export type StatusEnum = WorkStatus;
 }

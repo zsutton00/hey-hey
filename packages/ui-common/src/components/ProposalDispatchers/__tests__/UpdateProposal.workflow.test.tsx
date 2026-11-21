@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import type { ReactElement, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as testingLibraryRender, screen } from "@testing-library/react";
@@ -50,7 +51,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           key: "workflow",
           name: "Workflow",
           sections: [{ key: "description", label: "Description" }],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
           capabilities: {
             graph: {
               nodeChildType: "workflow_step",
@@ -78,7 +79,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           key: "workflow_step",
           name: "Workflow Step",
           sections: [{ key: "description", label: "Description" }],
-          allowedStatuses: [],
+          statuses: legacyStatuses([]),
         },
         status: "ACTIVE",
         projectId: null,

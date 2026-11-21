@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import React from "react";
 import {
   act,
@@ -122,7 +123,7 @@ const useWorkItemTypeByKeyMock = vi.fn(
                   { key: "description", label: "Description" },
                   { key: "acceptanceCriteria", label: "Acceptance Criteria" },
                 ],
-          allowedStatuses: ["BACKLOG"],
+          statuses: legacyStatuses(["BACKLOG"]),
         }
       : undefined,
     isFetched: Boolean(typeKey),

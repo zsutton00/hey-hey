@@ -96,13 +96,19 @@ export const toTaskMonitorSupervisionMessage = (
   };
 };
 
+/** What the recovery request tells the user; the posted message and the published snapshot share it. */
+export const taskMonitorRecoveryRequestText = (
+  failure: TaskMonitorCoordinatorValidationFailure,
+): string =>
+  `The coordinator could not return a valid decision automatically. ${failure.code}: ${failure.message}`;
+
 /** A recovery request is authored independently of the rejected recommendation. */
 export const toTaskMonitorRecoveryJudgmentMessage = (
   projectId: string,
   requestId: string,
   failure: TaskMonitorCoordinatorValidationFailure,
 ): TaskMonitorSupervisionMessage => {
-  const rationale = `The coordinator could not return a valid decision automatically. ${failure.code}: ${failure.message}`;
+  const rationale = taskMonitorRecoveryRequestText(failure);
   const data: TaskMonitorSupervisionSystemMessageData = {
     type: SystemMessageDataTypeEnum.TaskMonitorSupervision,
     agentIdentity: 'task-monitor-coordinator',

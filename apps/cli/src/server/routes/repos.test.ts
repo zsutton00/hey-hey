@@ -174,7 +174,7 @@ describe('createReposRouter', () => {
       body: JSON.stringify({ machineId: 'another-machine' }),
     });
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
       code: LocalRepositoryBindingErrorCode.MachineMismatch,
       message: 'The requested machine does not match the locally paired CLI machine.',
@@ -194,7 +194,7 @@ describe('createReposRouter', () => {
       body: JSON.stringify({ machineId: 'another-machine', repositoryPath }),
     });
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({
       code: LocalRepositoryBindingErrorCode.MachineMismatch,
       message: 'The requested machine does not match the locally paired CLI machine.',

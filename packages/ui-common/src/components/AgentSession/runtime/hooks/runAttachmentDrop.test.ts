@@ -10,7 +10,7 @@ describe("Run attachment admission", () => {
   it("only captures Files drags and leaves entity drags alone", () => {
     expect(isFileDrop({ types: ["Files", "text/plain"] })).toBe(true);
     expect(
-      isFileDrop({ types: ["application/heyhey-entity", "text/plain"] })
+      isFileDrop({ types: ["application/heyhey-entity", "text/plain"] }),
     ).toBe(false);
   });
   it("requires verified matching loopback identity and available composer", () => {
@@ -18,39 +18,39 @@ describe("Run attachment admission", () => {
       attachmentDropRejection(
         target,
         { status: "local", machineId: "owner" },
-        true
-      )
+        true,
+      ),
     ).toBeNull();
     expect(
       attachmentDropRejection(
         target,
         { status: "local", machineId: "foreign" },
-        true
-      )
+        true,
+      ),
     ).toBeTruthy();
     expect(
-      attachmentDropRejection(target, { status: "checking" }, true)
+      attachmentDropRejection(target, { status: "checking" }, true),
     ).toBeTruthy();
     expect(
       attachmentDropRejection(
         target,
         { status: "unavailable", reason: "cli-unreachable" },
-        true
-      )
+        true,
+      ),
     ).toBeTruthy();
     expect(
       attachmentDropRejection(
         null,
         { status: "local", machineId: "owner" },
-        true
-      )
+        true,
+      ),
     ).toBeTruthy();
     expect(
       attachmentDropRejection(
         target,
         { status: "local", machineId: "owner" },
-        false
-      )
+        false,
+      ),
     ).toBeTruthy();
   });
   it("sends only successful references", () => {
@@ -58,7 +58,12 @@ describe("Run attachment admission", () => {
     expect(
       attachmentReferences([
         { key: "a", status: "ready", fileName: "good.txt", reference },
-        { key: "b", status: "uploading", fileName: "pending.txt" },
+        {
+          key: "b",
+          status: "uploading",
+          fileName: "pending.txt",
+          file: new File(["x"], "pending.txt"),
+        },
         {
           key: "c",
           status: "error",
@@ -66,7 +71,7 @@ describe("Run attachment admission", () => {
           code: null,
           message: "Failed",
         },
-      ])
+      ]),
     ).toEqual([reference]);
     expect(attachmentReferences([])).toEqual([]);
   });

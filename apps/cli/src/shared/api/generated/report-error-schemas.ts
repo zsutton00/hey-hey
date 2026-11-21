@@ -329,7 +329,7 @@ export const reportErrorSchemas = {
   ActiveGoalDto: {
     type: 'object',
     description:
-      'A goal returned by the active-goals endpoint: a GOAL-typed task that is not done (status not in COMPLETED/CANCELLED/ARCHIVED), not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.\n',
+      'A goal returned by the active-goals endpoint: a GOAL-typed task that has no effective FINISHED meaning and is not ARCHIVED, not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.\n',
     required: ['id', 'name', 'dueDate', 'audience'],
     additionalProperties: false,
     properties: {
@@ -389,6 +389,12 @@ export const reportErrorSchemas = {
         description: 'Request path',
         example: '/api/v1/projects/123',
       },
+      code: {
+        type: 'string',
+        description:
+          'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+        example: 'ORGANIZATION_NOT_FOUND',
+      },
     },
   },
   CreateReportCompletedAttemptError: {
@@ -425,6 +431,12 @@ export const reportErrorSchemas = {
             type: 'string',
             description: 'Request path',
             example: '/api/v1/projects/123',
+          },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
           },
         },
       },
@@ -496,6 +508,12 @@ export const reportErrorSchemas = {
             type: 'string',
             description: 'Request path',
             example: '/api/v1/projects/123',
+          },
+          code: {
+            type: 'string',
+            description:
+              'Optional stable machine-readable failure discriminator, independent of the message text. Clients must treat an unrecognized or absent value as a generic failure of the reported status.',
+            example: 'ORGANIZATION_NOT_FOUND',
           },
         },
       },

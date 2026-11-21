@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
@@ -48,12 +49,12 @@ const renderWithTheme = (component: React.ReactElement) =>
           {component}
         </ProjectContext.Provider>
       </ThemeProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 const expectMentionTone = (
   mention: HTMLElement,
-  tone: "equal" | "insert" | "delete"
+  tone: "equal" | "insert" | "delete",
 ) => {
   expect(mention).toHaveAttribute("data-diff-tone", tone);
 
@@ -71,7 +72,9 @@ const expectMentionTone = (
   expect(badge).toHaveAttribute("data-mention-token", mentionTokens[tone]);
   expect(badge).toHaveStyle({
     backgroundColor:
-      tone === "insert" ? theme.palette.success.main : theme.palette.error.light,
+      tone === "insert"
+        ? theme.palette.success.main
+        : theme.palette.error.light,
   });
 };
 
@@ -94,7 +97,7 @@ describe("DiffRenderer interactive review", () => {
         key: "workflow",
         name: "Workflow",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         iconKey: "workflow",
       },
       isLoading: false,
@@ -117,35 +120,35 @@ describe("DiffRenderer interactive review", () => {
           newContent={`${mentionTokens.equal}\n${mentionTokens.insert}`}
           viewMode={viewMode}
           enableInteractiveReview
-        />
+        />,
       );
 
       const view = screen.getByTestId(
         viewMode === "inline"
           ? "diff-renderer-inline-view"
-          : "diff-renderer-split-view"
+          : "diff-renderer-split-view",
       );
       const mentions = within(view).getAllByTestId("diff-renderer-mention");
       const getMentionsByTone = (
-        tone: "equal" | "insert" | "delete"
+        tone: "equal" | "insert" | "delete",
       ): HTMLElement[] => {
         const matchingMentions = mentions.filter(
-          (mention) => mention.getAttribute("data-diff-tone") === tone
+          (mention) => mention.getAttribute("data-diff-tone") === tone,
         );
         expect(matchingMentions.length).toBeGreaterThan(0);
         return matchingMentions;
       };
 
       getMentionsByTone("equal").forEach((mention) =>
-        expectMentionTone(mention, "equal")
+        expectMentionTone(mention, "equal"),
       );
       getMentionsByTone("delete").forEach((mention) =>
-        expectMentionTone(mention, "delete")
+        expectMentionTone(mention, "delete"),
       );
       getMentionsByTone("insert").forEach((mention) =>
-        expectMentionTone(mention, "insert")
+        expectMentionTone(mention, "insert"),
       );
-    }
+    },
   );
 
   it("reuses per-word and mention-aware rendering for structured text fragments", () => {
@@ -163,7 +166,7 @@ describe("DiffRenderer interactive review", () => {
           newContent={newContent}
           pane="new"
         />
-      </>
+      </>,
     );
 
     expect(container.querySelector("del")).toHaveTextContent("old");
@@ -171,7 +174,7 @@ describe("DiffRenderer interactive review", () => {
     expect(
       screen
         .getAllByTestId("diff-renderer-mention")
-        .map((mention) => mention.getAttribute("data-diff-tone"))
+        .map((mention) => mention.getAttribute("data-diff-tone")),
     ).toEqual(expect.arrayContaining(["delete", "insert"]));
   });
 
@@ -183,14 +186,14 @@ describe("DiffRenderer interactive review", () => {
           oldContent={`${mentionTokens.equal}\n${mentionTokens.delete}`}
           newContent={`${mentionTokens.equal}\n${mentionTokens.insert}`}
           viewMode={viewMode}
-        />
+        />,
       );
 
       const getBadges = (token: string): HTMLElement[] =>
         screen
           .getAllByTestId("mention-badge")
           .filter(
-            (badge) => badge.getAttribute("data-mention-token") === token
+            (badge) => badge.getAttribute("data-mention-token") === token,
           );
 
       const removedBadges = getBadges(mentionTokens.delete);
@@ -201,10 +204,14 @@ describe("DiffRenderer interactive review", () => {
       expect(addedBadges.length).toBeGreaterThan(0);
       expect(equalBadges.length).toBeGreaterThan(0);
       removedBadges.forEach((badge) =>
-        expect(badge).toHaveStyle({ backgroundColor: theme.palette.error.light })
+        expect(badge).toHaveStyle({
+          backgroundColor: theme.palette.error.light,
+        }),
       );
       addedBadges.forEach((badge) =>
-        expect(badge).toHaveStyle({ backgroundColor: theme.palette.success.main })
+        expect(badge).toHaveStyle({
+          backgroundColor: theme.palette.success.main,
+        }),
       );
       equalBadges.forEach((badge) => {
         expect(badge).not.toHaveStyle({
@@ -214,7 +221,7 @@ describe("DiffRenderer interactive review", () => {
           backgroundColor: theme.palette.success.main,
         });
       });
-    }
+    },
   );
 
   it.each(["inline", "split"] as const)(
@@ -226,29 +233,29 @@ describe("DiffRenderer interactive review", () => {
           newContent={`${workflowMentionTokens.equal}\n${workflowMentionTokens.insert}`}
           viewMode={viewMode}
           enableInteractiveReview
-        />
+        />,
       );
 
       const view = screen.getByTestId(
         viewMode === "inline"
           ? "diff-renderer-inline-view"
-          : "diff-renderer-split-view"
+          : "diff-renderer-split-view",
       );
       const retainedWorkflowSurfaces = within(view).getAllByTestId(
-        "workflow-inline-diagram-unavailable"
+        "workflow-inline-diagram-unavailable",
       );
       expect(retainedWorkflowSurfaces).toHaveLength(
-        viewMode === "split" ? 4 : 3
+        viewMode === "split" ? 4 : 3,
       );
 
       const mentions = within(view).getAllByTestId("diff-renderer-mention");
       const tones = mentions.map((mention) =>
-        mention.getAttribute("data-diff-tone")
+        mention.getAttribute("data-diff-tone"),
       );
       expect(tones).toContain("equal");
       expect(tones).toContain("delete");
       expect(tones).toContain("insert");
-    }
+    },
   );
 
   it.each(["inline", "split"] as const)(
@@ -259,18 +266,18 @@ describe("DiffRenderer interactive review", () => {
           oldContent={workflowMentionTokens.equal}
           newContent={workflowMentionTokens.equal}
           viewMode={viewMode}
-        />
+        />,
       );
 
       const view = screen.getByTestId(
         viewMode === "inline"
           ? "diff-renderer-inline-view"
-          : "diff-renderer-split-view"
+          : "diff-renderer-split-view",
       );
       expect(
-        within(view).getAllByTestId("workflow-inline-diagram-unavailable")
+        within(view).getAllByTestId("workflow-inline-diagram-unavailable"),
       ).toHaveLength(viewMode === "split" ? 2 : 1);
-    }
+    },
   );
 
   it("defaults to inline view mode when toggle is enabled", () => {
@@ -282,15 +289,15 @@ describe("DiffRenderer interactive review", () => {
         enableInteractiveReview
         onOperationDecisionChange={vi.fn()}
         operationTestIdPrefix="diff-op"
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("diff-renderer-view-mode-toggle")
+      screen.getByTestId("diff-renderer-view-mode-toggle"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("diff-renderer-inline-view")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("diff-renderer-split-view")
+      screen.queryByTestId("diff-renderer-split-view"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("diff-op-0-ins")).toBeInTheDocument();
     expect(screen.getByTestId("diff-op-0-del")).toBeInTheDocument();
@@ -307,20 +314,20 @@ describe("DiffRenderer interactive review", () => {
         enableInteractiveReview
         onOperationDecisionChange={vi.fn()}
         operationTestIdPrefix="diff-op"
-      />
+      />,
     );
 
     fireEvent.click(screen.getByTestId("diff-renderer-view-mode-split"));
 
     expect(
-      screen.queryByTestId("diff-renderer-inline-view")
+      screen.queryByTestId("diff-renderer-inline-view"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("diff-renderer-split-view")).toBeInTheDocument();
     expect(
-      screen.getByTestId("diff-renderer-split-pane-old")
+      screen.getByTestId("diff-renderer-split-pane-old"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("diff-renderer-split-pane-new")
+      screen.getByTestId("diff-renderer-split-pane-new"),
     ).toBeInTheDocument();
   });
 
@@ -333,11 +340,11 @@ describe("DiffRenderer interactive review", () => {
         enableInteractiveReview
         onOperationDecisionChange={vi.fn()}
         operationTestIdPrefix="diff-op"
-      />
+      />,
     );
 
     expect(
-      screen.queryByTestId("diff-renderer-view-mode-split-code")
+      screen.queryByTestId("diff-renderer-view-mode-split-code"),
     ).not.toBeInTheDocument();
   });
 
@@ -347,11 +354,11 @@ describe("DiffRenderer interactive review", () => {
         oldContent={"```ts\nconst value = 1;\n```"}
         newContent={"```ts\nconst value = 2;\n```"}
         viewMode="split-code"
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("diff-renderer-split-code-view")
+      screen.getByTestId("diff-renderer-split-code-view"),
     ).toBeInTheDocument();
     expect(screen.getByText("Current (ts)")).toBeInTheDocument();
     expect(screen.getByText("Suggested (ts)")).toBeInTheDocument();
@@ -374,7 +381,7 @@ describe("DiffRenderer interactive review", () => {
         enableInteractiveReview
         onOperationDecisionChange={onOperationDecisionChange}
         operationTestIdPrefix="diff-op"
-      />
+      />,
     );
 
     fireEvent.click(screen.getByTestId("diff-renderer-view-mode-split"));
@@ -399,7 +406,7 @@ describe("DiffRenderer interactive review", () => {
         enableInteractiveReview
         onOperationDecisionChange={onOperationDecisionChange}
         operationTestIdPrefix="diff-op"
-      />
+      />,
     );
 
     fireEvent.click(screen.getByTestId("diff-renderer-view-mode-split"));

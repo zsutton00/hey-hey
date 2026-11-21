@@ -3,6 +3,7 @@ import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/age
 import type { TaskMonitorCanonicalEvidence } from './task-monitor-evidence';
 import {
   parseTaskMonitorCoordinationLocalState,
+  taskMonitorCoordinationLocalStateFromContext,
   validateTaskMonitorDecision,
   type TaskMonitorCoordinationSnapshot,
 } from './task-monitor-coordination';
@@ -30,6 +31,12 @@ const evidence = (
     title: 'Selected Task',
     type: 'STANDARD',
     status: 'ACTIVE',
+    typeStatuses: [
+      { name: 'BACKLOG', meaning: 'NOT_STARTED' },
+      { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+      { name: 'COMPLETED', meaning: 'FINISHED', completionBehavior: 'COMPLETED' },
+      { name: 'CANCELLED', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+    ],
     sections: [],
     featureHierarchy: [],
     contracts: [],
@@ -59,7 +66,28 @@ describe('Task Monitor coordination policy', () => {
 
     expect(validateTaskMonitorDecision(snapshot(), decision)).toEqual({
       ok: false,
-      reason: 'Task acceptance requires a canonically completed Task.',
+      reason: 'Task acceptance requires a Task in a finished, non-cancelled status.',
+    });
+  });
+
+  it('accepts a Task in a custom finished status and rejects a cancelled one', () => {
+    const decision: LocalTaskMonitorCoordinatorDecision = {
+      action: 'ACCEPT_TASK',
+      rationale: 'The work is done.',
+    };
+    const typeStatuses = [
+      { name: 'Doing', meaning: 'IN_PROGRESS' },
+      { name: 'Done', meaning: 'FINISHED' },
+      { name: 'Dropped', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+    ] as const;
+    const withStatus = (status: string) =>
+      snapshot({
+        selectedTask: { ...evidence().selectedTask, status, typeStatuses },
+      });
+
+    expect(validateTaskMonitorDecision(withStatus('Done'), decision)).toMatchObject({ ok: true });
+    expect(validateTaskMonitorDecision(withStatus('Dropped'), decision)).toMatchObject({
+      ok: false,
     });
   });
 
@@ -102,6 +130,34 @@ describe('Task Monitor coordination policy', () => {
       ok: false,
       reason: 'Task Monitor coordination requires an active monitor, not ON_HOLD.',
     });
+  });
+
+  it('resumes a real failure without presenting it to the coordinator as a pending question', () => {
+    const context = {
+      userGuidance: null,
+      selectedTaskId: null,
+      activeRunAgentSessionId: '44444444-4444-4444-8444-444444444444',
+      conversationId: null,
+      reviewRequest: null,
+      settledRun: null,
+      failureReason: 'Task Monitor coordinator Run could not be started.',
+      pendingJudgment: null,
+    };
+
+    expect(
+      taskMonitorCoordinationLocalStateFromContext(context, 'ACTIVE', 'SUPERVISION_FAILED')
+        .pendingJudgmentReason,
+    ).toBeNull();
+    expect(
+      taskMonitorCoordinationLocalStateFromContext(
+        {
+          ...context,
+          pendingJudgment: { request: 'Approve the schema change?', requestMessageId: null },
+        },
+        'ACTIVE',
+        'OUTCOME_JUDGMENT',
+      ).pendingJudgmentReason,
+    ).toBe('Approve the schema change?');
   });
 
   it('only restores the exact local coordination shape from persisted context', () => {

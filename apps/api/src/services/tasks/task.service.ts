@@ -1,4 +1,5 @@
 import { restrictTaskWhere } from 'src/read-restriction/read-policy';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import type { ProjectModeSettings } from '@hey-hey/contracts/api/models';
 import {
@@ -9,6 +10,8 @@ import {
   withDiagramDefaults,
   validateDiagramSections,
 } from './diagram-metadata';
+import { assertTaskMonitorMatchesKind } from './task-monitor-kind';
+import { TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY } from './task-monitor-execution-definition.validator';
 import {
   diagramGroupMemberKey,
   formatDiagramGroupsIssues,
@@ -38,7 +41,6 @@ import {
   TaskDependencySourceType,
   TaskSource,
   WorkItemTypeCascadeExecutionState,
-  WorkStatus,
 } from '@prisma/client';
 import {
   ArtifactType,
@@ -140,7 +142,10 @@ import { TaskDraft } from './types';
 import { FeatureRequirementAuthoringService } from './feature-requirement-authoring.service';
 import { EMPTY_FEATURE_REQUIREMENTS_CONTENT } from './feature-requirements-reader';
 import { WorkItemTypeRegistryService } from './work-item-type-registry.service';
-import { formatWorkItemStatusNotAllowedMessage } from './work-item-status-policy';
+import {
+  formatWorkItemStatusNotAllowedMessage,
+  isOrdinaryStatusAssignmentAllowed,
+} from './work-item-status-policy';
 import { WorkItemParentageValidator } from './work-item-parentage-validator.service';
 import {
   resolveWorkItemSectionContentKind,
@@ -164,7 +169,10 @@ import {
 export type TaskEntity = Prisma.TaskGetPayload<Prisma.TaskDefaultArgs>;
 
 export type TaskUpdatePostCommit = {
-  statusChange?: { previousStatus: WorkStatus; newStatus: WorkStatus };
+  statusChange?: {
+    previousStatus: TaskResponseDto['status'];
+    newStatus: TaskResponseDto['status'];
+  };
   updateOriginalArtifact?: boolean;
 };
 
@@ -214,7 +222,9 @@ type TaskWithCountsAndInitiative = TaskWithCountsAndRelations & {
 type TrackedTaskRow = {
   id: string;
   name: string;
-  status: WorkStatus;
+  type: string;
+  projectId: string;
+  status: TaskResponseDto['status'];
   dueDate: Date | null;
 };
 
@@ -238,27 +248,6 @@ type ChildCounts = {
   inProgress: number;
   backlog: number;
 };
-
-const BACKLOG_STATUSES = new Set<WorkStatus>([
-  WorkStatus.GENERATED,
-  WorkStatus.BACKLOG,
-  WorkStatus.GENERATING_DESCRIPTION,
-  WorkStatus.REFINING_DESCRIPTION,
-  WorkStatus.REFINING_DETAILS,
-  WorkStatus.REFINING_ACCEPTANCE_CRITERIA,
-  WorkStatus.GENERATING_DETAILS,
-  WorkStatus.GENERATING_DESCRIPTION_AND_DETAILS,
-  WorkStatus.GENERATING_ACCEPTANCE_CRITERIA,
-  WorkStatus.GENERATING_ALL,
-  WorkStatus.ON_HOLD,
-]);
-
-const IN_PROGRESS_STATUSES = new Set<WorkStatus>([WorkStatus.ACTIVE]);
-
-const DONE_STATUSES = new Set<WorkStatus>([
-  WorkStatus.COMPLETED,
-  WorkStatus.CANCELLED,
-]);
 
 const INCIDENT_AGENT_EDGE_TYPES = new Set<string>(Object.values(AgentEdgeType));
 const TRAVERSAL_ONLY_INCIDENT_EDGE_TYPES = new Set<RelationshipType>([
@@ -363,17 +352,24 @@ export class TaskService {
 
   private resolveInitialStatus(
     taskType: WorkItemTypeKey,
-    dtoStatus: WorkStatus | undefined,
+    dtoStatus: TaskResponseDto['status'] | undefined,
     projectId: string,
-  ): WorkStatus {
+  ): TaskResponseDto['status'] {
     const policy = this.workItemTypeRegistry.getInitialStatusPolicy(
       taskType,
       projectId,
     );
-    if (policy.hasSetInitialStatus) {
-      return policy.initialStatus as WorkStatus;
+    const status = dtoStatus ?? policy.initialStatus;
+    const allowed = this.workItemTypeRegistry.getAllowedStatuses(
+      taskType,
+      projectId,
+    );
+    if (!isOrdinaryStatusAssignmentAllowed(status, allowed)) {
+      throw new BadRequestException(
+        formatWorkItemStatusNotAllowedMessage(status, taskType, allowed),
+      );
     }
-    return dtoStatus ?? (policy.initialStatus as WorkStatus);
+    return status;
   }
 
   private getSectionFieldsForTaskType(
@@ -947,8 +943,8 @@ export class TaskService {
     tx: Prisma.TransactionClient,
     params: {
       taskId: TaskId;
-      previousStatus: WorkStatus;
-      newStatus: WorkStatus;
+      previousStatus: TaskResponseDto['status'];
+      newStatus: TaskResponseDto['status'];
       organizationId: OrganizationId;
       initiativeId: InitiativeId | null;
       projectId: ProjectId;
@@ -1358,6 +1354,22 @@ export class TaskService {
     const sectionMap = new Map(
       sections.map((section) => [section.key, section]),
     );
+    await this.assertMonitorNodesMatchKind(tx, {
+      organizationId,
+      projectId,
+      monitorId: taskId,
+      type: effectiveTaskType,
+      // The entry persisted for a key is the last one written.
+      executionDefinitionContent: updates
+        .filter(
+          (update) =>
+            update.key === TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY,
+        )
+        .at(-1)?.content,
+      storedExecutionDefinitionContent: sectionMap.get(
+        TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY,
+      )?.materializedMarkdown,
+    });
     const sectionDefinitions = this.workItemTypeRegistry.getSectionDefinitions(
       effectiveTaskType,
       projectId,
@@ -1599,7 +1611,7 @@ export class TaskService {
     }
 
     const grouped = await this.prisma.db.task.groupBy({
-      by: ['parentTaskId', 'status'],
+      by: ['parentTaskId', 'status', 'type', 'projectId'],
       where: restrictTaskWhere(where),
       _count: {
         _all: true,
@@ -1621,12 +1633,11 @@ export class TaskService {
 
       counts.total += row._count._all;
 
-      if (DONE_STATUSES.has(row.status)) {
+      const meaning = this.findStatusDefinition(row)?.meaning;
+      if (meaning === 'FINISHED') {
         counts.done += row._count._all;
-      } else if (IN_PROGRESS_STATUSES.has(row.status)) {
+      } else if (meaning === 'IN_PROGRESS') {
         counts.inProgress += row._count._all;
-      } else if (BACKLOG_STATUSES.has(row.status)) {
-        counts.backlog += row._count._all;
       } else {
         // Unknown statuses default to backlog bucket
         counts.backlog += row._count._all;
@@ -2126,7 +2137,14 @@ export class TaskService {
         organizationId,
         archivedAt: null,
       },
-      select: { id: true, name: true, status: true, dueDate: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        projectId: true,
+        status: true,
+        dueDate: true,
+      },
     });
 
     const taskById = new Map(tasks.map((t) => [t.id, t]));
@@ -2156,14 +2174,44 @@ export class TaskService {
     return map;
   }
 
+  /**
+   * The row's status in its type's effective definition. A removed status is
+   * simply absent; a type that cannot be resolved is logged, because every
+   * status meaning for that row is then unknown.
+   */
+  private findStatusDefinition(row: {
+    type: string;
+    projectId: string;
+    status: string;
+  }) {
+    const rules = this.workItemTypeRegistry.getRulesForProject(
+      row.type,
+      row.projectId,
+    );
+    if (!rules) {
+      this.logger.warn('Work item type not resolved for status meaning', {
+        typeKey: row.type,
+        projectId: row.projectId,
+      });
+    }
+
+    return rules?.statuses.find((status) => status.name === row.status);
+  }
+
   private toTrackedSnapshots(rows: TrackedTaskRow[]): TrackedEntitySnapshot[] {
-    return rows.map((row) => ({
-      targetEntityId: row.id,
-      targetEntityType: 'TASK',
-      title: row.name,
-      status: row.status,
-      dueDate: row.dueDate ? row.dueDate.toISOString() : null,
-    }));
+    return rows.map((row) => {
+      const status = this.findStatusDefinition(row);
+
+      return {
+        targetEntityId: row.id,
+        targetEntityType: 'TASK',
+        title: row.name,
+        status: row.status,
+        statusMeaning: status?.meaning,
+        completionBehavior: status?.completionBehavior,
+        dueDate: row.dueDate ? row.dueDate.toISOString() : null,
+      };
+    });
   }
 
   /**
@@ -2185,11 +2233,18 @@ export class TaskService {
     };
     const nowMs = now.getTime();
     for (const row of rows) {
-      if (row.status === WorkStatus.COMPLETED) {
+      const status = this.findStatusDefinition(row);
+      if (
+        status?.meaning === 'FINISHED' &&
+        status.completionBehavior !== 'CANCELLED'
+      ) {
         summary.completedCount += 1;
         continue;
       }
-      if (row.status === WorkStatus.CANCELLED) {
+      if (
+        status?.meaning === 'FINISHED' &&
+        status.completionBehavior === 'CANCELLED'
+      ) {
         summary.cancelledCount += 1;
         continue;
       }
@@ -2736,7 +2791,7 @@ export class TaskService {
         organizationId,
         archivedAt: null,
         ...(projectId
-          ? { projectId, status: { not: WorkStatus.ARCHIVED } }
+          ? { projectId, status: { not: WorkStatus.Archived } }
           : {}),
       },
       select: { id: true, type: true },
@@ -3031,7 +3086,7 @@ export class TaskService {
             archivedAt: null,
             ...(taskType === WORK_ITEM_TYPE_KEYS.Diagram ||
             taskType === WORK_ITEM_TYPE_KEYS.DiagramElement
-              ? { status: { not: WorkStatus.ARCHIVED } }
+              ? { status: { not: WorkStatus.Archived } }
               : {}),
           },
           select: { id: true, type: true, projectId: true },
@@ -3165,6 +3220,16 @@ export class TaskService {
       createSections,
       taskType,
     );
+    // Check the value that will be persisted, which for a repeated key is the
+    // last entry.
+    await this.assertMonitorNodesMatchKind(tx, {
+      organizationId,
+      projectId,
+      monitorId: explicitTaskId,
+      type: taskType,
+      executionDefinitionContent:
+        sectionValues[TASK_MONITOR_EXECUTION_DEFINITION_SECTION_KEY],
+    });
     if (
       taskType === WORK_ITEM_TYPE_KEYS.Feature &&
       this.workItemTypeRegistry.isSectionAllowed(
@@ -3399,7 +3464,7 @@ export class TaskService {
               organizationId,
               projectId,
               initiativeId: initiativeId ?? undefined,
-              status: WorkStatus.GENERATED, // AI generated, pending user acceptance
+              status: WorkStatus.Generated, // AI generated, pending user acceptance
               source: TaskSource.system,
               priority,
               type: taskType,
@@ -3711,7 +3776,7 @@ export class TaskService {
     page: number,
     limit: number,
     filter?: string,
-    statuses?: WorkStatus[],
+    statuses?: TaskResponseDto['status'][],
     sortBy: 'name' | 'createdAt' = 'name',
     sortOrder: 'asc' | 'desc' = 'asc',
   ): Promise<PaginatedWorkItemReferenceResponseDto> {
@@ -3722,7 +3787,7 @@ export class TaskService {
       type,
       archivedAt: null,
       status: {
-        not: WorkStatus.ARCHIVED,
+        not: WorkStatus.Archived,
         ...(statuses && statuses.length > 0 ? { in: statuses } : {}),
       },
       ...(normalizedFilter
@@ -3788,7 +3853,7 @@ export class TaskService {
       edgeTypes?: RelationshipType[];
       relatedEntityId?: string;
       relatedEntityType?: AgentEdgeEndpointEntityType;
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       taskIds?: TaskId[];
       includeSectionKeys?: string[];
       taskType?: string;
@@ -4116,7 +4181,7 @@ export class TaskService {
         id: taskId,
         organizationId,
         archivedAt: null,
-        status: { not: WorkStatus.ARCHIVED },
+        status: { not: WorkStatus.Archived },
       }),
     };
     if (taskInclude) {
@@ -4241,7 +4306,7 @@ export class TaskService {
         parentTaskId: root.id,
         type: capability.nodeChildType,
         archivedAt: null,
-        status: { not: WorkStatus.ARCHIVED },
+        status: { not: WorkStatus.Archived },
       }),
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     })) as TaskWithCountsAndRelations[];
@@ -4413,7 +4478,7 @@ export class TaskService {
           projectId,
           id: { in: targetIds },
           archivedAt: null,
-          status: { not: WorkStatus.ARCHIVED },
+          status: { not: WorkStatus.Archived },
         },
         select: { id: true, type: true, name: true },
       }),
@@ -4708,6 +4773,7 @@ export class TaskService {
     materializationId?: string,
     effectiveParentId?: string | null,
     requirementsReplacedLater = false,
+    supersessionTransition = false,
   ): Promise<{ task: TaskEntity; postCommit: TaskUpdatePostCommit }> {
     const contextManager = EventContextManager.getInstance();
     const currentContext = contextManager.getCurrentContext();
@@ -4795,17 +4861,17 @@ export class TaskService {
       throw new BadRequestException('GOAL tasks require a dueDate.');
     }
 
-    // Enforce the type's allowedStatuses contract on edit, mirroring the
-    // create-path constraint in resolveInitialStatus. Only a status that is
-    // actually changing is checked, so unchanged-status updates (and legacy
-    // rows whose persisted status predates the current policy) are unaffected.
+    // Validate explicit assignments even when they match a retained status.
     if (
       updateTaskDto.status !== undefined &&
-      updateTaskDto.status !== existingTask.status &&
-      !this.workItemTypeRegistry.isStatusAllowed(
-        targetTaskType,
+      !(
+        supersessionTransition &&
+        updateTaskDto.status === WorkStatus.Superseded &&
+        this.workItemTypeRegistry.isSupersedable(targetTaskType, projectId)
+      ) &&
+      !isOrdinaryStatusAssignmentAllowed(
         updateTaskDto.status,
-        projectId,
+        this.workItemTypeRegistry.getAllowedStatuses(targetTaskType, projectId),
       )
     ) {
       const allowed = this.workItemTypeRegistry.getAllowedStatuses(
@@ -5355,6 +5421,43 @@ export class TaskService {
    * removed groups through the previously persisted value. Saved positions
    * are untouched.
    */
+  /**
+   * A monitor must select a kind its project-effective type declares, keep
+   * that kind, and use only nodes and launch settings the kind allows.
+   */
+  private async assertMonitorNodesMatchKind(
+    tx: Prisma.TransactionClient,
+    params: {
+      organizationId: OrganizationId;
+      projectId: ProjectId;
+      monitorId: string | undefined;
+      type: string;
+      executionDefinitionContent: unknown;
+      storedExecutionDefinitionContent?: unknown;
+    },
+  ): Promise<void> {
+    if (
+      params.type !== WORK_ITEM_TYPE_KEYS.TaskMonitor ||
+      params.executionDefinitionContent === undefined
+    ) {
+      return;
+    }
+
+    const effectiveKinds = this.workItemTypeRegistry.getDefinition(
+      params.projectId,
+      params.type,
+    )?.definition.capabilities?.monitorKinds;
+    await assertTaskMonitorMatchesKind({
+      db: tx,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      monitorId: params.monitorId,
+      kinds: effectiveKinds,
+      executionDefinitionContent: params.executionDefinitionContent,
+      storedExecutionDefinitionContent: params.storedExecutionDefinitionContent,
+    });
+  }
+
   private async reconcileDiagramGroupsUpdate(
     tx: Prisma.TransactionClient,
     organizationId: OrganizationId,
@@ -5783,9 +5886,9 @@ export class TaskService {
         // Handle GENERATED → REFINING_* transition (user acceptance)
         // STANDARD tasks go to REFINING_ACCEPTANCE_CRITERIA, others to REFINING_DESCRIPTION
         if (
-          existingTask.status === WorkStatus.GENERATED &&
-          (newStatus === WorkStatus.REFINING_DESCRIPTION ||
-            newStatus === WorkStatus.REFINING_ACCEPTANCE_CRITERIA)
+          existingTask.status === WorkStatus.Generated &&
+          (newStatus === WorkStatus.RefiningDescription ||
+            newStatus === WorkStatus.RefiningAcceptanceCriteria)
         ) {
           await this.createArtifactOnAcceptance(
             { ...updated, type: updated.type as WorkItemTypeKey },
@@ -5890,7 +5993,7 @@ export class TaskService {
   async findAllByOrganizationForAdapter(
     organizationId: OrganizationId,
     filters?: {
-      statuses?: WorkStatus[];
+      statuses?: TaskResponseDto['status'][];
       priority?: string;
       assigneeId?: string;
       parentTaskId?: string | null;

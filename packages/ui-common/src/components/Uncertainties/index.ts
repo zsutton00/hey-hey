@@ -11,3 +11,8 @@ export {
   UncertaintyItem,
   type UncertaintyItemProps,
 } from "./UncertaintyItem";
+export {
+  buildUncertaintyDiscussContext,
+  type UncertaintyDiscussReference,
+  type UncertaintyDiscussSubject,
+} from "./uncertaintyDiscussContext";

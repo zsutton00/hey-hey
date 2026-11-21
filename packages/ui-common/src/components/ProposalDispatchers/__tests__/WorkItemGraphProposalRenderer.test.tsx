@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cloneElement, type ReactElement, type PropsWithChildren } from "react";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -79,7 +80,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
         name: key,
         role: "project-info",
         sections: [],
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
         capabilities: {
           graph: {
             nodeChildType: key === "DIAGRAM" ? "DIAGRAM_ELEMENT" : "graph_node",

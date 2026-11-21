@@ -1,10 +1,11 @@
+import type { TaskResponseDto } from "../../../api/api";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkStatus } from "../../../api";
 
 vi.mock("../../../data/hooks", () => ({
-  useTaskAllowedStatuses: vi.fn(),
+  useWorkItemTypeByKey: vi.fn(),
 }));
 
 vi.mock("../../WorkItem/SupersedeTaskDialog", () => ({
@@ -12,20 +13,31 @@ vi.mock("../../WorkItem/SupersedeTaskDialog", () => ({
     open ? <div data-testid="supersede-dialog" /> : null,
 }));
 
-import { useTaskAllowedStatuses } from "../../../data/hooks";
+import { useWorkItemTypeByKey } from "../../../data/hooks";
+import { statusDefinition } from "../../../test/statusDefinitionFixture";
 import { WorkItemStatusSelector } from "../WorkItemStatusSelector";
 
-const mockedUseTaskAllowedStatuses = vi.mocked(useTaskAllowedStatuses);
+const mockedUseWorkItemTypeByKey = vi.mocked(useWorkItemTypeByKey);
 
-const mockAllowedStatuses = (statuses: WorkStatus[]): void => {
-  mockedUseTaskAllowedStatuses.mockReturnValue({
+const mockAllowedStatuses = (statuses: TaskResponseDto["status"][]): void => {
+  mockedUseWorkItemTypeByKey.mockReturnValue({
     isLoading: false,
-    error: null,
-    getAllowedStatuses: () => statuses,
-  });
+    workItemTypeDefinition: statusDefinition(statuses),
+  } as never);
 };
 
-const STANDARD_ALLOWED: WorkStatus[] = [
+/** The labels the built-in Feature and Plan definitions carry for their statuses. */
+const mockLabelledStatuses = (
+  key: string,
+  statuses: { name: string; label: string; meaning: string }[],
+): void => {
+  mockedUseWorkItemTypeByKey.mockReturnValue({
+    isLoading: false,
+    workItemTypeDefinition: statusDefinition([], { key, statuses }),
+  } as never);
+};
+
+const STANDARD_ALLOWED: TaskResponseDto["status"][] = [
   WorkStatus.Backlog,
   WorkStatus.Active,
   WorkStatus.Completed,
@@ -47,7 +59,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -73,7 +85,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -81,7 +93,7 @@ describe("WorkItemStatusSelector", () => {
     expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Generating description")
+      screen.queryByText("Generating description"),
     ).not.toBeInTheDocument();
   });
 
@@ -94,7 +106,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -112,7 +124,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskId="task-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -129,7 +141,7 @@ describe("WorkItemStatusSelector", () => {
         onChange={vi.fn()}
         organizationId="org-1"
         projectId="project-1"
-      />
+      />,
     );
 
     await userEvent.click(screen.getByRole("combobox"));
@@ -139,7 +151,9 @@ describe("WorkItemStatusSelector", () => {
   });
 
   it("displays Active as 'Ready' for feature tasks", () => {
-    mockAllowedStatuses([WorkStatus.Active]);
+    mockLabelledStatuses("FEATURE", [
+      { name: WorkStatus.Active, label: "Ready", meaning: "IN_PROGRESS" },
+    ]);
     render(
       <WorkItemStatusSelector
         value={WorkStatus.Active}
@@ -147,7 +161,7 @@ describe("WorkItemStatusSelector", () => {
         organizationId="org-1"
         projectId="project-1"
         taskType={"FEATURE"}
-      />
+      />,
     );
 
     expect(screen.getByText("Ready")).toBeInTheDocument();
@@ -155,7 +169,10 @@ describe("WorkItemStatusSelector", () => {
 });
 
 it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async () => {
-  mockAllowedStatuses([WorkStatus.Backlog, WorkStatus.Ready]);
+  mockLabelledStatuses("PLAN", [
+    { name: WorkStatus.Backlog, label: "Draft", meaning: "NOT_STARTED" },
+    { name: WorkStatus.Ready, label: "Ready", meaning: "NOT_STARTED" },
+  ]);
   const onChange = vi.fn();
   render(
     <WorkItemStatusSelector
@@ -164,7 +181,7 @@ it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async
       organizationId="org-1"
       projectId="project-1"
       taskType="PLAN"
-    />
+    />,
   );
   await userEvent.click(screen.getByRole("combobox"));
   await userEvent.click(screen.getByRole("option", { name: "Draft" }));
@@ -179,8 +196,48 @@ it("keeps ordinary task BACKLOG labeled Backlog", () => {
       organizationId="org-1"
       projectId="project-1"
       taskType="STANDARD"
-    />
+    />,
   );
   expect(screen.getByText("Backlog")).toBeInTheDocument();
   expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+});
+
+describe("WorkItemStatusSelector — custom type vocabulary", () => {
+  it("offers the type's own statuses in its order, plus Archived, with exact custom names", async () => {
+    mockedUseWorkItemTypeByKey.mockReturnValue({
+      isLoading: false,
+      workItemTypeDefinition: {
+        key: "RECIPE",
+        name: "Recipe",
+        statuses: [
+          { name: "Idea", meaning: "NOT_STARTED" },
+          { name: "Made", meaning: "FINISHED" },
+          { name: "Rejected", meaning: "FINISHED" },
+        ],
+        capabilities: { supportsSupersession: true },
+      },
+    } as never);
+    render(
+      <WorkItemStatusSelector
+        value="Testing"
+        onChange={vi.fn()}
+        organizationId="org-1"
+        projectId="project-1"
+        taskId="task-1"
+        taskType="RECIPE"
+      />,
+    );
+
+    expect(screen.getByText("Testing")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox"));
+
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual([
+      "Idea",
+      "Made",
+      "Rejected",
+      "Archived",
+      "Superseded",
+    ]);
+  });
 });

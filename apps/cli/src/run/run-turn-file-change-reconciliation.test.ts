@@ -734,7 +734,14 @@ describe('Run agent-reported file changes', () => {
     expect(harness.loggerInfo).toHaveBeenCalledWith(
       'local.run.file_change.agent_report.resolved',
       expect.objectContaining({
-        rejected: [{ serviceId: 'service-1', path: 'edited.ts', reason: 'git_read_failed' }],
+        rejected: [
+          expect.objectContaining({
+            serviceId: 'service-1',
+            path: 'edited.ts',
+            reason: 'git_read_failed',
+            gitFailure: expect.objectContaining({ message: expect.any(String) }),
+          }),
+        ],
       }),
     );
   });

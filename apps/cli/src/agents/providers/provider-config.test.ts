@@ -3,6 +3,7 @@ import {
   buildCredentialRefreshCommand,
   extractCredentialLookupFromErrorMessage,
   resolveAgentAccountId,
+  nativePermissionModeFor,
   resolveAgentProviderId,
   toProviderDisplayName,
 } from './provider-config';
@@ -77,5 +78,13 @@ describe('provider-config', () => {
         process.env['HEYHEY_CODEX_ACCOUNT_ID'] = originalCodex;
       }
     }
+  });
+});
+
+describe('nativePermissionModeFor', () => {
+  it('reports auto for Claude and Codex and nothing for OpenCode', () => {
+    expect(nativePermissionModeFor('claude')).toBe('auto');
+    expect(nativePermissionModeFor('codex')).toBe('auto');
+    expect(nativePermissionModeFor('opencode')).toBeNull();
   });
 });

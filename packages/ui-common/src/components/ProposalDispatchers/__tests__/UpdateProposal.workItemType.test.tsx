@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   fireEvent,
   render,
@@ -82,7 +83,7 @@ const definition: WorkItemTypeDefinitionDto = {
   name: "Marketing",
   role: WorkItemTypeRole.WorkItem,
   sections: [{ key: "audience", label: "Audience" }],
-  allowedStatuses: ["NOT_STARTED"],
+  statuses: legacyStatuses(["NOT_STARTED"]),
 };
 
 function proposal(): ProposalResponseDto {

@@ -7,6 +7,8 @@ import {
 import {
   EntityType,
   WorkStatus,
+  WorkItemStatusMeaning,
+  WorkItemStatusCompletionBehavior,
   type GoalTrackedWorkSummary,
   type TrackedEntitySnapshot,
 } from "../../api";
@@ -23,6 +25,17 @@ const snapshot = (
   title: overrides.title ?? "Tracked entity",
   status: overrides.status,
   dueDate: overrides.dueDate,
+  statusMeaning:
+    overrides.statusMeaning ??
+    (overrides.status === WorkStatus.Completed ||
+    overrides.status === WorkStatus.Cancelled
+      ? WorkItemStatusMeaning.Finished
+      : undefined),
+  completionBehavior:
+    overrides.completionBehavior ??
+    (overrides.status === WorkStatus.Cancelled
+      ? WorkItemStatusCompletionBehavior.Cancelled
+      : undefined),
 });
 
 describe("deriveGoalStatus", () => {
@@ -202,7 +215,12 @@ describe("deriveGoalStatusFromSummary parity", () => {
     tracked: TrackedEntitySnapshot[];
     expected: GoalDerivedStatus;
   }> = [
-    { name: "no tracked work", dueDate: FUTURE, tracked: [], expected: GoalDerivedStatus.OnTrack },
+    {
+      name: "no tracked work",
+      dueDate: FUTURE,
+      tracked: [],
+      expected: GoalDerivedStatus.OnTrack,
+    },
     {
       name: "no tracked work with a past goal due date",
       dueDate: PAST,
@@ -270,5 +288,30 @@ describe("deriveGoalStatusFromSummary parity", () => {
     );
     expect(fromSnapshots).toBe(expected);
     expect(fromSummary).toBe(fromSnapshots);
+  });
+});
+
+describe("effective tracked status meanings", () => {
+  it.each([
+    ["Delivered", WorkItemStatusMeaning.Finished, GoalDerivedStatus.Done],
+    ["Ongoing", WorkItemStatusMeaning.Unfinished, GoalDerivedStatus.OnTrack],
+    ["COMPLETED", undefined, GoalDerivedStatus.OnTrack],
+  ])("derives %s from its meaning", (status, statusMeaning, expected) => {
+    expect(
+      deriveGoalStatus(
+        {
+          trackedEntities: [
+            {
+              targetEntityId: "target",
+              targetEntityType: EntityType.Task,
+              title: "Work",
+              status,
+              statusMeaning,
+            },
+          ],
+        },
+        NOW,
+      ),
+    ).toBe(expected);
   });
 });

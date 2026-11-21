@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { OrganizationRole } from '@prisma/client';
 import {
   OrganizationProjectEntitlementDto,
@@ -141,7 +137,7 @@ export class OrganizationProjectEntitlementService {
     });
 
     if (!entitlement.canCreateProject) {
-      throw new ConflictException({
+      throw new ForbiddenException({
         code: PROJECT_LIMIT_REACHED_CODE,
         message: entitlement.creationUnavailableReason,
         entitlement,

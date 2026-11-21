@@ -214,8 +214,8 @@ paths:
           description: Malformed input or empty included population
         "403":
           description: Scope is not authorized
-        "409":
-          description: Idempotency conflict or stale execution attempt
+        "422":
+          description: The idempotency key was already used for a different report request (`IDEMPOTENCY_KEY_REUSED`)
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/preview:
     post:
       operationId: previewProjectReportRequest
@@ -261,7 +261,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}:
     get:
       operationId: getProjectReportRequest
@@ -305,7 +305,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/retry:
     post:
       operationId: retryProjectReportRequest
@@ -357,7 +357,9 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
+        "422":
+          description: The retry key was already used for a different execution (`IDEMPOTENCY_KEY_REUSED`)
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/activity:
     get:
       operationId: getProjectReportActivityPage
@@ -422,7 +424,7 @@ paths:
         "403":
           description: Scope is not authorized
         "409":
-          description: Idempotency conflict or stale execution attempt
+          description: Stale execution attempt
   /organizations/{organizationId}/projects/{projectId}/project-report-requests/{requestId}/context:
     get:
       operationId: getProjectReportContextPage
@@ -1976,7 +1978,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "403":
-          description: Authenticated caller is not authorized to decide private-beta requests.
+          description: >-
+            Authenticated caller is not authorized to decide private-beta
+            requests, or private-beta access is closed (code
+            PRIVATE_BETA_ACCESS_CLOSED).
           content:
             application/json:
               schema:
@@ -2969,6 +2974,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/cancel:
     parameters:
@@ -3006,8 +3017,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Cancellation conflicts with the current lifecycle state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
           content:
             application/json:
               schema:
@@ -3045,6 +3068,18 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "403":
           description: Eligible organization membership required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
           content:
             application/json:
               schema:
@@ -3087,12 +3122,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Organization not found (ORGANIZATION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
           description: Irreversible closure committed before reactivation
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OrganizationReactivationDeadlineLostResponse"
+        "500":
+          description: Server state is inconsistent (ORGANIZATION_ACCOUNT_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/members:
     parameters:
@@ -5310,7 +5357,7 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
           explode: false
           description: Filter by initiative statuses (comma-separated)
@@ -6273,10 +6320,10 @@ paths:
           schema:
             type: array
             items:
-              $ref: "../schemas/common.yaml#/WorkStatus"
+              $ref: "../schemas/common.yaml#/WorkItemStatus"
           style: form
-          explode: false
-          description: Filter by task statuses (comma-separated)
+          explode: true
+          description: Filter by task statuses; each repeated value is one exact status name
         - name: includeDesignDocCounts
           in: query
           required: false
@@ -6407,6 +6454,12 @@ paths:
                           $ref: "#/components/schemas/TaskResponseDto"
         "401":
           description: Unauthorized
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
     post:
       summary: Create a new task
@@ -6455,6 +6508,12 @@ paths:
           description: Bad Request - Invalid input provided.
         "401":
           description: Unauthorized
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch:
     parameters:
@@ -6566,10 +6625,10 @@ paths:
           schema:
             type: array
             items:
-              $ref: "#/components/schemas/WorkStatus"
+              $ref: "#/components/schemas/WorkItemStatus"
           style: form
-          explode: false
-          description: Optional status set applied before counting and pagination.
+          explode: true
+          description: Optional status set applied before counting and pagination. Each repeated value is one exact status name.
         - name: sortBy
           in: query
           required: false
@@ -6693,6 +6752,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
     patch:
       summary: Update a task
       description: |
@@ -6741,6 +6806,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
     delete:
       summary: Archive a task
@@ -6763,6 +6834,12 @@ paths:
           description: Unauthorized
         "404":
           description: Task not found
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{workItemId}/graph:
     parameters:
@@ -7278,6 +7355,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{taskId}/dependencies:
     parameters:
@@ -7669,6 +7752,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/work-item-types/status-authoring:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Suggest and resolve work-item statuses
+      operationId: resolveWorkItemTypeStatuses
+      tags: [WorkItemTypes]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemStatusAuthoringRequest"
+      responses:
+        "200":
+          description: Suggestions and either a resolved definition or a clarification.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkItemStatusAuthoringResponse"
+        "400":
+          description: Invalid status names or finished selection.
+        "401":
+          description: Unauthorized.
 
   /organizations/{organizationId}/projects/{projectId}/work-item-types/{typeKey}/guidance:
     parameters:
@@ -8366,17 +8486,16 @@ paths:
                       data:
                         $ref: "#/components/schemas/ProjectResponseDto"
         "403":
-          description: Insufficient permissions
+          description: >-
+            Insufficient permissions (ApiErrorResponse), or the organization
+            project limit is reached (ProjectLimitReachedDto with code
+            ORGANIZATION_PROJECT_LIMIT_REACHED).
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-        "409":
-          description: Organization project limit reached
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProjectLimitReachedDto"
+                oneOf:
+                  - $ref: "#/components/schemas/ApiErrorResponse"
+                  - $ref: "#/components/schemas/ProjectLimitReachedDto"
 
   /organizations/{organizationId}/projects/{projectId}:
     parameters:
@@ -10202,6 +10321,23 @@ paths:
                     properties:
                       data:
                         nullable: true
+        "409":
+          description: >-
+            The same operation identity is still being admitted
+            (`AGENT_OPERATION_IN_PROGRESS`). Retry with the same operation identity and input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The operation fingerprint does not match the message submission
+            (`AGENT_OPERATION_FINGERPRINT_INVALID`), or the operation identity was already bound to
+            different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/messages/search:
     parameters:
@@ -11596,6 +11732,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: >-
+            The same operation identity is still being admitted
+            (`AGENT_OPERATION_IN_PROGRESS`). Retry with the same operation identity and input.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The request does not match what it addresses: the operation
+            fingerprint is invalid (`AGENT_OPERATION_FINGERPRINT_INVALID`) or
+            the Agent Session in the body does not match the path
+            (`WORKFLOW_ANSWER_SESSION_MISMATCH`), or the operation identity was already bound to
+            different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/conversations/{conversationId}/retry-open-trigger:
     parameters:
@@ -11713,12 +11868,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "403":
-          description: Command or bounded grant is invalid
+          description: Command or bounded grant is invalid, or the authenticated, addressed and delivery machines differ (TASK_MONITOR_MACHINE_MISMATCH)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "409":
-          description: Operation or binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+        "422":
+          description: Request does not match the bound task monitor, command or session; the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
@@ -11802,12 +11964,19 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "403":
-          description: Command or bounded grant is invalid
+          description: Command or bounded grant is invalid, or the authenticated, addressed and delivery machines differ (TASK_MONITOR_MACHINE_MISMATCH)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
         "409":
-          description: Operation, session, or conversation binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiErrorResponse" }
+        "422":
+          description: Request does not match the bound operation, session or conversation; the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiErrorResponse" }
@@ -11862,7 +12031,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Operation identity, fingerprint, session, conversation, or workflow binding mismatch
+          description: >-
+            The operation is already being admitted (`AGENT_OPERATION_IN_PROGRESS`) or conflicts with
+            the state of a recorded operation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: Operation fingerprint, session, conversation or workflow binding does not match the request, or the operation identity was already bound to different work (`AGENT_OPERATION_FINGERPRINT_MISMATCH`)
           content:
             application/json:
               schema:
@@ -11921,8 +12098,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Parent Agent Session not found (AGENT_SESSION_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Decision identity or persisted Session Monitor binding mismatch
+          description: Decision identity conflicts with a recorded decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: Decision does not match the persisted Session Monitor binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (SESSION_MONITOR_DECISION_RESULT_INVALID)
           content:
             application/json:
               schema:
@@ -11979,17 +12174,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
-        "409":
-          description: Agent Session, conversation, workflow node, trigger, or action mismatch
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
         "422":
           description: >-
-            The payload does not satisfy the selected action's schema. Nothing
-            is recorded and the pending trigger stays open for a corrected
-            resubmission.
+            The payload does not satisfy the selected action's schema, or the
+            Agent Session, conversation, workflow node, trigger or action does
+            not match the request (`EXTERNAL_AGENT_COMPLETION_BINDING_MISMATCH`).
+            Nothing is recorded and the pending trigger stays open for a
+            corrected resubmission.
           content:
             application/json:
               schema:
@@ -13229,6 +13420,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "500":
+          description: Server state is inconsistent (WORK_ITEM_CONFIG_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/work-items/{entityType}/{entityId}/refinement/advance:
     parameters:
@@ -13391,7 +13588,7 @@ paths:
                                 type: string
                                 format: date-time
                               finalStatus:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
         "400":
           description: Bad request - not at acceptanceCriteria level
           content:
@@ -13475,7 +13672,7 @@ paths:
                                 enum: [description, details, acceptanceCriteria]
                                 nullable: true
                               status:
-                                $ref: "#/components/schemas/WorkStatus"
+                                $ref: "#/components/schemas/WorkItemStatus"
                               progress:
                                 type: object
                                 properties:
@@ -14762,11 +14959,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/presentation-refresh:
     parameters:
@@ -14824,11 +15027,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/note:
     parameters:
@@ -14886,11 +15095,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/pin:
     parameters:
@@ -14948,11 +15163,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/move:
     parameters:
@@ -15010,11 +15231,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/remove:
     parameters:
@@ -15072,11 +15299,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Collection absent or idempotency key reused with different input
+          description: Collection absent
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/remove:
     parameters:
@@ -15121,11 +15354,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Collection absent or idempotency key reused with different input
+          description: Collection absent
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/promotions:
     parameters:
@@ -15170,11 +15409,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-filter:
     parameters:
@@ -15230,11 +15475,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/items/{entityType}/{entityId}/goal-disclosure:
     parameters:
@@ -15290,11 +15541,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups:
     parameters:
@@ -15339,11 +15596,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/rename:
     parameters:
@@ -15395,11 +15658,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/delete:
     parameters:
@@ -15451,11 +15720,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/disclosure:
     parameters:
@@ -15507,11 +15782,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/move:
     parameters:
@@ -15563,11 +15844,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/assign:
     parameters:
@@ -15619,11 +15906,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/ungroup:
     parameters:
@@ -15668,11 +15961,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/groups/{groupId}/members/{entityType}/{entityId}/move:
     parameters:
@@ -15737,11 +16036,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/migration:
     parameters:
@@ -15786,11 +16091,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/reset:
     parameters:
@@ -15835,11 +16146,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Stale premise, collection state conflict, or idempotency key reuse
+          description: Stale premise or collection state conflict
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenItemsConflictError"
+        "422":
+          description: The idempotency key was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenItemsIdempotencyKeyReusedError"
 
   /organizations/{organizationId}/projects/{projectId}/open-items/triage-session:
     parameters:
@@ -19883,7 +20200,11 @@ paths:
                   $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
                 }
         "403": { description: Source or target is not authorized }
-        "409": { description: Stale revision or conflicting identity }
+        "409": { description: Stale revision }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/subagent-interactions:
     post:
@@ -19930,7 +20251,11 @@ paths:
                   $ref: "#/components/schemas/AgentInteractionAdmissionResponse",
                 }
         "403": { description: User does not own the source Agent Session }
-        "409": { description: Stale revision or conflicting identity }
+        "409": { description: Stale revision }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/session-message-interactions:
     post:
@@ -19977,7 +20302,11 @@ paths:
                 }
         "400": { description: Invalid command or target mention }
         "403": { description: Source or target is not authorized }
-        "409": { description: Conflicting identity }
+        "409": { description: Conflicting interaction state }
+        "422":
+          {
+            description: The idempotency identity was already used by a different interaction (`IDEMPOTENCY_KEY_REUSED`),
+          }
 
   /session-message-targets:
     get:
@@ -20873,6 +21202,12 @@ paths:
           description: Unauthorized
         "404":
           description: Owning work item not found.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}:
     parameters:
@@ -21074,6 +21409,12 @@ paths:
           description: Unauthorized
         "409":
           description: Conflict — agent session already has a conversation.
+        "500":
+          description: Server state is inconsistent (AGENT_SESSION_STATE_INCONSISTENT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
 
   /organizations/{organizationId}/projects/{projectId}/machines/{machineId}/skills:
     parameters:
@@ -22157,13 +22498,24 @@ paths:
                   - $ref: "#/components/schemas/CreateReportValidationError"
                   - $ref: "#/components/schemas/ApiErrorResponse"
         "409":
-          description: Attempt already persisted, or another submission conflict.
+          description: >-
+            The report attempt was already persisted. The recorded result is returned in the body
+            (`PROJECT_REPORT_ATTEMPT_COMPLETED`); this is a replay of the same submission, not key
+            reuse with different input. Also returned for another submission conflict.
           content:
             application/json:
               schema:
                 anyOf:
                   - $ref: "#/components/schemas/CreateReportCompletedAttemptError"
                   - $ref: "#/components/schemas/ApiErrorResponse"
+        "422":
+          description: >-
+            The attempt was already persisted from different input, or the report differs from the
+            accepted request (`IDEMPOTENCY_KEY_REUSED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "401":
           description: Unauthorized
 
@@ -26113,6 +26465,8 @@ components:
       $ref: "../schemas/open-items.yaml#/OpenItemsValidationError"
     OpenItemsConflictError:
       $ref: "../schemas/open-items.yaml#/OpenItemsConflictError"
+    OpenItemsIdempotencyKeyReusedError:
+      $ref: "../schemas/open-items.yaml#/OpenItemsIdempotencyKeyReusedError"
     OpenItemGoalTrackedWorkFilter:
       $ref: "../schemas/open-items.yaml#/OpenItemGoalTrackedWorkFilter"
     SetOpenItemGoalFilterRequest:
@@ -30392,6 +30746,8 @@ components:
     # Schema references for initiatives
     WorkStatus:
       $ref: "../schemas/common.yaml#/WorkStatus"
+    WorkItemStatus:
+      $ref: "../schemas/common.yaml#/WorkItemStatus"
     InitiativeResponseDto:
       $ref: "../schemas/initiatives.yaml#/InitiativeResponseDto"
     CreateInitiativeDto:
@@ -30525,6 +30881,10 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceBatchDto"
     WorkItemTypeDefinitionDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    WorkItemStatusAuthoringRequest:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringRequest"
+    WorkItemStatusAuthoringResponse:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringResponse"
     WorkItemTypeSectionDefinition:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeSectionDefinition"
     WorkItemHtmlCssSectionContent:
@@ -30579,6 +30939,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeWritingStandards"
     WorkItemTypeCapabilities:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeCapabilities"
+    WorkItemTypeStatus:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeStatus"
+    WorkItemStatusMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaning"
+    WorkItemStatusCompletionBehavior:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
     WorkItemTypeGraphCapability:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGraphCapability"
     WorkItemTypeGraphReadExpansion:

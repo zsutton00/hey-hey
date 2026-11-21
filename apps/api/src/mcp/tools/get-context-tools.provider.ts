@@ -1,5 +1,6 @@
 import { WorkItemTypeRegistryService } from '../../services/tasks/work-item-type-registry.service';
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { productDevelopmentToolMeta } from '../product-development-meta';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
@@ -750,6 +751,7 @@ export class GetContextToolsProvider {
       'SIZE_BUDGET } — re-request exactly those seeds.',
     parameters: getContextParameters,
     outputSchema: getContextResultOutput,
+    _meta: productDevelopmentToolMeta(),
   })
   async getContext(
     params: z.infer<typeof getContextParameters>,

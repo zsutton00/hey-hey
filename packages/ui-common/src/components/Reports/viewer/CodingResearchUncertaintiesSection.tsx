@@ -1,17 +1,58 @@
 import { Stack } from "@mui/material";
 import React from "react";
-import type { CodingResearchUncertainty } from "../../../api";
-import { UncertaintyItem } from "../../Uncertainties";
+import type { CodingResearchUncertainty, ReportDto } from "../../../api";
+import {
+  getCodingResearchFocalNode,
+  type CodingResearchFrameModel,
+} from "./codingResearchReportModel";
+import { useModal } from "../../../contexts/ModalContext";
+import type { EntityType, TargetEntityType } from "../../../api";
+import {
+  UncertaintyItem,
+  buildUncertaintyDiscussContext,
+} from "../../Uncertainties";
 import { ConversationCardRelatedRows } from "../../Conversation/Card";
+
+/** The entity a Discuss launch from this report attaches to: the report's focal entity. */
+export interface CodingResearchUncertaintyDiscussScope {
+  organizationId: string;
+  projectId: string;
+  entityId: string;
+  entityType: EntityType | TargetEntityType;
+  entityTitle?: string;
+}
+
+export const getCodingResearchUncertaintyDiscussScope = (
+  report: ReportDto | undefined,
+  frameModel: CodingResearchFrameModel,
+): CodingResearchUncertaintyDiscussScope | undefined => {
+  const focalNode = getCodingResearchFocalNode(frameModel);
+
+  if (!report?.projectId || !focalNode) {
+    return undefined;
+  }
+
+  return {
+    organizationId: report.organizationId,
+    projectId: report.projectId,
+    entityId: focalNode.id,
+    entityType: focalNode.type,
+    entityTitle: focalNode.title,
+  };
+};
 
 export interface CodingResearchUncertaintiesSectionProps {
   uncertainties: CodingResearchUncertainty[];
   reportTestId: string;
+  /** Omit when the report has no focal entity or is display-only. */
+  discussScope?: CodingResearchUncertaintyDiscussScope;
 }
 
 export const CodingResearchUncertaintiesSection: React.FC<
   CodingResearchUncertaintiesSectionProps
-> = ({ uncertainties, reportTestId }) => {
+> = ({ uncertainties, reportTestId, discussScope }) => {
+  const modal = useModal();
+
   if (uncertainties.length === 0) {
     return null;
   }
@@ -41,6 +82,17 @@ export const CodingResearchUncertaintiesSection: React.FC<
                     category={uncertainty.category}
                     statement={uncertainty.statement}
                     showAnswerBand={false}
+                    onDiscuss={
+                      discussScope && modal
+                        ? () =>
+                            modal.openModal({
+                              type: "discuss",
+                              ...discussScope,
+                              contextPreview:
+                                buildUncertaintyDiscussContext(uncertainty),
+                            })
+                        : undefined
+                    }
                   >
                     {uncertainty.references.length > 0 ? (
                       <ConversationCardRelatedRows

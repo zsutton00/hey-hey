@@ -79,7 +79,8 @@ export const projectModeSettingsJsonSchema = {
             "implementation",
             "research",
             "planning",
-            "review"
+            "review",
+            "sync"
           ],
           "default": "implementation"
         }
@@ -221,7 +222,8 @@ export const projectModeSnapshotJsonSchema = {
         "implementation",
         "research",
         "planning",
-        "review"
+        "review",
+        "sync"
       ],
       "default": "implementation"
     },

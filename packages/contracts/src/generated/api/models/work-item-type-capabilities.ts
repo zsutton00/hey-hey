@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemTypeGraphCapability } from './work-item-type-graph-capability.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemTypeMonitorKind } from './work-item-type-monitor-kind.js';
 
 /**
  * Capability flags an item of this type carries — the boolean switches the canonical definitions declare. Product Feature hierarchy participation is platform-owned by the FEATURE type key; structural work-item parentage is declared by WorkItemTypeDefinitionDto.allowedParentTypes, while requiresParent remains the independent mandatory-parent capability. Known keys are named so generated clients can consume them directly; unknown keys are rejected so consumers share one contract vocabulary.
@@ -37,11 +40,11 @@ export interface WorkItemTypeCapabilities {
      */
     'planEligible'?: boolean;
     /**
-     * Whether this type\'s first allowed status is an explicit initial-status policy.
+     * Whether items of this type are eligible for the protected SUPERSEDED status. SUPERSEDED is set only by successor proposal approval, never through the ordinary status list or ordinary status edits.
      * @type {boolean}
      * @memberof WorkItemTypeCapabilities
      */
-    'hasSetInitialStatus'?: boolean;
+    'supportsSupersession'?: boolean;
     /**
      * Whether mentions of this type may render as an inline rich surface instead of a badge.
      * @type {boolean}
@@ -60,4 +63,10 @@ export interface WorkItemTypeCapabilities {
      * @memberof WorkItemTypeCapabilities
      */
     'graph'?: WorkItemTypeGraphCapability;
+    /**
+     * The kinds a monitor of this monitor-role type may run, each identified by a key unique within the type. Each monitor records the key of the kind it runs in its execution definition.
+     * @type {Array<WorkItemTypeMonitorKind>}
+     * @memberof WorkItemTypeCapabilities
+     */
+    'monitorKinds'?: Array<WorkItemTypeMonitorKind>;
 }

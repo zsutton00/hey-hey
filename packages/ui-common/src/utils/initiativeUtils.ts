@@ -1,9 +1,10 @@
-import type { WorkStatus } from "../api";
+import type { TaskResponseDto } from "../api/api";
+
 import { WorkStatus as WorkStatusValues } from "../api";
 
 // Helper function to determine current level from initiative status
 export function getCurrentLevelFromStatus(
-  status: WorkStatus | string,
+  status: TaskResponseDto["status"] | string,
 ): "description" | "details" | "acceptanceCriteria" {
   switch (status) {
     // Legacy workflow statuses - may need backend updates

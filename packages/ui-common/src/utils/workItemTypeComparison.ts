@@ -207,15 +207,15 @@ function lifecycleEntries(
     entry(
       "allowedStatuses",
       label("allowedStatuses"),
-      setText(p.allowedStatuses),
-      setText(c.allowedStatuses),
+      setText(p.statuses.map(({ name }) => name)),
+      setText(c.statuses.map(({ name }) => name)),
     ),
   ];
   const statusOrder = entry(
     "allowedStatuses.order",
     "Status order",
-    orderedText(p.allowedStatuses),
-    orderedText(c.allowedStatuses),
+    orderedText(p.statuses.map(({ name }) => name)),
+    orderedText(c.statuses.map(({ name }) => name)),
   );
   // Order is only worth a separate entry when the set of statuses is the same.
   if (entries[0].status === "unchanged") {

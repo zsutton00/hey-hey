@@ -1,3 +1,5 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
+import { Logger } from '@nestjs/common';
 import { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemType } from '@prisma/client';
 import { InMemoryMessageBus } from '../../../core/events/in-memory-message-bus.service';
@@ -24,7 +26,6 @@ const PROJECT_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const LEAN_AXES = {
   initialStatusPolicy: {
     initialStatus: WorkStatus.Backlog,
-    hasSetInitialStatus: false,
   },
   sections: [],
   requiredScalars: [],
@@ -77,7 +78,7 @@ function buildRow(o: RowOverrides): WorkItemType {
         : o.sectionDefinitions,
     allowedParentTypes: ['STANDARD'],
     edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: [] }],
-    allowedStatuses: [WorkStatus.Active],
+    statuses: legacyStatuses([WorkStatus.Active]),
     ...LEAN_AXES,
     // The summary projects these closed-enum scalar axes from the lean columns.
     ...(o.requiredScalars === undefined
@@ -262,7 +263,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
   const obsoleteTaskMonitorCapabilities = {
     requiresParent: true,
     planEligible: false,
-    hasSetInitialStatus: false,
     rendersInline: false,
     canOwnReports: false,
     canOwnAgentSessions: false,
@@ -270,29 +270,40 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
     participatesInFeatureHierarchy: false,
   };
 
-  it.each([
-    ['project-owned row', false],
-    ['canonical template', true],
-  ])(
-    'fails warmup for obsolete capabilities in a %s',
-    async (_label, template) => {
-      const taskMonitor = buildRow({
-        typeKey: 'TASK_MONITOR',
-        projectId: template ? null : PROJECT_A,
-        isSystem: template,
-        capabilities: obsoleteTaskMonitorCapabilities,
-      });
-      const service = makeService(
-        template ? [] : [taskMonitor],
-        template ? [taskMonitor] : [],
-        [PROJECT_A],
-      );
+  it('fails warmup for obsolete capabilities in a canonical template', async () => {
+    const taskMonitor = buildRow({
+      typeKey: 'TASK_MONITOR',
+      projectId: null,
+      isSystem: true,
+      capabilities: obsoleteTaskMonitorCapabilities,
+    });
+    const service = makeService([], [taskMonitor], [PROJECT_A]);
 
-      await expect(service.refresh()).rejects.toThrow(
-        /Unrecognized key\(s\) in object/,
-      );
-    },
-  );
+    await expect(service.refresh()).rejects.toThrow(
+      /Unrecognized key\(s\) in object/,
+    );
+  });
+
+  it('skips only a project-owned row with obsolete capabilities and logs why', async () => {
+    const errorLog = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const taskMonitor = buildRow({
+      typeKey: 'TASK_MONITOR',
+      projectId: PROJECT_A,
+      isSystem: false,
+      capabilities: obsoleteTaskMonitorCapabilities,
+    });
+    const service = makeService([taskMonitor], [], [PROJECT_A]);
+
+    await expect(service.refresh()).resolves.toBeUndefined();
+
+    expect(service.getDefinition(PROJECT_A, 'TASK_MONITOR')).toBeUndefined();
+    expect(String(errorLog.mock.calls[0]?.[0])).toMatch(
+      /'TASK_MONITOR'.*Unrecognized key\(s\) in object/,
+    );
+    errorLog.mockRestore();
+  });
 
   it('serves a corrected Task Monitor definition through the public list snapshot', async () => {
     const taskMonitor = buildRow({
@@ -302,7 +313,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
       capabilities: {
         requiresParent: true,
         planEligible: false,
-        hasSetInitialStatus: false,
         rendersInline: false,
       },
     });
@@ -317,7 +327,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
           capabilities: {
             requiresParent: true,
             planEligible: false,
-            hasSetInitialStatus: false,
             rendersInline: false,
           },
         }),
@@ -436,7 +445,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -463,7 +471,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       }),
@@ -496,14 +503,13 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: ['tag'],
         forbiddenScalars: ['dueDate'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['FEATURE'],
         edgeTargets: [{ edgeType: 'DEPENDS_ON', targetTypeKeys: ['CONTRACT'] }],
         writingStandards: providerOwnedStandards,
         capabilities: {
           requiresParent: true,
           planEligible: false,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },
@@ -550,7 +556,7 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         ],
         requiredScalars: [],
         forbiddenScalars: ['tag'],
-        allowedStatuses: [WorkStatus.Active],
+        statuses: legacyStatuses([WorkStatus.Active]),
         allowedParentTypes: ['STANDARD'],
         edgeTargets: [{ edgeType: 'RELATED_TO', targetTypeKeys: ['FEATURE'] }],
         allowedParentEntityTypes: [],
@@ -567,7 +573,6 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         capabilities: {
           requiresParent: false,
           planEligible: true,
-          hasSetInitialStatus: false,
           rendersInline: false,
         },
       },
@@ -684,7 +689,10 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
     expect(service.getDefinition(PROJECT_B, 'RETIRED')).toBeUndefined();
   });
 
-  it('rejects rows whose rich definition columns were never backfilled', async () => {
+  it('skips a project row whose rich definition columns were never backfilled and logs why', async () => {
+    const errorLog = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
     const service = makeService([
       buildRow({
         typeKey: 'HALF',
@@ -693,10 +701,14 @@ describe('WorkItemTypeRegistryService — definition reads', () => {
         name: null,
       }),
     ]);
-    await expect(service.refresh()).rejects.toThrow(
-      "Cannot load work-item type 'HALF'",
-    );
+
+    await expect(service.refresh()).resolves.toBeUndefined();
+
     expect(service.getDefinitions(PROJECT_A)).toEqual([]);
+    expect(String(errorLog.mock.calls[0]?.[0])).toMatch(
+      /'HALF'.*not a complete definition/,
+    );
+    errorLog.mockRestore();
   });
 
   it('preserves JSON section metadata on definition reads and rules', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { currentJudgmentRequest } from './current-judgment-request';
 import { assign, setup } from 'xstate';
 import { ReportType, TaskMonitorReasoningEffort, WorkStatus } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorJudgmentResponse } from '@hey-hey/contracts/agent-bridge';
@@ -228,6 +229,7 @@ const launchDeclarationSchema = z
     executionOrder: z.array(z.string()),
     dependsOnTaskIds: z.array(z.string()),
     terminalPolicy: terminalPolicySchema,
+    kindKey: z.string().min(1).nullable().optional(),
   })
   .strict() satisfies z.ZodType<TaskMonitorLaunchDeclaration>;
 
@@ -254,6 +256,7 @@ const workStateSchema = z.enum([
   'MONITOR_LOAD_FAILED',
   'LAUNCH_JUDGMENT',
   'OUTCOME_JUDGMENT',
+  'SUPERVISION_FAILED',
   'RETRYABLE_LAUNCH',
   'ADMITTING_LAUNCH_RETRY',
 ]);
@@ -534,6 +537,7 @@ const taskMonitorContextSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string().nullable(),
     projectId: z.string().nullable(),
+    kindKey: z.string().min(1).nullable().optional(),
     authorityCommandId: z.string().nullable().optional(),
     coordinationCause: z
       .enum(['START', 'RESUME', 'CONTINUE', 'JUDGMENT_RESOLVED'])
@@ -558,6 +562,11 @@ const taskMonitorContextSchema = z
     reviewRequest: reviewRequestSchema.nullable().default(null),
     input: conversationInputSchema,
     failureReason: z.string().nullable(),
+    pendingJudgment: z
+      .object({ request: z.string(), requestMessageId: z.string().nullable() })
+      .strict()
+      .nullable()
+      .optional(),
     coordinatorRecovery: z
       .lazy(() => coordinatorRecoverySchema)
       .nullable()
@@ -610,6 +619,7 @@ const coordinateEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     executionPlan: z.array(executionNodeSchema),
     cursor: z.number().int().nonnegative(),
     cause: z.enum(['START', 'RESUME', 'CONTINUE', 'JUDGMENT_RESOLVED']).optional(),
@@ -643,6 +653,7 @@ const validateEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     authorityCommandId: z.string().optional(),
     requestedLaunchConfig: launchConfigSchema,
     executionPlan: z.array(executionNodeSchema),
@@ -659,6 +670,7 @@ const reconcileEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     taskId: z.string(),
     cursor: z.number().int().nonnegative(),
     operation: z.enum([
@@ -808,6 +820,7 @@ const settledRunEvaluationEffectSchema = z
     taskMonitorId: z.string(),
     organizationId: z.string(),
     projectId: z.string(),
+    kindKey: z.string().min(1).nullable().default(null),
     authorityCommandId: z.string().optional(),
     runId: z.string(),
     agentSessionId: z.string(),
@@ -896,6 +909,7 @@ const loadedOutcomeSchema = z
     cursor: z.number().int().nonnegative(),
     worktree: worktreeSchema.nullable(),
     terminalPolicy: terminalPolicySchema,
+    kindKey: z.string().min(1).nullable().default(null),
   })
   .strict();
 const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
@@ -1271,11 +1285,21 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
-      type: z.enum(['LAUNCH_JUDGMENT_REQUIRED', 'OUTCOME_JUDGMENT_REQUIRED', 'SUPERVISION_HALTED']),
+      type: z.enum(['LAUNCH_JUDGMENT_REQUIRED', 'SUPERVISION_FAILED', 'SUPERVISION_HALTED']),
       taskMonitorId: z.string(),
       runId: z.string(),
       agentSessionId: z.string(),
       reason: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('OUTCOME_JUDGMENT_REQUIRED'),
+      taskMonitorId: z.string(),
+      runId: z.string(),
+      agentSessionId: z.string(),
+      reason: z.string(),
+      requestMessageId: z.string().optional(),
     })
     .strict(),
   z
@@ -1506,7 +1530,11 @@ const taskMonitorMachine = setup({
             }
           : context.coordinatorRecovery,
     }),
-    clearCoordinatorRecovery: assign({ coordinatorRecovery: null, failureReason: null }),
+    clearCoordinatorRecovery: assign({
+      coordinatorRecovery: null,
+      failureReason: null,
+      pendingJudgment: null,
+    }),
     clearPendingCorrection: assign({
       coordinatorRecovery: ({ context }) =>
         context.coordinatorRecovery
@@ -1534,6 +1562,8 @@ const taskMonitorMachine = setup({
           deliveryFailure: null,
         };
       },
+      // A recovery request replaces any earlier question the user was asked.
+      pendingJudgment: null,
       failureReason: ({ context, event }) =>
         event.type === 'COORDINATOR_DECISION_INVALID'
           ? event.failure.message
@@ -1568,7 +1598,22 @@ const taskMonitorMachine = setup({
       void arguments_;
       void params;
     },
+    /**
+     * Resume starts a fresh assessment, so the correction counter restarts. A
+     * request already posted stays the one the user is asked to answer until the
+     * reassessment resolves or replaces it; it moves to the ordinary pending request
+     * so its identity, display and coordinator input survive.
+     */
     admitResumeCoordination: assign({
+      pendingJudgment: ({ context }) => {
+        const current = currentJudgmentRequest(context);
+
+        return current?.posted
+          ? { request: current.request, requestMessageId: current.requestMessageId }
+          : null;
+      },
+      failureReason: ({ context }) =>
+        currentJudgmentRequest(context)?.posted ? null : context.failureReason,
       coordinatorRecovery: null,
       coordinationCause: 'RESUME',
       coordinationCorrelationId: ({ context, event }) =>
@@ -1690,6 +1735,8 @@ const taskMonitorMachine = setup({
         event.type === 'MONITOR_LOADED' ? event.worktree : context.worktree,
       terminalPolicy: ({ context, event }) =>
         event.type === 'MONITOR_LOADED' ? event.terminalPolicy : context.terminalPolicy,
+      kindKey: ({ context, event }) =>
+        event.type === 'MONITOR_LOADED' ? event.kindKey : (context.kindKey ?? null),
       failureReason: null,
     }),
     storeSelectedWork: assign({
@@ -1704,6 +1751,8 @@ const taskMonitorMachine = setup({
       retryableLaunch: null,
       settledRun: null,
       failureReason: null,
+      coordinatorRecovery: null,
+      pendingJudgment: null,
     }),
     storeCursor: assign({
       cursor: ({ context, event }) =>
@@ -1711,11 +1760,26 @@ const taskMonitorMachine = setup({
       selectedTaskId: null,
       launch: null,
       failureReason: null,
+      coordinatorRecovery: null,
+      pendingJudgment: null,
     }),
     storeValidatedLaunch: assign({
       launch: ({ context, event }) =>
         event.type === 'LAUNCH_VALIDATED' ? event.launch : context.launch,
       failureReason: null,
+    }),
+    storePersistedLaunch: assign({
+      executionPlan: ({ context, event }) => {
+        if (event.type !== 'TASK_MONITOR_LAUNCH_PERSISTED') {
+          return context.executionPlan;
+        }
+
+        return context.executionPlan.map((entry) =>
+          entry.taskId === event.taskId
+            ? { ...entry, agentSessionId: event.agentSessionId }
+            : entry,
+        );
+      },
     }),
     storeAgentSession: assign({
       agentSessionId: ({ context, event }) =>
@@ -1828,6 +1892,7 @@ const taskMonitorMachine = setup({
     }),
     storeSettledRun: assign({
       coordinatorRecovery: null,
+      pendingJudgment: null,
       settledRun: ({ context, event }) =>
         event.type === 'RUN_SETTLED'
           ? {
@@ -1884,6 +1949,7 @@ const taskMonitorMachine = setup({
       settledRun: null,
       reviewRequest: null,
       failureReason: null,
+      pendingJudgment: null,
       coordinationCause: null,
       coordinationCorrelationId: null,
     }),
@@ -1898,12 +1964,22 @@ const taskMonitorMachine = setup({
       settledRun: null,
       reviewRequest: null,
       failureReason: null,
+      pendingJudgment: null,
       coordinationCause: null,
       coordinationCorrelationId: null,
     }),
     storeGuidance: assign({
       userGuidance: ({ context, event }) =>
         event.type === 'GUIDANCE_CHANGED' ? event.guidance : context.userGuidance,
+    }),
+    /** A valid request supersedes any open coordinator recovery; its own message is the one answered. */
+    storePendingJudgment: assign({
+      pendingJudgment: ({ context, event }) =>
+        event.type === 'OUTCOME_JUDGMENT_REQUIRED'
+          ? { request: event.reason, requestMessageId: event.requestMessageId ?? null }
+          : (context.pendingJudgment ?? null),
+      coordinatorRecovery: null,
+      failureReason: null,
     }),
     storeFailure: assign({
       failureReason: ({ context, event }) =>
@@ -1916,6 +1992,7 @@ const taskMonitorMachine = setup({
     taskMonitorId: input.instanceId,
     organizationId: null,
     projectId: null,
+    kindKey: null,
     authorityCommandId: null,
     requestedLaunchConfig: null,
     executionPlan: [],
@@ -2301,13 +2378,145 @@ export type TaskMonitorMachineRegistry = MachineRegistry<
   VerifiedTaskMonitorInput
 >;
 
+/** Status of the latest settled supervision effect that carried this judgment reason. */
+const settledJudgmentStatus = (
+  effects: PersistedTaskMonitorValue,
+  reason: string,
+): string | null => {
+  if (!Array.isArray(effects)) return null;
+  for (const committed of [...effects].reverse()) {
+    if (!isPersistedObject(committed)) continue;
+    const execution = committed['execution'];
+    if (!isPersistedObject(execution) || execution['status'] !== 'settled') continue;
+    const settlement = execution['settlement'];
+    if (!isPersistedObject(settlement)) continue;
+    const outcome = settlement['outcome'];
+    if (
+      isPersistedObject(outcome) &&
+      outcome['type'] === 'OUTCOME_JUDGMENT_REQUIRED' &&
+      outcome['reason'] === reason
+    ) {
+      const status = settlement['status'];
+      return typeof status === 'string' ? status : null;
+    }
+  }
+  return null;
+};
+
+/**
+ * Before pending judgment had its own state, a posted coordinator request and an
+ * operational supervision failure shared one outcome and one parked state, with the
+ * text in failureReason. The settlement that carried the outcome tells them apart: a
+ * request is a succeeded settlement, a failure is a failed, cancelled or uncertain
+ * one.
+ */
+const isLegacyFailureSettlement = (status: unknown): boolean =>
+  typeof status === 'string' && status !== 'succeeded';
+
+/**
+ * Rewrites every stored settlement that was a failure into the typed failure
+ * outcome, whether or not its outcome was admitted before the upgrade. A settled
+ * effect whose outcome was never admitted is replayed on restart, and the receiving
+ * transition treats OUTCOME_JUDGMENT_REQUIRED as a request that was posted.
+ */
+const migrateLegacyJudgmentSettlements = (effects: PersistedTaskMonitorValue) => {
+  if (!Array.isArray(effects)) return effects;
+
+  return effects.map((committed) => {
+    if (!isPersistedObject(committed)) return committed;
+    const execution = committed['execution'];
+    if (!isPersistedObject(execution) || execution['status'] !== 'settled') return committed;
+    const settlement = execution['settlement'];
+    if (!isPersistedObject(settlement)) return committed;
+    const outcome = settlement['outcome'];
+    if (
+      !isPersistedObject(outcome) ||
+      outcome['type'] !== 'OUTCOME_JUDGMENT_REQUIRED' ||
+      !isLegacyFailureSettlement(settlement['status'])
+    ) {
+      return committed;
+    }
+
+    return {
+      ...committed,
+      execution: {
+        ...execution,
+        settlement: { ...settlement, outcome: { ...outcome, type: 'SUPERVISION_FAILED' } },
+      },
+    };
+  });
+};
+
+/**
+ * Classifies a snapshot already parked in OUTCOME_JUDGMENT from the settlement that
+ * entered it. With no matching settlement the snapshot stays a failure, which never
+ * promotes an unproven cause into a request; an answer to any request already posted
+ * is still admitted because the work state is unchanged.
+ */
+const migrateLegacyJudgmentSnapshot = (
+  value: Record<string, PersistedTaskMonitorValue>,
+): Record<string, PersistedTaskMonitorValue> => {
+  const { state, context, effects } = value;
+  const running = isPersistedObject(state) ? state['RUNNING'] : undefined;
+  if (
+    !isPersistedObject(state) ||
+    !isPersistedObject(running) ||
+    running['work'] !== 'OUTCOME_JUDGMENT' ||
+    !isPersistedObject(context)
+  ) {
+    return value;
+  }
+  const reason = context['failureReason'];
+  if (
+    typeof reason !== 'string' ||
+    context['coordinatorRecovery'] != null ||
+    context['pendingJudgment'] != null
+  ) {
+    return value;
+  }
+  const status = effects === undefined ? null : settledJudgmentStatus(effects, reason);
+  if (status === null) return value;
+  if (!isLegacyFailureSettlement(status)) {
+    return {
+      ...value,
+      context: {
+        ...context,
+        failureReason: null,
+        pendingJudgment: { request: reason, requestMessageId: null },
+      },
+    };
+  }
+
+  return { ...value, state: { ...state, RUNNING: { ...running, work: 'SUPERVISION_FAILED' } } };
+};
+
+const migrateLegacyJudgmentState = (
+  value: PersistedTaskMonitorValue,
+): PersistedTaskMonitorValue => {
+  if (!isPersistedObject(value)) return value;
+  // Classify the snapshot first: it reads the settlements the rewrite then retypes.
+  const snapshot = migrateLegacyJudgmentSnapshot(value);
+  const effects = snapshot['effects'];
+
+  return effects === undefined
+    ? snapshot
+    : { ...snapshot, effects: migrateLegacyJudgmentSettlements(effects) };
+};
+
 const taskMonitorPayloadCompatibility = {
-  currentSchemaVersion: 2,
+  currentSchemaVersion: 3,
+  // Schema 2 snapshots parked as failures may be corrected into pending judgments.
+  revisionAdvancingMigrations: new Set([2]),
   migrations: new Map([
     [
       1,
       (payload: PersistedTaskMonitorValue): PersistedTaskMonitorValue =>
         migrateLegacyPlanGuidanceStepRationale(payload),
+    ],
+    [
+      2,
+      (payload: PersistedTaskMonitorValue): PersistedTaskMonitorValue =>
+        migrateLegacyJudgmentState(payload),
     ],
   ]),
 } as const;

@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import {
   EntityType,
@@ -17,7 +18,7 @@ const summary = (
   options: {
     projectId?: string;
     status?: WorkItemTypeSummaryDto["status"];
-  } = {}
+  } = {},
 ): WorkItemTypeSummaryDto => ({
   id: `${options.projectId ?? SELECTED_PROJECT_ID}:${key}`,
   projectId: options.projectId ?? SELECTED_PROJECT_ID,
@@ -28,13 +29,13 @@ const summary = (
     name,
     role,
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   },
 });
 
 const itemsFor = (
   navigation: ReturnType<typeof buildProjectWorkspaceNavigation>,
-  groupKey: "work" | "knowledge"
+  groupKey: "work" | "knowledge",
 ) => navigation.groups.find(({ key }) => key === groupKey)?.items ?? [];
 
 describe("buildProjectWorkspaceNavigation", () => {
@@ -44,18 +45,18 @@ describe("buildProjectWorkspaceNavigation", () => {
         summary(
           "CUSTOM_DELIVERABLE",
           "Custom Deliverables",
-          WorkItemTypeRole.WorkItem
+          WorkItemTypeRole.WorkItem,
         ),
         summary("BUG", "Bugs", WorkItemTypeRole.WorkItem),
       ],
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
 
     expect(navigation.groups.map(({ key, label }) => ({ key, label }))).toEqual(
       [
         { key: "work", label: "Work" },
         { key: "knowledge", label: "Knowledge" },
-      ]
+      ],
     );
     expect(itemsFor(navigation, "work")).toEqual([
       {
@@ -75,7 +76,7 @@ describe("buildProjectWorkspaceNavigation", () => {
         summary("INITIATIVE", "Initiatives", WorkItemTypeRole.ProjectInfo),
         summary("CONTRACT", "Contracts", WorkItemTypeRole.ProjectInfo),
       ],
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
 
     expect(itemsFor(navigation, "work")).toEqual([
@@ -93,8 +94,9 @@ describe("buildProjectWorkspaceNavigation", () => {
     ]);
     expect(
       itemsFor(navigation, "knowledge").some(
-        (item) => item.kind === "registry-work-item" && item.typeKey === "INITIATIVE"
-      )
+        (item) =>
+          item.kind === "registry-work-item" && item.typeKey === "INITIATIVE",
+      ),
     ).toBe(false);
   });
 
@@ -109,7 +111,7 @@ describe("buildProjectWorkspaceNavigation", () => {
           status: WorkItemTypeLifecycleStatus.Archived,
         }),
       ],
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
 
     expect(itemsFor(navigation, "work")).toEqual([
@@ -132,21 +134,21 @@ describe("buildProjectWorkspaceNavigation", () => {
         summary("TRIGGER", "Trigger", WorkItemTypeRole.Trigger),
         summary("TASK_MONITOR", "Task Monitor", WorkItemTypeRole.Monitor),
       ],
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
     const items = navigation.groups.flatMap(({ items }) => items);
 
     expect(items).not.toContainEqual(
-      expect.objectContaining({ typeKey: "SCHEDULED" })
+      expect.objectContaining({ typeKey: "SCHEDULED" }),
     );
     expect(items).not.toContainEqual(
-      expect.objectContaining({ typeKey: "TRIGGER" })
+      expect.objectContaining({ typeKey: "TRIGGER" }),
     );
     expect(items).not.toContainEqual(
-      expect.objectContaining({ typeKey: "TASK_MONITOR" })
+      expect.objectContaining({ typeKey: "TASK_MONITOR" }),
     );
     expect(items).not.toContainEqual(
-      expect.objectContaining({ entityType: EntityType.Initiative })
+      expect.objectContaining({ entityType: EntityType.Initiative }),
     );
   });
 
@@ -155,13 +157,13 @@ describe("buildProjectWorkspaceNavigation", () => {
       summary(
         "KNOWLEDGE_SECOND",
         "Knowledge Second",
-        WorkItemTypeRole.ProjectInfo
+        WorkItemTypeRole.ProjectInfo,
       ),
       summary("WORK_FIRST", "Work First", WorkItemTypeRole.WorkItem),
       summary(
         "KNOWLEDGE_THIRD",
         "Knowledge Third",
-        WorkItemTypeRole.ProjectInfo
+        WorkItemTypeRole.ProjectInfo,
       ),
       summary("WORK_FOURTH", "Work Fourth", WorkItemTypeRole.WorkItem),
       summary("WRONG_PROJECT", "Wrong Project", WorkItemTypeRole.WorkItem, {
@@ -171,23 +173,23 @@ describe("buildProjectWorkspaceNavigation", () => {
 
     const first = buildProjectWorkspaceNavigation(
       snapshot,
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
     const second = buildProjectWorkspaceNavigation(
       snapshot,
-      SELECTED_PROJECT_ID
+      SELECTED_PROJECT_ID,
     );
 
     expect(first).toEqual(second);
     expect(
       itemsFor(first, "work").map((item) =>
-        item.kind === "registry-work-item" ? item.typeKey : item.entityType
-      )
+        item.kind === "registry-work-item" ? item.typeKey : item.entityType,
+      ),
     ).toEqual(["WORK_FIRST", "WORK_FOURTH"]);
     expect(
       itemsFor(first, "knowledge").map((item) =>
-        item.kind === "registry-work-item" ? item.typeKey : item.entityType
-      )
+        item.kind === "registry-work-item" ? item.typeKey : item.entityType,
+      ),
     ).toEqual([
       "KNOWLEDGE_SECOND",
       "KNOWLEDGE_THIRD",

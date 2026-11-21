@@ -1,5 +1,6 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
@@ -59,6 +60,10 @@ import {
 } from "../../../../api";
 
 // Mock dependencies
+const openModal = vi.hoisted(() => vi.fn());
+vi.mock("../../../../contexts/ModalContext", () => ({
+  useModal: () => ({ openModal }),
+}));
 vi.mock("../ConversationContext", () => ({
   useConversationContext: vi.fn(),
 }));
@@ -369,6 +374,44 @@ describe("ConversationMessage", () => {
     expect(
       screen.queryByTestId("system-message-retry"),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens Discuss scoped to the current agent session, seeded with the statement", async () => {
+    vi.mocked(useConversationContext).mockReturnValue({
+      ...mockConversationContext,
+      agentSessionId: "session-1",
+    });
+    const data: AgentUncertaintySystemMessageData = {
+      type: SystemMessageDataTypeEnum.AgentUncertainty,
+      severity: "low",
+      category: "lack_of_evidence",
+      statement: "Nothing confirms this detail.",
+    };
+    const conversationMessage = createMockConversationMessage({
+      message: { ...createMockConversationMessage().message, data },
+    });
+
+    render(
+      <ThemeProvider theme={createHeyTheme("light")}>
+        <ConversationMessage
+          conversationMessage={conversationMessage}
+          messageIndex={0}
+          totalMessages={1}
+        />
+      </ThemeProvider>,
+    );
+    await userEvent.click(screen.getByTestId("uncertainty-discuss-control"));
+
+    expect(openModal).toHaveBeenCalledWith({
+      type: "discuss",
+      organizationId: mockProject.organizationId,
+      projectId: mockProject.id,
+      entityId: "session-1",
+      entityType: "AGENT_SESSION",
+      contextPreview: expect.stringContaining(
+        "Uncertainty: Nothing confirms this detail.",
+      ),
+    });
   });
 
   it("routes a Task Monitor intervention through its typed renderer", () => {

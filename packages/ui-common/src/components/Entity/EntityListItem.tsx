@@ -28,6 +28,7 @@ import ExpandMore from "@mui/icons-material/ExpandMore";
 import InventoryIcon from "@mui/icons-material/Inventory2";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import React, { useState } from "react";
@@ -77,6 +78,8 @@ export interface EntityListItemProps {
   status?: string;
   leadingContent?: React.ReactNode;
   statusLeadingAdornment?: React.ReactNode;
+  /** The saved status was removed from the item's type and needs replacing. */
+  statusNeedsReplacement?: boolean;
   attentionContent?: React.ReactNode;
   entityKindLabel?: string;
   entityKindIcon?: EntityIconKey;
@@ -384,6 +387,7 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
   status,
   leadingContent,
   statusLeadingAdornment,
+  statusNeedsReplacement = false,
   attentionContent,
   entityKindLabel,
   entityKindIcon,
@@ -616,6 +620,25 @@ export const EntityListItem: React.FC<EntityListItemProps> = ({
                         spacing={1}
                       >
                         {statusLeadingAdornment}
+                        {statusNeedsReplacement && (
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={0.5}
+                            data-testid="entity-list-item-status-warning"
+                          >
+                            <WarningAmberIcon
+                              color="warning"
+                              fontSize="small"
+                            />
+                            <Typography variant="caption" color="warning.main">
+                              {t(
+                                "retainedStatus.needsNewStatus",
+                                "Needs a new status",
+                              )}
+                            </Typography>
+                          </Stack>
+                        )}
                         <Chip
                           label={isCompactStatus ? undefined : status}
                           aria-label={isCompactStatus ? status : undefined}

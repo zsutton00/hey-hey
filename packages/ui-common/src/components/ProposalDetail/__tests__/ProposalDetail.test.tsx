@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -308,7 +309,7 @@ describe("ProposalDetail accept/reject cache invalidation", () => {
         key: "JOB_APPLICATION_RECORD",
         name: "Job application record",
         role: "work-item",
-        allowedStatuses: ["NOT_STARTED"],
+        statuses: legacyStatuses(["NOT_STARTED"]),
         sections: [
           {
             key: "application",
@@ -453,7 +454,7 @@ describe("ProposalDetail ungrouped compatibility", () => {
       name: "Research Finding",
       role: "work-item",
       sections: [{ key: "finding", label: "Finding" }],
-      allowedStatuses: ["BACKLOG"],
+      statuses: legacyStatuses(["BACKLOG"]),
     });
 
     renderWithProviders(

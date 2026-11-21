@@ -9,10 +9,12 @@ export {
 } from './worktree';
 
 export {
+  describeGitFailure,
   getGitDiff,
   getGitChangedFileDetail,
   getGitChangedFilesInventory,
   listGitChangedFilePaths,
   listGitChangedFilePathsExcludingIgnored,
   resolveGitRoot,
+  type GitFailureDetail,
 } from './diff';

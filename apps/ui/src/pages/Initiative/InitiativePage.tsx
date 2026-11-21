@@ -33,9 +33,13 @@ import {
   useInitiatives,
   useProject,
   useWorkItems,
+  useWorkItemTypeByKey,
   usePlatformAdminAccess,
 } from "@hey-hey/ui-common/data";
-import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
+import {
+  contentToSectionInputs,
+  getWorkItemStatusLabel,
+} from "@hey-hey/ui-common/utils";
 import { toOpenApiUserId } from "@hey-hey/ui-common/clients";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import EditIcon from "@mui/icons-material/Edit";
@@ -79,11 +83,7 @@ import {
   PageKind,
 } from "../../utils/breadcrumbs";
 import { tabTransitionVariants } from "../../utils/routeTransitions";
-import {
-  getStatusColor,
-  getStatusLabel,
-  isTaskRefining,
-} from "../../utils/statusUtils";
+import { getStatusColor, isTaskRefining } from "../../utils/statusUtils";
 import { SetReadyActionCapsule } from "./SetReadyActionCapsule";
 import { CreateInitiativePlanActionCapsule } from "./CreateInitiativePlanActionCapsule";
 
@@ -94,7 +94,7 @@ export interface InitiativePageProps {
   preview?: boolean;
 }
 
-const PLAN_CREATION_ELIGIBLE_STATUSES = new Set<WorkStatus>([
+const PLAN_CREATION_ELIGIBLE_STATUSES = new Set<TaskResponseDto["status"]>([
   WorkStatus.Active,
   WorkStatus.Backlog,
 ]);
@@ -168,6 +168,9 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
   } = useInitiative(currentOrgId!, initiativeId!);
 
   // Get remove method for deleting initiatives
+  const { workItemTypeDefinition: initiativeTypeDefinition } =
+    useWorkItemTypeByKey(currentOrgId, projectId, "initiative");
+
   const { remove: removeInitiative } = useInitiatives(
     currentOrgId!,
     projectId!,
@@ -310,7 +313,7 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
   });
 
   const handleStatusChange = useCallback(
-    async (newStatus: WorkStatus) => {
+    async (newStatus: TaskResponseDto["status"]) => {
       if (!initiative?.id) return;
 
       try {
@@ -417,7 +420,7 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
     setIsConfirmDialogOpen(false);
   }, []);
 
-  const getProgressFromStatus = (status: WorkStatus): number => {
+  const getProgressFromStatus = (status: TaskResponseDto["status"]): number => {
     switch (status) {
       case "REFINING_DESCRIPTION":
         return 33;
@@ -703,7 +706,10 @@ export const InitiativePage: React.FC<InitiativePageProps> = ({
                     }}
                   />
                   <Chip
-                    label={getStatusLabel(initiative.status)}
+                    label={getWorkItemStatusLabel(
+                      initiative.status,
+                      initiativeTypeDefinition,
+                    )}
                     size="small"
                     color={getStatusColor(initiative.status)}
                     variant="outlined"

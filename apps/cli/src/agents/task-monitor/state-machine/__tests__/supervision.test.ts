@@ -1,8 +1,25 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { asMessageId } from '../../../../test-utils/contract-ids';
-import { taskMonitorStateStoreCodec } from '../machine';
+import {
+  EffectRunner,
+  MachineRecovery,
+  MachineRegistry,
+  MachineRuntime,
+  MachineStateStore,
+} from '../../../../state-machine';
+import {
+  taskMonitorStateStoreCodec,
+  type TaskMonitorMachineRegistry,
+  type TaskMonitorMachineRuntime,
+  type TaskMonitorStateStore,
+} from '../machine';
 import type { EvaluateTaskMonitorSettledRunEffect } from '../effects';
 import { transition } from 'xstate';
-import { describe, expect, it } from 'vitest';
+import { matchesResolvedCoordinationJudgment } from '../supervision';
+import { taskMonitorStateProjection } from '../../../../server/task-monitor-state-publication';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { TaskMonitorMachineContext } from '../context';
 import { createTaskMonitorDefinition } from '../machine';
@@ -15,6 +32,7 @@ const context: TaskMonitorMachineContext = {
   taskMonitorId: MONITOR_ID,
   organizationId: '40000000-0000-4000-8000-000000000004',
   projectId: '50000000-0000-4000-8000-000000000005',
+  kindKey: 'task',
   authorityCommandId: '90000000-0000-4000-8000-000000000009',
   requestedLaunchConfig: null,
   executionPlan: [],
@@ -113,6 +131,134 @@ describe('Task Monitor settled Run supervision', () => {
     });
   });
 
+  it('records a coordinator judgment request as a pending judgment, never as a failure', () => {
+    const { definition, snapshot } = evaluating();
+    const [waiting] = transition(definition.machine, snapshot, {
+      type: 'OUTCOME_JUDGMENT_REQUIRED',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      reason: 'Ask the user to approve the schema change.',
+    });
+    expect(waiting.context.pendingJudgment).toEqual({
+      request: 'Ask the user to approve the schema change.',
+      requestMessageId: null,
+    });
+    expect(waiting.context.failureReason).toBeNull();
+
+    const [resolved] = transition(definition.machine, waiting, {
+      type: 'JUDGMENT_RESOLVED',
+      taskMonitorId: MONITOR_ID,
+      judgment: {
+        requestMessageId: asMessageId('judgment-request-1'),
+        label: 'Your judgment',
+        conclusion: 'Approved.',
+      },
+    });
+    expect(resolved.context.pendingJudgment).toBeNull();
+  });
+
+  it('records a failed supervision operation as a failure, never as a pending judgment', () => {
+    const { definition, snapshot } = evaluating();
+    const [failed] = transition(definition.machine, snapshot, {
+      type: 'SUPERVISION_FAILED',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      reason: 'Task Monitor coordinator Run could not be started.',
+    });
+
+    expect(failed.value).toEqual({
+      RUNNING: {
+        control: 'ACTIVE',
+        work: 'SUPERVISION_FAILED',
+        intervention: 'CLEAR',
+        input: 'WAITING_FOR_INPUT',
+      },
+    });
+    expect(failed.context.failureReason).toBe('Task Monitor coordinator Run could not be started.');
+    expect(failed.context.pendingJudgment ?? null).toBeNull();
+  });
+
+  it('resumes only for the answer to the request now pending, once', () => {
+    const { definition, snapshot } = evaluating();
+    const ask = (current: typeof snapshot, requestMessageId: string, reason: string) =>
+      transition(definition.machine, current, {
+        type: 'OUTCOME_JUDGMENT_REQUIRED',
+        taskMonitorId: MONITOR_ID,
+        runId: RUN_ID,
+        agentSessionId: SESSION_ID,
+        reason,
+        requestMessageId,
+      })[0];
+    const answer = (current: typeof snapshot, requestMessageId: string) =>
+      transition(definition.machine, current, {
+        type: 'JUDGMENT_RESOLVED',
+        taskMonitorId: MONITOR_ID,
+        judgment: {
+          requestMessageId: asMessageId(requestMessageId),
+          label: 'Your judgment',
+          conclusion: `Conclusion for ${requestMessageId}.`,
+        },
+      });
+    const effectsOf = (actions: Parameters<typeof definition.effectFromAction>[0][]) =>
+      actions.flatMap((action) => definition.effectFromAction(action) ?? []);
+
+    const waitingOnA = ask(snapshot, 'question-A', 'Question A?');
+    const [afterA, resumeA] = answer(waitingOnA, 'question-A');
+    expect(effectsOf(resumeA)).toHaveLength(1);
+
+    const waitingOnB = ask(afterA, 'question-B', 'Question B?');
+    const [stillWaiting, replayed] = answer(waitingOnB, 'question-A');
+    expect(effectsOf(replayed)).toEqual([]);
+    expect(stillWaiting.value).toMatchObject({ RUNNING: { work: 'OUTCOME_JUDGMENT' } });
+    expect(stillWaiting.context.pendingJudgment).toEqual({
+      request: 'Question B?',
+      requestMessageId: 'question-B',
+    });
+
+    const [afterB, resumeB] = answer(stillWaiting, 'question-B');
+    expect(effectsOf(resumeB)).toMatchObject([
+      {
+        type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+        judgment: { requestMessageId: 'question-B', conclusion: 'Conclusion for question-B.' },
+      },
+    ]);
+    const [, resumedAgain] = answer(afterB, 'question-B');
+    expect(effectsOf(resumedAgain)).toEqual([]);
+  });
+
+  it('applies the same request check when the answer resumes coordination', () => {
+    const resolved = (
+      pendingJudgment: { request: string; requestMessageId: string | null } | null,
+      requestMessageId: string,
+    ) =>
+      matchesResolvedCoordinationJudgment({
+        context: {
+          ...context,
+          settledRun: null,
+          coordinationCause: 'JUDGMENT_RESOLVED',
+          activeRunAgentSessionId: SESSION_ID,
+          pendingJudgment,
+        },
+        event: {
+          type: 'JUDGMENT_RESOLVED',
+          taskMonitorId: MONITOR_ID,
+          judgment: {
+            requestMessageId: asMessageId(requestMessageId),
+            label: 'Your judgment',
+            conclusion: 'Answer.',
+          },
+        },
+      });
+    const pending = { request: 'Question B?', requestMessageId: 'question-B' };
+
+    expect(resolved(pending, 'question-B')).toBe(true);
+    expect(resolved(pending, 'question-A')).toBe(false);
+    // A request settled before its message was recorded has no identity to compare.
+    expect(resolved({ ...pending, requestMessageId: null }, 'question-A')).toBe(true);
+  });
+
   it('re-evaluates the settled Run with the resolved judgment', () => {
     const { definition, snapshot } = evaluating();
     const [waiting] = transition(definition.machine, snapshot, {
@@ -151,6 +297,7 @@ describe('Task Monitor settled Run supervision', () => {
         taskMonitorId: MONITOR_ID,
         organizationId: context.organizationId,
         projectId: context.projectId,
+        kindKey: 'task',
         authorityCommandId: context.authorityCommandId,
         runId: RUN_ID,
         agentSessionId: SESSION_ID,
@@ -412,6 +559,7 @@ describe('invalid coordinator recovery', () => {
     const { definition, snapshot } = evaluating();
     const evaluation: EvaluateTaskMonitorSettledRunEffect = {
       type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+      kindKey: 'task',
       taskMonitorId: MONITOR_ID,
       organizationId: context.organizationId!,
       projectId: context.projectId!,
@@ -525,6 +673,85 @@ describe('invalid coordinator recovery', () => {
     expect(success.context.coordinatorRecovery).toBeNull();
     expect(success.context.failureReason).toBeNull();
   });
+  it('keeps an open recovery when a supervision operation fails during a correction', () => {
+    const { definition, snapshot, evaluation } = start();
+    const [retry] = transition(definition.machine, snapshot, {
+      type: 'COORDINATOR_DECISION_INVALID',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      attemptId: 'attempt-0',
+      evaluation,
+      failure,
+    });
+
+    const [parked, actions] = transition(definition.machine, retry, {
+      type: 'SUPERVISION_FAILED',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      reason: 'Task Monitor coordinator Run could not be started.',
+    });
+
+    expect(parked.value).toMatchObject({ RUNNING: { work: 'OUTCOME_JUDGMENT' } });
+    expect(parked.context.coordinatorRecovery).not.toBeNull();
+    expect(parked.context.pendingJudgment ?? null).toBeNull();
+    expect(actions.flatMap((action) => definition.effectFromAction(action) ?? [])).toMatchObject([
+      { type: 'PROJECT_TASK_MONITOR_OUTCOME_JUDGMENT' },
+    ]);
+  });
+  it('treats a valid judgment request after a correction as the question to answer, not a failure', () => {
+    const { definition, snapshot, evaluation } = start();
+    const [retry] = transition(definition.machine, snapshot, {
+      type: 'COORDINATOR_DECISION_INVALID',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      attemptId: 'attempt-0',
+      evaluation,
+      failure,
+    });
+    expect(retry.context.coordinatorRecovery).not.toBeNull();
+
+    const [waiting, requested] = transition(definition.machine, retry, {
+      type: 'OUTCOME_JUDGMENT_REQUIRED',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      reason: 'Approve the schema change?',
+    });
+
+    expect(requested.flatMap((action) => definition.effectFromAction(action) ?? [])).toEqual([]);
+    expect(waiting.context).toMatchObject({
+      coordinatorRecovery: null,
+      failureReason: null,
+      pendingJudgment: { request: 'Approve the schema change?', requestMessageId: null },
+    });
+    const projection = taskMonitorStateProjection({
+      identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
+      revision: 5,
+      state: waiting.value as never,
+      context: waiting.context,
+    });
+    expect(projection.failure).toBeUndefined();
+    expect(projection.pendingJudgment?.request).toBe('Approve the schema change?');
+
+    const [, resumed] = transition(definition.machine, waiting, {
+      type: 'JUDGMENT_RESOLVED',
+      taskMonitorId: MONITOR_ID,
+      judgment: {
+        requestMessageId: asMessageId('coordinator-posted-question'),
+        label: 'Guidance',
+        conclusion: 'Approved.',
+      },
+    });
+    expect(resumed.flatMap((action) => definition.effectFromAction(action) ?? [])).toMatchObject([
+      {
+        type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+        judgment: { requestMessageId: 'coordinator-posted-question' },
+      },
+    ]);
+  });
   it('holds correction while paused and launches nothing after Stop', () => {
     const { definition, snapshot, evaluation } = start();
     const paused = definition.machine.resolveState({
@@ -558,5 +785,286 @@ describe('invalid coordinator recovery', () => {
     expect(stoppedActions.flatMap((action) => definition.effectFromAction(action) ?? [])).toEqual(
       [],
     );
+  });
+});
+
+describe('legacy judgment settlements awaiting admission', () => {
+  const REASON = 'Task Monitor coordinator Run could not be started.';
+  const directories: string[] = [];
+  afterEach(async () => {
+    await Promise.all(
+      directories.splice(0).map((directory) => fs.rm(directory, { recursive: true })),
+    );
+  });
+
+  /** The store as the previous CLI left it: settled, but its outcome never admitted. */
+  const interruptedBeforeAdmission = async (status: 'succeeded' | 'failed' | 'uncertain') => {
+    const { snapshot } = evaluating();
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-legacy-judgment-'));
+    directories.push(directory);
+    const effect: EvaluateTaskMonitorSettledRunEffect = {
+      type: 'EVALUATE_TASK_MONITOR_SETTLED_RUN',
+      kindKey: 'task',
+      taskMonitorId: MONITOR_ID,
+      organizationId: context.organizationId!,
+      projectId: context.projectId!,
+      authorityCommandId: context.authorityCommandId!,
+      ...snapshot.context.settledRun!,
+    };
+    await fs.writeFile(
+      path.join(directory, 'machines.json'),
+      JSON.stringify({
+        schemaVersion: 2,
+        writerApplicationVersion: 'legacy-test',
+        instances: [
+          {
+            identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
+            revision: 1,
+            state: snapshot.value,
+            context: JSON.parse(JSON.stringify(snapshot.context)),
+            acceptedIngress: [],
+            effects: [
+              {
+                effectId: 'effect-1',
+                revision: 1,
+                effect,
+                execution: {
+                  status: 'settled',
+                  settlement: {
+                    status,
+                    outcome: {
+                      type: 'OUTCOME_JUDGMENT_REQUIRED',
+                      taskMonitorId: MONITOR_ID,
+                      runId: RUN_ID,
+                      agentSessionId: SESSION_ID,
+                      reason: REASON,
+                    },
+                  },
+                },
+              },
+            ],
+            payloadSchemaVersion: 2,
+          },
+        ],
+      }),
+      'utf8',
+    );
+    const store: TaskMonitorStateStore = new MachineStateStore(
+      path.join(directory, 'machines.json'),
+      taskMonitorStateStoreCodec,
+    );
+    const runtime: TaskMonitorMachineRuntime = new MachineRuntime(store);
+    const registry: TaskMonitorMachineRegistry = new MachineRegistry(runtime);
+    registry.register(createTaskMonitorDefinition());
+    const runner = new EffectRunner(store, runtime, registry, {});
+    await new MachineRecovery(store, registry, runner).restore();
+    const restored = await store.findByInstanceId(MONITOR_ID);
+    if (!restored) throw new Error('Expected the restored Task Monitor.');
+    return restored.snapshot;
+  };
+
+  it.each(['failed', 'uncertain'] as const)(
+    'replays a %s settlement as a failure, never as a question nobody posted',
+    async (status) => {
+      const restored = await interruptedBeforeAdmission(status);
+
+      expect(restored.state).toMatchObject({ RUNNING: { work: 'SUPERVISION_FAILED' } });
+      expect(restored.context.failureReason).toBe(REASON);
+      expect(restored.context.pendingJudgment ?? null).toBeNull();
+      expect(taskMonitorStateProjection(restored).pendingJudgment).toBeUndefined();
+    },
+  );
+
+  it('replays a succeeded settlement as the question the coordinator posted', async () => {
+    const restored = await interruptedBeforeAdmission('succeeded');
+
+    expect(restored.state).toMatchObject({ RUNNING: { work: 'OUTCOME_JUDGMENT' } });
+    expect(restored.context).toMatchObject({
+      failureReason: null,
+      pendingJudgment: { request: REASON, requestMessageId: null },
+    });
+    expect(taskMonitorStateProjection(restored)).toMatchObject({
+      pendingJudgment: { request: REASON },
+    });
+    expect(taskMonitorStateProjection(restored).failure).toBeUndefined();
+  });
+});
+
+describe('pausing and resuming while a request is open', () => {
+  const failure = { code: 'INVALID_JSON', message: 'Expected one JSON object.', issues: [] };
+  const coordinatingContext = {
+    ...context,
+    settledRun: null,
+    coordinationCorrelationId: 'correlation-1',
+  };
+  const effectsOf = (
+    definition: ReturnType<typeof createTaskMonitorDefinition>,
+    actions: Parameters<ReturnType<typeof createTaskMonitorDefinition>['effectFromAction']>[0][],
+  ) => actions.flatMap((action) => definition.effectFromAction(action) ?? []);
+  const projectionOf = (snapshot: { value: unknown; context: TaskMonitorMachineContext }) =>
+    taskMonitorStateProjection({
+      identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
+      revision: 1,
+      state: snapshot.value as never,
+      context: snapshot.context,
+    });
+
+  /** A monitor assessing its work, as it is when the coordinator answers. */
+  const coordinating = () => {
+    const definition = createTaskMonitorDefinition();
+    const state = definition.machine.resolveState({
+      value: {
+        RUNNING: {
+          control: 'ACTIVE',
+          work: 'COORDINATING',
+          intervention: 'CLEAR',
+          input: 'WAITING_FOR_INPUT',
+        },
+      },
+      context: coordinatingContext,
+    });
+    return { definition, state };
+  };
+
+  type Machine = ReturnType<typeof coordinating>['definition']['machine'];
+  type Snapshot = ReturnType<Machine['resolveState']>;
+  const step = (
+    definition: ReturnType<typeof createTaskMonitorDefinition>,
+    from: Snapshot,
+    event: object,
+  ) => {
+    const [next, actions] = transition(definition.machine, from, event as never);
+    return { next, effects: effectsOf(definition, actions) };
+  };
+  const pauseThenResume = (
+    definition: ReturnType<typeof createTaskMonitorDefinition>,
+    from: Snapshot,
+  ) => {
+    let current = step(definition, from, { type: 'PAUSE', taskMonitorId: MONITOR_ID }).next;
+    current = step(definition, current, {
+      type: 'TASK_MONITOR_CONTROL_STATUS_PROJECTED',
+      taskMonitorId: MONITOR_ID,
+      status: 'ON_HOLD',
+    }).next;
+    const resuming = step(definition, current, { type: 'RESUME', taskMonitorId: MONITOR_ID }).next;
+    const resumed = step(definition, resuming, {
+      type: 'TASK_MONITOR_CONTROL_STATUS_PROJECTED',
+      taskMonitorId: MONITOR_ID,
+      status: 'ACTIVE',
+    });
+    return { resuming, resumed };
+  };
+  /** Runs invalid decisions until the corrections are spent and a recovery request is committed. */
+  const exhaustCorrections = (
+    definition: ReturnType<typeof createTaskMonitorDefinition>,
+    from: Snapshot,
+    firstEvaluation: object,
+  ) => {
+    let current = from;
+    let evaluation = firstEvaluation;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = step(definition, current, {
+        type: 'COORDINATOR_DECISION_INVALID',
+        taskMonitorId: MONITOR_ID,
+        runId: RUN_ID,
+        agentSessionId: SESSION_ID,
+        attemptId: `attempt-${attempt}`,
+        evaluation,
+        failure,
+      });
+      current = result.next;
+      evaluation = result.effects[0] ?? evaluation;
+    }
+    return current;
+  };
+  const answer = (
+    definition: ReturnType<typeof createTaskMonitorDefinition>,
+    from: Snapshot,
+    requestMessageId: string,
+  ) =>
+    step(definition, from, {
+      type: 'JUDGMENT_RESOLVED',
+      taskMonitorId: MONITOR_ID,
+      judgment: {
+        requestMessageId: asMessageId(requestMessageId),
+        label: 'Guidance',
+        conclusion: `Answer to ${requestMessageId}.`,
+      },
+    });
+
+  it('keeps a delivered recovery question, and tells the coordinator about it, across Pause and Resume', () => {
+    const { definition, state } = coordinating();
+    // A first Resume yields the real coordination the coordinator is then asked to answer.
+    const { resumed: assessing } = pauseThenResume(definition, state);
+    const waiting = exhaustCorrections(definition, assessing.next, assessing.effects[0] ?? {});
+    const { next: delivered } = step(definition, waiting, {
+      type: 'OUTCOME_JUDGMENT_PROJECTED',
+      taskMonitorId: MONITOR_ID,
+      requestId: 'attempt-2',
+      messageId: 'recovery-request',
+      conversationId: context.coordinatorConversationId,
+    });
+    const before = projectionOf(delivered);
+    expect(before.pendingJudgment?.request).toContain('INVALID_JSON');
+
+    const { resuming, resumed } = pauseThenResume(definition, delivered);
+
+    // The work region is still waiting while Resume is admitted: the request stays published.
+    expect(resuming.value).toMatchObject({
+      RUNNING: { control: 'RESUMING', work: 'OUTCOME_JUDGMENT' },
+    });
+    const during = projectionOf(resuming);
+    expect(during.pendingJudgment).toEqual(before.pendingJudgment);
+    expect(during.failure).toBeUndefined();
+    // The coordinator reassessing the work is told which question is still open.
+    expect(resumed.effects).toMatchObject([
+      {
+        type: 'COORDINATE_TASK_MONITOR_WORK',
+        cause: 'RESUME',
+        coordination: { pendingJudgmentReason: before.pendingJudgment?.request },
+      },
+    ]);
+    // The preserved question keeps its identity: only its own message answers it.
+    expect(answer(definition, resuming, 'other-message').effects).toEqual([]);
+    expect(answer(definition, resuming, 'recovery-request').effects).toHaveLength(1);
+  });
+
+  it('retires an earlier question when reassessment after Resume needs recovery, and answers the new one', () => {
+    const { definition, state } = coordinating();
+    const asked = step(definition, state, {
+      type: 'OUTCOME_JUDGMENT_REQUIRED',
+      taskMonitorId: MONITOR_ID,
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      reason: 'Question A?',
+      requestMessageId: 'question-A',
+    }).next;
+    expect(projectionOf(asked).pendingJudgment?.request).toBe('Question A?');
+
+    const { resumed } = pauseThenResume(definition, asked);
+    const reassessing = resumed.next;
+    const recovering = exhaustCorrections(definition, reassessing, resumed.effects[0] ?? {});
+
+    // Before the recovery message is posted nothing is shown as a question, and no answer is accepted.
+    const undelivered = projectionOf(recovering);
+    expect(undelivered.pendingJudgment).toBeUndefined();
+    expect(undelivered.failure?.correctiveGuidance).toContain('nothing to answer');
+    expect(answer(definition, recovering, 'question-A').effects).toEqual([]);
+    expect(answer(definition, recovering, 'recovery-request').effects).toEqual([]);
+
+    const { next: delivered } = step(definition, recovering, {
+      type: 'OUTCOME_JUDGMENT_PROJECTED',
+      taskMonitorId: MONITOR_ID,
+      requestId: 'attempt-2',
+      messageId: 'recovery-request',
+      conversationId: context.coordinatorConversationId,
+    });
+
+    // After delivery the displayed question is the one the machine accepts an answer to.
+    expect(projectionOf(delivered).pendingJudgment?.request).toContain('INVALID_JSON');
+    expect(answer(definition, delivered, 'question-A').effects).toEqual([]);
+    expect(answer(definition, delivered, 'recovery-request').effects).toMatchObject([
+      { type: 'COORDINATE_TASK_MONITOR_WORK' },
+    ]);
   });
 });

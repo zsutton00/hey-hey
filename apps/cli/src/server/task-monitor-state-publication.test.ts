@@ -286,23 +286,95 @@ describe('committed Task Monitor state projection', () => {
     });
   });
 
-  it('keeps a coordinator failure visible and never advertises lifecycle actions once ended', () => {
-    const judgment = resolve(
+  it('publishes a pending coordinator judgment as its own outcome, not a failure', () => {
+    const waiting = resolve(
       { control: 'ACTIVE', work: 'OUTCOME_JUDGMENT', intervention: 'CLEAR' },
       {
-        failureReason: 'Bad JSON',
-        coordinatorRecovery: {
-          correctionAttempt: 2,
-          failure: { code: 'INVALID_JSON', message: 'Bad JSON', issues: [] },
-          deliveryFailure: 'Conversation unavailable.',
-        } as never,
+        pendingJudgment: {
+          request: 'Ask the user to approve the schema change.',
+          requestMessageId: 'question-1',
+        },
       },
     );
-    expect(project(judgment).failure).toMatchObject({
-      cause: expect.stringContaining('Conversation unavailable.'),
-      correctiveGuidance: expect.stringContaining('Please provide guidance'),
+    const projection = project(waiting);
+
+    expect(projection.failure).toBeUndefined();
+    expect(projection.pendingJudgment).toEqual({
+      request: 'Ask the user to approve the schema change.',
+      guidance: expect.stringContaining('Reply'),
+    });
+  });
+
+  it('publishes a failed supervision operation as a failure with no pending judgment', () => {
+    const failed = resolve(
+      { control: 'ACTIVE', work: 'SUPERVISION_FAILED', intervention: 'CLEAR' },
+      { failureReason: 'Task Monitor coordinator Run could not be started.' },
+    );
+    const projection = project(failed);
+
+    expect(projection.pendingJudgment).toBeUndefined();
+    expect(projection.failure).toMatchObject({
+      code: 'OPERATION_FAILED',
+      cause: 'Task Monitor coordinator Run could not be started.',
+    });
+  });
+
+  describe('coordinator recovery request after exhausted corrections', () => {
+    type Recovery = NonNullable<TaskMonitorMachineContext['coordinatorRecovery']>;
+    const recovery: Recovery = {
+      evaluation: undefined as never,
+      correctionAttempt: 2,
+      pendingCorrection: false,
+      failure: { code: 'INVALID_JSON', message: 'Bad JSON', issues: [] },
+      requestId: 'attempt-2',
+      requestMessageId: null,
+      conversationId: null,
+      deliveryFailure: null,
+    };
+    const waiting = (coordinatorRecovery: Recovery) =>
+      project(
+        resolve(
+          { control: 'ACTIVE', work: 'OUTCOME_JUDGMENT', intervention: 'CLEAR' },
+          { failureReason: 'Bad JSON', coordinatorRecovery },
+        ),
+      );
+
+    it('publishes the posted request next to the underlying validation failure', () => {
+      const projection = waiting({
+        ...recovery,
+        requestMessageId: 'canonical-request',
+        conversationId: 'conversation-1',
+      });
+
+      expect(projection.failure).toMatchObject({
+        cause: expect.stringContaining('INVALID_JSON: Bad JSON'),
+        correctiveGuidance: expect.stringContaining('Please provide guidance'),
+      });
+      expect(projection.pendingJudgment).toEqual({
+        request: expect.stringContaining('INVALID_JSON: Bad JSON'),
+        guidance: expect.stringContaining('Reply'),
+      });
     });
 
+    it('does not direct the user to a request whose delivery failed', () => {
+      const projection = waiting({ ...recovery, deliveryFailure: 'Conversation unavailable.' });
+
+      expect(projection.pendingJudgment).toBeUndefined();
+      expect(projection.failure).toMatchObject({
+        cause: expect.stringContaining('Conversation unavailable.'),
+        correctiveGuidance: expect.stringContaining('nothing to answer'),
+      });
+    });
+
+    it('does not direct the user to a request that is still being posted', () => {
+      const projection = waiting(recovery);
+
+      expect(projection.pendingJudgment).toBeUndefined();
+      expect(projection.failure?.correctiveGuidance).toContain('nothing to answer');
+    });
+  });
+
+  it('never advertises lifecycle actions once ended', () => {
     const halted = taskMonitorStateProjection({
       identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
       revision: 9,
@@ -378,9 +450,14 @@ afterEach(async () => {
   );
 });
 
-const startPublication = async (platform: ScriptedPlatform, logger: ServerLogger = NOOP_LOGGER) => {
+const startPublication = async (
+  platform: ScriptedPlatform,
+  logger: ServerLogger = NOOP_LOGGER,
+  seed: (storeFile: string) => Promise<void> = async () => undefined,
+) => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'heyhey-task-monitor-publication-'));
   temporaryDirectories.push(directory);
+  await seed(path.join(directory, 'machines.json'));
   const store: TaskMonitorStateStore = new MachineStateStore(
     path.join(directory, 'machines.json'),
     taskMonitorStateStoreCodec,
@@ -505,6 +582,7 @@ describe('Task Monitor state publication through the shared seam', () => {
       ingressId: 'effect-outcome:MONITOR_LOADED',
       event: {
         type: 'MONITOR_LOADED',
+        kindKey: 'task',
         taskMonitorId: MONITOR_ID,
         organizationId: context.organizationId!,
         projectId: context.projectId!,
@@ -542,5 +620,136 @@ describe('Task Monitor state publication through the shared seam', () => {
     expect(platform.sent[3]).toEqual(platform.sent[2]);
     expect(platform.sent[3]?.sourceRevision).toBe(stored?.snapshot.revision);
     publication.dispose();
+  });
+});
+
+describe('upgrading a monitor already waiting on the platform', () => {
+  const REASON = 'Approve adding the place columns?';
+  const OLD_REVISION = 2;
+  const waitingState = {
+    RUNNING: {
+      control: 'ACTIVE',
+      work: 'OUTCOME_JUDGMENT',
+      intervention: 'CLEAR',
+      input: 'WAITING_FOR_INPUT',
+    },
+  };
+
+  /** The store the previous CLI left: a posted question parked as a failure. */
+  const seedLegacyWaitingMonitor = async (storeFile: string) => {
+    const legacyContext = JSON.parse(
+      JSON.stringify({ ...context, failureReason: REASON, coordinatorRecovery: null }),
+    ) as object;
+    await fs.writeFile(
+      storeFile,
+      JSON.stringify({
+        schemaVersion: 2,
+        writerApplicationVersion: 'legacy-test',
+        instances: [
+          {
+            identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
+            revision: OLD_REVISION,
+            state: waitingState,
+            context: legacyContext,
+            acceptedIngress: [
+              {
+                ingressId: 'effect-outcome:effect-1',
+                revision: OLD_REVISION,
+                state: waitingState,
+                context: legacyContext,
+                effects: [],
+              },
+            ],
+            effects: [
+              {
+                effectId: 'effect-1',
+                revision: 1,
+                effect: {
+                  type: 'DELIVER_TASK_MONITOR_REVIEW',
+                  taskMonitorId: MONITOR_ID,
+                  organizationId: context.organizationId,
+                  projectId: context.projectId,
+                  runId: 'run-1',
+                  agentSessionId: SESSION_ID,
+                  requestId: 'request-1',
+                  coordinatorRunId: 'coordinator-run-1',
+                  rationale: 'Review is warranted.',
+                },
+                execution: {
+                  status: 'settled',
+                  settlement: {
+                    status: 'succeeded',
+                    outcome: {
+                      type: 'OUTCOME_JUDGMENT_REQUIRED',
+                      taskMonitorId: MONITOR_ID,
+                      runId: 'run-1',
+                      agentSessionId: SESSION_ID,
+                      reason: REASON,
+                    },
+                  },
+                },
+              },
+            ],
+            payloadSchemaVersion: 2,
+          },
+        ],
+      }),
+      'utf8',
+    );
+  };
+
+  /** The platform's rule: a newer source revision replaces the state, the same one only proves freshness. */
+  const platformHoldingOldFailure = () => {
+    const platform = new ScriptedPlatform();
+    const held = {
+      sourceRevision: OLD_REVISION,
+      projection: {
+        failure: { code: 'OPERATION_FAILED', cause: REASON },
+      } as WorkItemExecutionStateObservation['state']['projection'] | undefined,
+    };
+    platform.answers.push(
+      ...Array.from({ length: 4 }, () => (observation: WorkItemExecutionStateObservation) => {
+        if (observation.sourceRevision <= held.sourceRevision) {
+          return {
+            kind: 'RECEIPT' as const,
+            receipt: {
+              workItemId: observation.workItemId,
+              sourceRevision: observation.sourceRevision,
+              outcome: 'DUPLICATE' as const,
+            },
+          };
+        }
+        held.sourceRevision = observation.sourceRevision;
+        held.projection = observation.state.projection;
+        return accepted(observation);
+      }),
+    );
+    return { platform, held };
+  };
+
+  it('replaces the stored failure card on reconnect without any user action', async () => {
+    const { platform, held } = platformHoldingOldFailure();
+    const { publication } = await startPublication(platform, NOOP_LOGGER, seedLegacyWaitingMonitor);
+
+    await publication.replay();
+
+    expect(platform.sent.map(({ sourceRevision }) => sourceRevision)).toEqual([OLD_REVISION + 1]);
+    expect(held.sourceRevision).toBe(OLD_REVISION + 1);
+    expect(held.projection).toMatchObject({ pendingJudgment: { request: REASON } });
+    expect(held.projection).not.toHaveProperty('failure');
+  });
+
+  it('still treats a repeat of the same committed revision as a duplicate', async () => {
+    const { platform, held } = platformHoldingOldFailure();
+    const { publication } = await startPublication(platform, NOOP_LOGGER, seedLegacyWaitingMonitor);
+
+    await publication.replay();
+    await publication.replay();
+
+    expect(platform.sent.map(({ sourceRevision }) => sourceRevision)).toEqual([
+      OLD_REVISION + 1,
+      OLD_REVISION + 1,
+    ]);
+    expect(held.sourceRevision).toBe(OLD_REVISION + 1);
   });
 });

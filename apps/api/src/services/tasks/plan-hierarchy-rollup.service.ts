@@ -1,28 +1,39 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, WorkStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { WORK_ITEM_TYPE_KEYS } from './work-item-type-keys';
 
 export interface PlanHierarchyStatusTransition {
   taskId: string;
-  previousStatus: WorkStatus;
-  newStatus: WorkStatus;
+  previousStatus: TaskResponseDto['status'];
+  newStatus: TaskResponseDto['status'];
   organizationId: string;
   projectId: string;
   initiativeId: string | null;
 }
 
 /** Stage statuses that satisfy a stage prerequisite. */
-const TERMINAL_STATUSES = new Set<WorkStatus>([
-  WorkStatus.COMPLETED,
-  WorkStatus.CANCELLED,
+const TERMINAL_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Completed,
+  WorkStatus.Cancelled,
 ]);
 
-/** Direct Task statuses that leave no actionable work in a stage. */
-const TERMINAL_TASK_STATUSES = new Set<WorkStatus>([
-  WorkStatus.COMPLETED,
-  WorkStatus.CANCELLED,
-  WorkStatus.SUPERSEDED,
+/**
+ * How direct stage work (Standard Tasks and Bugs) counts toward its stage.
+ * Finished work leaves nothing actionable; not-started work does not make a
+ * stage active; every other status (ACTIVE, ON_HOLD, REFINING*, GENERATING_*,
+ * VERIFYING) is in progress, so an unverified Bug keeps its stage open.
+ */
+const FINISHED_WORK_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Completed,
+  WorkStatus.Cancelled,
+  WorkStatus.Superseded,
+]);
+const NOT_STARTED_WORK_STATUSES = new Set<TaskResponseDto['status']>([
+  WorkStatus.Backlog,
+  WorkStatus.Generated,
 ]);
 
 /**
@@ -177,10 +188,10 @@ export class PlanHierarchyRollupService {
         !TERMINAL_STATUSES.has(task.status),
     );
     if (
-      desiredStageStatus === WorkStatus.ACTIVE &&
+      desiredStageStatus === WorkStatus.Active &&
       hasIncompleteStageDependency
     ) {
-      desiredStageStatus = WorkStatus.BACKLOG;
+      desiredStageStatus = WorkStatus.Backlog;
     }
 
     const transitions: PlanHierarchyStatusTransition[] = [];
@@ -266,46 +277,48 @@ export class PlanHierarchyRollupService {
   }
 
   computeStageStatus(
-    currentStatus: WorkStatus,
-    childStatuses: readonly WorkStatus[],
-  ): WorkStatus {
-    if (currentStatus === WorkStatus.REFINING) return currentStatus;
-    if (childStatuses.length === 0) return WorkStatus.BACKLOG;
-    if (childStatuses.every((status) => TERMINAL_TASK_STATUSES.has(status))) {
-      return WorkStatus.COMPLETED;
+    currentStatus: TaskResponseDto['status'],
+    childStatuses: readonly TaskResponseDto['status'][],
+  ): TaskResponseDto['status'] {
+    if (currentStatus === WorkStatus.Refining) return currentStatus;
+    if (childStatuses.length === 0) return WorkStatus.Backlog;
+    if (childStatuses.every((status) => FINISHED_WORK_STATUSES.has(status))) {
+      return WorkStatus.Completed;
     }
-    if (childStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
-    if (childStatuses.every((status) => status === WorkStatus.BACKLOG)) {
-      return currentStatus === WorkStatus.COMPLETED
-        ? WorkStatus.ACTIVE
-        : WorkStatus.BACKLOG;
+    if (childStatuses.includes(WorkStatus.Blocked)) return WorkStatus.Blocked;
+    if (
+      childStatuses.every((status) => NOT_STARTED_WORK_STATUSES.has(status))
+    ) {
+      return currentStatus === WorkStatus.Completed
+        ? WorkStatus.Active
+        : WorkStatus.Backlog;
     }
-    return WorkStatus.ACTIVE;
+    return WorkStatus.Active;
   }
 
   computePlanStatus(
-    currentStatus: WorkStatus,
-    stageStatuses: readonly WorkStatus[],
-  ): WorkStatus {
+    currentStatus: TaskResponseDto['status'],
+    stageStatuses: readonly TaskResponseDto['status'][],
+  ): TaskResponseDto['status'] {
     if (stageStatuses.length === 0) return currentStatus;
-    if (stageStatuses.every((status) => status === WorkStatus.COMPLETED)) {
+    if (stageStatuses.every((status) => status === WorkStatus.Completed)) {
       // Keep this VERIFYING checkpoint when merging plan lifecycle changes:
       // only the explicit, guarded completion action may move a Plan to COMPLETED.
-      return WorkStatus.VERIFYING;
+      return WorkStatus.Verifying;
     }
-    if (stageStatuses.includes(WorkStatus.BLOCKED)) return WorkStatus.BLOCKED;
+    if (stageStatuses.includes(WorkStatus.Blocked)) return WorkStatus.Blocked;
     if (
       stageStatuses.some(
         (status) =>
-          status === WorkStatus.ACTIVE || status === WorkStatus.REFINING,
+          status === WorkStatus.Active || status === WorkStatus.Refining,
       ) ||
-      stageStatuses.some((status) => status === WorkStatus.COMPLETED)
+      stageStatuses.some((status) => status === WorkStatus.Completed)
     ) {
-      return WorkStatus.ACTIVE;
+      return WorkStatus.Active;
     }
-    return currentStatus === WorkStatus.COMPLETED ||
-      currentStatus === WorkStatus.VERIFYING
-      ? WorkStatus.ACTIVE
+    return currentStatus === WorkStatus.Completed ||
+      currentStatus === WorkStatus.Verifying
+      ? WorkStatus.Active
       : currentStatus;
   }
 }

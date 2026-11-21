@@ -32,6 +32,7 @@ import type {
 } from "./types";
 import { getPotentialCoverageForGap } from "./planGapsUtils";
 import { EntityStatusChip } from "./EntityStatusChip";
+import { formatStatus } from "../../../utils/statusUtils";
 import { sectionHeaderSx } from "./planGapsSharedState";
 import { useDesignDoc } from "../../../data/hooks/useDesignDoc";
 import { useWorkItem } from "../../../data/hooks/useWorkItem";
@@ -112,13 +113,6 @@ const CoverageItemWithStatus: React.FC<{
         ? task.sections.find((section) => section.key === "description")
             ?.materializedMarkdown
         : null;
-
-    const formatStatus = (statusValue: string): string => {
-      return String(statusValue)
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-    };
 
     const statusMeta = status ? formatStatus(status) : undefined;
 

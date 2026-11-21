@@ -34,7 +34,10 @@ import type {
   OpenItemsOutcome,
   OpenItemsState,
 } from './open-items.domain';
-import { OpenItemsConflictException } from './open-items.errors';
+import {
+  OpenItemsConflictException,
+  OpenItemsIdempotencyKeyReusedException,
+} from './open-items.errors';
 import {
   LockedOpenItemsCollection,
   OpenItemsRepository,
@@ -513,8 +516,7 @@ export class OpenItemsService {
               log(
                 `rejected: key was recorded for a different ${recorded.operation === operation ? 'request' : `operation (${recorded.operation})`}`,
               );
-              throw OpenItemsConflictException.of(
-                'IDEMPOTENCY_KEY_REUSED',
+              throw OpenItemsIdempotencyKeyReusedException.of(
                 'This idempotency key was already used for a different request.',
                 collection.revision,
               );

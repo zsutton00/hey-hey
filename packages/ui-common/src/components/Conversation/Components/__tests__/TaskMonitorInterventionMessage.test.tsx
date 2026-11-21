@@ -1,3 +1,4 @@
+import { TaskMonitorResponsePresentationContext } from "../../../TaskMonitor/TaskMonitorResponsePresentationContext";
 import { ThemeProvider } from "@mui/material/styles";
 import {
   fireEvent,
@@ -12,12 +13,17 @@ import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { TaskMonitorInterventionMessage } from "../TaskMonitorInterventionMessage";
 
 const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+  <ThemeProvider theme={createHeyTheme("light")}>
+    <TaskMonitorResponsePresentationContext.Provider value={mocks.onAnswered}>
+      {children}
+    </TaskMonitorResponsePresentationContext.Provider>
+  </ThemeProvider>
 );
 const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: HeyTheme });
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
+  onAnswered: vi.fn(),
   refetchConversation: vi.fn(),
   refetchMessages: vi.fn(),
 }));
@@ -96,6 +102,7 @@ describe("TaskMonitorInterventionMessage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByText("Network response was lost.");
+    expect(mocks.onAnswered).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Retry approve" }));
 
     await waitFor(() => expect(mocks.mutate).toHaveBeenCalledTimes(2));
@@ -142,6 +149,9 @@ describe("TaskMonitorInterventionMessage", () => {
     await waitFor(() => {
       expect(mocks.refetchConversation).toHaveBeenCalledTimes(1);
       expect(mocks.refetchMessages).toHaveBeenCalledTimes(1);
+      expect(mocks.onAnswered).toHaveBeenCalledWith(
+        "55555555-5555-4555-8555-555555555555",
+      );
     });
     expect(
       screen.getByTestId("task-monitor-intervention-message"),
@@ -168,6 +178,7 @@ describe("TaskMonitorInterventionMessage", () => {
     ).toBeVisible();
     expect(mocks.refetchConversation).toHaveBeenCalledTimes(1);
     expect(mocks.refetchMessages).toHaveBeenCalledTimes(1);
+    expect(mocks.onAnswered).not.toHaveBeenCalled();
   });
 
   it("allows a human decision when the provider sets no deadline", async () => {

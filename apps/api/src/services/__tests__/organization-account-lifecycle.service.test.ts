@@ -9,6 +9,10 @@ import {
   OrganizationRole,
   Prisma,
 } from '@prisma/client';
+import {
+  SERVER_STATE_CALLER_MESSAGE,
+  ServerStateException,
+} from '../../common/exceptions/server-state.exceptions';
 import { DomainEventPublisher } from '../../core/events/domain-event-publisher';
 import { EVENT_TYPES } from '../../core/events/types/event.types';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -304,14 +308,25 @@ describe('OrganizationAccountLifecycleService', () => {
   it('rejects deletion evidence before irreversible closure commits', async () => {
     await service.cancel(organizationId, actorId);
 
-    await expect(
-      service.establishReachedClosureEvidence(
+    const failure = await service
+      .establishReachedClosureEvidence(
         tx as unknown as Prisma.TransactionClient,
         organizationId,
         currentLifecycle as OrganizationAccountLifecycle,
         now,
-      ),
-    ).rejects.toBeInstanceOf(ConflictException);
+      )
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ServerStateException);
+    const response = (failure as ServerStateException).getResponse();
+    expect((failure as ServerStateException).getStatus()).toBe(500);
+    expect(response).toEqual({
+      code: 'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+      message: SERVER_STATE_CALLER_MESSAGE,
+    });
+    expect((failure as ServerStateException).diagnostic).toContain(
+      'irreversible closure',
+    );
   });
   describe('closeImmediatelyForSystemOrganization', () => {
     it('commits irreversible closure and its deletion evidence in the caller transaction', async () => {

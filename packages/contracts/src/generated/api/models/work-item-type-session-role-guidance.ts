@@ -45,4 +45,10 @@ export interface WorkItemTypeSessionRoleGuidance {
      * @memberof WorkItemTypeSessionRoleGuidance
      */
     'review'?: string;
+    /**
+     *
+     * @type {string}
+     * @memberof WorkItemTypeSessionRoleGuidance
+     */
+    'sync'?: string;
 }

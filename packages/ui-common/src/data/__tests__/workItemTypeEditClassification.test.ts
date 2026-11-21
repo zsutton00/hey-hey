@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import {
   WorkItemTypeEffectiveSource,
@@ -16,7 +17,7 @@ const definition: WorkItemTypeDefinitionDto = {
   name: "Custom",
   description: "Custom work",
   sections: [{ key: "details", label: "Details" }],
-  allowedStatuses: ["NOT_STARTED"],
+  statuses: legacyStatuses(["NOT_STARTED"]),
   allowedParentTypes: ["FEATURE"],
   allowedParentEntityTypes: ["PROJECT"],
   tracking: {
@@ -51,7 +52,9 @@ describe("work-item-type edit classification", () => {
   });
 
   it("keeps a presence-faithful round trip unchanged", () => {
-    expect(analyzeWorkItemTypeEdit(summary(definition), definition)).toMatchObject({
+    expect(
+      analyzeWorkItemTypeEdit(summary(definition), definition),
+    ).toMatchObject({
       kind: "unchanged",
       addedSectionKeys: [],
       requiresConfirmation: false,
@@ -64,18 +67,23 @@ describe("work-item-type edit classification", () => {
       name: "Campaign",
       description: "Campaign work",
       sections: [{ key: "details", label: "Campaign details" }],
-      allowedStatuses: ["ACTIVE", "COMPLETED"],
+      statuses: legacyStatuses(["ACTIVE", "COMPLETED"]),
       allowedParentTypes: [],
       allowedParentEntityTypes: [],
       tracking: {
         allowedSourceEntityTypes: ["PLAN"],
-        allowedSourceTaskTypes: [...definition.tracking!.allowedSourceTaskTypes, "PLAN"],
+        allowedSourceTaskTypes: [
+          ...definition.tracking!.allowedSourceTaskTypes,
+          "PLAN",
+        ],
       },
       writingStandards: { create: "Create well.", edit: "Edit well." },
       capabilities: { rendersInline: false },
     };
 
-    expect(classifyWorkItemTypeEdit(summary(definition), proposed)).toMatchObject({
+    expect(
+      classifyWorkItemTypeEdit(summary(definition), proposed),
+    ).toMatchObject({
       kind: "authorable",
       unsupportedReasonCodes: [],
       unsupportedReasons: [],
@@ -136,7 +144,9 @@ describe("work-item-type edit classification", () => {
       },
     };
 
-    expect(analyzeWorkItemTypeEdit(summary(definition), proposed)).toMatchObject({
+    expect(
+      analyzeWorkItemTypeEdit(summary(definition), proposed),
+    ).toMatchObject({
       kind: "supported_destructive",
       removedSectionKeys: ["details"],
       revokedTrackingSourceTypeKeys: ["STANDARD"],

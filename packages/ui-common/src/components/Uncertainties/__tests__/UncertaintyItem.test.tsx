@@ -1,7 +1,8 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { render as baseRender, screen } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import type { AgentUncertaintySystemMessageData } from "../../../api";
 import { AgentUncertaintySystemMessageDataCategoryEnum } from "../../../api";
 import { createHeyTheme } from "../../../contexts/ThemeContext";
@@ -155,5 +156,61 @@ describe("UncertaintyItem", () => {
     expect(screen.queryByText("Needs your answer")).not.toBeInTheDocument();
     expect(screen.getByText("Question")).toBeVisible();
     expect(screen.getByText("low")).toBeVisible();
+  });
+  describe("Discuss control", () => {
+    it("shows an accessible control on a non-question card and calls onDiscuss by click and keyboard", async () => {
+      const onDiscuss = vi.fn();
+      render(
+        <UncertaintyItem
+          category={
+            AgentUncertaintySystemMessageDataCategoryEnum.LackOfEvidence
+          }
+          severity="low"
+          statement="Nothing confirms this detail."
+          testId="uncertainty"
+          onDiscuss={onDiscuss}
+        />,
+      );
+
+      const control = screen.getByRole("button", {
+        name: "Discuss this uncertainty",
+      });
+      expect(control).toHaveTextContent("Discuss");
+
+      await userEvent.click(control);
+      control.focus();
+      await userEvent.keyboard("{Enter}");
+
+      expect(onDiscuss).toHaveBeenCalledTimes(2);
+    });
+
+    it("is absent on question cards and when no handler is given", () => {
+      const { rerender } = render(
+        <UncertaintyItem
+          category={AgentUncertaintySystemMessageDataCategoryEnum.Question}
+          severity="high"
+          statement="Which option?"
+          testId="uncertainty"
+          onDiscuss={vi.fn()}
+        />,
+      );
+      expect(
+        screen.queryByTestId("uncertainty-discuss-control"),
+      ).not.toBeInTheDocument();
+
+      rerender(
+        <UncertaintyItem
+          category={
+            AgentUncertaintySystemMessageDataCategoryEnum.LackOfEvidence
+          }
+          severity="low"
+          statement="Nothing confirms this detail."
+          testId="uncertainty"
+        />,
+      );
+      expect(
+        screen.queryByTestId("uncertainty-discuss-control"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

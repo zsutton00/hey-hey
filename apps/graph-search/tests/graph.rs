@@ -984,6 +984,40 @@ async fn authored_edges_preserve_identity_incidence_and_tenant_boundaries() -> a
 }
 
 #[tokio::test]
+#[ignore = "requires disposable PostgreSQL 17; GRAPH_SEARCH_TEST_DATABASE_URL"]
+async fn traversal_never_walks_hint_connections() -> anyhow::Result<()> {
+    let f = Fixture::new(9500).await?;
+    for n in [10, 11, 12] {
+        f.node(n, "TASK", json!({"type":"STANDARD","status":"ACTIVE"}))
+            .await;
+    }
+    f.node(20, "HINT", json!({"text":"Read the governing design"}))
+        .await;
+    f.edge(20, 10, "CONNECTED_TO", json!({"strength":1})).await;
+    f.edge(20, 12, "CONNECTED_TO", json!({"strength":1})).await;
+    f.edge(10, 11, "RELATED_TO", json!({"source":"system"}))
+        .await;
+
+    for traversal in [
+        json!({"depth":3}),
+        json!({"depth":3,"relationshipTypes":["RELATED_TO"]}),
+    ] {
+        let result = f
+            .query(
+                "traversal",
+                json!({"seedEntityIds":[id(10)],"traversal":traversal,"includeRelationships":true}),
+            )
+            .await;
+        assert_eq!(targets(&result), vec![id(11)], "{result}");
+        assert!(
+            !result.to_string().contains("CONNECTED_TO") && !result.to_string().contains(&id(20)),
+            "hint leaked into traversal: {result}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
 async fn hints_keep_weighted_connections_separate_from_origin_and_retire() -> anyhow::Result<()> {
     let f = Fixture::new(9300).await?;

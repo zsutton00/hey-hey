@@ -19,6 +19,7 @@ import {
   TASK_MONITOR_SETUP_SURFACE_ID,
   writeSurfaceSelection,
 } from "../../AgentSession/surfaceSelectionMemory";
+import { useMonitorKind } from "../../TaskMonitor/useMonitorKind";
 import { PlanStageTaskMonitorSetupReviewView } from "../PlanStageTaskMonitorSetupReviewView";
 import type { PlanStageTaskMonitorTaskSelection } from "../PlanStageTaskMonitorExecutionVisualization";
 import { buildPlanStageTaskMonitorUserMessageStorageKey } from "../planStageTaskMonitorMessage";
@@ -114,6 +115,11 @@ export const PlanStageTaskMonitorSetupReview = ({
   onConfirm,
 }: PlanStageTaskMonitorSetupReviewProps) => {
   const navigate = useNavigate();
+  const monitorKind = useMonitorKind(
+    setup.provenance.organizationId,
+    setup.provenance.projectId,
+    setup.definition.kind,
+  );
   const sourceIdentity = sourceIdentityFor(setup);
   const planWorktreeBranch = setup.provenance.planWorktreeBranch;
   const previousSourceIdentity = useRef(sourceIdentity);
@@ -277,6 +283,7 @@ export const PlanStageTaskMonitorSetupReview = ({
   return (
     <PlanStageTaskMonitorSetupReviewView
       catalogSource={catalogSource}
+      allowedLaunchMethods={monitorKind?.allowedLaunchMethods ?? []}
       definition={reviewedDefinition}
       executableTasks={setup.executableTasks}
       taskSelection={

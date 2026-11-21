@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { describe, expect, it } from "vitest";
 import {
   type TaskResponseDto,
@@ -29,7 +30,7 @@ const definition = (
     key: "CUSTOM",
     name: "Custom",
     sections,
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
   }) as unknown as WorkItemTypeDefinitionDto;
 
 describe("buildTaskDiff section labels", () => {

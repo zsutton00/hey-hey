@@ -30,6 +30,16 @@ describe('readHintAvailability', () => {
     ).resolves.toEqual({ enabled: true, productDevelopment: expected });
   });
 
+  it('reads the product-development marker without any hint tools', async () => {
+    await expect(
+      readHintAvailability(
+        'token',
+        'project',
+        toolList(['get_context'], { 'heyhey/productDevelopment': true }),
+      ),
+    ).resolves.toEqual({ enabled: false, productDevelopment: true });
+  });
+
   it('is off when the platform omits the hint tools', async () => {
     await expect(
       readHintAvailability('token', 'project', toolList(['get_context'])),

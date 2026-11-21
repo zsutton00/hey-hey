@@ -1,3 +1,4 @@
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,7 +30,7 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
 const summary = (
   key: string,
   name: string,
-  definition: Partial<WorkItemTypeDefinitionDto> = {}
+  definition: Partial<WorkItemTypeDefinitionDto> = {},
 ): WorkItemTypeSummaryDto => ({
   id: `type-${key}`,
   projectId: "project-1",
@@ -40,7 +41,7 @@ const summary = (
     name,
     role: WorkItemTypeRole.WorkItem,
     sections: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     ...definition,
   },
 });
@@ -58,7 +59,7 @@ const definition: WorkItemTypeDefinitionDto = {
     { key: "implications", label: "Implications" },
   ],
   requiredScalars: ["dueDate"],
-  allowedStatuses: [WorkStatus.Backlog, WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Backlog, WorkStatus.Active]),
   allowedParentTypes: ["FEATURE"],
   allowedParentEntityTypes: [EntityType.Task],
   edgeTargets: [
@@ -127,7 +128,7 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
   it("derives ordered sections, dependency-first relationship groups, and target-owned Goal tracking", () => {
     const model = buildWorkItemTypeCreatePreviewModel(
       definition,
-      registryState.workItemTypes
+      registryState.workItemTypes,
     );
 
     expect(model?.sections.map((section) => section.label)).toEqual([
@@ -142,8 +143,8 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
     expect(model?.relationshipGroups).toHaveLength(2);
     expect(
       model?.relationshipGroups[1].relationships.map(
-        (relationship) => relationship.edgeType
-      )
+        (relationship) => relationship.edgeType,
+      ),
     ).toEqual([
       AgentEdgeType.DependsOn,
       AgentEdgeType.DerivesFrom,
@@ -153,8 +154,8 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
     ]);
     expect(
       model?.relationshipGroups[1].relationships.map(
-        (relationship) => relationship.exampleTitle
-      )
+        (relationship) => relationship.exampleTitle,
+      ),
     ).toEqual([
       "Sample prerequisite task",
       "Sample source task",
@@ -164,11 +165,11 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
     ]);
     expect(
       model?.relationshipGroups[1].relationships[0].applicableTargetTypes.map(
-        (targetType) => targetType.typeKey
-      )
+        (targetType) => targetType.typeKey,
+      ),
     ).toEqual(["STANDARD", "FEATURE"]);
     expect(
-      model?.relationshipGroups.flatMap((group) => group.relationships)
+      model?.relationshipGroups.flatMap((group) => group.relationships),
     ).toHaveLength(6);
     expect(model?.trackedByGoal).toBe(true);
     expect(model?.capabilities).toEqual([
@@ -190,16 +191,16 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
         tracking: undefined,
         capabilities: { requiresParent: true },
       },
-      registryState.workItemTypes
+      registryState.workItemTypes,
     );
 
     expect(model?.trackedByGoal).toBe(false);
     expect(
-      model?.relationshipGroups.flatMap((group) => group.relationships)
+      model?.relationshipGroups.flatMap((group) => group.relationships),
     ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ edgeType: AgentEdgeType.Tracks }),
-      ])
+      ]),
     );
   });
 
@@ -207,8 +208,8 @@ describe("buildWorkItemTypeCreatePreviewModel", () => {
     expect(
       buildWorkItemTypeCreatePreviewModel(
         { ...definition, allowedParentTypes: ["MISSING"] },
-        registryState.workItemTypes
-      )
+        registryState.workItemTypes,
+      ),
     ).toBeNull();
   });
 });
@@ -221,12 +222,12 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
         definition={definition}
         organizationId="organization-1"
         projectId="project-1"
-      />
+      />,
     );
 
     const preview = screen.getByTestId("work-item-type-create-example");
     expect(preview).toHaveTextContent(
-      "Capture an evidence-backed customer insight."
+      "Capture an evidence-backed customer insight.",
     );
     expect(preview).toHaveTextContent("Role: work-item");
     expect(preview).toHaveTextContent("Parents:");
@@ -246,10 +247,10 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
     expect(preview).toHaveTextContent("Sidebar: No");
     expect(preview).toHaveTextContent("Plan eligible: No");
     expect(
-      within(preview).getByRole("img", { name: "Contract icon" })
+      within(preview).getByRole("img", { name: "Contract icon" }),
     ).toBeInTheDocument();
     expect(
-      within(preview).getAllByText("Depends On", { exact: true })
+      within(preview).getAllByText("Depends On", { exact: true }),
     ).toHaveLength(1);
 
     const parent = within(preview).getByTestId("work-item-type-preview-parent");
@@ -257,10 +258,11 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
     expect(within(parent).getByText("Task")).toBeInTheDocument();
     expect(within(preview).getAllByText("View all types")).toHaveLength(6);
     const content = within(preview).getByTestId(
-      "work-item-type-preview-content"
+      "work-item-type-preview-content",
     );
     expect(
-      parent.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING
+      parent.compareDocumentPosition(content) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
     const styles = [...document.querySelectorAll("style")]
@@ -268,11 +270,11 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
       .join("")
       .replace(/\s+/g, "");
     expect(styles).toContain(
-      "grid-template-columns:minmax(0,1.25fr)minmax(260px,0.75fr)"
+      "grid-template-columns:minmax(0,1.25fr)minmax(260px,0.75fr)",
     );
 
     const sections = within(preview).getAllByTestId(
-      "work-item-type-preview-section"
+      "work-item-type-preview-section",
     );
     expect(sections.map((section) => section.dataset.sectionKey)).toEqual([
       "finding",
@@ -283,38 +285,38 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
     const sectionCopy = sections.map((section) => section.textContent);
     expect(new Set(sectionCopy)).toHaveLength(4);
     sectionCopy.forEach((copy) =>
-      expect(copy?.split(".").length).toBeGreaterThan(2)
+      expect(copy?.split(".").length).toBeGreaterThan(2),
     );
 
     await user.click(
       within(preview).getByRole("button", {
         name: "View all target types for Depends On",
-      })
+      }),
     );
     const targetListHeading = screen.getByText("Depends On can target");
     const targetList = targetListHeading.parentElement;
     expect(targetList).not.toBeNull();
     expect(
-      within(targetList as HTMLElement).getByText("Task")
+      within(targetList as HTMLElement).getByText("Task"),
     ).toBeInTheDocument();
     expect(
-      within(targetList as HTMLElement).getByText("STANDARD")
+      within(targetList as HTMLElement).getByText("STANDARD"),
     ).toBeInTheDocument();
     expect(
-      within(targetList as HTMLElement).getByText("Feature")
+      within(targetList as HTMLElement).getByText("Feature"),
     ).toBeInTheDocument();
     expect(
-      within(targetList as HTMLElement).getByText("FEATURE")
+      within(targetList as HTMLElement).getByText("FEATURE"),
     ).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
-      "Backlog"
+      "Backlog",
     );
     await user.click(screen.getByRole("combobox", { name: "Status" }));
     await user.click(screen.getByRole("option", { name: "In progress" }));
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
-      "In progress"
+      "In progress",
     );
   });
 
@@ -325,14 +327,14 @@ describe("WorkItemTypeCreateProposalPresentation", () => {
         definition={definition}
         organizationId="organization-1"
         projectId="project-1"
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("work-item-type-preview-unavailable")
+      screen.getByTestId("work-item-type-preview-unavailable"),
     ).toHaveTextContent("Loading the project type registry");
     expect(
-      screen.queryByTestId("work-item-type-create-example")
+      screen.queryByTestId("work-item-type-create-example"),
     ).not.toBeInTheDocument();
   });
 });

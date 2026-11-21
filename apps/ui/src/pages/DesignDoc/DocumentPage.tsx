@@ -585,6 +585,7 @@ const DocumentPage: React.FC<DocumentPageProps> = ({
                 sidebar={null}
                 content={
                   <DesignDocTasksTab
+                    organizationId={currentOrgId}
                     projectId={projectId}
                     tasks={linkedTasks}
                     isLoading={isLoadingContext}

@@ -175,6 +175,14 @@ export type CapsuleActionProps =
 export type CapsuleScreenButton = {
   key: string;
   accessibleName: string;
+  /** Hover text that explains the label and status shown on the button. */
+  tooltip?: string;
+  /** Disables the button; the tooltip still explains why. */
+  disabled?: boolean;
+  /** Shows a spinner in the square while a command is in flight. */
+  pending?: boolean;
+  /** Keeps the mobile menu open after a tap so pending feedback stays visible. */
+  keepMenuOpen?: boolean;
   onClick: () => void;
   status?: {
     state: "running" | "paused" | "needs-you" | "done";

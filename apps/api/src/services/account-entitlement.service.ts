@@ -5,6 +5,7 @@ import {
   OrganizationAccountLifecycle,
   Prisma,
 } from '@prisma/client';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import {
   BadRequestException,
   ConflictException,
@@ -13,6 +14,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { MissingRecordException } from '../common/exceptions/missing-record.exceptions';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationId } from '../types';
 
@@ -163,7 +165,10 @@ export class AccountEntitlementService {
       where: { organizationId },
     });
     if (!entitlement) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
     if (
       entitlement.createdBy !== metadata.actor ||
@@ -220,7 +225,8 @@ export class AccountEntitlementService {
       currentTransition.changedBy !== entitlement.updatedBy ||
       currentTransition.reason !== entitlement.updateReason
     ) {
-      throw new ConflictException(
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
         'Existing account entitlement state conflicts with its evidence',
       );
     }
@@ -269,7 +275,10 @@ export class AccountEntitlementService {
         `,
     );
     if (lockedOrganizations.length !== 1) {
-      throw new ConflictException('Organization does not exist');
+      throw new MissingRecordException(
+        'ORGANIZATION_NOT_FOUND',
+        'Organization does not exist',
+      );
     }
     this.logger.debug({
       event: 'account_entitlement_transition_lock_acquired',
@@ -281,7 +290,10 @@ export class AccountEntitlementService {
       where: { organizationId },
     });
     if (!current) {
-      throw new ConflictException('Account entitlement does not exist');
+      throw new ServerStateException(
+        'ORGANIZATION_ACCOUNT_STATE_INCONSISTENT',
+        'Account entitlement does not exist',
+      );
     }
 
     return this.persistTransitionInTransaction(
@@ -312,7 +324,10 @@ export class AccountEntitlementService {
       );
       if (lockedOrganizations.length !== 1) {
         this.logAdministrativeRejection(organizationId, 'organization_missing');
-        throw new NotFoundException('Organization does not exist');
+        throw new MissingRecordException(
+          'ORGANIZATION_NOT_FOUND',
+          'Organization does not exist',
+        );
       }
 
       const [current, lifecycle] = await Promise.all([

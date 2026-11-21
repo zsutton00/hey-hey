@@ -4743,6 +4743,18 @@ export const controllerActionRuntimeSchema = {
             },
           ],
         },
+        statusMeaning: {
+          description:
+            'Effective ordinary status meaning; absent when the stored status is unresolved.',
+          type: 'string',
+          enum: ['NOT_STARTED', 'IN_PROGRESS', 'UNFINISHED', 'FINISHED'],
+        },
+        completionBehavior: {
+          description:
+            'Effective migrated compatibility behavior; never inferred from a name.',
+          type: 'string',
+          enum: ['COMPLETED', 'CANCELLED'],
+        },
         dueDate: {
           type: ['string', 'null'],
           format: 'date-time',
@@ -4977,29 +4989,9 @@ export const controllerActionRuntimeSchema = {
             },
             status: {
               type: 'string',
-              enum: [
-                'GENERATED',
-                'BACKLOG',
-                'READY',
-                'REFINING',
-                'BLOCKED',
-                'REFINING_DESCRIPTION',
-                'REFINING_DETAILS',
-                'REFINING_ACCEPTANCE_CRITERIA',
-                'GENERATING_DESCRIPTION',
-                'GENERATING_DETAILS',
-                'GENERATING_DESCRIPTION_AND_DETAILS',
-                'GENERATING_ACCEPTANCE_CRITERIA',
-                'GENERATING_ALL',
-                'ACTIVE',
-                'ON_HOLD',
-                'VERIFYING',
-                'COMPLETED',
-                'CANCELLED',
-                'ARCHIVED',
-                'SUPERSEDED',
-              ],
-              description: 'Unified work status for initiatives and tasks',
+              minLength: 1,
+              description:
+                'The status a work item currently holds. Either the name of one of its type\'s ordinary statuses (a platform-defined name such as BACKLOG or a custom name such as "Testing", stored exactly as defined), the universal ARCHIVED, or the protected SUPERSEDED on an eligible type. The effective type definition\'s `statuses` is the authority for what a type allows.\n',
             },
             source: {
               type: 'string',
@@ -5415,12 +5407,14 @@ export const controllerActionRuntimeSchema = {
                 completedCount: {
                   type: 'integer',
                   minimum: 0,
-                  description: 'Number of tracked targets in COMPLETED status.',
+                  description:
+                    'Number of finished tracked targets without cancellation compatibility behavior.',
                 },
                 cancelledCount: {
                   type: 'integer',
                   minimum: 0,
-                  description: 'Number of tracked targets in CANCELLED status.',
+                  description:
+                    'Number of finished tracked targets with cancellation compatibility behavior.',
                 },
                 pastDueCount: {
                   type: 'integer',
@@ -10040,7 +10034,7 @@ export const controllerActionRuntimeSchema = {
       type: 'string',
       description:
         'Kind of work performed by a mode session, independent of mode identity and work-item-type registry role.',
-      enum: ['implementation', 'research', 'planning', 'review'],
+      enum: ['implementation', 'research', 'planning', 'review', 'sync'],
       default: 'implementation',
     },
     AgentSkillSelection: {

@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../../packages/ui-common/src/test/fixtures/workItemStatuses';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -112,7 +113,7 @@ const taskDefinition = {
   description: 'A unit of implementation work.',
   sections: [taskSection],
   requiredScalars: ['tag'],
-  allowedStatuses: [WorkStatus.Active, WorkStatus.Completed],
+  statuses: legacyStatuses([WorkStatus.Active, WorkStatus.Completed]),
   allowedParentTypes: ['FEATURE'],
   tracking: {
     allowedSourceEntityTypes: ['TASK'],
@@ -127,7 +128,7 @@ const featureDefinition = {
   name: 'Feature',
   role: 'project-info',
   sections: [featureSection],
-  allowedStatuses: [WorkStatus.Active],
+  statuses: legacyStatuses([WorkStatus.Active]),
 } satisfies WorkItemTypeDefinitionDto;
 
 const diagramElementPolicy = {
@@ -574,7 +575,7 @@ describe('readSessionStartContext hints switch', () => {
       const context = await readSessionStartContext({ oauthClient, projectId: PROJECT_ID });
 
       expect(context.hintsEnabled).toBe(enabled);
-      expect(context.hintsProductDevelopment).toBe(enabled);
+      expect(context.productDevelopment).toBe(enabled);
       expect(hintsEnabledMock).toHaveBeenCalledWith(TOKEN, PROJECT_ID);
     },
   );

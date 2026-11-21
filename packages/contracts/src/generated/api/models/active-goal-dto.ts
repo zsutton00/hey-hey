@@ -20,7 +20,7 @@ import { GoalAudience } from './goal-audience.js';
 import type { GoalAudience } from './goal-audience.js';
 
 /**
- * A goal returned by the active-goals endpoint: a GOAL-typed task that is not done (status not in COMPLETED/CANCELLED/ARCHIVED), not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.
+ * A goal returned by the active-goals endpoint: a GOAL-typed task that has no effective FINISHED meaning and is not ARCHIVED, not archived, and is undated or whose dueDate falls inside the requested look-ahead window. Carries just enough for a dashboard or sidebar surface to render the goal without a follow-up lookup.
  * @export
  * @interface ActiveGoalDto
  */

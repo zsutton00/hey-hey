@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { useModalState } from "@hey-hey/ui-common/components/Modals";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import {
@@ -5,7 +6,11 @@ import {
   useFilteredWorkItems,
   WorkItemEntityFilters,
 } from "@hey-hey/ui-common/components";
-import { useInitiatives, useProject } from "@hey-hey/ui-common/data";
+import {
+  useInitiatives,
+  useProject,
+  useWorkItemStatusVocabularies,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { compose, KEYS } from "@hey-hey/ui-common/i18n";
 import { contentToSectionInputs } from "@hey-hey/ui-common/utils";
@@ -31,14 +36,13 @@ import type {
   InitiativeResponseDto,
   Priority,
   UpdateInitiativeDto,
-  WorkStatus,
 } from "@hey-hey/contracts/api";
 import { PageBreadcrumbs } from "../../components/Layout";
 
 interface InitiativeFormData {
   title: string;
   description: string;
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   priority: Priority;
   tags: string[];
 }
@@ -68,7 +72,9 @@ export const InitiativesPage: React.FC = () => {
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<WorkStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<
+    TaskResponseDto["status"] | ""
+  >("");
   const [sortBy, setSortBy] = useState("status");
 
   // Dialog states
@@ -89,11 +95,17 @@ export const InitiativesPage: React.FC = () => {
   });
 
   // Filtered and sorted initiatives
+  const { definitions, statusOptions } = useWorkItemStatusVocabularies(
+    currentOrgId,
+    projectId,
+    initiatives,
+  );
   const filteredAndSortedInitiatives = useFilteredWorkItems(
     initiatives,
     searchTerm,
     statusFilter,
     sortBy,
+    definitions,
   );
 
   const handleCreateInitiative = async () => {
@@ -249,6 +261,7 @@ export const InitiativesPage: React.FC = () => {
         onSearchChange={setSearchTerm}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        statusOptions={statusOptions}
         sortBy={sortBy}
         onSortByChange={setSortBy}
       />
@@ -364,7 +377,7 @@ export const InitiativesPage: React.FC = () => {
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  status: e.target.value as WorkStatus,
+                  status: e.target.value as TaskResponseDto["status"],
                 })
               }
               select

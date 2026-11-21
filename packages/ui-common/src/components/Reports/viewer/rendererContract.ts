@@ -232,6 +232,7 @@ export const narrowReportPayload = <T extends ReportDto>(
     case ReportType.RiskAlert:
     case ReportType.SessionSummary:
     case ReportType.SessionMonitorDeferral:
+    case ReportType.MonitorNodeResult:
     case ReportType.Commit:
     case ReportType.Plan:
     case ReportType.Implement:

@@ -176,6 +176,66 @@ describe('ported node and reference rules', () => {
       },
     );
 
+    it('accepts a Bug under a Plan Stage with a description only', async () => {
+      const { project } = projector();
+      const bug: WorkItemChangeSetIdentity = {
+        refType: 'temporary',
+        tempId: 'stage-bug',
+      };
+      const stage: WorkItemChangeSetIdentity = {
+        refType: 'temporary',
+        tempId: 'stage',
+      };
+
+      const projected = await project(
+        {
+          root: bug,
+          operations: [
+            {
+              op: 'section.replace',
+              ref: bug,
+              key: 'description',
+              content: 'Crashes on save.',
+            },
+            {
+              op: 'section.replace',
+              ref: bug,
+              key: 'acceptanceCriteria',
+              content: '   ',
+            },
+          ],
+        },
+        [
+          {
+            identity: stage,
+            label: 'Stage',
+            name: 'Stage',
+            type: 'PLAN_STAGE',
+            sections: [],
+            deleted: false,
+          },
+          {
+            identity: bug,
+            parent: stage,
+            label: 'Bug',
+            name: 'Bug',
+            type: 'BUG',
+            sections: [],
+            deleted: false,
+          },
+        ],
+      );
+
+      expect(
+        projected.issues.filter(
+          (issue) =>
+            issue.code === 'missing_required_section' ||
+            issue.code === 'invalid_parent' ||
+            issue.code === 'invalid_child_type',
+        ),
+      ).toEqual([]);
+    });
+
     it('checks the written key using the joined parent type without loading the Plan Stage', async () => {
       const { project, findMany } = projector();
 

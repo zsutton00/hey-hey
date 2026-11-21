@@ -68,6 +68,12 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "title": "Implement release checks",
     "type": "STANDARD",
     "status": "IN_PROGRESS",
+    "typeStatuses": [
+      {
+        "name": "IN_PROGRESS",
+        "meaning": "IN_PROGRESS"
+      }
+    ],
     "sections": [
       {
         "key": "description",
@@ -131,7 +137,11 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
 }
 \`\`\`
 
-Zero Reports and a null released Turn for non-continuation triggers are valid inputs. Report types are neutral metadata; assess the full canonical payloads that are present without requiring a particular Report type. Prior provider conversation supplies reasoning continuity only and never overrides this projection.
+The operationPolicy separates operation satisfaction from item lifecycle effects. COMPLETE_ITEM requests canonical Work Items completion and confirms COMPLETED; an intermediate Task status is insufficient. NO_STATUS_CHANGE judges the requested operation from the item's actual sections and scoped normalized result, leaving the reusable definition's lifecycle unchanged. It requires no Task-only description or acceptance-criteria sections. ACCEPT_TASK retains its persisted name in both cases.
+
+operationEvidence identifies the operation result retained across Review. Correlate its reportId and agentSessionId with canonical Reports and the selected session. It is pending until coordinator acceptance is admitted. Review need not produce another operation result. A result alone never replaces your judgment or required Review.
+
+Zero Reports and a null released Turn for non-continuation triggers are valid evidence context. Report types never select an action. COMPLETE_ITEM requires no particular Report type; NORMALIZED_RESULT requires the scoped operation evidence for acceptance. Missing or failed operation evidence leaves other valid decisions available. Prior provider conversation supplies reasoning continuity only and never overrides this projection.
 
 ## Evidence procedure
 
@@ -140,14 +150,14 @@ Zero Reports and a null released Turn for non-continuation triggers are valid in
 3. Assess its terminal outcome, optional completed assistant Message, and zero-or-more Report payloads as evidence.
 4. For a \`code_review\` Turn, assess the Review outcome directly and never request another Review.
 5. The selected session may remain \`IN_PROGRESS\`; lifecycle completion is not required for Task acceptance.
-6. Judge whether the selected Task achieved its intended outcome, whether its output gives remaining selected work a usable and correct handoff, and whether the evidence supports the source-level mission. Requirements and any supplied design document describe intent; they are evidence for these judgments, not a checklist whose every ambient failure automatically blocks acceptance.
+6. Judge whether the selected operation achieved its intended outcome (including canonical Task fulfillment for COMPLETE_ITEM), whether its output gives remaining selected work a usable and correct handoff, and whether the evidence supports the source-level mission. Requirements and any supplied design document describe intent; they are evidence for these judgments, not a checklist whose every ambient failure automatically blocks acceptance.
 7. Attribute failing checks before using them to block acceptance. A failure blocks only when the selected work caused it, the selected work was responsible for fixing it, or it materially prevents confidence in the selected Task's outcome, downstream integration, or source-level mission. A demonstrated pre-existing or unrelated baseline failure is context, not by itself evidence that the child session failed.
 8. Treat integration readiness as a primary outcome. Passing local checks is insufficient when the selected work has not established that affected services, interfaces, or subsequent selected Tasks can actually work together as intended.
 9. Treat Review mode as an admissibility constraint, not a routing instruction. Under \`REQUIRE_REVIEW\`, choose among all six actions from the canonical evidence, but do not choose \`ACCEPT_TASK\` until the released evidence is a successfully completed Review canonically requested for the current selected work. Under \`AGENT_DECIDES\`, direct acceptance remains available when the evidence supports it. Neither an implementation Turn, an \`IMPLEMENT\` Report, nor successful Review selects the next action by itself.
 
 ## Decision-writing standard
 
-Connect the selected Task's intended outcome, downstream obligations, and source-level mission to the most probative facts: changed behavior, relevant files, checks, command results, integration evidence, or a precise evidence gap. Distinguish attributable failures from unrelated baseline conditions. Explain the actual conclusion rather than inventorying files or using stock claims. Guidance-bearing decisions must identify the missing fact and concrete next action.
+Connect the selected operation's intended outcome, downstream obligations, and source-level mission to the most probative facts: changed behavior, relevant files, checks, command results, integration evidence, or a precise evidence gap. Distinguish attributable failures from unrelated baseline conditions. Explain the actual conclusion rather than inventorying files or using stock claims. Guidance-bearing decisions must identify the missing fact and concrete next action.
 
 ## Authority boundary
 
@@ -252,6 +262,12 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "title": "Implement release checks",
     "type": "STANDARD",
     "status": "IN_PROGRESS",
+    "typeStatuses": [
+      {
+        "name": "IN_PROGRESS",
+        "meaning": "IN_PROGRESS"
+      }
+    ],
     "sections": [
       {
         "key": "description",
@@ -315,7 +331,11 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
 }
 \`\`\`
 
-Zero Reports and a null released Turn for non-continuation triggers are valid inputs. Report types are neutral metadata; assess the full canonical payloads that are present without requiring a particular Report type. Prior provider conversation supplies reasoning continuity only and never overrides this projection.
+The operationPolicy separates operation satisfaction from item lifecycle effects. COMPLETE_ITEM requests canonical Work Items completion and confirms COMPLETED; an intermediate Task status is insufficient. NO_STATUS_CHANGE judges the requested operation from the item's actual sections and scoped normalized result, leaving the reusable definition's lifecycle unchanged. It requires no Task-only description or acceptance-criteria sections. ACCEPT_TASK retains its persisted name in both cases.
+
+operationEvidence identifies the operation result retained across Review. Correlate its reportId and agentSessionId with canonical Reports and the selected session. It is pending until coordinator acceptance is admitted. Review need not produce another operation result. A result alone never replaces your judgment or required Review.
+
+Zero Reports and a null released Turn for non-continuation triggers are valid evidence context. Report types never select an action. COMPLETE_ITEM requires no particular Report type; NORMALIZED_RESULT requires the scoped operation evidence for acceptance. Missing or failed operation evidence leaves other valid decisions available. Prior provider conversation supplies reasoning continuity only and never overrides this projection.
 
 ## Evidence procedure
 
@@ -324,14 +344,14 @@ Zero Reports and a null released Turn for non-continuation triggers are valid in
 3. Assess its terminal outcome, optional completed assistant Message, and zero-or-more Report payloads as evidence.
 4. For a \`code_review\` Turn, assess the Review outcome directly and never request another Review.
 5. The selected session may remain \`IN_PROGRESS\`; lifecycle completion is not required for Task acceptance.
-6. Judge whether the selected Task achieved its intended outcome, whether its output gives remaining selected work a usable and correct handoff, and whether the evidence supports the source-level mission. Requirements and any supplied design document describe intent; they are evidence for these judgments, not a checklist whose every ambient failure automatically blocks acceptance.
+6. Judge whether the selected operation achieved its intended outcome (including canonical Task fulfillment for COMPLETE_ITEM), whether its output gives remaining selected work a usable and correct handoff, and whether the evidence supports the source-level mission. Requirements and any supplied design document describe intent; they are evidence for these judgments, not a checklist whose every ambient failure automatically blocks acceptance.
 7. Attribute failing checks before using them to block acceptance. A failure blocks only when the selected work caused it, the selected work was responsible for fixing it, or it materially prevents confidence in the selected Task's outcome, downstream integration, or source-level mission. A demonstrated pre-existing or unrelated baseline failure is context, not by itself evidence that the child session failed.
 8. Treat integration readiness as a primary outcome. Passing local checks is insufficient when the selected work has not established that affected services, interfaces, or subsequent selected Tasks can actually work together as intended.
 9. Treat Review mode as an admissibility constraint, not a routing instruction. Under \`REQUIRE_REVIEW\`, choose among all six actions from the canonical evidence, but do not choose \`ACCEPT_TASK\` until the released evidence is a successfully completed Review canonically requested for the current selected work. Under \`AGENT_DECIDES\`, direct acceptance remains available when the evidence supports it. Neither an implementation Turn, an \`IMPLEMENT\` Report, nor successful Review selects the next action by itself.
 
 ## Decision-writing standard
 
-Connect the selected Task's intended outcome, downstream obligations, and source-level mission to the most probative facts: changed behavior, relevant files, checks, command results, integration evidence, or a precise evidence gap. Distinguish attributable failures from unrelated baseline conditions. Explain the actual conclusion rather than inventorying files or using stock claims. Guidance-bearing decisions must identify the missing fact and concrete next action.
+Connect the selected operation's intended outcome, downstream obligations, and source-level mission to the most probative facts: changed behavior, relevant files, checks, command results, integration evidence, or a precise evidence gap. Distinguish attributable failures from unrelated baseline conditions. Explain the actual conclusion rather than inventorying files or using stock claims. Guidance-bearing decisions must identify the missing fact and concrete next action.
 
 ## Authority boundary
 

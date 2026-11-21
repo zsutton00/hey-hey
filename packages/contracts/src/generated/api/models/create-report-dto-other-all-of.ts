@@ -69,6 +69,7 @@ export const CreateReportDtoOtherAllOfReportTypeEnum = {
     FeatureTreeAnalysis: 'FEATURE_TREE_ANALYSIS',
     CompetitiveAnalysis: 'COMPETITIVE_ANALYSIS',
     SessionMonitorDeferral: 'SESSION_MONITOR_DEFERRAL',
+    MonitorNodeResult: 'MONITOR_NODE_RESULT',
     EvalRun: 'EVAL_RUN',
     EvalAttempt: 'EVAL_ATTEMPT',
     EvalHumanReview: 'EVAL_HUMAN_REVIEW',
@@ -94,6 +95,7 @@ export const CreateReportDtoOtherAllOfReportTypeEnum = {
     "FEATURE_TREE_ANALYSIS": "FEATURE_TREE_ANALYSIS",
     "COMPETITIVE_ANALYSIS": "COMPETITIVE_ANALYSIS",
     "SESSION_MONITOR_DEFERRAL": "SESSION_MONITOR_DEFERRAL",
+    "MONITOR_NODE_RESULT": "MONITOR_NODE_RESULT",
     "EVAL_RUN": "EVAL_RUN",
     "EVAL_ATTEMPT": "EVAL_ATTEMPT",
     "EVAL_HUMAN_REVIEW": "EVAL_HUMAN_REVIEW",
@@ -120,6 +122,7 @@ Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "VALIDATION_WALKT
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "FEATURE_TREE_ANALYSIS", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["FeatureTreeAnalysis"] });
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "COMPETITIVE_ANALYSIS", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["CompetitiveAnalysis"] });
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "SESSION_MONITOR_DEFERRAL", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["SessionMonitorDeferral"] });
+Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "MONITOR_NODE_RESULT", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["MonitorNodeResult"] });
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "EVAL_RUN", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["EvalRun"] });
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "EVAL_ATTEMPT", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["EvalAttempt"] });
 Object.defineProperty(CreateReportDtoOtherAllOfReportTypeEnum, "EVAL_HUMAN_REVIEW", { enumerable: false, value: CreateReportDtoOtherAllOfReportTypeEnum["EvalHumanReview"] });

@@ -40,6 +40,7 @@ import {
   SYSTEM_MESSAGE_INLINE_CODE_BG_VAR,
   SYSTEM_MESSAGE_LINK_COLOR_VAR,
 } from "./systemMessageStyleVars";
+import { SYSTEM_MESSAGE_MAX_WIDTH } from "./messageMaxWidth";
 
 const MermaidCodeBlock = React.lazy(() =>
   import("../../shared/MermaidCodeBlock").then((mod) => ({
@@ -481,7 +482,7 @@ function getStyles(
     base: {
       display: "inline-flex",
       minWidth: "120px",
-      maxWidth: "min(100%, max(600px, 90%))",
+      maxWidth: SYSTEM_MESSAGE_MAX_WIDTH,
       boxSizing: "border-box",
       flexDirection: "column",
       p: { xs: 1.25, sm: 2 },

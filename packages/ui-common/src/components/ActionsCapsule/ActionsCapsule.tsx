@@ -321,7 +321,9 @@ export const ActionsCapsule: React.FC = () => {
                   key={button.key}
                   button={button}
                   onClick={() => {
-                    closeMobileMenu();
+                    if (!button.keepMenuOpen) {
+                      closeMobileMenu();
+                    }
                     button.onClick();
                   }}
                 />

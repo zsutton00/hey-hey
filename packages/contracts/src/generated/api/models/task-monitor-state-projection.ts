@@ -23,9 +23,12 @@ import type { TaskMonitorLifecycleAction } from './task-monitor-lifecycle-action
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorStateFailure } from './task-monitor-state-failure.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorStatePendingJudgment } from './task-monitor-state-pending-judgment.js';
 
 /**
- * Complete replacement snapshot. Omitted failure means the owner has no current failure; freshness updates never remove a retained failure.
+ * Complete replacement snapshot. Omitted failure means the owner has no current failure, and omitted pendingJudgment means it awaits no judgment; freshness updates never remove a retained failure.
  * @export
  * @interface TaskMonitorStateProjection
  */
@@ -42,6 +45,12 @@ export interface TaskMonitorStateProjection {
      * @memberof TaskMonitorStateProjection
      */
     'failure'?: TaskMonitorStateFailure;
+    /**
+     *
+     * @type {TaskMonitorStatePendingJudgment}
+     * @memberof TaskMonitorStateProjection
+     */
+    'pendingJudgment'?: TaskMonitorStatePendingJudgment;
     /**
      *
      * @type {Array<TaskMonitorLifecycleAction>}

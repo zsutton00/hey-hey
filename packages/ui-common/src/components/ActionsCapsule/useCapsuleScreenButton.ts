@@ -5,7 +5,18 @@ import type { CapsuleScreenButton } from "./types";
 /** Registers a screen control; use stable callbacks as with CapsuleAction. */
 export function useCapsuleScreenButton(button: CapsuleScreenButton): void {
   const { registerScreenButton, unregisterScreenButton } = useActionsCapsule();
-  const { key, label, icon, accessibleName, onClick, status } = button;
+  const {
+    key,
+    label,
+    icon,
+    accessibleName,
+    tooltip,
+    disabled,
+    pending,
+    keepMenuOpen,
+    onClick,
+    status,
+  } = button;
   const state = status?.state;
   const text = status?.text;
   useEffect(() => {
@@ -15,6 +26,10 @@ export function useCapsuleScreenButton(button: CapsuleScreenButton): void {
     label,
     icon,
     accessibleName,
+    tooltip,
+    disabled,
+    pending,
+    keepMenuOpen,
     onClick,
     state,
     text,

@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 /**
  * Staged Content Service
  *
@@ -349,7 +350,8 @@ export class StagedContentService {
           ? undefined
           : this.getWorkItemGeneratingStatus(entityType, targetStage.id);
 
-        const statusToApply = (generatingStatus || targetStatus) as WorkStatus;
+        const statusToApply = (generatingStatus ||
+          targetStatus) as TaskResponseDto['status'];
         this.logAdvancedDebug('work_item.advance.status_resolution', {
           entityId,
           targetStage: targetStage.id,
@@ -1594,7 +1596,7 @@ export class StagedContentService {
 
   private getFinalizedWorkItemStatus(
     entityType: 'initiative' | 'task',
-  ): WorkStatus {
+  ): TaskResponseDto['status'] {
     switch (entityType) {
       case 'initiative':
         return WorkStatus.Active;

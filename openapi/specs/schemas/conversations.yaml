@@ -7500,7 +7500,7 @@ CodingPromptFinalAssessmentStatusRecommendation:
     - reason
   properties:
     status:
-      $ref: "./common.yaml#/WorkStatus"
+      $ref: "./common.yaml#/WorkItemStatus"
     reason:
       type: string
   description: Recommended task status and supporting reason

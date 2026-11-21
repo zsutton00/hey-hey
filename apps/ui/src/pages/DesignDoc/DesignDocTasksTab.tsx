@@ -6,6 +6,7 @@ import {
   EntityIcon,
   EntityNodeStatusChip,
 } from "@hey-hey/ui-common/components";
+import { useWorkItemStatusVocabularies } from "@hey-hey/ui-common/data";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import {
   Box,
@@ -18,7 +19,10 @@ import {
 import React from "react";
 import { Link } from "react-router-dom";
 
+const NO_ITEMS: readonly never[] = [];
+
 interface DesignDocTasksTabProps {
+  organizationId: string;
   projectId: string;
   tasks: ContextRelatedEntityDto[];
   isLoading: boolean;
@@ -31,10 +35,17 @@ const formatRelationLabel = (value: string): string =>
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const DesignDocTasksTab: React.FC<DesignDocTasksTabProps> = ({
+  organizationId,
   projectId,
   tasks,
   isLoading,
 }) => {
+  const { definitions } = useWorkItemStatusVocabularies(
+    organizationId,
+    projectId,
+    NO_ITEMS,
+  );
+
   if (isLoading) {
     return (
       <Box
@@ -124,7 +135,14 @@ export const DesignDocTasksTab: React.FC<DesignDocTasksTabProps> = ({
                     "& .MuiChip-label": { px: 0.75 },
                   }}
                 />
-                <EntityNodeStatusChip status={task.status} />
+                <EntityNodeStatusChip
+                  status={task.status}
+                  workItem={{
+                    definition: task.taskType
+                      ? definitions.get(task.taskType)
+                      : undefined,
+                  }}
+                />
               </Box>
               {secondaryText && (
                 <Typography

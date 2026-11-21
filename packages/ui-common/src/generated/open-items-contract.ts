@@ -2792,11 +2792,7 @@ export const openItemsSchemas = {
       },
       code: {
         type: "string",
-        enum: [
-          "COLLECTION_ALREADY_EXISTS",
-          "COLLECTION_ABSENT",
-          "IDEMPOTENCY_KEY_REUSED",
-        ],
+        enum: ["COLLECTION_ALREADY_EXISTS", "COLLECTION_ABSENT"],
       },
       message: {
         type: "string",
@@ -2815,6 +2811,45 @@ export const openItemsSchemas = {
             ],
             description:
               "Current canonical collection revision; null when the collection is absent. Clients re-read before retrying.",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
+    },
+  },
+  OpenItemsIdempotencyKeyReusedError: {
+    type: "object",
+    additionalProperties: false,
+    required: ["success", "code", "message", "currentCollectionRevision"],
+    description:
+      "The idempotency key was already recorded for a different request. A key reused while its first request is still running is not this error; Open Items mutations run in one transaction, so that case does not arise.",
+    properties: {
+      success: {
+        type: "boolean",
+        enum: [false],
+      },
+      code: {
+        type: "string",
+        enum: ["IDEMPOTENCY_KEY_REUSED"],
+      },
+      message: {
+        type: "string",
+      },
+      currentCollectionRevision: {
+        anyOf: [
+          {
+            allOf: [
+              {
+                type: "integer",
+                format: "int64",
+                minimum: 1,
+                description:
+                  "Monotonic revision. Collection, item, and group revisions advance independently; every successful mutation advances the collection revision.",
+              },
+            ],
+            description: "Current canonical collection revision.",
           },
           {
             type: "null",

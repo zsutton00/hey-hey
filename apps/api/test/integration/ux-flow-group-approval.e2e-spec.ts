@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../setup/legacy-status.fixture';
 import { ProposalService } from '../../src/services/proposal/proposal.service';
 import { randomUUID } from 'node:crypto';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -114,7 +115,7 @@ describe('UX journey grouped approval', () => {
         sectionDefinitions: [{ key: 'description', label: 'Screen' }],
         allowedParentTypes: ['FEATURE'],
         edgeTargets: [],
-        allowedStatuses: ['BACKLOG', 'ACTIVE', 'ARCHIVED'],
+        statuses: legacyStatuses(['BACKLOG', 'ACTIVE']),
         requiredScalars: [],
         forbiddenScalars: ['tag'],
         parentage: { allowedParentEntityTypes: ['TASK'] },

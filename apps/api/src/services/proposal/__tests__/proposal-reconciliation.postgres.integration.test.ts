@@ -1,3 +1,4 @@
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { WorkItemTypeRegistryService } from '../../tasks/work-item-type-registry.service';
 import { ProposalApprovalService } from '../proposal-approval.service';
 import { WorkItemTypeLifecycleService } from '../../tasks/work-item-type-lifecycle.service';
@@ -92,7 +93,7 @@ databaseTests('reconciliation guarded PostgreSQL writes', () => {
     sectionDefinitions: [],
     allowedParentTypes: [],
     edgeTargets: [],
-    allowedStatuses: [],
+    statuses: legacyStatuses([]),
     requiredScalars: [],
     forbiddenScalars: [],
     parentage: { allowedParentEntityTypes: [] },

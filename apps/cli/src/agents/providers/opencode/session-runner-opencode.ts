@@ -1774,7 +1774,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
               sessionStartContext.hintsEnabled,
               additionalAllowedTools ?? [],
             ),
-            hintsProductDevelopment: sessionStartContext.hintsProductDevelopment,
+            productDevelopment: sessionStartContext.productDevelopment,
           },
         );
         requestContext.log(

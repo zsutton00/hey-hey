@@ -1,6 +1,7 @@
+import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
 import { WorkStatus } from '@hey-hey/contracts/api/models';
 
-const displayStatus = (status: WorkStatus): string =>
+const displayStatus = (status: TaskResponseDto['status']): string =>
   status
     .toLowerCase()
     .split('_')

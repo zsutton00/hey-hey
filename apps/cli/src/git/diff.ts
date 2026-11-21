@@ -146,13 +146,99 @@ const findUntrackedPaths = async (repoPath: string, paths: string[]): Promise<Se
   }
 };
 
+/** Safe, loggable description of a failed git invocation. */
+export interface GitFailureDetail {
+  command: string;
+  exitCode: number | string | null;
+  message: string;
+}
+
+const MAX_GIT_FAILURE_MESSAGE_LENGTH = 500;
+
+const isExecFailure = (
+  error: unknown,
+): error is Error & { code?: number | string; cmd?: string; stderr?: string } =>
+  error instanceof Error;
+
+/** Extracts the git operation, exit code and error text from a failed `execFile` call. */
+export const describeGitFailure = (error: unknown): GitFailureDetail => {
+  if (!isExecFailure(error)) {
+    return { command: 'git', exitCode: null, message: String(error) };
+  }
+
+  const stderr = typeof error.stderr === 'string' ? error.stderr.trim() : '';
+  const message = (stderr || error.message).slice(0, MAX_GIT_FAILURE_MESSAGE_LENGTH);
+
+  return { command: error.cmd ?? 'git', exitCode: error.code ?? null, message };
+};
+
+const gitSucceeds = async (repoPath: string, args: string[]): Promise<boolean> => {
+  try {
+    await execFileAsync('git', args, { cwd: repoPath });
+    return true;
+  } catch (error) {
+    if (isExecFailure(error) && error.code === 1) {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * True only when `HEAD` names a branch that has no commits yet. Any other
+ * failure to resolve `HEAD` (corrupt repository, detached bad ref, not a
+ * repository) is not an unborn branch and propagates with its original cause.
+ */
+const isUnbornBranch = async (repoPath: string): Promise<boolean> => {
+  let branchRef: string;
+  try {
+    const { stdout } = await execFileAsync('git', ['symbolic-ref', '--quiet', 'HEAD'], {
+      cwd: repoPath,
+    });
+    branchRef = stdout.trim();
+  } catch (error) {
+    if (isExecFailure(error) && error.code === 1) {
+      return false;
+    }
+
+    throw error;
+  }
+
+  const branchExists = await gitSucceeds(repoPath, ['show-ref', '--verify', '--quiet', branchRef]);
+
+  return !branchExists;
+};
+
+/**
+ * Ref that working-tree changes are measured against. A repository whose
+ * branch has no commits has no `HEAD` commit, so it uses the empty tree and
+ * every indexed file counts as added. Other `HEAD` failures are rethrown.
+ */
+const resolveWorkingTreeBaseRef = async (repoPath: string): Promise<string> => {
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repoPath });
+    return 'HEAD';
+  } catch (headError) {
+    if (!(await isUnbornBranch(repoPath))) {
+      throw headError;
+    }
+
+    const { stdout } = await execFileAsync('git', ['hash-object', '-t', 'tree', '/dev/null'], {
+      cwd: repoPath,
+    });
+    return stdout.trim();
+  }
+};
+
 /**
  * Lists every currently dirty path relative to `repoPath`, including staged,
  * unstaged, deleted, renamed, and untracked files.
  */
 export const listGitChangedFilePaths = async (repoPath: string): Promise<string[]> => {
+  const baseRef = await resolveWorkingTreeBaseRef(repoPath);
   const [{ stdout: trackedOutput }, { stdout: untrackedOutput }] = await Promise.all([
-    execFileAsync('git', ['diff', '--name-only', '-z', 'HEAD'], {
+    execFileAsync('git', ['diff', '--name-only', '-z', baseRef], {
       cwd: repoPath,
       maxBuffer: MAX_DIFF_BUFFER,
     }),
@@ -370,7 +456,8 @@ const diffUntrackedFile = async (
 export const getGitDiff = async (options: GetGitDiffOptions): Promise<LocalDiffFilePatch[]> => {
   const { repoPath, base, paths } = options;
 
-  const args: string[] = ['diff', '--unified=3', base ? `${base}..HEAD` : 'HEAD'];
+  const diffTarget = base ? `${base}..HEAD` : await resolveWorkingTreeBaseRef(repoPath);
+  const args: string[] = ['diff', '--unified=3', diffTarget];
 
   if (paths && paths.length > 0) {
     args.push('--', ...paths);

@@ -1,6 +1,7 @@
 import { PlanToolsProvider } from '../../../mcp/tools/plan-tools.provider';
 import { workItemChangeSetValidationRequestSchema } from '../work-item-change-set.schema';
 import { ProposalReconciliationAdapterService } from '../proposal-reconciliation-adapter.service';
+import { legacyStatuses } from '../../../../test/setup/legacy-status.fixture';
 import { createWarmWorkItemTypeRegistryWithCustomTypes } from '../../../../test/setup/work-item-type-registry.fixture';
 import { WorkItemParentageValidator } from '../../tasks/work-item-parentage-validator.service';
 import { WorkItemChangeSetProjectorService } from '../work-item-change-set-projector.service';
@@ -1254,7 +1255,7 @@ describe('ProposalApprovalService', () => {
           name: 'Marketing',
           description: 'Campaign work',
           sections: [{ key: 'brief', label: 'Brief' }],
-          allowedStatuses: ['ACTIVE', 'COMPLETED'],
+          statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
         },
       });
     }
@@ -1409,7 +1410,7 @@ describe('ProposalApprovalService', () => {
         name: 'Marketing',
         description: 'Campaign work',
         sections: [{ key: 'brief', label: 'Brief' }],
-        allowedStatuses: ['ACTIVE', 'COMPLETED'],
+        statuses: legacyStatuses(['ACTIVE', 'COMPLETED']),
       };
       const draft = makeStoredProposal({
         targetEntityType: 'WORK_ITEM_TYPE',
@@ -1459,7 +1460,7 @@ describe('ProposalApprovalService', () => {
         key: typeKey,
         name: 'Marketing',
         sections,
-        allowedStatuses: [],
+        statuses: legacyStatuses([]),
       };
     }
 
@@ -5519,6 +5520,130 @@ describe('ProposalApprovalService', () => {
       expect(txMock.proposalApprovalRecord.create).not.toHaveBeenCalled();
     });
 
+    describe.each([
+      ['one eligible member', [{ userId: approvingUserId }]],
+      [
+        'several eligible members',
+        [{ userId: approvingUserId }, { userId: 'other-member-id' }],
+      ],
+    ])('top-level custom-type item with %s', (_label, members) => {
+      const topLevelRecipe = {
+        type: 'RECIPE',
+        parentTaskId: null,
+        initiativeId: null,
+      };
+
+      it('lets the user author approve their own status change without a second approver', async () => {
+        txMock.projectMember.findMany.mockResolvedValue(members);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: approvingUserId,
+          requestorContext: {
+            source: 'user',
+            userId: approvingUserId,
+            organizationId: testIds.organization,
+            toolName: 'POST /proposals',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        setupForApproval(draft, {
+          approvalCount: 1,
+          taskLookup: topLevelRecipe,
+        });
+        mockTaskService.updateInTransaction.mockResolvedValue({
+          task: { id: testIds.task },
+          postCommit: {},
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        );
+
+        expect(result.enacted).toBe(true);
+        expect(result.proposal.status).toBe('APPROVED');
+      });
+
+      it('applies an agent-authored status change only on the human approval, never on authorship', async () => {
+        txMock.projectMember.findMany.mockResolvedValue(members);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: 'agent-requestor-id',
+          requestorContext: {
+            source: 'agent',
+            userId: 'agent-requestor-id',
+            organizationId: testIds.organization,
+            toolName: 'mcp.edit_work_item',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        // The count reflects only the human's explicit approval record.
+        setupForApproval(draft, {
+          approvalCount: 1,
+          taskLookup: topLevelRecipe,
+        });
+        mockTaskService.updateInTransaction.mockResolvedValue({
+          task: { id: testIds.task },
+          postCommit: {},
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          approvingUserId,
+        );
+
+        expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledTimes(1);
+        expect(txMock.proposalApprovalRecord.create).toHaveBeenCalledWith({
+          data: {
+            proposalId,
+            userId: approvingUserId,
+            type: 'APPROVAL',
+          },
+        });
+        expect(result.enacted).toBe(true);
+        expect(result.proposal.status).toBe('APPROVED');
+      });
+
+      it('rejects the agent author approving its own status change', async () => {
+        txMock.projectMember.findMany.mockResolvedValue([
+          ...members,
+          { userId: 'agent-requestor-id' },
+        ]);
+        const draft = makeStoredProposal({
+          action: 'UPDATE',
+          requestorId: 'agent-requestor-id',
+          requestorContext: {
+            source: 'agent',
+            userId: 'agent-requestor-id',
+            organizationId: testIds.organization,
+            toolName: 'mcp.edit_work_item',
+            timestamp: '2026-04-29T00:00:00.000Z',
+          },
+          updates: { status: 'COOKING' },
+        });
+        setupForApproval(draft, {
+          approvalCount: 0,
+          taskLookup: topLevelRecipe,
+        });
+
+        const result = await service.approve(
+          proposalId,
+          testIds.organization,
+          testIds.project,
+          'agent-requestor-id' as UserId,
+        );
+
+        expect(result.enacted).toBe(false);
+        expect(mockTaskService.updateInTransaction).not.toHaveBeenCalled();
+      });
+    });
+
     it('enacts proposal with single approval when no rules match', async () => {
       const draft = makeStoredProposal({
         action: 'UPDATE',
@@ -6064,7 +6189,7 @@ describe('ProposalApprovalService', () => {
           key: 'RESEARCH',
           name: 'Research',
           sections: [],
-          allowedStatuses: ['ACTIVE'],
+          statuses: legacyStatuses(['ACTIVE']),
         },
       });
       stubGroupedMember(proposal);

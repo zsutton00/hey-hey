@@ -22,7 +22,6 @@ import {
   type SystemMessageData,
   type TaskResponseDto,
   type UserMessageData,
-  WorkStatus,
 } from '@hey-hey/contracts/api/models';
 import { Configuration } from '@hey-hey/contracts/api/configuration';
 import type { RunEntityReference } from '../../shared/agent-bridge-contract/contract';
@@ -105,7 +104,7 @@ const workItemEntityFieldsSchema = z
     type: z.string().min(1),
     organizationId: z.string().min(1),
     projectId: z.string().min(1),
-    status: z.nativeEnum(WorkStatus),
+    status: z.string().min(1),
     source: z.nativeEnum(TaskSource),
   })
   .passthrough();

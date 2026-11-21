@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "../../api/api";
 import { describe, expect, it } from "vitest";
 import {
   PlanConfigurationV1SchemaVersionEnum,
@@ -64,7 +65,7 @@ const stage: PlanStageWorkItem = {
 
 const dependency = (
   sourceNodeId: string,
-  targetNodeId: string
+  targetNodeId: string,
 ): AgentEdgeResponseDto => ({
   id: `${sourceNodeId}-depends-on-${targetNodeId}`,
   sourceNodeId,
@@ -79,14 +80,15 @@ const task = (
   id: string,
   name: string,
   options: {
-    status?: WorkStatus;
+    status?: TaskResponseDto["status"];
     createdAt?: string;
     dependencies?: string[];
-  } = {}
+    type?: "STANDARD" | "BUG";
+  } = {},
 ): PlanStageStandardTask => ({
   id,
   name,
-  type: "STANDARD",
+  type: options.type ?? "STANDARD",
   parentTaskId: stageId,
   organizationId,
   projectId,
@@ -99,7 +101,7 @@ const task = (
 const compose = (
   tasks: readonly PlanStageStandardTask[],
   planConfiguration: PlanConfigurationV1 = configuration,
-  sourcePlan: PlanWorkItem = plan
+  sourcePlan: PlanWorkItem = plan,
 ) =>
   composePlanStageTaskMonitorSetup({
     organizationId,
@@ -149,13 +151,14 @@ describe("composePlanStageTaskMonitorSetup", () => {
       "Dependent",
       {
         dependencies: [first.id, parallel.id],
-      }
+      },
     );
 
     const result = compose([dependent, first, parallel]);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    expect(result.draft.definition.kind).toBe("task");
     expect(result.draft.definition.executionPlan).toEqual([
       expect.objectContaining({ taskId: parallel.id, dependsOnTaskIds: [] }),
       expect.objectContaining({ taskId: first.id, dependsOnTaskIds: [] }),
@@ -170,12 +173,12 @@ describe("composePlanStageTaskMonitorSetup", () => {
       expect.objectContaining({ taskId: dependent.id }),
     ]);
     expect(taskMonitorExecutionDefinitionSchema(result.draft.definition)).toBe(
-      true
+      true,
     );
     expect(
       parseTaskMonitorExecutionDefinition(
-        JSON.stringify(result.draft.definition)
-      )
+        JSON.stringify(result.draft.definition),
+      ),
     ).toEqual(result.draft.definition);
   });
 
@@ -238,6 +241,27 @@ describe("composePlanStageTaskMonitorSetup", () => {
     ]);
   });
 
+  it("selects an unfinished Bug with its Task and leaves finished Bugs out", () => {
+    const active = task("task-active", "Active", { status: WorkStatus.Active });
+    const verifying = task("bug-verifying", "Verifying Bug", {
+      type: "BUG",
+      status: WorkStatus.Verifying,
+      dependencies: [active.id],
+    });
+    const superseded = task("bug-superseded", "Superseded Bug", {
+      type: "BUG",
+      status: WorkStatus.Superseded,
+    });
+
+    const result = compose([superseded, verifying, active]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.draft.definition.executionPlan.map(({ taskId }) => taskId),
+    ).toEqual([active.id, verifying.id]);
+  });
+
   it("rejects a cyclic dependency graph", () => {
     const first = task("task-1", "First", { dependencies: ["task-2"] });
     const second = task("task-2", "Second", { dependencies: ["task-1"] });
@@ -276,7 +300,7 @@ describe("composePlanStageTaskMonitorSetup", () => {
       ok: false,
       error: {
         code: "no-executable-work",
-        messages: ["This Plan Stage has no executable STANDARD Tasks."],
+        messages: ["This Plan Stage has no executable Tasks or Bugs."],
       },
     });
   });

@@ -80,8 +80,6 @@ import type { UpdateTaskDto } from '../models.js';
 import type { WorkItemExecutionStateBatchRequestDto } from '../models.js';
 // @ts-ignore
 import type { WorkItemGraphParticipationType } from '../models.js';
-// @ts-ignore
-import type { WorkStatus } from '../models.js';
 /**
  * TasksApi - axios parameter creator
  * @export
@@ -294,7 +292,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Array<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<WorkStatus>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses; each repeated value is one exact status name
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -311,7 +309,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        organizationsOrganizationIdProjectsProjectIdTasksGet: async (organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Array<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Array<string>, status?: Array<WorkStatus>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        organizationsOrganizationIdProjectsProjectIdTasksGet: async (organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Array<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Array<string>, status?: Array<string>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('organizationsOrganizationIdProjectsProjectIdTasksGet', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -363,7 +361,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             }
 
             if (status) {
-                localVarQueryParameter['status'] = status.join(COLLECTION_FORMATS.csv);
+                localVarQueryParameter['status'] = status;
             }
 
             if (includeDesignDocCounts !== undefined) {
@@ -955,13 +953,13 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<WorkStatus>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination. Each repeated value is one exact status name.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet: async (organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<WorkStatus>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet: async (organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<string>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -1007,7 +1005,7 @@ export const TasksApiAxiosParamCreator = function (configuration?: Configuration
             }
 
             if (statuses) {
-                localVarQueryParameter['statuses'] = statuses.join(COLLECTION_FORMATS.csv);
+                localVarQueryParameter['statuses'] = statuses;
             }
 
             if (sortBy !== undefined) {
@@ -1313,7 +1311,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {boolean} [includeTrackedEntities] When true or omitted, GOAL work items include embedded TRACKS target snapshots in &#x60;trackedEntities&#x60;. When false, omit only the &#x60;trackedEntities&#x60; projection while preserving all ordinary work-item fields.
          * @param {boolean} [includeTrackedWorkSummary] When true, GOAL work items include the compact &#x60;trackedWorkSummary&#x60; aggregate (tracked, completed, cancelled, past-due and open-undated counts). Independent of &#x60;includeTrackedEntities&#x60;, so collection views can request the summary without embedded snapshots.
          * @param {Array<string>} [taskIds] Filter to a bounded repeated set of task ids for selected-work hydration.
-         * @param {Array<WorkStatus>} [status] Filter by task statuses (comma-separated)
+         * @param {Array<string>} [status] Filter by task statuses; each repeated value is one exact status name
          * @param {boolean} [includeDesignDocCounts] When true, include designDocCount for each task.
          * @param {boolean} [includeAgentSessionCounts] When true, include codingSessionCount and agentSessionCount for each task.
          * @param {boolean} [includeServiceRelations] When true, include serviceRelations for each task.
@@ -1330,7 +1328,7 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Array<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Array<string>, status?: Array<WorkStatus>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdTasksGet200Response>> {
+        async organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId: string, projectId: string, initiativeId?: string, parentTaskId?: string | null, parentTaskIds?: Array<string>, includeDescendants?: boolean, includeTrackedEntities?: boolean, includeTrackedWorkSummary?: boolean, taskIds?: Array<string>, status?: Array<string>, includeDesignDocCounts?: boolean, includeAgentSessionCounts?: boolean, includeServiceRelations?: boolean, includeEdges?: boolean, edgeTypes?: Array<AgentEdgeType>, includeSectionKeys?: Array<string>, type?: string, relatedEntityId?: string, relatedEntityType?: AgentEdgeEndpointEntityType, page?: number, limit?: number, sortBy?: TaskSortBy, sortDir?: TaskSortDir, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdTasksGet200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdTasksGet(organizationId, projectId, initiativeId, parentTaskId, parentTaskIds, includeDescendants, includeTrackedEntities, includeTrackedWorkSummary, taskIds, status, includeDesignDocCounts, includeAgentSessionCounts, includeServiceRelations, includeEdges, edgeTypes, includeSectionKeys, type, relatedEntityId, relatedEntityType, page, limit, sortBy, sortDir, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['TasksApi.organizationsOrganizationIdProjectsProjectIdTasksGet']?.[localVarOperationServerIndex]?.url;
@@ -1500,13 +1498,13 @@ export const TasksApiFp = function(configuration?: Configuration) {
          * @param {number} page 1-based page number in the deterministic result set.
          * @param {number} limit Number of references to return, from 1 through 500.
          * @param {string} [filter] Optional case-insensitive substring filter on canonical name, applied before counting and pagination.
-         * @param {Array<WorkStatus>} [statuses] Optional status set applied before counting and pagination.
+         * @param {Array<string>} [statuses] Optional status set applied before counting and pagination. Each repeated value is one exact status name.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum} [sortBy] Reference field used for deterministic ordering.
          * @param {OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum} [sortOrder] Direction used for deterministic reference ordering.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<WorkStatus>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet200Response>> {
+        async organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId: string, projectId: string, type: string, page: number, limit: number, filter?: string, statuses?: Array<string>, sortBy?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum, sortOrder?: OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(organizationId, projectId, type, page, limit, filter, statuses, sortBy, sortOrder, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['TasksApi.organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet']?.[localVarOperationServerIndex]?.url;
@@ -2165,11 +2163,11 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGetReq
     readonly taskIds?: Array<string>
 
     /**
-     * Filter by task statuses (comma-separated)
-     * @type {Array<WorkStatus>}
+     * Filter by task statuses; each repeated value is one exact status name
+     * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdTasksGet
      */
-    readonly status?: Array<WorkStatus>
+    readonly status?: Array<string>
 
     /**
      * When true, include designDocCount for each task.
@@ -2704,11 +2702,11 @@ export interface TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsRe
     readonly filter?: string
 
     /**
-     * Optional status set applied before counting and pagination.
-     * @type {Array<WorkStatus>}
+     * Optional status set applied before counting and pagination. Each repeated value is one exact status name.
+     * @type {Array<string>}
      * @memberof TasksApiOrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet
      */
-    readonly statuses?: Array<WorkStatus>
+    readonly statuses?: Array<string>
 
     /**
      * Reference field used for deterministic ordering.

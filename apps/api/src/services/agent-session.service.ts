@@ -1,4 +1,5 @@
 import { ReadVisibilityService } from '../read-restriction/read-visibility.service';
+import { ServerStateException } from '../common/exceptions/server-state.exceptions';
 import { isSerializableWorkflowState } from '../workflows/conversation-workflow-state';
 import { resolveAncestorPlanWorkItem } from './plan/resolve-plan-work-item';
 import { parseProjectReportSessionConfig } from 'src/contracts/project-report-session-config';
@@ -13,6 +14,7 @@ import {
   ForbiddenException,
   forwardRef,
   Inject,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -528,7 +530,7 @@ export class AgentSessionService {
           conversationId: params.conversationId,
           conversationWorkflowName: params.conversationWorkflowName,
         });
-        throw new ConflictException({
+        throw new UnprocessableEntityException({
           code: 'WORK_TRACKER_IMPORT_START_RUN_BINDING_MISMATCH',
           message:
             'The work-tracker import start-run request does not match the Agent Session conversation binding.',
@@ -549,7 +551,7 @@ export class AgentSessionService {
       select: { conversationId: true },
     });
     if (!session || session.conversationId !== params.conversationId) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'REPOSITORY_IMPORT_START_RUN_BINDING_MISMATCH',
         message:
           'The repository import start-run request does not match the Agent Session conversation binding.',
@@ -587,7 +589,7 @@ export class AgentSessionService {
         flowState: execution.flowState,
       })
     ) {
-      throw new ConflictException({
+      throw new UnprocessableEntityException({
         code: 'REPOSITORY_IMPORT_START_RUN_BINDING_MISMATCH',
         message:
           'The repository import start-run request does not match a qualifying import conversation.',
@@ -952,7 +954,8 @@ export class AgentSessionService {
                 agentSessionId: association.agentSessionId,
               },
             );
-            throw new ConflictException(
+            throw new ServerStateException(
+              'AGENT_SESSION_STATE_INCONSISTENT',
               'Coordinator association points to an invalid Agent Session',
             );
           }
@@ -1130,7 +1133,8 @@ export class AgentSessionService {
 
     if (session.conversationId !== null) {
       if (!this.conversationService) {
-        throw new ConflictException(
+        throw new ServerStateException(
+          'AGENT_SESSION_STATE_INCONSISTENT',
           'Agent session already has a conversation, but it could not be loaded',
         );
       }

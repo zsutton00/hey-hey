@@ -1,3 +1,6 @@
+import { workItemTypeStatusesSchema } from './work-item-type-status.schema';
+import { z } from 'zod';
+import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
 import type { SessionRole } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeRoleGuidanceDto } from '@hey-hey/contracts/api/models';
 import type { WorkItemTypeGuidanceBatchDto } from '@hey-hey/contracts/api/models';
@@ -65,6 +68,10 @@ import {
   workItemTypeGraphCapabilitySchema,
 } from './work-item-type-capabilities.schema';
 import {
+  monitorKindPolicyIssues,
+  resolveMonitorKindsCompatibility,
+} from './task-monitor-kind';
+import {
   WORK_ITEM_CAPABILITY_KEYS as CAP,
   readCapability,
 } from './work-item-type-capabilities';
@@ -77,8 +84,7 @@ import {
 export type TaskScalarField = 'dueDate' | 'tag';
 
 export interface InitialStatusPolicy {
-  readonly initialStatus: WorkStatus;
-  readonly hasSetInitialStatus: boolean;
+  readonly initialStatus: string;
 }
 
 export type {
@@ -96,7 +102,8 @@ export interface WorkItemTypeRules {
   readonly role: WorkItemTypeRole;
   /** Explicit launch-config policy; omitted legacy definitions resolve empty. */
   readonly acceptedConfigKinds: readonly WorkItemConfigKind[];
-  readonly allowedStatuses: readonly WorkStatus[];
+  readonly statuses: readonly WorkItemTypeStatus[];
+  readonly allowedStatuses: readonly string[];
   readonly initialStatusPolicy: InitialStatusPolicy;
   readonly sections: readonly string[];
   readonly sectionDefinitions: readonly WorkItemTypeSectionDefinition[];
@@ -117,7 +124,7 @@ export interface WorkItemTypeRules {
     readonly allowedParentEntityTypes: readonly EntityType[];
   };
   readonly allowedEdgeTargetEntityTypes: readonly EntityType[];
-  readonly agentSettableStatuses: readonly WorkStatus[];
+  readonly agentSettableStatuses: readonly string[];
   readonly planEligible: boolean;
   readonly rendersInline: boolean;
   readonly showsInExplorerSidebar: boolean;
@@ -170,8 +177,7 @@ function resolveGraphCapability(
  * {@link WorkItemTypeRules}; every axis traces to a definition field or the
  * capability map, with two derivations the DTO does not store directly:
  *   - `initialStatus` is the FIRST allowed status (the reseed orders the list so
- *     the intended initial status leads), and `hasSetInitialStatus` is a
- *     capability flag.
+ *     the intended initial status leads).
  *   - `allowedEdgeTargetEntityTypes` is the uniform {@link ALL_ENTITY_TYPES}; no
  *     definition field narrows it.
  * Pure and exported so the parity guard can exercise it against the built-ins.
@@ -180,10 +186,22 @@ export function deriveRules(
   definition: WorkItemTypeDefinitionDto,
 ): WorkItemTypeRules {
   assertValidMockupSizeProfiles(definition.sections);
+  const firstStatus = definition.statuses[0];
+  if (!firstStatus) {
+    throw new BadRequestException(
+      'A type requires an ordinary initial status.',
+    );
+  }
+
   const caps = definition.capabilities;
   const graph = resolveGraphCapability(readGraphCapability(caps));
-  const allowedStatuses =
-    definition.allowedStatuses as unknown as readonly WorkStatus[];
+  const allowedStatuses = [
+    ...definition.statuses.map((status) => status.name),
+    WorkStatus.Archived,
+    ...(definition.capabilities?.supportsSupersession
+      ? [WorkStatus.Superseded]
+      : []),
+  ];
   const allowedParentTaskTypes = (definition.allowedParentTypes ??
     []) as readonly string[];
 
@@ -191,10 +209,10 @@ export function deriveRules(
     role: definition.role,
     acceptedConfigKinds: (definition.acceptedConfigKinds ??
       []) as readonly WorkItemConfigKind[],
+    statuses: definition.statuses,
     allowedStatuses,
     initialStatusPolicy: {
-      initialStatus: allowedStatuses[0] ?? WorkStatus.Backlog,
-      hasSetInitialStatus: readCapability(caps, CAP.hasSetInitialStatus),
+      initialStatus: firstStatus.name,
     },
     sections: definition.sections.map((section) => section.key),
     sectionDefinitions: definition.sections,
@@ -213,7 +231,7 @@ export function deriveRules(
     },
     allowedEdgeTargetEntityTypes: ALL_ENTITY_TYPES,
     agentSettableStatuses: (definition.agentSettableStatuses ??
-      []) as unknown as readonly WorkStatus[],
+      []) as unknown as readonly string[],
     planEligible: readCapability(caps, CAP.planEligible),
     rendersInline: readCapability(caps, CAP.rendersInline),
     showsInExplorerSidebar: readCapability(caps, CAP.showsInExplorerSidebar),
@@ -232,10 +250,32 @@ export function deriveRules(
 export function writtenAgentSettableStatuses(
   definition: Pick<
     WorkItemTypeDefinitionDto,
-    'agentSettableStatuses' | 'allowedStatuses'
+    'agentSettableStatuses' | 'statuses'
   >,
-): WorkItemTypeDefinitionDto['allowedStatuses'] {
-  return definition.agentSettableStatuses ?? definition.allowedStatuses;
+): string[] {
+  return (
+    definition.agentSettableStatuses ?? [
+      ...definition.statuses.map((status) => status.name),
+      WorkStatus.Archived,
+    ]
+  );
+}
+
+/** Agent-settable names that are neither an ordinary status of the type nor Archived. */
+export function undeclaredAgentSettableStatuses(
+  definition: Pick<
+    WorkItemTypeDefinitionDto,
+    'agentSettableStatuses' | 'statuses'
+  >,
+): string[] {
+  const allowed = new Set<string>([
+    ...definition.statuses.map((status) => status.name),
+    WorkStatus.Archived,
+  ]);
+
+  return (definition.agentSettableStatuses ?? []).filter(
+    (name) => !allowed.has(name),
+  );
 }
 
 export function assertValidMockupSizeProfiles(
@@ -349,6 +389,15 @@ export function assertValidMockupSizeProfiles(
  * in `src/config/work-item-type.config.ts` (keyed by EntityType, governs
  * refinement levels). This service governs the per-type rule axes.
  */
+function describeLoadFailure(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return error.issues
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('; ');
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 @Injectable()
 export class WorkItemTypeRegistryService
   implements OnModuleInit, OnModuleDestroy
@@ -588,10 +637,26 @@ export class WorkItemTypeRegistryService
       projectRows.push(row);
       rowsByProject.set(row.projectId, projectRows);
     }
+    const templateDefinitions = templates.flatMap((template) => {
+      try {
+        return [
+          {
+            template,
+            definition: this.materializeTemplateDefinition(template),
+          },
+        ];
+      } catch (error) {
+        this.logger.error(
+          `Skipping canonical work-item type '${template.typeKey}' for all projects: ` +
+            `${describeLoadFailure(error)}`,
+        );
+        return [];
+      }
+    });
     for (const project of projects) {
-      for (const template of templates) {
-        const definition = this.materializeTemplateDefinition(template);
+      for (const { template, definition } of templateDefinitions) {
         const rules = nextProjectRules.get(project.id) ?? new Map();
+        this.logStaleAgentSettableStatuses(definition, project.id);
         rules.set(template.typeKey, deriveRules(definition));
         nextProjectRules.set(project.id, rules);
         const activity = nextProjectActivity.get(project.id) ?? new Map();
@@ -608,13 +673,18 @@ export class WorkItemTypeRegistryService
         nextProjectSummaries.set(project.id, summaries);
       }
       for (const row of rowsByProject.get(project.id) ?? []) {
-        const definition = this.rowToDefinition(row);
-        if (!definition) {
-          throw new Error(
-            `Cannot load work-item type '${row.typeKey}' for project ${row.projectId}: ` +
-              'the persisted override is not a complete definition.',
-          );
+        const stored = this.tryRowToDefinition(
+          row,
+          canonicalKeys.has(row.typeKey),
+        );
+        if (!stored) {
+          continue;
         }
+        const definition = this.withMonitorKindCompatibility(
+          stored,
+          nextCanonicalDefinitions.get(row.typeKey),
+          row.projectId,
+        );
         const activity =
           nextProjectActivity.get(row.projectId) ?? new Map<string, string>();
         activity.set(row.typeKey, row.lifecycleStatus);
@@ -622,6 +692,7 @@ export class WorkItemTypeRegistryService
         const rulesMap =
           nextProjectRules.get(row.projectId) ??
           new Map<string, WorkItemTypeRules>();
+        this.logStaleAgentSettableStatuses(definition, row.projectId);
         rulesMap.set(row.typeKey, deriveRules(definition));
         nextProjectRules.set(row.projectId, rulesMap);
         const summaries = nextProjectSummaries.get(row.projectId) ?? [];
@@ -865,8 +936,7 @@ export class WorkItemTypeRegistryService
           []) as unknown as Prisma.InputJsonValue,
         edgeTargets: (definition.edgeTargets ??
           []) as unknown as Prisma.InputJsonValue,
-        allowedStatuses:
-          definition.allowedStatuses as unknown as Prisma.InputJsonValue,
+        statuses: workItemTypeStatusesSchema.parse(definition.statuses),
         requiredScalars: (definition.requiredScalars ??
           []) as unknown as Prisma.InputJsonValue,
         forbiddenScalars: (definition.forbiddenScalars ??
@@ -933,7 +1003,10 @@ export class WorkItemTypeRegistryService
       if (!canonical) throw this.customDefinitionUnavailableError(typeKey);
       const created = await this.insertAcceptedDefinitionInTransaction(
         tx,
-        definition,
+        this.preserveSupersessionEligibility(
+          definition,
+          canonical.capabilities,
+        ),
         projectId,
         organizationId,
       );
@@ -944,7 +1017,9 @@ export class WorkItemTypeRegistryService
         id: row.id,
         lifecycleStatus: 'active',
       },
-      data: this.definitionPersistenceData(definition),
+      data: this.definitionPersistenceData(
+        this.preserveSupersessionEligibility(definition, row.capabilities),
+      ),
     });
     if (result.count !== 1) {
       throw new BadRequestException(
@@ -1137,6 +1212,25 @@ export class WorkItemTypeRegistryService
     }
   }
 
+  /** Ordinary edits cannot revoke the platform-owned replacement transition. */
+  private preserveSupersessionEligibility(
+    definition: WorkItemTypeDefinitionDto,
+    storedCapabilities: Prisma.JsonValue,
+  ): WorkItemTypeDefinitionDto {
+    const current = materializeWorkItemTypeCapabilities(
+      storedCapabilities,
+      null,
+    );
+    if (!current.supportsSupersession) {
+      return definition;
+    }
+
+    return {
+      ...definition,
+      capabilities: { ...definition.capabilities, supportsSupersession: true },
+    };
+  }
+
   private definitionPersistenceData(
     definition: WorkItemTypeDefinitionDto,
   ): Prisma.WorkItemTypeUpdateManyMutationInput {
@@ -1155,8 +1249,7 @@ export class WorkItemTypeRegistryService
         []) as unknown as Prisma.InputJsonValue,
       edgeTargets: (definition.edgeTargets ??
         []) as unknown as Prisma.InputJsonValue,
-      allowedStatuses:
-        definition.allowedStatuses as unknown as Prisma.InputJsonValue,
+      statuses: workItemTypeStatusesSchema.parse(definition.statuses),
       requiredScalars: (definition.requiredScalars ??
         []) as unknown as Prisma.InputJsonValue,
       forbiddenScalars: (definition.forbiddenScalars ??
@@ -1188,6 +1281,59 @@ export class WorkItemTypeRegistryService
     };
   }
 
+  /**
+   * Strict agent-settable validation belongs to write paths (saving or
+   * proposing a type). A stored definition written before that check existed
+   * may still name a renamed status; loading must not fail for it, so the stale
+   * names are reported here and the type keeps loading.
+   */
+  private logStaleAgentSettableStatuses(
+    definition: WorkItemTypeDefinitionDto,
+    projectId: string,
+  ): void {
+    const stale = undeclaredAgentSettableStatuses(definition);
+    if (stale.length === 0) {
+      return;
+    }
+    this.logger.warn(
+      `Work-item type '${definition.key}' in project ${projectId} lists agent-settable ` +
+        `statuses that are not among its statuses or Archived: ${stale.join(', ')}. ` +
+        `The type still loads; update its agent-settable statuses to match.`,
+    );
+  }
+
+  /**
+   * Intentional isolation choice: a malformed or incomplete project row affects
+   * only its own type in its own project, and never fails the shared cache load.
+   * For a canonical type the project keeps the canonical definition (its
+   * customization is skipped, and the log says so); a custom type with no
+   * canonical counterpart is simply absent for that project.
+   */
+  private tryRowToDefinition(
+    row: WorkItemType,
+    hasCanonical: boolean,
+  ): WorkItemTypeDefinitionDto | null {
+    const consequence = hasCanonical
+      ? 'the project override was skipped and the canonical definition is in effect'
+      : 'the type is unavailable in this project';
+    try {
+      const definition = this.rowToDefinition(row);
+      if (definition) {
+        return definition;
+      }
+      this.logger.error(
+        `Skipping work-item type '${row.typeKey}' for project ${row.projectId}: ` +
+          `the persisted override is not a complete definition; ${consequence}.`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Skipping work-item type '${row.typeKey}' for project ${row.projectId}: ` +
+          `${describeLoadFailure(error)}; ${consequence}.`,
+      );
+    }
+    return null;
+  }
+
   materializeTemplateDefinition(
     template: WorkItemTypeTemplate,
   ): WorkItemTypeDefinitionDto {
@@ -1206,13 +1352,14 @@ export class WorkItemTypeRegistryService
         template.requiredScalars as unknown as WorkItemTypeScalarField[],
       forbiddenScalars:
         template.forbiddenScalars as unknown as WorkItemTypeScalarField[],
-      allowedStatuses: template.allowedStatuses as unknown as WorkStatus[],
+      statuses: workItemTypeStatusesSchema.parse(template.statuses),
       allowedParentTypes: template.allowedParentTypes as unknown as string[],
       edgeTargets: template.edgeTargets as unknown as WorkItemTypeEdgeTarget[],
       allowedParentEntityTypes: parentage?.allowedParentEntityTypes ?? [],
       tracking: template.tracking as unknown as WorkItemTypeTracking,
-      agentSettableStatuses:
-        template.agentSettableStatuses as unknown as WorkStatus[],
+      agentSettableStatuses: z
+        .array(z.string())
+        .parse(template.agentSettableStatuses),
       anchorableReportTypes:
         template.anchorableReportTypes as unknown as ReportType[],
       ...(template.sessionRoleGuidance == null
@@ -1274,13 +1421,14 @@ export class WorkItemTypeRegistryService
         row.requiredScalars as unknown as WorkItemTypeScalarField[],
       forbiddenScalars:
         row.forbiddenScalars as unknown as WorkItemTypeScalarField[],
-      allowedStatuses: row.allowedStatuses as unknown as WorkStatus[],
+      statuses: workItemTypeStatusesSchema.parse(row.statuses),
       allowedParentTypes: row.allowedParentTypes as unknown as string[],
       edgeTargets: row.edgeTargets as unknown as WorkItemTypeEdgeTarget[],
       allowedParentEntityTypes: parentage?.allowedParentEntityTypes ?? [],
       tracking: row.tracking as unknown as WorkItemTypeTracking,
-      agentSettableStatuses:
-        row.agentSettableStatuses as unknown as WorkStatus[],
+      agentSettableStatuses: z
+        .array(z.string())
+        .parse(row.agentSettableStatuses),
       anchorableReportTypes:
         row.anchorableReportTypes as unknown as ReportType[],
       ...(row.sessionRoleGuidance == null
@@ -1301,6 +1449,51 @@ export class WorkItemTypeRegistryService
         row.capabilities,
         row.graphConfiguration,
       ),
+    };
+  }
+
+  /**
+   * The effective TASK_MONITOR definition of a project override: kinds the
+   * override omits come from the canonical TASK_MONITOR definition, and any
+   * policy a declared kind omits comes from the canonical `task` kind. This
+   * interprets omissions once, centrally, for every declared kind, so consumers
+   * receive complete kinds and never merge definitions locally. Explicit
+   * declarations are kept, and a kind that cannot run is logged here and
+   * rejected by the consumers that would run it.
+   */
+  private withMonitorKindCompatibility(
+    definition: WorkItemTypeDefinitionDto,
+    canonical: WorkItemTypeDefinitionDto | undefined,
+    projectId: string,
+  ): WorkItemTypeDefinitionDto {
+    if (definition.key !== WORK_ITEM_TYPE_KEYS.TaskMonitor) {
+      return definition;
+    }
+
+    const monitorKinds = resolveMonitorKindsCompatibility(
+      definition.capabilities?.monitorKinds,
+      canonical?.capabilities?.monitorKinds,
+    );
+    if (monitorKinds === undefined) {
+      this.logger.error(
+        `Project ${projectId} TASK_MONITOR override declares no monitor kinds and the canonical TASK_MONITOR definition publishes none`,
+        { projectId },
+      );
+      return definition;
+    }
+
+    for (const kind of monitorKinds) {
+      const issues = monitorKindPolicyIssues(kind);
+      if (issues.length > 0) {
+        this.logger.error(
+          `Project ${projectId} TASK_MONITOR override has an unsupported "${kind.key}" monitor kind: ${issues.join('; ')}`,
+          { projectId, kind: kind.key },
+        );
+      }
+    }
+    return {
+      ...definition,
+      capabilities: { ...definition.capabilities, monitorKinds },
     };
   }
 
@@ -1359,17 +1552,14 @@ export class WorkItemTypeRegistryService
     return this.findRules(typeKey, projectId);
   }
 
-  getAllowedStatuses(
-    taskType: string,
-    projectId: string,
-  ): readonly WorkStatus[] {
+  getAllowedStatuses(taskType: string, projectId: string): readonly string[] {
     return this.requireRules(taskType, projectId).allowedStatuses;
   }
 
   getAgentSettableStatuses(
     taskType: string,
     projectId: string,
-  ): readonly WorkStatus[] {
+  ): readonly string[] {
     return this.requireRules(taskType, projectId).agentSettableStatuses;
   }
 
@@ -1403,7 +1593,7 @@ export class WorkItemTypeRegistryService
 
   isStatusAllowed(
     taskType: string,
-    status: WorkStatus,
+    status: string,
     projectId: string,
   ): boolean {
     return this.requireRules(taskType, projectId).allowedStatuses.includes(
@@ -1690,7 +1880,7 @@ export class WorkItemTypeRegistryService
   /** Allowed-status sets for active definitions in one project's snapshot. */
   getAllowedStatusEntries(projectId: string): {
     taskType: WorkItemTypeKey;
-    allowedStatuses: WorkStatus[];
+    allowedStatuses: string[];
   }[] {
     return this.getActiveTypeKeys(projectId).flatMap((typeKey) => {
       const rules = this.findRules(typeKey, projectId);

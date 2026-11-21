@@ -34,7 +34,7 @@ const dependencies = (): AgentOperationDependencies => ({
 });
 
 const machine = (
-  currentControllerEligibility: MachineDto["currentControllerEligibility"]
+  currentControllerEligibility: MachineDto["currentControllerEligibility"],
 ): MachineDto => ({
   machineId: "bound-machine",
   name: "Studio Mac",
@@ -52,29 +52,56 @@ describe("DefaultAgentOperationCoordinator", () => {
     try {
       const deps = dependencies();
       deps.startSession = vi.fn(async ({ operationId, fingerprint }) => ({
-        operationId, fingerprint, kind: "start_run", state: "dispatch_pending",
+        operationId,
+        fingerprint,
+        kind: "start_run",
+        state: "dispatch_pending",
       }));
       deps.reconcile = vi.fn(async (operationId) => ({
-        operationId, fingerprint: "a".repeat(64), kind: "start_run", state: "succeeded",
-        messageId: "message", triggerMessageId: "trigger",
+        operationId,
+        fingerprint: "a".repeat(64),
+        kind: "start_run",
+        state: "succeeded",
+        messageId: "message",
+        triggerMessageId: "trigger",
       }));
       const coordinator = new DefaultAgentOperationCoordinator(deps);
-      const scope = { organizationId: "org", projectId: "project", agentSessionId: "session", conversationId: "conversation" };
+      const scope = {
+        organizationId: "org",
+        projectId: "project",
+        agentSessionId: "session",
+        conversationId: "conversation",
+      };
       const listener = vi.fn();
       const unsubscribe = coordinator.launches.subscribe(listener);
-      const result = coordinator.startSession({ ...scope, machineId: "machine", intent: {} });
+      const result = coordinator.startSession({
+        ...scope,
+        machineId: "machine",
+        intent: {},
+      });
       await vi.advanceTimersByTimeAsync(0);
       const pending = coordinator.launches.get(scope);
-      expect(pending).toMatchObject({ phase: "dispatching", operation: { state: "dispatch_pending" } });
-      expect(coordinator.launches.get({ ...scope, conversationId: "other" })).toBeNull();
+      expect(pending).toMatchObject({
+        phase: "dispatching",
+        operation: { state: "dispatch_pending" },
+      });
+      expect(
+        coordinator.launches.get({ ...scope, conversationId: "other" }),
+      ).toBeNull();
       unsubscribe();
       await vi.advanceTimersByTimeAsync(500);
       await result;
       expect(coordinator.launches.get(scope)).toMatchObject({
-        phase: "accepted", operation: { operationId: pending?.operation?.operationId, state: "succeeded" },
+        phase: "accepted",
+        operation: {
+          operationId: pending?.operation?.operationId,
+          state: "succeeded",
+        },
       });
       expect(deps.startSession).toHaveBeenCalledTimes(1);
-      expect(deps.reconcile).toHaveBeenCalledWith(pending?.operation?.operationId);
+      expect(deps.reconcile).toHaveBeenCalledWith(
+        pending?.operation?.operationId,
+      );
       expect(listener).toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -83,7 +110,15 @@ describe("DefaultAgentOperationCoordinator", () => {
 
   it("retains a server-reserved operation identity across coordinator remounts", async () => {
     const deps = dependencies();
-    const input = { organizationId: "org", projectId: "project", agentSessionId: "session", conversationId: "conversation", machineId: "machine", intent: {}, operationId: "persisted-routing-operation" };
+    const input = {
+      organizationId: "org",
+      projectId: "project",
+      agentSessionId: "session",
+      conversationId: "conversation",
+      machineId: "machine",
+      intent: {},
+      operationId: "persisted-routing-operation",
+    };
     await new DefaultAgentOperationCoordinator(deps).startSession(input);
     await new DefaultAgentOperationCoordinator(deps).startSession(input);
     expect(deps.startSession).toHaveBeenCalledTimes(2);
@@ -96,7 +131,7 @@ describe("DefaultAgentOperationCoordinator", () => {
     const deps = dependencies();
     const coordinator = new DefaultAgentOperationCoordinator(deps);
     const access = coordinator.accessForMachine(
-      machine(CurrentControllerMachineEligibilityState.Eligible)
+      machine(CurrentControllerMachineEligibilityState.Eligible),
     );
 
     expect(access.isDeviceEnabled).toBe(true);
@@ -122,7 +157,7 @@ describe("DefaultAgentOperationCoordinator", () => {
     expect(deps.submitMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ machineId: "bound-machine" }),
-      })
+      }),
     );
 
     await access.interactions.requestSubagent({
@@ -144,7 +179,7 @@ describe("DefaultAgentOperationCoordinator", () => {
       expect.objectContaining({
         agentSessionId: "session",
         machine: expect.objectContaining({ machineId: "bound-machine" }),
-      })
+      }),
     );
   });
 
@@ -181,7 +216,7 @@ describe("DefaultAgentOperationCoordinator", () => {
   it("closes a failed operation instead of retrying semantic work", async () => {
     const deps = dependencies();
     vi.mocked(deps.startSession).mockRejectedValueOnce(
-      new Error("transport failed")
+      new Error("transport failed"),
     );
     const coordinator = new DefaultAgentOperationCoordinator(deps);
     const result = await coordinator.startSession({
@@ -199,7 +234,7 @@ describe("DefaultAgentOperationCoordinator", () => {
   it("reconciles the same identity after an ambiguous transport failure", async () => {
     const deps = dependencies();
     vi.mocked(deps.startSession).mockRejectedValueOnce(
-      new Error("transport timed out")
+      new Error("transport timed out"),
     );
     vi.mocked(deps.reconcile).mockImplementationOnce(async (operationId) => ({
       operationId,
@@ -225,6 +260,71 @@ describe("DefaultAgentOperationCoordinator", () => {
     expect(deps.startSession).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    [409, "AGENT_OPERATION_FINGERPRINT_MISMATCH"],
+    [422, "AGENT_OPERATION_FINGERPRINT_MISMATCH"],
+    [422, "IDEMPOTENCY_KEY_REUSED"],
+  ])(
+    "fails terminally on %s %s instead of adopting the earlier operation's success",
+    async (status, code) => {
+      const deps = dependencies();
+      vi.mocked(deps.startSession).mockRejectedValueOnce(
+        Object.assign(new Error("identity bound to different work"), {
+          response: { status, data: { code, message: "different work" } },
+        }),
+      );
+      vi.mocked(deps.reconcile).mockImplementation(async (operationId) => ({
+        operationId,
+        fingerprint: "e".repeat(64),
+        kind: "start_run",
+        state: "succeeded",
+        messageId: "message",
+        triggerMessageId: "trigger",
+      }));
+      const coordinator = new DefaultAgentOperationCoordinator(deps);
+
+      const result = await coordinator.startSession({
+        operationId: "reused-operation",
+        organizationId: "org",
+        projectId: "project",
+        agentSessionId: "session",
+        conversationId: "conversation",
+        machineId: "machine",
+        intent: {},
+      });
+
+      expect(result).toMatchObject({ state: "failed", code });
+      expect(deps.reconcile).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not adopt a reconciled operation recorded for a different fingerprint", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.startSession).mockRejectedValueOnce(
+      new Error("transport timed out"),
+    );
+    vi.mocked(deps.reconcile).mockImplementationOnce(async (operationId) => ({
+      operationId,
+      fingerprint: "e".repeat(64),
+      kind: "start_run",
+      state: "succeeded",
+      messageId: "message",
+      triggerMessageId: "trigger",
+    }));
+    const coordinator = new DefaultAgentOperationCoordinator(deps);
+
+    const result = await coordinator.startSession({
+      organizationId: "org",
+      projectId: "project",
+      agentSessionId: "session",
+      conversationId: "conversation",
+      machineId: "machine",
+      intent: {},
+    });
+
+    expect(result.state).toBe("failed");
+  });
+
   it("keeps dispatch-pending work live and reconciles the prepared identity", async () => {
     vi.useFakeTimers();
     try {
@@ -235,7 +335,7 @@ describe("DefaultAgentOperationCoordinator", () => {
           fingerprint,
           kind: "submit_message",
           state: "dispatch_pending",
-        })
+        }),
       );
       vi.mocked(deps.reconcile).mockImplementationOnce(async (operationId) => ({
         operationId,
@@ -281,7 +381,7 @@ describe("DefaultAgentOperationCoordinator", () => {
           fingerprint,
           kind: "submit_message",
           state: "dispatch_pending",
-        })
+        }),
       );
       vi.mocked(deps.reconcile)
         .mockRejectedValueOnce(new Error("temporary network failure"))

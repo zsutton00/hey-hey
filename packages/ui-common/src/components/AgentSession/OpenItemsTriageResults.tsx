@@ -1,11 +1,15 @@
 import { Alert, Button, Stack, Typography } from "@mui/material";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { AgentSessionCurrentState, OpenItemsTriageItem } from "../../api";
+import type {
+  AgentSessionCurrentState,
+  OpenItemsCollection,
+  OpenItemsTriageItem,
+} from "../../api";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import { useConversation } from "../../data/hooks/useConversation";
 import { useConversationMessages } from "../../data/hooks/useConversationMessages";
-import { OpenItemsTriageSuggestions } from "../LlmForms/Registry/OpenItemsTriageSuggestions";
+import { OpenItemsTriageReview } from "./OpenItemsTriageReview";
 import { OpenItemsTriageFollowUp } from "./OpenItemsTriageFollowUp";
 import { OpenItemsTriageThinkingConversation } from "./OpenItemsTriageThinkingConversation";
 import {
@@ -18,6 +22,8 @@ export interface OpenItemsTriageResultsProps {
   projectId: string;
   conversationId: string;
   application: TriageApplicationCoordinator | undefined;
+  /** The canonical Open Items collection the comparison is replayed against. */
+  collection: OpenItemsCollection | undefined;
   itemHref: (item: OpenItemsTriageItem) => string;
   pending: boolean;
   disabled: boolean;
@@ -39,6 +45,7 @@ export function OpenItemsTriageResults({
   projectId,
   conversationId,
   application,
+  collection,
   itemHref,
   pending,
   disabled,
@@ -88,12 +95,13 @@ export function OpenItemsTriageResults({
         </Alert>
       )}
       {result ? (
-        <OpenItemsTriageSuggestions
+        <OpenItemsTriageReview
           key={result.scope}
           payload={result.payload}
           scope={result.scope}
-          triageApplication={application}
-          triageItemHref={itemHref}
+          application={application}
+          collection={collection}
+          itemHref={itemHref}
           disabled={disabled}
         />
       ) : (

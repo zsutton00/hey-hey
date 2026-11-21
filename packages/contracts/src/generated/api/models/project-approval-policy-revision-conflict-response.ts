@@ -27,7 +27,9 @@ import type { ProjectApprovalPolicyRevisionConflictResponseAllOf } from './proje
  * Compare-and-swap failed. The request did not change the policy; reread the effective snapshot before retrying. This covers concurrent first saves and replacement/restore/recreate races.
  * @export
  */
-export interface ProjectApprovalPolicyRevisionConflictResponse extends ApiErrorResponse, ProjectApprovalPolicyRevisionConflictResponseAllOf {}
+export interface ProjectApprovalPolicyRevisionConflictResponse extends ApiErrorResponse, ProjectApprovalPolicyRevisionConflictResponseAllOf {
+    'code': Exclude<ProjectApprovalPolicyRevisionConflictResponseAllOf['code'], undefined>;
+}
 
 export namespace ProjectApprovalPolicyRevisionConflictResponse {
     export const CodeEnum = ProjectApprovalPolicyRevisionConflictResponseAllOfCodeEnum;

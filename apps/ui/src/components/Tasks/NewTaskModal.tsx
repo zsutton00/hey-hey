@@ -1,3 +1,4 @@
+import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import { FunctionalDialog as Dialog } from "@hey-hey/ui-common/components/Modals";
 import React, { useState, useCallback, useEffect } from "react";
 import {
@@ -16,7 +17,7 @@ import {
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "@hey-hey/ui-common/i18n";
-import type { TaskPriority, WorkStatus } from "@hey-hey/contracts/api";
+import type { TaskPriority } from "@hey-hey/contracts/api";
 import { Priority, WorkStatus as WorkStatusEnum } from "@hey-hey/contracts/api";
 import { SmarterTextAreaCard } from "@hey-hey/ui-common/components";
 import type { WorkItemSectionSelection } from "../../types/workItemTypes";
@@ -28,7 +29,7 @@ export interface NewTaskFormData {
   acceptanceCriteria?: string;
   sectionContent?: Record<string, string>;
   priority?: TaskPriority;
-  status?: WorkStatus;
+  status?: TaskResponseDto["status"];
   initiativeId: string;
 }
 

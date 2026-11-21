@@ -1,4 +1,5 @@
 import { useArchiveHistory } from "../../navigation/useArchiveNavigation";
+import { legacyStatuses } from "../../../../../packages/ui-common/src/test/fixtures/workItemStatuses";
 import { HostedModalFixture } from "../../test/HostedModalFixture";
 import { ModalRestoreControls } from "@hey-hey/ui-common/components/Modals";
 import { PreviewModal } from "../../components/PreviewModal";
@@ -255,7 +256,7 @@ const createDefinition = (
     { key: "description", label: "Description" },
     { key: "acceptanceCriteria", label: "Acceptance Criteria" },
   ],
-  allowedStatuses: [],
+  statuses: legacyStatuses([]),
   allowedParentTypes: [],
   role: WorkItemTypeRole.WorkItem,
   capabilities: {
@@ -281,6 +282,10 @@ let mockWorkItemTypesFetched = true;
 let mockVisibleChildren: TaskResponseDto[] = [];
 
 vi.mock("@hey-hey/ui-common/data", () => ({
+  useWorkItemStatusVocabularies: () => ({
+    definitions: new Map(),
+    statusOptions: [],
+  }),
   usePlatformAdminAccess: () => ({
     isPlatformAdmin: mockIsPlatformAdmin,
     isResolved: true,
@@ -660,7 +665,7 @@ describe("TaskPage data debug tab", () => {
       mockWorkItemTypeDefinition = createDefinition({
         key: "MARKETING",
         name: "Marketing",
-        allowedStatuses: [WorkStatus.Backlog, WorkStatus.Archived],
+        statuses: legacyStatuses([WorkStatus.Backlog]),
       });
       if (outcome === "failed") {
         mockUpdateTask.mockRejectedValueOnce(new Error("archive rejected"));
@@ -1465,7 +1470,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [WorkStatus.Active],
+      statuses: legacyStatuses([WorkStatus.Active]),
       sections: [
         { key: "audience", label: "Audience" },
         { key: "brief", label: "Brief" },
@@ -1483,7 +1488,7 @@ describe("TaskPage dynamic children tabs", () => {
       onSubmit: (formData: {
         name: string;
         initiativeId: string;
-        status: WorkStatus;
+        status: TaskResponseDto["status"];
         sectionContent: Record<string, string>;
       }) => Promise<void>;
     };
@@ -1518,7 +1523,7 @@ describe("TaskPage dynamic children tabs", () => {
       key: "MARKETING",
       name: "Campaign",
       allowedParentTypes: ["STANDARD"],
-      allowedStatuses: [],
+      statuses: legacyStatuses([]),
     });
     mockWorkItemTypeDefinition = createDefinition();
     mockWorkItemTypes = [

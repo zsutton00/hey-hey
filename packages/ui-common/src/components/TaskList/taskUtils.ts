@@ -1,9 +1,4 @@
-import type {
-  Priority,
-  TaskPriority,
-  TaskResponseDto,
-  WorkStatus,
-} from "../../api";
+import type { Priority, TaskPriority, TaskResponseDto } from "../../api";
 import type { WorkItemTypeKey } from "../../constants/taskTypes";
 import {
   formatStatus as formatUnifiedStatus,
@@ -15,7 +10,7 @@ import { getTaskSectionContent } from "../../utils/workItemSections";
  * Get the MUI color for a task type
  */
 export const getTypeColor = (
-  type: WorkItemTypeKey
+  type: WorkItemTypeKey,
 ): "success" | "primary" | "info" | "warning" | "secondary" | "default" => {
   switch (type) {
     case "STANDARD":
@@ -32,7 +27,7 @@ export const getTypeColor = (
  * @deprecated Use getPriorityColor from utils/statusUtils.ts instead
  */
 export const getPriorityColor = (
-  priority: TaskPriority | Priority
+  priority: TaskPriority | Priority,
 ): "info" | "warning" | "error" | "default" => {
   return getUnifiedPriorityColor(priority as Priority);
 };
@@ -55,7 +50,7 @@ export const formatEstimatedHours = (hours: number): string => {
  */
 export const formatDependency = (
   dependency: string,
-  maxLength: number = 8
+  maxLength: number = 8,
 ): string => {
   return dependency.length > maxLength
     ? dependency.substring(0, maxLength) + "..."
@@ -68,7 +63,7 @@ export const formatDependency = (
 export const TASK_DISPLAY_CONSTANTS = {
   DEFAULT_TITLE: "Untitled Task",
   DEFAULT_DESCRIPTION: "No description",
-  DEFAULT_STATUS: "BACKLOG" as WorkStatus,
+  DEFAULT_STATUS: "BACKLOG" as TaskResponseDto["status"],
   DEFAULT_TYPE: "STANDARD" as WorkItemTypeKey,
   DEFAULT_PRIORITY: "MEDIUM" as TaskPriority,
   DEPENDENCY_MAX_LENGTH: 8,
@@ -80,7 +75,7 @@ export const TASK_DISPLAY_CONSTANTS = {
 export interface TaskDisplayData {
   title: string;
   description: string;
-  status: WorkStatus;
+  status: TaskResponseDto["status"];
   type: WorkItemTypeKey;
   priority: TaskPriority | Priority;
   dependencies: string[];
@@ -91,7 +86,7 @@ export interface TaskDisplayData {
  * Extract task display data from API response with proper fallbacks
  */
 export const extractTaskDisplayData = (
-  task: TaskResponseDto | (TaskResponseDto & { title?: string })
+  task: TaskResponseDto | (TaskResponseDto & { title?: string }),
 ): TaskDisplayData => {
   const title = task.name || (task as { title?: string }).title;
   const description =

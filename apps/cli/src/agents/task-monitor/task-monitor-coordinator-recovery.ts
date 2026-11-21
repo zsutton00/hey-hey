@@ -17,5 +17,9 @@ export const coordinatorValidationRecovery = (
       }
     : { kind: 'REQUEST_JUDGMENT', failure };
 
+/** Shown while the recovery request is not posted: there is nothing to answer yet. */
+export const COORDINATOR_RECOVERY_UNDELIVERED_GUIDANCE =
+  'The selected work has not advanced. The coordinator could not produce a valid decision automatically, and its recovery request is not posted in the coordinator conversation, so there is nothing to answer. Stop the monitor if recovery is required.';
+
 export const COORDINATOR_RECOVERY_GUIDANCE =
   'The selected work has not advanced. The coordinator could not produce a valid decision automatically. Please provide guidance to reassess the work, or stop the monitor. You do not need to repair the output format. Rejected output has not been applied.';
