@@ -30,6 +30,7 @@
 - Added change walkthroughs that orient reviewers, with Markdown rendered in their reports.
 - Added previews for pending attachment chips.
 - Updated Claude permission prompts with clearer context and options.
+- Fixed a successful submission being reported as failed when the conversation refresh afterwards fails.
 - Fixed file changes not being tracked in repositories with no commits.
 - Fixed entity conversations being unable to look up Service IDs.
 - Fixed context reads not resuming when a Claude session ends.
@@ -41,6 +42,7 @@
 ### Interface
 
 - Updated card title contrast.
+- Updated the sign-up, request-access, password and sign-in screens to use the branded frame.
 - Fixed a removed-status warning to appear beneath the status control.
 - Removed the session picker.
 
