@@ -1,8 +1,5 @@
 export { CodingResearchReport } from "./CodingResearchReport";
-export {
-  CodingResearchUncertaintiesSection,
-  getCodingResearchUncertaintyDiscussScope,
-} from "./CodingResearchUncertaintiesSection";
+export { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
 
 export { CommitReport } from "./CommitReport";
 
