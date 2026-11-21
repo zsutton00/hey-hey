@@ -1,5 +1,9 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
-import { EntityType, type AgentSkillSelection } from "../../api";
+import {
+  EntityType,
+  type AgentSkillSelection,
+  type ServicePlaceChoice,
+} from "../../api";
 import { formatEntityTypeLabel } from "../Reports/viewer/evidencePipelineTypes";
 import React, {
   useCallback,
@@ -51,6 +55,8 @@ import { useStagedBrowserTabOpener } from "../AgentSession/runtime/hooks/useStag
 import { SessionErrorAlert } from "../AgentSession/SessionErrorAlert";
 import { NO_CLI_CONNECTION_CODE } from "../AgentSession/classifySessionError";
 import type { EntityConversationLaunchError } from "./useEntityConversationLauncher";
+import { ServicesWorkIn } from "../AgentSession/ServicesWorkIn";
+import { resolveChoice } from "../AgentSession/resolveChoice";
 import { ServiceSelector } from "../Selectors/ServiceSelector";
 import type {
   EntityConversationProjectAssistantConfig,
@@ -170,6 +176,7 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
   const [selectedSkill, setSelectedSkill] =
     useState<AgentSkillSelection | null>(null);
   const [prompt, setPrompt] = useState(initialValue ?? "");
+  const [placesUnavailable, setPlacesUnavailable] = useState(false);
   const [disableCodexSystemPrompt, setDisableCodexSystemPrompt] =
     useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -237,6 +244,13 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
     null,
   );
+  const [placeChoice, setPlaceChoice] = useState<ServicePlaceChoice | null>(
+    null,
+  );
+  const placeServiceId = fixedServiceScope?.serviceId ?? selectedServiceId;
+  useEffect(() => {
+    setPlaceChoice(null);
+  }, [placeServiceId, selectedMachineId]);
   const catalogSource = useMemo(
     () =>
       organizationId && projectId && selectedMachineId
@@ -309,6 +323,12 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       projectAssistant?: EntityConversationProjectAssistantConfig,
       initiatingAction?: DiscussLaunchAction,
     ) => {
+      if (placesUnavailable) {
+        setValidationError(
+          "Where the Service works could not be loaded. Pick another machine or Service, or remove the Service, to start.",
+        );
+        return;
+      }
       const trimmed = prompt.trim();
       if (!canSubmitPrompt) {
         setValidationError("Please enter a prompt to start the conversation.");
@@ -361,7 +381,12 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
         ...(supportsFast ? { fastMode: selection.fastMode ?? false } : {}),
         ...(effectiveServiceId === null
           ? {}
-          : { serviceId: effectiveServiceId }),
+          : {
+              serviceId: effectiveServiceId,
+              servicePlaceChoices: [
+                resolveChoice(effectiveServiceId, placeChoice),
+              ],
+            }),
         ...(projectAssistant === undefined ? {} : { projectAssistant }),
         ...(canConfigureCodexSystemPrompt &&
         selection.provider === ConversationStartRunRequestDtoProviderEnum.Codex
@@ -396,6 +421,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
       selectedMachineId,
       selection,
       selectedServiceId,
+      placeChoice,
+      placesUnavailable,
     ],
   );
 
@@ -721,6 +748,26 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
               />
             </Box>
           ) : null}
+          {placeServiceId &&
+          selectedMachineId &&
+          organizationId &&
+          projectId ? (
+            <Box
+              sx={{ width: 260, maxWidth: "100%", flexShrink: 0 }}
+              data-testid="discuss-work-in"
+            >
+              <ServicesWorkIn
+                organizationId={organizationId}
+                projectId={projectId}
+                machineId={selectedMachineId}
+                services={[{ serviceId: placeServiceId }]}
+                choices={placeChoice ? { [placeServiceId]: placeChoice } : {}}
+                disabled={isLoading}
+                onChange={setPlaceChoice}
+                onUnavailableChange={setPlacesUnavailable}
+              />
+            </Box>
+          ) : null}
         </Box>
       </DialogContent>
       <ModalActions
@@ -819,7 +866,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             !canSubmitPrompt ||
             !selectedMachineId ||
             !selection ||
-            attachments.blocked
+            attachments.blocked ||
+            placesUnavailable
           }
           data-testid="discuss-modal-ask"
           aria-label={
@@ -848,7 +896,8 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
             !canSubmitPrompt ||
             !selectedMachineId ||
             !selection ||
-            attachments.blocked
+            attachments.blocked ||
+            placesUnavailable
           }
           data-testid="discuss-modal-submit"
           aria-label={

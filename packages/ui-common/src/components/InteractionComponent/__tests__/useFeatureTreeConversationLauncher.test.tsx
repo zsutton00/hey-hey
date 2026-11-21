@@ -44,7 +44,7 @@ vi.mock(
         unavailable: null,
       }),
     }),
-  })
+  }),
 );
 
 vi.mock("../../../data/hooks/useCreateAgentSession", () => ({
@@ -112,7 +112,7 @@ const renderLauncher = () =>
     useFeatureTreeConversationLauncher({
       organizationId: ORG_ID,
       projectId: PROJECT_ID,
-    })
+    }),
   );
 
 const getDispatchedRequest = () => {
@@ -164,9 +164,9 @@ describe("useFeatureTreeConversationLauncher", () => {
       machineId: "machine-2",
     });
     expect(
-      bindAgentSessionMachineMock.mock.invocationCallOrder[0]
+      bindAgentSessionMachineMock.mock.invocationCallOrder[0],
     ).toBeLessThan(
-      createSessionConversationMutate.mock.invocationCallOrder[0]!
+      createSessionConversationMutate.mock.invocationCallOrder[0]!,
     );
 
     const request = getDispatchedRequest();
@@ -196,7 +196,7 @@ describe("useFeatureTreeConversationLauncher", () => {
           userComments: [],
           fileReferences: { resolved: [], unresolved: [] },
         }),
-      })
+      }),
     );
     expect(request).not.toHaveProperty("serviceIds");
     expect(request).not.toHaveProperty("launchServiceId");
@@ -230,7 +230,64 @@ describe("useFeatureTreeConversationLauncher", () => {
         serviceIds: ["service-1"],
         launchServiceId: "service-1",
         machineId: "machine-2",
-      })
+      }),
     );
+  });
+
+  it("sends the chosen worktree place and its worktree setting", async () => {
+    const { result } = renderLauncher();
+
+    await act(async () => {
+      await result.current.launch({
+        prompt: "analyze the feature hierarchy",
+        provider: ConversationStartRunRequestDtoProviderEnum.Codex,
+        model: "model-for-test",
+        reasoningEffort: "high",
+        machineId: "machine-2",
+        serviceId: "service-1",
+        servicePlaceChoices: [
+          {
+            serviceId: "service-1",
+            kind: "WORKTREE",
+            branch: "feature/x",
+            newBranch: false,
+          },
+        ],
+      });
+    });
+
+    expect(getDispatchedRequest()).toEqual(
+      expect.objectContaining({
+        servicePlaceChoices: [
+          {
+            serviceId: "service-1",
+            kind: "WORKTREE",
+            branch: "feature/x",
+            newBranch: false,
+          },
+        ],
+        worktree: { enabled: true, branch: "feature/x" },
+      }),
+    );
+  });
+
+  it("sends a main-folder choice without a worktree setting", async () => {
+    const { result } = renderLauncher();
+
+    await act(async () => {
+      await result.current.launch({
+        prompt: "analyze the feature hierarchy",
+        provider: ConversationStartRunRequestDtoProviderEnum.Codex,
+        machineId: "machine-2",
+        serviceId: "service-1",
+        servicePlaceChoices: [{ serviceId: "service-1", kind: "MAIN_FOLDER" }],
+      });
+    });
+
+    const request = getDispatchedRequest();
+    expect(request.servicePlaceChoices).toEqual([
+      { serviceId: "service-1", kind: "MAIN_FOLDER" },
+    ]);
+    expect(request).not.toHaveProperty("worktree");
   });
 });

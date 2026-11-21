@@ -21,7 +21,10 @@ import { getErrorMessage } from "../../utils/errorUtils";
 import { getWorkflowAboutTypeForEntityType } from "../../utils/agentSessionUtils";
 import { buildRunEntityReference } from "../AgentSession/runEntityReference";
 import type { LineageContext } from "./types";
-import type { GraphConversationLaunchInput } from "./graphConversationLaunchInput";
+import {
+  worktreeFor,
+  type GraphConversationLaunchInput,
+} from "./graphConversationLaunchInput";
 import { buildGoalEntityFields } from "./goalSnapshot";
 import {
   resolveEntityTypeConfig,
@@ -94,6 +97,7 @@ export const useEntityConversationLauncher = ({
       reasoningEffort,
       machineId,
       serviceId,
+      servicePlaceChoices,
       fastMode,
       projectAssistant,
       disableCodexSystemPrompt,
@@ -223,6 +227,12 @@ export const useEntityConversationLauncher = ({
               },
               ...(serviceId
                 ? { serviceIds: [serviceId], launchServiceId: serviceId }
+                : {}),
+              ...(serviceId && servicePlaceChoices?.length
+                ? {
+                    servicePlaceChoices,
+                    ...worktreeFor(servicePlaceChoices),
+                  }
                 : {}),
               initialMessage: { role: MessageType.User },
             },

@@ -3,8 +3,10 @@ import type {
   RunAttachmentReference,
   StagedBrowserTabReference,
   ConversationStartRunRequestDtoProviderEnum,
+  ServicePlaceChoice,
 } from "../../api";
 import type { ReasoningEffort } from "../AgentSession/runtime/types";
+import type { StartRunWorktree } from "../AgentSession/useLaunchRunOrchestration";
 import type { AgentSessionConfigEntityConversationV1 } from "../../api/api";
 
 export type EntityConversationProjectAssistantConfig = NonNullable<
@@ -24,7 +26,20 @@ export interface GraphConversationLaunchInput {
   machineId: string;
   /** Optional repository-bound Service context; omitted for graph-only mode. */
   serviceId?: string;
+  /** Where the selected Service works; only present with `serviceId`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   fastMode?: boolean;
   projectAssistant?: EntityConversationProjectAssistantConfig;
   disableCodexSystemPrompt?: boolean;
 }
+
+/** The session-wide worktree is set only for a WORKTREE choice. */
+export const worktreeFor = (
+  choices: readonly ServicePlaceChoice[],
+): { worktree?: StartRunWorktree } => {
+  const worktreeChoice = choices.find((choice) => choice.kind === "WORKTREE");
+
+  return worktreeChoice?.kind === "WORKTREE"
+    ? { worktree: { enabled: true, branch: worktreeChoice.branch } }
+    : {};
+};

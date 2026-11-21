@@ -14,7 +14,10 @@ import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useAgentSessionInteractionAccessResolver } from "../AgentSession/operations/useAgentSessionInteractionAccess";
 import { usePathService } from "../../contexts";
 import { buildRunEntityReference } from "../AgentSession/runEntityReference";
-import type { GraphConversationLaunchInput } from "./graphConversationLaunchInput";
+import {
+  worktreeFor,
+  type GraphConversationLaunchInput,
+} from "./graphConversationLaunchInput";
 import { bindGraphConversationAgentSessionMachine } from "./bindGraphConversationAgentSessionMachine";
 
 const DEFAULT_PROVIDER = ConversationStartRunRequestDtoProviderEnum.Claude;
@@ -66,6 +69,7 @@ export const useFeatureTreeConversationLauncher = ({
       reasoningEffort,
       machineId,
       serviceId,
+      servicePlaceChoices,
       fastMode,
     }: FeatureTreeConversationLaunchInput): Promise<boolean> => {
       setIsLoading(true);
@@ -146,6 +150,12 @@ export const useFeatureTreeConversationLauncher = ({
               },
               ...(serviceId
                 ? { serviceIds: [serviceId], launchServiceId: serviceId }
+                : {}),
+              ...(serviceId && servicePlaceChoices?.length
+                ? {
+                    servicePlaceChoices,
+                    ...worktreeFor(servicePlaceChoices),
+                  }
                 : {}),
               initialMessage: { role: MessageType.User },
             },
