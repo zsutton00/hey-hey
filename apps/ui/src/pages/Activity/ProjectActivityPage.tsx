@@ -21,7 +21,7 @@ import {
 } from "@hey-hey/ui-common/components";
 import type { ActivityExpandPayload } from "@hey-hey/ui-common/components";
 import { unifiedApiClient } from "@hey-hey/ui-common/clients";
-import type { ReportDto } from "@hey-hey/contracts/api";
+import type { ReportDto, TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   ActivityCorrelationLinkType,
   EntityType,
