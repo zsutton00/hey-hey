@@ -391,11 +391,15 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
         </Box>
       )}
       {resolvedInlineReports.map((report) => (
-        <ReportOpenQuestions
+        <Box
           key={report.id}
-          report={report}
-          testId={`report-viewer-${report.id}`}
-        />
+          sx={{ width: "fit-content", maxWidth: SYSTEM_MESSAGE_MAX_WIDTH }}
+        >
+          <ReportOpenQuestions
+            report={report}
+            testId={`report-viewer-${report.id}`}
+          />
+        </Box>
       ))}
     </FadeIn>
   );
