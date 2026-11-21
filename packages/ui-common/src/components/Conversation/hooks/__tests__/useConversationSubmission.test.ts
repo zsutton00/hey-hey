@@ -1,3 +1,4 @@
+import { CancelledError } from "@tanstack/react-query";
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockedFunction } from "vitest";
@@ -393,6 +394,33 @@ describe("useConversationSubmission", () => {
         activeConversation: { ...onboardingConversation, status: "FAILED" },
       });
       expect(result.current.isSubmitting).toBe(false);
+    });
+
+    it("does not report an accepted reply as not sent when the refresh is cancelled", async () => {
+      setMessages([prompt], [prompt]);
+      const onSubmitOnboardingReply = vi.fn().mockResolvedValue(undefined);
+      const onConversationUpdated = vi
+        .fn()
+        .mockRejectedValue(new CancelledError());
+      const { result } = renderHook(() =>
+        useConversationSubmission({
+          ...defaultProps,
+          activeConversation: onboardingConversation,
+          onSubmitOnboardingReply,
+          onConversationUpdated,
+        }),
+      );
+
+      await act(async () => {
+        await result.current.handleNext({ answer: "yes" }, "parent-id");
+      });
+
+      expect(mockEmit).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "submission-error" }),
+      );
+      expect(mockEmit).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "submission-success" }),
+      );
     });
 
     it("unlocks immediately when the reply is rejected", async () => {

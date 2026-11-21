@@ -23,10 +23,14 @@ export const PublicMarketingShell = ({
       data-testid="public-marketing-content"
       sx={{
         flexGrow: 1,
+        display: "flex",
+        flexDirection: "column",
         minWidth: 0,
-        // The shell owns the viewport minimum; page roots must size to content.
+        // The shell owns the viewport minimum; page roots size to content and
+        // grow to fill the space above the footer.
         "& > main": {
           minHeight: "auto !important",
+          flexGrow: 1,
         },
       }}
     >
