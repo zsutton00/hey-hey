@@ -19,6 +19,7 @@ import {
   type CliReadChangedFileDetail,
   type CliReadProviderUsageResult,
   type CliReadRuntimeModelCatalogResult,
+  type CliReadServicePlacesEntry,
 } from '@hey-hey/contracts/agent-bridge';
 import { RepoMappingStore } from '../repo';
 import type { Run } from '../run/run';
@@ -182,6 +183,16 @@ const readBodiesByOperation = {
     machineId,
     authorizationRequestId: requestId,
   },
+  'workspace.service_places.list': {
+    requestId,
+    operation: 'workspace.service_places.list',
+    organizationId,
+    projectId,
+    machineId,
+    authorizationRequestId: requestId,
+    serviceIds: [requestId],
+    branchQuery: 'feat',
+  },
   'agent_session.continuation.inspect': {
     requestId,
     operation: 'agent_session.continuation.inspect',
@@ -249,6 +260,7 @@ const createSubject = (
     changedFilesError?: Error;
     readProviderUsage?: () => Promise<CliReadProviderUsageResult>;
     readRuntimeModelCatalog?: () => Promise<CliReadRuntimeModelCatalogResult>;
+    readServicePlaces?: () => Promise<CliReadServicePlacesEntry[]>;
     sessionActivity?: Pick<SessionActivitySource, 'snapshot'>;
     isRemoteToolCallViewingEnabled?: () => Promise<boolean>;
   } = {},
@@ -319,6 +331,7 @@ const createSubject = (
       listRunSkills,
       readRuntimeModelCatalog:
         subjectOptions.readRuntimeModelCatalog ?? vi.fn().mockResolvedValue({ providers: [] }),
+      readServicePlaces: subjectOptions.readServicePlaces ?? vi.fn().mockResolvedValue([]),
       readProviderUsage:
         subjectOptions.readProviderUsage ??
         vi.fn().mockResolvedValue({
@@ -513,6 +526,7 @@ describe('CliReadHandler', () => {
             listProjectSessionCosts: vi.fn(),
             readProviderUsage: vi.fn(),
             readRuntimeModelCatalog: vi.fn(),
+            readServicePlaces: vi.fn(),
             readRunContextUsage: vi.fn(),
             listRunSkills: vi.fn(),
             listWorkspaceSkills: vi.fn(),
@@ -1785,6 +1799,71 @@ describe('workspace catalog admission', () => {
         actionPayloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       }),
     );
+  });
+  it('admits Service places by machine, binding the exact services and query to the authority', async () => {
+    const restore = vi.fn();
+    const admit = vi.fn().mockResolvedValue({ admitted: true });
+    const entries: CliReadServicePlacesEntry[] = [
+      {
+        serviceId: requestId,
+        status: 'ok',
+        mainFolder: { path: '/repo', branch: null },
+        worktrees: [],
+        branchMatches: [],
+        branchMatchesTruncated: false,
+      },
+    ];
+    const readServicePlaces = vi.fn().mockResolvedValue(entries);
+    const run = (body: VerifiedCliReadFrame['body']) =>
+      createSubject(
+        restore,
+        verifiedRead(body),
+        undefined,
+        [],
+        undefined,
+        undefined,
+        { admit },
+        undefined,
+        {
+          readServicePlaces,
+        },
+      ).handle({});
+
+    const base = readBodiesByOperation['workspace.service_places.list'];
+    expect(await run(base)).toEqual({
+      requestId,
+      operation: 'workspace.service_places.list',
+      status: 'success',
+      result: { services: entries },
+    });
+    await run({ ...base, branchQuery: 'other' });
+
+    expect(restore).not.toHaveBeenCalled();
+    expect(admit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: { kind: 'CLI_READ', id: machineId, revision: null },
+        agentSessionId: null,
+      }),
+    );
+    const [first, second] = admit.mock.calls.map(([call]) => call.actionPayloadHash);
+    expect(first).not.toBe(second);
+  });
+  it('does not read Service places when admission is denied', async () => {
+    const readServicePlaces = vi.fn();
+    const handler = createSubject(
+      vi.fn(),
+      verifiedRead(readBodiesByOperation['workspace.service_places.list']),
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { admit: vi.fn().mockResolvedValue({ admitted: false, reason: 'DENIED' }) },
+      undefined,
+      { readServicePlaces },
+    );
+
+    expect(await handler.handle({})).toBeNull();
+    expect(readServicePlaces).not.toHaveBeenCalled();
   });
   it('does not read the model catalog when admission is denied', async () => {
     const admit = vi.fn().mockResolvedValue({ admitted: false, reason: 'DENIED' });

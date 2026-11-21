@@ -24,6 +24,11 @@ import type {
   CliReadProviderUsageResult,
   CliReadRuntimeModelCatalogResult,
 } from '@hey-hey/contracts/agent-bridge';
+import { ServicePlacesReader } from './service-places-reader';
+import type {
+  CliReadServicePlacesEntry,
+  CliReadWorkspaceServicePlacesListEnvelopeBody,
+} from '@hey-hey/contracts/agent-bridge';
 import { readRuntimeModelCatalogResult } from './model-catalog/runtime-model-catalog-result';
 import type { CatalogAvailability } from './runtime-capability-catalog';
 import type { ServerLogger } from './logger';
@@ -107,6 +112,7 @@ export class LocalAgentService {
   }
 
   private readonly workspaceSkills: WorkspaceSkillsReadHandler;
+  private readonly servicePlaces: ServicePlacesReader;
   private readonly runService: RunService;
   private readonly messageService: MessageService;
   private readonly runCreationCoordinator: RunCreationCoordinator;
@@ -122,6 +128,7 @@ export class LocalAgentService {
     const logger = dependencies.logger;
     this.capabilityCatalog = dependencies.capabilityCatalog;
     this.workspaceSkills = new WorkspaceSkillsReadHandler(dependencies.repoStore, logger);
+    this.servicePlaces = new ServicePlacesReader(dependencies.repoStore, logger);
     this.logger = logger;
     this.sessionRunnerFacade = dependencies.sessionRunnerFacade;
     this.runService = new RunService({
@@ -406,6 +413,12 @@ export class LocalAgentService {
         durationMs: Date.now() - startedAt,
       });
     }
+  }
+
+  public readServicePlaces(
+    body: CliReadWorkspaceServicePlacesListEnvelopeBody,
+  ): Promise<CliReadServicePlacesEntry[]> {
+    return this.servicePlaces.read(body);
   }
 
   public listWorkspaceSkills(
