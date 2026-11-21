@@ -82,5 +82,9 @@ export const useSubmitControllerAuthorizedPermissionDecision = (
     ],
   );
 
-  return { submit, isPending: authorization.isPending };
+  return {
+    submit,
+    isPending: authorization.isPending,
+    provider: agentSession?.provider,
+  };
 };

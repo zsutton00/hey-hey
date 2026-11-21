@@ -105,7 +105,8 @@ describe("UncertaintyItem", () => {
         "medium",
       );
       expect(screen.getByText("Uncertainty")).toBeVisible();
-      expect(screen.getByText("medium")).toBeVisible();
+      expect(screen.getByText("medium severity")).toBeInTheDocument();
+      expect(screen.queryByText("medium")).not.toBeInTheDocument();
       expect(screen.getByTestId("conversation-card-lead")).toHaveTextContent(
         "The available evidence is incomplete.",
       );
@@ -175,7 +176,7 @@ describe("UncertaintyItem", () => {
       const control = screen.getByRole("button", {
         name: "Discuss this uncertainty",
       });
-      expect(control).toHaveTextContent("Discuss");
+      expect(control).toHaveTextContent("");
 
       await userEvent.click(control);
       control.focus();

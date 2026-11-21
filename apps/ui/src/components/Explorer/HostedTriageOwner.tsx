@@ -25,6 +25,8 @@ import {
 
 // The start screen is narrower than a review; the review keeps the dialog default.
 const TRIAGE_START_DIALOG_WIDTH = 440;
+/** Sessions and results use most of the window so the before/after comparison fits. */
+const TRIAGE_SESSION_DIALOG_WIDTH = "80vw";
 
 /**
  * Owns one transient triage review for a single modal opening. Every close
@@ -176,7 +178,9 @@ export function OpenItemsTriageReview({
       onClose={handleRequestClose}
       layout="dialog"
       dialogWidth={
-        phase.kind === "help" ? TRIAGE_START_DIALOG_WIDTH : undefined
+        phase.kind === "help"
+          ? TRIAGE_START_DIALOG_WIDTH
+          : TRIAGE_SESSION_DIALOG_WIDTH
       }
       labelledBy={TRIAGE_TITLE_ID}
       describedBy={

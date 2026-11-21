@@ -90,11 +90,13 @@ useTestCapabilityCatalog();
 
 describe('Task Monitor durable finish machine', () => {
   it.each([
-    ['approve', 'APPROVE'],
-    ['deny', 'DENY'],
+    ['approve', 'APPROVE', 'delivered', 'APPLIED'],
+    ['deny', 'DENY', 'delivered', 'APPLIED'],
+    ['approve', 'APPROVE', 'provider rejected the answer', 'NOT_DELIVERED'],
+    ['approve', 'APPROVE', 'transport closed', 'DELIVERY_UNCERTAIN'],
   ] as const)(
-    'settles one matching %s result and restart does not repeat the provider response',
-    async (providerDecision, resolution) => {
+    'reports the %s answer (%s) with provider outcome %s as %s',
+    async (providerDecision, resolution, delivery, expectedResult) => {
       const { owners, activeRunAgentSessionId } = await createFirstLaunchFixture();
       directories.push(owners.dataDir);
       const interventionId = 'a3000000-0000-4000-8000-000000000003';
@@ -117,6 +119,7 @@ describe('Task Monitor durable finish machine', () => {
         action: 'exec',
         target: 'pnpm test',
         fingerprint: 'sha256:finish-machine',
+        userRequired: true,
         createdAt: new Date(NOW).toISOString(),
         expiresAt: new Date(NOW + 60_000).toISOString(),
       });
@@ -126,23 +129,62 @@ describe('Task Monitor durable finish machine', () => {
         agentSessionId: activeRunAgentSessionId,
         provider: 'codex',
       } as never);
-      const submit = vi.spyOn(owners.runRegistry, 'submitPermissionDecision').mockResolvedValue({
-        outcome: 'delivered',
-        callbackType: 'codex_exec_approval_response',
-      });
-      const result = await owners.taskMonitorStateMachineInputAdapter.admitPermissionDecision({
+      const submit = vi
+        .spyOn(owners.runRegistry, 'submitPermissionDecision')
+        .mockResolvedValue(
+          delivery === 'delivered'
+            ? { outcome: 'delivered', callbackType: 'codex_exec_approval_response' }
+            : { outcome: 'failed', reason: delivery },
+        );
+      const decidedAt = new Date(NOW).toISOString();
+      const winner = {
         taskMonitorId: MONITOR_ID,
         runId: RUN_ID,
         providerActionId,
         providerSessionId,
         decision: providerDecision,
-        decidedAt: new Date(NOW).toISOString(),
+        decidedAt,
         userId: USER_ID,
-        authenticatedAt: new Date(NOW).toISOString(),
-        ingressId: `a7000000-0000-4000-8000-00000000000${resolution === 'APPROVE' ? '7' : '8'}`,
+        authenticatedAt: decidedAt,
+        ingressId: 'a7000000-0000-4000-8000-000000000007',
+      };
+      const answer = owners.taskMonitorStateMachineInputAdapter.admitPermissionDecision(winner);
+      let reported = false;
+      void answer.then(() => {
+        reported = true;
       });
-      expect(result).toMatchObject({ status: 'accepted' });
+      await vi.waitFor(async () => {
+        const instance = await owners.machineStore.findByInstanceId(MONITOR_ID);
+        expect(instance?.effects).toContainEqual(
+          expect.objectContaining({
+            effect: expect.objectContaining({ type: 'APPLY_TASK_MONITOR_DECISION' }),
+          }),
+        );
+      });
+      expect(reported).toBe(false);
+
+      for (const ingressId of [winner.ingressId, 'a7000000-0000-4000-8000-000000000099']) {
+        await expect(
+          owners.taskMonitorStateMachineInputAdapter.admitPermissionDecision({
+            ...winner,
+            ingressId,
+          }),
+        ).resolves.toMatchObject({
+          status: 'rejected',
+          disposition: {
+            result: 'ALREADY_DECIDED',
+            decidedBy: 'PERSON',
+            decidedByUserId: USER_ID,
+            decidedAt,
+          },
+        });
+      }
+
       await drainDurableTaskMonitorWork(owners.effectRunner);
+      await expect(answer).resolves.toMatchObject({
+        status: 'accepted',
+        disposition: { result: expectedResult },
+      });
       expect(submit).toHaveBeenCalledOnce();
       expect(submit).toHaveBeenCalledWith(
         RUN_ID,
@@ -154,13 +196,29 @@ describe('Task Monitor durable finish machine', () => {
 
       const restarted = await reconstruct(owners);
       await drainDurableTaskMonitorWork(restarted.runner);
-      expect(submit).toHaveBeenCalledOnce();
-      await expect(restarted.store.findByInstanceId(MONITOR_ID)).resolves.toMatchObject({
-        snapshot: {
-          state: { RUNNING: { intervention: 'CLEAR', work: 'OBSERVING_RUN' } },
-          context: { pendingIntervention: null },
+      if (delivery === 'delivered') {
+        await expect(restarted.store.findByInstanceId(MONITOR_ID)).resolves.toMatchObject({
+          snapshot: {
+            state: { RUNNING: { intervention: 'CLEAR', work: 'OBSERVING_RUN' } },
+            context: { pendingIntervention: null },
+          },
+        });
+      }
+      await expect(
+        restarted.adapter.admitPermissionDecision({
+          ...winner,
+          ingressId: 'a7000000-0000-4000-8000-000000000098',
+        }),
+      ).resolves.toMatchObject({
+        status: 'rejected',
+        disposition: {
+          result: 'ALREADY_DECIDED',
+          decidedBy: 'PERSON',
+          decidedByUserId: USER_ID,
+          decidedAt,
         },
       });
+      expect(submit).toHaveBeenCalledOnce();
     },
   );
 

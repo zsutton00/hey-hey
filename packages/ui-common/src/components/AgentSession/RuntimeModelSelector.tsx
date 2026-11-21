@@ -83,6 +83,8 @@ export type RuntimeModelSelectorProps = Omit<
   model: string | null;
   reasoningEffort: ConversationStartRunRequestDtoReasoningEffortEnum | null;
   catalogSource: RuntimeModelCatalogSource | null;
+  /** Provider whose default is adopted first when nothing is selected yet. */
+  preferredProvider?: ConversationStartRunRequestDtoProviderEnum;
 };
 
 export const RuntimeModelSelector = ({
@@ -90,6 +92,7 @@ export const RuntimeModelSelector = ({
   provider,
   model,
   reasoningEffort,
+  preferredProvider,
   ...props
 }: RuntimeModelSelectorProps) => {
   const state = useRuntimeModelCatalog(catalogSource);
@@ -108,10 +111,13 @@ export const RuntimeModelSelector = ({
   // machine, or a remembered choice): fall back to what that CLI offers.
   const needsCatalogDefault = ready && reconciledSelection === null;
   const catalogDefault = useMemo(
-    () => (needsCatalogDefault ? buildDefaultSurfaceSelection() : null),
+    () =>
+      needsCatalogDefault
+        ? buildDefaultSurfaceSelection(preferredProvider)
+        : null,
     // The default is read from the active catalog, which `state` stands for.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [needsCatalogDefault, state],
+    [needsCatalogDefault, state, preferredProvider],
   );
   const reconciledModel = reconciledSelection?.model;
   const reconciledReasoningEffort = reconciledSelection?.reasoningEffort;

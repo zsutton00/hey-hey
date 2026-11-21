@@ -30,6 +30,7 @@ export const TaskMonitorLifecycleCause = {
     Continue: 'CONTINUE',
     Complete: 'COMPLETE',
     Halt: 'HALT',
+    PermissionRequest: 'PERMISSION_REQUEST',
     "START": "START",
     "PAUSE": "PAUSE",
     "RESUME": "RESUME",
@@ -38,6 +39,7 @@ export const TaskMonitorLifecycleCause = {
     "CONTINUE": "CONTINUE",
     "COMPLETE": "COMPLETE",
     "HALT": "HALT",
+    "PERMISSION_REQUEST": "PERMISSION_REQUEST",
 } as const;
 Object.defineProperty(TaskMonitorLifecycleCause, "START", { enumerable: false, value: TaskMonitorLifecycleCause["Start"] });
 Object.defineProperty(TaskMonitorLifecycleCause, "PAUSE", { enumerable: false, value: TaskMonitorLifecycleCause["Pause"] });
@@ -47,5 +49,6 @@ Object.defineProperty(TaskMonitorLifecycleCause, "JUDGMENT_RESOLVED", { enumerab
 Object.defineProperty(TaskMonitorLifecycleCause, "CONTINUE", { enumerable: false, value: TaskMonitorLifecycleCause["Continue"] });
 Object.defineProperty(TaskMonitorLifecycleCause, "COMPLETE", { enumerable: false, value: TaskMonitorLifecycleCause["Complete"] });
 Object.defineProperty(TaskMonitorLifecycleCause, "HALT", { enumerable: false, value: TaskMonitorLifecycleCause["Halt"] });
+Object.defineProperty(TaskMonitorLifecycleCause, "PERMISSION_REQUEST", { enumerable: false, value: TaskMonitorLifecycleCause["PermissionRequest"] });
 
 export type TaskMonitorLifecycleCause = typeof TaskMonitorLifecycleCause[keyof typeof TaskMonitorLifecycleCause];

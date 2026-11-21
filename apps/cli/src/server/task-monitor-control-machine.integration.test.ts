@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
 import { validateTaskMonitorLaunchEffect } from '../agents/task-monitor/state-machine/effects';
@@ -217,10 +217,6 @@ const humanDecisionCommand = (
 const commitPendingIntervention = async (
   owners: FirstLaunchOwners,
   activeRunAgentSessionId: string,
-  timestamps: { createdAtMs: number; expiresAtMs: number } = {
-    createdAtMs: NOW,
-    expiresAtMs: NOW + 5 * 60_000,
-  },
 ) => {
   await expect(
     owners.taskMonitorStateMachineInputAdapter.admitVerified({
@@ -236,8 +232,8 @@ const commitPendingIntervention = async (
       action: 'exec',
       target: 'pnpm test',
       fingerprint: INTERVENTION_FINGERPRINT,
-      createdAt: new Date(timestamps.createdAtMs).toISOString(),
-      expiresAt: new Date(timestamps.expiresAtMs).toISOString(),
+      createdAt: new Date(NOW).toISOString(),
+      expiresAt: null,
     }),
   ).resolves.toMatchObject({ status: 'accepted' });
   await drainDurableTaskMonitorWork(owners.effectRunner);
@@ -280,6 +276,11 @@ const reconstruct = async (owners: FirstLaunchOwners) => {
     ),
   };
 };
+
+// The fixture's requests are timed to NOW; the monitor's deadline check must see the same clock.
+beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(NOW);
+});
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -388,7 +389,7 @@ describe('Task Monitor durable active-Run controls', () => {
     expect(submitPermissionDecision).toHaveBeenCalledOnce();
   });
 
-  it('keeps expired, mismatched, replaced, and settled decisions inert at the signed boundary', async () => {
+  it('keeps mismatched, replaced, and settled decisions inert at the signed boundary', async () => {
     const { owners, activeRunAgentSessionId } = await createFirstLaunchFixture();
     await commitPendingIntervention(owners, activeRunAgentSessionId);
     const keys = generateSigningKeys();
@@ -467,15 +468,12 @@ describe('Task Monitor durable active-Run controls', () => {
         createdAt: new Date(NOW).toISOString(),
         expiresAt: new Date(NOW + 5 * 60_000).toISOString(),
       }),
-    ).resolves.toMatchObject({ status: 'rejected', code: 'transition_rejected' });
+    ).resolves.toMatchObject({ status: 'accepted' });
+    // A distinct request never replaces the pending one: it waits behind it.
     const afterReplacement = await reconstructed.store.findByInstanceId(MONITOR_ID);
-    expect(afterReplacement?.snapshot).toEqual(before?.snapshot);
-    expect(afterReplacement?.acceptedIngress).toEqual(before?.acceptedIngress);
-    expect(afterReplacement?.effects).toEqual(before?.effects);
-    expect(afterReplacement?.transitionHistory.at(-1)).toMatchObject({
-      ingressId: 'provider-action:replacement',
-      eventType: 'EXACT_ACTION_REQUIRED',
-      disposition: { status: 'no_transition' },
+    expect(afterReplacement?.snapshot.context).toMatchObject({
+      pendingIntervention: before?.snapshot.context.pendingIntervention,
+      queuedInterventions: [{ providerActionId: 'replacement-action' }],
     });
     expect(submitPermissionDecision).not.toHaveBeenCalled();
 
@@ -505,41 +503,6 @@ describe('Task Monitor durable active-Run controls', () => {
         }),
       ),
     ).resolves.toMatchObject({ status: 'REJECTED', reason: 'INVALID_LIFECYCLE' });
-    expect(submitPermissionDecision).not.toHaveBeenCalled();
-  });
-
-  it('rejects an expired intervention decision after reconstruction without provider work', async () => {
-    const { owners, activeRunAgentSessionId } = await createFirstLaunchFixture();
-    await commitPendingIntervention(owners, activeRunAgentSessionId, {
-      createdAtMs: NOW - 10 * 60_000,
-      expiresAtMs: NOW - 5 * 60_000,
-    });
-    const keys = generateSigningKeys();
-    const reconstructed = await reconstruct(owners);
-    const boundary = createVerifiedBoundary(owners, reconstructed.adapter, keys);
-    const submitPermissionDecision = vi.spyOn(owners.runRegistry, 'submitPermissionDecision');
-    const before = await reconstructed.store.findByInstanceId(MONITOR_ID);
-
-    await expect(
-      boundary.handleMonitorCommand(
-        buildSignedFrame({
-          commandId: '2d000000-0000-4000-8000-00000000002d',
-          nonce: crypto.randomUUID(),
-          command: humanDecisionCommand({ agentSessionId: activeRunAgentSessionId }),
-          privateKey: keys.privateKey,
-        }),
-      ),
-    ).resolves.toMatchObject({ status: 'REJECTED', reason: 'INVALID_LIFECYCLE' });
-    const after = await reconstructed.store.findByInstanceId(MONITOR_ID);
-    expect(after?.snapshot).toEqual(before?.snapshot);
-    expect(after?.acceptedIngress).toEqual(before?.acceptedIngress);
-    expect(after?.effects).toEqual(before?.effects);
-    expect(after?.transitionHistory).toHaveLength((before?.transitionHistory.length ?? 0) + 1);
-    expect(after?.transitionHistory.at(-1)).toMatchObject({
-      ingressId: '2d000000-0000-4000-8000-00000000002d',
-      eventType: 'HUMAN_DECISION',
-      disposition: { status: 'no_transition' },
-    });
     expect(submitPermissionDecision).not.toHaveBeenCalled();
   });
 

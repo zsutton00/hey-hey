@@ -40,6 +40,12 @@ import type { TaskMonitorHaltedSystemMessageData } from './task-monitor-halted-s
 import type { TaskMonitorJudgmentRequestedSystemMessageData } from './task-monitor-judgment-requested-system-message-data.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { TaskMonitorPermissionAnswerResultSystemMessageData } from './task-monitor-permission-answer-result-system-message-data.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorPermissionDecidedSystemMessageData } from './task-monitor-permission-decided-system-message-data.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { TaskMonitorRequestingReviewSystemMessageData } from './task-monitor-requesting-review-system-message-data.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -64,6 +70,6 @@ import type { UIHints } from './uihints.js';
  * @type TaskMonitorSupervisionSystemMessageData
  * @export
  */
-export type TaskMonitorSupervisionSystemMessageData = { outcome: 'ACCEPTED' } & TaskMonitorAcceptedSystemMessageData | { outcome: 'AWAITING_REVIEW' } & TaskMonitorAwaitingReviewSystemMessageData | { outcome: 'CHANGES_REQUESTED' } & TaskMonitorChangesRequestedSystemMessageData | { outcome: 'HALTED' } & TaskMonitorHaltedSystemMessageData | { outcome: 'JUDGMENT_REQUESTED' } & TaskMonitorJudgmentRequestedSystemMessageData | { outcome: 'REQUESTING_REVIEW' } & TaskMonitorRequestingReviewSystemMessageData | { outcome: 'REVIEW_RECOVERY_JUDGMENT_REQUIRED' } & TaskMonitorReviewRecoveryJudgmentRequiredSystemMessageData | { outcome: 'REVIEW_REQUEST_FAILED' } & TaskMonitorReviewRequestFailedSystemMessageData | { outcome: 'REVIEW_REQUEST_RECONCILING' } & TaskMonitorReviewRequestReconcilingSystemMessageData | { outcome: 'WAITING' } & TaskMonitorWaitingSystemMessageData;
+export type TaskMonitorSupervisionSystemMessageData = { outcome: 'ACCEPTED' } & TaskMonitorAcceptedSystemMessageData | { outcome: 'AWAITING_REVIEW' } & TaskMonitorAwaitingReviewSystemMessageData | { outcome: 'CHANGES_REQUESTED' } & TaskMonitorChangesRequestedSystemMessageData | { outcome: 'HALTED' } & TaskMonitorHaltedSystemMessageData | { outcome: 'JUDGMENT_REQUESTED' } & TaskMonitorJudgmentRequestedSystemMessageData | { outcome: 'PERMISSION_ANSWER_RESULT' } & TaskMonitorPermissionAnswerResultSystemMessageData | { outcome: 'PERMISSION_DECIDED' } & TaskMonitorPermissionDecidedSystemMessageData | { outcome: 'REQUESTING_REVIEW' } & TaskMonitorRequestingReviewSystemMessageData | { outcome: 'REVIEW_RECOVERY_JUDGMENT_REQUIRED' } & TaskMonitorReviewRecoveryJudgmentRequiredSystemMessageData | { outcome: 'REVIEW_REQUEST_FAILED' } & TaskMonitorReviewRequestFailedSystemMessageData | { outcome: 'REVIEW_REQUEST_RECONCILING' } & TaskMonitorReviewRequestReconcilingSystemMessageData | { outcome: 'WAITING' } & TaskMonitorWaitingSystemMessageData;
 
-export const TaskMonitorSupervisionSystemMessageDataDiscriminatorValues = ["REQUESTING_REVIEW","AWAITING_REVIEW","REVIEW_REQUEST_FAILED","REVIEW_REQUEST_RECONCILING","REVIEW_RECOVERY_JUDGMENT_REQUIRED","CHANGES_REQUESTED","ACCEPTED","WAITING","JUDGMENT_REQUESTED","HALTED"] as const;
+export const TaskMonitorSupervisionSystemMessageDataDiscriminatorValues = ["REQUESTING_REVIEW","AWAITING_REVIEW","REVIEW_REQUEST_FAILED","REVIEW_REQUEST_RECONCILING","REVIEW_RECOVERY_JUDGMENT_REQUIRED","CHANGES_REQUESTED","ACCEPTED","WAITING","JUDGMENT_REQUESTED","HALTED","PERMISSION_DECIDED","PERMISSION_ANSWER_RESULT"] as const;

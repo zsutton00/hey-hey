@@ -4,7 +4,7 @@ import type { EvalRecordedFileChange } from "@hey-hey/contracts/api/models";
 export const shellQuote = (value: string): string =>
   /^[\w@%+=:,./~-]+$/u.test(value)
     ? value
-    : `'${value.replaceAll("'", "'\\''")}'`;
+    : `'${value.replace(/'/gu, "'\\''")}'`;
 
 /**
  * What the person opens once the patch is applied, read from the saved paths

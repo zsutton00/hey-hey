@@ -1,5 +1,4 @@
 import {
-  alpha,
   Box,
   Button,
   CircularProgress,
@@ -8,21 +7,35 @@ import {
 } from "@mui/material";
 import type { CapsuleScreenButton } from "./types";
 import { screenButtonColors } from "./capsuleActionButtonColors";
+import {
+  CAPSULE_CHIP_PADDING,
+  CAPSULE_CHIP_SIZE,
+  CAPSULE_ICON_SIZE,
+  GRID_CELL_MIN_WIDTH,
+  GRID_ICON_CHIP_SIZE,
+} from "./capsuleChipSize";
 
 export function CapsuleScreenButtonControl({
   button,
   onClick,
+  gridCell = false,
 }: {
   button: CapsuleScreenButton;
   onClick: () => void;
+  /** Mobile grid cell: same chip size and padding as the round actions there. */
+  gridCell?: boolean;
 }) {
   const theme = useTheme();
   const colors = screenButtonColors[theme.palette.mode];
   const Icon = button.icon;
   const needsAttention = button.status?.state === "needs-you";
   const background = needsAttention
-    ? alpha(theme.palette.warning.main, 0.18)
+    ? theme.palette.warning.main
     : colors.background;
+  const foreground = needsAttention
+    ? theme.palette.warning.contrastText
+    : colors.foreground;
+  const chipSize = gridCell ? GRID_ICON_CHIP_SIZE : CAPSULE_CHIP_SIZE;
   const statusColors = {
     running: theme.palette.info.main,
     paused: theme.palette.warning.main,
@@ -44,9 +57,9 @@ export function CapsuleScreenButtonControl({
       aria-busy={button.pending || undefined}
       sx={{
         flexShrink: 0,
-        minWidth: 52,
-        p: 0.5,
-        gap: 0.5,
+        ...(gridCell
+          ? { minWidth: GRID_CELL_MIN_WIDTH, padding: "4px 2px", gap: 0.5 }
+          : { padding: `${CAPSULE_CHIP_PADDING}px 10px`, gap: 0 }),
         flexDirection: "column",
         color: "text.primary",
         textTransform: "none",
@@ -61,27 +74,22 @@ export function CapsuleScreenButtonControl({
           position: "relative",
           display: "grid",
           placeItems: "center",
-          width: 44,
-          height: 44,
+          boxSizing: "border-box",
+          width: chipSize,
+          height: chipSize,
           borderRadius: "8px",
-          border: "1px solid",
-          borderColor: needsAttention
-            ? theme.palette.warning.main
-            : colors.border,
           bgcolor: background,
-          color: needsAttention
-            ? theme.palette.warning.main
-            : colors.foreground,
+          color: foreground,
         }}
       >
         {button.pending ? (
           <CircularProgress
             color="inherit"
-            size={22}
+            size={CAPSULE_ICON_SIZE}
             data-testid="capsule-screen-button-pending"
           />
         ) : Icon ? (
-          <Icon sx={{ fontSize: 26 }} />
+          <Icon sx={{ fontSize: CAPSULE_ICON_SIZE }} />
         ) : (
           button.label
         )}
@@ -128,7 +136,7 @@ export function CapsuleScreenButtonControl({
         <Box
           component="span"
           data-testid="capsule-screen-button-label"
-          sx={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2 }}
+          sx={{ fontSize: 12, fontWeight: 700 }}
         >
           {button.label}
         </Box>

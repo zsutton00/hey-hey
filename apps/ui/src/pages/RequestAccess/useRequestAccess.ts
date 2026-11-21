@@ -53,14 +53,14 @@ const validateRequestAccess = (
 
   const workEmail = values.workEmail.trim();
   if (!workEmail) {
-    errors.workEmail = "Enter your work email.";
+    errors.workEmail = "Enter your email.";
   } else if (!isValidEmail(workEmail)) {
-    errors.workEmail = "Enter a valid work email.";
+    errors.workEmail = "Enter a valid email.";
   } else if (
     workEmail.length >
     privateBetaAccessRequestFieldConstraints.workEmail.maxLength
   ) {
-    errors.workEmail = "Work email is too long.";
+    errors.workEmail = "Email is too long.";
   }
 
   const organizationName = values.organizationName.trim();

@@ -1,10 +1,29 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  CanonicalPageProvider,
+  EntityActivationProvider,
+} from "@hey-hey/ui-common/context";
 import type {
   ContextRelatedEntityDto,
   FeatureHierarchyEntryDto,
 } from "@hey-hey/contracts/api";
+
+// The real ui-common barrel builds a logger that reads localStorage on import.
+vi.hoisted(() => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+});
+
+const onEntityActivated = vi.fn();
+
+const render = (ui: ReactElement) =>
+  rtlRender(
+    <EntityActivationProvider sink={{ onEntityActivated }}>
+      <CanonicalPageProvider>{ui}</CanonicalPageProvider>
+    </EntityActivationProvider>,
+  );
 
 const mockUseProject = vi.fn();
 const mockUseFullEntityContext = vi.fn();
@@ -95,6 +114,8 @@ describe("TaskMonitorPage", () => {
     vi.clearAllMocks();
     mockUseProject.mockReturnValue({ data: { name: "Hey Hey" } });
     mockUseFullEntityContext.mockReturnValue({
+      isFetched: true,
+      error: null,
       data: {
         featureHierarchy,
         relatedEntities: [
@@ -158,6 +179,8 @@ describe("TaskMonitorPage", () => {
 
   it("does not infer a Plan breadcrumb from generic related entities", () => {
     mockUseFullEntityContext.mockReturnValue({
+      isFetched: true,
+      error: null,
       data: {
         relatedEntities: [
           {
@@ -219,6 +242,8 @@ describe("TaskMonitorPage", () => {
     "keeps the monitor current without a related Plan (%s)",
     (relatedEntities) => {
       mockUseFullEntityContext.mockReturnValue({
+        isFetched: true,
+        error: null,
         data: { featureHierarchy, relatedEntities },
       });
 
@@ -246,4 +271,128 @@ describe("TaskMonitorPage", () => {
       );
     },
   );
+
+  describe("Open Items activation lineage", () => {
+    const monitorTask = {
+      id: "monitor-1",
+      name: "Release monitor",
+      type: "TASK_MONITOR",
+    } as never;
+    const renderPage = () =>
+      render(
+        <TaskMonitorPage
+          organizationId="org-1"
+          projectId="project-1"
+          monitorId="monitor-1"
+          task={monitorTask}
+        />,
+      );
+
+    it("activates the monitor beneath its Plan", () => {
+      renderPage();
+
+      expect(onEntityActivated).toHaveBeenCalledTimes(1);
+      const activation = onEntityActivated.mock.calls[0][0];
+      expect(activation.entityId).toBe("monitor-1");
+      expect(activation.lineage).toEqual([
+        { entityType: "plan", entityId: "plan-1" },
+      ]);
+    });
+
+    it("activates a stage-linked monitor beneath its Plan and Stage", () => {
+      mockUseFullEntityContext.mockReturnValue({
+        isFetched: true,
+        error: null,
+        data: {
+          relatedEntities: [
+            {
+              entityId: "plan-1",
+              entityType: "TASK",
+              taskType: "PLAN",
+              displayName: "Q2 Rollout",
+              relationship: "related-to",
+            },
+            {
+              entityId: "stage-1",
+              entityType: "TASK",
+              taskType: "PLAN_STAGE",
+              displayName: "Stage 1",
+              relationship: "related-to",
+            },
+          ],
+        },
+      });
+      renderPage();
+
+      expect(onEntityActivated.mock.calls[0][0].lineage).toEqual([
+        { entityType: "plan", entityId: "plan-1" },
+        { entityType: "plan_stage", entityId: "stage-1" },
+      ]);
+    });
+
+    it("does not activate while the Plan lookup is unsettled, then activates once with the Plan", () => {
+      mockUseFullEntityContext.mockReturnValue({
+        isFetched: false,
+        error: null,
+        data: null,
+      });
+      const view = renderPage();
+      expect(onEntityActivated).not.toHaveBeenCalled();
+
+      mockUseFullEntityContext.mockReturnValue({
+        isFetched: true,
+        error: null,
+        data: {
+          relatedEntities: [
+            {
+              entityId: "plan-1",
+              entityType: "TASK",
+              taskType: "PLAN",
+              displayName: "Q2 Rollout",
+              relationship: "related-to",
+            } satisfies ContextRelatedEntityDto,
+          ],
+        },
+      });
+      view.rerender(
+        <EntityActivationProvider sink={{ onEntityActivated }}>
+          <CanonicalPageProvider>
+            <TaskMonitorPage
+              organizationId="org-1"
+              projectId="project-1"
+              monitorId="monitor-1"
+              task={monitorTask}
+            />
+          </CanonicalPageProvider>
+        </EntityActivationProvider>,
+      );
+
+      expect(onEntityActivated).toHaveBeenCalledTimes(1);
+      expect(onEntityActivated.mock.calls[0][0].lineage).toHaveLength(1);
+    });
+
+    it("still activates a monitor whose Plan lookup failed, without lineage", () => {
+      mockUseFullEntityContext.mockReturnValue({
+        isFetched: false,
+        error: "boom",
+        data: null,
+      });
+      renderPage();
+
+      expect(onEntityActivated).toHaveBeenCalledTimes(1);
+      expect(onEntityActivated.mock.calls[0][0].lineage ?? []).toEqual([]);
+    });
+
+    it("activates a monitor with no Plan without lineage", () => {
+      mockUseFullEntityContext.mockReturnValue({
+        isFetched: true,
+        error: null,
+        data: { relatedEntities: [] },
+      });
+      renderPage();
+
+      expect(onEntityActivated).toHaveBeenCalledTimes(1);
+      expect(onEntityActivated.mock.calls[0][0].lineage ?? []).toEqual([]);
+    });
+  });
 });

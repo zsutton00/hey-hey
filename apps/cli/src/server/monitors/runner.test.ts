@@ -40,6 +40,8 @@ import {
   resolveDailySessionSettings,
 } from './daily-session-settings';
 import { MonitorRunner, TaskMonitorCoordinatorRunner } from './runner';
+import { TaskMonitorStartRuntime } from '../task-monitor-start';
+import type { TaskMonitorRuntimeSelection } from '@hey-hey/contracts/api/models';
 import type { TaskMonitorCoordinationLocalState } from '../../agents/task-monitor/task-monitor-coordination';
 import { PlatformAuthContext, type PlatformAuth } from '../platform-auth-context';
 import { createTestOAuthClient } from '../__tests__/helpers/test-oauth-client';
@@ -117,6 +119,31 @@ interface HarnessOverrides {
   ensureRunForMonitor?: LocalAgentService['ensureRunForMonitor'];
   getRun?: RunStore['getRun'];
 }
+
+/** A real start runtime whose monitor read reports the given saved coordinator runtime. */
+const monitorRuntimeWith = (coordinatorRuntime?: TaskMonitorRuntimeSelection) => {
+  const runtime = new TaskMonitorStartRuntime({
+    apiBaseUrl: 'http://localhost',
+    fetchImpl: fetch,
+    authContext: createTestPlatformAuthContext(AUTH),
+    logger: NOOP_LOGGER,
+  });
+  vi.spyOn(runtime, 'readMonitor').mockResolvedValue({
+    id: 'monitor-1',
+    name: 'Monitor',
+    organizationId: AUTH.organizationId,
+    projectId: AUTH.projectId,
+    status: 'ACTIVE',
+    definition: {
+      kind: 'task',
+      executionPlan: [],
+      launchPolicy: { terminalSupervision: { mode: 'AGENT_DECIDES' } },
+      ...(coordinatorRuntime ? { coordinatorRuntime } : {}),
+      cursor: 0,
+    },
+  } as never);
+  return runtime;
+};
 
 const makeHarness = (overrides: HarnessOverrides = {}) => {
   const ensureRunForMonitor = vi.fn<LocalAgentService['ensureRunForMonitor']>(
@@ -399,6 +426,7 @@ describe('MonitorRunner', () => {
       agentService,
       runStore,
       decisionStore,
+      monitorRuntime: monitorRuntimeWith(),
       logger: NOOP_LOGGER,
     });
     const command: TaskMonitorPromptPayload = {
@@ -458,6 +486,7 @@ describe('TaskMonitorCoordinatorRunner', () => {
       agentService,
       runStore,
       decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith(),
       logger: NOOP_LOGGER,
     });
     const command: TaskMonitorPromptPayload = {
@@ -509,23 +538,17 @@ describe('TaskMonitorCoordinatorRunner', () => {
       agentService,
       runStore,
       decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith({
+        provider: 'codex',
+        model: 'gpt-5.6-terra',
+        reasoningEffort: 'high',
+        fastMode: false,
+      }),
       logger: NOOP_LOGGER,
     });
 
     await expect(
-      runner.ensureTaskMonitorRun(
-        {
-          monitorId: '10000000-0000-4000-8000-000000000001',
-          launchConfig: {
-            taskId: 'task-1',
-            method: 'quick',
-            provider: 'codex',
-            model: 'gpt-5.4',
-            reasoningEffort: 'high',
-          },
-        },
-        AUTH,
-      ),
+      runner.ensureTaskMonitorRun({ monitorId: '10000000-0000-4000-8000-000000000001' }, AUTH),
     ).resolves.toEqual({
       runId: 'task-monitor-run',
       coordinatorAgentSessionId: 'task-monitor-coordinator',
@@ -541,8 +564,9 @@ describe('TaskMonitorCoordinatorRunner', () => {
         },
         runConfig: {
           provider: LocalRunProvider.Codex,
-          model: 'gpt-5.4',
+          model: 'gpt-5.6-terra',
           reasoningEffort: 'high',
+          fastMode: false,
         },
       }),
     );
@@ -550,7 +574,7 @@ describe('TaskMonitorCoordinatorRunner', () => {
   });
 
   it('owns coordinator identity and sends the requested Task Monitor turn', async () => {
-    const ensureRunForMonitor = vi.fn(async () =>
+    const ensureRunForMonitor = vi.fn<LocalAgentService['ensureRunForMonitor']>(async () =>
       ensuredResponse({
         run: stubLocalRun('task-monitor-run'),
         agentSessionId: 'task-monitor-coordinator',
@@ -568,6 +592,7 @@ describe('TaskMonitorCoordinatorRunner', () => {
       agentService,
       runStore,
       decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith(),
       logger: NOOP_LOGGER,
     });
     const command: TaskMonitorPromptPayload = {
@@ -585,7 +610,7 @@ describe('TaskMonitorCoordinatorRunner', () => {
         taskId: 'task-1',
         method: 'quick',
         provider: 'codex',
-        model: 'gpt-5.4',
+        model: 'gpt-5.6-terra',
         reasoningEffort: 'high',
       },
     };
@@ -602,6 +627,8 @@ describe('TaskMonitorCoordinatorRunner', () => {
         keyBy: { mode: 'taskMonitor', monitorId: command.monitorId },
       }),
     );
+    // The supervised task's launchConfig describes that task; it never decides the coordinator's runtime.
+    expect(ensureRunForMonitor.mock.calls[0]?.[0]).not.toHaveProperty('runConfig');
     expect(sendMessage).toHaveBeenCalledWith(
       'task-monitor-run',
       expect.objectContaining({
@@ -609,6 +636,93 @@ describe('TaskMonitorCoordinatorRunner', () => {
         payload: expect.objectContaining({ settledTurn: command.settledTurn }),
       }),
     );
+  });
+
+  it('runs every supervised task, and a resume, on the same saved coordinator runtime', async () => {
+    const ensureRunForMonitor = vi.fn<LocalAgentService['ensureRunForMonitor']>(async () =>
+      ensuredResponse(),
+    );
+    const runStore = new RunStore();
+    vi.spyOn(runStore, 'updateRunSessionContext').mockResolvedValue({} as never);
+    const agentService = createTestLocalAgentService({ runStore });
+    vi.spyOn(agentService, 'ensureRunForMonitor').mockImplementation(ensureRunForMonitor);
+    vi.spyOn(agentService, 'sendSystemMessage').mockResolvedValue({} as never);
+    const runner = new TaskMonitorCoordinatorRunner({
+      authProvider: createTestPlatformAuthContext(AUTH),
+      agentService,
+      runStore,
+      decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith({
+        provider: 'claude',
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'medium',
+      }),
+      logger: NOOP_LOGGER,
+    });
+    const taskConfig = (provider: 'codex' | 'opencode', model: string) => ({
+      taskId: 'task-1',
+      method: 'quick' as const,
+      provider,
+      model,
+      reasoningEffort: 'high' as const,
+    });
+    const monitorId = '10000000-0000-4000-8000-000000000001';
+
+    await runner.runTaskMonitor(
+      {
+        monitorId,
+        cause: 'CONTINUE',
+        correlationId: 'turn-1',
+        launchConfig: taskConfig('codex', 'gpt-5.4'),
+      },
+      AUTH,
+    );
+    await runner.runTaskMonitor(
+      {
+        monitorId,
+        cause: 'CONTINUE',
+        correlationId: 'turn-2',
+        launchConfig: taskConfig('opencode', 'other-model'),
+      },
+      AUTH,
+    );
+    await runner.runTaskMonitor({ monitorId, cause: 'RESUME', correlationId: 'resume-1' }, AUTH);
+
+    const runConfigs = ensureRunForMonitor.mock.calls.map(([input]) => input.runConfig);
+    expect(runConfigs).toHaveLength(3);
+    for (const runConfig of runConfigs) {
+      expect(runConfig).toEqual({
+        provider: LocalRunProvider.Claude,
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'medium',
+      });
+    }
+  });
+
+  it('refuses a saved Monitor runs on choice the runtime catalog does not support, before creating a Run', async () => {
+    const ensureRunForMonitor = vi.fn<LocalAgentService['ensureRunForMonitor']>(async () =>
+      ensuredResponse(),
+    );
+    const runStore = new RunStore();
+    const agentService = createTestLocalAgentService({ runStore });
+    vi.spyOn(agentService, 'ensureRunForMonitor').mockImplementation(ensureRunForMonitor);
+    const runner = new TaskMonitorCoordinatorRunner({
+      authProvider: createTestPlatformAuthContext(AUTH),
+      agentService,
+      runStore,
+      decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith({
+        provider: 'claude',
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'not-an-effort' as never,
+      }),
+      logger: NOOP_LOGGER,
+    });
+
+    await expect(
+      runner.ensureTaskMonitorRun({ monitorId: '10000000-0000-4000-8000-000000000001' }, AUTH),
+    ).rejects.toThrow(/Monitor runs on/);
+    expect(ensureRunForMonitor).not.toHaveBeenCalled();
   });
 
   it('persists the Resume snapshot alongside the lifecycle cause before sending coordination', async () => {
@@ -632,6 +746,7 @@ describe('TaskMonitorCoordinatorRunner', () => {
       agentService,
       runStore,
       decisionStore,
+      monitorRuntime: monitorRuntimeWith(),
       logger: NOOP_LOGGER,
     });
     const coordination: TaskMonitorCoordinationLocalState = {
@@ -674,6 +789,7 @@ it('forwards typed correction feedback and binds the distinct committed coordina
     agentService: input.dependencies.agentService,
     runStore: input.dependencies.runStore,
     decisionStore: input.dependencies.taskMonitorDecisionStore,
+    monitorRuntime: monitorRuntimeWith(),
     logger: NOOP_LOGGER,
   });
   const bind = vi.spyOn(input.dependencies.taskMonitorDecisionStore, 'bind');
@@ -727,6 +843,7 @@ it('reconstructs rejected output from the durable coordinator lifecycle rather t
     agentService: input.dependencies.agentService,
     runStore: input.dependencies.runStore,
     decisionStore: input.dependencies.taskMonitorDecisionStore,
+    monitorRuntime: monitorRuntimeWith(),
     logger: NOOP_LOGGER,
   });
   await expect(
@@ -735,4 +852,48 @@ it('reconstructs rejected output from the durable coordinator lifecycle rather t
   await expect(
     runner.reconcileRejectedAttempt('monitor-1', AUTH.projectId, 'other-attempt'),
   ).resolves.toBeNull();
+});
+
+describe('TaskMonitorCoordinatorRunner saved runtime on resume', () => {
+  const ensureWith = async (runtime: TaskMonitorRuntimeSelection) => {
+    const runStore = new RunStore();
+    const agentService = createTestLocalAgentService({ runStore });
+    const ensure = vi
+      .spyOn(agentService, 'ensureRunForMonitor')
+      .mockResolvedValue(
+        ensuredResponse({ run: stubLocalRun('task-monitor-run'), agentSessionId: 'coordinator' }),
+      );
+    const runner = new TaskMonitorCoordinatorRunner({
+      authProvider: createTestPlatformAuthContext(AUTH),
+      agentService,
+      runStore,
+      decisionStore: createDecisionStore(),
+      monitorRuntime: monitorRuntimeWith(runtime),
+      logger: NOOP_LOGGER,
+    });
+    const result = runner.ensureTaskMonitorRun({ monitorId: 'monitor-1' }, AUTH);
+    return { ensure, result };
+  };
+
+  it('refuses to launch a saved model the machine no longer offers', async () => {
+    const { ensure, result } = await ensureWith({
+      provider: 'claude',
+      model: 'claude-removed-model',
+      reasoningEffort: 'medium',
+    });
+
+    await expect(result).rejects.toThrow(/Monitor runs on/);
+    expect(ensure).not.toHaveBeenCalled();
+  });
+
+  it('launches an effortless catalog model without forwarding an effort', async () => {
+    const { ensure, result } = await ensureWith({
+      provider: 'opencode',
+      model: 'opencode-default',
+    });
+
+    await expect(result).resolves.toMatchObject({ runId: 'task-monitor-run' });
+    const runConfig = ensure.mock.calls[0]?.[0].runConfig;
+    expect(runConfig).toEqual({ provider: 'opencode', model: 'opencode-default' });
+  });
 });

@@ -22,6 +22,8 @@ const RAISE_UNCERTAINTY_DESCRIPTION = `Record one uncertainty as structured conv
 
 Use low for a peripheral qualification or an expected, design-consistent dependency; medium for a material qualification or missing delivery scope that needs the user's choice; high for a central reliability concern or conflict with authoritative intended behavior. Map review P0/P1 to high, P2 to medium, and P3/P4 to low; use equivalent high/medium/low review ratings directly. Category and severity are independent.
 
+When a recorded source (requirement, design doc, Mockup, Contract, Decision, or task) disagrees with the code, the user's latest direction, or what you just did, raise it as a conflict unless you are correcting the source in the same turn. If you propose the edit, that proposal is the visible record; do not also raise it here. A Verify Feature suggestion (suggest_feature_verification) is a confident sync action, not a substitute: when you also raise one for the same drift, still raise this conflict, which is your flag that the user may want to look at it. A passing line in your reply, a closing offer such as "tell me if you want it", or a mention in a report is not raising it, and deciding the mismatch is not worth acting on is the user's call, not yours. The severity is usually low or medium, because the question is whether to update the record, not whether the work is broken. Name the source with an entity mention, what it says now, and what it should say, so the user can act on it or discuss it. Example: the title color changed in code while the Card requirement still says "Hey Hey theme color".
+
 Do not raise routine design-consistent implementation, regeneration, or migration work.`;
 
 export const raiseUncertaintyTool = {

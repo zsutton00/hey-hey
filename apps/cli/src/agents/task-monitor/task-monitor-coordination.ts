@@ -180,6 +180,13 @@ export const validateTaskMonitorDecision = (
     };
   }
   switch (decision.action) {
+    case 'APPROVE_PERMISSION':
+    case 'DENY_PERMISSION':
+    case 'ESCALATE_PERMISSION':
+      return {
+        ok: false,
+        reason: `${decision.action} decides a permission request, not Task coordination.`,
+      };
     case 'REQUEST_REVIEW':
       if (snapshot.cause === 'START') {
         return { ok: false, reason: 'A fresh Task Monitor start cannot request Review.' };

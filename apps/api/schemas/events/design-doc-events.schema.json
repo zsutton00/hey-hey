@@ -5397,6 +5397,9 @@
             "judgment": {
               "$ref": "#/definitions/TaskMonitorJudgmentResponse"
             },
+            "monitoredPermissionRequest": {
+              "$ref": "#/definitions/TaskMonitorPermissionRequest"
+            },
             "settledTurn": {
               "$ref": "#/definitions/SessionMonitorSettledTurnEvidence"
             }
@@ -8874,6 +8877,10 @@
           "type": "string",
           "const": "HALT"
         },
+        {
+          "type": "string",
+          "const": "PERMISSION_REQUEST"
+        },
         {}
       ],
       "description": "Lifecycle cause delivered to the Task Monitor handler through the signed start-run or user-message dispatch rail."
@@ -9061,6 +9068,54 @@
         "label",
         "conclusion"
       ]
+    },
+    "TaskMonitorPermissionRequest": {
+      "type": "object",
+      "properties": {
+        "interventionId": {
+          "type": "string"
+        },
+        "providerActionId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "agentSessionId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Null when the provider sends no deadline, as Claude does today."
+        }
+      },
+      "required": [
+        "interventionId",
+        "providerActionId",
+        "runId",
+        "agentSessionId",
+        "action",
+        "target",
+        "fingerprint",
+        "createdAt",
+        "expiresAt"
+      ],
+      "description": "The exact provider permission request a monitored coding session is waiting on. Delivered with the PERMISSION_REQUEST cause so the Task Monitor agent can approve, deny or escalate it."
     },
     "LocalValidationWalkthroughPromptPayloadScopeEnum": {
       "anyOf": [
@@ -10681,6 +10736,9 @@
         },
         "judgment": {
           "$ref": "#/definitions/TaskMonitorJudgmentResponse"
+        },
+        "monitoredPermissionRequest": {
+          "$ref": "#/definitions/TaskMonitorPermissionRequest"
         },
         "settledTurn": {
           "$ref": "#/definitions/SessionMonitorSettledTurnEvidence"
@@ -12390,6 +12448,9 @@
         },
         "judgment": {
           "$ref": "#/definitions/TaskMonitorJudgmentResponse"
+        },
+        "monitoredPermissionRequest": {
+          "$ref": "#/definitions/TaskMonitorPermissionRequest"
         },
         "settledTurn": {
           "$ref": "#/definitions/SessionMonitorSettledTurnEvidence"

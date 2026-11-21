@@ -42,8 +42,8 @@ export interface PreviewModalProps {
    * control.
    */
   layout?: "viewport" | "dialog";
-  /** Width in px of the `dialog` layout, capped at the viewport. Defaults to 720. */
-  dialogWidth?: number;
+  /** Width (px, or a CSS length) of the `dialog` layout, capped at the viewport. Defaults to 720. */
+  dialogWidth?: number | string;
   /** Id of the element that names the dialog, forwarded as aria-labelledby. */
   labelledBy?: string;
   /** Id of the element that describes the dialog, forwarded as aria-describedby. */

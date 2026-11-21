@@ -129,7 +129,15 @@ const buildProviderDefaultSurfaceSelection = (
  * CLI has said what it can launch. The catalog is the single source for this
  * knowledge — surfaces seed from here rather than carrying their own literals.
  */
-export const buildDefaultSurfaceSelection = (): SurfaceSelection | null => {
+export const buildDefaultSurfaceSelection = (
+  preferredProvider?: ConversationStartRunRequestDtoProviderEnum,
+): SurfaceSelection | null => {
+  const preferred = preferredProvider
+    ? buildProviderDefaultSurfaceSelection(preferredProvider)
+    : null;
+  if (preferred) {
+    return preferred;
+  }
   for (const provider of listProviders()) {
     const selection = buildProviderDefaultSurfaceSelection(provider);
     if (selection) {

@@ -136,9 +136,10 @@ const failedSettlement = (
 });
 
 /** Owns the platform Agent Session create and exact-id reconciliation boundary. */
-export class TaskMonitorAgentSessionEffectHandler
-  implements EffectHandler<CreateTaskMonitorAgentSessionEffect, TaskMonitorMachineEffectOutcome>
-{
+export class TaskMonitorAgentSessionEffectHandler implements EffectHandler<
+  CreateTaskMonitorAgentSessionEffect,
+  TaskMonitorMachineEffectOutcome
+> {
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorAgentSessionEffect, execution: EffectExecutionIdentity) =>
@@ -271,9 +272,10 @@ export class TaskMonitorAgentSessionEffectHandler
 }
 
 /** Owns canonical Conversation discovery and creation on the Agent Session owner. */
-export class TaskMonitorConversationEffectHandler
-  implements EffectHandler<CreateTaskMonitorConversationEffect, TaskMonitorMachineEffectOutcome>
-{
+export class TaskMonitorConversationEffectHandler implements EffectHandler<
+  CreateTaskMonitorConversationEffect,
+  TaskMonitorMachineEffectOutcome
+> {
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: CreateTaskMonitorConversationEffect) => this.reconcile(effect),
@@ -402,9 +404,10 @@ export class TaskMonitorConversationEffectHandler
 }
 
 /** Owns start-run dispatch and reconciles against the host-owned Run index. */
-export class TaskMonitorRunEffectHandler
-  implements EffectHandler<StartTaskMonitorRunEffect, TaskMonitorMachineEffectOutcome>
-{
+export class TaskMonitorRunEffectHandler implements EffectHandler<
+  StartTaskMonitorRunEffect,
+  TaskMonitorMachineEffectOutcome
+> {
   public readonly recovery = {
     strategy: 'reconcile' as const,
     reconcile: (effect: StartTaskMonitorRunEffect) => this.reconcile(effect),

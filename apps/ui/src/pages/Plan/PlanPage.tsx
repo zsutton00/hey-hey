@@ -46,7 +46,10 @@ import {
   DetailPageHeader,
   PageBreadcrumbs,
 } from "../../components/Layout";
-import { getPlanStatusLabel } from "@hey-hey/ui-common/utils";
+import {
+  getPlanStatusLabel,
+  getStatusColorMapping,
+} from "@hey-hey/ui-common/utils";
 import { DataDebugTab } from "../../components/Tabs/DataDebugTab";
 import { DesignDocsTab } from "../../components/Tabs/DesignDocsTab";
 import { useRemainingViewportHeight } from "../../hooks/useRemainingViewportHeight";
@@ -337,11 +340,17 @@ export const PlanPage = ({
                 : undefined
             }
           >
-            <DetailPageHeader title={shell.name} />
-            <Chip
-              label={getPlanStatusLabel(shell.status)}
-              size="small"
-              sx={{ alignSelf: "flex-start", my: 1 }}
+            <DetailPageHeader
+              title={shell.name}
+              titleAdornment={
+                <Chip
+                  data-testid="plan-status-chip"
+                  size="small"
+                  color={getStatusColorMapping(shell.status)}
+                  label={getPlanStatusLabel(shell.status)}
+                  sx={{ fontWeight: 600 }}
+                />
+              }
             />
             <Tabs
               value={tab}

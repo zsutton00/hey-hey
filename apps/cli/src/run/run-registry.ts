@@ -1,3 +1,4 @@
+import type { TaskMonitorServiceScopeAdmission } from '../server/task-monitor-service-scope-admission';
 import { DeterministicE2EEvidence } from './runners/deterministic-e2e-evidence';
 /**
  * RunRegistry — holds active Runs, indexed by runId.
@@ -76,7 +77,16 @@ export class RunRegistry {
   private disposed = false;
   private readonly foregroundSubagentHolds = new Map<string, Set<string>>();
 
+  private taskMonitorServiceScopeAdmission: TaskMonitorServiceScopeAdmission | null = null;
+
   public constructor(private readonly dependencies: RunRegistryDependencies) {}
+
+  /** Set once the Task Monitor runtime is up; Runs read it when a request is raised, not before. */
+  public setTaskMonitorServiceScopeAdmission(
+    admission: TaskMonitorServiceScopeAdmission | null,
+  ): void {
+    this.taskMonitorServiceScopeAdmission = admission;
+  }
 
   /** Read-state observers can never interrupt the Run that raised the change. */
   private publishRunUpdated(runId: string): void {
@@ -109,6 +119,7 @@ export class RunRegistry {
     const runCollaborators: RunCollaborators = {
       ...this.dependencies.runCollaborators,
       ...(this.inactivityTimeoutMs ? { idleRunReaper: this } : {}),
+      taskMonitorServiceScopeAdmission: () => this.taskMonitorServiceScopeAdmission,
       durableInputReady: () => this.notifyDurableInputReady(args.runId),
       readStateChanged: () => this.publishRunUpdated(args.runId),
     };

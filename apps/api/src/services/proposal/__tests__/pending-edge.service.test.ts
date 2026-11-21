@@ -564,7 +564,8 @@ describe('PendingEdgeService', () => {
         testIds.user,
         undefined,
         undefined,
-        true,
+        false,
+        true, // supersessionTransition: lets the predecessor reach SUPERSEDED
       );
       expect(postCommits).toEqual([
         {

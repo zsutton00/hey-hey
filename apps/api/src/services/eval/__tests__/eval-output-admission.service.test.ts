@@ -42,7 +42,7 @@ describe('EvalOutputAdmissionService', () => {
       ],
       allowedParentTypes: [],
       edgeTargets: [],
-      statuses: legacyStatuses(['NOT_STARTED']),
+      statuses: legacyStatuses(['BACKLOG']),
       requiredScalars: [],
       forbiddenScalars: [],
       parentage: { allowedParentEntityTypes: ['PROJECT'] },

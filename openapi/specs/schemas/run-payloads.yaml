@@ -835,6 +835,8 @@ RunCreatePayloadTaskMonitor:
       $ref: ./trigger-payloads.yaml#/TaskMonitorLaunchConfig
     judgment:
       $ref: ./work-items.yaml#/TaskMonitorJudgmentResponse
+    monitoredPermissionRequest:
+      $ref: ./trigger-payloads.yaml#/TaskMonitorPermissionRequest
     settledTurn:
       $ref: ./trigger-payloads.yaml#/SessionMonitorSettledTurnEvidence
       description: >

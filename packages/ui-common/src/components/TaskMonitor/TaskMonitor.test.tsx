@@ -310,6 +310,53 @@ describe("TaskMonitor", () => {
     expect(start).not.toHaveBeenCalled();
     expect(resume).not.toHaveBeenCalled();
   });
+  it("treats a backlog monitor with a retained ABSENT snapshot as ready to start", () => {
+    mocks.useTaskMonitorProjection.mockReturnValue({
+      definition: { executionPlan: [], cursor: 0 },
+      monitor: { status: WorkStatus.Backlog },
+      nodes: [],
+      isLoading: false,
+      isFetched: true,
+      errorMessage: null,
+      isSavingLaunchConfiguration: false,
+      saveLaunchConfiguration: vi.fn(),
+      reconcileAfterCommand: vi.fn(),
+    });
+    mocks.useExecutionState.mockReturnValue({
+      status: "retained",
+      delivery: "LIVE",
+      revision: 1,
+      ownerMachineId: "machine-1",
+      acceptedAt: "2026-11-18T12:00:00Z",
+      freshness: { status: "CURRENT", changedAt: "2026-11-18T12:00:00Z" },
+      state: {
+        type: "TASK_MONITOR",
+        projection: {
+          execution: {
+            lifecycle: "ABSENT",
+            control: "RUNNING",
+            work: "IDLE",
+            intervention: "CLEAR",
+          },
+          availableActions: [],
+        },
+      },
+    } satisfies WorkItemExecutionStateResult);
+
+    render(
+      <TaskMonitor
+        organizationId="org-1"
+        projectId="project-1"
+        monitorId="monitor-1"
+        activePane="monitor"
+      />,
+    );
+
+    expect(mocks.workspaceProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startPresentation: { status: "ready" } }),
+    );
+  });
+
   it("keeps the workspace mounted while the launch catalog reloads", () => {
     const props = {
       organizationId: "org-1",

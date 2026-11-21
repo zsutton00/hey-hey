@@ -764,6 +764,11 @@ function buildLayout(args: {
 
   const isVisible = (key: string) =>
     changeOf(key) !== "unchanged" || pendingVerb.has(key);
+  // An item only a not-accepted suggestion touches stays put but is drawn dashed.
+  const afterChange = (key: string): RowChange =>
+    changeOf(key) === "unchanged" && pendingVerb.has(key)
+      ? "pending"
+      : changeOf(key);
 
   // Pinned provisional Goals lead the right column, as Goals pin first.
   for (const goal of args.addedGoals) {
@@ -803,6 +808,17 @@ function buildLayout(args: {
   let run = 0;
   const flushFold = () => {
     if (run === 0) {
+      return;
+    }
+    // Two unchanged runs with nothing drawn between them read as one run.
+    const lastBefore = before.at(-1);
+    const lastAfter = after.at(-1);
+    if (lastBefore?.kind === "fold" && lastAfter?.kind === "fold") {
+      lastBefore.count += run;
+      if (lastAfter !== lastBefore) {
+        lastAfter.count += run;
+      }
+      run = 0;
       return;
     }
     const key = `fold:${before.length}`;
@@ -895,7 +911,7 @@ function buildLayout(args: {
         itemRow(
           row,
           1,
-          changeOf(key),
+          afterChange(key),
           changeOf(key) === "tracked"
             ? { kind: "tracked", goal: row.trackedOn! }
             : null,
@@ -913,7 +929,7 @@ function buildLayout(args: {
       pushAfterGroupHeader(row.groupId);
       return;
     }
-    const change = changeOf(key);
+    const change = afterChange(key);
     afterIndex.set(key, after.length);
     after.push(
       itemRow(

@@ -83,6 +83,15 @@ vi.mock("../../../../packages/ui-common/src/data/hooks/useWorkItem", () => ({
   }),
 }));
 vi.mock(
+  "../../../../packages/ui-common/src/data/hooks/useAgentSession",
+  () => ({
+    useAgentSession: () => ({
+      agentSession: { id: "review", conversationId: "conversation" },
+      error: null,
+    }),
+  }),
+);
+vi.mock(
   "@hey-hey/ui-common/components/InteractionComponent/DiscussModal",
   () => ({
     DiscussModal: (props: DiscussModalProps) => {

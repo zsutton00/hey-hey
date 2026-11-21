@@ -248,6 +248,18 @@ describe('buildPlatformSystemPrompt', () => {
     expect(description).toContain('question');
   });
 
+  it('tells agents that unfixed project drift is raised as a conflict, not mentioned in prose', () => {
+    const { description } = raiseUncertaintyTool;
+
+    expect(description).toContain('raise it as a conflict unless you are correcting the source');
+    expect(description).toContain('usually low or medium');
+    expect(description).toContain('closing offer');
+    expect(description).toContain('is not raising it');
+    expect(description).toContain('what it says now, and what it should say');
+    expect(description).toContain('still raise this conflict');
+    expect(description).toContain('Do not raise routine design-consistent');
+  });
+
   it('tells agents which read answers which question without dropping graph research', () => {
     const prompt = buildPlatformSystemPrompt(sampleDefs);
 

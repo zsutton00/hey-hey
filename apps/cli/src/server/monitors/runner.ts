@@ -9,11 +9,10 @@ import {
   LocalPromptType,
   LocalRunProvider,
 } from '../../shared/agent-bridge-contract/contract';
-import type {
-  TaskMonitorLaunchConfig,
-  TaskMonitorPromptPayload,
-  RunContextMetadata,
-} from '@hey-hey/contracts/agent-bridge';
+import type { TaskMonitorPromptPayload, RunContextMetadata } from '@hey-hey/contracts/agent-bridge';
+import type { TaskMonitorRuntimeSelection } from '@hey-hey/contracts/api/models';
+import { coordinatorRuntimeCatalogIssue } from '../../agents/task-monitor/coordinator-runtime';
+import type { TaskMonitorStartRuntime } from '../task-monitor-start';
 import type { MonitorRunEnsuredResponse } from '../../shared/agent-bridge-contract/contract';
 import {
   AgentSessionConfigV2TypeEnum,
@@ -58,7 +57,6 @@ export interface MonitorRunnerResult {
 
 export interface TaskMonitorRunIdentityInput {
   monitorId: string;
-  launchConfig?: TaskMonitorLaunchConfig;
 }
 
 const buildContextMetadataSeed = (
@@ -71,18 +69,19 @@ const buildContextMetadataSeed = (
   fileReferences: { resolved: [], unresolved: [] },
 });
 
-const toTaskMonitorRunConfig = (config: TaskMonitorLaunchConfig | undefined) => {
-  if (!config) return undefined;
+const toTaskMonitorRunConfig = (runtime: TaskMonitorRuntimeSelection | undefined) => {
+  if (!runtime) return undefined;
   const provider =
-    config.provider === 'claude'
+    runtime.provider === 'claude'
       ? LocalRunProvider.Claude
-      : config.provider === 'codex'
+      : runtime.provider === 'codex'
         ? LocalRunProvider.Codex
         : LocalRunProvider.Opencode;
   return {
     provider,
-    model: config.model,
-    reasoningEffort: config.reasoningEffort,
+    model: runtime.model,
+    ...(runtime.reasoningEffort === undefined ? {} : { reasoningEffort: runtime.reasoningEffort }),
+    ...(runtime.fastMode === undefined ? {} : { fastMode: runtime.fastMode }),
   };
 };
 
@@ -91,6 +90,8 @@ export interface TaskMonitorCoordinatorRunnerDependencies {
   agentService: LocalAgentService;
   runStore: RunStore;
   decisionStore: TaskMonitorDecisionStore;
+  /** Reads the monitor's saved coordinator runtime on every ensure, so start and resume agree. */
+  monitorRuntime: TaskMonitorStartRuntime;
   logger: ServerLogger;
 }
 
@@ -176,16 +177,14 @@ export class TaskMonitorCoordinatorRunner {
       cause: command.cause,
       correlationId: command.correlationId,
     });
-    const identity = await this.ensureWithAuth(auth, {
-      monitorId: command.monitorId,
-      ...(command.launchConfig ? { launchConfig: command.launchConfig } : {}),
-    });
+    const identity = await this.ensureWithAuth(auth, { monitorId: command.monitorId });
     const runId = identity.runId;
 
     if (
       command.cause === 'START' ||
       command.cause === 'RESUME' ||
       command.cause === 'CONTINUE' ||
+      command.cause === 'PERMISSION_REQUEST' ||
       command.cause === 'JUDGMENT_RESOLVED'
     ) {
       this.dependencies.decisionStore.bind(
@@ -220,6 +219,9 @@ export class TaskMonitorCoordinatorRunner {
         ...(command.settledTurn ? { settledTurn: command.settledTurn } : {}),
         ...(command.userMessage ? { userMessage: command.userMessage } : {}),
         ...(command.judgment ? { judgment: command.judgment } : {}),
+        ...(command.monitoredPermissionRequest
+          ? { monitoredPermissionRequest: command.monitoredPermissionRequest }
+          : {}),
       },
       references: { resolved: [], unresolved: [] },
     };
@@ -268,7 +270,31 @@ export class TaskMonitorCoordinatorRunner {
     auth: PlatformAuth,
     input: TaskMonitorRunIdentityInput,
   ): Promise<MonitorRunnerResult> {
-    const taskMonitorRunConfig = toTaskMonitorRunConfig(input.launchConfig);
+    const monitor = await this.dependencies.monitorRuntime.readMonitor({
+      organizationId: auth.organizationId,
+      projectId: auth.projectId,
+      monitorId: input.monitorId,
+    });
+    const savedRuntime = monitor.definition.coordinatorRuntime;
+    await this.dependencies.agentService.waitForCapabilityCatalog();
+    const catalogIssue = savedRuntime ? coordinatorRuntimeCatalogIssue(savedRuntime) : null;
+    if (catalogIssue) {
+      this.dependencies.logger.error('task_monitor.coordinator.runtime.invalid', {
+        monitorId: input.monitorId,
+        provider: savedRuntime?.provider,
+        model: savedRuntime?.model,
+        reasoningEffort: savedRuntime?.reasoningEffort,
+        reason: catalogIssue,
+      });
+      throw new Error(catalogIssue);
+    }
+    const taskMonitorRunConfig = toTaskMonitorRunConfig(savedRuntime);
+    this.dependencies.logger.debug('task_monitor.coordinator.runtime.resolved', {
+      monitorId: input.monitorId,
+      saved: taskMonitorRunConfig !== undefined,
+      provider: monitor.definition.coordinatorRuntime?.provider ?? null,
+      model: monitor.definition.coordinatorRuntime?.model ?? null,
+    });
     const ensured = await this.dependencies.agentService.ensureRunForMonitor({
       accessToken: auth.accessToken,
       organizationId: auth.organizationId,

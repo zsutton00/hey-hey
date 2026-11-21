@@ -446,6 +446,7 @@ const agentTriggerEventV2Schema = z.union([
 const permissionDecisionControlV2Shape = {
   kind: z.literal('permission_decision'),
   agentSessionId: uuid,
+  replyConversationId: uuid.optional(),
   decision: z.enum(['approve', 'always_approve', 'deny', 'whitelist']),
   requestId: z.string().min(1),
   sessionId: z.string().min(1),

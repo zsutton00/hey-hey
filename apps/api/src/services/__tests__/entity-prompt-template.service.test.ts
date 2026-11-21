@@ -5,6 +5,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { MissingRecordException } from '../../common/exceptions/missing-record.exceptions';
 import {
   ENTITY_PROMPT_TEMPLATE_KEYS,
   ENTITY_PROMPT_TEMPLATE_LANGUAGE_CATALOG,
@@ -170,13 +171,8 @@ describe('EntityPromptTemplateService', () => {
       revisionId: 'custom-revision-id',
       ownershipSource: { scope: 'PROJECT', projectId },
     });
-    expect(workItemTypeFindMany).toHaveBeenCalledWith({
-      where: {
-        projectId,
-        lifecycleStatus: 'active',
-      },
-      select: { typeKey: true },
-    });
+    // Eligibility comes from stored revisions, not a separate type gate.
+    expect(workItemTypeFindMany).not.toHaveBeenCalled();
   });
 
   it('serves a built-in Mockup override without any project-local type registration', async () => {
@@ -1229,7 +1225,7 @@ describe('EntityPromptTemplateService', () => {
         projectId,
         'entity_context',
       ),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBeInstanceOf(MissingRecordException);
     expect(active.lifecycleState).toBe(
       EntityPromptTemplateLifecycleState.PUBLISHED,
     );

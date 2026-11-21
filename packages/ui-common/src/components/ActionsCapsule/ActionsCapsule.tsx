@@ -320,6 +320,7 @@ export const ActionsCapsule: React.FC = () => {
                 <CapsuleScreenButtonControl
                   key={button.key}
                   button={button}
+                  gridCell
                   onClick={() => {
                     if (!button.keepMenuOpen) {
                       closeMobileMenu();

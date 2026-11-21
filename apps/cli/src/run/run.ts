@@ -156,6 +156,7 @@ import type { ProposalStatusReader } from '../server/proposal-status-reader';
 import { RunEventPublisher } from '../server/run-event-publisher';
 import type { ReportSyncService } from '../server/report-sync-service';
 import type { TaskReportChainReader } from '../server/services/task-report-chain-reader';
+import type { TaskMonitorServiceScopeAdmission } from '../server/task-monitor-service-scope-admission';
 import type { TaskMonitorManagedTurnRuntime } from '../server/task-monitor-managed-turn-runtime';
 import type { TaskMonitorLaunchFailureRuntime } from '../server/task-monitor-launch-failure-runtime';
 import type { OperationTimelineRegistry } from '../server/input-admission/operation-timeline';
@@ -358,6 +359,8 @@ const requireProposalStatusReader = (
 };
 
 export interface RunCollaborators {
+  /** Reads the Task Monitor's Service scope admission, available once the monitor runtime is up. */
+  taskMonitorServiceScopeAdmission?: () => TaskMonitorServiceScopeAdmission | null;
   browserMcpAccess?: BrowserMcpAccess;
   /** Pending page annotations the user made in this Run's shared-browser tabs. */
   browserAnnotations?: BrowserAnnotationDelivery;
@@ -731,7 +734,6 @@ export class Run {
     string,
     { messageId: string; data: SystemMessageData }
   >();
-  private taskMonitorAutomationAuthorized = false;
   readonly serviceScope: RunServiceScope;
   readonly serviceScopeCoordinator: AgentSessionServiceScopeCoordinator;
   private readonly reviewFileScopeCoordinator: ReviewFileScopeCoordinator;
@@ -1157,7 +1159,8 @@ export class Run {
       session: () => this.session,
       taskMonitorId: () => this.taskMonitorId,
       currentAgentId: () => this.currentAgentId(),
-      canAutoResolveTaskMonitorScopeRequest: () => this.canAutoResolveTaskMonitorScopeRequest(),
+      agentSessionId: () => this.agentSessionId,
+      taskMonitorAdmission: () => collaborators.taskMonitorServiceScopeAdmission?.() ?? null,
       applyApprovedServiceScope: (input) => this.applyApprovedServiceScope(input),
     });
     // Seed Run-lifetime state from values a prior process stamped on the
@@ -1358,21 +1361,6 @@ export class Run {
   get taskMonitorId(): string | null {
     const taskMonitorId = this.session.contextMetadata.taskMonitorId;
     return typeof taskMonitorId === 'string' && taskMonitorId.length > 0 ? taskMonitorId : null;
-  }
-
-  public setTaskMonitorAutomationAuthorization(authorized: boolean): void {
-    const changed = this.taskMonitorAutomationAuthorized !== authorized;
-    this.taskMonitorAutomationAuthorized = authorized;
-    this.logger.debug('local.run.task_monitor.automation_authorization_set', {
-      runId: this.runId,
-      taskMonitorId: this.taskMonitorId,
-      authorized,
-      changed,
-    });
-  }
-
-  public canAutoResolveTaskMonitorScopeRequest(): boolean {
-    return this.taskMonitorId !== null && this.taskMonitorAutomationAuthorized;
   }
 
   /**
@@ -2714,6 +2702,15 @@ export class Run {
       return { outcome: 'dropped', reason: 'stale_permission_already_settled' };
     }
 
+    if (input.deciderUserId === undefined) {
+      this.logger.warn('local.run.permission_recovery.monitor_decision_stale', {
+        runId: this.runId,
+        requestId: input.requestId,
+      });
+      return { outcome: 'dropped', reason: 'stale_permission_monitor_decision' };
+    }
+    const deciderUserId = input.deciderUserId;
+
     await this.persistPermissionRequestMessages();
     if (this.activeTurn === null && this.agentSessionCurrentState.currentProviderPhase !== 'idle') {
       const priorPhase = this.agentSessionCurrentState.currentProviderPhase;
@@ -2745,7 +2742,7 @@ export class Run {
       runId: this.runId,
       organizationId: this.organizationId,
       projectId: this.projectId,
-      userId: input.deciderUserId,
+      userId: deciderUserId,
       payload: {
         kind: 'run_follow_up',
         origin: 'permission_recovery',

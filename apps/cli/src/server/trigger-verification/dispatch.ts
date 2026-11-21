@@ -477,6 +477,7 @@ export class TriggerFrameRouter {
       dependencies.runRegistry,
       dependencies.runRestoreCoordinator,
       dependencies.taskMonitorStateMachineInputAdapter,
+      dependencies.dropSurfacing.poster,
       dependencies.permissionDecisionAuditFilePath,
       dependencies.logger,
     );
@@ -921,6 +922,9 @@ export class TriggerFrameRouter {
         }
         this.permissionDecisionControlDispatcher.dispatch({
           conversationId,
+          replyConversationId: body.replyConversationId,
+          organizationId: verified.frame.organizationId,
+          projectId: verified.frame.projectId ?? null,
           sessionId: body.sessionId,
           requestId: body.requestId,
           agentType: body.agentType,

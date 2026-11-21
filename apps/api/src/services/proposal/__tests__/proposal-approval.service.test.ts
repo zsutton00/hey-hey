@@ -5636,7 +5636,7 @@ describe('ProposalApprovalService', () => {
           proposalId,
           testIds.organization,
           testIds.project,
-          'agent-requestor-id',
+          'agent-requestor-id' as UserId,
         );
 
         expect(result.enacted).toBe(false);

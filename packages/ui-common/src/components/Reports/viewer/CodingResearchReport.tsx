@@ -5,10 +5,7 @@ import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import { CodingResearchFrameSection } from "./CodingResearchFrameSection";
 import { CodingResearchProvenanceSections } from "./CodingResearchProvenanceSections";
 import { CodingResearchUpdatesSection } from "./CodingResearchUpdatesSection";
-import {
-  CodingResearchUncertaintiesSection,
-  getCodingResearchUncertaintyDiscussScope,
-} from "./CodingResearchUncertaintiesSection";
+import { CodingResearchUncertaintiesSection } from "./CodingResearchUncertaintiesSection";
 import { parseCodingResearchSubagentParentAnalysis } from "./codingResearchSubagentParentUncertainties";
 import { createCodingResearchFrameModel } from "./codingResearchReportModel";
 import { ReportDisclosure, ReportLabeledText } from "./reportPrimitives";
@@ -82,14 +79,6 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
       </ReportDisclosure>
       {renderOpenQuestions ? (
         <CodingResearchUncertaintiesSection
-          discussScope={
-            evaluationOutput
-              ? undefined
-              : getCodingResearchUncertaintyDiscussScope(
-                  report,
-                  reportData.frameModel,
-                )
-          }
           reportTestId={reportTestId}
           uncertainties={reportData.uncertainties}
         />

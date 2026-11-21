@@ -22,10 +22,13 @@ import type { TaskMonitorExecutionCondition } from './task-monitor-execution-con
 import type { TaskMonitorLifecycleAction } from './task-monitor-lifecycle-action.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { TaskMonitorOutstandingPermission } from './task-monitor-outstanding-permission.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { TaskMonitorStateFailure } from './task-monitor-state-failure.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { TaskMonitorStatePendingJudgment } from './task-monitor-state-pending-judgment.js';
+import type { TaskMonitorStateProjectionPendingJudgment } from './task-monitor-state-projection-pending-judgment.js';
 
 /**
  * Complete replacement snapshot. Omitted failure means the owner has no current failure, and omitted pendingJudgment means it awaits no judgment; freshness updates never remove a retained failure.
@@ -46,11 +49,17 @@ export interface TaskMonitorStateProjection {
      */
     'failure'?: TaskMonitorStateFailure;
     /**
-     *
-     * @type {TaskMonitorStatePendingJudgment}
+     * Undecided active and queued permission requests. Older publishers omit this field.
+     * @type {Array<TaskMonitorOutstandingPermission>}
      * @memberof TaskMonitorStateProjection
      */
-    'pendingJudgment'?: TaskMonitorStatePendingJudgment;
+    'outstandingPermissions'?: Array<TaskMonitorOutstandingPermission>;
+    /**
+     *
+     * @type {TaskMonitorStateProjectionPendingJudgment}
+     * @memberof TaskMonitorStateProjection
+     */
+    'pendingJudgment'?: TaskMonitorStateProjectionPendingJudgment;
     /**
      *
      * @type {Array<TaskMonitorLifecycleAction>}

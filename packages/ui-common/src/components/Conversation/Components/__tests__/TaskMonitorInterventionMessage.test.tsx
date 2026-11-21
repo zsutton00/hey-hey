@@ -10,6 +10,7 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskMonitorInterventionSystemMessageData } from "../../../../api";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
+import { MonitorHeldPermissions } from "../../../AgentSession/MonitorHeldPermissions";
 import { TaskMonitorInterventionMessage } from "../TaskMonitorInterventionMessage";
 
 const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -23,16 +24,35 @@ const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: HeyTheme });
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
+  submitPermission: vi.fn(),
+  executionState: vi.fn(),
   onAnswered: vi.fn(),
   refetchConversation: vi.fn(),
   refetchMessages: vi.fn(),
+  receipts: vi.fn(),
+  monitorId: vi.fn(),
+}));
+
+vi.mock(
+  "../../../../data/hooks/useSubmitControllerAuthorizedPermissionDecision",
+  () => ({
+    useSubmitControllerAuthorizedPermissionDecision: () => ({
+      provider: "claude",
+      isPending: false,
+      submit: mocks.submitPermission,
+    }),
+  }),
+);
+
+vi.mock("../../../../data/hooks/useWorkItemExecutionState", () => ({
+  useProjectWorkItemExecutionState: mocks.executionState,
 }));
 
 vi.mock("../ConversationContext", () => ({
   useConversationContext: () => ({
     activeConversation: { id: "conversation-1" },
     project: { id: "project-1", organizationId: "organization-1" },
-    taskMonitorId: "55555555-5555-4555-8555-555555555555",
+    taskMonitorId: mocks.monitorId(),
     isReadOnly: false,
   }),
 }));
@@ -48,7 +68,10 @@ vi.mock("../../../../data/hooks/useSubmitTaskMonitorCommand", () => ({
 }));
 
 vi.mock("../../../../data/hooks/useConversationMessages", () => ({
-  useConversationMessages: () => ({ refetch: mocks.refetchMessages }),
+  useConversationMessages: () => ({
+    refetch: mocks.refetchMessages,
+    orderedData: mocks.receipts(),
+  }),
 }));
 
 vi.mock("../../../../data/hooks/useConversation", () => ({
@@ -77,8 +100,170 @@ const createIntervention = (
 describe("TaskMonitorInterventionMessage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.receipts.mockReturnValue([]);
+    mocks.monitorId.mockReturnValue("55555555-5555-4555-8555-555555555555");
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: { projection: { pendingJudgment: createIntervention() } },
+    });
     mocks.refetchConversation.mockResolvedValue({});
     mocks.refetchMessages.mockResolvedValue([]);
+  });
+
+  it("routes a live escalation to the provider session and returns feedback to the answering conversation", async () => {
+    const data = createIntervention();
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: {
+        projection: {
+          outstandingPermissions: [
+            {
+              ...data,
+              providerSessionId: "provider-session",
+              answerable: true,
+            },
+          ],
+        },
+      },
+    });
+    const session = (
+      <MonitorHeldPermissions
+        organizationId="organization-1"
+        projectId="project-1"
+        conversationId="conversation-1"
+        monitorId={mocks.monitorId()}
+        agentSessionId={data.agentSessionId}
+        taskTitle="Ship the release"
+      />
+    );
+    const { rerender } = render(session);
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    await waitFor(() =>
+      expect(mocks.submitPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          decision: "deny",
+          requestId: data.providerActionId,
+          sessionId: "provider-session",
+          replyConversationId: "conversation-1",
+        }),
+      ),
+    );
+    expect(mocks.mutate).not.toHaveBeenCalled();
+    mocks.receipts.mockReturnValue([{ type: "SYSTEM", data }]);
+    rerender(
+      <>
+        {session}
+        <TaskMonitorInterventionMessage data={data} />
+      </>,
+    );
+    expect(screen.getAllByRole("button", { name: "Deny" })).toHaveLength(1);
+  });
+
+  it("shows each escalated request with its Task and the monitor's reason, answerable independently", () => {
+    const first = createIntervention();
+    const second = createIntervention({
+      interventionId: "66666666-6666-4666-8666-666666666666",
+      providerActionId: "provider-action-2",
+      action: "Write outside the Service",
+    });
+    const outstanding = (
+      request: typeof first,
+      owner: "HUMAN" | "MONITOR",
+    ) => ({
+      ...request,
+      providerSessionId: "provider-session",
+      answerable: owner === "HUMAN",
+      owner,
+      reason: `Reason for ${request.providerActionId}`,
+    });
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: {
+        projection: {
+          outstandingPermissions: [
+            outstanding(first, "HUMAN"),
+            outstanding(second, "HUMAN"),
+          ],
+        },
+      },
+    });
+    render(
+      <MonitorHeldPermissions
+        organizationId="organization-1"
+        projectId="project-1"
+        conversationId="conversation-1"
+        monitorId={mocks.monitorId()}
+        agentSessionId={first.agentSessionId}
+        taskTitle="Ship the release"
+      />,
+    );
+
+    expect(
+      screen.getAllByTestId("task-monitor-intervention-task"),
+    ).toHaveLength(2);
+    expect(screen.getByText("Reason for provider-action-1")).toBeVisible();
+    expect(screen.getByText("Reason for provider-action-2")).toBeVisible();
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeEnabled();
+    }
+    expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(2);
+  });
+
+  it("explains a missing monitor and offers no decision", () => {
+    mocks.monitorId.mockReturnValue(undefined);
+    render(<TaskMonitorInterventionMessage data={createIntervention()} />);
+    expect(
+      screen.getByText(/owning Task Monitor could not be resolved/),
+    ).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("shows the confirmed workspace answer on reopening even if the live projection is behind", () => {
+    const data = createIntervention();
+    mocks.receipts.mockReturnValue([
+      {
+        type: "SYSTEM",
+        data: {
+          type: "TASK_MONITOR_SUPERVISION",
+          outcome: "PERMISSION_ANSWER_RESULT",
+          interventionId: data.interventionId,
+          result: "APPLIED",
+          answer: "deny",
+        },
+      },
+    ]);
+    render(<TaskMonitorInterventionMessage data={data} />);
+    expect(screen.getByText("Denied")).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("removes the controls when a request is held or no longer pending", () => {
+    const projection = {
+      outstandingPermissions: [
+        { ...createIntervention(), owner: "MONITOR", answerable: false },
+      ],
+    };
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: { projection },
+    });
+    const { rerender } = render(
+      <TaskMonitorInterventionMessage data={createIntervention()} />,
+    );
+    expect(screen.getByText("Awaiting the Task Monitor")).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+    projection.outstandingPermissions = [];
+    rerender(<TaskMonitorInterventionMessage data={createIntervention()} />);
+    expect(screen.getByText("No longer pending")).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("renders only the generated approve and deny choices", () => {
@@ -217,6 +402,18 @@ describe("TaskMonitorInterventionMessage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await screen.findByRole("button", { name: "Retry approve" });
 
+    mocks.executionState.mockReturnValue({
+      status: "retained",
+      freshness: { status: "CURRENT" },
+      delivery: "LIVE",
+      state: {
+        projection: {
+          pendingJudgment: createIntervention({
+            interventionId: "66666666-6666-4666-8666-666666666666",
+          }),
+        },
+      },
+    });
     rerender(
       <TaskMonitorInterventionMessage
         data={createIntervention({

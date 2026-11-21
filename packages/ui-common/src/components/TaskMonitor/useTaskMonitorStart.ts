@@ -4,6 +4,7 @@ import {
   TaskMonitorLaunchProvider,
   type SubmitTaskMonitorCommandResponseDto,
   type TaskMonitorExecutionNodeLaunchConfiguration,
+  type TaskMonitorRuntimeSelection,
   type TaskMonitorExecutionPlanNode,
   type TaskMonitorLaunchPolicy,
   type TaskMonitorLaunchConfig,
@@ -26,6 +27,7 @@ export interface UseTaskMonitorStartOptions {
   userMessage?: string | null;
   launchNode: TaskMonitorExecutionPlanNode | null;
   launchPolicy: TaskMonitorLaunchPolicy | null;
+  coordinatorRuntime: TaskMonitorRuntimeSelection | null;
   reconcileProjection: () => Promise<void>;
 }
 
@@ -63,6 +65,42 @@ const resolveWorktree = (
     );
   }
   return { enabled: true, branch };
+};
+
+/** A saved "Monitor runs on" choice must still be offered by the machine's catalog. */
+const requireCoordinatorRuntimeInCatalog = (
+  runtime: TaskMonitorRuntimeSelection | null,
+  catalogState: CapabilityCatalogLoadState,
+): void => {
+  if (!runtime || catalogState.status !== "ready") {
+    return;
+  }
+  const offered = listModels(runtime.provider).some(
+    (model) => model.id === runtime.model,
+  );
+  if (!offered) {
+    throw new Error(
+      `Monitor runs on: ${runtime.provider} ${runtime.model} is not available in the runtime catalog. Choose another model.`,
+    );
+  }
+  const efforts = listEfforts(runtime.provider, runtime.model);
+  const effortIsValid =
+    runtime.reasoningEffort === undefined
+      ? efforts.length === 0
+      : efforts.includes(runtime.reasoningEffort);
+  if (!effortIsValid) {
+    throw new Error(
+      `Monitor runs on: effort "${runtime.reasoningEffort ?? "none"}" is not available for ${runtime.model}. Supported: ${efforts.join(", ") || "none"}.`,
+    );
+  }
+  if (
+    runtime.fastMode === true &&
+    !supportsFastMode(runtime.provider, runtime.model)
+  ) {
+    throw new Error(
+      `Monitor runs on: Fast mode is not supported for ${runtime.model}.`,
+    );
+  }
 };
 
 const buildLaunchConfig = (
@@ -133,6 +171,7 @@ export const useTaskMonitorStart = ({
   userMessage,
   launchNode,
   launchPolicy,
+  coordinatorRuntime,
   reconcileProjection,
 }: UseTaskMonitorStartOptions): UseTaskMonitorStartResult => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,6 +209,7 @@ export const useTaskMonitorStart = ({
           "Select a connected, controller-authorized CLI machine before starting the Task Monitor.",
         );
       }
+      requireCoordinatorRuntimeInCatalog(coordinatorRuntime, catalogState);
       const command: TaskMonitorStartCommand = {
         cause: "START",
         launchConfig: buildLaunchConfig(launchNode, launchPolicy, catalogState),
@@ -221,6 +261,7 @@ export const useTaskMonitorStart = ({
     }
   }, [
     catalogState,
+    coordinatorRuntime,
     isCatalogLoading,
     isSubmitting,
     launchNode,

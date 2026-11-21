@@ -121,7 +121,9 @@ describe('PaymentProviderBindingService', () => {
         environment: 'sandbox',
         externalCustomerId: 'cus_123',
       }),
-    ).rejects.toThrow('multiple bindings');
+    ).rejects.toMatchObject({
+      errorCode: 'PAYMENT_PROVIDER_BINDING_AMBIGUOUS',
+    });
 
     tx.paymentProviderBinding.findMany.mockResolvedValueOnce([
       { ...binding, externalSubscriptionId: 'sub_other' },

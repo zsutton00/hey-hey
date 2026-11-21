@@ -30,6 +30,9 @@ import type { TaskMonitorLaunchConfig } from './task-monitor-launch-config.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorLifecycleCause } from './task-monitor-lifecycle-cause.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorPermissionRequest } from './task-monitor-permission-request.js';
 
 /**
  * Complete typed Task Monitor lifecycle input. The UI authors this payload on the platform API; the API preserves it inside the signed CLI dispatch envelope. It is never posted to a browser-local CLI endpoint.
@@ -85,6 +88,12 @@ export interface TaskMonitorPromptPayload {
      * @memberof TaskMonitorPromptPayload
      */
     'judgment'?: TaskMonitorJudgmentResponse;
+    /**
+     *
+     * @type {TaskMonitorPermissionRequest}
+     * @memberof TaskMonitorPromptPayload
+     */
+    'monitoredPermissionRequest'?: TaskMonitorPermissionRequest;
     /**
      *
      * @type {SessionMonitorSettledTurnEvidence}
