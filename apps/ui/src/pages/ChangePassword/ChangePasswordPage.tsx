@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { Alert, Box, CircularProgress, TextField } from "@mui/material";
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Container,
-  TextField,
-  Typography,
-} from "@mui/material";
+  BRANDED_FIELD_LABEL_SX,
+  BRANDED_FIELD_SX,
+  BrandedButton,
+  BrandedCard,
+  BrandedHeadline,
+  BrandedPage,
+  BrandedWordmark,
+} from "@hey-hey/ui-common/components";
 import { useAuth } from "@hey-hey/ui-common/context";
 import { KEYS } from "@hey-hey/ui-common/i18n";
 import { useTranslation } from "react-i18next";
@@ -36,7 +35,7 @@ const captureRecoveryCredentialFromFragment = (): string | null => {
   window.history.replaceState(
     window.history.state,
     "",
-    `${window.location.pathname}${window.location.search}`
+    `${window.location.pathname}${window.location.search}`,
   );
   return capturedRecoveryCredential;
 };
@@ -52,9 +51,7 @@ export const ChangePasswordPage: React.FC = () => {
   const { t } = useTranslation();
 
   const state = location.state as LocationState | null;
-  const [recoveryCredential] = useState(
-    captureRecoveryCredentialFromFragment
-  );
+  const [recoveryCredential] = useState(captureRecoveryCredentialFromFragment);
   const passwordChangeToken =
     recoveryCredential ?? state?.passwordChangeToken ?? "";
   const from =
@@ -69,32 +66,22 @@ export const ChangePasswordPage: React.FC = () => {
     () => () => {
       clearCapturedRecoveryCredential();
     },
-    []
+    [],
   );
 
   if (!passwordChangeToken) {
     return (
-      <Container component="main" maxWidth="sm">
-        <Box
-          sx={{
-            marginTop: 8,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <Alert severity="error">
+      <BrandedPage>
+        <BrandedWordmark>HEY HEY</BrandedWordmark>
+        <BrandedCard>
+          <Alert severity="error" sx={{ mb: 2 }}>
             This password-change link is invalid or no longer available.
           </Alert>
-          <Button
-            sx={{ mt: 2 }}
-            variant="contained"
-            onClick={() => navigate("/login")}
-          >
+          <BrandedButton type="button" onClick={() => navigate("/login")}>
             Back to Login
-          </Button>
-        </Box>
-      </Container>
+          </BrandedButton>
+        </BrandedCard>
+      </BrandedPage>
     );
   }
 
@@ -124,11 +111,11 @@ export const ChangePasswordPage: React.FC = () => {
       if (recoveryCredential) {
         clearCapturedRecoveryCredential();
         setError(
-          "This password-change link is invalid or no longer available."
+          "This password-change link is invalid or no longer available.",
         );
       } else {
         setError(
-          err instanceof Error ? err.message : t(KEYS.alerts.errorOccurred)
+          err instanceof Error ? err.message : t(KEYS.alerts.errorOccurred),
         );
       }
     } finally {
@@ -137,102 +124,84 @@ export const ChangePasswordPage: React.FC = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <Card sx={{ width: "100%", maxWidth: 400 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Typography
-              component="h1"
-              variant="h4"
-              align="center"
-              gutterBottom
-              sx={{ mb: 1 }}
-            >
-              {t(KEYS.auth.setNewPassword)}
-            </Typography>
+    <BrandedPage>
+      <BrandedWordmark>HEY HEY</BrandedWordmark>
+      <BrandedHeadline line={t(KEYS.auth.mustChangePassword)}>
+        {t(KEYS.auth.setNewPassword)}
+      </BrandedHeadline>
+      <BrandedCard>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
 
-            <Typography
-              variant="body2"
-              align="center"
-              color="text.secondary"
-              sx={{ mb: 3 }}
-            >
-              {t(KEYS.auth.mustChangePassword)}
-            </Typography>
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          data-testid="change-password-form"
+        >
+          <Box
+            component="label"
+            htmlFor="new-password"
+            sx={BRANDED_FIELD_LABEL_SX}
+          >
+            {t(KEYS.auth.newPassword)}
+          </Box>
+          <TextField
+            required
+            fullWidth
+            id="new-password"
+            name="newPassword"
+            type="password"
+            autoComplete="new-password"
+            autoFocus
+            value={newPassword}
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              if (error) setError("");
+            }}
+            disabled={loading}
+            inputProps={{ "data-testid": "new-password-input" }}
+            sx={BRANDED_FIELD_SX}
+          />
+          <Box
+            component="label"
+            htmlFor="confirm-password"
+            sx={BRANDED_FIELD_LABEL_SX}
+          >
+            {t(KEYS.auth.confirmPassword)}
+          </Box>
+          <TextField
+            required
+            fullWidth
+            id="confirm-password"
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (error) setError("");
+            }}
+            disabled={loading}
+            inputProps={{ "data-testid": "confirm-password-input" }}
+            sx={BRANDED_FIELD_SX}
+          />
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
+          <BrandedButton
+            type="submit"
+            disabled={loading || !isFormValid()}
+            data-testid="change-password-submit"
+          >
+            {loading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              t(KEYS.auth.changePassword)
             )}
-
-            <Box
-              component="form"
-              onSubmit={handleSubmit}
-              data-testid="change-password-form"
-            >
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="new-password"
-                label={t(KEYS.auth.newPassword)}
-                name="newPassword"
-                type="password"
-                autoComplete="new-password"
-                autoFocus
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  if (error) setError("");
-                }}
-                disabled={loading}
-                inputProps={{ "data-testid": "new-password-input" }}
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="confirm-password"
-                label={t(KEYS.auth.confirmPassword)}
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  if (error) setError("");
-                }}
-                disabled={loading}
-                inputProps={{ "data-testid": "confirm-password-input" }}
-              />
-
-              <Button
-                type="submit"
-                fullWidth
-                color="actionable"
-                variant="contained"
-                sx={{ mt: 3, mb: 2, py: 1.5 }}
-                disabled={loading || !isFormValid()}
-                data-testid="change-password-submit"
-              >
-                {loading ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  t(KEYS.auth.changePassword)
-                )}
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-      </Box>
-    </Container>
+          </BrandedButton>
+        </Box>
+      </BrandedCard>
+    </BrandedPage>
   );
 };

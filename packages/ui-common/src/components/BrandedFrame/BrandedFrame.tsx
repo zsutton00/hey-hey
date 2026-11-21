@@ -103,6 +103,35 @@ export const BrandedCard = styled("section")({
   textAlign: "left",
 });
 
+/** Text input look shared by every branded form; pair with `BRANDED_FIELD_LABEL_SX` above it. */
+export const BRANDED_FIELD_SX = {
+  mb: 2,
+  "& .MuiInputBase-root": {
+    color: "#fff",
+    background: "rgb(255 255 255 / 5%)",
+  },
+  "& .MuiOutlinedInput-notchedOutline": {
+    borderColor: "rgb(255 255 255 / 35%)",
+  },
+  "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline": {
+    borderColor: "rgb(255 255 255 / 70%)",
+  },
+} as const;
+
+export const BRANDED_FIELD_LABEL_SX = {
+  color: "#fff",
+  fontWeight: 700,
+  fontSize: "0.85rem",
+} as const;
+
+/** Teal underlined text link, for secondary navigation inside a branded card. */
+export const BRANDED_LINK_SX = {
+  color: BRANDED_TEAL,
+  fontSize: "0.85rem",
+  textTransform: "uppercase",
+  textDecoration: "underline",
+} as const;
+
 export type BrandedButtonVariant = "primary" | "secondary";
 
 interface BrandedButtonOwnProps {
