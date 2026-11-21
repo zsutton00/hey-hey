@@ -190,24 +190,178 @@ export const workItemExecutionStateJsonSchemas = {
                     },
                     "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
                   },
-                  "pendingJudgment": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "request",
-                      "guidance"
-                    ],
-                    "properties": {
-                      "request": {
-                        "type": "string",
-                        "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
-                      },
-                      "guidance": {
-                        "type": "string",
-                        "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+                  "outstandingPermissions": {
+                    "type": "array",
+                    "description": "Undecided active and queued permission requests. Older publishers omit this field.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "interventionId",
+                        "runId",
+                        "agentSessionId",
+                        "providerActionId",
+                        "providerSessionId",
+                        "fingerprint",
+                        "action",
+                        "target",
+                        "answerable"
+                      ],
+                      "properties": {
+                        "interventionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "runId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "agentSessionId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "providerActionId": {
+                          "type": "string"
+                        },
+                        "providerSessionId": {
+                          "type": "string"
+                        },
+                        "fingerprint": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "target": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string",
+                          "enum": [
+                            "MONITOR",
+                            "HUMAN"
+                          ],
+                          "description": "Current request owner, independent of temporary admission constraints."
+                        },
+                        "answerable": {
+                          "type": "boolean",
+                          "description": "The monitor admits a human answer for this request in its current state."
+                        },
+                        "reason": {
+                          "type": "string",
+                          "description": "Why a person, not the monitor, must decide this request. Omitted while the monitor still holds it."
+                        },
+                        "escalatedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When the request went to a person. Omitted while the monitor holds it or when the time was not recorded."
+                        }
                       }
-                    },
-                    "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+                    }
+                  },
+                  "pendingJudgment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "request",
+                          "guidance"
+                        ],
+                        "properties": {
+                          "request": {
+                            "type": "string",
+                            "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
+                          },
+                          "guidance": {
+                            "type": "string",
+                            "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+                          }
+                        },
+                        "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "interventionId",
+                          "providerActionId",
+                          "runId",
+                          "agentSessionId",
+                          "action",
+                          "target",
+                          "fingerprint",
+                          "reason",
+                          "answer"
+                        ],
+                        "properties": {
+                          "interventionId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "providerActionId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "runId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "agentSessionId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "fingerprint": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why a person, not the monitor, must decide this request."
+                          },
+                          "escalatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When the request went to a person. Omitted for a request raised before the time was recorded."
+                          },
+                          "answer": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "command",
+                              "choices"
+                            ],
+                            "properties": {
+                              "command": {
+                                "type": "string",
+                                "enum": [
+                                  "HUMAN_DECISION"
+                                ],
+                                "description": "The signed monitor command that answers this request."
+                              },
+                              "choices": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "APPROVE",
+                                    "DENY"
+                                  ]
+                                }
+                              }
+                            },
+                            "description": "How a person answers a pending judgment through existing signed command admission."
+                          }
+                        },
+                        "description": "A provider request awaiting the user's judgment, reported as its own outcome and never as a failure. Present only once a person owns the request; a request the monitor is still deciding is not a pending judgment."
+                      }
+                    ]
                   },
                   "availableActions": {
                     "type": "array",
@@ -416,24 +570,178 @@ export const workItemExecutionStateJsonSchemas = {
                 },
                 "description": "Report only known details. Configuration and catalog classifications are available for authoritative producers; publication does not add recovery admission behavior."
               },
-              "pendingJudgment": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "request",
-                  "guidance"
-                ],
-                "properties": {
-                  "request": {
-                    "type": "string",
-                    "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
-                  },
-                  "guidance": {
-                    "type": "string",
-                    "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+              "outstandingPermissions": {
+                "type": "array",
+                "description": "Undecided active and queued permission requests. Older publishers omit this field.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "interventionId",
+                    "runId",
+                    "agentSessionId",
+                    "providerActionId",
+                    "providerSessionId",
+                    "fingerprint",
+                    "action",
+                    "target",
+                    "answerable"
+                  ],
+                  "properties": {
+                    "interventionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "agentSessionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "providerActionId": {
+                      "type": "string"
+                    },
+                    "providerSessionId": {
+                      "type": "string"
+                    },
+                    "fingerprint": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string",
+                      "enum": [
+                        "MONITOR",
+                        "HUMAN"
+                      ],
+                      "description": "Current request owner, independent of temporary admission constraints."
+                    },
+                    "answerable": {
+                      "type": "boolean",
+                      "description": "The monitor admits a human answer for this request in its current state."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "Why a person, not the monitor, must decide this request. Omitted while the monitor still holds it."
+                    },
+                    "escalatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "When the request went to a person. Omitted while the monitor holds it or when the time was not recorded."
+                    }
                   }
-                },
-                "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+                }
+              },
+              "pendingJudgment": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "request",
+                      "guidance"
+                    ],
+                    "properties": {
+                      "request": {
+                        "type": "string",
+                        "description": "The coordinator's request for the user's judgment, as committed by the monitor owner."
+                      },
+                      "guidance": {
+                        "type": "string",
+                        "description": "How the user answers the request; a pending judgment is a normal supervision outcome, not a failure."
+                      }
+                    },
+                    "description": "The monitor is waiting for the user's judgment. Reported apart from failure so clients never infer it from failure text."
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "interventionId",
+                      "providerActionId",
+                      "runId",
+                      "agentSessionId",
+                      "action",
+                      "target",
+                      "fingerprint",
+                      "reason",
+                      "answer"
+                    ],
+                    "properties": {
+                      "interventionId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "providerActionId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "runId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "agentSessionId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "fingerprint": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reason": {
+                        "type": "string",
+                        "description": "Why a person, not the monitor, must decide this request."
+                      },
+                      "escalatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the request went to a person. Omitted for a request raised before the time was recorded."
+                      },
+                      "answer": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "command",
+                          "choices"
+                        ],
+                        "properties": {
+                          "command": {
+                            "type": "string",
+                            "enum": [
+                              "HUMAN_DECISION"
+                            ],
+                            "description": "The signed monitor command that answers this request."
+                          },
+                          "choices": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "APPROVE",
+                                "DENY"
+                              ]
+                            }
+                          }
+                        },
+                        "description": "How a person answers a pending judgment through existing signed command admission."
+                      }
+                    },
+                    "description": "A provider request awaiting the user's judgment, reported as its own outcome and never as a failure. Present only once a person owns the request; a request the monitor is still deciding is not a pending judgment."
+                  }
+                ]
               },
               "availableActions": {
                 "type": "array",

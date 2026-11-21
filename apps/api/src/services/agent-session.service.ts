@@ -778,6 +778,35 @@ export class AgentSessionService {
     }
   }
 
+  async isPermissionReplyConversation(
+    session: AgentSessionDto,
+    organizationId: OrganizationId,
+    userId: UserId,
+    replyConversationId: string,
+  ): Promise<boolean> {
+    const config = session.config;
+    if (
+      config?.type !== AgentSessionConfigV2.TypeEnum.CodingSession ||
+      !config.taskMonitorId
+    ) {
+      return false;
+    }
+
+    const coordinator =
+      await this.prisma.db.agentSessionWorkItemAssociation.findFirst({
+        where: {
+          organizationId,
+          projectId: session.projectId,
+          coordinatorType: 'TASK_MONITOR',
+          workItemType: 'TASK_MONITOR',
+          workItemId: config.taskMonitorId,
+          agentSession: { userId, conversationId: replyConversationId },
+        },
+        select: { agentSessionId: true },
+      });
+    return coordinator !== null;
+  }
+
   async resolveWorkItemCoordinator(
     organizationId: OrganizationId,
     projectId: ProjectId,

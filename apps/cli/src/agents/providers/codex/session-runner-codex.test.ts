@@ -24,6 +24,10 @@ import {
 } from '../../prompts/common';
 import { renderWorkItemTypeOntologyEntry } from '../../prompts/render-type-ontology';
 import { translatePermissionDecisionToDispatch } from '../../permission-response-routing';
+import { taskMonitorExactActionInputFromProviderEvent } from '../../task-monitor/state-machine/provider-event-adapter';
+import { TaskMonitorDecisionApplicationEffectHandler } from '../../task-monitor/state-machine/intervention-effect-handlers';
+import type { RunRegistry } from '../../../run/run-registry';
+import type { LocalAgentOutputEvent } from '../../../run/types';
 import {
   CodexAgentSessionRunner,
   resolveCodexPlatformPromptDeliveryMode,
@@ -3515,6 +3519,115 @@ describe('session-runner-codex', () => {
           call[0]?.event?.payload?.decision === 'approve',
       ),
     ).toBe(true);
+
+    emitSdkEvent('turn/completed', { turn: { status: 'completed' } });
+    turn.resolve();
+    await runPromise;
+  });
+
+  it('answers two pending Codex requests exactly once each when the monitor decides after the old five-minute mark', async () => {
+    const turn = createDeferred<void>();
+    const started = createDeferred<void>();
+    sdkResumeSessionMock.mockImplementation(() => {
+      emitSdkEvent('thread/started', { thread: { id: 'codex-thread-1' } });
+      emitSdkServerRequest({
+        id: 31,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: ['pnpm', 'build'], cwd: '/tmp/repo' },
+      });
+      emitSdkServerRequest({
+        id: 32,
+        method: 'item/commandExecution/requestApproval',
+        params: { command: ['pnpm', 'deploy'], cwd: '/tmp/repo' },
+      });
+      started.resolve();
+      return turn.promise;
+    });
+    const onAgentOutput = vi.fn();
+    const runner = new CodexAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(onAgentOutput),
+    });
+    const session = makeSession({ provider_session_id: 'codex-thread-1' });
+    const runPromise = runner.runPrompt({ session, prompt: 'Continue with permission checks.' });
+    await started.promise;
+
+    const emitted = onAgentOutput.mock.calls
+      .map((call) => call[0]?.event as LocalAgentOutputEvent | undefined)
+      .filter((event) => event?.eventType === 'permission_request_detected');
+    expect(emitted).toHaveLength(2);
+
+    const monitorId = '10000000-0000-4000-8000-000000000001';
+    const runId = session.agentic_session_id;
+    const admitted = emitted.map((event, index) => {
+      const input = taskMonitorExactActionInputFromProviderEvent(
+        {
+          owner: { taskMonitorId: monitorId, agentSessionId: runId, runId: event!.runId },
+          event: event!,
+        },
+        () => `50000000-0000-4000-8000-00000000000${index + 1}`,
+      );
+      expect(input).not.toBeNull();
+      return input!;
+    });
+    // Neither request carries a deadline, so nothing ages out while the monitor deliberates.
+    expect(admitted.map((input) => input.expiresAt)).toEqual([null, null]);
+
+    // Route exactly as RunRegistry does: translate the decision, then call the bound runner.
+    const registry = {
+      get: () => ({ agentSessionId: runId, provider: 'codex' }),
+      submitPermissionDecision: async (
+        _runId: string,
+        input: Parameters<typeof translatePermissionDecisionToDispatch>[0],
+      ) => {
+        const result = await runner.submitPermissionDecision?.({
+          session,
+          dispatch: translatePermissionDecisionToDispatch(input),
+        });
+        return result?.delivered
+          ? { outcome: 'delivered' as const, callbackType: result.callbackType }
+          : { outcome: 'dropped' as const, reason: 'not_delivered' };
+      },
+    } as unknown as RunRegistry;
+    const handler = new TaskMonitorDecisionApplicationEffectHandler(registry, NOOP_LOGGER);
+    const lateDecision = new Date(Date.now() + 6 * 60 * 1000).toISOString();
+
+    const apply = (input: (typeof admitted)[number], resolution: 'approve' | 'deny', n: number) =>
+      handler.execute(
+        {
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          operation: resolution === 'approve' ? 'RELEASE_EXACT_ACTION' : 'REJECT_EXACT_ACTION',
+          providerDecision: resolution,
+          taskMonitorId: monitorId,
+          interventionId: input.interventionId,
+          providerActionId: input.providerActionId,
+          providerSessionId: 'codex-thread-1',
+          runId: input.runId,
+          agentSessionId: runId,
+          action: input.action,
+          target: input.target,
+          fingerprint: input.fingerprint,
+          decidedAt: lateDecision,
+          human: null,
+          monitorRationale: 'Decided from the Task.',
+        },
+        { machineType: 'TASK_MONITOR', instanceId: monitorId, effectId: `effect-${n}` },
+      );
+
+    await expect(apply(admitted[0]!, 'approve', 1)).resolves.toMatchObject({
+      outcome: { type: 'DECISION_APPLIED' },
+    });
+    await expect(apply(admitted[1]!, 'deny', 2)).resolves.toMatchObject({
+      outcome: { type: 'DECISION_APPLIED' },
+    });
+
+    expect(sdkSubmitClientResponseMock.mock.calls).toEqual([
+      [31, { decision: 'accept' }],
+      [32, { decision: 'decline' }],
+    ]);
 
     emitSdkEvent('turn/completed', { turn: { status: 'completed' } });
     turn.resolve();

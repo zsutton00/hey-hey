@@ -21,6 +21,7 @@ import {
   type SubmitTaskMonitorCommandResponseDto,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorExecutionNodeLaunchConfiguration,
+  type TaskMonitorRuntimeSelection,
   type UserMessageDataTaskMonitor,
 } from "../../api";
 import { apiClient } from "../../clients/client.js";
@@ -37,6 +38,7 @@ import { bindGraphConversationAgentSessionMachine } from "../InteractionComponen
 import { submitStopRunViaPlatform } from "../AgentSession/runtime/hooks/submitStopRunViaPlatform";
 import { MachinePicker } from "../AgentSession/MachinePicker";
 import { TaskMonitorCommandOutcomeAlert } from "./TaskMonitorCommandOutcomeAlert";
+import { TaskMonitorRuntimeGroup } from "./TaskMonitorRuntimeGroup";
 import { TaskMonitorLaunchConfigurationEditor } from "./TaskMonitorLaunchConfigurationEditor";
 import { TaskMonitorCapsuleButton } from "./TaskMonitorCapsuleButton";
 import { TaskMonitorLifecycleCapsuleButton } from "./TaskMonitorLifecycleCapsuleButton";
@@ -81,6 +83,9 @@ export interface TaskMonitorWorkspaceViewProps {
     taskId: string,
     configuration: TaskMonitorExecutionNodeLaunchConfiguration,
   ) => Promise<void>;
+  onSaveCoordinatorRuntime: (
+    runtime: TaskMonitorRuntimeSelection,
+  ) => Promise<void>;
   activePane: TaskMonitorPane;
   renderPaneNavigation?: (navigation: {
     activePane: TaskMonitorPane;
@@ -113,6 +118,7 @@ export const TaskMonitorWorkspaceView = ({
   onPause,
   isSavingLaunchConfiguration,
   onSaveLaunchConfiguration,
+  onSaveCoordinatorRuntime,
   activePane,
   renderPaneNavigation,
   executionState,
@@ -223,6 +229,8 @@ export const TaskMonitorWorkspaceView = ({
     monitorRef,
     startIntent,
   });
+  const [isSavingCoordinatorRuntime, setIsSavingCoordinatorRuntime] =
+    useState(false);
   const [isStoppingCoordinator, setIsStoppingCoordinator] = useState(false);
   const [coordinatorStopError, setCoordinatorStopError] = useState<
     string | null
@@ -262,7 +270,11 @@ export const TaskMonitorWorkspaceView = ({
   const coordinatorSession = monitorActivity.session;
   const coordinatorConversationId = coordinatorSession?.conversationId?.trim();
   const startCoordinator = useCallback(() => {
-    if (!selectedMachineId || isBindingCoordinator) {
+    if (
+      !selectedMachineId ||
+      isBindingCoordinator ||
+      isSavingCoordinatorRuntime
+    ) {
       return;
     }
     if (!coordinatorSession) {
@@ -303,6 +315,7 @@ export const TaskMonitorWorkspaceView = ({
     projectId,
     selectedMachineId,
     phase,
+    isSavingCoordinatorRuntime,
   ]);
   const stopCoordinatorRun = useCallback(() => {
     if (
@@ -375,7 +388,9 @@ export const TaskMonitorWorkspaceView = ({
           startPresentation={startPresentation}
           binding={isBindingCoordinator}
           controlsDisabled={
-            selectedMachineId === null || (setup && nodes.length === 0)
+            selectedMachineId === null ||
+            (setup && nodes.length === 0) ||
+            isSavingCoordinatorRuntime
           }
           onStart={startCoordinator}
           onPause={onPause}
@@ -565,6 +580,20 @@ export const TaskMonitorWorkspaceView = ({
                 Dock
               </Button>
             </Stack>
+            <TaskMonitorRuntimeGroup
+              label="Monitor runs on"
+              testId="task-monitor-coordinator-runtime"
+              value={definition.coordinatorRuntime ?? null}
+              catalogSource={
+                selectedMachineId
+                  ? { organizationId, projectId, machineId: selectedMachineId }
+                  : null
+              }
+              editable={isPreStart}
+              isSaving={isSavingLaunchConfiguration}
+              onSave={onSaveCoordinatorRuntime}
+              onBusyChange={setIsSavingCoordinatorRuntime}
+            />
             <Box sx={{ px: 1, py: 1 }}>
               <Stack spacing={1} alignItems="center">
                 <Typography
@@ -755,6 +784,7 @@ export const TaskMonitorWorkspaceView = ({
                 <TaskMonitorInspectorView
                   organizationId={organizationId}
                   projectId={projectId}
+                  monitorId={monitorId}
                   monitorStatus={monitorStatus}
                   node={selectedNode}
                 />

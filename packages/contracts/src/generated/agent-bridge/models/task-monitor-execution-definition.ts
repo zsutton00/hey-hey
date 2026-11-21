@@ -20,6 +20,9 @@ import type { TaskMonitorExecutionPlanNode } from './task-monitor-execution-plan
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorLaunchPolicy } from './task-monitor-launch-policy.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorRuntimeSelection } from './task-monitor-runtime-selection.js';
 
 /**
  *
@@ -45,6 +48,12 @@ export interface TaskMonitorExecutionDefinition {
      * @memberof TaskMonitorExecutionDefinition
      */
     'launchPolicy': TaskMonitorLaunchPolicy;
+    /**
+     *
+     * @type {TaskMonitorRuntimeSelection}
+     * @memberof TaskMonitorExecutionDefinition
+     */
+    'coordinatorRuntime'?: TaskMonitorRuntimeSelection;
     /**
      *
      * @type {number}

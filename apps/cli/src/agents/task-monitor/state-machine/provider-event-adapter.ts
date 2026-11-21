@@ -36,6 +36,8 @@ const exactActionPayloadSchema = z
               .datetime()
               .nullish()
               .transform((value) => value ?? null),
+            /** Set by an originating tool that marks the action USER_REQUIRED. */
+            user_required: z.boolean().optional(),
           })
           .passthrough(),
       })
@@ -54,7 +56,6 @@ export type TaskMonitorPermissionAdmission =
 /** Shared boundary validation for monitor admission and ordinary-card fallback. */
 export const checkTaskMonitorPermissionAdmission = (
   event: LocalAgentOutputEvent,
-  now: () => number = Date.now,
 ): TaskMonitorPermissionAdmission => {
   if (event.source !== 'provider') {
     return { accepted: false, reason: 'permission_request_not_provider_owned' };
@@ -74,28 +75,19 @@ export const checkTaskMonitorPermissionAdmission = (
   ) {
     return { accepted: false, reason: 'permission_request_timestamp_mismatch' };
   }
-  if (request.expires_at !== null) {
-    if (Date.parse(request.expires_at) <= Date.parse(request.created_at)) {
-      return { accepted: false, reason: 'permission_request_expiry_not_after_creation' };
-    }
-    if (Date.parse(request.expires_at) <= now()) {
-      return { accepted: false, reason: 'permission_request_expired' };
-    }
-  }
   return { accepted: true, request, providerSessionId: event.sessionId };
 };
 
 export const taskMonitorExactActionInputFromProviderEvent = (
   input: TaskMonitorProviderEventInput,
   createInterventionId: () => string = randomUUID,
-  now: () => number = Date.now,
   onRejected: (reason: string) => void = () => {},
 ): VerifiedTaskMonitorProviderInterventionInput | null => {
   if (input.event.runId !== input.owner.runId) {
     onRejected('permission_request_run_mismatch');
     return null;
   }
-  const admission = checkTaskMonitorPermissionAdmission(input.event, now);
+  const admission = checkTaskMonitorPermissionAdmission(input.event);
   if (!admission.accepted) {
     onRejected(admission.reason);
     return null;
@@ -117,5 +109,6 @@ export const taskMonitorExactActionInputFromProviderEvent = (
     fingerprint: request.fingerprint,
     createdAt: request.created_at,
     expiresAt: request.expires_at,
+    userRequired: request.user_required === true,
   };
 };

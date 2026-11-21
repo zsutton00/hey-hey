@@ -12,7 +12,6 @@ export class TaskMonitorProviderEventAdmission {
     private readonly runRegistry: RunRegistry,
     private readonly inputAdapter: TaskMonitorStateMachineInputAdapter,
     private readonly logger: ServerLogger,
-    private readonly now: () => number = Date.now,
   ) {}
 
   public start(events: AgentOutputEvents): void {
@@ -42,7 +41,6 @@ export class TaskMonitorProviderEventAdmission {
         event: { runId: rawEvent.runId, ...rawEvent.envelope },
       },
       undefined,
-      this.now,
       (reason) => {
         if (rawEvent.envelope.eventType === 'permission_request_detected') {
           this.logger.warn('task_monitor.provider_event_admission.rejected', {

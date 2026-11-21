@@ -191,6 +191,7 @@ export class TaskMonitorControlEffectHandler implements EffectHandler<
     private readonly runStore: RunStore,
     private readonly agentService: LocalAgentService,
     private readonly logger: ServerLogger,
+    private readonly now: () => number = Date.now,
   ) {}
 
   public async execute(
@@ -274,6 +275,7 @@ export class TaskMonitorControlEffectHandler implements EffectHandler<
       outcome: {
         type: 'TASK_MONITOR_STOP_SUCCEEDED',
         taskMonitorId: effect.taskMonitorId,
+        stoppedAt: new Date(this.now()).toISOString(),
       },
     };
   }

@@ -15,6 +15,7 @@ import type {
   TaskMonitorHumanDecisionResolution,
   TaskMonitorLaunchDeclaration,
   TaskMonitorLaunchFailure,
+  TaskMonitorRequestKind,
   TaskMonitorWorktree,
   TaskMonitorTerminalPolicy,
 } from './context';
@@ -189,6 +190,59 @@ export interface TaskMonitorExactActionRequiredEvent {
   readonly fingerprint: string;
   readonly createdAt: string;
   readonly expiresAt: string | null;
+  /** True when an authoritative instruction or the originating tool marks it USER_REQUIRED. */
+  readonly userRequired?: boolean | undefined;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
+}
+
+/** The Task Monitor approved or denied the pending request from its own judgment. */
+interface TaskMonitorPermissionDecidedEvent {
+  readonly type: 'MONITOR_PERMISSION_DECIDED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly fingerprint: string;
+  readonly resolution: TaskMonitorHumanDecisionResolution;
+  readonly providerDecision: 'approve' | 'deny';
+  readonly rationale: string;
+  readonly decidedAt: string;
+}
+
+/** The Task Monitor could not decide safely, so the pending request now belongs to the human. */
+interface TaskMonitorPermissionEscalatedEvent {
+  readonly type: 'MONITOR_PERMISSION_ESCALATED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
+  /** Absent only on outcomes persisted before escalation time was recorded. */
+  readonly escalatedAt?: string | undefined;
+}
+
+/** The due time of a request the monitor holds is being watched outside the effect queue. */
+interface TaskMonitorPermissionDeadlineArmedEvent {
+  readonly type: 'PERMISSION_DEADLINE_ARMED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly dueAt: string;
+}
+
+/** The supervision record of a committed monitor permission outcome was written. */
+interface TaskMonitorPermissionDecisionRecordedEvent {
+  readonly type: 'PERMISSION_DECISION_RECORDED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+}
+
+/** The record could not be written; the committed decision itself is unaffected. */
+interface TaskMonitorPermissionDecisionRecordFailedEvent {
+  readonly type: 'PERMISSION_DECISION_RECORD_FAILED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
 }
 
 interface TaskMonitorInterventionProjectedEvent {
@@ -495,6 +549,8 @@ interface TaskMonitorLaunchPersistenceFailedEvent {
 interface TaskMonitorStopSucceededEvent {
   readonly type: 'TASK_MONITOR_STOP_SUCCEEDED';
   readonly taskMonitorId: string;
+  /** Absent only on outcomes persisted before the stop time was recorded. */
+  readonly stoppedAt?: string | undefined;
 }
 
 interface TaskMonitorStopFailedEvent {
@@ -657,6 +713,11 @@ export type TaskMonitorMachineEvent =
   | TaskMonitorConversationDeliveryFailedEvent
   | TaskMonitorHumanDecisionEvent
   | TaskMonitorExactActionRequiredEvent
+  | TaskMonitorPermissionDecidedEvent
+  | TaskMonitorPermissionEscalatedEvent
+  | TaskMonitorPermissionDecisionRecordedEvent
+  | TaskMonitorPermissionDeadlineArmedEvent
+  | TaskMonitorPermissionDecisionRecordFailedEvent
   | TaskMonitorInterventionProjectedEvent
   | TaskMonitorInterventionProjectionFailedEvent
   | TaskMonitorDecisionAppliedEvent
@@ -735,6 +796,8 @@ export interface VerifiedTaskMonitorProviderInterventionInput extends AddressedT
   readonly fingerprint: string;
   readonly createdAt: string;
   readonly expiresAt: string | null;
+  readonly userRequired?: boolean | undefined;
+  readonly requestKind?: TaskMonitorRequestKind | undefined;
 }
 
 export type TaskMonitorExecutionPhase = 'IMPLEMENTATION' | 'REVIEW';
@@ -776,6 +839,16 @@ export interface VerifiedTaskMonitorHumanDecisionInput extends AddressedTaskMoni
   readonly human: TaskMonitorHumanDecisionEvidence;
 }
 
+/** A request the monitor still held reached its due time, so it goes to a person. */
+export interface VerifiedTaskMonitorPermissionDeadlineInput extends AddressedTaskMonitorInput {
+  readonly source: 'PERMISSION_DEADLINE_REACHED';
+  readonly taskMonitorId: string;
+  readonly interventionId: string;
+  readonly providerActionId: string;
+  readonly reason: string;
+  readonly escalatedAt: string;
+}
+
 interface VerifiedTaskMonitorConversationInput extends AddressedTaskMonitorInput {
   readonly source: 'CONVERSATION_MESSAGE';
   readonly taskMonitorId: string;
@@ -791,6 +864,7 @@ export type VerifiedTaskMonitorInput =
   | VerifiedTaskMonitorExecutionTurnReleasedInput
   | VerifiedTaskMonitorLaunchFailureInput
   | VerifiedTaskMonitorHumanDecisionInput
+  | VerifiedTaskMonitorPermissionDeadlineInput
   | VerifiedTaskMonitorConversationInput;
 
 export const taskMonitorEventFromVerifiedInput = (
@@ -800,6 +874,7 @@ export const taskMonitorEventFromVerifiedInput = (
   | TaskMonitorRunSettledEvent
   | TaskMonitorLaunchFailureReportedEvent
   | TaskMonitorHumanDecisionEvent
+  | TaskMonitorPermissionEscalatedEvent
   | TaskMonitorConversationMessageReceivedEvent => {
   switch (input.source) {
     case 'PROVIDER_INTERVENTION':
@@ -816,6 +891,8 @@ export const taskMonitorEventFromVerifiedInput = (
         fingerprint: input.fingerprint,
         createdAt: input.createdAt,
         expiresAt: input.expiresAt,
+        userRequired: input.userRequired ?? false,
+        ...(input.requestKind ? { requestKind: input.requestKind } : {}),
       };
     case 'EXECUTION_TURN_RELEASED':
       return {
@@ -854,6 +931,15 @@ export const taskMonitorEventFromVerifiedInput = (
         providerDecision: input.providerDecision,
         decidedAt: input.decidedAt,
         human: input.human,
+      };
+    case 'PERMISSION_DEADLINE_REACHED':
+      return {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: input.taskMonitorId,
+        interventionId: input.interventionId,
+        providerActionId: input.providerActionId,
+        reason: input.reason,
+        escalatedAt: input.escalatedAt,
       };
     case 'CONVERSATION_MESSAGE':
       return {

@@ -159,8 +159,6 @@ describe('permission end-to-end', () => {
   it.each([
     [null, null],
     ['2099-01-01T00:05:00.000Z', null],
-    ['2025-01-01T00:05:00.000Z', 'permission_request_expired'],
-    ['2025-01-01T00:00:00.000Z', 'permission_request_expiry_not_after_creation'],
     ['invalid', 'permission_request_invalid_fields'],
   ])(
     'routes a Task Monitor request with expiry %s and rejection %s',

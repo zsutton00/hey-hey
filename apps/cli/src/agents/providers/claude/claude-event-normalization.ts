@@ -15,6 +15,7 @@ import {
   readFirstRecord,
   readFirstString,
   readTrimmedString,
+  readUserRequiredDesignation,
   truncateUtf8ToBytes,
   validateCanonical,
   type NormalizedCanonicalEventType,
@@ -275,9 +276,13 @@ const mapPermissionRequest = (
     (requestRecord ? readFirstString(requestRecord, ['expires_at', 'expiresAt']) : null) ??
     readFirstString(rawEvent, ['expires_at', 'expiresAt']);
 
+  const userRequired = readUserRequiredDesignation([requestRecord, rawEvent]);
+
   const consumedTopLevelKeys = new Set<string>([
     'permission_request',
     'permissionRequest',
+    'user_required',
+    'userRequired',
     'permission_request_id',
     'permissionRequestId',
     'permission_type',
@@ -311,6 +316,8 @@ const mapPermissionRequest = (
           'createdAt',
           'expires_at',
           'expiresAt',
+          'user_required',
+          'userRequired',
         ]),
       )
     : {};
@@ -324,6 +331,7 @@ const mapPermissionRequest = (
       ...(fingerprint ? { fingerprint } : {}),
       ...(createdAt ? { created_at: createdAt } : {}),
       ...(expiresAt ? { expires_at: expiresAt } : {}),
+      ...(userRequired !== null ? { user_required: userRequired } : {}),
       metadata: {
         ...permissionRequestMetadata,
         ...permissionMetadata,

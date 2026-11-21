@@ -298,6 +298,7 @@ const runConfigMatches = (
         existing.config.method === runConfig.method &&
         existing.config.model === runConfig.model)) &&
     existing.reasoningEffort === runConfig.reasoningEffort &&
+    (runConfig.fastMode === undefined || existing.fastMode === runConfig.fastMode) &&
     JSON.stringify(existing.services.map((service) => service.id)) ===
       JSON.stringify(runConfig.serviceIds ?? []) &&
     existing.launchServiceId === runConfig.launchServiceId &&
@@ -349,6 +350,7 @@ export interface EnsureRunForMonitorInput {
     model?: string;
     method?: SessionMethod;
     reasoningEffort?: LocalReasoningEffort;
+    fastMode?: boolean;
     serviceIds?: string[];
     launchServiceId?: string;
     scope?: LocalRunScope;
@@ -638,6 +640,7 @@ export class MonitorRunIdentityService {
       ...(runConfig?.worktree ? { worktree: runConfig.worktree } : {}),
       ...(runConfig?.model ? { model: runConfig.model } : {}),
       ...(runConfig?.reasoningEffort ? { reasoningEffort: runConfig.reasoningEffort } : {}),
+      ...(runConfig?.fastMode === undefined ? {} : { fastMode: runConfig.fastMode }),
     });
     if (result.status === 'repo-required') {
       throw new LocalAgentApiError('REPO_REQUIRED', 'Repository binding required', 409);

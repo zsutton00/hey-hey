@@ -1236,6 +1236,7 @@ export class TriggerEmitter {
     params: AgentSessionControlParams & {
       decision: ConversationControlPermissionDecision.DecisionEnum;
       requestId: string;
+      replyConversationId?: string;
       sessionId: string;
       agentType: ConversationControlPermissionDecision.AgentTypeEnum;
       reason?: string | null;
@@ -1250,6 +1251,9 @@ export class TriggerEmitter {
         agentSessionId: params.agentSessionId,
         decision: params.decision,
         requestId: params.requestId,
+        ...(params.replyConversationId === undefined
+          ? {}
+          : { replyConversationId: params.replyConversationId }),
         sessionId: params.sessionId,
         agentType: params.agentType,
         reason: params.reason,

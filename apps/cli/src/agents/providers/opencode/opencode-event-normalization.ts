@@ -8,6 +8,7 @@ import {
   narrationFromMapping,
   permissionFingerprint,
   readTrimmedString,
+  readUserRequiredDesignation,
   truncateUtf8ToBytes,
   validateCanonical,
   type NormalizeProviderEventInput,
@@ -188,6 +189,7 @@ const mapOpencodePermissionAsked = (
     metadata,
     tool,
   };
+  const userRequired = readUserRequiredDesignation([rawEvent, metadata]);
   const exactAction =
     requestId && permissionType
       ? {
@@ -202,6 +204,7 @@ const mapOpencodePermissionAsked = (
           }),
           created_at: eventTimestamp,
           expires_at: null,
+          ...(userRequired !== null ? { user_required: userRequired } : {}),
         }
       : null;
 

@@ -65,6 +65,7 @@ export const TaskMonitor = ({
     userMessage,
     launchNode,
     launchPolicy: projection.definition?.launchPolicy ?? null,
+    coordinatorRuntime: projection.definition?.coordinatorRuntime ?? null,
     reconcileProjection: projection.reconcileAfterCommand,
   });
   const pauseResume = useTaskMonitorPauseResume({
@@ -78,10 +79,12 @@ export const TaskMonitor = ({
     !organizationId || !projectId || !monitorId
       ? "Organization, project, and Task Monitor route context are required."
       : null;
+  // A retained snapshot whose lifecycle is ABSENT has not started yet.
+  const hasStarted = !!snapshot && snapshot.execution.lifecycle !== "ABSENT";
   const startPresentation =
-    !snapshot && (start.isSubmitting || start.acceptedAwaitingRefresh)
+    !hasStarted && (start.isSubmitting || start.acceptedAwaitingRefresh)
       ? { status: "starting" as const }
-      : snapshot
+      : hasStarted
         ? start.isSubmitting
           ? { status: "starting" as const }
           : { status: "active" as const }
@@ -160,7 +163,7 @@ export const TaskMonitor = ({
                 return pauseResume.resume();
               }
               if (
-                snapshot && snapshot.execution.lifecycle !== "ABSENT"
+                hasStarted
                   ? command !== "START"
                   : monitorStatus !== WorkStatus.Backlog
               ) {
@@ -182,6 +185,7 @@ export const TaskMonitor = ({
             }}
             isSavingLaunchConfiguration={projection.isSavingLaunchConfiguration}
             onSaveLaunchConfiguration={projection.saveLaunchConfiguration}
+            onSaveCoordinatorRuntime={projection.saveCoordinatorRuntime}
             activePane={activePane}
             renderPaneNavigation={renderPaneNavigation}
           />

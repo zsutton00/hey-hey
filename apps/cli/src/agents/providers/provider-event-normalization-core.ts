@@ -273,6 +273,26 @@ const stableJsonValue = (value: unknown): string => {
 export const permissionFingerprint = (value: unknown): string =>
   `sha256:${createHash('sha256').update(stableJsonValue(value)).digest('hex')}`;
 
+/**
+ * Reads the originating tool's USER_REQUIRED designation from every record that may carry it.
+ * A human-only designation always wins: any present value other than an explicit `false`
+ * (including a malformed one) keeps the request human-only, wherever it sits. `null` means
+ * no record designated the request either way.
+ */
+export const readUserRequiredDesignation = (
+  records: readonly (Record<string, unknown> | null | undefined)[],
+): boolean | null => {
+  const designations = records
+    .flatMap((record) => (record ? [record['user_required'], record['userRequired']] : []))
+    .filter((value) => value !== undefined && value !== null);
+
+  if (designations.length === 0) {
+    return null;
+  }
+
+  return designations.some((value) => value !== false);
+};
+
 export const readFirstBoolean = (
   record: Record<string, unknown>,
   keys: readonly string[],

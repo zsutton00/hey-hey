@@ -734,7 +734,7 @@ describe('invalid coordinator recovery', () => {
       context: waiting.context,
     });
     expect(projection.failure).toBeUndefined();
-    expect(projection.pendingJudgment?.request).toBe('Approve the schema change?');
+    expect(projection.pendingJudgment).toMatchObject({ request: 'Approve the schema change?' });
 
     const [, resumed] = transition(definition.machine, waiting, {
       type: 'JUDGMENT_RESOLVED',
@@ -1005,7 +1005,12 @@ describe('pausing and resuming while a request is open', () => {
       conversationId: context.coordinatorConversationId,
     });
     const before = projectionOf(delivered);
-    expect(before.pendingJudgment?.request).toContain('INVALID_JSON');
+    expect(before.pendingJudgment).toMatchObject({
+      request: expect.stringContaining('INVALID_JSON'),
+    });
+    const pendingJudgment = before.pendingJudgment;
+    const request =
+      pendingJudgment && 'request' in pendingJudgment ? pendingJudgment.request : undefined;
 
     const { resuming, resumed } = pauseThenResume(definition, delivered);
 
@@ -1021,7 +1026,7 @@ describe('pausing and resuming while a request is open', () => {
       {
         type: 'COORDINATE_TASK_MONITOR_WORK',
         cause: 'RESUME',
-        coordination: { pendingJudgmentReason: before.pendingJudgment?.request },
+        coordination: { pendingJudgmentReason: request },
       },
     ]);
     // The preserved question keeps its identity: only its own message answers it.
@@ -1039,7 +1044,7 @@ describe('pausing and resuming while a request is open', () => {
       reason: 'Question A?',
       requestMessageId: 'question-A',
     }).next;
-    expect(projectionOf(asked).pendingJudgment?.request).toBe('Question A?');
+    expect(projectionOf(asked).pendingJudgment).toMatchObject({ request: 'Question A?' });
 
     const { resumed } = pauseThenResume(definition, asked);
     const reassessing = resumed.next;
@@ -1061,7 +1066,9 @@ describe('pausing and resuming while a request is open', () => {
     });
 
     // After delivery the displayed question is the one the machine accepts an answer to.
-    expect(projectionOf(delivered).pendingJudgment?.request).toContain('INVALID_JSON');
+    expect(projectionOf(delivered).pendingJudgment).toMatchObject({
+      request: expect.stringContaining('INVALID_JSON'),
+    });
     expect(answer(definition, delivered, 'question-A').effects).toEqual([]);
     expect(answer(definition, delivered, 'recovery-request').effects).toMatchObject([
       { type: 'COORDINATE_TASK_MONITOR_WORK' },

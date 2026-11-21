@@ -56,6 +56,7 @@ describe('AgentSessionController', () => {
     findAll: jest.fn(),
     findPaginated: jest.fn(),
     findOne: jest.fn(),
+    isPermissionReplyConversation: jest.fn(),
     update: jest.fn(),
     grantServices: jest.fn(),
     remove: jest.fn(),
@@ -959,6 +960,48 @@ describe('AgentSessionController', () => {
         }),
       );
     });
+
+    it.each([true, false])(
+      'uses a workspace reply destination only when it belongs to the run (authorized=%s)',
+      async (authorized) => {
+        const replyConversationId = '88888888-8888-4888-8888-888888888888';
+        mockService.findOne.mockResolvedValue({
+          id: agentSessionId,
+          userId: 'user-1',
+          conversationId: 'conv-1',
+          projectId,
+          machineId: '77777777-7777-4777-8777-777777777777',
+        });
+        mockService.isPermissionReplyConversation.mockResolvedValue(authorized);
+        mockTriggerEmitter.emitPermissionDecisionControl.mockResolvedValue({
+          emitted: true,
+        });
+
+        const result = controller.permissionDecision(
+          agentSessionId as any,
+          projectId as any,
+          { ...decisionDto, replyConversationId },
+          'org-1' as any,
+          'user-1' as any,
+        );
+        if (authorized) {
+          await expect(result).resolves.toBeUndefined();
+          expect(
+            mockTriggerEmitter.emitPermissionDecisionControl,
+          ).toHaveBeenCalledWith(
+            expect.objectContaining({
+              conversationId: 'conv-1',
+              replyConversationId,
+            }),
+          );
+        } else {
+          await expect(result).rejects.toMatchObject({ status: 403 });
+          expect(
+            mockTriggerEmitter.emitPermissionDecisionControl,
+          ).not.toHaveBeenCalled();
+        }
+      },
+    );
 
     it('returns 204 without emitting when no conversation is bound', async () => {
       mockService.findOne.mockResolvedValue({

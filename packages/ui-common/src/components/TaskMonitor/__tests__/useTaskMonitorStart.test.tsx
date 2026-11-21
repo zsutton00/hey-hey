@@ -71,6 +71,7 @@ describe("useTaskMonitorStart", () => {
           machineId: "machine-1",
           launchNode,
           launchPolicy,
+          coordinatorRuntime: null,
           reconcileProjection,
         }),
       );
@@ -94,6 +95,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -129,6 +131,56 @@ describe("useTaskMonitorStart", () => {
     expect(reconcileProjection).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks START when the saved Monitor runs on choice is not offered by the catalog", async () => {
+    const { result } = renderHook(() =>
+      useTaskMonitorStart({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+        machineId: "machine-1",
+        launchNode,
+        launchPolicy,
+        coordinatorRuntime: {
+          provider: "claude",
+          model: "retired-model",
+          reasoningEffort: "high",
+        },
+        reconcileProjection,
+      }),
+    );
+
+    await act(() => result.current.start());
+
+    expect(mutate).not.toHaveBeenCalled();
+    expect(result.current.errorMessage).toContain("Monitor runs on");
+    expect(result.current.errorMessage).toContain("retired-model");
+  });
+
+  it("submits START when the saved Monitor runs on choice is offered", async () => {
+    const { result } = renderHook(() =>
+      useTaskMonitorStart({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+        machineId: "machine-1",
+        launchNode,
+        launchPolicy,
+        coordinatorRuntime: {
+          provider: "codex",
+          model: "gpt-5.5",
+          reasoningEffort: "high",
+          fastMode: false,
+        },
+        reconcileProjection,
+      }),
+    );
+
+    await act(() => result.current.start());
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(result.current.errorMessage).toBeNull();
+  });
+
   it("does not submit START without an explicitly selected ready machine", async () => {
     // No machine means no catalog is requested, so Start reports the missing
     // machine rather than waiting on a catalog that will not load.
@@ -141,6 +193,7 @@ describe("useTaskMonitorStart", () => {
         machineId: null,
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -226,6 +279,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -256,6 +310,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
         userMessage: "  Focus on the contract.  ",
       }),
@@ -284,6 +339,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode: null,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -306,6 +362,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -328,6 +385,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -354,6 +412,7 @@ describe("useTaskMonitorStart", () => {
             launchConfiguration: { ...launchConfiguration, fastMode },
           },
           launchPolicy,
+          coordinatorRuntime: null,
           reconcileProjection,
         }),
       );
@@ -382,6 +441,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode: { ...launchNode, launchConfiguration: withoutFastMode },
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -411,6 +471,7 @@ describe("useTaskMonitorStart", () => {
           },
         },
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -437,6 +498,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -475,6 +537,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );
@@ -500,6 +563,7 @@ describe("useTaskMonitorStart", () => {
         machineId: "machine-1",
         launchNode,
         launchPolicy,
+        coordinatorRuntime: null,
         reconcileProjection,
       }),
     );

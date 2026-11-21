@@ -13,18 +13,50 @@ import {
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
 import { AgentConversationView } from "../AgentConversationView";
 
-const { submitMessageMock, markStaleMock, conversationState } = vi.hoisted(
-  () => ({
+const { sessionQuery, submitMessageMock, markStaleMock, conversationState } =
+  vi.hoisted(() => ({
+    sessionQuery: vi.fn<
+      () => {
+        agentSession: {
+          config: { type: string; taskMonitorId: string };
+        } | null;
+      }
+    >(() => ({ agentSession: null })),
     submitMessageMock: vi.fn(),
     markStaleMock: vi.fn(),
     conversationState: {
       current: null as ConversationResponseDto | null,
     },
-  }),
-);
+  }));
 
 vi.mock("../../../data/hooks/useAgentSession", () => ({
-  useAgentSession: () => ({ agentSession: null }),
+  useAgentSession: sessionQuery,
+}));
+
+vi.mock("../../../data/hooks/useWorkItemExecutionState", () => ({
+  useProjectWorkItemExecutionState: () => ({
+    status: "retained",
+    delivery: "LIVE",
+    freshness: { status: "CURRENT" },
+    state: {
+      projection: {
+        outstandingPermissions: [
+          {
+            interventionId: "held-1",
+            agentSessionId: "agent-session-1",
+            action: "Read",
+            target: "README.md",
+            owner: "MONITOR",
+            answerable: false,
+          },
+        ],
+      },
+    },
+  }),
+}));
+
+vi.mock("../../../data/hooks/useAgentSessionContinuationStatus", () => ({
+  useAgentSessionContinuationStatus: () => ({ data: null }),
 }));
 
 vi.mock("../../../data/hooks/useConversation", () => ({
@@ -91,10 +123,12 @@ vi.mock("../operations/useAgentSessionInteractionAccess", () => ({
 
 vi.mock("../../Conversation/ConversationViewer", () => ({
   ConversationViewer: ({
+    sessionPermissions,
     taskMonitorId,
     conversationFormResolver,
     onGoalPmAction,
   }: {
+    sessionPermissions?: React.ReactNode;
     taskMonitorId?: string;
     conversationFormResolver?: ConversationFormResolver;
     onGoalPmAction?: (
@@ -107,6 +141,7 @@ vi.mock("../../Conversation/ConversationViewer", () => ({
       data-task-monitor-id={taskMonitorId}
       data-form-resolver={conversationFormResolver ? "provided" : "missing"}
     >
+      {sessionPermissions}
       <button
         onClick={() =>
           void onGoalPmAction?.(
@@ -281,6 +316,33 @@ describe("AgentConversationView Task Monitor replies", () => {
       "data-task-monitor-id",
       "monitor-1",
     );
+  });
+
+  it("uses the coding session launch owner on direct entry and shows a request awaiting judgment", () => {
+    sessionQuery.mockReturnValue({
+      agentSession: {
+        config: { type: "CODING_SESSION", taskMonitorId: "launch-owner" },
+      },
+    });
+    try {
+      render(
+        <AgentConversationView
+          organizationId="org-1"
+          projectId="project-1"
+          agentSessionId="agent-session-1"
+          conversationId="conversation-1"
+        />,
+      );
+      expect(screen.getByTestId("conversation-viewer")).toHaveAttribute(
+        "data-task-monitor-id",
+        "launch-owner",
+      );
+      expect(screen.getByText(/Awaiting the Task Monitor/)).toHaveTextContent(
+        "README.md",
+      );
+    } finally {
+      sessionQuery.mockReturnValue({ agentSession: null });
+    }
   });
 
   it("forwards an owner-supplied conversation form resolver", () => {
