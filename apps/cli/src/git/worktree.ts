@@ -21,11 +21,16 @@ const isPromisifiedOutput = (
   'stderr' in value &&
   typeof value.stderr === 'string';
 
-const execGit = (args: readonly string[], cwd: string): Promise<GitCommandOutput> =>
+const execGit = (
+  args: readonly string[],
+  cwd: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<GitCommandOutput> =>
   new Promise((resolve, reject) => {
-    execFile('git', [...args], { cwd }, (error, stdout, stderr) => {
+    execFile('git', [...args], { cwd, ...(env ? { env } : {}) }, (error, stdout, stderr) => {
       if (error) {
-        reject(error);
+        // The callback form hands stderr over separately; keep git's message on the error.
+        reject(Object.assign(error, { stderr: toText(stderr) }));
         return;
       }
 
@@ -316,7 +321,7 @@ export const searchLocalBranches = async (
   const matches: string[] = [];
   const child = spawn(
     'git',
-    ['for-each-ref', '--sort=-committerdate', '--format=%(refname:short)', 'refs/heads'],
+    ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)', 'refs/heads'],
     { cwd: repoPath, stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
@@ -376,14 +381,31 @@ export async function readCheckedOutBranch(folder: string): Promise<string | nul
 const isExitCode = (error: unknown, code: number): boolean =>
   error instanceof Error && 'code' in error && error.code === code;
 
-/** True when `folder` is inside a git work tree. Read-only. */
+/**
+ * True when `folder` is inside a git work tree; false only when git itself says
+ * it is not a repository. A missing folder, a permissions failure, an unsafe
+ * (dubious ownership) repository or a git that cannot run all throw, with git's
+ * own message, so the caller can report the real cause. Read-only.
+ */
 export const isGitRepository = async (folder: string): Promise<boolean> => {
   try {
-    const { stdout } = await execGit(['rev-parse', '--is-inside-work-tree'], folder);
+    const { stdout } = await execGit(['rev-parse', '--is-inside-work-tree'], folder, {
+      ...process.env,
+      // Git's non-repository message is only stable in the C locale.
+      LC_ALL: 'C',
+    });
 
     return stdout.trim() === 'true';
-  } catch {
-    // A non-repository (or missing folder) makes git exit non-zero; that is the answer, not a failure.
-    return false;
+  } catch (error) {
+    if (isNotAGitRepositoryError(error)) {
+      return false;
+    }
+    throw error;
   }
 };
+
+const isNotAGitRepositoryError = (error: unknown): boolean =>
+  error instanceof Error &&
+  'stderr' in error &&
+  typeof error.stderr === 'string' &&
+  error.stderr.includes('not a git repository');

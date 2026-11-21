@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -182,5 +182,45 @@ describe('ServicePlacesReader', () => {
     expect(narrow?.status === 'ok' && narrow.branchMatches).toHaveLength(1);
     expect(broad).toMatchObject({ status: 'ok', branchMatchesTruncated: true });
     expect(broad?.status === 'ok' && broad.branchMatches).toHaveLength(20);
+  });
+
+  it('reports the plain branch name when a tag shares it', async () => {
+    const repo = await makeRepo('tagged');
+    git(repo, 'branch', 'release');
+    git(repo, 'tag', 'release');
+    const wt = path.join(root, 'wt-release');
+    git(repo, 'worktree', 'add', '-q', wt, 'release');
+    await store.setBinding(serviceIdFor(9) as never, repo);
+
+    const [entry] = await reader.read({ serviceIds: [serviceIdFor(9)], branchQuery: 'release' });
+
+    if (entry?.status !== 'ok') {
+      throw new Error('expected ok entry');
+    }
+    expect(entry.branchMatches).toEqual(['release']);
+    expect(entry.worktrees).toEqual([{ branch: 'release', worktreePath: await realpath(wt) }]);
+  });
+
+  it('reports an unreadable or missing repository folder as READ_FAILED with the cause, not as a non-repository', async () => {
+    const locked = await makeRepo('locked');
+    await store.setBinding(serviceIdFor(10) as never, locked);
+    await chmod(locked, 0o000);
+
+    try {
+      const [entry] = await reader.read({ serviceIds: [serviceIdFor(10)] });
+
+      expect(entry).toMatchObject({ status: 'error', code: 'READ_FAILED' });
+      expect(entry?.status === 'error' && entry.message).toMatch(/EACCES|permission denied/i);
+    } finally {
+      await chmod(locked, 0o755);
+    }
+
+    const gone = await makeRepo('gone');
+    await store.setBinding(serviceIdFor(11) as never, gone);
+    await rm(gone, { recursive: true });
+
+    const [missing] = await reader.read({ serviceIds: [serviceIdFor(11)] });
+
+    expect(missing).toMatchObject({ status: 'error', code: 'READ_FAILED' });
   });
 });
