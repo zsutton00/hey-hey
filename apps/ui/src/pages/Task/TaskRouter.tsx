@@ -108,6 +108,19 @@ export const TaskRouter: React.FC = () => {
     );
   }
 
+  // TaskMonitorPage owns its canonical descriptor: its Plan lineage is only
+  // known after the page resolves the monitor's Plan.
+  if (task.type === WORK_ITEM_TYPE_KEYS.TaskMonitor) {
+    return (
+      <TaskMonitorPage
+        organizationId={organizationId}
+        projectId={projectId}
+        monitorId={taskId}
+        task={task}
+      />
+    );
+  }
+
   let page: React.ReactNode;
   if (task.type === "PLAN") {
     return (
@@ -145,15 +158,6 @@ export const TaskRouter: React.FC = () => {
     task.type === WORK_ITEM_TYPE_KEYS.Workflow
   ) {
     page = <WorkflowDetailPage />;
-  } else if (task.type === WORK_ITEM_TYPE_KEYS.TaskMonitor) {
-    page = (
-      <TaskMonitorPage
-        organizationId={organizationId}
-        projectId={projectId}
-        monitorId={taskId}
-        task={task}
-      />
-    );
   } else {
     page = (
       <TaskPage

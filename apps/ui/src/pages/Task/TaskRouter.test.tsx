@@ -203,7 +203,6 @@ describe("TaskRouter", () => {
     "CONTRACT",
     "workflow",
     "workflow_step",
-    "TASK_MONITOR",
     "MARKETING",
   ])("publishes loaded presentation for %s work items", (taskType) => {
     mockUseParams.mockReturnValue({ projectId: "proj-1", taskId: "item-1" });
@@ -464,16 +463,8 @@ describe("TaskRouter", () => {
       "monitor-123",
     );
     expect(screen.queryByTestId("task-page")).not.toBeInTheDocument();
-    expect(mockCreateCanonicalPageDescriptor).toHaveBeenCalledWith(
-      "task",
-      "monitor-123",
-      null,
-      {
-        kind: "task",
-        label: "Release monitor",
-        taskType: "TASK_MONITOR",
-      },
-    );
+    // TaskMonitorPage owns the monitor's descriptor (it adds Plan lineage).
+    expect(mockCreateCanonicalPageDescriptor).not.toHaveBeenCalled();
   });
 
   it("recovers project context before rendering TaskMonitor", async () => {
