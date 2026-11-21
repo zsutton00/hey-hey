@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -96,10 +97,10 @@ describe("project and organization cache wiring", () => {
         useProjectMembers("org", "project"),
         useProjectMembers("org", "project"),
       ],
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
-      expect(result.current.every((query) => query.isReady)).toBe(true)
+      expect(result.current.every((query) => query.isReady)).toBe(true),
     );
     expect(mocks.members).toHaveBeenCalledTimes(1);
     expect(result.current[0].data).toEqual([]);
@@ -122,7 +123,7 @@ describe("project and organization cache wiring", () => {
           invite: useInviteByEmail(),
           remove: useRemoveProjectMember(),
         }),
-        { wrapper }
+        { wrapper },
       );
       await waitFor(() =>
         expect(
@@ -130,8 +131,8 @@ describe("project and organization cache wiring", () => {
             result.current.otherMembers.isReady &&
             result.current.users.isReady &&
             result.current.otherUsers.isReady &&
-            result.current.counts.isReady
-        ).toBe(true)
+            result.current.counts.isReady,
+        ).toBe(true),
       );
       await act(async () => {
         if (action === "add")
@@ -160,13 +161,13 @@ describe("project and organization cache wiring", () => {
       expect(mocks.counts).toHaveBeenCalledTimes(1);
       expect(
         mocks.members.mock.calls.filter(
-          ([params]) => params.projectId === "other"
-        )
+          ([params]) => params.projectId === "other",
+        ),
       ).toHaveLength(1);
       expect(
         mocks.users.mock.calls.filter(
-          ([params]) => params.organizationId === "other-org"
-        )
+          ([params]) => params.organizationId === "other-org",
+        ),
       ).toHaveLength(1);
       expect(result.current[action].isSuccess).toBe(true);
       if (action === "invite")
@@ -178,7 +179,7 @@ describe("project and organization cache wiring", () => {
             projects: [{ projectId: "project", role: ProjectRole.Member }],
           },
         });
-    }
+    },
   );
 
   it("keeps mutation pending explicit and leaves caches alone after failure", async () => {
@@ -187,7 +188,7 @@ describe("project and organization cache wiring", () => {
       () =>
         new Promise((_resolve, fail) => {
           reject = fail;
-        })
+        }),
     );
     const { wrapper } = setup();
     const { result } = renderHook(
@@ -196,12 +197,12 @@ describe("project and organization cache wiring", () => {
         users: useUsers("org"),
         mutation: useAddProjectMember(),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
-        result.current.members.isReady && result.current.users.isReady
-      ).toBe(true)
+        result.current.members.isReady && result.current.users.isReady,
+      ).toBe(true),
     );
     let pending!: Promise<unknown>;
     act(() => {
@@ -234,15 +235,15 @@ describe("project and organization cache wiring", () => {
         users: useUsers("org"),
         mutation: useRemoveOrganizationMember(),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
         result.current.first.isReady &&
           result.current.second.isReady &&
           result.current.unrelated.isReady &&
-          result.current.users.isReady
-      ).toBe(true)
+          result.current.users.isReady,
+      ).toBe(true),
     );
     await act(async () => {
       await result.current.mutation.mutate({
@@ -254,8 +255,8 @@ describe("project and organization cache wiring", () => {
     expect(mocks.users).toHaveBeenCalledTimes(2);
     expect(
       mocks.members.mock.calls.filter(
-        ([params]) => params.organizationId === "other-org"
-      )
+        ([params]) => params.organizationId === "other-org",
+      ),
     ).toHaveLength(1);
   });
 
@@ -276,7 +277,7 @@ describe("project and organization cache wiring", () => {
             },
           },
         },
-      })
+      }),
     );
     const { client, wrapper } = setup();
     const { result } = renderHook(() => useProjectMembers("org", "project"), {
@@ -300,7 +301,7 @@ describe("project and organization cache wiring", () => {
       () =>
         new Promise((resolve) => {
           finish = resolve;
-        })
+        }),
     );
     const { client, wrapper } = setup();
     const { result } = renderHook(() => useProjectMembers("org", "project"), {
@@ -313,7 +314,7 @@ describe("project and organization cache wiring", () => {
     await waitFor(() => expect(result.current.isReady).toBe(true));
     expect(mocks.members).toHaveBeenCalledTimes(2);
     await act(async () =>
-      finish({ data: { data: { members: [{ id: "obsolete" }] } } })
+      finish({ data: { data: { members: [{ id: "obsolete" }] } } }),
     );
     expect(result.current.data).toEqual([]);
   });
@@ -330,12 +331,12 @@ describe("project and organization cache wiring", () => {
             pagination: { page, total: 2, limit: 50, hasNext: page === 1 },
           },
         },
-      })
+      }),
     );
     const { wrapper } = setup();
     const { result, rerender } = renderHook(
       ({ projectId }) => useProjectMembers("org", projectId),
-      { wrapper, initialProps: { projectId: "first" } }
+      { wrapper, initialProps: { projectId: "first" } },
     );
     await waitFor(() => expect(result.current.data).toHaveLength(1));
     act(() => result.current.fetchNextPage());
@@ -350,15 +351,15 @@ describe("project and organization cache wiring", () => {
     await waitFor(() =>
       expect(result.current.data.map((member) => member.id)).toEqual([
         "second-first",
-      ])
+      ]),
     );
     await act(async () => {
       await result.current.refetch();
     });
     expect(
       mocks.members.mock.calls.filter(
-        ([params]) => params.projectId === "second"
-      )
+        ([params]) => params.projectId === "second",
+      ),
     ).toHaveLength(2);
   });
 
@@ -375,7 +376,7 @@ describe("project and organization cache wiring", () => {
         counts: useProjectCounts("org", "project"),
         bindings: useLocalRepoBindings(),
       }),
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() =>
       expect(
@@ -383,8 +384,8 @@ describe("project and organization cache wiring", () => {
           result.current.members.isReady &&
           result.current.users.isReady &&
           result.current.counts.isReady &&
-          result.current.bindings.status === "empty"
-      ).toBe(true)
+          result.current.bindings.status === "empty",
+      ).toBe(true),
     );
     await act(async () => {
       await invalidateAllDataLayerQueries(client);
@@ -398,7 +399,8 @@ describe("project and organization cache wiring", () => {
     ])
       expect(read).toHaveBeenCalledTimes(2);
     expect(
-      client.getQueryState(projectKeys.detail("org", "inactive"))?.isInvalidated
+      client.getQueryState(projectKeys.detail("org", "inactive"))
+        ?.isInvalidated,
     ).toBe(true);
   });
 
@@ -406,19 +408,21 @@ describe("project and organization cache wiring", () => {
     const { client, wrapper } = setup();
     const { result, rerender } = renderHook(
       () => [useLocalRepoBindings(), useLocalRepoBindings()],
-      { wrapper }
+      { wrapper },
     );
     await waitFor(() => expect(result.current[0].status).toBe("empty"));
     expect(mocks.listRepos).toHaveBeenCalledTimes(1);
     mocks.baseUrl = "http://localhost:9001";
     mocks.listRepos.mockRejectedValue(
-      Object.assign(new Error("unavailable"), { status: 404 })
+      Object.assign(new Error("unavailable"), { status: 404 }),
     );
     rerender();
     await waitFor(() => expect(result.current[0].status).toBe("error"));
     expect(result.current[0].bindings).toEqual([]);
     expect(
-      client.getQueryData(localRepoBindingKeys.runtime("http://localhost:9000"))
+      client.getQueryData(
+        localRepoBindingKeys.runtime("http://localhost:9000"),
+      ),
     ).toEqual([]);
     expect(mocks.listRepos).toHaveBeenCalledWith("http://localhost:9001");
   });
@@ -429,7 +433,12 @@ describe("project and organization cache wiring", () => {
       wrapper,
     });
     await waitFor(() => expect(result.current.isReady).toBe(true));
-    const handler = new WebSocketHandler(createStore(), undefined, client);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      client,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent({
         type: "project.updated",

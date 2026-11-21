@@ -1,3 +1,4 @@
+import type { ApolloClient } from "@apollo/client";
 import type {
   AgentWorkflowContext,
   FinalAssessmentStartupDiscrepancyContextItem,
@@ -16,17 +17,23 @@ const toPlainString = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
 export const buildFinalAssessmentPrompt = async (input: {
+  graphqlClient: ApolloClient;
   context: AgentWorkflowContext;
   startupInput: StartupPromptInput;
   startupDiscrepancyContext?: FinalAssessmentStartupDiscrepancyContextItem[];
   executionSummary: string;
 }): Promise<string> => {
-  const taskNeighborhood = await resolveFinalAssessmentTaskNeighborhood({
-    organizationId: input.context.organizationId,
-    projectId: input.context.projectId,
-    planId: toPlainString(input.context.planId),
-    taskId: toPlainString(input.context.taskId || input.startupInput.task?.id),
-  });
+  const taskNeighborhood = await resolveFinalAssessmentTaskNeighborhood(
+    input.graphqlClient,
+    {
+      organizationId: input.context.organizationId,
+      projectId: input.context.projectId,
+      planId: toPlainString(input.context.planId),
+      taskId: toPlainString(
+        input.context.taskId || input.startupInput.task?.id,
+      ),
+    },
+  );
 
   return `Execute the following prompt inside the <prompt></prompt> tags exactly. Return JSON only. No commentary.
 <prompt>
@@ -45,7 +52,7 @@ ${formatStartupPromptInput(input.startupInput)}
 
 Startup discrepancy context:
 ${formatFinalAssessmentStartupDiscrepancyContext(
-  input.startupDiscrepancyContext ?? []
+  input.startupDiscrepancyContext ?? [],
 )}
 
 Task neighborhood context:

@@ -10263,17 +10263,20 @@ paths:
                               $ref: "#/components/schemas/MessageResponseDto"
                           - $ref: "#/components/schemas/ConversationMessageHistoryPageDto"
         "400":
-          description: Invalid cursor, mode, or pagination parameter combination
+          description: Invalid mode or pagination parameter combination
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404":
-          description: Cursor message not found in the requested conversation
+          description: >-
+            Cursor not found in the requested conversation: an unknown or
+            other-conversation `since` message, or an invalid or
+            other-conversation `historyCursor`
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                $ref: "#/components/schemas/MessageCursorNotFoundErrorDto"
 
     post:
       summary: Create a new Message interaction
@@ -26495,6 +26498,8 @@ components:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionResponse"
     PlanSubmissionAdmissionConflict:
       $ref: "../schemas/trigger-payloads.yaml#/PlanSubmissionAdmissionConflict"
+    MessageCursorNotFoundErrorDto:
+      $ref: "../schemas/common.yaml#/MessageCursorNotFoundErrorDto"
     PlanTierGatingErrorDto:
       $ref: "../schemas/common.yaml#/PlanTierGatingErrorDto"
     AgentSessionDto:

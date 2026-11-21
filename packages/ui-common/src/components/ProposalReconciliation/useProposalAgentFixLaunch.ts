@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ConversationStartRunRequestDtoProviderEnum,
@@ -34,6 +35,7 @@ export interface AgentFixLaunchSelection {
 export function useProposalAgentFixLaunch() {
   const accessResolver = useAgentSessionInteractionAccessResolver();
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const inFlight = useRef(false);
   const operationIds = useRef(new Map<string, string>());
   const [isPending, setIsPending] = useState(false);
@@ -105,7 +107,7 @@ export function useProposalAgentFixLaunch() {
               : result.message,
           );
         }
-        reconcileAcceptedAgentLaunch(queryClient, {
+        reconcileAcceptedAgentLaunch(queryClient, graphqlClient, {
           organizationId: request.organizationId,
           projectId: request.projectId,
           agentSessionId: request.agentSessionId,

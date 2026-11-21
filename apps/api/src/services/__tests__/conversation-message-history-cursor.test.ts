@@ -74,4 +74,13 @@ describe('conversation Message history cursor', () => {
       }),
     ).toThrow(ConversationMessageHistoryCursorError);
   });
+
+  it('reports an invalid cursor as not found under the stable cursor code', () => {
+    const error = new ConversationMessageHistoryCursorError();
+
+    expect(error.getStatus()).toBe(404);
+    expect(error.getResponse()).toMatchObject({
+      code: 'MESSAGE_CURSOR_NOT_FOUND',
+    });
+  });
 });

@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { CreateUserMessage } from "../../api";
@@ -22,6 +23,7 @@ export const useConversationMessageSubmitter = ({
   message: CreateUserMessage,
 ) => Promise<void>) => {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const recoveryState = useCliRequired(
     organizationId,
     projectId,
@@ -42,6 +44,7 @@ export const useConversationMessageSubmitter = ({
       await submitConversationMessage({
         interactionAccess,
         queryClient,
+        graphqlClient,
         organizationId,
         projectId,
         agentSessionId,
@@ -52,6 +55,7 @@ export const useConversationMessageSubmitter = ({
     [
       interactionAccess,
       queryClient,
+      graphqlClient,
       organizationId,
       projectId,
       agentSessionId,

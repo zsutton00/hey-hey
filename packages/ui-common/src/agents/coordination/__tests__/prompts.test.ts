@@ -1,3 +1,6 @@
+import axios from "axios";
+import { WebUiGraphQLClient } from "../../../data/graphql/client";
+import { workItemHandlersFromRest } from "../../../test/workItemGraphQLHandlers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildFinalAssessmentPrompt,
@@ -10,10 +13,6 @@ const { mockUnifiedApiClient } = vi.hoisted(() => ({
     getTask: vi.fn(),
     getTasks: vi.fn(),
   },
-}));
-
-vi.mock("../../../clients/serviceClients", () => ({
-  unifiedApiClient: mockUnifiedApiClient,
 }));
 
 const FIXED_TIME = "2026-02-23T00:00:00.000Z";
@@ -63,6 +62,7 @@ const createCanonicalWorkItem = (input: {
 
 describe("coordination prompts", () => {
   beforeEach(() => {
+    globalThis.mswServer.use(...workItemHandlersFromRest(mockUnifiedApiClient));
     vi.clearAllMocks();
 
     const parent = createCanonicalWorkItem({
@@ -114,6 +114,7 @@ describe("coordination prompts", () => {
 
   it("matches final assessment prompt snapshot", async () => {
     const prompt = await buildFinalAssessmentPrompt({
+      graphqlClient: graphqlClient.apollo,
       context: {
         organizationId: "org-1",
         projectId: "project-1",
@@ -213,6 +214,7 @@ describe("coordination prompts", () => {
         type: "STANDARD",
         includeEdges: true,
       }),
+      expect.anything(),
     );
     expect(prompt).toContain(
       "When suggesting task/design-doc edits, make the smallest possible textual and structural changes while emulating existing wording, tone, and organization.",
@@ -277,3 +279,7 @@ describe("coordination prompts", () => {
     expect(prompt).toMatchSnapshot();
   });
 });
+
+const graphqlClient = new WebUiGraphQLClient(() =>
+  axios.create({ baseURL: "http://localhost:3000/api/v1" }),
+);

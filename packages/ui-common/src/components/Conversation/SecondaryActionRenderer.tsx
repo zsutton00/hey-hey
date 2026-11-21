@@ -1,7 +1,7 @@
 import { Alert, Button, Stack } from "@mui/material";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import { VerificationStartedLink } from "../shared/ProjectTopologyButton";
-import { conversationKeys } from "../../data/collections/conversations";
+import { refreshConversation } from "../../data/graphql/conversationCache";
 import { VerifyFeatureAction } from "./SecondaryActions/VerifyFeatureAction";
 import { isVerifyFeaturePayload } from "../../types/secondaryActions";
 import React, { useState } from "react";
@@ -125,7 +125,7 @@ export const SecondaryActionRenderer: React.FC<
   const { suggestionDecisions } = useConversationContext();
   const decisionMutation = useSuggestionDecision();
   const paths = usePathService();
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const [unsavedStart, setUnsavedStart] =
     useState<UnsavedVerifyFeatureStart | null>(null);
   const handler = action.handler;
@@ -241,13 +241,7 @@ export const SecondaryActionRenderer: React.FC<
     // and drops its local state. Refreshing the cached conversation is what
     // lets the started state show when the user comes back.
     if (saved && context.conversationId) {
-      await queryClient.invalidateQueries({
-        queryKey: conversationKeys.conversation(
-          context.organizationId,
-          context.projectId,
-          context.conversationId,
-        ),
-      });
+      await refreshConversation(graphqlClient, context.conversationId);
     }
   };
 

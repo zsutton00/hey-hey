@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { WorkItemResponseDto } from "../collections/workItems";
-import { workItemDetailQueryOptions } from "../collections/workItemLists";
+import { workItemDetailRead } from "../collections/workItemLists";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 import type { AgentEdgeType } from "../../api";
 
@@ -13,14 +13,17 @@ type UseWorkItemOptions = CollectionHookOptions<WorkItemResponseDto> & {
   edgeTypes?: AgentEdgeType[];
 };
 
-export interface UseWorkItemReturn
-  extends Omit<DataHookReturn<WorkItemResponseDto>, "data"> {
+export interface UseWorkItemReturn extends Omit<
+  DataHookReturn<WorkItemResponseDto>,
+  "data"
+> {
   workItem: WorkItemResponseDto | null;
 }
 
 /**
- * Fetches a single work item (task) by ID. Every consumer passing the same
- * project and variant shares one cached read.
+ * Reads a single work item (task) by ID from the project's GraphQL cache.
+ * Every view of the same work item shows the one cached record, which is
+ * refreshed when the server reports a change.
  * The entityType parameter is accepted for backward compatibility but
  * only tasks are supported (initiatives have been removed).
  */
@@ -28,21 +31,25 @@ export function useWorkItem(
   organizationId: string,
   _entityType: "initiative" | "task",
   workItemId: string,
-  options: UseWorkItemOptions = {}
+  options: UseWorkItemOptions = {},
 ): UseWorkItemReturn {
   const { projectId, includeServiceRelations, includeEdges, edgeTypes } =
     options;
   const edgeTypesKey = edgeTypes?.join(",") ?? "";
 
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      workItemDetailQueryOptions(organizationId, projectId ?? "", workItemId, {
-        includeServiceRelations,
-        includeEdges,
-        edgeTypes: edgeTypesKey
-          ? (edgeTypesKey.split(",") as AgentEdgeType[])
-          : undefined,
-      }),
+      workItemDetailRead(
+        { organizationId, projectId: projectId ?? "" },
+        workItemId,
+        {
+          includeServiceRelations,
+          includeEdges,
+          edgeTypes: edgeTypesKey
+            ? (edgeTypesKey.split(",") as AgentEdgeType[])
+            : undefined,
+        },
+      ),
     [
       organizationId,
       projectId,
@@ -50,15 +57,19 @@ export function useWorkItem(
       includeServiceRelations,
       includeEdges,
       edgeTypesKey,
-    ]
+    ],
   );
 
-  const { result, state } = useDataLayerQuery(queryOptions, {
-    enabled: (options.enabled ?? true) && !!organizationId && !!workItemId,
+  // The endpoint is project-scoped, so a read needs the project.
+  const { data, ...state } = useGraphQLRead(spec, {
+    enabled:
+      (options.enabled ?? true) &&
+      !!organizationId &&
+      !!projectId &&
+      !!workItemId,
     refetchOnMount: options.refetchOnMount,
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
-    maxCacheAgeMs: options.maxCacheAgeMs,
   });
 
   useWebsocketSubscriptions(
@@ -68,8 +79,8 @@ export function useWorkItem(
     },
     {
       enabled: options.enabled ?? true,
-    }
+    },
   );
 
-  return { ...state, workItem: result.data ?? null };
+  return { ...state, workItem: data };
 }

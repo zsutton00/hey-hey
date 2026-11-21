@@ -1,0 +1,23 @@
+query GetTriageConversationTitle($id: ID!) {
+  conversation(id: $id) {
+    id
+    title
+  }
+}
+
+query GetOnboardingReplyVersion($id: ID!) {
+  conversation(id: $id) {
+    id
+    version
+  }
+}
+
+query VerifyRepositoryImportConversation($id: ID!) {
+  conversation(id: $id) {
+    id
+    workflowId
+    workflowName
+    workflowAboutId
+    workflowAboutType
+  }
+}

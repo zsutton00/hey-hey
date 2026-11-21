@@ -310,3 +310,27 @@ export const isRefining = (status: TaskResponseDto['status']) => {
     ].some((candidate) => candidate === status) || isGeneratingStatus(status)
   );
 };
+
+/**
+ * Normalizes a status filter from a read request: accepts an array or a
+ * comma-separated string, drops empty and placeholder values ("undefined",
+ * "null", "false"), and returns undefined when nothing remains.
+ */
+export function normalizeStatusFilter(
+  status?: string | string[],
+): WorkStatus[] | undefined {
+  const statuses = Array.isArray(status)
+    ? status
+    : typeof status === 'string'
+      ? status.split(',').map((value) => value.trim())
+      : undefined;
+
+  const filteredStatuses = statuses?.filter(
+    (value) =>
+      value && value !== 'undefined' && value !== 'null' && value !== 'false',
+  ) as WorkStatus[] | undefined;
+
+  return filteredStatuses && filteredStatuses.length > 0
+    ? filteredStatuses
+    : undefined;
+}

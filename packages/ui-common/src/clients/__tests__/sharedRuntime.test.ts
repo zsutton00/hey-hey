@@ -14,10 +14,10 @@ describe("shared runtime registration", () => {
     registerApiRuntime(first);
     const second = createBrowserApiRuntime({ baseUrl: "https://second.test" });
     const failure = new Error("registered-runtime");
-    const getTask = vi
+    const removeTask = vi
       .spyOn(
         second.clients.tasks,
-        "organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet",
+        "organizationsOrganizationIdProjectsProjectIdTasksTaskIdDelete",
       )
       .mockRejectedValue(failure);
     const request = vi
@@ -28,14 +28,16 @@ describe("shared runtime registration", () => {
     expect(getApiRuntime()).toBe(second);
     expect(getApiClient()).toBe(registeredClient);
     await expect(
-      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet({
-        organizationId: "org",
-        projectId: "project",
-        taskId: "task",
-      }),
+      tasksClient.organizationsOrganizationIdProjectsProjectIdTasksTaskIdDelete(
+        {
+          organizationId: "org",
+          projectId: "project",
+          taskId: "task",
+        },
+      ),
     ).rejects.toBe(failure);
     await dataClient.request({ url: "/probe" });
-    expect(getTask).toHaveBeenCalledOnce();
+    expect(removeTask).toHaveBeenCalledOnce();
     expect(request).toHaveBeenCalledWith(
       expect.objectContaining({ url: "/probe" }),
     );

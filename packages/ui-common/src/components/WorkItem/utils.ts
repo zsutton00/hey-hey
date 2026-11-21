@@ -8,8 +8,12 @@ export interface CountItem {
 
 export type CountGroup = CountItem[];
 
+export type WorkItemChildCounts = {
+  [Field in keyof NonNullable<TaskResponseDto["childCounts"]>]-?: number | null;
+};
+
 export function getWorkItemCounts(workItem: {
-  childCounts?: TaskResponseDto["childCounts"];
+  childCounts?: Partial<WorkItemChildCounts> | null;
 }) {
   if (
     workItem.childCounts &&
@@ -21,13 +25,13 @@ export function getWorkItemCounts(workItem: {
     const { total, done, inProgress = 0, backlog = 0 } = workItem.childCounts;
 
     taskGroup.push({ label: `tasks`, count: total });
-    if (inProgress > 0)
+    if (inProgress && inProgress > 0)
       taskGroup.push({
         label: `active`,
         count: inProgress,
         pluralizable: false,
       });
-    if (backlog > 0)
+    if (backlog && backlog > 0)
       taskGroup.push({ label: `backlog`, count: backlog, pluralizable: false });
     if (done && done > 0) taskGroup.push({ label: `complete`, count: done });
 

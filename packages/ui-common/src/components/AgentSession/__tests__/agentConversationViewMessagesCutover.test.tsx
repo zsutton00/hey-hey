@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Provider, createStore } from "jotai";
@@ -376,6 +377,7 @@ describe("AgentConversationView messages-collection cutover", () => {
         logQueryInvalidation: vi.fn(),
       },
       queryClient,
+      createUnreachableGraphQLClient(),
     );
     act(() =>
       handler.handleEvent({
@@ -792,7 +794,12 @@ describe("AgentConversationView messages-collection cutover", () => {
       expect(screen.getByTestId("viewer-message-msg-2")).toBeInTheDocument();
     });
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(newerMessageEvent("msg-3"));
     });
@@ -869,7 +876,12 @@ describe("AgentConversationView messages-collection cutover", () => {
       ).toBeGreaterThanOrEqual(2);
     });
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(newerMessageEvent("msg-3"));
     });
@@ -936,7 +948,12 @@ describe("AgentConversationView messages-collection cutover", () => {
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Thinking));
     });
@@ -964,7 +981,12 @@ describe("AgentConversationView messages-collection cutover", () => {
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Starting));
     });
@@ -988,7 +1010,12 @@ describe("AgentConversationView messages-collection cutover", () => {
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Writing));
     });
@@ -1016,7 +1043,12 @@ describe("AgentConversationView messages-collection cutover", () => {
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     await act(async () => {
       handler.handleEvent(
         currentStateEvent(AgentSessionCurrentState.AwaitingApproval),
@@ -1060,7 +1092,12 @@ describe("AgentConversationView messages-collection cutover", () => {
       const store = createStore();
       renderView(store);
 
-      const handler = new WebSocketHandler(store, undefined, queryClient);
+      const handler = new WebSocketHandler(
+        store,
+        undefined,
+        queryClient,
+        createUnreachableGraphQLClient(),
+      );
       await act(async () => {
         handler.handleEvent(currentStateEvent(currentState));
       });

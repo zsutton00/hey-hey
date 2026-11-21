@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   AgentSessionConfigProjectReportV1,
@@ -19,6 +20,7 @@ import { useAgentSessionInteractionAccessResolver } from "../AgentSession/operat
 export function useProjectReportLaunch() {
   const accessResolver = useAgentSessionInteractionAccessResolver();
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const inFlight = useRef(false);
   const operationIds = useRef(new Map<string, string>());
   const [isPending, setIsPending] = useState(false);
@@ -68,10 +70,13 @@ export function useProjectReportLaunch() {
             attemptId: attempt.id,
             projectId: request.projectId,
           },
-        } satisfies RunCreatePayloadProjectReport | RunCreatePayloadReleaseNotes;
+        } satisfies
+          RunCreatePayloadProjectReport | RunCreatePayloadReleaseNotes;
         const serviceIds = [...(request.submission.serviceIds ?? [])].sort();
         if (request.kind === "RELEASE_NOTES" && serviceIds.length === 0) {
-          throw new Error("This release notes request has no saved repository selection.");
+          throw new Error(
+            "This release notes request has no saved repository selection.",
+          );
         }
         const result = await access.interactions.startSession({
           operationId,
@@ -80,7 +85,7 @@ export function useProjectReportLaunch() {
           agentSessionId: attempt.agentSessionId,
           conversationId: attempt.conversationId,
           intent: {
-              attachments: [],
+            attachments: [],
             handlerPromptType: promptType,
             payload,
             ...(request.kind === "RELEASE_NOTES"
@@ -111,7 +116,7 @@ export function useProjectReportLaunch() {
               : result.message,
           );
         }
-        reconcileAcceptedAgentLaunch(queryClient, {
+        reconcileAcceptedAgentLaunch(queryClient, graphqlClient, {
           organizationId: request.organizationId,
           projectId: request.projectId,
           agentSessionId: attempt.agentSessionId,

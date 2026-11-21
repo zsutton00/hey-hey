@@ -1,0 +1,279 @@
+fragment WorkItemFields on WorkItem {
+  id
+  name
+  type
+  status
+  organizationId
+  projectId
+  initiativeId
+  parentTaskId
+  source
+  priority
+  tag
+  assigneeId
+  reporterId
+  dueDate
+  createdAt
+  updatedAt
+  archivedAt
+  hasProposalSupport
+  config
+  childCounts {
+    total
+    done
+    inProgress
+    backlog
+  }
+}
+
+fragment WorkItemSectionFields on WorkItemSection {
+  id
+  key
+  order
+  materializedMarkdown
+  materializedProposalId
+  crdtSnapshotSeq
+}
+
+fragment WorkItemEdgeFields on WorkItemEdge {
+  id
+  type
+  source {
+    entityId
+    entityType
+    name
+  }
+  target {
+    entityId
+    entityType
+    name
+  }
+  targetNodeType
+  category
+  direction
+  predicate
+  actionLabel
+  transitionRole
+  reasoning
+  origin
+  createdBySessionId
+  lastModifiedBySessionId
+  metadata
+  createdAt
+  updatedAt
+}
+
+fragment WorkItemServiceRelationFields on ServiceRelation {
+  id
+  serviceId
+  taskId
+  relationType
+  createdAt
+}
+
+fragment WorkItemTrackedEntityFields on TrackedEntity {
+  entityId
+  entityType
+  name
+  status
+  dueDate
+}
+
+fragment WorkItemTrackedSummaryFields on TrackedWorkSummary {
+  totalCount
+  completedCount
+  cancelledCount
+  pastDueCount
+  openUndatedCount
+}
+
+# One work item with every part a read may ask for. The parts are switched on
+# by variables so list, detail and hierarchy reads share this shape.
+fragment WorkItemParts on WorkItem {
+  ...WorkItemFields
+  sections(keys: $sectionKeys) @include(if: $withSections) {
+    ...WorkItemSectionFields
+  }
+  edges(types: $edgeTypes) @include(if: $withEdges) {
+    ...WorkItemEdgeFields
+  }
+  serviceRelations @include(if: $withServiceRelations) {
+    ...WorkItemServiceRelationFields
+  }
+  trackedEntities @include(if: $withTrackedEntities) {
+    ...WorkItemTrackedEntityFields
+  }
+  trackedWorkSummary @include(if: $withTrackedWorkSummary) {
+    ...WorkItemTrackedSummaryFields
+  }
+  designDocCount @include(if: $withDesignDocCounts)
+  codingSessionCount @include(if: $withAgentSessionCounts)
+  agentSessionCount @include(if: $withAgentSessionCounts)
+}
+
+query GetWorkItems(
+  $initiativeId: ID
+  $parentTaskId: ID
+  $parentTaskIds: [ID!]
+  $ids: [ID!]
+  $type: String
+  $statuses: [String!]
+  $includeDescendants: Boolean
+  $relatedTo: RelatedEntityFilter
+  $sort: WorkItemSort
+  $page: Int
+  $limit: Int
+  $withSections: Boolean!
+  $sectionKeys: [String!]
+  $withEdges: Boolean!
+  $edgeTypes: [EdgeType!]
+  $withServiceRelations: Boolean!
+  $withTrackedEntities: Boolean!
+  $withTrackedWorkSummary: Boolean!
+  $withDesignDocCounts: Boolean!
+  $withAgentSessionCounts: Boolean!
+) {
+  workItems(
+    initiativeId: $initiativeId
+    parentTaskId: $parentTaskId
+    parentTaskIds: $parentTaskIds
+    ids: $ids
+    type: $type
+    statuses: $statuses
+    includeDescendants: $includeDescendants
+    relatedTo: $relatedTo
+    sort: $sort
+    page: $page
+    limit: $limit
+  ) {
+    ...WorkItemParts
+  }
+}
+
+query GetWorkItem(
+  $id: ID!
+  $withSections: Boolean!
+  $sectionKeys: [String!]
+  $withEdges: Boolean!
+  $edgeTypes: [EdgeType!]
+  $withServiceRelations: Boolean!
+  $withTrackedEntities: Boolean!
+  $withTrackedWorkSummary: Boolean!
+  $withDesignDocCounts: Boolean!
+  $withAgentSessionCounts: Boolean!
+) {
+  workItem(id: $id) {
+    ...WorkItemParts
+  }
+}
+
+query GetWorkItemHierarchy(
+  $id: ID!
+  $includeDesignDocCounts: Boolean
+  $includeAgentSessionCounts: Boolean
+  $withSections: Boolean!
+  $sectionKeys: [String!]
+  $withEdges: Boolean!
+  $edgeTypes: [EdgeType!]
+  $withServiceRelations: Boolean!
+  $withTrackedEntities: Boolean!
+  $withTrackedWorkSummary: Boolean!
+  $withDesignDocCounts: Boolean!
+  $withAgentSessionCounts: Boolean!
+) {
+  workItemHierarchy(
+    id: $id
+    includeDesignDocCounts: $includeDesignDocCounts
+    includeAgentSessionCounts: $includeAgentSessionCounts
+  ) {
+    task {
+      ...WorkItemParts
+    }
+    parent {
+      ...WorkItemParts
+    }
+    children {
+      ...WorkItemParts
+    }
+  }
+}
+
+fragment WorkItemGraphMember on WorkItem {
+  ...WorkItemFields
+  sections {
+    ...WorkItemSectionFields
+  }
+}
+
+query GetWorkItemGraph($id: ID!, $incidentRelationshipTypes: [String!]) {
+  workItem(id: $id) {
+    id
+    graph(incidentRelationshipTypes: $incidentRelationshipTypes) {
+      root {
+        ...WorkItemGraphMember
+      }
+      children {
+        ...WorkItemGraphMember
+      }
+      relationships {
+        ...WorkItemEdgeFields
+      }
+      layout
+      derivedReferences {
+        entityId
+        entityType
+        name
+        expansionKey
+        projectionKind
+        workItemTypeKey
+        viaEntityIds
+      }
+      participation
+    }
+  }
+}
+
+fragment WorkItemReferenceFields on WorkItemReference {
+  id
+  name
+  type
+  parentTaskId
+}
+
+query GetAllWorkItemReferences($type: String!) {
+  references: allWorkItemReferences(type: $type) {
+    ...WorkItemReferenceFields
+  }
+}
+
+query GetWorkItemReferencePage(
+  $type: String!
+  $page: Int!
+  $limit: Int!
+  $filter: String
+  $statuses: [String!]
+  $sortBy: String
+  $sortOrder: String
+) {
+  workItemReferences(
+    type: $type
+    page: $page
+    limit: $limit
+    filter: $filter
+    statuses: $statuses
+    sortBy: $sortBy
+    sortOrder: $sortOrder
+  ) {
+    items {
+      ...WorkItemReferenceFields
+    }
+    pagination {
+      page
+      limit
+      total
+      totalPages
+      hasNext
+      hasPrevious
+    }
+  }
+}

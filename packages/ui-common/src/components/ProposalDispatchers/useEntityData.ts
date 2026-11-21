@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useProposalWorkItemTargets } from "../../data/hooks/useProposalWorkItemTargets";
+import { useEffect, useState } from "react";
 import { TargetEntityType } from "../../api";
 import type {
   ProposalResponseDto,
@@ -100,15 +101,8 @@ const retainedEntityMap = (
 };
 
 /**
- * Loads existing entity data for each update/delete proposal on mount.
- * Derives a stable cache key from proposal entity IDs so the effect
- * only re-fires when the actual set of entities changes.
- *
- * Only TASK and DESIGN_DOC are fetched: those are EntityRegistry entities
- * with a get-by-id endpoint. Plans and stages use canonical Task identities.
- *
- * With source "retained" the content the API retained on each proposal is
- * laid over the live entity, so the diff survives later target changes.
+ * Observes work-item targets and loads design-doc targets for proposal comparisons.
+ * Retained comparisons overlay recorded values on the current target context.
  */
 export function useEntityData(
   proposals: ProposalResponseDto[],
@@ -116,95 +110,91 @@ export function useEntityData(
   projectId: string,
   source: EntityDataSource = "live",
 ) {
-  const [entities, setEntities] = useState<EntityDataMap>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const proposalKey = useMemo(
-    () =>
-      proposals
-        .map((p) => `${p.targetEntityId}:${p.targetEntityType}`)
-        .join("|"),
-    [proposals],
+  const taskTargets = useProposalWorkItemTargets(
+    { organizationId, projectId },
+    proposals
+      .filter(
+        ({ targetEntityType }) => targetEntityType === TargetEntityType.Task,
+      )
+      .map(({ targetEntityId }) => targetEntityId),
   );
+  const designDocIds = proposals
+    .filter(
+      ({ targetEntityType }) => targetEntityType === TargetEntityType.DesignDoc,
+    )
+    .map(({ targetEntityId }) => targetEntityId);
+  const designDocKey = JSON.stringify([...new Set(designDocIds)].sort());
+  const [designDocs, setDesignDocs] = useState<{
+    organizationId: string;
+    key: string;
+    items: DesignDocResponseDto[];
+    error: string | null;
+  }>();
 
   useEffect(() => {
+    const ids: string[] = JSON.parse(designDocKey);
+    if (ids.length === 0) {
+      return;
+    }
     let cancelled = false;
 
-    async function fetchAll() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const results: EntityDataMap = {};
-
-        await Promise.all(
-          proposals.map(async (proposal) => {
-            const entityId = proposal.targetEntityId;
-            if (proposal.targetEntityType === TargetEntityType.Task) {
-              const response = await unifiedApiClient.getTask({
-                organizationId,
-                projectId,
-                taskId: entityId,
-                includeServiceRelations: true,
-              });
-              const taskData = response.data.data;
-              if (!cancelled && taskData) {
-                results[entityId] = {
-                  type: "task",
-                  data: taskData,
-                };
-              }
-            } else if (
-              proposal.targetEntityType === TargetEntityType.DesignDoc
-            ) {
-              const response = await unifiedApiClient.getDesignDoc({
-                organizationId,
-                designDocId: entityId,
-              });
-              const docData = response.data.data;
-              if (!cancelled && docData) {
-                results[entityId] = {
-                  type: "designDoc",
-                  data: docData,
-                };
-              }
-            }
-          }),
-        );
-
+    void Promise.all(
+      ids.map(async (designDocId) => {
+        const response = await unifiedApiClient.getDesignDoc({
+          organizationId,
+          designDocId,
+        });
+        return response.data.data;
+      }),
+    ).then(
+      (items) => {
         if (!cancelled) {
-          setEntities(results);
+          setDesignDocs({
+            organizationId,
+            key: designDocKey,
+            items: items.filter((doc) => doc !== undefined),
+            error: null,
+          });
         }
-      } catch (err) {
+      },
+      (error: unknown) => {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load entity data",
-          );
+          setDesignDocs({
+            organizationId,
+            key: designDocKey,
+            items: [],
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to load entity data",
+          });
         }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    if (proposals.length > 0) {
-      fetchAll();
-    } else {
-      setLoading(false);
-    }
+      },
+    );
 
     return () => {
       cancelled = true;
     };
-  }, [proposalKey, organizationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [designDocKey, organizationId]);
 
-  const retained = useMemo(
-    () =>
-      source === "retained" ? retainedEntityMap(proposals, entities) : null,
-    [proposals, source, entities],
-  );
+  const docs =
+    designDocs?.key === designDocKey &&
+    designDocs.organizationId === organizationId
+      ? designDocs
+      : undefined;
+  const entities: EntityDataMap = {};
+  for (const task of taskTargets.items) {
+    entities[task.id] = { type: "task", data: task };
+  }
+  for (const doc of docs?.items ?? []) {
+    entities[doc.id] = { type: "designDoc", data: doc };
+  }
+  const error = taskTargets.error?.message ?? docs?.error ?? null;
+  const loading =
+    !error && (taskTargets.loading || (designDocIds.length > 0 && !docs));
+
+  const retained =
+    source === "retained" ? retainedEntityMap(proposals, entities) : null;
 
   // A live read failure (e.g. the target was since deleted) still leaves the
   // retained values to show.

@@ -129,7 +129,7 @@ const SubmitPlugin: React.FC<SubmitPluginProps> = ({ onSubmit, disabled }) => {
         }
         return false;
       },
-      COMMAND_PRIORITY_NORMAL
+      COMMAND_PRIORITY_NORMAL,
     );
   }, [editor]);
 
@@ -215,7 +215,7 @@ const FocusSignalPlugin: React.FC<{ signal: number | undefined }> = ({
 
 const editorContextValue = (
   context: SmarterTextAreaEditorContext | null,
-  navigate: (url: string) => void
+  navigate: (url: string) => void,
 ): {
   projectId: string;
   organizationId: string;
@@ -254,13 +254,16 @@ export const SmarterTextAreaEditor: React.FC<SmarterTextAreaEditorProps> = ({
   const { searchEntities } = useMentionEntitySearch(
     organizationId,
     projectId,
-    conversationId
+    conversationId,
   );
-  const cachedConversationMentionOptions =
-    useCachedConversationMentionOptions(conversationId);
+  const cachedConversationMentionOptions = useCachedConversationMentionOptions(
+    organizationId,
+    projectId,
+    conversationId,
+  );
   const mentionContext = useMemo(
     () => editorContextValue(context, navigate),
-    [context, navigate]
+    [context, navigate],
   );
   const projectContext = mentionContext
     ? {
@@ -274,8 +277,8 @@ export const SmarterTextAreaEditor: React.FC<SmarterTextAreaEditorProps> = ({
     (placeholder === undefined
       ? undefined
       : typeof placeholder === "string"
-      ? placeholder
-      : "");
+        ? placeholder
+        : "");
   const contentEditablePlaceholder =
     placeholder === undefined ? (
       <span />
@@ -305,7 +308,7 @@ export const SmarterTextAreaEditor: React.FC<SmarterTextAreaEditorProps> = ({
       editable,
       onError: (error: Error) => console.error(error),
     }),
-    [editable]
+    [editable],
   );
 
   return (

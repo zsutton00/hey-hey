@@ -197,7 +197,13 @@ export {
 export { useSupersedeTask } from "./useSupersedeTask";
 export { useTaskAllowedStatuses } from "./useTaskAllowedStatuses";
 export { useTaskHierarchy } from "./useTaskHierarchy";
+export {
+  useActivityWorkItems,
+  usePlanTaskMonitorPageItem,
+  useTasksPageItems,
+} from "./useWorkItemPageReads";
 export { useWorkItem } from "./useWorkItem";
+export { useWorkItemWithoutProject } from "./useWorkItemWithoutProject";
 export { useWorkItemEditHistory } from "./useWorkItemEditHistory";
 export { useWorkItemRefinementData } from "./useWorkItemRefinementData";
 export { useWorkItemReveal } from "./useWorkItemReveal";

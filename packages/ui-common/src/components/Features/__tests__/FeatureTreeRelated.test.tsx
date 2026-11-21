@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import {
   fireEvent,
@@ -45,7 +48,7 @@ const PROJ_ID = "proj-1";
 function makeFeature(
   id: string,
   parentTaskId?: string,
-  name = `Feature ${id}`
+  name = `Feature ${id}`,
 ): TaskResponseDto {
   return {
     id,
@@ -76,7 +79,10 @@ const mockPathService: PathService = {
 
 // A fresh jotai store per render keeps the shared work-item collection (which
 // now backs useFeatureTree) isolated between test cases.
-function tree(activeFeatureId: string, orientation?: "left-to-right" | "top-down"): React.ReactElement {
+function tree(
+  activeFeatureId: string,
+  orientation?: "left-to-right" | "top-down",
+): React.ReactElement {
   return (
     <Provider>
       <MemoryRouter>
@@ -103,7 +109,7 @@ function makeRelatedEntry(
   id: string,
   relationshipType: FeatureHierarchyEntryDtoRelationshipTypeEnum,
   direction: FeatureHierarchyEntryDtoDirectionEnum = FeatureHierarchyEntryDtoDirectionEnum.Outbound,
-  reasoning?: string
+  reasoning?: string,
 ): FeatureHierarchyEntryDto {
   return {
     id,
@@ -130,7 +136,7 @@ beforeEach(() => {
   // the active card into view on mount.
   Element.prototype.scrollIntoView = vi.fn();
   mockedUnified.listWorkItemReferences.mockResolvedValue(
-    referencesResponse([A, B, C, D]) as never
+    referencesResponse([A, B, C, D]) as never,
   );
   mockedUnified.getTasks.mockResolvedValue({
     data: { data: [A, B, C, D] },
@@ -146,17 +152,24 @@ async function openRelatedAttachment(): Promise<void> {
   fireEvent.click(attachment);
   await waitFor(() => {
     expect(
-      screen.getByTestId("related-feature-attachment-panel")
+      screen.getByTestId("related-feature-attachment-panel"),
     ).toBeInTheDocument();
   });
 }
 
 describe("FeatureTreeVisualization — related attachment rendering", () => {
   it("keeps the top-down attachment inside its branch and preserves expansion", async () => {
-    setContextResponse([makeRelatedEntry("B", FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo)]);
+    setContextResponse([
+      makeRelatedEntry(
+        "B",
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
+      ),
+    ]);
     render(tree("A", "top-down"));
     const attachment = await screen.findByTestId("related-feature-attachment");
-    const card = (await screen.findByText("Feature A")).closest('[data-testid="interaction-component"]');
+    const card = (await screen.findByText("Feature A")).closest(
+      '[data-testid="interaction-component"]',
+    );
     expect(attachment.parentElement).toContainElement(card);
     await openRelatedAttachment();
     expect(screen.getByTestId("related-feature-node-B")).toBeInTheDocument();
@@ -179,7 +192,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     setContextResponse([
       makeRelatedEntry(
         "B",
-        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
       ),
     ]);
 
@@ -190,7 +203,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     expect(attachment).toHaveTextContent("1 related");
     expect(attachment).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.queryByTestId("related-feature-node-B")
+      screen.queryByTestId("related-feature-node-B"),
     ).not.toBeInTheDocument();
 
     await openRelatedAttachment();
@@ -210,7 +223,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
 
     const fixtureFeatures = types.map((_t, i) => makeFeature(`R${i}`));
     mockedUnified.listWorkItemReferences.mockResolvedValue(
-      referencesResponse([A, ...fixtureFeatures]) as never
+      referencesResponse([A, ...fixtureFeatures]) as never,
     );
     mockedUnified.getTasks.mockResolvedValue({
       data: { data: [A, ...fixtureFeatures] },
@@ -225,7 +238,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
 
     for (let i = 0; i < types.length; i++) {
       expect(
-        screen.getByTestId(`related-feature-node-R${i}`)
+        screen.getByTestId(`related-feature-node-R${i}`),
       ).toBeInTheDocument();
     }
   });
@@ -234,7 +247,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     setContextResponse([
       makeRelatedEntry(
         "B",
-        FeatureHierarchyEntryDtoRelationshipTypeEnum.DependsOn
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.DependsOn,
       ),
     ]);
 
@@ -245,7 +258,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
 
     const label = screen.getByTestId("related-feature-edge-label-B");
     expect(label.getAttribute("data-edge-type")).toBe(
-      FeatureHierarchyEntryDtoRelationshipTypeEnum.DependsOn
+      FeatureHierarchyEntryDtoRelationshipTypeEnum.DependsOn,
     );
     expect(label).toHaveTextContent(/depends on/i);
     expect(label).toHaveTextContent(/outbound/i);
@@ -256,12 +269,12 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
       makeRelatedEntry(
         "B",
         FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
-        FeatureHierarchyEntryDtoDirectionEnum.Outbound
+        FeatureHierarchyEntryDtoDirectionEnum.Outbound,
       ),
       makeRelatedEntry(
         "C",
         FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
-        FeatureHierarchyEntryDtoDirectionEnum.Inbound
+        FeatureHierarchyEntryDtoDirectionEnum.Inbound,
       ),
     ]);
 
@@ -273,12 +286,12 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     expect(
       screen
         .getByTestId("related-feature-edge-label-B")
-        .getAttribute("data-edge-direction")
+        .getAttribute("data-edge-direction"),
     ).toBe("outbound");
     expect(
       screen
         .getByTestId("related-feature-edge-label-C")
-        .getAttribute("data-edge-direction")
+        .getAttribute("data-edge-direction"),
     ).toBe("inbound");
   });
 
@@ -286,7 +299,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     setContextResponse([
       makeRelatedEntry(
         "B",
-        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
       ),
     ]);
 
@@ -305,7 +318,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     setContextResponse([
       makeRelatedEntry(
         "B",
-        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
       ),
     ]);
 
@@ -313,7 +326,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     await openRelatedAttachment();
     expect(screen.getByTestId("related-feature-attachment")).toHaveAttribute(
       "aria-expanded",
-      "true"
+      "true",
     );
 
     await act(async () => {
@@ -323,7 +336,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     await waitFor(() => {
       expect(screen.getByTestId("related-feature-attachment")).toHaveAttribute(
         "aria-expanded",
-        "false"
+        "false",
       );
     });
   });
@@ -339,7 +352,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
             />
           </PathServiceProvider>
         </MemoryRouter>
-      </Provider>
+      </Provider>,
     );
 
     await waitFor(() => {
@@ -349,7 +362,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
           projectId: PROJ_ID,
           type: "FEATURE",
         }),
-        expect.anything()
+        expect.anything(),
       );
     });
     await screen.findByText("Feature A");
@@ -379,7 +392,7 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
       } as FeatureHierarchyEntryDto,
       makeRelatedEntry(
         "C",
-        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo
+        FeatureHierarchyEntryDtoRelationshipTypeEnum.RelatedTo,
       ),
     ]);
 
@@ -389,7 +402,16 @@ describe("FeatureTreeVisualization — related attachment rendering", () => {
     await openRelatedAttachment();
 
     expect(
-      screen.queryByTestId("related-feature-node-B")
+      screen.queryByTestId("related-feature-node-B"),
     ).not.toBeInTheDocument();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

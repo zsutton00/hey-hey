@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createStore } from "jotai";
@@ -58,13 +59,13 @@ describe("design-doc reads", () => {
     });
     expect(mocks.request).not.toHaveBeenCalled();
     mocks.request.mockRejectedValue(
-      Object.assign(new Error("missing"), { status: 404 })
+      Object.assign(new Error("missing"), { status: 404 }),
     );
     const first = renderHook(() => useDesignDoc("org", "missing"), {
       wrapper: wrapper(queryClient),
     });
     await waitFor(() =>
-      expect(first.result.current.error?.message).toBe("missing")
+      expect(first.result.current.error?.message).toBe("missing"),
     );
     first.unmount();
     renderHook(() => useDesignDoc("org", "missing"), {
@@ -84,8 +85,8 @@ describe("design-doc reads", () => {
     });
     await waitFor(() =>
       expect(
-        first.result.current.isReady && second.result.current.isReady
-      ).toBe(true)
+        first.result.current.isReady && second.result.current.isReady,
+      ).toBe(true),
     );
     expect(mocks.library).toHaveBeenCalledTimes(1);
     queryClient.clear();
@@ -98,12 +99,17 @@ describe("design-doc reads", () => {
     const queryClient = client();
     queryClient.setQueryData(
       designDocKeys.detail("org", "other"),
-      doc("other")
+      doc("other"),
     );
     const mounted = renderHook(() => useDesignDoc("org", "doc"), {
       wrapper: wrapper(queryClient),
     });
-    const handler = new WebSocketHandler(createStore(), undefined, queryClient);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     act(() =>
       handler.handleEvent({
         type: "design_doc.updated",
@@ -111,17 +117,17 @@ describe("design-doc reads", () => {
         projectId: "project",
         designDocId: "doc",
         timestamp: "2026-01-01",
-      })
+      }),
     );
     await waitFor(() =>
-      expect(mounted.result.current.data?.name).toBe("After event")
+      expect(mounted.result.current.data?.name).toBe("After event"),
     );
     expect(mocks.request).toHaveBeenCalledTimes(2);
     await act(async () => pending.resolve(ok(doc())));
     expect(mounted.result.current.data?.name).toBe("After event");
     expect(
       queryClient.getQueryState(designDocKeys.detail("org", "other"))
-        ?.isInvalidated
+        ?.isInvalidated,
     ).toBe(false);
     queryClient.clear();
   });
@@ -134,13 +140,13 @@ describe("design-doc reads", () => {
     });
     const mounted = renderHook(
       () => useDesignDoc("org", "doc", { maxCacheAgeMs: 500 }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     expect(mounted.result.current.data?.name).toBe("Design");
     expect(mounted.result.current.isFetching).toBe(true);
     await act(async () => pending.resolve(ok(doc("doc", { name: "Fresh" }))));
     await waitFor(() =>
-      expect(mounted.result.current.data?.name).toBe("Fresh")
+      expect(mounted.result.current.data?.name).toBe("Fresh"),
     );
     queryClient.clear();
   });

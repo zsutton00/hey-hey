@@ -1,3 +1,5 @@
+import { useApolloClient } from "@apollo/client/react";
+import { fetchProposalGraphTarget } from "../../data/graphql/workItemLookups";
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import {
@@ -23,7 +25,6 @@ import {
   type WorkItemChangeSetRelationshipIdentity,
   type WorkItemTypeDefinitionDto,
 } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
 import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
 import { getResponseStatus } from "../../data/query/queryPolicy";
 import type { ApprovalProgress } from "../../permissions";
@@ -522,6 +523,7 @@ const useExternalGraphEntityResolution = ({
   projectId: string;
   projection: WorkItemGraphDraftProjection | undefined;
 }): ExternalGraphEntityResolution => {
+  const graphqlClient = useApolloClient();
   const targets = useMemo(
     () => getUnresolvedExternalTargets(projection),
     [projection],
@@ -563,12 +565,11 @@ const useExternalGraphEntityResolution = ({
 
         const cached = lookup.get(identity.id);
         if (cached) return { identity, name: cached.name, type: "FEATURE" };
-        const response = await unifiedApiClient.getTask({
-          organizationId,
-          projectId,
-          taskId: identity.id,
-        });
-        const task = response.data.data;
+        const task = await fetchProposalGraphTarget(
+          graphqlClient,
+          { organizationId, projectId },
+          identity.id,
+        );
         if (!task) {
           throw new Error("The external graph entity could not be loaded.");
         }
@@ -600,7 +601,7 @@ const useExternalGraphEntityResolution = ({
     return () => {
       cancelled = true;
     };
-  }, [organizationId, projectId, targetKey, targets, lookup]);
+  }, [graphqlClient, organizationId, projectId, targetKey, targets, lookup]);
 
   return {
     entities,

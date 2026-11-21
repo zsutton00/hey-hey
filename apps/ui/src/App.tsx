@@ -10,7 +10,10 @@ import {
   GuidedWalkthroughProvider,
 } from "@hey-hey/ui-common/components/GuidedWalkthrough";
 import { DndProvider } from "@hey-hey/ui-common/context";
-import { ControllerAuthorizationPromptHost } from "@hey-hey/ui-common/data";
+import {
+  ControllerAuthorizationPromptHost,
+  GraphQLProvider,
+} from "@hey-hey/ui-common/data";
 import {
   AuthProvider,
   CanonicalPageProvider,
@@ -886,33 +889,35 @@ function App() {
       <QueryClientAtomProvider client={queryClient}>
         <ControllerAuthorizationPromptHost />
         <AuthProvider>
-          <OrganizationAccessBoundary
-            leaveProject={leaveSelectedProject}
-            showHome={showOrganizationHome}
-          >
-            <OrganizationProvider>
-              <WebSocketProvider serverUrl={wsUrl}>
-                <DebugProvider>
-                  <ModalProvider>
-                    <DndProvider>
-                      <ActionsCapsuleProvider>
-                        <GlobalStyles
-                          styles={`
-                        @keyframes hh-drawStroke { to { stroke-dashoffset: 0; } }
-                        @keyframes hh-fadeOut    { to { opacity: 0; } }
-                      `}
-                        />
+          <GraphQLProvider>
+            <OrganizationAccessBoundary
+              leaveProject={leaveSelectedProject}
+              showHome={showOrganizationHome}
+            >
+              <OrganizationProvider>
+                <WebSocketProvider serverUrl={wsUrl}>
+                  <DebugProvider>
+                    <ModalProvider>
+                      <DndProvider>
+                        <ActionsCapsuleProvider>
+                          <GlobalStyles
+                            styles={`
+                          @keyframes hh-drawStroke { to { stroke-dashoffset: 0; } }
+                          @keyframes hh-fadeOut    { to { opacity: 0; } }
+                        `}
+                          />
 
-                        <GuidedWalkthroughProvider>
-                          <RouterProvider router={router} />
-                        </GuidedWalkthroughProvider>
-                      </ActionsCapsuleProvider>
-                    </DndProvider>
-                  </ModalProvider>
-                </DebugProvider>
-              </WebSocketProvider>
-            </OrganizationProvider>
-          </OrganizationAccessBoundary>
+                          <GuidedWalkthroughProvider>
+                            <RouterProvider router={router} />
+                          </GuidedWalkthroughProvider>
+                        </ActionsCapsuleProvider>
+                      </DndProvider>
+                    </ModalProvider>
+                  </DebugProvider>
+                </WebSocketProvider>
+              </OrganizationProvider>
+            </OrganizationAccessBoundary>
+          </GraphQLProvider>
         </AuthProvider>
       </QueryClientAtomProvider>
     </WebClientProvider>

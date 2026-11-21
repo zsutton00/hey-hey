@@ -1,0 +1,6 @@
+query ProjectScope {
+  projectScope {
+    organizationId
+    projectId
+  }
+}

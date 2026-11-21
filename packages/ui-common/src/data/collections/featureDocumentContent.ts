@@ -1,6 +1,7 @@
+import type { ApolloClient } from "@apollo/client";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import { unifiedApiClient } from "../../clients/serviceClients";
 import { dataLayerQueryPolicy } from "../query/queryPolicy";
+import { fetchWorkItemList } from "./workItemLists";
 import type { WorkItemResponseDto } from "./workItems";
 
 const FEATURE_CONTENT_BATCH_SIZE = 100;
@@ -14,6 +15,7 @@ type Selection =
 
 /** Task lists return arrays; a short page ends traversal. */
 export async function fetchFeaturePages(
+  client: ApolloClient,
   organizationId: string,
   projectId: string,
   selection: Selection,
@@ -21,18 +23,18 @@ export async function fetchFeaturePages(
 ): Promise<WorkItemResponseDto[]> {
   const items = new Map<string, WorkItemResponseDto>();
   for (let page = 1; ; page += 1) {
-    const response = await unifiedApiClient.getTasks({
-      organizationId,
-      projectId,
-      ...selection,
-      type: "FEATURE",
-      includeSectionKeys,
-      page,
-      limit: FEATURE_CONTENT_PAGE_SIZE,
-    });
-    const values = response.data.data;
-    if (!values)
-      throw new Error("Feature content response is missing its item list.");
+    const values = await fetchWorkItemList(
+      client,
+      { organizationId, projectId },
+      {
+        ...selection,
+        taskType: "FEATURE",
+        includeSectionKeys,
+        includeTrackedEntities: false,
+        page,
+        limit: FEATURE_CONTENT_PAGE_SIZE,
+      },
+    );
     for (const item of values) items.set(item.id, item);
     if (values.length < FEATURE_CONTENT_PAGE_SIZE) return [...items.values()];
   }
@@ -101,6 +103,7 @@ const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error("Unable to load feature content.");
 
 function flushBatch(
+  client: ApolloClient,
   batchKey: string,
   organizationId: string,
   projectId: string,
@@ -117,6 +120,7 @@ function flushBatch(
   ) {
     const batch = ids.slice(offset, offset + FEATURE_CONTENT_BATCH_SIZE);
     fetchFeaturePages(
+      client,
       organizationId,
       projectId,
       { taskIds: batch },
@@ -147,6 +151,7 @@ function flushBatch(
  * per-feature queries cost one request per batch, not one per feature.
  */
 function fetchFeatureContent(
+  client: ApolloClient,
   organizationId: string,
   projectId: string,
   projection: FeatureContentProjection,
@@ -159,6 +164,7 @@ function fetchFeatureContent(
     pendingBatches.set(batchKey, pending);
     setTimeout(() =>
       flushBatch(
+        client,
         batchKey,
         organizationId,
         projectId,
@@ -179,6 +185,7 @@ const featureContentQueryPolicy = {
 } as const;
 
 export function featureContentQueryOptions(
+  client: ApolloClient,
   organizationId: string,
   projectId: string,
   projection: FeatureContentProjection,
@@ -193,7 +200,13 @@ export function featureContentQueryOptions(
       featureId,
     ),
     queryFn: () =>
-      fetchFeatureContent(organizationId, projectId, projection, featureId),
+      fetchFeatureContent(
+        client,
+        organizationId,
+        projectId,
+        projection,
+        featureId,
+      ),
   });
 }
 
@@ -203,6 +216,7 @@ export function featureContentQueryOptions(
  * served from cache.
  */
 export function featureSubtreeQueryOptions(
+  client: ApolloClient,
   queryClient: QueryClient,
   organizationId: string,
   projectId: string,
@@ -219,6 +233,7 @@ export function featureSubtreeQueryOptions(
     ),
     queryFn: async () => {
       const items = await fetchFeaturePages(
+        client,
         organizationId,
         projectId,
         { parentTaskId: rootId, includeDescendants: true },

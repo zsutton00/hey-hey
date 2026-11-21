@@ -130,7 +130,7 @@ export type BuiltInTaskSectionKey = (typeof TASK_SECTION_KEYS)[number];
 export type TaskSectionKey = string;
 
 export const isBuiltInTaskSectionKey = (
-  key: string
+  key: string,
 ): key is BuiltInTaskSectionKey =>
   (TASK_SECTION_KEYS as readonly string[]).includes(key);
 
@@ -149,8 +149,7 @@ export interface UnavailableWorkItemSectionSelection {
 }
 
 export type WorkItemSectionSelection =
-  | ResolvedWorkItemSectionSelection
-  | UnavailableWorkItemSectionSelection;
+  ResolvedWorkItemSectionSelection | UnavailableWorkItemSectionSelection;
 
 export const selectWorkItemSections = (input: {
   typeKey: string | null | undefined;
@@ -177,7 +176,7 @@ export const selectWorkItemSections = (input: {
 };
 
 export const selectInlineWorkItemSections = (
-  selection: WorkItemSectionSelection
+  selection: WorkItemSectionSelection,
 ): WorkItemSectionSelection => {
   if (selection.status === "unavailable") {
     return selection;
@@ -186,7 +185,7 @@ export const selectInlineWorkItemSections = (
   const visualSections = selection.sections.filter(
     (section) =>
       section.kind === WorkItemTypeSectionDefinitionKindEnum.HtmlCss ||
-      section.kind === WorkItemTypeSectionDefinitionKindEnum.StructuredMockup
+      section.kind === WorkItemTypeSectionDefinitionKindEnum.StructuredMockup,
   );
 
   return {
@@ -196,7 +195,7 @@ export const selectInlineWorkItemSections = (
 };
 
 export const getSelectedSectionKeys = (
-  selection: WorkItemSectionSelection
+  selection: WorkItemSectionSelection,
 ): readonly string[] =>
   selection.status === "resolved"
     ? selection.sections.map((section) => section.key)
@@ -204,20 +203,11 @@ export const getSelectedSectionKeys = (
 
 export const hasSelectedSection = (
   selection: WorkItemSectionSelection,
-  key: string
+  key: string,
 ): boolean => getSelectedSectionKeys(selection).includes(key);
 
-const isMaterializedSection = (
-  section: WorkItemSectionLike
-): section is MaterializedWorkItemSection => "materializedMarkdown" in section;
-
-const getSectionMarkdown = (section: WorkItemSectionLike): string =>
-  isMaterializedSection(section)
-    ? section.materializedMarkdown
-    : section.content;
-
 const isMaterializedTaskSection = (
-  section: TaskSectionLike
+  section: TaskSectionLike,
 ): section is MaterializedWorkItemSection => "materializedMarkdown" in section;
 
 const getTaskSectionMarkdown = (section: TaskSectionLike): string => {
@@ -232,7 +222,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const hasOnlyKeys = (
   value: Record<string, unknown>,
-  keys: readonly string[]
+  keys: readonly string[],
 ): boolean => Object.keys(value).every((key) => keys.includes(key));
 
 const UUID_PATTERN =
@@ -243,7 +233,7 @@ const isUuid = (value: unknown): value is string =>
 
 const isHtmlCssAnnotation = (
   value: unknown,
-  annotationIds: Set<string>
+  annotationIds: Set<string>,
 ): value is WorkItemHtmlCssAnnotation => {
   if (
     !isRecord(value) ||
@@ -263,7 +253,7 @@ const isHtmlCssAnnotation = (
     value.note.length === 0 ||
     value.note.length > 4000 ||
     !["context", "suggestion", "question", "issue"].includes(
-      String(value.category)
+      String(value.category),
     ) ||
     !["open", "resolved"].includes(String(value.lifecycle)) ||
     !isUuid(value.authoredProposalId) ||
@@ -302,7 +292,7 @@ const isHtmlCssAnnotation = (
 };
 
 export const decodeHtmlCssSectionContent = (
-  value: unknown
+  value: unknown,
 ): WorkItemHtmlCssSectionContent | null => {
   let decoded = value;
   if (typeof decoded === "string") {
@@ -327,7 +317,7 @@ export const decodeHtmlCssSectionContent = (
   if (
     Array.isArray(decoded.annotations) &&
     !decoded.annotations.every((annotation) =>
-      isHtmlCssAnnotation(annotation, annotationIds)
+      isHtmlCssAnnotation(annotation, annotationIds),
     )
   ) {
     return null;
@@ -375,7 +365,7 @@ interface StructuredMockupBasePropsRecord extends Record<string, unknown> {
 }
 
 const isStructuredMockupBaseProps = (
-  value: unknown
+  value: unknown,
 ): value is StructuredMockupBasePropsRecord =>
   isRecord(value) &&
   typeof value.id === "string" &&
@@ -438,19 +428,19 @@ const STRUCTURED_MOCKUP_V5_APPEARANCE_KEYS = [
 ] as const;
 
 const isStructuredMockupV5Appearance = (
-  value: Record<string, unknown>
+  value: Record<string, unknown>,
 ): boolean =>
   (value.role === undefined ||
     (typeof value.role === "string" &&
       STRUCTURED_MOCKUP_SEMANTIC_ROLES.includes(
-        value.role as (typeof STRUCTURED_MOCKUP_SEMANTIC_ROLES)[number]
+        value.role as (typeof STRUCTURED_MOCKUP_SEMANTIC_ROLES)[number],
       ))) &&
   (value.description === undefined ||
     (typeof value.description === "string" && value.description.length > 0)) &&
   (value.color === undefined ||
     (typeof value.color === "string" &&
       STRUCTURED_MOCKUP_COLORS.includes(
-        value.color as (typeof STRUCTURED_MOCKUP_COLORS)[number]
+        value.color as (typeof STRUCTURED_MOCKUP_COLORS)[number],
       ))) &&
   (value.opacity === undefined ||
     (typeof value.opacity === "number" &&
@@ -460,13 +450,13 @@ const isStructuredMockupV5Appearance = (
   (value.overflow === undefined ||
     (typeof value.overflow === "string" &&
       STRUCTURED_MOCKUP_OVERFLOW.includes(
-        value.overflow as (typeof STRUCTURED_MOCKUP_OVERFLOW)[number]
+        value.overflow as (typeof STRUCTURED_MOCKUP_OVERFLOW)[number],
       )));
 
 const isStructuredMockupComponent = (
   value: unknown,
   ids: Set<string>,
-  vocabulary: "legacy" | "latest" | "composition" | "v5"
+  vocabulary: "legacy" | "latest" | "composition" | "v5",
 ): boolean => {
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "props", "children"])) {
     return false;
@@ -495,7 +485,7 @@ const isStructuredMockupComponent = (
         (props.variant === undefined ||
           (typeof props.variant === "string" &&
             ["body", "heading", "caption", "label", "badge"].includes(
-              String(props.variant)
+              String(props.variant),
             ))) &&
         typeof props.text === "string"
       );
@@ -551,7 +541,7 @@ const isStructuredMockupComponent = (
             appearanceValid &&
             typeof props.orientation === "string" &&
             STRUCTURED_MOCKUP_DIVIDER_ORIENTATIONS.includes(
-              props.orientation as (typeof STRUCTURED_MOCKUP_DIVIDER_ORIENTATIONS)[number]
+              props.orientation as (typeof STRUCTURED_MOCKUP_DIVIDER_ORIENTATIONS)[number],
             )
           : hasOnlyKeys(props, layoutKeys))
       );
@@ -571,21 +561,21 @@ const isStructuredMockupComponent = (
         (props.surface === undefined ||
           (typeof props.surface === "string" &&
             ["plain", "panel", "muted", "dashed"].includes(
-              String(props.surface)
+              String(props.surface),
             ))) &&
         isNonNegativeInteger(props.gap) &&
         isNonNegativeInteger(props.padding) &&
         (vocabulary !== "legacy"
           ? ["start", "center", "end", "spread"].includes(
-              String(props.justify)
+              String(props.justify),
             ) &&
             ["start", "center", "end", "stretch"].includes(String(props.align))
           : ["start", "center", "end", "spread"].includes(
-              String(props.align)
+              String(props.align),
             )) &&
         Array.isArray(value.children) &&
         value.children.every((child) =>
-          isStructuredMockupComponent(child, ids, vocabulary)
+          isStructuredMockupComponent(child, ids, vocabulary),
         )
       );
     case "slot":
@@ -629,7 +619,7 @@ const isStructuredMockupComponent = (
         appearanceValid &&
         typeof props.direction === "string" &&
         STRUCTURED_MOCKUP_CARET_DIRECTIONS.includes(
-          props.direction as (typeof STRUCTURED_MOCKUP_CARET_DIRECTIONS)[number]
+          props.direction as (typeof STRUCTURED_MOCKUP_CARET_DIRECTIONS)[number],
         )
       );
     case "shape":
@@ -640,7 +630,7 @@ const isStructuredMockupComponent = (
         appearanceValid &&
         typeof props.kind === "string" &&
         STRUCTURED_MOCKUP_SHAPE_KINDS.includes(
-          props.kind as (typeof STRUCTURED_MOCKUP_SHAPE_KINDS)[number]
+          props.kind as (typeof STRUCTURED_MOCKUP_SHAPE_KINDS)[number],
         )
       );
     case "mockup-occurrence": {
@@ -672,7 +662,7 @@ const isStructuredMockupComponent = (
           return false;
         names.add(assignment.slotName);
         return assignment.children.every((child) =>
-          isStructuredMockupComponent(child, ids, vocabulary)
+          isStructuredMockupComponent(child, ids, vocabulary),
         );
       });
     }
@@ -682,7 +672,7 @@ const isStructuredMockupComponent = (
 };
 
 const migrateLegacyStructuredMockupComponent = (
-  component: LegacyStructuredMockupComponent
+  component: LegacyStructuredMockupComponent,
 ): WorkItemStructuredMockupComponent => {
   if (component.type !== "row" && component.type !== "column") {
     return component;
@@ -700,7 +690,7 @@ const migrateLegacyStructuredMockupComponent = (
 
 const isStructuredMockupAnnotation = (
   value: unknown,
-  annotationIds: Set<string>
+  annotationIds: Set<string>,
 ): value is WorkItemStructuredMockupAnnotation => {
   if (
     !isRecord(value) ||
@@ -720,7 +710,7 @@ const isStructuredMockupAnnotation = (
     value.note.length === 0 ||
     value.note.length > 4000 ||
     !["context", "suggestion", "question", "issue"].includes(
-      String(value.category)
+      String(value.category),
     ) ||
     !["open", "resolved"].includes(String(value.lifecycle)) ||
     !isUuid(value.authoredProposalId) ||
@@ -757,7 +747,7 @@ const isStructuredMockupAnnotation = (
 };
 
 export const decodeStructuredMockupSectionContent = (
-  value: unknown
+  value: unknown,
 ): NormalizedWorkItemStructuredMockupDocument | null => {
   let decoded = value;
   if (typeof decoded === "string") {
@@ -792,13 +782,13 @@ export const decodeStructuredMockupSectionContent = (
     decoded.schemaVersion === "work-item-structured-mockup.v5"
       ? "v5"
       : decoded.schemaVersion === "work-item-structured-mockup.v4"
-      ? "composition"
-      : decoded.schemaVersion === "work-item-structured-mockup.v3"
-      ? "latest"
-      : "legacy";
+        ? "composition"
+        : decoded.schemaVersion === "work-item-structured-mockup.v3"
+          ? "latest"
+          : "legacy";
   if (
     !decoded.content.every((item) =>
-      isStructuredMockupComponent(item, ids, vocabulary)
+      isStructuredMockupComponent(item, ids, vocabulary),
     )
   ) {
     return null;
@@ -829,12 +819,12 @@ export const decodeStructuredMockupSectionContent = (
         vocabulary === "v5"
           ? (decoded.content as WorkItemStructuredMockupComponentV5[])
           : vocabulary === "composition"
-          ? (decoded.content as WorkItemStructuredMockupComponentV4[])
-          : vocabulary === "latest"
-          ? (decoded.content as WorkItemStructuredMockupComponent[])
-          : (decoded.content as LegacyStructuredMockupComponent[]).map(
-              migrateLegacyStructuredMockupComponent
-            ),
+            ? (decoded.content as WorkItemStructuredMockupComponentV4[])
+            : vocabulary === "latest"
+              ? (decoded.content as WorkItemStructuredMockupComponent[])
+              : (decoded.content as LegacyStructuredMockupComponent[]).map(
+                  migrateLegacyStructuredMockupComponent,
+                ),
       annotations,
       ...(typeof decoded.sizeKey === "string"
         ? { sizeKey: decoded.sizeKey }
@@ -847,22 +837,23 @@ export const decodeStructuredMockupSectionContent = (
           content: normalized.content as WorkItemStructuredMockupComponentV5[],
         }
       : vocabulary === "composition"
-      ? {
-          ...normalized,
-          schemaVersion: "work-item-structured-mockup.v4",
-          content: normalized.content as WorkItemStructuredMockupComponentV4[],
-        }
-      : {
-          ...normalized,
-          schemaVersion: "work-item-structured-mockup.v3",
-          content: normalized.content as WorkItemStructuredMockupComponent[],
-        };
+        ? {
+            ...normalized,
+            schemaVersion: "work-item-structured-mockup.v4",
+            content:
+              normalized.content as WorkItemStructuredMockupComponentV4[],
+          }
+        : {
+            ...normalized,
+            schemaVersion: "work-item-structured-mockup.v3",
+            content: normalized.content as WorkItemStructuredMockupComponent[],
+          };
   }
   return {
     schemaVersion: "work-item-structured-mockup.v3",
     revision: 1,
     content: (decoded.content as LegacyStructuredMockupComponent[]).map(
-      migrateLegacyStructuredMockupComponent
+      migrateLegacyStructuredMockupComponent,
     ),
     annotations: [],
     ...(typeof decoded.sizeKey === "string"
@@ -872,7 +863,7 @@ export const decodeStructuredMockupSectionContent = (
 };
 
 export const serializeStructuredMockupSectionContent = (
-  value: unknown
+  value: unknown,
 ): string => {
   const decoded = decodeStructuredMockupSectionContent(value);
   return decoded ? JSON.stringify(decoded) : "";
@@ -882,20 +873,31 @@ const getSectionOrder = (section: { order?: number }): number =>
   typeof section.order === "number" ? section.order : 0;
 
 export const getWorkItemSectionContent = (
-  sections: WorkItemSectionLike[] | undefined,
-  key: WorkItemSectionKey
+  sections:
+    | readonly (
+        | Pick<MaterializedWorkItemSection, "key" | "materializedMarkdown">
+        | WorkItemSectionInput
+      )[]
+    | null
+    | undefined,
+  key: WorkItemSectionKey,
 ): string => {
   if (!sections?.length) {
     return "";
   }
 
   const match = sections.find((section) => section.key === key);
-  return match ? getSectionMarkdown(match) : "";
+  if (!match) {
+    return "";
+  }
+  return "materializedMarkdown" in match
+    ? match.materializedMarkdown
+    : match.content;
 };
 
 export const getTaskSectionContent = (
   sections: readonly TaskSectionLike[] | undefined,
-  key: string
+  key: string,
 ): string => {
   if (!sections?.length) {
     return "";
@@ -911,7 +913,7 @@ export type WorkItemSectionContent = Pick<
 >;
 
 export const getWorkItemContentFromSections = (
-  sections: WorkItemSectionLike[] | undefined
+  sections: WorkItemSectionLike[] | undefined,
 ): WorkItemSectionContent => ({
   description: getWorkItemSectionContent(sections, "description"),
   acceptanceCriteria: getWorkItemSectionContent(sections, "acceptanceCriteria"),
@@ -919,7 +921,7 @@ export const getWorkItemContentFromSections = (
 
 export const contentToSectionInputs = (
   content: WorkItemSectionContent,
-  options: { includeEmpty?: boolean } = {}
+  options: { includeEmpty?: boolean } = {},
 ): TaskSectionInput[] => {
   const includeEmpty = options.includeEmpty ?? true;
   const inputs: TaskSectionInput[] = [];
@@ -948,7 +950,7 @@ export interface TaskSectionContent extends Record<string, string> {
 
 export const getTaskContentFromSections = (
   sections: readonly TaskSectionLike[] | undefined,
-  selection?: WorkItemSectionSelection
+  selection?: WorkItemSectionSelection,
 ): TaskSectionContent => {
   const content: TaskSectionContent = {
     description: "",
@@ -976,9 +978,9 @@ export const getTaskContentFromSections = (
       definition?.kind === WorkItemTypeSectionDefinitionKindEnum.HtmlCss
         ? serializeHtmlCssSectionContent(rawValue)
         : definition?.kind ===
-          WorkItemTypeSectionDefinitionKindEnum.StructuredMockup
-        ? serializeStructuredMockupSectionContent(rawValue)
-        : getTaskSectionMarkdown(section);
+            WorkItemTypeSectionDefinitionKindEnum.StructuredMockup
+          ? serializeStructuredMockupSectionContent(rawValue)
+          : getTaskSectionMarkdown(section);
   }
 
   return content;
@@ -989,7 +991,7 @@ export const taskContentToSectionInputs = (
   options: {
     includeEmpty?: boolean;
     selection: WorkItemSectionSelection;
-  }
+  },
 ): TaskSectionInput[] => {
   const includeEmpty = options.includeEmpty ?? true;
   if (options.selection.status !== "resolved") {
@@ -1008,9 +1010,9 @@ export const taskContentToSectionInputs = (
       section.kind === WorkItemTypeSectionDefinitionKindEnum.HtmlCss
         ? decodeHtmlCssSectionContent(value)
         : section.kind ===
-          WorkItemTypeSectionDefinitionKindEnum.StructuredMockup
-        ? decodeStructuredMockupSectionContent(value)
-        : value;
+            WorkItemTypeSectionDefinitionKindEnum.StructuredMockup
+          ? decodeStructuredMockupSectionContent(value)
+          : value;
     if (
       (section.kind === WorkItemTypeSectionDefinitionKindEnum.HtmlCss ||
         section.kind ===
@@ -1040,7 +1042,7 @@ export const taskContentToSectionInputs = (
 
 export const applySectionInputsToMaterialized = (
   existing: MaterializedWorkItemSection[] | undefined,
-  updates: WorkItemSectionInput[] | undefined
+  updates: WorkItemSectionInput[] | undefined,
 ): MaterializedWorkItemSection[] | undefined => {
   if (!updates?.length) {
     return existing;
@@ -1048,12 +1050,12 @@ export const applySectionInputsToMaterialized = (
 
   const existingSections = existing ?? [];
   const byKey = new Map<string, MaterializedWorkItemSection>(
-    existingSections.map((section) => [section.key, section])
+    existingSections.map((section) => [section.key, section]),
   );
 
   const maxOrder = existingSections.reduce(
     (max, section) => Math.max(max, section.order),
-    -1
+    -1,
   );
   let nextOrder = maxOrder + 1;
 
@@ -1089,7 +1091,7 @@ export const applySectionInputsToMaterialized = (
   });
 
   return Array.from(byKey.values()).sort(
-    (a, b) => getSectionOrder(a) - getSectionOrder(b)
+    (a, b) => getSectionOrder(a) - getSectionOrder(b),
   );
 };
 
@@ -1105,7 +1107,7 @@ const materializeTaskSectionContent = (content: unknown): string => {
 export const applyTaskSectionInputsToMaterialized = (
   existing: MaterializedWorkItemSection[] | undefined,
   updates: TaskSectionInput[] | undefined,
-  selection?: WorkItemSectionSelection
+  selection?: WorkItemSectionSelection,
 ): MaterializedWorkItemSection[] | undefined => {
   if (!updates?.length) {
     return existing;
@@ -1121,7 +1123,7 @@ export const applyTaskSectionInputsToMaterialized = (
       ? new Set(selection.sections.map((section) => section.key))
       : undefined;
   const byKey = new Map<string, MaterializedWorkItemSection>(
-    existingSections.map((section) => [section.key, section])
+    existingSections.map((section) => [section.key, section]),
   );
 
   if (declaredKeys) {
@@ -1134,7 +1136,7 @@ export const applyTaskSectionInputsToMaterialized = (
 
   const maxOrder = existingSections.reduce(
     (max, section) => Math.max(max, section.order),
-    -1
+    -1,
   );
   let nextOrder = maxOrder + 1;
 
@@ -1172,7 +1174,7 @@ export const applyTaskSectionInputsToMaterialized = (
 
   if (selection?.status === "resolved") {
     const declaredOrder = new Map(
-      selection.sections.map((section, index) => [section.key, index])
+      selection.sections.map((section, index) => [section.key, index]),
     );
     return Array.from(byKey.values())
       .map((section) => ({
@@ -1183,6 +1185,6 @@ export const applyTaskSectionInputsToMaterialized = (
   }
 
   return Array.from(byKey.values()).sort(
-    (a, b) => getSectionOrder(a) - getSectionOrder(b)
+    (a, b) => getSectionOrder(a) - getSectionOrder(b),
   );
 };

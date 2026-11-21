@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { createStore } from "jotai";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -15,13 +16,13 @@ const createQueryClient = () =>
 
 const isInvalidated = (
   queryClient: QueryClient,
-  queryKey: readonly unknown[]
+  queryKey: readonly unknown[],
 ) => queryClient.getQueryState(queryKey)?.isInvalidated ?? false;
 
 const createConversation = (
   id: string,
   projectId: string,
-  organizationId = "org-789"
+  organizationId = "org-789",
 ): ConversationResponseDto => ({
   id,
   projectId,
@@ -40,17 +41,17 @@ const createConversation = (
 /** Seeds what useConversations + useConversation leave in the cache. */
 function seedConversation(
   queryClient: QueryClient,
-  conversation: ConversationResponseDto
+  conversation: ConversationResponseDto,
 ) {
   const listKey = conversationKeys.list(
     conversation.organizationId,
     conversation.projectId,
-    {}
+    {},
   );
   const singleKey = conversationKeys.envelope(
     conversation.organizationId,
     conversation.projectId,
-    conversation.id
+    conversation.id,
   );
   queryClient.setQueryData<ConversationResponseDto[]>(listKey, (current) => [
     ...(current ?? []),
@@ -66,22 +67,21 @@ describe("WebSocket Store Integration", () => {
   beforeEach(() => {
     mockDebugger = new WebSocketDebugger();
     vi.spyOn(mockDebugger, "logEvent").mockImplementation(() => {});
-    vi.spyOn(mockDebugger, "logQueryInvalidation").mockImplementation(
-      () => {}
-    );
+    vi.spyOn(mockDebugger, "logQueryInvalidation").mockImplementation(() => {});
   });
 
   it("should successfully mark conversation stale with a shared QueryClient", () => {
     const sharedQueryClient = createQueryClient();
     const { listKey, singleKey } = seedConversation(
       sharedQueryClient,
-      createConversation("conv-123", "proj-456")
+      createConversation("conv-123", "proj-456"),
     );
 
     const wsHandler = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      sharedQueryClient
+      sharedQueryClient,
+      createUnreachableGraphQLClient(),
     );
     const loggerSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
 
@@ -111,13 +111,14 @@ describe("WebSocket Store Integration", () => {
     const handlerQueryClient = createQueryClient();
     const { listKey, singleKey } = seedConversation(
       reactQueryClient,
-      createConversation("conv-123", "proj-456")
+      createConversation("conv-123", "proj-456"),
     );
 
     const wsHandler = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      handlerQueryClient
+      handlerQueryClient,
+      createUnreachableGraphQLClient(),
     );
 
     wsHandler.handleEvent({
@@ -148,7 +149,8 @@ describe("WebSocket Store Integration", () => {
     const wsHandler = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      sharedQueryClient
+      sharedQueryClient,
+      createUnreachableGraphQLClient(),
     );
 
     wsHandler.handleEvent({
@@ -180,7 +182,8 @@ describe("WebSocket Store Integration", () => {
     const wsHandler = new WebSocketHandler(
       createStore(),
       mockDebugger,
-      handlerQueryClient
+      handlerQueryClient,
+      createUnreachableGraphQLClient(),
     );
 
     wsHandler.handleEvent({

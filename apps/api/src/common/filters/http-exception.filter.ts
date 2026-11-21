@@ -9,6 +9,7 @@ import { ServerStateException } from '../exceptions/server-state.exceptions';
 import type { ProposalApprovalFailureErrorResponse } from '@hey-hey/contracts/api/models';
 import { toProposalApprovalFailureDiagnostic } from 'src/services/proposal/proposal-approval-failure-diagnostic';
 import { v4 as uuidv4 } from 'uuid';
+import { extractHttpExceptionCode } from './exception-error-code';
 import { Request, Response } from 'express';
 
 @Catch(HttpException)
@@ -65,9 +66,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           message = `${message}: ${details.join('; ')}`;
         }
       }
-      if (typeof payload.code === 'string') {
-        code = payload.code;
-      }
+      code = extractHttpExceptionCode(exception);
       if (payload.data !== undefined) {
         data = payload.data;
       }

@@ -1,19 +1,19 @@
 import { TERMS } from "../../i18n/terminology";
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Box } from "@mui/material";
 import { TargetEntityType } from "../../api";
 import { usePathService } from "../../contexts";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
-import type { WorkItemResponseDto } from "../../data/collections/workItems";
+import type { TaskListItem } from "../Entity/adapters";
 import { EntityListItem, EntityGrid, taskAdapter } from "../Entity";
 import { InteractionComponent } from "../InteractionComponent";
 import { TaskListItemExpandable } from "./TaskListItemExpandable";
 
-export interface TaskGridProps {
-  tasks: WorkItemResponseDto[];
+export interface TaskGridProps<TTask extends TaskListItem = TaskListItem> {
+  tasks: TTask[];
   loading?: boolean;
   readOnly?: boolean;
-  onDelete?: (task: WorkItemResponseDto) => void;
+  onDelete?: (task: TTask) => void;
   onCreateTask?: () => void;
   projectId: string;
   emptyMessage?: string;
@@ -25,7 +25,7 @@ export interface TaskGridProps {
   onToggleTaskExpand?: (taskId: string, expanded: boolean) => void;
 }
 
-export const TaskList: React.FC<TaskGridProps> = ({
+export const TaskList = <TTask extends TaskListItem>({
   tasks,
   loading = false,
   readOnly = false,
@@ -39,7 +39,7 @@ export const TaskList: React.FC<TaskGridProps> = ({
   initiativeId,
   expandedTaskIds,
   onToggleTaskExpand,
-}) => {
+}: TaskGridProps<TTask>) => {
   const pathService = usePathService();
   const taskType = useWorkItemTypeByKey(organizationId, projectId, "STANDARD");
   const createAction = {

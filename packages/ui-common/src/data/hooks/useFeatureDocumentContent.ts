@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import {
   useQueries,
   useQuery,
@@ -18,7 +19,7 @@ import type { WorkItemResponseDto } from "../collections/workItems";
 const NO_ROOT = "__no_root__";
 
 const toEntry = (
-  result: UseQueryResult<WorkItemResponseDto, Error>
+  result: UseQueryResult<WorkItemResponseDto, Error>,
 ): FeatureContentEntry => {
   if (result.isError) {
     return { status: "error", data: result.data, error: result.error };
@@ -46,13 +47,13 @@ const ENTRY_RESULT_PROPS = [
 
 // Module-level, so useQueries keeps the same entries while no result changes.
 const toEntries = (
-  results: Array<UseQueryResult<WorkItemResponseDto, Error>>
+  results: Array<UseQueryResult<WorkItemResponseDto, Error>>,
 ): FeatureContentEntry[] => results.map(toEntry);
 
 const subtreeEntry = (
   result: UseQueryResult<WorkItemResponseDto[], Error>,
   items: ReadonlyMap<string, WorkItemResponseDto>,
-  id: string
+  id: string,
 ): FeatureContentEntry => {
   const data = items.get(id);
   if (result.isError) {
@@ -80,25 +81,32 @@ export function useFeatureDocumentContent(
   projectId: string,
   featureIds: readonly string[],
   selectedRoot?: { id: string; descendantIds: readonly string[] },
-  projection: FeatureContentProjection = "document"
+  projection: FeatureContentProjection = "document",
 ) {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const enabled = !!organizationId && !!projectId;
   const rootId = selectedRoot?.id;
   const idsKey = featureIds.join("|");
   const descendantsKey = selectedRoot?.descendantIds.join("|") ?? "";
   const byIdIds = useMemo(
     () => [...new Set(rootId ? [rootId] : idsKey ? idsKey.split("|") : [])],
-    [idsKey, rootId]
+    [idsKey, rootId],
   );
   const descendantIds = useMemo(
     () => (descendantsKey ? descendantsKey.split("|") : []),
-    [descendantsKey]
+    [descendantsKey],
   );
 
   const byIdEntries = useQueries({
     queries: byIdIds.map((id) => ({
-      ...featureContentQueryOptions(organizationId, projectId, projection, id),
+      ...featureContentQueryOptions(
+        graphqlClient,
+        organizationId,
+        projectId,
+        projection,
+        id,
+      ),
       enabled,
       notifyOnChangeProps: [...ENTRY_RESULT_PROPS],
     })),
@@ -106,11 +114,12 @@ export function useFeatureDocumentContent(
   });
   const subtreeResult = useQuery({
     ...featureSubtreeQueryOptions(
+      graphqlClient,
       queryClient,
       organizationId,
       projectId,
       projection,
-      rootId ?? NO_ROOT
+      rootId ?? NO_ROOT,
     ),
     enabled: enabled && !!rootId,
   });
@@ -123,7 +132,9 @@ export function useFeatureDocumentContent(
       if (entry) next.set(id, entry);
     });
     if (subtree) {
-      const items = new Map((subtree.data ?? []).map((item) => [item.id, item]));
+      const items = new Map(
+        (subtree.data ?? []).map((item) => [item.id, item]),
+      );
       for (const id of descendantIds) {
         if (id !== rootId) next.set(id, subtreeEntry(subtree, items, id));
       }
@@ -140,12 +151,17 @@ export function useFeatureDocumentContent(
                 organizationId,
                 projectId,
                 projection,
-                rootId
+                rootId,
               )
-            : featureContentKeys.byId(organizationId, projectId, projection, id),
+            : featureContentKeys.byId(
+                organizationId,
+                projectId,
+                projection,
+                id,
+              ),
         exact: true,
       }),
-    [organizationId, projectId, projection, queryClient, rootId]
+    [organizationId, projectId, projection, queryClient, rootId],
   );
 
   return { entries, retry };

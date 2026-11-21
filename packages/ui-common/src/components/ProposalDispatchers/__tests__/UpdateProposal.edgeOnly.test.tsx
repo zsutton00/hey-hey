@@ -1,3 +1,5 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -156,6 +158,11 @@ const edge = {
 };
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   vi.clearAllMocks();
   getTaskMock.mockImplementation(() => new Promise(() => {}));
   Object.keys(entities).forEach((key) => delete entities[key]);

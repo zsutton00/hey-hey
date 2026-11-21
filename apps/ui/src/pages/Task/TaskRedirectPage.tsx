@@ -3,7 +3,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import type { TaskResponseDto } from "@hey-hey/contracts/api";
-import { useWorkItem } from "@hey-hey/ui-common/data";
+import { useWorkItemWithoutProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 
 export const TaskRedirectPage: React.FC = () => {
@@ -20,9 +20,8 @@ export const TaskRedirectPage: React.FC = () => {
     isLoading: isTaskLoading,
     isFetched: isTaskFetched,
     error: taskError,
-  } = useWorkItem(organizationId, "task", taskId ?? "", {
-    projectId: routeProjectId,
-    enabled: !!organizationId && !!taskId,
+  } = useWorkItemWithoutProject(organizationId, taskId ?? "", {
+    enabled: !routeProjectId,
   });
   const task = workItem as TaskResponseDto;
 

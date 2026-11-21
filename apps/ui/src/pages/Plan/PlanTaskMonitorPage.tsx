@@ -1,10 +1,9 @@
 import { createNavigationLineageEntry } from "@hey-hey/ui-common";
-import type { TaskResponseDto } from "@hey-hey/contracts/api";
 import {
   CanonicalPageBoundary,
   createCanonicalPageDescriptor,
 } from "@hey-hey/ui-common/context";
-import { useWorkItem } from "@hey-hey/ui-common/data";
+import { usePlanTaskMonitorPageItem } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { Alert, Box, CircularProgress, Typography } from "@mui/material";
 import { useParams } from "react-router-dom";
@@ -25,14 +24,13 @@ export const PlanTaskMonitorPage = () => {
   const resolvedPlanId = planId?.trim() ?? "";
   const resolvedStageId = stageId?.trim() ?? "";
   const resolvedMonitorId = monitorId?.trim() ?? "";
-  const { workItem, isLoading, error } = useWorkItem(
-    organizationId,
-    "task",
+  const {
+    data: monitor,
+    isLoading,
+    error,
+  } = usePlanTaskMonitorPageItem(
+    { organizationId, projectId: resolvedProjectId },
     resolvedMonitorId,
-    {
-      projectId: resolvedProjectId,
-      enabled: !!organizationId && !!resolvedProjectId && !!resolvedMonitorId,
-    },
   );
 
   if (
@@ -77,7 +75,6 @@ export const PlanTaskMonitorPage = () => {
     );
   }
 
-  const monitor = workItem as TaskResponseDto | null;
   if (!monitor || monitor.type !== WORK_ITEM_TYPE_KEYS.TaskMonitor) {
     return (
       <Alert severity="error" data-testid="plan-task-monitor-unavailable">

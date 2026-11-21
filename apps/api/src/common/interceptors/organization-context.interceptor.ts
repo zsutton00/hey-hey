@@ -8,14 +8,21 @@ import { Observable, from } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
+import { resolveInterceptedHttp } from './http-request-context';
 
 @Injectable()
 export class OrganizationContextInterceptor implements NestInterceptor {
   constructor(private readonly prisma: PrismaService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const request = context.switchToHttp().getRequest();
-    const user: AuthenticatedUser = request.user;
+    const http = resolveInterceptedHttp(context);
+
+    if (!http) {
+      return next.handle();
+    }
+
+    const { request } = http;
+    const user = request.user as AuthenticatedUser | undefined;
 
     // Extract organization ID from params, body, or query
     let organizationId: string | undefined;
@@ -30,7 +37,7 @@ export class OrganizationContextInterceptor implements NestInterceptor {
     }
     // Check query params
     else if (request.query?.organizationId) {
-      organizationId = request.query.organizationId;
+      organizationId = request.query.organizationId as string;
     }
     // For authenticated users, use their first organization if no explicit org ID
     else if (user?.orgMemberships?.[0]?.orgId) {

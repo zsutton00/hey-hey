@@ -45,7 +45,7 @@ export interface UseWorkItemGraphDraftReturn {
   move: (
     child: WorkItemChangeSetIdentity,
     position: WorkItemChangeSetPosition,
-    displayedLayout?: readonly WorkItemChangeSetLayoutEntry[]
+    displayedLayout?: readonly WorkItemChangeSetLayoutEntry[],
   ) => void;
   create: (input: CreateWorkItemDraftInput) => TemporaryWorkItemRef;
   createConnected: (input: CreateConnectedWorkItemDraftInput) => {
@@ -71,18 +71,18 @@ export interface UseWorkItemGraphDraftReturn {
 
 function useDraftAction(
   dispatch: Dispatch<WorkItemGraphDraftAction>,
-  action: WorkItemGraphDraftAction
+  action: WorkItemGraphDraftAction,
 ): () => void {
   return useCallback(() => dispatch(action), [dispatch, action]);
 }
 
 export function useWorkItemGraphDraft(
-  input: HydratedWorkItemGraphInput
+  input: HydratedWorkItemGraphInput,
 ): UseWorkItemGraphDraftReturn {
   const [draft, dispatch] = useReducer(
     workItemGraphDraftReducer,
     input,
-    createWorkItemGraphDraftState
+    createWorkItemGraphDraftState,
   );
   const inputRef = useRef(input);
   const reservedWorkItemRefs = useRef(new Set<string>());
@@ -98,10 +98,12 @@ export function useWorkItemGraphDraft(
   }, [input]);
 
   const move = useCallback(
-    (child: WorkItemChangeSetIdentity, position: WorkItemChangeSetPosition,
-      displayedLayout?: readonly WorkItemChangeSetLayoutEntry[]) =>
-      dispatch({ type: "move", child, position, displayedLayout }),
-    []
+    (
+      child: WorkItemChangeSetIdentity,
+      position: WorkItemChangeSetPosition,
+      displayedLayout?: readonly WorkItemChangeSetLayoutEntry[],
+    ) => dispatch({ type: "move", child, position, displayedLayout }),
+    [],
   );
   const create = useCallback(
     (createInput: CreateWorkItemDraftInput): TemporaryWorkItemRef => {
@@ -110,17 +112,17 @@ export function useWorkItemGraphDraft(
           (workItem) =>
             workItem.identity.refType === "temporary"
               ? [workItem.identity.tempId]
-              : []
-        )
+              : [],
+        ),
       );
       reservedWorkItemRefs.current.forEach((tempId) =>
-        occupiedWorkItemRefs.add(tempId)
+        occupiedWorkItemRefs.add(tempId),
       );
       const ref =
         createInput.ref ??
         allocateTemporaryWorkItemIdentity(
           draft.operations,
-          occupiedWorkItemRefs
+          occupiedWorkItemRefs,
         );
       reservedWorkItemRefs.current.add(ref.tempId);
       dispatch({
@@ -133,7 +135,7 @@ export function useWorkItemGraphDraft(
       draft.operations,
       draft.projection.children,
       draft.projection.projectedRoot,
-    ]
+    ],
   );
   const createConnected = useCallback(
     (input: CreateConnectedWorkItemDraftInput) => {
@@ -142,34 +144,34 @@ export function useWorkItemGraphDraft(
           (workItem) =>
             workItem.identity.refType === "temporary"
               ? [workItem.identity.tempId]
-              : []
-        )
+              : [],
+        ),
       );
       reservedWorkItemRefs.current.forEach((tempId) =>
-        occupiedWorkItemRefs.add(tempId)
+        occupiedWorkItemRefs.add(tempId),
       );
       const child =
         input.child.ref ??
         allocateTemporaryWorkItemIdentity(
           draft.operations,
-          occupiedWorkItemRefs
+          occupiedWorkItemRefs,
         );
 
       const occupiedRelationshipRefs = new Set(
         draft.projection.incidentRelationships.flatMap((relationship) =>
           relationship.identity.refType === "temporary"
             ? [relationship.identity.tempId]
-            : []
-        )
+            : [],
+        ),
       );
       reservedRelationshipRefs.current.forEach((tempId) =>
-        occupiedRelationshipRefs.add(tempId)
+        occupiedRelationshipRefs.add(tempId),
       );
       const relationship =
         input.relationship.ref ??
         allocateTemporaryRelationshipIdentity(
           draft.operations,
-          occupiedRelationshipRefs
+          occupiedRelationshipRefs,
         );
 
       reservedWorkItemRefs.current.add(child.tempId);
@@ -188,16 +190,16 @@ export function useWorkItemGraphDraft(
       draft.projection.children,
       draft.projection.incidentRelationships,
       draft.projection.projectedRoot,
-    ]
+    ],
   );
   const revise = useCallback(
     (reviseInput: ReviseWorkItemDraftInput) =>
       dispatch({ type: "revise", input: reviseInput }),
-    []
+    [],
   );
   const deleteWorkItem = useCallback(
     (child: WorkItemChangeSetIdentity) => dispatch({ type: "delete", child }),
-    []
+    [],
   );
   const connect = useCallback(
     (connectInput: ConnectWorkItemDraftInput): TemporaryRelationshipRef => {
@@ -205,17 +207,17 @@ export function useWorkItemGraphDraft(
         draft.projection.incidentRelationships.flatMap((relationship) =>
           relationship.identity.refType === "temporary"
             ? [relationship.identity.tempId]
-            : []
-        )
+            : [],
+        ),
       );
       reservedRelationshipRefs.current.forEach((tempId) =>
-        occupiedRelationshipRefs.add(tempId)
+        occupiedRelationshipRefs.add(tempId),
       );
       const ref =
         connectInput.ref ??
         allocateTemporaryRelationshipIdentity(
           draft.operations,
-          occupiedRelationshipRefs
+          occupiedRelationshipRefs,
         );
       reservedRelationshipRefs.current.add(ref.tempId);
       dispatch({
@@ -224,17 +226,17 @@ export function useWorkItemGraphDraft(
       });
       return ref;
     },
-    [draft.operations, draft.projection.incidentRelationships]
+    [draft.operations, draft.projection.incidentRelationships],
   );
   const reconnect = useCallback(
     (reconnectInput: ReconnectWorkItemDraftInput) =>
       dispatch({ type: "reconnect", input: reconnectInput }),
-    []
+    [],
   );
   const remove = useCallback(
     (relationship: WorkItemChangeSetRelationshipIdentity) =>
       dispatch({ type: "remove", relationship }),
-    []
+    [],
   );
   const reset = useDraftAction(dispatch, { type: "reset" });
   const reflow = useDraftAction(dispatch, { type: "reflow" });

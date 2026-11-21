@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cloneElement, type ReactElement, type PropsWithChildren } from "react";
 import { AxiosError, AxiosHeaders } from "axios";
@@ -1573,11 +1576,14 @@ describe("WorkItemGraphProposalRenderer", () => {
         },
       ]),
     );
-    expect(mockGetTask).toHaveBeenCalledWith({
-      organizationId: "organization-id",
-      projectId: "project-id",
-      taskId: "contract-target",
-    });
+    expect(mockGetTask).toHaveBeenCalledWith(
+      {
+        organizationId: "organization-id",
+        projectId: "project-id",
+        taskId: "contract-target",
+      },
+      expect.anything(),
+    );
     expect(screen.getByTestId("confirm-graph")).not.toBeDisabled();
   });
   it("resolves external feature targets from the hierarchy without fetching task names", async () => {
@@ -2095,4 +2101,13 @@ describe("WorkItemGraphProposalRenderer", () => {
     expect(screen.queryByTestId("projected-graph")).not.toBeInTheDocument();
     expect(screen.getByTestId("confirm-graph")).toBeDisabled();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

@@ -27,21 +27,36 @@ export const getErrorMessage = (error: unknown, fallback: string): string => {
   return extractErrorMessage(error) ?? fallback;
 };
 
+interface ErrorCodeCarrier {
+  extensions?: { code?: unknown };
+  errors?: ReadonlyArray<ErrorCodeCarrier>;
+  response?: { data?: { code?: unknown } };
+}
+
+const asNonEmptyCode = (code: unknown): string | undefined => {
+  return typeof code === "string" && code.length > 0 ? code : undefined;
+};
+
 /**
- * Pulls the structured `code` discriminator out of a server error body
- * (`error.response.data.code`). Platform endpoints return error envelopes such
- * as `{ success: false, code: 'NO_CLI_CONNECTION', message, statusCode }`; the
- * `code` is the stable key to branch on, whereas the human-readable `message`
- * may change. Returns `undefined` when the error carries no structured code.
+ * Pulls the structured `code` discriminator out of a failed request. Platform
+ * endpoints return error envelopes such as
+ * `{ success: false, code: 'NO_CLI_CONNECTION', message, statusCode }`
+ * (`error.response.data.code`), and GraphQL reads carry the same code in
+ * `extensions.code`, either on the error itself or on the first of a combined
+ * error's `errors`. The `code` is the stable key to branch on, whereas the
+ * human-readable `message` may change. Returns `undefined` when the error
+ * carries no structured code.
  */
 export const extractErrorCode = (error: unknown): string | undefined => {
-  if (typeof error === "object" && error !== null && "response" in error) {
-    const code = (error as { response?: { data?: { code?: unknown } } })
-      .response?.data?.code;
-    if (typeof code === "string" && code.length > 0) {
-      return code;
-    }
+  if (typeof error !== "object" || error === null) {
+    return undefined;
   }
 
-  return undefined;
+  const carrier = error as ErrorCodeCarrier;
+
+  return (
+    asNonEmptyCode(carrier.response?.data?.code) ??
+    asNonEmptyCode(carrier.extensions?.code) ??
+    asNonEmptyCode(carrier.errors?.[0]?.extensions?.code)
+  );
 };

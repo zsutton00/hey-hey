@@ -1,3 +1,5 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   cleanup,
@@ -120,6 +122,11 @@ function makeProposal(
 afterEach(cleanup);
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   vi.clearAllMocks();
   vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
     data: {

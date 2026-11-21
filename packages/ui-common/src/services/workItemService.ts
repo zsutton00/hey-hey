@@ -2,8 +2,6 @@
  * Work Item Service - Generic Work Item API Integration
  *
  * Service for managing work items (initiatives and tasks) using backend endpoints:
- * - GET /work-items/:id - Start/get refinement session
- * - GET /work-items/:id/conversations - Get chat history
  * - PUT /work-items/:id/content - Update content
  * - POST /work-items/:id/refine - Refine via conversation
  * - POST /work-items/:id/review - Mark as reviewed
@@ -12,13 +10,8 @@
  */
 
 import { getAuthToken } from "./authService";
+import type { ContentUpdatePayload, RefinePayload } from "./workItemTypes";
 import type {
-  ConversationMessage,
-  ContentUpdatePayload,
-  RefinePayload,
-} from "./workItemTypes";
-import type {
-  WorkItem,
   WorkItemContentUpdateResponse,
   WorkItemDeepenResponse,
   WorkItemFinalizeResponse,
@@ -76,62 +69,12 @@ class WorkItemService {
   }
 
   /**
-   * Get or start work item refinement session
-   * GET /work-items/:workItemId
-   */
-  async getWorkItem(workItemId: string): Promise<WorkItem> {
-    const url = this.buildUrl(workItemId);
-
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: this.getHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load work item: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to get work item:", error);
-      throw new Error("Failed to load work item. Please try again.");
-    }
-  }
-
-  /**
-   * Get conversation history for work item
-   * GET /work-items/:workItemId/conversations
-   */
-  async getWorkItemConversations(
-    workItemId: string
-  ): Promise<ConversationMessage[]> {
-    const url = this.buildUrl(workItemId, "/conversations");
-
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: this.getHeaders(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load conversations: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Failed to get work item conversations:", error);
-      throw new Error("Failed to load conversation history. Please try again.");
-    }
-  }
-
-  /**
    * Update work item content directly
    * PUT /work-items/:workItemId/content
    */
   async updateWorkItemContent(
     workItemId: string,
-    payload: ContentUpdatePayload
+    payload: ContentUpdatePayload,
   ): Promise<WorkItemContentUpdateResponse> {
     const url = this.buildUrl(workItemId, "/content");
 
@@ -159,7 +102,7 @@ class WorkItemService {
    */
   async refineWorkItem(
     workItemId: string,
-    payload: RefinePayload
+    payload: RefinePayload,
   ): Promise<WorkItemSystemResponse> {
     const url = this.buildUrl(workItemId, "/refine");
 
@@ -187,7 +130,7 @@ class WorkItemService {
    */
   async deepenWorkItem(
     workItemId: string,
-    currentLevel: "description" | "details"
+    currentLevel: "description" | "details",
   ): Promise<WorkItemDeepenResponse> {
     const url = this.buildUrl(workItemId, "/deepen");
 
@@ -216,7 +159,7 @@ class WorkItemService {
   async reviewWorkItem(
     workItemId: string,
     approved: boolean,
-    level: "description" | "details" | "acceptanceCriteria"
+    level: "description" | "details" | "acceptanceCriteria",
   ): Promise<WorkItemReviewResponse> {
     const url = this.buildUrl(workItemId, "/review");
 
@@ -243,7 +186,7 @@ class WorkItemService {
    * POST /work-items/:workItemId/finalize
    */
   async finalizeWorkItem(
-    workItemId: string
+    workItemId: string,
   ): Promise<WorkItemFinalizeResponse> {
     const url = this.buildUrl(workItemId, "/finalize");
 

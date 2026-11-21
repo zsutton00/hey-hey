@@ -1,3 +1,8 @@
+import { useApolloClient } from "@apollo/client/react";
+import {
+  fetchModeAvailability,
+  fetchProposalGraphTarget,
+} from "../../data/graphql/workItemLookups";
 import { useEffect, useState } from "react";
 import {
   AgentEdgeType,
@@ -10,7 +15,6 @@ import type {
   ProposalEdgeDeclaration,
   TaskResponseDto,
 } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
 import { useFeatureLookup } from "../../data/hooks/useFeatureHierarchy";
 
 export interface ModeAvailabilityFeature {
@@ -24,6 +28,11 @@ interface ModeFeatureDependencyCandidate {
   proposed: boolean;
   name?: string;
 }
+
+type ModeDependencyEdge = Pick<
+  AgentEdgeResponseDto,
+  "type" | "sourceNodeId" | "targetNodeId" | "targetNodeType" | "targetNodeName"
+>;
 
 export type ModeAvailabilityState =
   | { kind: "not-applicable" }
@@ -46,8 +55,8 @@ const isModeTaskType = (typeKey: string | undefined): boolean =>
 
 export const collectModeFeatureDependencyCandidates = (
   modeId: string,
-  persistedEdges: AgentEdgeResponseDto[],
-  proposalEdges: ProposalEdgeDeclaration[]
+  persistedEdges: ModeDependencyEdge[],
+  proposalEdges: ProposalEdgeDeclaration[],
 ): ModeFeatureDependencyCandidate[] => {
   const candidates = new Map<string, ModeFeatureDependencyCandidate>();
 
@@ -93,7 +102,7 @@ export const collectModeFeatureDependencyCandidates = (
 
 export const projectModeAvailabilityFeatures = (
   candidates: readonly ModeFeatureDependencyCandidate[],
-  resolvedTasks: ReadonlyMap<string, Pick<TaskResponseDto, "type" | "name">>
+  resolvedTasks: ReadonlyMap<string, Pick<TaskResponseDto, "type" | "name">>,
 ): ModeAvailabilityFeature[] =>
   candidates.flatMap((candidate) => {
     let name = candidate.name;
@@ -106,7 +115,7 @@ export const projectModeAvailabilityFeatures = (
       if (task.type !== "FEATURE") {
         if (candidate.persisted) {
           throw new Error(
-            "A persisted Feature dependency no longer resolves as a Feature."
+            "A persisted Feature dependency no longer resolves as a Feature.",
           );
         }
         return [];
@@ -121,35 +130,6 @@ export const projectModeAvailabilityFeatures = (
     return [{ id: candidate.id, name }];
   });
 
-const loadTask = async (
-  organizationId: string,
-  projectId: string,
-  taskId: string,
-  includeEdges = false
-): Promise<TaskResponseDto> => {
-  const response = await unifiedApiClient.getTask({
-    organizationId,
-    projectId,
-    taskId,
-    ...(includeEdges
-      ? {
-          includeEdges: true,
-          edgeTypes: [AgentEdgeType.DependsOn],
-        }
-      : {}),
-  });
-  const task = response.data.data;
-  if (
-    !task ||
-    task.id !== taskId ||
-    typeof task.type !== "string" ||
-    typeof task.name !== "string"
-  ) {
-    throw new Error("The task could not be loaded.");
-  }
-  return task;
-};
-
 export const useModeAvailability = ({
   organizationId,
   projectId,
@@ -158,12 +138,13 @@ export const useModeAvailability = ({
   modeTypeKey,
   proposalEdges,
 }: UseModeAvailabilityInput): ModeAvailabilityState => {
+  const graphqlClient = useApolloClient();
   const proposalEdgesKey = JSON.stringify(proposalEdges ?? []);
   const featureLookup = useFeatureLookup(organizationId, projectId);
   const [state, setState] = useState<ModeAvailabilityState>(() =>
     modeTypeKey !== undefined && !isModeTaskType(modeTypeKey)
       ? { kind: "not-applicable" }
-      : { kind: "loading" }
+      : { kind: "loading" },
   );
 
   useEffect(() => {
@@ -188,26 +169,25 @@ export const useModeAvailability = ({
       setState({ kind: "loading" });
 
       try {
-        let persistedEdges: AgentEdgeResponseDto[] = [];
+        let persistedEdges: ModeDependencyEdge[] = [];
 
         if (action === ProposalAction.Update) {
-          const mode = await loadTask(
-            organizationId,
-            projectId,
+          const mode = await fetchModeAvailability(
+            graphqlClient,
+            { organizationId, projectId },
             targetEntityId,
-            true
           );
-          if (mode.id !== targetEntityId || mode.type !== "MODE") {
+          if (mode?.id !== targetEntityId || mode.type !== "MODE") {
             if (!cancelled) setState({ kind: "not-applicable" });
             return;
           }
-          persistedEdges = mode.edges ?? [];
+          persistedEdges = mode.edges;
         }
 
         const dependencyCandidates = collectModeFeatureDependencyCandidates(
           targetEntityId,
           persistedEdges,
-          proposalEdges ?? []
+          proposalEdges ?? [],
         );
         const targetsToResolve = dependencyCandidates
           .filter((candidate) => candidate.proposed || !candidate.name)
@@ -226,16 +206,26 @@ export const useModeAvailability = ({
           }
         }
         const loadedTasks = await Promise.all(
-          misses.map((id) => loadTask(organizationId, projectId, id))
+          misses.map((id) =>
+            fetchProposalGraphTarget(
+              graphqlClient,
+              { organizationId, projectId },
+              id,
+            ),
+          ),
         );
-        for (const task of loadedTasks) resolvedTasksById.set(task.id, task);
+        for (const task of loadedTasks) {
+          if (task) {
+            resolvedTasksById.set(task.id, task);
+          }
+        }
 
         if (!cancelled) {
           setState({
             kind: "ready",
             features: projectModeAvailabilityFeatures(
               dependencyCandidates,
-              resolvedTasksById
+              resolvedTasksById,
             ),
           });
         }
@@ -251,6 +241,7 @@ export const useModeAvailability = ({
     };
   }, [
     action,
+    graphqlClient,
     featureLookup,
     modeTypeKey,
     organizationId,

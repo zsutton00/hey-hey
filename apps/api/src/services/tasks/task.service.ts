@@ -278,6 +278,16 @@ const TASK_SECTION_FIELDS = Object.values(TaskSectionKey);
  */
 export const ALL_DECLARED_SECTIONS: string[] = ['__all_declared_sections__'];
 
+/** Largest expansion target limit the Graphs structured read accepts. */
+const MAX_GRAPH_EXPANSION_LIMIT = 500;
+
+interface GraphAggregateRoot {
+  root: TaskResponseDto;
+  capability: NonNullable<
+    ReturnType<WorkItemTypeRegistryService['getGraphCapability']>
+  >;
+}
+
 export type TaskSectionField = string;
 
 type TaskSectionRecord = WorkItemSectionRecord & { taskId: string };
@@ -4270,41 +4280,185 @@ export class TaskService {
     userToken: string | null,
     incidentRelationshipTypes: WorkItemGraphParticipationType[] = [],
   ): Promise<WorkItemGraphAggregateResponseDto> {
+    const results = await this.getGraphAggregates(
+      organizationId,
+      projectId,
+      [workItemId],
+      userToken,
+      incidentRelationshipTypes,
+    );
+    const result = results.get(workItemId);
+    if (result instanceof Error) {
+      throw result;
+    }
+    if (!result) {
+      throw new NotFoundException('Work item not found');
+    }
+
+    return result;
+  }
+
+  /**
+   * Graph aggregates for several roots in one pass: children are read in one
+   * query, each work-item type's roots share one structured graph read, and
+   * derived references are hydrated once. Each root gets exactly what
+   * {@link getGraphAggregate} returns for it alone, or the error it would
+   * throw. Contract participation, when requested, is still composed per root.
+   */
+  async getGraphAggregates(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    workItemIds: TaskId[],
+    userToken: string | null,
+    incidentRelationshipTypes: WorkItemGraphParticipationType[] = [],
+  ): Promise<Map<TaskId, WorkItemGraphAggregateResponseDto | Error>> {
     if (!userToken) {
       throw new UnauthorizedException(
         'An authenticated user token is required for graph aggregate reads',
       );
     }
 
-    const root = await this.findOneByOrganization(
+    const results = new Map<
+      TaskId,
+      WorkItemGraphAggregateResponseDto | Error
+    >();
+    const roots = await this.readGraphRoots(
       organizationId,
-      workItemId,
-      false,
-      false,
-      false,
-      false,
+      projectId,
+      workItemIds,
+      userToken,
+      results,
+    );
+    if (roots.length === 0) {
+      return results;
+    }
+
+    const childrenByRoot = await this.readGraphChildren(
+      organizationId,
+      projectId,
+      roots,
+    );
+    const graphByRoot = await this.readStructuredGraphs(
+      organizationId,
+      projectId,
+      roots,
+      childrenByRoot,
       userToken,
     );
-    if (!root || root.projectId !== projectId) {
-      throw new NotFoundException('Work item not found');
-    }
-
-    const capability = this.workItemTypeRegistry.getGraphCapability(
-      root.type,
+    const referencesByRoot = await this.hydrateGraphReadReferencesByRoot(
+      organizationId,
       projectId,
+      graphByRoot,
     );
-    if (!capability) {
-      throw new BadRequestException(
-        `Work-item type ${root.type} does not declare a graph capability`,
-      );
-    }
 
+    await Promise.all(
+      roots.map(async ({ root, capability }) => {
+        const graph = graphByRoot.get(root.id)!;
+        try {
+          const relationshipById = new Map(
+            graph.directEdges.map((edge) => [
+              edge.id,
+              this.toApiAgentEdge(edge),
+            ]),
+          );
+          const layout = this.readGraphAggregateLayout(
+            root,
+            capability.layout.sectionKey,
+          );
+          const participation = await this.composeGraphParticipation(
+            organizationId,
+            projectId,
+            root.id as TaskId,
+            incidentRelationshipTypes,
+            userToken,
+          );
+
+          results.set(root.id as TaskId, {
+            root,
+            children: childrenByRoot.get(root.id) ?? [],
+            relationships: [...relationshipById.values()].sort((a, b) =>
+              a.id.localeCompare(b.id),
+            ),
+            layout,
+            derivedReferences: referencesByRoot.get(root.id) ?? [],
+            participation,
+          } satisfies WorkItemGraphAggregateResponseDto);
+        } catch (error) {
+          results.set(
+            root.id as TaskId,
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
+      }),
+    );
+
+    return results;
+  }
+
+  /** Roots readable in the project with a graph capability; others get their error. */
+  private async readGraphRoots(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    workItemIds: TaskId[],
+    userToken: string,
+    results: Map<TaskId, WorkItemGraphAggregateResponseDto | Error>,
+  ): Promise<GraphAggregateRoot[]> {
+    const rows = await Promise.all(
+      workItemIds.map((id) =>
+        this.findOneByOrganization(
+          organizationId,
+          id,
+          false,
+          false,
+          false,
+          false,
+          userToken,
+        ),
+      ),
+    );
+
+    const roots: GraphAggregateRoot[] = [];
+    workItemIds.forEach((id, index) => {
+      const root = rows[index];
+      if (!root || root.projectId !== projectId) {
+        results.set(id, new NotFoundException('Work item not found'));
+        return;
+      }
+
+      const capability = this.workItemTypeRegistry.getGraphCapability(
+        root.type,
+        projectId,
+      );
+      if (!capability) {
+        results.set(
+          id,
+          new BadRequestException(
+            `Work-item type ${root.type} does not declare a graph capability`,
+          ),
+        );
+        return;
+      }
+
+      roots.push({ root, capability });
+    });
+
+    return roots;
+  }
+
+  /** Each root's graph children, read in one query. */
+  private async readGraphChildren(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    roots: GraphAggregateRoot[],
+  ): Promise<Map<string, TaskResponseDto[]>> {
     const childRows = (await this.prisma.db.task.findMany({
       where: restrictTaskWhere({
         organizationId,
         projectId,
-        parentTaskId: root.id,
-        type: capability.nodeChildType,
+        OR: roots.map(({ root, capability }) => ({
+          parentTaskId: root.id,
+          type: capability.nodeChildType,
+        })),
         archivedAt: null,
         status: { not: WorkStatus.Archived },
       }),
@@ -4318,7 +4472,80 @@ export class TaskService {
       ALL_DECLARED_SECTIONS,
     );
 
-    const aggregateIds = [root.id, ...children.map((child) => child.id)];
+    const childrenByRoot = new Map<string, TaskResponseDto[]>();
+    for (const child of children) {
+      const parentId = child.parentTaskId as string;
+      const siblings = childrenByRoot.get(parentId) ?? [];
+      siblings.push(child);
+      childrenByRoot.set(parentId, siblings);
+    }
+
+    return childrenByRoot;
+  }
+
+  /**
+   * One structured graph read per work-item type, split back into the read
+   * each root would get alone. Direct edges are partitioned by each root's
+   * seeds; expansion keys are prefixed with the root id. In a shared read,
+   * root exclusion is applied here, requesting one extra target so the limit
+   * still holds. A root alone in its read is sent the single-root request. A type
+   * whose root-excluding expansion is already at the Graphs maximum is read
+   * per root, since the extra target cannot be requested.
+   */
+  private async readStructuredGraphs(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    roots: GraphAggregateRoot[],
+    childrenByRoot: Map<string, TaskResponseDto[]>,
+    userToken: string,
+  ): Promise<Map<string, StructuredGraphReadResponse>> {
+    const groups = new Map<string, GraphAggregateRoot[]>();
+    for (const entry of roots) {
+      const exact = (entry.capability.readExpansions ?? []).some(
+        (expansion) =>
+          expansion.excludeRoot && expansion.limit >= MAX_GRAPH_EXPANSION_LIMIT,
+      );
+      const key = exact ? `root:${entry.root.id}` : `type:${entry.root.type}`;
+      groups.set(key, [...(groups.get(key) ?? []), entry]);
+    }
+
+    const graphByRoot = new Map<string, StructuredGraphReadResponse>();
+    await Promise.all(
+      [...groups.values()].map(async (group) => {
+        const graph = await this.graphsClient.readStructuredGraph(
+          organizationId,
+          projectId,
+          this.combinedStructuredGraphRequest(group, childrenByRoot),
+          userToken,
+        );
+        for (const entry of group) {
+          graphByRoot.set(
+            entry.root.id,
+            this.structuredGraphForRoot(
+              entry,
+              graph,
+              childrenByRoot,
+              group.length === 1,
+            ),
+          );
+        }
+      }),
+    );
+
+    return graphByRoot;
+  }
+
+  private combinedStructuredGraphRequest(
+    group: GraphAggregateRoot[],
+    childrenByRoot: Map<string, TaskResponseDto[]>,
+  ) {
+    const identity = (item: { id: string }) => ({
+      entityId: item.id,
+      entityType: 'TASK' as const,
+    });
+    const { capability } = group[0]!;
+    // A lone root is read exactly as a single-root aggregate read.
+    const single = group.length === 1;
     const readableTypes = [
       ...new Set(
         capability.readableRelationships.map(
@@ -4326,79 +4553,139 @@ export class TaskService {
         ),
       ),
     ];
-    const graph = await this.graphsClient.readStructuredGraph(
-      organizationId,
-      projectId,
-      {
-        root: { entityId: root.id, entityType: 'TASK' },
-        seeds: aggregateIds.map((entityId) => ({
-          entityId,
-          entityType: 'TASK',
-        })),
-        directEdgeTypes: readableTypes.map((type) => type as AgentEdgeType),
-        expansions: (capability.readExpansions ?? []).map((expansion) => ({
-          key: expansion.key,
-          seeds: (expansion.seed === 'graphRoot' ? [root] : children).map(
-            (item) => ({
-              entityId: item.id,
-              entityType: 'TASK',
-            }),
-          ),
+
+    return {
+      root: identity(group[0]!.root),
+      seeds: group.flatMap(({ root }) => [
+        identity(root),
+        ...(childrenByRoot.get(root.id) ?? []).map(identity),
+      ]),
+      directEdgeTypes: readableTypes.map((type) => type as AgentEdgeType),
+      expansions: group.flatMap(({ root }) =>
+        (capability.readExpansions ?? []).map((expansion) => ({
+          key: single ? expansion.key : `${root.id}:${expansion.key}`,
+          seeds: (expansion.seed === 'graphRoot'
+            ? [root]
+            : (childrenByRoot.get(root.id) ?? [])
+          ).map(identity),
           path: expansion.path.map((hop) => ({
             relationshipType: hop.relationshipType as RelationshipType,
             direction: hop.direction,
             entityTypes: hop.target.entityTypes,
             workItemTypeKeys: hop.target.workItemTypeKeys,
           })),
-          excludeRoot: expansion.excludeRoot ?? false,
-          limit: expansion.limit,
+          excludeRoot: single ? (expansion.excludeRoot ?? false) : false,
+          limit:
+            !single && expansion.excludeRoot
+              ? Math.min(expansion.limit + 1, MAX_GRAPH_EXPANSION_LIMIT)
+              : expansion.limit,
         })),
-      },
-      userToken,
-    );
-    const relationshipById = new Map(
-      graph.directEdges.map((edge) => [edge.id, this.toApiAgentEdge(edge)]),
-    );
-    const layout = this.readGraphAggregateLayout(
-      root,
-      capability.layout.sectionKey,
-    );
-    const derivedReferences = await this.hydrateGraphReadReferences(
-      organizationId,
-      projectId,
-      graph,
-    );
-    const participation = incidentRelationshipTypes.length
-      ? await this.participationComposer.compose(
-          organizationId,
-          projectId,
-          root.id,
-          incidentRelationshipTypes,
-          userToken,
-        )
-      : {
-          entries: [],
-          summary: {
-            completeness: 'COMPLETE' as const,
-            uniqueContractCount: 0,
-            participantCount: 0,
-            responsibilityCount: 0,
-            limits: WORK_ITEM_GRAPH_PARTICIPATION_LIMITS,
-            truncationReasons: [],
-            errors: [],
-          },
-        };
+      ),
+    };
+  }
+
+  private structuredGraphForRoot(
+    { root, capability }: GraphAggregateRoot,
+    graph: StructuredGraphReadResponse,
+    childrenByRoot: Map<string, TaskResponseDto[]>,
+    single: boolean,
+  ): StructuredGraphReadResponse {
+    const seedIds = new Set([
+      root.id,
+      ...(childrenByRoot.get(root.id) ?? []).map((child) => child.id),
+    ]);
+    const prefix = single ? '' : `${root.id}:`;
 
     return {
-      root,
-      children,
-      relationships: [...relationshipById.values()].sort((a, b) =>
-        a.id.localeCompare(b.id),
+      // Seeds are TASK identities; Graphs matches an endpoint by id and type.
+      directEdges: graph.directEdges.filter(
+        (edge) =>
+          (edge.sourceEntityType === 'TASK' &&
+            seedIds.has(edge.sourceNodeId)) ||
+          (edge.targetEntityType === 'TASK' && seedIds.has(edge.targetNodeId)),
       ),
-      layout,
-      derivedReferences,
-      participation,
-    } satisfies WorkItemGraphAggregateResponseDto;
+      expansions: (capability.readExpansions ?? []).map((expansion) => {
+        const result = graph.expansions.find(
+          (candidate) => candidate.key === `${prefix}${expansion.key}`,
+        );
+        const targets = (result?.targets ?? []).filter(
+          (target) =>
+            !expansion.excludeRoot || target.identity.entityId !== root.id,
+        );
+
+        return {
+          key: expansion.key,
+          targets: targets.slice(0, expansion.limit),
+        };
+      }),
+    };
+  }
+
+  /** Hydrates every root's derived references with one pair of lookups. */
+  private async hydrateGraphReadReferencesByRoot(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    graphByRoot: Map<string, StructuredGraphReadResponse>,
+  ): Promise<Map<string, WorkItemGraphDerivedReference[]>> {
+    const combined: StructuredGraphReadResponse = {
+      directEdges: [],
+      expansions: [...graphByRoot.entries()].flatMap(([rootId, graph]) =>
+        graph.expansions.map((expansion) => ({
+          ...expansion,
+          key: `${rootId}:${expansion.key}`,
+        })),
+      ),
+    };
+    const references = await this.hydrateGraphReadReferences(
+      organizationId,
+      projectId,
+      combined,
+    );
+
+    const byRoot = new Map<string, WorkItemGraphDerivedReference[]>();
+    for (const reference of references) {
+      const separator = reference.expansionKey.indexOf(':');
+      const rootId = reference.expansionKey.slice(0, separator);
+      const rootReferences = byRoot.get(rootId) ?? [];
+      rootReferences.push({
+        ...reference,
+        expansionKey: reference.expansionKey.slice(separator + 1),
+      });
+      byRoot.set(rootId, rootReferences);
+    }
+
+    return byRoot;
+  }
+
+  private async composeGraphParticipation(
+    organizationId: OrganizationId,
+    projectId: ProjectId,
+    rootId: TaskId,
+    incidentRelationshipTypes: WorkItemGraphParticipationType[],
+    userToken: string,
+  ): Promise<WorkItemGraphAggregateResponseDto['participation']> {
+    if (incidentRelationshipTypes.length === 0) {
+      return {
+        entries: [],
+        summary: {
+          completeness: 'COMPLETE' as const,
+          uniqueContractCount: 0,
+          participantCount: 0,
+          responsibilityCount: 0,
+          limits: WORK_ITEM_GRAPH_PARTICIPATION_LIMITS,
+          truncationReasons: [],
+          errors: [],
+        },
+      };
+    }
+
+    return this.participationComposer.compose(
+      organizationId,
+      projectId,
+      rootId,
+      incidentRelationshipTypes,
+      userToken,
+    );
   }
 
   private toApiAgentEdge(edge: AgentEdge): AgentEdgeResponseDto {

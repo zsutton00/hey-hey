@@ -1,3 +1,5 @@
+import { fetchTriageConversationTitle } from "../graphql/conversationLookups";
+import type { ApolloClient } from "@apollo/client";
 import {
   EntityType,
   type ActivateOpenItemRequest,
@@ -6,16 +8,16 @@ import {
 } from "../../api";
 import {
   agentSessionsClient,
-  conversationsClient,
   designDocsClient,
   entityContextClient,
   proposalsClient,
-  unifiedApiClient,
 } from "../../clients/serviceClients";
+import { fetchWorkItem } from "../collections/workItemLists";
 
 /** Fetch only on explicit reopen, using canonical presentation rather than the
  * reply's display snapshot. Held items never pass through activation. */
 export async function triageReopenRequest(
+  graphqlClient: ApolloClient,
   scope: { organizationId: string; projectId: string },
   item: OpenItemsTriageItem,
   idempotencyKey: string,
@@ -25,10 +27,8 @@ export async function triageReopenRequest(
   const presentation = await (async (): Promise<OpenItemPresentation> => {
     switch (item.entityType) {
       case EntityType.Task: {
-        const task = (
-          await unifiedApiClient.getTask({ ...scope, taskId: item.entityId })
-        ).data.data;
-        if (!task || task.status === "ARCHIVED")
+        const task = await fetchWorkItem(graphqlClient, scope, item.entityId);
+        if (task.status === "ARCHIVED")
           throw new Error("This work item is no longer available.");
         const context = (
           await entityContextClient.getEntityContext({
@@ -82,16 +82,15 @@ export async function triageReopenRequest(
         };
       }
       case EntityType.Conversation: {
-        const conversation = (
-          await conversationsClient.getConversation({
-            ...scope,
-            conversationId: item.entityId,
-          })
-        ).data.data;
-        if (!conversation?.title)
+        const title = await fetchTriageConversationTitle(
+          graphqlClient,
+          scope,
+          item.entityId,
+        );
+        if (!title)
           throw new Error("This conversation's presentation is unavailable.");
         return {
-          label: conversation.title,
+          label: title,
           workItemTypeKey: null,
           agentSessionType: null,
           routeParams: {},

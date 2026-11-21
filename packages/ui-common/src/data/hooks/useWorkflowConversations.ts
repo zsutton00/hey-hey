@@ -1,14 +1,13 @@
 import { useMemo } from "react";
 import type { ConversationResponseDto, ConversationStatus } from "../../api";
-import { workflowConversationListQueryOptions } from "../collections/conversations";
+import { workflowConversationListRead } from "../collections/conversations";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 
 export type GetWorkflowConversationsSortByEnum = "createdAt" | "updatedAt";
 export type GetWorkflowConversationsSortOrderEnum = "asc" | "desc";
 
-export interface UseWorkflowConversationsOptions
-  extends CollectionHookOptions<ConversationResponseDto> {
+export interface UseWorkflowConversationsOptions extends CollectionHookOptions<ConversationResponseDto> {
   /** Sort field (default: 'createdAt') */
   sortBy?: GetWorkflowConversationsSortByEnum;
   /** Sort order (default: 'desc') */
@@ -43,7 +42,7 @@ export function useWorkflowConversations(
   projectId: string | undefined,
   workflowName: string | undefined,
   workflowAboutId: string | undefined,
-  options: UseWorkflowConversationsOptions = {}
+  options: UseWorkflowConversationsOptions = {},
 ): DataHookReturn<ConversationResponseDto[]> {
   const {
     sortBy = "createdAt",
@@ -54,11 +53,13 @@ export function useWorkflowConversations(
     ...baseOptions
   } = options;
 
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      workflowConversationListQueryOptions(
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
+      workflowConversationListRead(
+        {
+          organizationId: organizationId ?? "__noop__",
+          projectId: projectId ?? "__noop__",
+        },
         {
           workflowName: workflowName ?? "__noop__",
           workflowAboutId: workflowAboutId ?? "__noop__",
@@ -67,7 +68,7 @@ export function useWorkflowConversations(
           status,
           page,
           limit,
-        }
+        },
       ),
     [
       organizationId,
@@ -79,9 +80,9 @@ export function useWorkflowConversations(
       status,
       page,
       limit,
-    ]
+    ],
   );
-  const { result, state } = useDataLayerQuery(queryOptions, {
+  const state = useGraphQLRead(spec, {
     enabled:
       baseOptions.enabled !== false &&
       !!organizationId &&
@@ -91,8 +92,7 @@ export function useWorkflowConversations(
     refetchOnMount: baseOptions.refetchOnMount,
     refetchOnWindowFocus: baseOptions.refetchOnWindowFocus,
     staleTimeMs: baseOptions.staleTimeMs,
-    maxCacheAgeMs: baseOptions.maxCacheAgeMs,
   });
 
-  return { ...state, data: result.data ?? NO_CONVERSATIONS };
+  return { ...state, data: state.data ?? NO_CONVERSATIONS };
 }

@@ -1,3 +1,4 @@
+import { graphql, HttpResponse } from "msw";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -11,24 +12,16 @@ import { useSubmitOnboardingReply } from "../useSubmitOnboardingReply";
 vi.mock("../../../clients/serviceClients", () => ({
   unifiedApiClient: {
     submitOnboardingReply: vi.fn(),
-    getConversationVersion: vi.fn(),
   },
 }));
 
 const submitOnboardingReply = vi.mocked(unifiedApiClient.submitOnboardingReply);
-const getConversationVersion = vi.mocked(
-  unifiedApiClient.getConversationVersion
-);
+const getConversationVersion = vi.fn();
 const versionResponse = (version: number) => ({
   data: {
-    success: true,
-    message: "Current version",
-    data: { version },
-    timestamp: "2026-09-16T00:00:00Z",
-    statusCode: 200,
+    conversation: { __typename: "Conversation", id: "conversation-1", version },
   },
 });
-
 const responseMessage = {
   id: "message-1",
   projectId: "project-1",
@@ -58,6 +51,17 @@ describe("useSubmitOnboardingReply", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getConversationVersion.mockResolvedValue(versionResponse(7));
+    globalThis.mswServer.use(
+      graphql.query("GetOnboardingReplyVersion", async ({ variables }) => {
+        try {
+          return HttpResponse.json(await getConversationVersion(variables));
+        } catch (error) {
+          return HttpResponse.json({
+            errors: [{ message: (error as Error).message }],
+          });
+        }
+      }),
+    );
     submitOnboardingReply.mockResolvedValue({
       data: {
         success: true,
@@ -89,10 +93,10 @@ describe("useSubmitOnboardingReply", () => {
       },
     });
     expect(
-      submitOnboardingReply.mock.calls[0]?.[0].submitOnboardingReplyRequestDto
+      submitOnboardingReply.mock.calls[0]?.[0].submitOnboardingReplyRequestDto,
     ).not.toHaveProperty("organizationId");
     expect(
-      submitOnboardingReply.mock.calls[0]?.[0].submitOnboardingReplyRequestDto
+      submitOnboardingReply.mock.calls[0]?.[0].submitOnboardingReplyRequestDto,
     ).not.toHaveProperty("controllerCredentialId");
   });
 
@@ -124,30 +128,28 @@ describe("useSubmitOnboardingReply", () => {
       });
     });
     expect(getConversationVersion).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      conversationId: "conversation-1",
+      id: "conversation-1",
     });
     expect(
       submitOnboardingReply.mock.calls.map(
         ([request]) =>
-          request.submitOnboardingReplyRequestDto.expectedConversationVersion
-      )
+          request.submitOnboardingReplyRequestDto.expectedConversationVersion,
+      ),
     ).toEqual([8, 10]);
     expect(
       submitOnboardingReply.mock.calls[1][0].submitOnboardingReplyRequestDto
-        .parentMessageId
+        .parentMessageId,
     ).toBe("next-form");
   });
 
   it("does not submit when the version read fails", async () => {
     getConversationVersion.mockRejectedValueOnce(
-      new Error("Version unavailable")
+      new Error("Version unavailable"),
     );
     const { result } = renderHook(() => useSubmitOnboardingReply());
     await act(async () => {
       await expect(result.current.mutate(variables)).rejects.toThrow(
-        "Version unavailable"
+        "Version unavailable",
       );
     });
     expect(submitOnboardingReply).not.toHaveBeenCalled();
@@ -156,14 +158,14 @@ describe("useSubmitOnboardingReply", () => {
 
   it("keeps the reply pending until its version is available", async () => {
     let resolveVersion: (
-      value: ReturnType<typeof versionResponse>
+      value: ReturnType<typeof versionResponse>,
     ) => void = () => {
       throw new Error("Version read has not started");
     };
     getConversationVersion.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveVersion = resolve;
-      })
+      }),
     );
     const { result } = renderHook(() => useSubmitOnboardingReply());
     let pending: Promise<MessageResponseDto>;
@@ -182,12 +184,12 @@ describe("useSubmitOnboardingReply", () => {
 
   it("does not submit when the version response has no version", async () => {
     getConversationVersion.mockResolvedValueOnce({
-      data: { ...versionResponse(7).data, data: undefined },
+      data: { conversation: { id: "conversation-1" } },
     });
     const { result } = renderHook(() => useSubmitOnboardingReply());
     await act(async () => {
       await expect(result.current.mutate(variables)).rejects.toThrow(
-        "No current conversation version returned from API"
+        "No current conversation version returned from API",
       );
     });
     expect(submitOnboardingReply).not.toHaveBeenCalled();
@@ -207,7 +209,7 @@ describe("useSubmitOnboardingReply", () => {
 
     await act(async () => {
       await expect(result.current.mutate(variables)).rejects.toThrow(
-        "No onboarding reply message returned from API"
+        "No onboarding reply message returned from API",
       );
     });
   });

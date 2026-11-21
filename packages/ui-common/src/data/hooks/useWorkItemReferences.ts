@@ -1,9 +1,5 @@
 import type { TaskResponseDto } from "../../api/api";
-import {
-  keepPreviousData,
-  useQuery as useReactQuery,
-} from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type {
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortByEnum,
   OrganizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGetSortOrderEnum,
@@ -12,11 +8,12 @@ import type {
 } from "../../api";
 import {
   type WorkItemReferencePageQuery,
-  workItemReferencePageQueryOptions,
-  workItemReferencesQueryOptions,
+  workItemReferencePageRead,
+  workItemReferencesRead,
+  WORK_ITEM_REFERENCE_CACHE_AGE_MS,
   WORK_ITEM_REFERENCE_PICKER_PAGE_LIMIT,
 } from "../collections/workItemReferences";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 export interface UseWorkItemReferencesInput {
@@ -59,17 +56,18 @@ export function useWorkItemReferences({
   const hasCompleteScope =
     hasValue(organizationId) && hasValue(projectId) && hasValue(workItemType);
   const isEnabled = hasCompleteScope;
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      workItemReferencesQueryOptions({
+      workItemReferencesRead({
         organizationId: hasCompleteScope ? organizationId : DISABLED_SCOPE,
         projectId: hasCompleteScope ? projectId : DISABLED_SCOPE,
         workItemType: hasCompleteScope ? workItemType : DISABLED_SCOPE,
       }),
     [hasCompleteScope, organizationId, projectId, workItemType],
   );
-  const { result, state: query } = useDataLayerQuery(queryOptions, {
+  const { data, ...query } = useGraphQLRead(spec, {
     enabled: isEnabled,
+    staleTimeMs: WORK_ITEM_REFERENCE_CACHE_AGE_MS,
   });
 
   useWebsocketSubscriptions(
@@ -83,7 +81,7 @@ export function useWorkItemReferences({
     return { status: "disabled", references: [], isFetching: false };
   }
 
-  const references = result.data ?? [];
+  const references = data ?? [];
 
   if (query.error) {
     return {
@@ -157,11 +155,30 @@ export function useWorkItemReferencePage({
     sortBy,
     sortOrder,
   };
-  const query = useReactQuery({
-    ...workItemReferencePageQueryOptions(queryInput),
-    enabled,
-    placeholderData: keepPreviousData,
-  });
+  const statusesKey = statuses?.join(",") ?? "";
+  const spec = useMemo(
+    () => workItemReferencePageRead(queryInput),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queryInput's contents are the keys below.
+    [
+      queryInput.organizationId,
+      queryInput.projectId,
+      queryInput.workItemType,
+      page,
+      limit,
+      filter,
+      statusesKey,
+      sortBy,
+      sortOrder,
+    ],
+  );
+  const query = useGraphQLRead(spec, { enabled });
+
+  // While the next page loads, the page last shown stays on screen.
+  const lastPage = useRef<ReferencePage | null>(null);
+  if (query.data) {
+    lastPage.current = query.data;
+  }
+  const shown = query.data ?? lastPage.current;
 
   if (!enabled) return { status: "disabled", page: null, isFetching: false };
   if (query.error) {
@@ -169,20 +186,17 @@ export function useWorkItemReferencePage({
       status: "error",
       page: null,
       isFetching: false,
-      error:
-        query.error instanceof Error
-          ? query.error
-          : new Error("Unable to load work-item references."),
+      error: query.error,
     };
   }
-  if (!query.data) return { status: "loading", page: null, isFetching: true };
+  if (!shown) return { status: "loading", page: null, isFetching: true };
   if (query.isFetching) {
-    return { status: "updating", page: query.data, isFetching: true };
+    return { status: "updating", page: shown, isFetching: true };
   }
-  if (query.data.items.length === 0) {
-    return { status: "empty", page: query.data, isFetching: false };
+  if (shown.items.length === 0) {
+    return { status: "empty", page: shown, isFetching: false };
   }
-  return { status: "ready", page: query.data, isFetching: false };
+  return { status: "ready", page: shown, isFetching: false };
 }
 
 export type { WorkItemReferenceDto } from "../../api";

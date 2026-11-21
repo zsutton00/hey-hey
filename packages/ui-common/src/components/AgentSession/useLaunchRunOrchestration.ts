@@ -1,3 +1,4 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { reconcileAcceptedAgentLaunch } from "../../data/agentLaunchReconciliation";
 import { useCallback } from "react";
@@ -215,6 +216,7 @@ export const useLaunchRunOrchestration = ({
   machineId,
 }: UseLaunchRunOrchestrationInput): UseLaunchRunOrchestrationResult => {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const interactionAccessResolver = useAgentSessionInteractionAccessResolver();
 
   const startRun = useCallback(
@@ -322,7 +324,7 @@ export const useLaunchRunOrchestration = ({
         intent,
       });
       if (result.state === "succeeded" || result.state === "accepted") {
-        reconcileAcceptedAgentLaunch(queryClient, {
+        reconcileAcceptedAgentLaunch(queryClient, graphqlClient, {
           organizationId,
           projectId,
           agentSessionId,

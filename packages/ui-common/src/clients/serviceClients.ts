@@ -1,4 +1,3 @@
-import type { TaskResponseDto } from "../api/api";
 /**
  * Service-specific API clients for the new microservices architecture.
  * This module builds generated API clients using a supplied runtime and exposes
@@ -16,7 +15,6 @@ import {
   PrivateBetaAccessApi,
   ReportBugsApi,
   SecondaryActionsApi,
-  TasksApi,
 } from "../api";
 import type {
   ArtifactsApi,
@@ -39,15 +37,10 @@ import type {
 import type {
   AttachToGoalDto,
   DetachFromGoalDto,
-  AgentEdgeEndpointEntityType,
-  AgentEdgeType,
   CreateAgentEdgeRequest,
   CreateTaskDto,
   UpdateTaskDto,
-  TaskSortBy,
-  TaskSortDir,
   CreateSuggestedTaskRequestDto,
-  WorkItemGraphParticipationType,
 } from "../api";
 import axios, { type AxiosRequestConfig } from "axios";
 import {
@@ -104,6 +97,9 @@ export const registerRuntimeUnifiedClient = (
 const getResolvedClients = (): ApiClientSet => {
   return runtimeClients ?? fallbackRuntime.clients;
 };
+
+/** The axios instance REST requests use, so other protocols share its auth. */
+export const getRuntimeAxios = () => getResolvedClients().transport.axios;
 
 const createClientProxy = <K extends keyof ApiClientSet>(
   clientKey: K,
@@ -644,16 +640,6 @@ export class UnifiedApiClient {
   }
 
   // Conversations Service methods
-  getAllConversations(
-    ...args: Parameters<ConversationsApi["getAllConversations"]>
-  ) {
-    return this.clients.conversationsApi.getAllConversations(...args);
-  }
-
-  getMessages(...args: Parameters<ConversationsApi["getMessages"]>) {
-    return this.clients.conversationsApi.getMessages(...args);
-  }
-
   postMessage(...args: Parameters<ConversationsApi["postMessage"]>) {
     return this.clients.conversationsApi.postMessage(...args);
   }
@@ -792,12 +778,6 @@ export class UnifiedApiClient {
     return this.clients.conversationsApi.getConversationCliStatus(...args);
   }
 
-  getConversationVersion(
-    ...args: Parameters<ConversationsApi["getConversationVersion"]>
-  ) {
-    return this.clients.conversationsApi.getConversationVersion(...args);
-  }
-
   skipToNode(...args: Parameters<ConversationsApi["skipToNode"]>) {
     return this.clients.conversationsApi.skipToNode(...args);
   }
@@ -919,62 +899,6 @@ export class UnifiedApiClient {
     return this.clients.initiatives.removeInitiative(...args);
   }
 
-  async getTask(
-    _params: {
-      organizationId: string;
-      projectId: string;
-      taskId: string;
-      includeServiceRelations?: boolean;
-      includeEdges?: boolean;
-      edgeTypes?: AgentEdgeType[];
-    },
-    options?: AxiosRequestConfig,
-  ) {
-    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdTasksTaskIdGet(
-      {
-        organizationId: _params.organizationId,
-        projectId: _params.projectId,
-        taskId: _params.taskId,
-        ...(_params.includeServiceRelations === undefined
-          ? {}
-          : { includeServiceRelations: _params.includeServiceRelations }),
-        ...(_params.includeEdges === undefined
-          ? {}
-          : { includeEdges: _params.includeEdges }),
-        ...(_params.edgeTypes === undefined
-          ? {}
-          : { edgeTypes: _params.edgeTypes }),
-      },
-      options,
-    );
-  }
-
-  async getWorkItemGraph(
-    params: {
-      organizationId: string;
-      projectId: string;
-      workItemId: string;
-      incidentRelationshipTypes?: Set<WorkItemGraphParticipationType>;
-    },
-    options?: AxiosRequestConfig,
-  ) {
-    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsWorkItemIdGraphGet(
-      {
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        workItemId: params.workItemId,
-        ...(params.incidentRelationshipTypes === undefined
-          ? {}
-          : {
-              incidentRelationshipTypes: Array.from(
-                params.incidentRelationshipTypes,
-              ),
-            }),
-      },
-      options,
-    );
-  }
-
   async getUxFlowsForWorkItem(
     params: { organizationId: string; projectId: string; workItemId: string },
     options?: AxiosRequestConfig,
@@ -1000,116 +924,6 @@ export class UnifiedApiClient {
         projectId: params.projectId,
         createTaskDto: params.createTaskDto,
       },
-    );
-  }
-
-  async getTasks(
-    params: {
-      organizationId: string;
-      projectId: string;
-      taskIds?: string[];
-      status?: TaskResponseDto["status"] | TaskResponseDto["status"][];
-      /** @deprecated Still supported for initiative-scoped views during transition */
-      initiativeId?: string;
-      parentTaskId?: string | null;
-      parentTaskIds?: string[];
-      includeDesignDocCounts?: boolean;
-      includeAgentSessionCounts?: boolean;
-      includeServiceRelations?: boolean;
-      includeEdges?: boolean;
-      edgeTypes?: AgentEdgeType[];
-      includeSectionKeys?: string[];
-      includeDescendants?: boolean;
-      includeTrackedEntities?: boolean;
-      includeTrackedWorkSummary?: boolean;
-      type?: string;
-      relatedEntityId?: string;
-      relatedEntityType?: AgentEdgeEndpointEntityType;
-      page?: number;
-      limit?: number;
-      sortBy?: TaskSortBy;
-      sortDir?: TaskSortDir;
-    },
-    options?: AxiosRequestConfig,
-  ) {
-    // Convert null to "null" string for API - this allows filtering for tasks with no parent
-    const parentTaskIdParam =
-      params.parentTaskId === null ? "null" : params.parentTaskId;
-
-    const includeSectionKeysParam = params.includeSectionKeys?.length
-      ? params.includeSectionKeys
-      : undefined;
-    const statusParam = params.status
-      ? Array.isArray(params.status)
-        ? params.status
-        : [params.status]
-      : undefined;
-
-    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdTasksGet(
-      {
-        organizationId: params.organizationId,
-        projectId: params.projectId,
-        ...(params.initiativeId === undefined
-          ? {}
-          : { initiativeId: params.initiativeId }),
-        ...(parentTaskIdParam === undefined
-          ? {}
-          : { parentTaskId: parentTaskIdParam }),
-        ...(params.parentTaskIds
-          ? { parentTaskIds: Array.from(new Set(params.parentTaskIds)) }
-          : {}),
-        ...(params.taskIds ? { taskIds: params.taskIds } : {}),
-        ...(params.includeDescendants
-          ? { includeDescendants: params.includeDescendants }
-          : {}),
-        ...(params.includeTrackedEntities === undefined
-          ? {}
-          : { includeTrackedEntities: params.includeTrackedEntities }),
-        ...(params.includeTrackedWorkSummary === undefined
-          ? {}
-          : { includeTrackedWorkSummary: params.includeTrackedWorkSummary }),
-        ...(statusParam === undefined ? {} : { status: statusParam }),
-        ...(params.includeDesignDocCounts === undefined
-          ? {}
-          : { includeDesignDocCounts: params.includeDesignDocCounts }),
-        ...(params.includeAgentSessionCounts === undefined
-          ? {}
-          : { includeAgentSessionCounts: params.includeAgentSessionCounts }),
-        ...(params.includeServiceRelations === undefined
-          ? {}
-          : { includeServiceRelations: params.includeServiceRelations }),
-        ...(params.includeEdges === undefined
-          ? {}
-          : { includeEdges: params.includeEdges }),
-        ...(params.edgeTypes === undefined
-          ? {}
-          : { edgeTypes: params.edgeTypes }),
-        ...(includeSectionKeysParam === undefined
-          ? {}
-          : { includeSectionKeys: includeSectionKeysParam }),
-        ...(params.type === undefined ? {} : { type: params.type }),
-        ...(params.relatedEntityId === undefined
-          ? {}
-          : { relatedEntityId: params.relatedEntityId }),
-        ...(params.relatedEntityType === undefined
-          ? {}
-          : { relatedEntityType: params.relatedEntityType }),
-        ...(params.page === undefined ? {} : { page: params.page }),
-        ...(params.limit === undefined ? {} : { limit: params.limit }),
-        ...(params.sortBy === undefined ? {} : { sortBy: params.sortBy }),
-        ...(params.sortDir === undefined ? {} : { sortDir: params.sortDir }),
-      },
-      options,
-    );
-  }
-
-  listWorkItemReferences(
-    ...args: Parameters<
-      TasksApi["organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet"]
-    >
-  ) {
-    return this.clients.tasks.organizationsOrganizationIdProjectsProjectIdWorkItemsReferencesGet(
-      ...args,
     );
   }
 

@@ -6,7 +6,9 @@ import { useDeleteDesignDoc } from "../useDeleteDesignDoc";
 import { useCreateAdr } from "../useCreateAdr";
 import { useUpdateAdr } from "../useUpdateAdr";
 import { designDocKeys } from "../../collections/designDocs";
-import { workItemKeys } from "../../collections/workItemLists";
+import { useWorkItems } from "../useWorkItems";
+import { FakeWorkItemServer } from "../../../test/workItemGraphQL";
+import { ApolloProvider } from "@apollo/client/react";
 import { loadConfig, resetConfig } from "../../relationships";
 import { doc, ok, deferred, client, wrapper } from "./designDocTestUtils";
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
@@ -27,7 +29,7 @@ function setup() {
   const other = designDocKeys.list("other-org");
   queryClient.setQueryData(
     detail,
-    doc("doc", { parentEntityType: "TASK", parentEntityId: "old" })
+    doc("doc", { parentEntityType: "TASK", parentEntityId: "old" }),
   );
   queryClient.setQueryData(list, [
     doc("doc", { parentEntityType: "TASK", parentEntityId: "old" }),
@@ -58,30 +60,46 @@ describe("design-doc mutations", () => {
         },
       ],
     });
-    const workList = workItemKeys.list("org", "project", {});
-    queryClient.setQueryData(workList, []);
+    // A shown work-item list of the project: the rule above refreshes it.
+    const server = new FakeWorkItemServer([]);
     const onSuccess = vi.fn();
-    const mounted = renderHook(() => useCreateDesignDoc({ onSuccess }), {
-      wrapper: wrapper(queryClient),
-    });
+    const mounted = renderHook(
+      () => ({
+        create: useCreateDesignDoc({ onSuccess }),
+        workItems: useWorkItems("org", "task", "project"),
+      }),
+      {
+        wrapper: ({ children }) => (
+          <ApolloProvider client={server.graphql.apollo}>
+            {wrapper(queryClient)({ children })}
+          </ApolloProvider>
+        ),
+      },
+    );
+    await waitFor(() =>
+      expect(mounted.result.current.workItems.isReady).toBe(true),
+    );
+    expect(server.received("GetWorkItems")).toHaveLength(1);
     await act(async () =>
       expect(
-        await mounted.result.current.mutate({
+        await mounted.result.current.create.mutate({
           organizationId: "org",
           designDoc: { name: "New", sections: [] },
-        })
-      ).toEqual(created)
+        }),
+      ).toEqual(created),
     );
     expect(
-      queryClient.getQueryData(designDocKeys.detail("org", "new"))
+      queryClient.getQueryData(designDocKeys.detail("org", "new")),
     ).toEqual(created);
     expect(queryClient.getQueryData(list)).toEqual(
-      expect.arrayContaining([created])
+      expect.arrayContaining([created]),
     );
     expect(queryClient.getQueryData(other)).toEqual([]);
-    expect(queryClient.getQueryState(workList)?.isInvalidated).toBe(true);
+    await waitFor(() =>
+      expect(server.received("GetWorkItems")).toHaveLength(2),
+    );
     expect(onSuccess).toHaveBeenCalledWith(created);
-    expect(mounted.result.current.isSuccess).toBe(true);
+    expect(mounted.result.current.create.isSuccess).toBe(true);
     queryClient.clear();
   });
   it("writes applied updates to detail and filtered lists, moving status membership", async () => {
@@ -92,7 +110,7 @@ describe("design-doc mutations", () => {
     queryClient.setQueryData(approved, []);
     const updated = doc("doc", { name: "Updated", status: "APPROVED" });
     mocks.request.mockResolvedValue(
-      ok({ status: "APPLIED", designDoc: updated })
+      ok({ status: "APPLIED", designDoc: updated }),
     );
     const mounted = renderHook(() => useUpdateDesignDoc(), {
       wrapper: wrapper(queryClient),
@@ -102,7 +120,7 @@ describe("design-doc mutations", () => {
         organizationId: "org",
         designDocId: "doc",
         updates: { name: "Updated" },
-      })
+      }),
     );
     expect(queryClient.getQueryData(detail)).toEqual(updated);
     expect(queryClient.getQueryData(list)).toEqual([updated]);
@@ -115,7 +133,7 @@ describe("design-doc mutations", () => {
     const saved = queryClient.getQueryData(detail);
     const proposal = { id: "proposal" };
     mocks.request.mockResolvedValue(
-      ok({ status: "PENDING", designDoc: saved, proposal })
+      ok({ status: "PENDING", designDoc: saved, proposal }),
     );
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const mounted = renderHook(() => useUpdateDesignDoc(), {
@@ -127,8 +145,8 @@ describe("design-doc mutations", () => {
           organizationId: "org",
           designDocId: "doc",
           updates: { name: "Proposed" },
-        })
-      ).toEqual({ status: "PENDING", designDoc: saved, proposal })
+        }),
+      ).toEqual({ status: "PENDING", designDoc: saved, proposal }),
     );
     expect(queryClient.getQueryData(detail)).toEqual(saved);
     expect(queryClient.getQueryData(list)).toEqual([saved]);
@@ -149,8 +167,8 @@ describe("design-doc mutations", () => {
           organizationId: "org",
           designDocId: "doc",
           updates: {},
-        })
-      ).toEqual({ status: "APPLIED", designDoc: doc() })
+        }),
+      ).toEqual({ status: "APPLIED", designDoc: doc() }),
     );
     await act(async () =>
       expect(
@@ -158,8 +176,8 @@ describe("design-doc mutations", () => {
           organizationId: "org",
           designDocId: "doc",
           updates: {},
-        })
-      ).rejects.toThrow("No design doc")
+        }),
+      ).rejects.toThrow("No design doc"),
     );
     expect(queryClient.getQueryData(detail)).toEqual(doc());
     queryClient.clear();
@@ -173,7 +191,7 @@ describe("design-doc mutations", () => {
     const onSettled = vi.fn();
     const mounted = renderHook(
       () => useDeleteDesignDoc({ onError, onSettled }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     let operation!: Promise<unknown>;
     act(() => {
@@ -209,7 +227,7 @@ describe("design-doc mutations", () => {
       mounted.result.current.mutate({
         organizationId: "org",
         designDocId: "doc",
-      })
+      }),
     );
     expect(queryClient.getQueryData(detail)).toBeNull();
     expect(queryClient.getQueryData(list)).toEqual([]);
@@ -235,7 +253,9 @@ describe("design-doc mutations", () => {
       });
     });
     const rejected = expect(operation).rejects.toThrow("delete failed");
-    await waitFor(() => expect(queryClient.getQueryData(list)).toEqual([second]));
+    await waitFor(() =>
+      expect(queryClient.getQueryData(list)).toEqual([second]),
+    );
     await act(async () => {
       await mounted.result.current.mutate({
         organizationId: "org",
@@ -249,7 +269,7 @@ describe("design-doc mutations", () => {
     });
     expect(queryClient.getQueryData(list)).toEqual([first]);
     expect(
-      queryClient.getQueryData(designDocKeys.detail("org", second.id))
+      queryClient.getQueryData(designDocKeys.detail("org", second.id)),
     ).toBeNull();
     queryClient.clear();
   });
@@ -261,13 +281,13 @@ describe("design-doc mutations", () => {
       .mockResolvedValueOnce(ok({ status: "PENDING", designDoc: adr }));
     const mounted = renderHook(
       () => ({ create: useCreateAdr(), update: useUpdateAdr() }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     await act(async () =>
       mounted.result.current.create.mutate({
         organizationId: "org",
         adr: { name: "ADR", content: { context: "Why" } },
-      })
+      }),
     );
     expect(mocks.request).toHaveBeenNthCalledWith(
       1,
@@ -278,14 +298,14 @@ describe("design-doc mutations", () => {
             expect.objectContaining({ key: "context", content: "Why" }),
           ]),
         }),
-      })
+      }),
     );
     await act(async () =>
       mounted.result.current.update.mutate({
         organizationId: "org",
         adrId: "doc",
         updates: { content: { decision: "Choose" }, reason: "Reason" },
-      })
+      }),
     );
     expect(mocks.request).toHaveBeenNthCalledWith(
       2,
@@ -294,7 +314,7 @@ describe("design-doc mutations", () => {
           reason: "Reason",
           sections: [{ key: "decision", content: "Choose", order: 0 }],
         }),
-      })
+      }),
     );
     expect(queryClient.getQueryData(detail)).toEqual(adr);
     expect(queryClient.getQueryData(list)).toEqual([adr]);

@@ -20,15 +20,10 @@ import {
   type ReportDto,
   type RunCreatePayloadRunEval,
 } from "../../api";
-import {
-  evalRunsClient,
-  platformClient,
-  unifiedApiClient,
-} from "../../clients/serviceClients";
+import { evalRunsClient, unifiedApiClient } from "../../clients/serviceClients";
 import { captureRequestOptions } from "../core/requestInitiator";
 import { dataLayerQueryPolicy } from "../query/queryPolicy";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
-import { messageKeys } from "./messages";
 import { reportKeys } from "./reports";
 
 export const evalSessionStatusesKey = (org: string, project: string) =>
@@ -199,62 +194,6 @@ export const toEvalAttemptOutput = (
   proposals: messages.flatMap((message) => message.proposals ?? []),
   reports: messages.flatMap((message) => message.reports ?? []),
 });
-
-/**
- * An attempt's output is its target conversation: the full thread with the
- * proposals and reports made from its messages. Keyed under the conversation's
- * message reads so their invalidations refresh it, and cached as messages like
- * every other read under that prefix.
- */
-export const evalAttemptOutputKey = (
-  organizationId: string,
-  projectId: string,
-  targetConversationId: string,
-) =>
-  [
-    ...messageKeys.conversation(
-      organizationId,
-      projectId,
-      targetConversationId,
-    ),
-    "evalAttemptOutput",
-  ] as const;
-
-export function evalAttemptOutputQueryOptions(
-  organizationId: string,
-  projectId: string,
-  targetConversationId: string,
-) {
-  const requestOptions = captureRequestOptions();
-  return queryOptions({
-    ...dataLayerQueryPolicy,
-    queryKey: evalAttemptOutputKey(
-      organizationId,
-      projectId,
-      targetConversationId,
-    ),
-    queryFn: async ({ signal }): Promise<MessageResponseDto[]> => {
-      // No cursor, mode or limit: the forward read returns the whole thread.
-      const response = await platformClient.getMessages(
-        {
-          organizationId,
-          projectId,
-          conversationId: targetConversationId,
-          includeProposals: true,
-          includeReports: true,
-        },
-        { ...requestOptions, signal },
-      );
-      const data = response.data?.data;
-      if (data !== undefined && !Array.isArray(data)) {
-        throw new Error(
-          "Attempt conversation read returned an invalid response",
-        );
-      }
-      return data ?? [];
-    },
-  });
-}
 
 /** Repeats per case and configuration. Runs recorded before repeats count as 1. */
 export const runRepeats = (run: EvalRunReport): number =>

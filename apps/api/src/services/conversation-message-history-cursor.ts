@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { validate as isUuid } from 'uuid';
 import type { ConversationId, MessageId, ProjectId } from '../types';
 
@@ -10,9 +10,12 @@ export interface ConversationMessageHistoryCursor {
   id: MessageId;
 }
 
-export class ConversationMessageHistoryCursorError extends BadRequestException {
+export class ConversationMessageHistoryCursorError extends NotFoundException {
   constructor() {
-    super('historyCursor is invalid for this project conversation');
+    super({
+      code: 'MESSAGE_CURSOR_NOT_FOUND',
+      message: 'historyCursor is invalid for this project conversation',
+    });
   }
 }
 

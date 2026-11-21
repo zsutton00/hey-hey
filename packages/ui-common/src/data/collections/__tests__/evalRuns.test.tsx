@@ -1,3 +1,9 @@
+import {
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
+import { useConversationMessages } from "../../hooks/useConversationMessages";
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { useEvalSessionStatuses } from "../../hooks/useEvalSessionStatuses";
 import { applyEvalRunUpdated, applyEvalAttemptUpdated } from "../evalRuns";
 import { evalRunStatusLabel } from "../../evalRunStatusLabel";
@@ -30,7 +36,6 @@ import {
   type EvalAttemptReport,
   type EvalRunReport,
 } from "../evalRuns";
-import { invalidateConversationMessages } from "../messages";
 import {
   useEvalAttemptOutput,
   useEvalHumanReviews,
@@ -48,13 +53,14 @@ const api = vi.hoisted(() => ({
   listReports: vi.fn(),
   createReport: vi.fn(),
   launchEvalRun: vi.fn(),
-  getMessages: vi.fn(),
 }));
 vi.mock("../../../clients/serviceClients", async (original) => ({
   ...(await original<object>()),
   unifiedApiClient: api,
   evalRunsClient: api,
-  platformClient: api,
+  projectsClient: {
+    getQueuedConversationInputs: async () => ({ data: { data: [] } }),
+  },
 }));
 
 const wrap = <T,>(data: T) => ({ data: { data } });
@@ -225,81 +231,106 @@ describe("eval attempt output", () => {
     retainedOriginalTargetContent,
   };
   const outputReport = { id: "report-1" };
-  const messages = [
-    {
-      id: "message-1",
-      conversationId: "target-conversation-1",
-      proposals: [proposal],
-    },
-    {
-      id: "message-2",
-      conversationId: "target-conversation-1",
-      reports: [outputReport],
-    },
-  ];
+  const setupOutput = () => {
+    const thread = threadOf(10);
+    thread[3].proposals = [proposal];
+    thread[3].reports = [outputReport];
+    const server = new FakeConversationServer(thread);
+    const attempt = attemptReport(EvalAttemptStatus.Completed);
+    attempt.payload.targetConversationId = server.conversationId;
+    attempt.projectId = "project-1";
+    return { server, attempt, thread };
+  };
 
-  it("reads the attempt's whole target conversation with its proposals and reports", async () => {
-    api.getMessages.mockResolvedValue(wrap(messages));
-    const { wrapper } = setup();
-    const { result } = renderHook(
+  it("reads the whole output after a recent page and shares live edits and deletions with the thread", async () => {
+    const { server, attempt, thread } = setupOutput();
+    const conversation = renderHook(
       () =>
-        useEvalAttemptOutput("org", attemptReport(EvalAttemptStatus.Completed)),
-      { wrapper },
+        useConversationMessages("org-1", "project-1", server.conversationId),
+      { wrapper: server.wrapper },
     );
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-    expect(api.getMessages).toHaveBeenCalledWith(
-      {
-        organizationId: "org",
-        projectId: "project",
-        conversationId: "target-conversation-1",
-        includeProposals: true,
-        includeReports: true,
-      },
-      expect.anything(),
+    await waitFor(() =>
+      expect(conversation.result.current.orderedData).toHaveLength(8),
     );
-    expect(result.current.hasRecordedConversation).toBe(true);
-    expect(result.current.data?.messages.map(({ id }) => id)).toEqual([
-      "message-1",
-      "message-2",
-    ]);
-    expect(result.current.data?.proposals).toEqual([proposal]);
-    expect(
-      result.current.data?.proposals[0].retainedOriginalTargetContent,
-    ).toEqual(retainedOriginalTargetContent);
-    expect(result.current.data?.reports).toEqual([outputReport]);
-  });
 
-  it("refreshes when the target conversation's messages are invalidated", async () => {
-    api.getMessages.mockResolvedValue(wrap(messages));
-    const { client, wrapper } = setup();
-    const { result } = renderHook(
-      () =>
-        useEvalAttemptOutput("org", attemptReport(EvalAttemptStatus.Running)),
-      { wrapper },
-    );
-    await waitFor(() => expect(result.current.isReady).toBe(true));
-    await act(() =>
-      invalidateConversationMessages(
-        client,
-        "org",
-        "project",
-        "target-conversation-1",
+    const output = renderHook(() => useEvalAttemptOutput("org-1", attempt), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() =>
+      expect(output.result.current.data?.messages.map(({ id }) => id)).toEqual(
+        thread.map(({ id }) => id),
       ),
     );
-    expect(api.getMessages).toHaveBeenCalledTimes(2);
+    expect(server.received("GetConversationMessages")).toEqual([
+      { id: "conv-1" },
+    ]);
+    expect(conversation.result.current.orderedData).toHaveLength(8);
+    expect(conversation.result.current.hasOlder).toBe(true);
+    expect(output.result.current.data?.proposals).toEqual([proposal]);
+    expect(output.result.current.data?.reports).toEqual([outputReport]);
+
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      server.queryClient,
+      server.graphql.apollo,
+    );
+    const event = {
+      timestamp: "2026-11-01T00:00:00.000Z",
+      organizationId: "org-1",
+      projectId: "project-1",
+      conversationId: server.conversationId,
+      messageId: "m4",
+    };
+    server.rename("m4", { response: "edited output" });
+    act(() => handler.handleEvent({ type: "message.updated", ...event }));
+
+    await waitFor(() => {
+      expect(output.result.current.data?.messages[3]?.data).toEqual({
+        response: "edited output",
+      });
+      expect(
+        conversation.result.current.orderedData.find(({ id }) => id === "m4")
+          ?.data,
+      ).toEqual({
+        response: "edited output",
+      });
+    });
+
+    expect(conversation.result.current.orderedData).toHaveLength(8);
+
+    server.remove("m4");
+    act(() => handler.handleEvent({ type: "message.deleted", ...event }));
+    await waitFor(() => {
+      expect(
+        output.result.current.data?.messages.map(({ id }) => id),
+      ).not.toContain("m4");
+      expect(
+        conversation.result.current.orderedData.map(({ id }) => id),
+      ).not.toContain("m4");
+      expect(output.result.current.data?.proposals).toEqual([]);
+      expect(output.result.current.data?.reports).toEqual([]);
+    });
+    await act(async () => conversation.result.current.loadOlder());
+    await waitFor(() => {
+      expect(
+        conversation.result.current.orderedData.map(({ id }) => id),
+      ).toEqual(thread.filter(({ id }) => id !== "m4").map(({ id }) => id));
+      expect(conversation.result.current.hasOlder).toBe(false);
+    });
   });
 
   it("reads nothing for an attempt with no recorded conversation", () => {
     const attempt = attemptReport(EvalAttemptStatus.Completed);
     attempt.payload.targetConversationId = null;
-    const { wrapper } = setup();
+    const server = new FakeConversationServer([]);
     const { result } = renderHook(() => useEvalAttemptOutput("org", attempt), {
-      wrapper,
+      wrapper: server.wrapper,
     });
     expect(result.current.hasRecordedConversation).toBe(false);
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBeNull();
-    expect(api.getMessages).not.toHaveBeenCalled();
+    expect(server.requests).toEqual([]);
   });
 });
 
@@ -499,6 +530,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     const event: EvalRunUpdatedEvent = {
       id: "event-1",
@@ -526,6 +558,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     const event: EvalAttemptUpdatedEvent = {
       id: "event-2",
@@ -555,6 +588,7 @@ describe("eval progress events", () => {
       createStore(),
       debuggerInstance(),
       client,
+      createUnreachableGraphQLClient(),
     );
     handler.handleEvent({
       id: "event-3",

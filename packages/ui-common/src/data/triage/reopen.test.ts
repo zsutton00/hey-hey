@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EntityType } from "../../api";
+import { FakeWorkItemServer } from "../../test/workItemGraphQL";
 import { triageReopenRequest } from "./reopen";
 
 const clients = vi.hoisted(() => ({
-  getTask: vi.fn(),
   getEntityContext: vi.fn(),
 }));
 vi.mock("../../clients/serviceClients", () => ({
-  unifiedApiClient: { getTask: clients.getTask },
   entityContextClient: { getEntityContext: clients.getEntityContext },
   agentSessionsClient: {},
   conversationsClient: {},
@@ -22,20 +21,20 @@ const item = {
 };
 describe("triage canonical reopening lineage", () => {
   beforeEach(() => vi.resetAllMocks());
+  const reopen = (server: FakeWorkItemServer) =>
+    triageReopenRequest(server.graphql.apollo, scope, item, "intent");
   it.each(["parent", "stage", "plan"])(
     "preserves plan/stage ancestry with %s parent without duplicates",
     async (parentTaskId) => {
-      clients.getTask.mockResolvedValue({
-        data: {
-          data: {
-            id: "child",
-            name: "Canonical title",
-            type: "STANDARD",
-            status: "ACTIVE",
-            parentTaskId,
-          },
+      const server = new FakeWorkItemServer([
+        {
+          id: "child",
+          name: "Canonical title",
+          type: "STANDARD",
+          status: "ACTIVE",
+          parentTaskId,
         },
-      });
+      ]);
       clients.getEntityContext.mockResolvedValue({
         data: {
           data: {
@@ -46,7 +45,7 @@ describe("triage canonical reopening lineage", () => {
           },
         },
       });
-      const request = await triageReopenRequest(scope, item, "intent");
+      const request = await reopen(server);
       expect(request.lineage).toEqual(
         [...new Set(["plan", "stage", parentTaskId, "child"])].map(
           (entityId) => ({ entityType: EntityType.Task, entityId }),
@@ -57,31 +56,28 @@ describe("triage canonical reopening lineage", () => {
     },
   );
   it("retains ordinary nested parent lineage without a plan", async () => {
-    clients.getTask.mockResolvedValue({
-      data: {
-        data: {
-          id: "child",
-          name: "Child",
-          type: "STANDARD",
-          parentTaskId: "parent",
-        },
+    const server = new FakeWorkItemServer([
+      {
+        id: "child",
+        name: "Child",
+        type: "STANDARD",
+        status: "ACTIVE",
+        parentTaskId: "parent",
       },
-    });
+    ]);
     clients.getEntityContext.mockResolvedValue({ data: { data: {} } });
-    expect((await triageReopenRequest(scope, item, "intent")).lineage).toEqual([
+    expect((await reopen(server)).lineage).toEqual([
       { entityType: EntityType.Task, entityId: "parent" },
       { entityType: EntityType.Task, entityId: "child" },
     ]);
   });
   it("fails before activation if canonical ancestry cannot be read", async () => {
-    clients.getTask.mockResolvedValue({
-      data: { data: { id: "child", name: "Child" } },
-    });
+    const server = new FakeWorkItemServer([
+      { id: "child", name: "Child", type: "STANDARD", status: "ACTIVE" },
+    ]);
     clients.getEntityContext.mockRejectedValue(
       new Error("ancestry unavailable"),
     );
-    await expect(triageReopenRequest(scope, item, "intent")).rejects.toThrow(
-      "ancestry unavailable",
-    );
+    await expect(reopen(server)).rejects.toThrow("ancestry unavailable");
   });
 });

@@ -35,6 +35,7 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   useWorkItem: vi.fn(),
+  useWorkItemWithoutProject: vi.fn(),
   useWorkItemTypeByKey: vi.fn(),
 }));
 
@@ -103,13 +104,18 @@ vi.mock("./WorkflowDetailPage", () => ({
 }));
 
 import { useParams } from "react-router-dom";
-import { useWorkItem, useWorkItemTypeByKey } from "@hey-hey/ui-common/data";
+import {
+  useWorkItem,
+  useWorkItemTypeByKey,
+  useWorkItemWithoutProject,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { createCanonicalPageDescriptor } from "@hey-hey/ui-common/context";
 import { TaskRouter } from "./TaskRouter";
 
 const mockUseParams = vi.mocked(useParams);
 const mockUseWorkItem = vi.mocked(useWorkItem);
+const mockUseWorkItemWithoutProject = vi.mocked(useWorkItemWithoutProject);
 const mockUseWorkItemTypeByKey = vi.mocked(useWorkItemTypeByKey);
 const mockUseUserIdentity = vi.mocked(useUserIdentity);
 const mockCreateCanonicalPageDescriptor = vi.mocked(
@@ -478,15 +484,16 @@ describe("TaskRouter", () => {
 
   it("recovers project context before rendering TaskMonitor", async () => {
     mockUseParams.mockReturnValue({ id: "monitor-123" });
-    mockUseWorkItem.mockReturnValue({
+    mockUseWorkItemWithoutProject.mockReturnValue({
       workItem: {
         id: "monitor-123",
         type: "TASK_MONITOR",
         projectId: "proj-1",
       },
       isLoading: false,
+      isFetched: true,
       error: null,
-    } as ReturnType<typeof useWorkItem>);
+    } as ReturnType<typeof useWorkItemWithoutProject>);
 
     render(<TaskRouter />);
 
@@ -500,13 +507,20 @@ describe("TaskRouter", () => {
   });
 
   it("canonicalizes /work-items/:id before rendering the GOAL page", async () => {
+    const goal = {
+      id: "goal-123",
+      type: WORK_ITEM_TYPE_KEYS.Goal,
+      projectId: "proj-1",
+    };
     mockUseParams.mockReturnValue({ id: "goal-123" });
+    mockUseWorkItemWithoutProject.mockReturnValue({
+      workItem: goal,
+      isLoading: false,
+      isFetched: true,
+      error: null,
+    } as ReturnType<typeof useWorkItemWithoutProject>);
     mockUseWorkItem.mockReturnValue({
-      workItem: {
-        id: "goal-123",
-        type: WORK_ITEM_TYPE_KEYS.Goal,
-        projectId: "proj-1",
-      },
+      workItem: goal,
       isLoading: false,
       error: null,
     } as ReturnType<typeof useWorkItem>);

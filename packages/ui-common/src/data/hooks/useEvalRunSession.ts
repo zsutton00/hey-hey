@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ConversationStartRunRequestDtoProviderEnum,
@@ -92,6 +93,7 @@ export interface UseEvalRunSessionReturn {
  */
 export function useEvalRunSession(): UseEvalRunSessionReturn {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const { t } = useTranslation();
   const accessResolver = useAgentSessionInteractionAccessResolver();
   const operationIds = useRef(new Map<string, string>());
@@ -180,7 +182,7 @@ export function useEvalRunSession(): UseEvalRunSessionReturn {
           );
         }
         operationIds.current.delete(run.id);
-        reconcileAcceptedAgentLaunch(queryClient, {
+        reconcileAcceptedAgentLaunch(queryClient, graphqlClient, {
           organizationId,
           projectId,
           agentSessionId: coordinatorAgentSessionId,

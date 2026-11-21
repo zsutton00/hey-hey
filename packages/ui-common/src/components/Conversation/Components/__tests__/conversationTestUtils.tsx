@@ -2,12 +2,16 @@ import { http, HttpResponse } from "msw";
 import { flattenFixtureMessages } from "../../../../test/conversationFixtures";
 import { createStore, Provider } from "jotai";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { messageKeys } from "../../../../data/collections/messages";
+import { resetConversationMessageHistoryStateForTests } from "../../../../data/collections/conversationMessageHistoryState";
+import { ApolloProvider } from "@apollo/client/react";
+import axios from "axios";
+import { WebUiGraphQLClient } from "../../../../data/graphql/client";
 import {
-  buildConversationMessageHistoryKey,
-  recordInitialConversationMessageHistoryPage,
-  resetConversationMessageHistoryStateForTests,
-} from "../../../../data/collections/conversationMessageHistoryState";
+  GetConversationMessageHistoryDocument,
+  type GetConversationMessageHistoryQuery,
+} from "../../../../graphql/generated/graphql";
+import { answerConversationOperation } from "../../../../test/conversationGraphQLAnswers";
+import { conversationThreadHandlers } from "../../../../test/conversationGraphQLHandlers";
 import React from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
@@ -409,16 +413,6 @@ export const renderWithConversationProvider = async (
 
   const store = createStore();
   resetConversationMessageHistoryStateForTests();
-  if (historyCursor) {
-    recordInitialConversationMessageHistoryPage(
-      buildConversationMessageHistoryKey({
-        organizationId: conversation.organizationId,
-        projectId: conversation.projectId,
-        conversationId: conversation.id,
-      }),
-      historyCursor,
-    );
-  }
   const canonicalMessages = flattenFixtureMessages(
     timeline.map((item) => item.message),
   );
@@ -432,60 +426,58 @@ export const renderWithConversationProvider = async (
           ),
         }),
     ),
-    http.get(
-      "*/api/v1/organizations/" +
-        conversation.organizationId +
-        "/projects/" +
-        conversation.projectId +
-        "/messages",
-      ({ request }) => {
-        const mode = new URL(request.url).searchParams.get("mode");
-        return HttpResponse.json({
-          success: true,
-          data:
-            mode === "REVERSE_HISTORY"
-              ? { messages: canonicalMessages }
-              : canonicalMessages,
-        });
-      },
-    ),
+    ...conversationThreadHandlers(canonicalMessages, historyCursor),
   );
+  // The thread is already loaded when the view mounts, as it is in the app.
+  const graphql = new WebUiGraphQLClient(() =>
+    axios.create({ baseURL: "http://localhost:3000/api/v1" }),
+  );
+  const newestPage = { id: conversation.id, last: 8 };
+  graphql.apollo.writeQuery({
+    query: GetConversationMessageHistoryDocument,
+    variables: newestPage,
+    data: (
+      answerConversationOperation(
+        {
+          thread: canonicalMessages,
+          conversations: [],
+          olderCursor: historyCursor,
+        },
+        "GetConversationMessageHistory",
+        newestPage,
+      ).body as unknown as { data: GetConversationMessageHistoryQuery }
+    ).data,
+  });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retryDelay: 0 } },
   });
-  queryClient.setQueryData(
-    messageKeys.list(
-      conversation.organizationId,
-      conversation.projectId,
-      conversation.id,
-    ),
-    canonicalMessages,
-  );
   const renderResult = render(
     <QueryClientProvider client={queryClient}>
-      <Provider store={store}>
-        <AuthProvider>
-          <ConversationProvider
-            scrollPolicy={{ mode: "disabled" }}
-            conversation={conversation}
-            project={project}
-            animationType={animationType}
-            readOnly={readOnly}
-            agentSessionId={agentSessionId}
-            taskMonitorId={taskMonitorId}
-            conversationFormResolver={conversationFormResolver}
-            suggestionDecisions={{
-              getRoutingDecision: () => undefined,
-              upsertRoutingDecision: vi.fn(),
-              decisionsById: {},
-              getDecision: () => undefined,
-              upsertDecision: vi.fn(),
-            }}
-          >
-            {ui}
-          </ConversationProvider>
-        </AuthProvider>
-      </Provider>
+      <ApolloProvider client={graphql.apollo}>
+        <Provider store={store}>
+          <AuthProvider>
+            <ConversationProvider
+              scrollPolicy={{ mode: "disabled" }}
+              conversation={conversation}
+              project={project}
+              animationType={animationType}
+              readOnly={readOnly}
+              agentSessionId={agentSessionId}
+              taskMonitorId={taskMonitorId}
+              conversationFormResolver={conversationFormResolver}
+              suggestionDecisions={{
+                getRoutingDecision: () => undefined,
+                upsertRoutingDecision: vi.fn(),
+                decisionsById: {},
+                getDecision: () => undefined,
+                upsertDecision: vi.fn(),
+              }}
+            >
+              {ui}
+            </ConversationProvider>
+          </AuthProvider>
+        </Provider>
+      </ApolloProvider>
     </QueryClientProvider>,
   );
 
