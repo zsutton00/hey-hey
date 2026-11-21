@@ -123,11 +123,16 @@ export const interventionHold = (
   return pending.owner === 'MONITOR' ? 'MONITOR_HELD' : 'HUMAN_HELD';
 };
 
+export const isHumanHeldQueued = (request: TaskMonitorQueuedIntervention): boolean =>
+  request.userRequired === true || request.owner === 'HUMAN';
+
+export const protectedRequestReason =
+  'The request is marked USER_REQUIRED, so only a person can decide it.';
+
 /** A request the machine records, wherever it sits: at the front, or queued behind another. */
 export interface TaskMonitorRecordedRequest {
   readonly request: TaskMonitorPendingIntervention | TaskMonitorQueuedIntervention;
-  /** QUEUED: a USER_REQUIRED request that waits behind another and cannot be answered yet. */
-  readonly hold: TaskMonitorInterventionHold | 'QUEUED';
+  readonly hold: TaskMonitorInterventionHold;
 }
 
 /** Finds the machine's record of one provider request, which is what decides who may answer it. */
@@ -157,11 +162,8 @@ export const findMonitoredRequest = (
       .find((request) => request.runId === runId && request.providerActionId === providerActionId);
     return undelivered === undefined ? null : { request: undelivered, hold: 'SETTLED' };
   }
-  if (queued.userRequired === true) {
-    return { request: queued, hold: 'QUEUED' };
-  }
 
-  return { request: queued, hold: queued.owner === 'HUMAN' ? 'HUMAN_HELD' : 'MONITOR_HELD' };
+  return { request: queued, hold: isHumanHeldQueued(queued) ? 'HUMAN_HELD' : 'MONITOR_HELD' };
 };
 
 /** Exactly one of `human` (a person decided) or `monitorRationale` (the monitor decided) is set. */

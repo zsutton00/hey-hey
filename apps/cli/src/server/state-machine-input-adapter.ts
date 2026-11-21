@@ -305,12 +305,7 @@ export class TaskMonitorStateMachineInputAdapter {
 
     const { request: pending, hold } = found;
     if (hold !== 'HUMAN_HELD') {
-      const cause =
-        hold === 'SETTLED'
-          ? 'already_settled'
-          : hold === 'QUEUED'
-            ? 'queued_behind_another_request'
-            : 'held_by_monitor';
+      const cause = hold === 'SETTLED' ? 'already_settled' : 'held_by_monitor';
       this.logger.warn('task_monitor.permission_decision.rejected', {
         ...logContext,
         interventionId: pending.interventionId,
@@ -320,9 +315,7 @@ export class TaskMonitorStateMachineInputAdapter {
       const reason =
         hold === 'SETTLED'
           ? 'This request was already decided, so this answer was not applied.'
-          : hold === 'QUEUED'
-            ? 'This request is waiting behind another one that needs an answer first.'
-            : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.';
+          : 'The Task Monitor is still deciding this request; it can be answered once it is handed to a person.';
 
       if (hold === 'SETTLED' && 'decision' in pending && pending.decision !== null) {
         return alreadyDecided(pending.decision, pending.interventionId);

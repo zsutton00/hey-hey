@@ -657,27 +657,44 @@ describe('Task Monitor exact-action intervention', () => {
       ]);
     });
 
-    it('hands a queued USER_REQUIRED request to the human only when its turn comes', () => {
+    it('answers a queued protected request once while the first request still waits for a person', () => {
       const { definition, snapshot } = observing();
-      const [first] = transition(definition.machine, snapshot, exactAction);
-      const [queued] = transition(definition.machine, first, { ...second, userRequired: true });
-      const [applying] = transition(definition.machine, queued, monitorDecision());
-
-      const [next, actions] = transition(definition.machine, applying, {
-        type: 'DECISION_APPLIED',
-        taskMonitorId: MONITOR_ID,
-        interventionId: INTERVENTION_ID,
-        providerActionId: 'provider-action-1',
-      });
-
-      expect(next.context.pendingIntervention).toMatchObject({
-        providerActionId: 'provider-action-2',
-        owner: 'HUMAN',
+      const [first] = transition(definition.machine, snapshot, {
+        ...exactAction,
         userRequired: true,
       });
-      expect(effectsOf(definition, actions).map((effect) => effect.type)).toEqual([
-        'PROJECT_TASK_MONITOR_INTERVENTION',
+      const [queued, admitted] = transition(definition.machine, first, {
+        ...second,
+        userRequired: true,
+      });
+      expect(effectsOf(definition, admitted)).toMatchObject([
+        { type: 'PROJECT_TASK_MONITOR_INTERVENTION', interventionId: second.interventionId },
       ]);
+      const answer = decision({
+        interventionId: second.interventionId,
+        providerActionId: second.providerActionId,
+        fingerprint: second.fingerprint,
+      });
+      const [applying, actions] = transition(definition.machine, queued, answer);
+      expect(effectsOf(definition, actions)).toContainEqual(
+        expect.objectContaining({
+          type: 'APPLY_TASK_MONITOR_DECISION',
+          providerActionId: second.providerActionId,
+        }),
+      );
+      const [remaining, promoted] = transition(definition.machine, applying, {
+        type: 'DECISION_APPLIED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: second.interventionId,
+        providerActionId: second.providerActionId,
+      });
+      expect(remaining.context.pendingIntervention).toMatchObject({
+        interventionId: INTERVENTION_ID,
+        owner: 'HUMAN',
+        decision: null,
+      });
+      expect(effectsOf(definition, promoted)).toEqual([]);
+      expect(transition(definition.machine, remaining, answer)[1]).toEqual([]);
     });
   });
 });

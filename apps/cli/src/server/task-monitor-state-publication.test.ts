@@ -408,6 +408,29 @@ describe('committed Task Monitor state projection', () => {
       ]);
     });
 
+    it('publishes both protected requests as immediately answerable after reconstruction', () => {
+      const [first] = transition(definition.machine, observing(), {
+        ...exactAction,
+        userRequired: true,
+      });
+      const second = {
+        ...exactAction,
+        interventionId: '90000000-0000-4000-8000-000000000007',
+        providerActionId: 'provider-action-2',
+        userRequired: true,
+      };
+      const [both] = transition(definition.machine, first, second);
+      expect(projectReconstructed(both).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'HUMAN', answerable: true },
+        {
+          interventionId: second.interventionId,
+          owner: 'HUMAN',
+          answerable: true,
+          reason: expect.stringContaining('USER_REQUIRED'),
+        },
+      ]);
+    });
+
     it('keeps the human handoff answerable when a stopped monitor is restored', () => {
       const [deciding] = transition(definition.machine, observing(), exactAction);
       const [stopped] = transition(definition.machine, deciding, {

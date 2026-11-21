@@ -1,3 +1,4 @@
+import { protectedRequestReason } from './context';
 import { z } from 'zod/v4';
 import { and, assign, setup } from 'xstate';
 import { currentJudgmentRequest } from './current-judgment-request';
@@ -2078,6 +2079,13 @@ const taskMonitorMachine = setup({
                 createdAt: event.createdAt,
                 expiresAt: event.expiresAt,
                 userRequired: event.userRequired === true,
+                ...(event.userRequired
+                  ? {
+                      owner: 'HUMAN' as const,
+                      escalationReason: protectedRequestReason,
+                      escalatedAt: event.createdAt,
+                    }
+                  : {}),
                 ...(event.requestKind ? { requestKind: event.requestKind } : {}),
               },
             ]

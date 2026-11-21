@@ -1,4 +1,5 @@
 import { and, not, or, stateIn } from 'xstate';
+import { isHumanHeldQueued, protectedRequestReason } from './context';
 import type {
   TaskMonitorMachineContext,
   TaskMonitorPendingIntervention,
@@ -84,9 +85,7 @@ export const pendingInterventionFromRequest = (
   ...(request.requestKind ? { requestKind: request.requestKind } : {}),
   owner: request.userRequired === true ? 'HUMAN' : (request.owner ?? 'MONITOR'),
   escalationReason:
-    request.userRequired === true
-      ? 'The request is marked USER_REQUIRED, so only a person can decide it.'
-      : (request.escalationReason ?? null),
+    request.userRequired === true ? protectedRequestReason : (request.escalationReason ?? null),
   escalatedAt: request.userRequired === true ? request.createdAt : (request.escalatedAt ?? null),
   decision: null,
   applicationFailure: null,
@@ -125,9 +124,6 @@ const monitorMayDecideServiceScope = (
   isServiceScope: 'isServiceScopeExactAction' | 'nextQueuedIsServiceScope',
 ) => or([not(isServiceScope), stateIn({ RUNNING: { control: 'ACTIVE' } })]);
 
-const isHumanHeldQueued = (request: TaskMonitorQueuedIntervention): boolean =>
-  request.userRequired !== true && request.owner === 'HUMAN';
-
 export const hasQueuedMonitorOwnedIntervention = ({ context }: InterventionArguments): boolean => {
   const next = nextQueuedIntervention(context);
   return (
@@ -145,7 +141,9 @@ export const hasQueuedHumanHeldIntervention = ({ context }: InterventionArgument
 };
 
 export const hasQueuedUserRequiredIntervention = ({ context }: InterventionArguments): boolean =>
-  context.pendingIntervention === null && nextQueuedIntervention(context)?.userRequired === true;
+  context.pendingIntervention === null &&
+  nextQueuedIntervention(context)?.userRequired === true &&
+  nextQueuedIntervention(context)?.owner === undefined;
 
 const matchesMonitorPermissionOutcome = ({ context, event }: InterventionArguments): boolean => {
   const pending = context.pendingIntervention;
@@ -538,6 +536,13 @@ const recordParameters = ({ context, event }: InterventionArguments) => {
 
 /** A request the monitor holds is watched from the moment it is admitted, even while it is queued. */
 const queueExactAction = [
+  {
+    guard: and(['canQueueExactActionIntervention', 'canOpenUserRequiredIntervention']),
+    actions: [
+      'queueExactActionIntervention',
+      { type: 'projectTaskMonitorIntervention', params: projectionParameters },
+    ],
+  },
   {
     guard: and(['canQueueExactActionIntervention', 'isMonitorOwnedExactAction']),
     actions: [

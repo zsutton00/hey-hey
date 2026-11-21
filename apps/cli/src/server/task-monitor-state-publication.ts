@@ -1,3 +1,7 @@
+import {
+  isHumanHeldQueued,
+  protectedRequestReason,
+} from '../agents/task-monitor/state-machine/context';
 import type { KeyPairStore } from '../credentials';
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
 import type {
@@ -232,11 +236,12 @@ export const taskMonitorStateProjection = ({
         admitsHumanDecision &&
         (request === pending
           ? request.owner !== 'MONITOR'
-          : pending !== null &&
-            pending.decision === null &&
-            request.userRequired !== true &&
-            request.owner === 'HUMAN'),
-      ...(request.escalationReason ? { reason: request.escalationReason } : {}),
+          : pending !== null && pending.decision === null && isHumanHeldQueued(request)),
+      ...(request.userRequired
+        ? { reason: protectedRequestReason }
+        : request.escalationReason
+          ? { reason: request.escalationReason }
+          : {}),
       ...(request.escalatedAt ? { escalatedAt: request.escalatedAt } : {}),
     })),
     ...(failure ? { failure } : {}),
