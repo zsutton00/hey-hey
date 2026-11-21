@@ -1,15 +1,19 @@
 /** @vitest-environment node */
 
 import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { RepoMappingStore } from '../repo/index';
+import { RunStore } from '../run-store/run-store';
 import type { AgenticSession } from '../session/index';
+import type { LocalWorktreeState } from '../shared/agent-bridge-contract/contract';
 import {
   resolveRunWorkspace,
+  type ServiceWorktreeRecorder,
   RunWorktreeBranchMissingError,
   RunWorktreeCollisionError,
   RunWorktreeNewBranchExistsError,
@@ -72,8 +76,15 @@ const makeSession = (overrides: Partial<AgenticSession>): AgenticSession => ({
   ...overrides,
 });
 
-const resolve = async (session: AgenticSession): Promise<ResolvedRunWorkspace> => {
-  const result = await resolveRunWorkspace({ session, repoStore: new RepoMappingStore() });
+const resolve = async (
+  session: AgenticSession,
+  worktreeRecorder?: ServiceWorktreeRecorder,
+): Promise<ResolvedRunWorkspace> => {
+  const result = await resolveRunWorkspace({
+    session,
+    repoStore: new RepoMappingStore(),
+    ...(worktreeRecorder ? { worktreeRecorder } : {}),
+  });
   if (!result.ok) {
     throw new Error(`workspace did not resolve: ${result.code} ${result.message}`);
   }
@@ -262,4 +273,139 @@ describe('resolveRunWorkspace with per-Service place choices', () => {
     expect(resumed.cwd).toBe(first.cwd);
     expect(resumed.allowedRepositoryRoots).toEqual(first.allowedRepositoryRoots);
   });
+
+  it("opens a branch in its own folder when another session's worktree has the same folder name", async () => {
+    const otherWorktree = path.join(repoA, '.worktrees', 'feature-a');
+    git(repoA, 'worktree', 'add', '-q', '-b', 'feature-a', otherWorktree);
+    writeFileSync(path.join(otherWorktree, 'notes.txt'), 'local edit');
+    git(repoA, 'branch', 'feature/a');
+
+    const result = await resolve(
+      makeSession({
+        servicePlaceChoices: [worktreeChoice(SERVICE_A, 'feature/a'), mainFolderChoice(SERVICE_B)],
+      }),
+    );
+
+    const ownWorktree = result.worktree?.[SERVICE_A]?.worktreePath;
+    expect(ownWorktree).toBeDefined();
+    expect(ownWorktree).not.toBe(otherWorktree);
+    expect(git(ownWorktree ?? '', 'branch', '--show-current')).toBe('feature/a');
+    expect(git(otherWorktree, 'branch', '--show-current')).toBe('feature-a');
+    expect(git(otherWorktree, 'status', '--porcelain')).toBe('?? notes.txt');
+  });
+
+  it('retries a launch whose second Service failed, reloaded from disk, with one worktree for the first', async () => {
+    const runStore = await createRunStore();
+    const choices = [
+      worktreeChoice(SERVICE_A, 'feature/retry', true),
+      worktreeChoice(SERVICE_B, 'release/b'),
+    ];
+    const runA = await runStore.createRun(makeSession({ servicePlaceChoices: choices }));
+    const recorderA = runStoreRecorder(runStore, runA.agentic_session_id);
+
+    await expect(resolve(runA, recorderA)).rejects.toBeInstanceOf(RunWorktreeBranchMissingError);
+    git(repoB, 'branch', 'release/b');
+    const retried = await resolve(await reloadRun(runStore, runA.agentic_session_id), recorderA);
+
+    const worktreeA = path.join(repoA, '.worktrees', 'feature-retry');
+    expect(retried.worktree?.[SERVICE_A]).toEqual({
+      repoPath: repoA,
+      worktreePath: worktreeA,
+      branch: 'feature/retry',
+    });
+    expect(retried.worktree?.[SERVICE_B]?.branch).toBe('release/b');
+    expect(linkedWorktrees(repoA)).toEqual([worktreeA]);
+  });
+
+  it("keeps another Run's checkout of a worktree that a failed launch opened", async () => {
+    const runStore = await createRunStore();
+    const runA = await runStore.createRun(
+      makeSession({
+        servicePlaceChoices: [
+          worktreeChoice(SERVICE_A, 'feature/shared', true),
+          worktreeChoice(SERVICE_B, 'release/b'),
+        ],
+      }),
+    );
+    const runB = makeSession({
+      agentic_session_id: 'session-places-2',
+      servicePlaceChoices: [
+        worktreeChoice(SERVICE_A, 'feature/shared'),
+        mainFolderChoice(SERVICE_B),
+      ],
+    });
+
+    // Run B picks the branch after Run A opened it and before A's second
+    // Service fails.
+    let resolvedB: ResolvedRunWorkspace | undefined;
+    const storeA = runStoreRecorder(runStore, runA.agentic_session_id);
+    const recorderA: ServiceWorktreeRecorder = {
+      recordResolvedServiceWorktree: async (serviceId, worktree) => {
+        await storeA.recordResolvedServiceWorktree(serviceId, worktree);
+        resolvedB = await resolve(runB);
+      },
+    };
+    await expect(resolve(runA, recorderA)).rejects.toBeInstanceOf(RunWorktreeBranchMissingError);
+
+    const folderB = resolvedB?.worktree?.[SERVICE_A]?.worktreePath;
+    expect(folderB).toBe(path.join(repoA, '.worktrees', 'feature-shared'));
+    expect(git(folderB ?? '', 'branch', '--show-current')).toBe('feature/shared');
+
+    git(repoB, 'branch', 'release/b');
+    const retried = await resolve(await reloadRun(runStore, runA.agentic_session_id), storeA);
+
+    expect(retried.worktree?.[SERVICE_A]?.worktreePath).toBe(folderB);
+    expect(git(folderB ?? '', 'branch', '--show-current')).toBe('feature/shared');
+    expect(linkedWorktrees(repoA)).toEqual([folderB]);
+  });
+
+  it('still refuses a new-branch choice for a branch another session opened', async () => {
+    const otherSession = makeSession({
+      agentic_session_id: 'session-places-2',
+      servicePlaceChoices: [worktreeChoice(SERVICE_A, 'feature/other', true)],
+    });
+    await resolve(otherSession);
+
+    await expect(
+      resolve(
+        makeSession({ servicePlaceChoices: [worktreeChoice(SERVICE_A, 'feature/other', true)] }),
+        runStoreRecorder(await createRunStore(), 'session-places-1'),
+      ),
+    ).rejects.toBeInstanceOf(RunWorktreeNewBranchExistsError);
+  });
 });
+
+const createRunStore = async (): Promise<RunStore> => {
+  const baseDir = path.join(root, 'run-store');
+  const store = new RunStore({
+    paths: {
+      baseDir,
+      runsDir: path.join(baseDir, 'runs'),
+      indexPath: path.join(baseDir, 'runs', 'run-index.json'),
+      preferencesPath: path.join(baseDir, 'preferences.json'),
+    },
+  });
+  await store.initialize();
+  return store;
+};
+
+const reloadRun = async (runStore: RunStore, runId: string): Promise<AgenticSession> => {
+  const run = await runStore.getRunMetadata(runId);
+  if (!run) {
+    throw new Error(`run ${runId} missing from the store`);
+  }
+  return run;
+};
+
+const runStoreRecorder = (runStore: RunStore, runId: string): ServiceWorktreeRecorder => ({
+  recordResolvedServiceWorktree: async (serviceId: string, worktree: LocalWorktreeState) => {
+    await runStore.recordRunServiceWorktree(runId, serviceId, worktree);
+  },
+});
+
+const linkedWorktrees = (repoPath: string): string[] =>
+  git(repoPath, 'worktree', 'list', '--porcelain')
+    .split('\n')
+    .filter((line) => line.startsWith('worktree '))
+    .map((line) => line.slice('worktree '.length))
+    .slice(1);

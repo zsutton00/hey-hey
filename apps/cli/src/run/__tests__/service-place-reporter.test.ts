@@ -193,8 +193,22 @@ const makeHarness = async (
     await reporter.whenIdle();
   };
 
+  const appendSavedObservations = async (entries: unknown[]): Promise<void> => {
+    const runsDir = path.join(baseDir, 'runs');
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(runsDir, `${RUN_ID}.family.json`), 'utf8'),
+    ) as { members: { metadata: { relativePath: string } } };
+    const metadataPath = path.join(runsDir, manifest.members.metadata.relativePath);
+    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8')) as {
+      capturedServicePlaces?: unknown[];
+    };
+    metadata.capturedServicePlaces = [...(metadata.capturedServicePlaces ?? []), ...entries];
+    await fs.writeFile(metadataPath, JSON.stringify(metadata), 'utf8');
+  };
+
   return {
     runStore,
+    appendSavedObservations,
     requests,
     warnings,
     behavior,
@@ -323,6 +337,90 @@ describe('ServicePlaceReporter', () => {
 
     expect(h.requests).toHaveLength(2);
     expect((await h.runStore.getRun(RUN_ID))?.reportedServicePlaceServiceIds).toEqual(['svc-a']);
+  });
+
+  it('resends the branch seen at launch after a failed report, a checkout and a resume', async () => {
+    const repo = await makeRepo('dev');
+    git(repo, 'branch', 'release');
+    const h = await makeHarness([{ id: 'svc-a', path: repo }]);
+    h.behavior.fail = true;
+
+    await h.report(workspaceFor(repo));
+    git(repo, 'switch', '-q', 'release');
+    h.behavior.fail = false;
+    const resumed = await h.resume();
+    await resumed(workspaceFor(repo));
+
+    expect(h.requests.map((request) => request.places)).toEqual([
+      [{ serviceId: 'svc-a', kind: 'MAIN_FOLDER', branch: 'dev' }],
+      [{ serviceId: 'svc-a', kind: 'MAIN_FOLDER', branch: 'dev' }],
+    ]);
+    const stored = await h.runStore.getRun(RUN_ID);
+    expect(stored?.reportedServicePlaceServiceIds).toEqual(['svc-a']);
+    expect(stored?.capturedServicePlaces).toEqual([]);
+  });
+
+  it('resends a detached launch checkout as detached after it moves onto a branch', async () => {
+    const repo = await makeRepo('main');
+    git(repo, 'checkout', '-q', '--detach');
+    const h = await makeHarness([{ id: 'svc-a', path: repo }]);
+    h.behavior.fail = true;
+
+    await h.report(workspaceFor(repo));
+    git(repo, 'switch', '-q', 'main');
+    h.behavior.fail = false;
+    await h.report(workspaceFor(repo));
+
+    expect(h.requests[1]?.places).toEqual([
+      { serviceId: 'svc-a', kind: 'MAIN_FOLDER', branch: null },
+    ]);
+  });
+
+  it('resends the place captured when an approval added a Service', async () => {
+    const repoA = await makeRepo('main');
+    const repoB = await makeRepo('dev');
+    git(repoB, 'branch', 'release');
+    const h = await makeHarness([{ id: 'svc-a', path: repoA }]);
+    await h.report(workspaceFor(repoA));
+
+    await h.addServices([{ id: 'svc-b', path: repoB }]);
+    h.behavior.fail = true;
+    await h.report(workspaceFor(repoA));
+    git(repoB, 'switch', '-q', 'release');
+    h.behavior.fail = false;
+    const resumed = await h.resume();
+    await resumed(workspaceFor(repoA));
+
+    expect(h.requests.at(-1)?.places).toEqual([
+      { serviceId: 'svc-b', kind: 'MAIN_FOLDER', branch: 'dev' },
+    ]);
+  });
+
+  it('resumes and resends the valid launch places when a saved observation is malformed', async () => {
+    const repoA = await makeRepo('dev');
+    const repoB = await makeRepo('main');
+    git(repoA, 'branch', 'release');
+    const h = await makeHarness([
+      { id: 'svc-a', path: repoA },
+      { id: 'svc-b', path: repoB },
+    ]);
+    h.behavior.fail = true;
+    await h.report(workspaceFor(repoA));
+    // Neither added entry is a usable place: one is null, one lacks its folder.
+    await h.appendSavedObservations([
+      null,
+      { serviceId: 'svc-c', kind: 'WORKTREE', branch: 'work/c' },
+    ]);
+    git(repoA, 'switch', '-q', 'release');
+    h.behavior.fail = false;
+
+    const resumed = await h.resume();
+    await resumed(workspaceFor(repoA));
+
+    expect(h.requests.at(-1)?.places).toEqual([
+      { serviceId: 'svc-a', kind: 'MAIN_FOLDER', branch: 'dev' },
+      { serviceId: 'svc-b', kind: 'MAIN_FOLDER', branch: 'main' },
+    ]);
   });
 
   it('skips a Service whose branch cannot be read and still reports the others', async () => {

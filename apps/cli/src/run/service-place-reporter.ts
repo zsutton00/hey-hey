@@ -73,8 +73,10 @@ const rejectOnAbort = <T>(work: Promise<T>, signal: AbortSignal): Promise<T> =>
  * Tells the server where each of a Run's Services works, right after the CLI
  * resolved their folders. Places are captured at resolution time (reading the
  * main folder's branch, never changing it); delivery then runs on its own with
- * a deadline, so a slow server never holds up a turn or an approval. A Service
- * that fails stays unreported and is retried on the next resolution.
+ * a deadline, so a slow server never holds up a turn or an approval. Each
+ * observation is kept on the Run until delivery settles; a Service that fails
+ * stays unreported and its original observation is resent on the next
+ * resolution, including after a resume.
  */
 export class ServicePlaceReporter {
   private readonly inFlightServiceIds = new Set<string>();
@@ -88,28 +90,8 @@ export class ServicePlaceReporter {
    * await, so overlapping calls cannot capture or send it twice.
    */
   public async report(workspace: ResolvedRunWorkspace): Promise<void> {
-    const { logger, runId } = this.options;
     const reserved = this.reserveUnreportedServices();
-    const places: ReportedAgentSessionServicePlace[] = [];
-
-    try {
-      for (const service of reserved) {
-        const place = await this.buildPlace(service.id, workspace);
-        if (place) {
-          places.push(place);
-        } else {
-          this.inFlightServiceIds.delete(service.id);
-        }
-      }
-    } catch (error) {
-      logger.warn('local.run.service_places.build_failed', { runId, error });
-      const captured = new Set(places.map((place) => place.serviceId));
-      for (const service of reserved) {
-        if (!captured.has(service.id)) {
-          this.inFlightServiceIds.delete(service.id);
-        }
-      }
-    }
+    const places = await this.capturePlaces(reserved, workspace);
     if (places.length === 0) {
       return;
     }
@@ -155,6 +137,74 @@ export class ServicePlaceReporter {
     }
 
     return reserved;
+  }
+
+  /**
+   * The place to send for each reserved Service: the one captured when it was
+   * first resolved if delivery has not settled yet, otherwise a fresh
+   * observation, which is retained before it is sent.
+   */
+  private async capturePlaces(
+    reserved: AgenticSession['services'],
+    workspace: ResolvedRunWorkspace,
+  ): Promise<ReportedAgentSessionServicePlace[]> {
+    const { logger, runId } = this.options;
+    const retained = new Map(
+      (this.options.session().capturedServicePlaces ?? []).map((place) => [place.serviceId, place]),
+    );
+    const places: ReportedAgentSessionServicePlace[] = [];
+    const observed: ReportedAgentSessionServicePlace[] = [];
+
+    try {
+      for (const service of reserved) {
+        const kept = retained.get(service.id);
+        if (kept) {
+          logger.debug('local.run.service_places.reusing_captured', { runId, place: kept });
+          places.push(kept);
+          continue;
+        }
+
+        const place = await this.buildPlace(service.id, workspace);
+        if (place) {
+          places.push(place);
+          observed.push(place);
+        } else {
+          this.inFlightServiceIds.delete(service.id);
+        }
+      }
+    } catch (error) {
+      logger.warn('local.run.service_places.build_failed', { runId, error });
+      const captured = new Set(places.map((place) => place.serviceId));
+      for (const service of reserved) {
+        if (!captured.has(service.id)) {
+          this.inFlightServiceIds.delete(service.id);
+        }
+      }
+    }
+
+    if (observed.length > 0) {
+      await this.retain(observed);
+    }
+
+    return places;
+  }
+
+  private async retain(observed: ReportedAgentSessionServicePlace[]): Promise<void> {
+    const { logger, runId } = this.options;
+    const current = this.options.session().capturedServicePlaces ?? [];
+    // Kept in memory first, so a retry in this process resends the observation
+    // even when the Run store cannot be written.
+    this.options.patchSession({ capturedServicePlaces: [...current, ...observed] });
+
+    try {
+      await this.options.runStore.recordCapturedServicePlaces(runId, observed);
+    } catch (error) {
+      logger.warn('local.run.service_places.capture_persist_failed', {
+        runId,
+        serviceIds: observed.map((place) => place.serviceId),
+        error,
+      });
+    }
   }
 
   private async buildPlace(
@@ -332,8 +382,13 @@ export class ServicePlaceReporter {
     }
 
     const updated = await this.options.runStore.markServicePlacesReported(runId, reported);
+    const settled = new Set(reported);
+    const stillCaptured = (this.options.session().capturedServicePlaces ?? []).filter(
+      (place) => !settled.has(place.serviceId),
+    );
     this.options.patchSession({
       reportedServicePlaceServiceIds: updated.reportedServicePlaceServiceIds ?? reported,
+      capturedServicePlaces: stillCaptured,
     });
   }
 }

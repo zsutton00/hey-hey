@@ -13,7 +13,11 @@ import type {
   TaskResponseDto,
 } from '../shared/agent-bridge-contract/contract';
 import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
-import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
+import type {
+  AgentSessionServiceScopeRequest,
+  ReportedAgentSessionServicePlace,
+  ServicePlaceChoice,
+} from '@hey-hey/contracts/api/models';
 import type {
   ReviewFileScopeContinuation,
   ReviewFileScopeReconciliation,
@@ -183,7 +187,17 @@ interface AgenticSessionBase {
   promptType?: string;
   config?: AgentSessionConfig | null;
   worktree?: { enabled: true; branch?: string };
+  /** Where each Service was chosen to work at launch. Absent means every Service follows `worktree`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   worktreeState?: LocalWorktreeStateByService;
+  /** Service ids whose place the server already holds a record for. */
+  reportedServicePlaceServiceIds?: string[];
+  /**
+   * Places observed when each Service was first resolved and not yet settled
+   * with the server. A retry or resume resends these instead of reading git
+   * again, so a later checkout never replaces the launch-time observation.
+   */
+  capturedServicePlaces?: ReportedAgentSessionServicePlace[];
   createdAt: string;
   updatedAt: string;
   model?: string;
@@ -289,6 +303,7 @@ interface CreateAgenticSessionInputBase {
   promptType?: string;
   config?: AgentSessionConfig | null;
   worktree?: LocalWorktreeConfig;
+  servicePlaceChoices?: ServicePlaceChoice[];
   model?: string;
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;

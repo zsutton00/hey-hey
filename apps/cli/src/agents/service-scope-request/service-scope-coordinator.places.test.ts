@@ -115,6 +115,7 @@ const makeHarness = (sessionOverrides: Partial<AgenticSession> = {}) => {
     currentAgentId: () => 'coding_freeform',
     canAutoResolveTaskMonitorScopeRequest: () => false,
     applyApprovedServiceScope,
+    recordResolvedServiceWorktree: vi.fn(async () => undefined),
   } as unknown as ConstructorParameters<typeof AgentSessionServiceScopeCoordinator>[0]);
 
   const requestB = async (): Promise<AgentSessionServiceScopeRequest> => {

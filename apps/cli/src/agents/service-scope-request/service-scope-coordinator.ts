@@ -24,7 +24,10 @@ import {
   type ResolvedRunWorkspace,
 } from '../run-scope';
 import type { AgenticSession } from '../../session/types';
-import type { ResolvedServiceBinding } from '../../shared/agent-bridge-contract/contract';
+import type {
+  LocalWorktreeState,
+  ResolvedServiceBinding,
+} from '../../shared/agent-bridge-contract/contract';
 import type { RunServiceScope, ServiceScopeRequestEntry } from '../../run/run-service-scope';
 import type {
   RequestAgentSessionServiceScopeArgs,
@@ -67,6 +70,8 @@ interface ServiceScopeCoordinatorDependencies {
     workspace: ResolvedRunWorkspace;
     servicePlaceChoices: ServicePlaceChoice[];
   }): Promise<void>;
+  /** Keeps a worktree opened for an approved Service on the Run before the grant. */
+  recordResolvedServiceWorktree(serviceId: string, worktree: LocalWorktreeState): Promise<void>;
 }
 const uniqueInOrder = (values: readonly string[]): string[] => {
   const seen = new Set<string>();
@@ -523,6 +528,7 @@ export class AgentSessionServiceScopeCoordinator {
           ...(servicePlaceChoices.length > 0 ? { servicePlaceChoices } : {}),
         },
         repoStore: this.dependencies.repoStore,
+        worktreeRecorder: this.dependencies,
         logger: this.dependencies.logger,
       });
     } catch (error) {

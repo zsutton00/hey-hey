@@ -391,12 +391,51 @@ const resolveServiceWorktreeTarget = (
   return { branch: session.worktree.branch, newBranch: false, existingBranchOnly: false };
 };
 
+/**
+ * How this resolution came by a Service's worktree. Only worktrees it opened
+ * itself are undone when a later Service fails, so a retry starts clean.
+ */
+type ServiceWorktreeOrigin = 'REUSED' | 'ATTACHED' | 'CREATED';
+
+interface ResolvedServiceWorktree {
+  worktree: WorktreeInfo;
+  origin: ServiceWorktreeOrigin;
+}
+
+const MAX_WORKTREE_FOLDER_VARIANTS = 100;
+
+/**
+ * The derived folder, or the first numbered variant no registered worktree
+ * uses. Different branch names can derive the same folder (`feature/a` and
+ * `feature-a`), and another worktree's folder is never taken over.
+ */
+const selectFreeWorktreePath = (
+  derivedPath: string,
+  registered: BranchWorktreeState['worktrees'],
+): string => {
+  const isTaken = (candidate: string): boolean =>
+    registered.some((entry) => areSamePath(entry.worktreePath, candidate));
+  if (!isTaken(derivedPath)) {
+    return derivedPath;
+  }
+
+  for (let variant = 2; variant <= MAX_WORKTREE_FOLDER_VARIANTS; variant += 1) {
+    const candidate = `${derivedPath}-${String(variant)}`;
+    if (!isTaken(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    `No free worktree folder for ${derivedPath}: it and ${String(MAX_WORKTREE_FOLDER_VARIANTS - 1)} numbered variants are already registered worktrees.`,
+  );
+};
+
 const resolveWorktreeForService = async (
   session: AgenticSession,
   serviceId: string,
   repositoryPath: string,
   logger?: ServerLogger,
-): Promise<WorktreeInfo | null> => {
+): Promise<ResolvedServiceWorktree | null> => {
   const target = resolveServiceWorktreeTarget(session, serviceId, repositoryPath, logger);
   if (!target) {
     return null;
@@ -405,12 +444,16 @@ const resolveWorktreeForService = async (
   const shortId = session.agentic_session_id.slice(0, 8);
   const { branch, newBranch, existingBranchOnly } = target;
   const branchForPath = branch ?? `heyhey-run-${shortId}`;
-  const worktreePath = path.join(repositoryPath, '.worktrees', toBranchSafeName(branchForPath));
+  const derivedWorktreePath = path.join(
+    repositoryPath,
+    '.worktrees',
+    toBranchSafeName(branchForPath),
+  );
   const baseFields = {
     ...getSessionLogFields(session),
     serviceId,
     repoPath: repositoryPath,
-    worktreePath,
+    worktreePath: derivedWorktreePath,
     branch,
     newBranch,
   };
@@ -437,7 +480,7 @@ const resolveWorktreeForService = async (
         worktreePath: existingState.worktreePath,
         branch: existingState.branch,
       });
-      return existingState;
+      return { worktree: existingState, origin: 'REUSED' };
     }
 
     logDebug(logger, 'local.run_scope.worktree.service.persisted_state_unusable', {
@@ -453,14 +496,14 @@ const resolveWorktreeForService = async (
     logDebug(logger, 'local.run_scope.worktree.service.create_started', baseFields);
     const created = await createWorktree({
       repoPath: repositoryPath,
-      worktreePath,
+      worktreePath: derivedWorktreePath,
     });
     logDebug(logger, 'local.run_scope.worktree.service.create_succeeded', {
       ...baseFields,
       branch: created.branch,
       worktreePath: created.worktreePath,
     });
-    return created;
+    return { worktree: created, origin: 'CREATED' };
   }
 
   const branchState = await getBranchWorktreeState(repositoryPath, branch);
@@ -489,8 +532,9 @@ const resolveWorktreeForService = async (
     });
   }
 
-  // A persisted worktree this session created was reused above, so an existing
-  // branch here was not made by this session and a new-branch choice must not adopt it.
+  // Every worktree this session opened is recorded on the Run as soon as it
+  // resolves and was reused above, so an existing branch here was not made by
+  // this session and a new-branch choice must not adopt it.
   if (newBranch && branchState.branchExists) {
     logWarn(logger, 'local.run_scope.worktree.service.new_branch_already_exists', baseFields);
     throw new RunWorktreeNewBranchExistsError({ serviceId, repositoryPath, branch });
@@ -506,82 +550,80 @@ const resolveWorktreeForService = async (
         `Branch ${branch} is registered to missing worktree ${checkedOutWorktree.worktreePath} for repository ${repositoryPath}.`,
       );
     }
-    if (areSamePath(checkedOutWorktree.worktreePath, repositoryPath)) {
-      logWarn(logger, 'local.run_scope.worktree.service.branch_checked_out_in_host_repo', {
-        ...baseFields,
-        checkedOutWorktreePath: checkedOutWorktree.worktreePath,
-      });
-      throw new RunWorktreeCollisionError({
-        serviceId,
-        repositoryPath,
-        branch,
-        authority: readNonEmpty(session.contextMetadata.launchPlanId) ? 'PLAN' : 'TASK_MONITOR',
-      });
-    }
     logDebug(logger, 'local.run_scope.worktree.service.checked_out_worktree_reused', {
       ...baseFields,
       worktreePath: checkedOutWorktree.worktreePath,
     });
     return {
-      repoPath: repositoryPath,
-      worktreePath: checkedOutWorktree.worktreePath,
-      branch,
+      worktree: { repoPath: repositoryPath, worktreePath: checkedOutWorktree.worktreePath, branch },
+      origin: 'REUSED',
     };
   }
 
-  // The session's own worktree can be left on another branch (for example a
-  // release branch cut inside it). Adding a second worktree at the same path
-  // would fail, so put the registered one back on the session's branch.
-  const driftedWorktree = branchState.worktrees.find((entry) =>
-    areSamePath(entry.worktreePath, worktreePath),
-  );
-  if (driftedWorktree && branchState.branchExists) {
+  // This session's own worktree can be left on another branch (for example a
+  // release branch cut inside it); put it back on the session's branch. Only
+  // the folder this Run recorded for the branch counts as its own: a folder
+  // that merely has the same name may belong to another session.
+  const ownedWorktree =
+    existingState?.branch === branch
+      ? branchState.worktrees.find(
+          (entry) => !entry.prunable && areSamePath(entry.worktreePath, existingState.worktreePath),
+        )
+      : undefined;
+  if (ownedWorktree && branchState.branchExists) {
     logWarn(logger, 'local.run_scope.worktree.service.branch_drift_detected', {
       ...baseFields,
-      currentBranch: driftedWorktree.branch,
+      worktreePath: ownedWorktree.worktreePath,
+      currentBranch: ownedWorktree.branch,
     });
     const restored = await switchWorktreeToBranch({
       repoPath: repositoryPath,
-      worktreePath,
+      worktreePath: ownedWorktree.worktreePath,
       branch,
     });
     logDebug(logger, 'local.run_scope.worktree.service.branch_drift_restored', {
       ...baseFields,
       worktreePath: restored.worktreePath,
     });
-    return restored;
+    return { worktree: restored, origin: 'REUSED' };
+  }
+
+  const worktreePath = selectFreeWorktreePath(derivedWorktreePath, branchState.worktrees);
+  const openFields = { ...baseFields, worktreePath, derivedWorktreePath };
+  if (worktreePath !== derivedWorktreePath) {
+    logDebug(logger, 'local.run_scope.worktree.service.derived_folder_taken', openFields);
   }
 
   if (branchState.branchExists) {
-    logDebug(logger, 'local.run_scope.worktree.service.attach_started', baseFields);
+    logDebug(logger, 'local.run_scope.worktree.service.attach_started', openFields);
     const attached = await attachWorktree({
       repoPath: repositoryPath,
       worktreePath,
       branch,
     });
     logDebug(logger, 'local.run_scope.worktree.service.attach_succeeded', {
-      ...baseFields,
+      ...openFields,
       worktreePath: attached.worktreePath,
     });
-    return attached;
+    return { worktree: attached, origin: 'ATTACHED' };
   }
 
   if (existingBranchOnly) {
-    logWarn(logger, 'local.run_scope.worktree.service.chosen_branch_missing', baseFields);
+    logWarn(logger, 'local.run_scope.worktree.service.chosen_branch_missing', openFields);
     throw new RunWorktreeBranchMissingError({ serviceId, repositoryPath, branch });
   }
 
-  logDebug(logger, 'local.run_scope.worktree.service.create_started', baseFields);
+  logDebug(logger, 'local.run_scope.worktree.service.create_started', openFields);
   const created = await createWorktree({
     repoPath: repositoryPath,
     worktreePath,
     branch,
   });
   logDebug(logger, 'local.run_scope.worktree.service.create_succeeded', {
-    ...baseFields,
+    ...openFields,
     worktreePath: created.worktreePath,
   });
-  return created;
+  return { worktree: created, origin: 'CREATED' };
 };
 
 const getPersistedWorktreeUsability = async (
@@ -619,9 +661,48 @@ const getBranchStateForPersistedWorktree = async (
   return getBranchWorktreeState(repositoryPath, state.branch);
 };
 
+/**
+ * Keeps each Service's worktree on the Run the moment it resolves. A launch
+ * that fails on a later Service is then retried by reusing what it already
+ * opened; nothing is removed, because another Run may already be using it.
+ */
+export interface ServiceWorktreeRecorder {
+  recordResolvedServiceWorktree(serviceId: string, worktree: LocalWorktreeState): Promise<void>;
+}
+
+const recordResolvedWorktree = async (
+  session: AgenticSession,
+  serviceId: string,
+  resolved: ResolvedServiceWorktree,
+  recorder: ServiceWorktreeRecorder | undefined,
+  logger?: ServerLogger,
+): Promise<void> => {
+  const fields = {
+    ...getSessionLogFields(session),
+    serviceId,
+    worktreePath: resolved.worktree.worktreePath,
+    branch: resolved.worktree.branch,
+    origin: resolved.origin,
+  };
+  if (!recorder) {
+    logDebug(logger, 'local.run_scope.worktree.service.record_skipped_no_recorder', fields);
+    return;
+  }
+
+  try {
+    await recorder.recordResolvedServiceWorktree(serviceId, resolved.worktree);
+    logDebug(logger, 'local.run_scope.worktree.service.recorded', fields);
+  } catch (error) {
+    // The worktree is still returned to this resolution; only a later retry
+    // loses the record, and it then fails safely instead of adopting a branch.
+    logError(logger, 'local.run_scope.worktree.service.record_failed', { ...fields, error });
+  }
+};
+
 const resolveWorktreesForSession = async (
   session: AgenticSession,
   servicePaths: readonly ResolvedServicePath[],
+  recorder: ServiceWorktreeRecorder | undefined,
   logger?: ServerLogger,
 ): Promise<LocalWorktreeStateByService | null> => {
   if (!session.worktree?.enabled && !hasWorktreeChoice(session)) {
@@ -638,9 +719,9 @@ const resolveWorktreesForSession = async (
 
   const worktreeState: LocalWorktreeStateByService = {};
   for (const servicePath of servicePaths) {
-    let worktree: WorktreeInfo | null;
+    let resolved: ResolvedServiceWorktree | null;
     try {
-      worktree = await resolveWorktreeForService(
+      resolved = await resolveWorktreeForService(
         session,
         servicePath.serviceId,
         servicePath.repositoryPath,
@@ -651,12 +732,18 @@ const resolveWorktreesForSession = async (
         ...getSessionLogFields(session),
         serviceId: servicePath.serviceId,
         repoPath: servicePath.repositoryPath,
+        recordedServiceIds: Object.keys(worktreeState),
         error,
       });
       throw error;
     }
-    if (worktree) {
-      worktreeState[servicePath.serviceId] = worktree;
+    if (!resolved) {
+      continue;
+    }
+
+    worktreeState[servicePath.serviceId] = resolved.worktree;
+    if (resolved.origin !== 'REUSED') {
+      await recordResolvedWorktree(session, servicePath.serviceId, resolved, recorder, logger);
     }
   }
 
@@ -837,6 +924,8 @@ export const resolveServiceBindingsForIds = async (input: {
 export const resolveRunWorkspace = async (input: {
   session: AgenticSession;
   repoStore: RepoMappingStore;
+  /** Where each newly opened worktree is kept; absent when no Run owns them yet. */
+  worktreeRecorder?: ServiceWorktreeRecorder;
   logger?: ServerLogger;
 }): Promise<RunWorkspaceResolution> => {
   const { logger } = input;
@@ -877,7 +966,12 @@ export const resolveRunWorkspace = async (input: {
   );
 
   if (!input.session.scope) {
-    const worktreeState = await resolveWorktreesForSession(input.session, servicePaths, logger);
+    const worktreeState = await resolveWorktreesForSession(
+      input.session,
+      servicePaths,
+      input.worktreeRecorder,
+      logger,
+    );
     const launchWorktree = selectLaunchWorktreeForRun(input.session, worktreeState);
     const cwd = launchWorktree?.worktreePath ?? bindingRepositoryPath;
     const baseRoots = worktreeState
@@ -945,7 +1039,12 @@ export const resolveRunWorkspace = async (input: {
   }
 
   if (input.session.scope.mode === LOCAL_RUN_MODE.default) {
-    const worktreeState = await resolveWorktreesForSession(input.session, servicePaths, logger);
+    const worktreeState = await resolveWorktreesForSession(
+      input.session,
+      servicePaths,
+      input.worktreeRecorder,
+      logger,
+    );
     const launchWorktree = selectLaunchWorktreeForRun(input.session, worktreeState);
     const cwd = launchWorktree?.worktreePath ?? bindingRepositoryPath;
     const baseRoots = worktreeState
