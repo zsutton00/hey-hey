@@ -133,6 +133,7 @@ import {
   type HandleType,
   useNodesInitialized,
   useReactFlow,
+  useStore,
   useUpdateNodeInternals,
   ViewportPortal,
 } from "@xyflow/react";
@@ -810,6 +811,7 @@ interface WorkflowGraphViewportSurfaceProps {
 }
 
 interface WorkflowGraphViewportControllerProps {
+  boundaryBoxes: readonly DiagramBoundaryBox[];
   enableInitialFit: boolean;
   hasGraphNodes: boolean;
   onReady: (instance: WorkflowGraphFlowInstance) => void;
@@ -5907,10 +5909,26 @@ const WorkflowGraphControls: React.FC<{
   </Stack>
 );
 
+/** Bounds of the nodes plus every group box, so padding and labels stay in view. */
+const getBoundsWithBoundaryBoxes = (
+  nodes: Parameters<typeof getNodesBounds>[0],
+  boxes: readonly DiagramBoundaryBox[],
+) => {
+  const nodeBounds = getNodesBounds(nodes);
+  const rects = [nodeBounds, ...boxes];
+  const left = Math.min(...rects.map((rect) => rect.x));
+  const top = Math.min(...rects.map((rect) => rect.y));
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
 const WorkflowGraphViewportController: React.FC<
   WorkflowGraphViewportControllerProps
-> = ({ enableInitialFit, hasGraphNodes, onReady, open }) => {
+> = ({ boundaryBoxes, enableInitialFit, hasGraphNodes, onReady, open }) => {
   const reactFlow = useReactFlow<WorkflowGraphNode, WorkflowGraphEdge>();
+  const canvasWidth = useStore((state) => state.width);
+  const canvasHeight = useStore((state) => state.height);
   const nodesInitialized = useNodesInitialized({
     includeHiddenNodes: false,
   });
@@ -5937,6 +5955,24 @@ const WorkflowGraphViewportController: React.FC<
     }
 
     const frameId = window.requestAnimationFrame(() => {
+      if (boundaryBoxes.length > 0 && canvasWidth > 0 && canvasHeight > 0) {
+        const bounds = getBoundsWithBoundaryBoxes(
+          reactFlow.getNodes(),
+          boundaryBoxes,
+        );
+        void reactFlow.setViewport(
+          getViewportForBounds(
+            bounds,
+            canvasWidth,
+            canvasHeight,
+            WORKFLOW_GRAPH_MIN_ZOOM,
+            WORKFLOW_GRAPH_MAX_ZOOM,
+            WORKFLOW_GRAPH_FIT_VIEW_PADDING,
+          ),
+          { duration: 0 },
+        );
+        return;
+      }
       void reactFlow.fitView({
         duration: 0,
         padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
@@ -5947,6 +5983,9 @@ const WorkflowGraphViewportController: React.FC<
       window.cancelAnimationFrame(frameId);
     };
   }, [
+    boundaryBoxes,
+    canvasHeight,
+    canvasWidth,
     enableInitialFit,
     hasGraphNodes,
     nodesInitialized,
@@ -6467,7 +6506,10 @@ const WorkflowGraphViewportSurface: React.FC<
       const height = viewportElement?.clientHeight ?? 0;
 
       if (width > 0 && height > 0) {
-        const bounds = getNodesBounds(graphModel.nodes);
+        const bounds = getBoundsWithBoundaryBoxes(
+          graphModel.nodes,
+          boundaryBoxes,
+        );
         const nextViewport = getViewportForBounds(
           bounds,
           width,
@@ -6488,7 +6530,13 @@ const WorkflowGraphViewportSurface: React.FC<
       duration: 0,
       padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
     });
-  }, [graphModel.nodes, hasGraphNodes, isFullscreen, reactFlowInstance]);
+  }, [
+    boundaryBoxes,
+    graphModel.nodes,
+    hasGraphNodes,
+    isFullscreen,
+    reactFlowInstance,
+  ]);
 
   const zoomIn = useCallback(() => {
     if (!reactFlowInstance) {
@@ -6958,6 +7006,7 @@ const WorkflowGraphViewportSurface: React.FC<
                   />
                 )}
                 <WorkflowGraphViewportController
+                  boundaryBoxes={boundaryBoxes}
                   enableInitialFit={startsFitToView}
                   hasGraphNodes={hasGraphNodes}
                   onReady={setReactFlowInstance}
