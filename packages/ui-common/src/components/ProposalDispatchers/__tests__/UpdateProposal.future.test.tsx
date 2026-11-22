@@ -1,3 +1,5 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { __resetForTests as resetProposalState } from "../proposalSelectedStateCache";
 import { createPortal } from "react-dom";
@@ -363,6 +365,10 @@ const futureProposal = (
     ...extra,
   }) as ProposalResponseDto;
 
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+
 const mount = (
   proposal: ProposalResponseDto,
   footerTarget?: HTMLElement,
@@ -398,6 +404,7 @@ const mount = (
         />
       </MemoryRouter>
     </QueryClientProvider>,
+    { wrapper: themeWrapper },
   );
 };
 

@@ -32,6 +32,8 @@ export class FakeConversationServer {
   readonly requests: GraphQLRequest[] = [];
   /** What the conversation list reads answer with. */
   conversations: Record<string, unknown>[] = [conversationNode];
+  /** Operations answered with a server error instead of data. */
+  readonly failingOperations = new Set<string>();
   readonly conversationId = CONVERSATION_ID;
   readonly graphql: WebUiGraphQLClient;
   readonly queryClient = new QueryClient({
@@ -83,15 +85,21 @@ export class FakeConversationServer {
   private async respond(config: InternalAxiosRequestConfig) {
     const { operationName, variables = {} } = JSON.parse(String(config.data));
     this.requests.push({ operationName, variables });
-    const { status, body } = answerConversationOperation(
-      {
-        thread: this.thread,
-        conversations:
-          this.conversationsByPath.get(config.url ?? "") ?? this.conversations,
-      },
-      operationName,
-      variables,
-    );
+    const { status, body } = this.failingOperations.has(operationName)
+      ? {
+          status: 500,
+          body: { errors: [{ message: "Message read failed" }] },
+        }
+      : answerConversationOperation(
+          {
+            thread: this.thread,
+            conversations:
+              this.conversationsByPath.get(config.url ?? "") ??
+              this.conversations,
+          },
+          operationName,
+          variables,
+        );
     const response = {
       data: JSON.stringify(body),
       status,

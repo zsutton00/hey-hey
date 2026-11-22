@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider as JotaiProvider } from "jotai";
 import {
   WebSocketProvider,
@@ -7,8 +7,13 @@ import {
   useWebSocketContext,
 } from "../WebSocketContext";
 import { WebSocketService } from "../../services/webSocketService";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { conversationKeys } from "../../data/collections/conversations";
+import { ConversationStatus } from "../../api";
+import { useConversations } from "../../data/hooks/useConversations";
+import {
+  conversationNode,
+  FakeConversationServer,
+  threadOf,
+} from "../../test/conversationGraphQL";
 import React from "react";
 
 const authState = vi.hoisted(() => ({
@@ -28,8 +33,7 @@ vi.mock("../AuthContext", () => ({
 
 const organizationState = vi.hoisted(() => ({
   value: undefined as
-    | { currentOrganization: { id: string } | null }
-    | undefined,
+    { currentOrganization: { id: string } | null } | undefined,
 }));
 
 vi.mock("../OrganizationContext", () => ({
@@ -148,57 +152,56 @@ describe("WebSocketProvider", () => {
 
     expect(serviceResult.current).toHaveProperty("error");
     expect(serviceResult.current.error).toContain(
-      "useWebSocketService must be used within a WebSocketProvider"
+      "useWebSocketService must be used within a WebSocketProvider",
     );
     expect(contextResult.current).toHaveProperty("error");
     expect(contextResult.current.error).toContain(
-      "useWebSocketContext must be used within a WebSocketProvider"
+      "useWebSocketContext must be used within a WebSocketProvider",
     );
   });
 
-  it("should share store with React hooks when using new provider", async () => {
-    // Test that WebSocket handler and React hooks use same store
-    const store = createStore();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
-
-    const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>
-        <JotaiProvider store={store}>
-          <WebSocketProvider useNewProvider={true}>{children}</WebSocketProvider>
-        </JotaiProvider>
-      </QueryClientProvider>
+  it("should share its data layer with React hooks when using new provider", async () => {
+    const server = new FakeConversationServer(threadOf(1));
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (
+      <server.wrapper>
+        <WebSocketProvider useNewProvider={true}>{children}</WebSocketProvider>
+      </server.wrapper>
     );
 
-    const { result: wsResult } = renderHook(() => useWebSocketService(), {
-      wrapper: TestWrapper,
-    });
+    const { result } = renderHook(
+      () => ({
+        service: useWebSocketService(),
+        conversations: useConversations("org-1", "project-1"),
+      }),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.conversations.data?.map((c) => c.id)).toEqual([
+        conversationNode.id,
+      ]),
+    );
 
-    // Add a conversation to the shared cache (simulates React hook data)
-    const queryKey = conversationKeys.list("org-456", "proj-123", {});
-    queryClient.setQueryData(queryKey, [
-      { id: "conv-shared", projectId: "proj-123", organizationId: "org-456" },
-    ]);
+    server.conversations = [
+      { ...conversationNode, status: ConversationStatus.Completed },
+    ];
+    act(() =>
+      (
+        result.current.service as unknown as {
+          handler: { handleEvent: (event: unknown) => void };
+        }
+      ).handler.handleEvent({
+        type: "conversation.status_changed",
+        conversationId: conversationNode.id,
+        organizationId: "org-1",
+        projectId: "project-1",
+        timestamp: new Date().toISOString(),
+        previousStatus: ConversationStatus.InProgress,
+        newStatus: ConversationStatus.Completed,
+      }),
+    );
 
-    // The provider's handler invalidates the same cache the hooks read.
-    (
-      wsResult.current as unknown as {
-        handler: { handleEvent: (event: unknown) => void };
-      }
-    ).handler.handleEvent({
-      type: "conversation.status_changed",
-      conversationId: "conv-shared",
-      organizationId: "org-456",
-      projectId: "proj-123",
-      timestamp: new Date().toISOString(),
-      previousStatus: "ACTIVE",
-      newStatus: "COMPLETED",
-    });
-    expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true);
-
-    // This demonstrates that provider initialization works alongside the shared store context
-    expect(wsResult.current).toBeInstanceOf(WebSocketService);
+    await waitFor(() => expect(result.current.conversations.data).toEqual([]));
+    expect(result.current.service).toBeInstanceOf(WebSocketService);
   });
 
   it("should initialize service with user identity", () => {
@@ -211,11 +214,11 @@ describe("WebSocketProvider", () => {
     expect(result.current).toBeDefined();
   });
 
-  it('should disconnect the service when authentication is lost', () => {
+  it("should disconnect the service when authentication is lost", () => {
     const { result, rerender } = renderHook(() => useWebSocketService(), {
-      wrapper: createWrapper(false)
+      wrapper: createWrapper(false),
     });
-    const disconnectSpy = vi.spyOn(result.current, 'disconnect');
+    const disconnectSpy = vi.spyOn(result.current, "disconnect");
 
     authState.value = {
       isAuthenticated: false,

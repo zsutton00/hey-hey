@@ -1,5 +1,4 @@
 import { BadRequestException } from '@nestjs/common';
-import { WorkStatus } from '@hey-hey/contracts/api/models';
 
 export const REFERENCE_SORT_FIELDS = ['name', 'createdAt'] as const;
 export const REFERENCE_SORT_ORDERS = ['asc', 'desc'] as const;
@@ -37,26 +36,16 @@ export function parseReferencePaginationValue(
 
 export function normalizeReferenceStatuses(
   statuses?: string | string[],
-): WorkStatus[] | undefined {
+): string[] | undefined {
   if (statuses === undefined) return undefined;
 
-  const values = (Array.isArray(statuses) ? statuses : [statuses])
-    .flatMap((value) => value.split(','))
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+  // Each repeated query value is one exact status name; a name may contain commas.
+  const values = (Array.isArray(statuses) ? statuses : [statuses]).filter(
+    (value) => value.length > 0,
+  );
   if (values.length === 0) return undefined;
 
-  const statusByValue = new Map<string, WorkStatus>(
-    Object.values(WorkStatus).map((status) => [status, status]),
-  );
-  const normalized = values.map((value) => statusByValue.get(value));
-  if (normalized.some((status) => status === undefined)) {
-    throw new BadRequestException(
-      `statuses must contain only WorkStatus values`,
-    );
-  }
-
-  return [...new Set(normalized.filter((status) => status !== undefined))];
+  return [...new Set(values)];
 }
 
 export function normalizeReferenceSortField(

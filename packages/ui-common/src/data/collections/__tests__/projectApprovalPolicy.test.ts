@@ -17,7 +17,7 @@ const snapshot = { rules: [] };
 const names = ["message", "context", "proposal"] as const;
 
 const keysFor = (org: string, project: string) => ({
-  message: messageKeys.list(org, project, "c1"),
+  message: messageKeys.queuedInputs(org, project, "c1"),
   context: entityContextKeys.entity(org, project, "TASK", "t1"),
   proposal: proposalKeys.detail(org, project, "p1"),
 });

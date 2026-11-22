@@ -32,6 +32,8 @@ import {
   useConversationContext,
 } from "../ConversationContext";
 import { ConversationFormRenderer } from "../ConversationFormRenderer";
+import { unifiedApiClient } from "../../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../../test/workItemGraphQLHandlers";
 import { __resetForTests } from "../../../ProposalDispatchers/proposalSelectedStateCache";
 
 const mocks = vi.hoisted(() => ({
@@ -417,6 +419,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetForTests();
   localStorage.clear();
+  // Proposal targets are work items, read over GraphQL.
+  globalThis.mswServer.use(...workItemHandlersFromClient(unifiedApiClient));
   proposals = [
     proposal("shared", ProposalAction.Create),
     proposal("second", ProposalAction.Delete),

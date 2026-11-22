@@ -101,6 +101,9 @@ vi.mock("../components/AgentSession/usePlanCreationCreatingState", () => ({
 vi.mock("../components/AgentSession/useAutoAdvanceFeatureSyncIterate", () => ({
   useAutoAdvanceFeatureSyncIterate: () => vi.fn(),
 }));
+vi.mock("../data/hooks/useAgentSessionContinuationStatus", () => ({
+  useAgentSessionContinuationStatus: () => ({ data: null }),
+}));
 vi.mock("../data/hooks/useProject", () => ({
   useProject: () => ({
     data: { name: "Project" },

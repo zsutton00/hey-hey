@@ -172,7 +172,7 @@ describe('WorkItemResolver', () => {
       .mockResolvedValueOnce([workItem({ id: LINKED, name: 'Linked' })]);
 
     const body = await query(
-      `{ workItems { id edges(types: [DEPENDS_ON]) { id type target { entityId name workItem { id name } } } } }`,
+      `{ workItems { id edges(types: [DependsOn]) { id type target { entityId name workItem { id name } } } } }`,
     );
 
     expect(body.data.workItems).toEqual([
@@ -181,7 +181,7 @@ describe('WorkItemResolver', () => {
         edges: [
           {
             id: 'e1',
-            type: 'DEPENDS_ON',
+            type: 'DependsOn',
             target: {
               entityId: LINKED,
               name: 'Linked',
@@ -273,7 +273,7 @@ describe('WorkItemResolver', () => {
     taskService.findAllByOrganizationForAdapter.mockResolvedValue([]);
 
     await query(
-      `{ workItems(relatedTo: { entityId: "${LINKED}", entityType: TASK, edgeTypes: [DEPENDS_ON] }, sort: { field: title, direction: asc }) { id } }`,
+      `{ workItems(relatedTo: { entityId: "${LINKED}", entityType: Task, edgeTypes: [DependsOn] }, sort: { field: title, direction: asc }) { id } }`,
     );
 
     expect(taskService.findAllByOrganizationForAdapter).toHaveBeenCalledWith(
@@ -377,7 +377,7 @@ describe('WorkItemResolver', () => {
     expect(body.data.workItem.graph).toEqual({
       root: { id: ITEM },
       relationships: [
-        { id: 'edge-1', type: 'DEPENDS_ON', target: { entityId: LINKED } },
+        { id: 'edge-1', type: 'DependsOn', target: { entityId: LINKED } },
       ],
       layout: null,
     });
@@ -606,10 +606,6 @@ describe('WorkItemResolver', () => {
     it.each([
       ['a limit above 500', 'type: "competitor", page: 1, limit: 501'],
       ['a page below 1', 'type: "competitor", page: 0, limit: 20'],
-      [
-        'an unknown status',
-        'type: "competitor", page: 1, limit: 20, statuses: ["NOPE"]',
-      ],
       [
         'an unknown sort field',
         'type: "competitor", page: 1, limit: 20, sortBy: "x"',

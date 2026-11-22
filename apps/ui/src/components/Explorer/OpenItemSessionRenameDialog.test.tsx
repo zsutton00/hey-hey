@@ -13,6 +13,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { http, HttpResponse } from "msw";
 import {
   cleanup,
   fireEvent,
@@ -33,7 +34,6 @@ import {
 } from "@hey-hey/contracts/api";
 import { OpenItemSessionRenameDialog } from "./OpenItemSessionRenameDialog";
 import { openItemsKeys } from "../../../../../packages/ui-common/src/data/openItemsAdapter";
-import { conversationKeys } from "../../../../../packages/ui-common/src/data/collections/conversations";
 
 vi.mock("@hey-hey/ui-common/context", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -49,6 +49,7 @@ let version: number;
 let failRead: boolean;
 let failWrite: boolean;
 let failRefresh: boolean;
+let conversationReads: number;
 let requests: {
   method?: string;
   path: string;
@@ -80,7 +81,54 @@ beforeEach(() => {
   failRead = false;
   failWrite = false;
   failRefresh = false;
+  conversationReads = 0;
   requests = [];
+  // The editor reads the conversation through GraphQL; saving stays on REST.
+  globalThis.mswServer.use(
+    http.post("*/graphql", async ({ request }) => {
+      const { operationName } = (await request.json()) as {
+        operationName: string;
+      };
+      if (operationName !== "GetConversation") {
+        return HttpResponse.json(
+          { errors: [{ message: `Unexpected ${operationName}` }] },
+          { status: 400 },
+        );
+      }
+      conversationReads++;
+      if (failRead) {
+        return HttpResponse.json(
+          { errors: [{ message: "Read failed" }] },
+          { status: 500 },
+        );
+      }
+      const { id, organizationId, projectId, ...rest } = conversation();
+      return HttpResponse.json({
+        data: {
+          conversation: {
+            __typename: "Conversation",
+            id,
+            organizationId,
+            projectId,
+            title: rest.title,
+            status: rest.status,
+            workflowName: rest.workflowName,
+            workflowId: null,
+            workflowAboutType: null,
+            workflowAboutId: null,
+            initiatedBy: rest.initiatedBy,
+            triggerEvent: null,
+            createdBy: null,
+            lastModifiedBy: null,
+            restricted: rest.restricted,
+            version: rest.version,
+            createdAt: rest.createdAt,
+            updatedAt: rest.updatedAt,
+          },
+        },
+      });
+    }),
+  );
   close = vi.fn();
   const item: OpenItem = {
     entityType: EntityType.AgentSession,
@@ -234,9 +282,11 @@ const loaded = () =>
 describe("session rename editor through generated clients and canonical collections", () => {
   it("reads only on editor open, validates limits, saves a versioned conversation and replaces the canonical row/search label while preserving organization", async () => {
     expect(requests).toEqual([]);
+    expect(conversationReads).toBe(0);
     show();
     await loaded();
-    expect(requests.map((request) => request.method)).toEqual(["get"]);
+    expect(conversationReads).toBe(1);
+    expect(requests).toEqual([]);
     edit("Hi");
     expect(screen.getByTestId("session-rename-save")).toBeDisabled();
     edit("x".repeat(81));
@@ -270,11 +320,6 @@ describe("session rename editor through generated clients and canonical collecti
       ],
       groups: original.groups,
     });
-    expect(
-      queryClient.getQueryData(
-        conversationKeys.envelope("org", "project", conversationId),
-      ),
-    ).toMatchObject({ title: "New release review", version: 4 });
     const canonical = queryClient.getQueryData<OpenItemsPresentCollection>(
       openItemsKeys.collection(scope),
     );
@@ -305,7 +350,8 @@ describe("session rename editor through generated clients and canonical collecti
     edit("Cancelled name");
     fireEvent.click(screen.getByTestId("session-rename-cancel"));
     expect(close).toHaveBeenCalledTimes(1);
-    expect(requests).toHaveLength(1);
+    expect(conversationReads).toBe(1);
+    expect(requests).toEqual([]);
   });
 
   it("keeps the draft and old label after write failure, then retries", async () => {
@@ -392,6 +438,6 @@ describe("session rename editor through generated clients and canonical collecti
     failRead = false;
     fireEvent.click(screen.getByTestId("session-rename-retry-read"));
     await loaded();
-    expect(requests).toHaveLength(2);
+    expect(conversationReads).toBe(2);
   });
 });

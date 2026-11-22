@@ -77,6 +77,7 @@ describe('authentication read counts across existing guards', () => {
       },
     };
     const context = {
+      getType: () => 'http',
       getHandler: () => function handler() {},
       getClass: () => class Controller {},
       switchToHttp: () => ({
@@ -95,6 +96,7 @@ describe('authentication read counts across existing guards', () => {
 
     const nextRequest = { ...request, user: undefined };
     const nextContext = {
+      getType: () => 'http',
       getHandler: () => function handler() {},
       getClass: () => class Controller {},
       switchToHttp: () => ({
@@ -140,6 +142,7 @@ describe('authentication read counts across existing guards', () => {
       ip: '127.0.0.1',
     };
     const context = {
+      getType: () => 'http',
       getHandler: () => function handler() {},
       getClass: () => class Controller {},
       switchToHttp: () => ({

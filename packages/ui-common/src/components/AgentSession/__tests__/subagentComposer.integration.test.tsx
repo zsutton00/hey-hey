@@ -399,6 +399,9 @@ interface Request {
   body: unknown;
 }
 let requests: Request[];
+/** Admission requests only; the surface also makes unrelated background reads. */
+const subagentAdmissions = () =>
+  requests.filter((request) => request.url.endsWith("/subagent-interactions"));
 let interactionState: string;
 let rejectAdmission: boolean;
 let rejectCancellation: boolean;
@@ -588,7 +591,7 @@ describe("shared composer to subagent transport", () => {
         screen.getByTestId("mock-rich-slash-command-plugin"),
       ).toHaveAttribute("data-subagent-available", "true");
       await submit(`/subagent ${mode} research Investigate`);
-      expect(requests[0].body).toEqual({
+      expect(subagentAdmissions()[0]?.body).toEqual({
         id: interactionId,
         attemptId: interactionId,
         sourceSessionId: "session",
@@ -738,7 +741,7 @@ describe("shared composer to subagent transport", () => {
     expect(
       screen.getByTestId("run-stream-external-reply-error"),
     ).toHaveTextContent("Start this Agent Session");
-    expect(requests).toHaveLength(0);
+    expect(subagentAdmissions()).toHaveLength(0);
     expect(state.ordinary).not.toHaveBeenCalled();
   });
 
@@ -746,7 +749,7 @@ describe("shared composer to subagent transport", () => {
     render(view());
     await submit("Explain /subagent foreground research");
     expect(state.ordinary).toHaveBeenCalledTimes(1);
-    expect(requests).toHaveLength(0);
+    expect(subagentAdmissions()).toHaveLength(0);
   });
 
   it("isolates pending completion from the next session", async () => {

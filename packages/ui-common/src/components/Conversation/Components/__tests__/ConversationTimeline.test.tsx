@@ -262,7 +262,7 @@ describe("ConversationTimeline", () => {
           message: createMockMessage({ id: "recent-message" }),
         }),
       ],
-      historyCursor: "older-page",
+      historyCursor: "recent-message",
     });
 
     const button = screen.getByTestId("show-older-messages-button");

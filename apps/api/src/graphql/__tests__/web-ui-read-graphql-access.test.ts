@@ -358,7 +358,8 @@ describe('read-only GraphQL endpoint access', () => {
       .set('Authorization', `Bearer ${token(MEMBER)}`);
 
     expect(response.status).toBe(405);
-    expect(response.body.data).toBeUndefined();
+    // The REST error body always carries `data: null`; the requirement is no GraphQL data.
+    expect(response.body.data ?? null).toBeNull();
   });
 
   it('rejects mutation operations from a signed-in member', async () => {

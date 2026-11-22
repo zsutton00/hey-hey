@@ -261,4 +261,54 @@ describe("conversation and message events over GraphQL", () => {
       }),
     );
   });
+
+  it("shows new messages on a conversation update without re-reading the conversation", async () => {
+    const views = await mountViews();
+    const readsBefore = server.received("GetConversation").length;
+
+    server.append(...threadOf(11).slice(10));
+    act(() =>
+      handler.handleEvent({
+        type: "conversation.updated",
+        ...scope,
+        previousVersion: 1,
+        newVersion: 2,
+        changeType: "message_updated",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(ids(views.result.current.first.orderedData)).toContain("m11"),
+    );
+    expect(server.received("GetConversation")).toHaveLength(readsBefore);
+  });
+
+  it("adds a created conversation to the mounted lists of its project", async () => {
+    const { result } = renderHook(
+      () => useConversations("org-1", "project-1"),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.data?.map((item) => item.id)).toEqual(["conv-1"]),
+    );
+
+    server.conversations = [
+      conversationNode,
+      { ...conversationNode, id: "conv-new" },
+    ];
+    act(() =>
+      handler.handleEvent({
+        type: "conversation.created",
+        ...scope,
+        conversationId: "conv-new",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.data?.map((item) => item.id)).toEqual([
+        "conv-1",
+        "conv-new",
+      ]),
+    );
+  });
 });

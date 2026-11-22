@@ -1,3 +1,5 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
 import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
@@ -118,6 +120,10 @@ function makeProposal(
     ...overrides,
   } as unknown as ProposalResponseDto;
 }
+
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
 
 afterEach(cleanup);
 
@@ -244,6 +250,7 @@ describe("DeleteProposal", () => {
           projectId={PROJ_ID}
         />
       </MemoryRouter>,
+      { wrapper: themeWrapper },
     );
 
     expect(

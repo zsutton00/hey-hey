@@ -1,22 +1,17 @@
-import { messageKeys } from "../../../data/collections/messages";
+import { http } from "msw";
+import { conversationThreadHandlers } from "../../../test/conversationGraphQLHandlers";
 import { resetConversationMessageHistoryStateForTests } from "../../../data/collections/conversationMessageHistoryState";
-const canonicalMessageRead = vi.hoisted(() => vi.fn());
 const queuedInputsRead = vi.hoisted(() => vi.fn());
 const cancelInput = vi.hoisted(() => vi.fn());
-// Only HTTP is mocked; the store, hook, coordinator and viewer are real.
+// Only HTTP is mocked (the thread over GraphQL, the queue over REST); the store, hook, coordinator and viewer are real.
 vi.mock("../../../clients/serviceClients", async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import("../../../clients/serviceClients")
-  >();
+  const original =
+    await importOriginal<typeof import("../../../clients/serviceClients")>();
   return {
     ...original,
     unifiedApiClient: {
       ...original.unifiedApiClient,
       getConversationCliStatus: async () => ({ data: { data: null } }),
-    },
-    platformClient: {
-      ...original.platformClient,
-      getMessages: canonicalMessageRead,
     },
     projectsClient: {
       ...original.projectsClient,
@@ -27,8 +22,7 @@ vi.mock("../../../clients/serviceClients", async (importOriginal) => {
 });
 // Observes arrival animations without changing what renders.
 vi.mock("../../../animations", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("../../../animations")>();
+  const original = await importOriginal<typeof import("../../../animations")>();
   return {
     ...original,
     FadeIn: ({ children }: { children: ReactNode }) => (
@@ -101,11 +95,6 @@ const conversation = {
   createdAt: "2026-10-01T00:00:00Z",
   updatedAt: "2026-10-01T00:00:00Z",
 } as ConversationResponseDto;
-const queryKey = messageKeys.list(
-  project.organizationId,
-  project.id,
-  conversation.id
-);
 const opening = {
   id: "opening",
   projectId: project.id,
@@ -119,20 +108,30 @@ const opening = {
 
 /** The canonical HTTP reads: dated timeline plus the undated queue. */
 let served: { timeline: MessageRecordDto[]; queue: MessageRecordDto[] };
-const serve = (timeline: MessageRecordDto[], queue: MessageRecordDto[] = []) => {
+const serve = (
+  timeline: MessageRecordDto[],
+  queue: MessageRecordDto[] = [],
+) => {
   served = { timeline: [opening, ...timeline], queue };
 };
-/** The QueryClient the rendered viewer reads from. */
-let queryClient: QueryClient;
+/** Thread reads the server has answered, counted at the network. */
+let threadReads = 0;
+/** What the viewer does when the tab becomes visible again: read both lists. */
 const refresh = () =>
   act(async () => {
-    await queryClient.refetchQueries({ queryKey, exact: true });
+    const threadBefore = threadReads;
+    const queueBefore = queuedInputsRead.mock.calls.length;
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => {
+      expect(threadReads).toBeGreaterThan(threadBefore);
+      expect(queuedInputsRead.mock.calls.length).toBeGreaterThan(queueBefore);
+    });
   });
 
 const userMessage = (
   operationId: string,
   comment: string,
-  fields: Partial<MessageRecordDto>
+  fields: Partial<MessageRecordDto>,
 ) =>
   ({
     id: `message-${operationId}`,
@@ -151,7 +150,7 @@ const userMessage = (
 const accepted = (
   operationId: string,
   fingerprint: string,
-  message: MessageRecordDto
+  message: MessageRecordDto,
 ): AgentOperationSnapshot => ({
   operationId,
   fingerprint,
@@ -163,7 +162,7 @@ const accepted = (
 });
 
 const coordinatorWith = (
-  submitMessage: AgentOperationDependencies["submitMessage"]
+  submitMessage: AgentOperationDependencies["submitMessage"],
 ) =>
   new DefaultAgentOperationCoordinator({
     fingerprintStart: vi.fn(),
@@ -173,10 +172,7 @@ const coordinatorWith = (
     submitMessage,
   });
 
-const send = (
-  coordinator: DefaultAgentOperationCoordinator,
-  comment: string
-) =>
+const send = (coordinator: DefaultAgentOperationCoordinator, comment: string) =>
   coordinator.submitMessage({
     organizationId: project.organizationId,
     projectId: project.id,
@@ -193,9 +189,9 @@ const send = (
 
 const renderViewer = async (
   scrollPolicy: ConversationScrollPolicy = { mode: "disabled" },
-  owner?: HTMLElement
+  owner?: HTMLElement,
 ) => {
-  queryClient = new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
   const theme = createTheme();
@@ -221,16 +217,18 @@ const renderViewer = async (
         </ThemeProvider>
       </QueryClientProvider>
     </MemoryRouter>,
-    owner ? { container: owner } : undefined
+    owner ? { container: owner } : undefined,
   );
   await screen.findByText("How can I help?");
+
+  return queryClient;
 };
 
 const previews = (state?: string) =>
   screen
     .queryAllByTestId("submission-preview")
     .filter(
-      (node) => !state || node.getAttribute("data-delivery-state") === state
+      (node) => !state || node.getAttribute("data-delivery-state") === state,
     );
 const timelineRow = (messageId: string) =>
   screen
@@ -239,9 +237,18 @@ const timelineRow = (messageId: string) =>
 
 beforeEach(() => {
   serve([]);
-  canonicalMessageRead.mockImplementation(async () => ({
-    data: { data: { messages: served.timeline } },
-  }));
+  threadReads = 0;
+  globalThis.mswServer.use(
+    http.post("*/graphql", async ({ request }) => {
+      const { operationName } = (await request.clone().json()) as {
+        operationName: string;
+      };
+      if (operationName.startsWith("GetConversationMessage")) {
+        threadReads += 1;
+      }
+    }),
+    ...conversationThreadHandlers(() => served.timeline),
+  );
   queuedInputsRead.mockImplementation(async () => ({
     data: { data: served.queue },
   }));
@@ -249,11 +256,10 @@ beforeEach(() => {
 afterEach(() => {
   act(() => {
     getOptimisticInputs().forEach((row) =>
-      removeOptimisticInput(row.operationId)
+      removeOptimisticInput(row.operationId),
     );
   });
   resetConversationMessageHistoryStateForTests();
-  queryClient?.clear();
   vi.clearAllMocks();
 });
 
@@ -272,29 +278,57 @@ describe("submission previews through the real submission path", () => {
     await waitFor(() => expect(scrollTo).toHaveBeenCalled());
     scrollTo.mockClear();
     let release!: () => void;
-    const gate = new Promise<void>(resolve => { release = resolve; });
-    let confirmed!: MessageRecordDto;
-    const coordinator = coordinatorWith(async ({ operationId, fingerprint }) => {
-      await gate;
-      confirmed = userMessage(operationId, "Read from here", {
-        executionAdmissionDisposition: "IMMEDIATE",
-      });
-      return accepted(operationId, fingerprint, confirmed);
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
     });
+    let confirmed!: MessageRecordDto;
+    const coordinator = coordinatorWith(
+      async ({ operationId, fingerprint }) => {
+        await gate;
+        confirmed = userMessage(operationId, "Read from here", {
+          executionAdmissionDisposition: "IMMEDIATE",
+        });
+        return accepted(operationId, fingerprint, confirmed);
+      },
+    );
     let submitted!: Promise<unknown>;
-    act(() => { submitted = send(coordinator, "Read from here"); });
+    act(() => {
+      submitted = send(coordinator, "Read from here");
+    });
     await waitFor(() => expect(scrollTo).toHaveBeenCalledOnce());
     expect(scrollTo.mock.calls[0][0].behavior).toBe("instant");
     expect(previews("sending")).toHaveLength(1);
-    await act(async () => { release(); await submitted; });
+    await act(async () => {
+      release();
+      await submitted;
+    });
     expect(previews("starting")).toHaveLength(1);
-    serve([{ ...confirmed, createdAt: "2026-10-01T00:00:05Z", executionStatus: "started" }]);
+    serve([
+      {
+        ...confirmed,
+        createdAt: "2026-10-01T00:00:05Z",
+        executionStatus: "started",
+      },
+    ]);
     await refresh();
     await waitFor(() => expect(timelineRow(confirmed.id)).not.toBeNull());
     expect(previews()).toHaveLength(0);
     Object.defineProperty(owner, "scrollHeight", { value: 8000 });
-    canonicalMessageRead.mockResolvedValueOnce({ data: { data: [] } });
+    serve([
+      {
+        ...confirmed,
+        createdAt: "2026-10-01T00:00:05Z",
+        executionStatus: "started",
+      },
+      {
+        ...opening,
+        id: "long-reply",
+        createdAt: "2026-10-01T00:00:10Z",
+        data: { type: "AGENT", response: "A long reply" },
+      },
+    ]);
     await refresh();
+    await screen.findByText("A long reply");
     expect(scrollTo).toHaveBeenCalledOnce();
     expect(owner.style.overflowAnchor).toBe("");
   });
@@ -305,13 +339,15 @@ describe("submission previews through the real submission path", () => {
       release = resolve;
     });
     let confirmed!: MessageRecordDto;
-    const coordinator = coordinatorWith(async ({ operationId, fingerprint }) => {
-      await gate;
-      confirmed = userMessage(operationId, "Start now", {
-        executionAdmissionDisposition: "IMMEDIATE",
-      });
-      return accepted(operationId, fingerprint, confirmed);
-    });
+    const coordinator = coordinatorWith(
+      async ({ operationId, fingerprint }) => {
+        await gate;
+        confirmed = userMessage(operationId, "Start now", {
+          executionAdmissionDisposition: "IMMEDIATE",
+        });
+        return accepted(operationId, fingerprint, confirmed);
+      },
+    );
     await renderViewer();
 
     let submitted!: Promise<unknown>;
@@ -340,22 +376,24 @@ describe("submission previews through the real submission path", () => {
     expect(previews()).toHaveLength(0);
     expect(screen.getAllByText("Start now")).toHaveLength(1);
     expect(
-      screen.getByTestId(`user-message-${confirmed.id}`)
+      screen.getByTestId(`user-message-${confirmed.id}`),
     ).toBeInTheDocument();
     expect(
-      timelineRow(confirmed.id)!.closest('[data-testid="fade-in"]')
+      timelineRow(confirmed.id)!.closest('[data-testid="fade-in"]'),
     ).toBeNull();
   });
 
   it("shows a QUEUED send as queued with Cancel as soon as the disposition returns, then hands over to the started message", async () => {
     let confirmed!: MessageRecordDto;
-    const coordinator = coordinatorWith(async ({ operationId, fingerprint }) => {
-      confirmed = userMessage(operationId, "Wait your turn", {
-        executionAdmissionDisposition: "QUEUED",
-        executionQueueConfirmed: true,
-      });
-      return accepted(operationId, fingerprint, confirmed);
-    });
+    const coordinator = coordinatorWith(
+      async ({ operationId, fingerprint }) => {
+        confirmed = userMessage(operationId, "Wait your turn", {
+          executionAdmissionDisposition: "QUEUED",
+          executionQueueConfirmed: true,
+        });
+        return accepted(operationId, fingerprint, confirmed);
+      },
+    );
     await renderViewer();
     await act(async () => {
       await send(coordinator, "Wait your turn");
@@ -363,7 +401,7 @@ describe("submission previews through the real submission path", () => {
     const [queued] = previews("queued");
     expect(queued).toHaveTextContent("Wait your turn");
     expect(
-      within(queued).getByRole("button", { name: "Cancel" })
+      within(queued).getByRole("button", { name: "Cancel" }),
     ).toBeEnabled();
 
     serve([], [confirmed]);
@@ -384,7 +422,7 @@ describe("submission previews through the real submission path", () => {
     expect(previews()).toHaveLength(0);
     expect(screen.getAllByText("Wait your turn")).toHaveLength(1);
     expect(
-      timelineRow(confirmed.id)!.closest('[data-testid="fade-in"]')
+      timelineRow(confirmed.id)!.closest('[data-testid="fade-in"]'),
     ).toBeNull();
   });
 
@@ -395,8 +433,8 @@ describe("submission previews through the real submission path", () => {
         fingerprint,
         userMessage(operationId, "Deliver me", {
           executionAdmissionDisposition: "PENDING",
-        })
-      )
+        }),
+      ),
     );
     await renderViewer();
     await act(async () => {
@@ -409,7 +447,13 @@ describe("submission previews through the real submission path", () => {
   it.each([
     [
       "denied",
-      async ({ operationId, fingerprint }: { operationId: string; fingerprint: string }) =>
+      async ({
+        operationId,
+        fingerprint,
+      }: {
+        operationId: string;
+        fingerprint: string;
+      }) =>
         ({
           operationId,
           fingerprint,
@@ -422,7 +466,13 @@ describe("submission previews through the real submission path", () => {
     ],
     [
       "failed",
-      async ({ operationId, fingerprint }: { operationId: string; fingerprint: string }) =>
+      async ({
+        operationId,
+        fingerprint,
+      }: {
+        operationId: string;
+        fingerprint: string;
+      }) =>
         ({
           operationId,
           fingerprint,
@@ -454,7 +504,7 @@ describe("submission previews through the real submission path", () => {
       fireEvent.click(within(failed).getByRole("button", { name: "Dismiss" }));
       expect(previews()).toHaveLength(0);
       expect(screen.queryByText("Doomed")).not.toBeInTheDocument();
-    }
+    },
   );
 
   it("keeps two rapid identical-text sends distinct and confirms them independently", async () => {
@@ -471,7 +521,7 @@ describe("submission previews through the real submission path", () => {
             confirmed.push(message);
             resolve(accepted(operationId, fingerprint, message));
           });
-        })
+        }),
     );
     await renderViewer();
     let first!: Promise<unknown>;
@@ -483,7 +533,7 @@ describe("submission previews through the real submission path", () => {
     await waitFor(() => expect(releases).toHaveLength(2));
     expect(previews("sending")).toHaveLength(2);
     const keys = previews().map((node) =>
-      node.getAttribute("data-preview-key")
+      node.getAttribute("data-preview-key"),
     );
     expect(new Set(keys).size).toBe(2);
 
@@ -491,29 +541,32 @@ describe("submission previews through the real submission path", () => {
       releases[1]();
       await second;
     });
-    expect(previews().map((node) => node.getAttribute("data-delivery-state")))
-      .toEqual(["sending", "queued"]);
+    expect(
+      previews().map((node) => node.getAttribute("data-delivery-state")),
+    ).toEqual(["sending", "queued"]);
     await act(async () => {
       releases[0]();
       await first;
     });
     expect(previews("queued")).toHaveLength(2);
     expect(
-      previews().map((node) => node.getAttribute("data-preview-key"))
+      previews().map((node) => node.getAttribute("data-preview-key")),
     ).toEqual(keys);
   });
 
   it("cancels a queued send and keeps the remaining submissions in send order", async () => {
     const confirmed: MessageRecordDto[] = [];
-    const coordinator = coordinatorWith(async ({ operationId, fingerprint }) => {
-      const comment = `Queued ${confirmed.length + 1}`;
-      const message = userMessage(operationId, comment, {
-        executionAdmissionDisposition: "QUEUED",
-        executionQueueConfirmed: true,
-      });
-      confirmed.push(message);
-      return accepted(operationId, fingerprint, message);
-    });
+    const coordinator = coordinatorWith(
+      async ({ operationId, fingerprint }) => {
+        const comment = `Queued ${confirmed.length + 1}`;
+        const message = userMessage(operationId, comment, {
+          executionAdmissionDisposition: "QUEUED",
+          executionQueueConfirmed: true,
+        });
+        confirmed.push(message);
+        return accepted(operationId, fingerprint, message);
+      },
+    );
     await renderViewer();
     await act(async () => {
       await send(coordinator, "Queued 1");
@@ -529,11 +582,14 @@ describe("submission previews through the real submission path", () => {
     ]);
 
     cancelInput.mockImplementation(async () => {
-      serve([], [
-        confirmed[0],
-        { ...confirmed[1], executionStatus: "cancelled" } as MessageRecordDto,
-        confirmed[2],
-      ]);
+      serve(
+        [],
+        [
+          confirmed[0],
+          { ...confirmed[1], executionStatus: "cancelled" } as MessageRecordDto,
+          confirmed[2],
+        ],
+      );
       return {
         data: {
           data: { executionStatus: "cancelled", cancellationRequested: true },
@@ -541,11 +597,13 @@ describe("submission previews through the real submission path", () => {
       };
     });
     fireEvent.click(
-      within(previews()[1]).getByRole("button", { name: "Cancel" })
+      within(previews()[1]).getByRole("button", { name: "Cancel" }),
     );
     await screen.findByText("Message cancelled");
     expect(cancelInput).toHaveBeenCalledWith(
-      expect.objectContaining({ operationId: confirmed[1].executionOperationId })
+      expect.objectContaining({
+        operationId: confirmed[1].executionOperationId,
+      }),
     );
     await waitFor(() => expect(previews()).toHaveLength(2));
     expect(previews().map((node) => node.textContent)).toEqual([

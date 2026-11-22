@@ -8,15 +8,18 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../i18n";
 import { CreateProposal } from "../CreateProposal";
 import { useExistingPlanTasks } from "../../../data/hooks/useExistingPlanTasks";
-import { workItemKeys } from "../../../data/collections/workItemLists";
+import { refreshWorkItemLists } from "../../../data/graphql/workItemCache";
+import { answerWorkItemOperation } from "../../../test/workItemGraphQLAnswers";
+import type { FakeWorkItem } from "../../../test/workItemGraphQLAnswers";
 import { proposalKeys } from "../../../data/collections/proposals";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ProposalAction,
   ProposalStatus,
@@ -162,20 +165,34 @@ beforeEach(() => {
     http.get("*/api/v1/organizations/org/members", () =>
       HttpResponse.json({ data: [] }),
     ),
-    http.get(
-      "*/api/v1/organizations/org/projects/project/work-items",
-      async ({ request }) => {
-        await holdRead;
-        const ids = new URL(request.url).searchParams.getAll("taskIds");
-        reads.push(ids);
-        if (readFailure) {
-          return HttpResponse.json({ message: "Read failed" }, { status: 403 });
-        }
-        return HttpResponse.json({
-          data: records.filter((item) => ids.includes(item.id)),
-        });
-      },
-    ),
+    http.post("*/graphql", async ({ request }) => {
+      const { operationName, variables } = (await request.clone().json()) as {
+        operationName: string;
+        variables: { ids: string[] };
+      };
+      if (operationName !== "GetWorkItems") {
+        return;
+      }
+      await holdRead;
+      reads.push(variables.ids);
+      if (readFailure) {
+        return HttpResponse.json(
+          {
+            errors: [
+              { message: "Read failed", extensions: { code: "FORBIDDEN" } },
+            ],
+          },
+          { status: 403 },
+        );
+      }
+      const { status, body } = answerWorkItemOperation(
+        records as unknown as FakeWorkItem[],
+        operationName,
+        variables,
+      );
+
+      return HttpResponse.json(body as never, { status });
+    }),
     http.get(
       "*/api/v1/organizations/org/projects/project/proposals/adoption",
       () => HttpResponse.json({ data: proposal }),
@@ -184,11 +201,13 @@ beforeEach(() => {
 });
 
 function harness(renderMode: "standalone" | "detail" = "standalone") {
-  let client!: QueryClient;
+  let client!: ReturnType<typeof useQueryClient>;
+  let graphql!: ReturnType<typeof useApolloClient>;
   const onApply = vi.fn(async () => proposal);
   const onReject = vi.fn(async (_id: string, _reason: string) => {});
   function Host() {
     client = useQueryClient();
+    graphql = useApolloClient();
     return (
       <MemoryRouter>
         <CreateProposal
@@ -201,7 +220,17 @@ function harness(renderMode: "standalone" | "detail" = "standalone") {
     );
   }
   const view = render(<Host />);
-  return { client, onApply, onReject, ...view };
+  const refreshTasks = () =>
+    act(async () => {
+      await Promise.all([
+        refreshWorkItemLists(graphql, {
+          organizationId: "org",
+          projectId: "project",
+        }),
+        client.invalidateQueries({ queryKey: ["existingPlanTasks"] }),
+      ]);
+    });
+  return { client, refreshTasks, onApply, onReject, ...view };
 }
 
 describe.each(["standalone", "detail"] as const)(
@@ -228,7 +257,7 @@ describe.each(["standalone", "detail"] as const)(
     );
 
     it("reviews the complete artifact in order using current records and refreshes titles and statuses", async () => {
-      const { client, onApply } = harness(renderMode);
+      const { refreshTasks, onApply } = harness(renderMode);
       await screen.findAllByText("Ship release");
       expect(screen.getByTestId("existing-plan-design")).toHaveTextContent(
         "The entire design body.",
@@ -262,11 +291,7 @@ describe.each(["standalone", "detail"] as const)(
           ? { ...item, name: "Release shipped", status: WorkStatus.Completed }
           : item,
       );
-      await act(async () => {
-        await client.invalidateQueries({
-          queryKey: workItemKeys.project("org", "project"),
-        });
-      });
+      await refreshTasks();
       expect(
         (await screen.findAllByText("Release shipped"))[0],
       ).toHaveAttribute("href", "/projects/project/tasks/second");
@@ -278,25 +303,17 @@ describe.each(["standalone", "detail"] as const)(
       holdRead = new Promise<void>((resolve) => {
         release = resolve;
       });
-      const { client } = harness(renderMode);
+      const { refreshTasks } = harness(renderMode);
       expect(screen.getAllByTestId("existing-plan-task-state")).toHaveLength(6);
       release();
       await screen.findAllByText("Ship release");
       records = records.filter((item) => item.id !== "third");
-      await act(async () => {
-        await client.invalidateQueries({
-          queryKey: workItemKeys.project("org", "project"),
-        });
-      });
+      await refreshTasks();
       expect(
         await screen.findByText("This task is unavailable."),
       ).toBeInTheDocument();
       readFailure = true;
-      await act(async () => {
-        await client.invalidateQueries({
-          queryKey: workItemKeys.project("org", "project"),
-        });
-      });
+      await refreshTasks();
       await waitFor(() =>
         expect(screen.getAllByText("Could not read this task.")).toHaveLength(
           6,

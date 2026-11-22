@@ -433,21 +433,26 @@ export const renderWithConversationProvider = async (
     axios.create({ baseURL: "http://localhost:3000/api/v1" }),
   );
   const newestPage = { id: conversation.id, last: 8 };
-  graphql.apollo.writeQuery({
-    query: GetConversationMessageHistoryDocument,
-    variables: newestPage,
-    data: (
-      answerConversationOperation(
-        {
-          thread: canonicalMessages,
-          conversations: [],
-          olderCursor: historyCursor,
-        },
-        "GetConversationMessageHistory",
-        newestPage,
-      ).body as unknown as { data: GetConversationMessageHistoryQuery }
-    ).data,
-  });
+  graphql
+    .forProject({
+      organizationId: conversation.organizationId,
+      projectId: conversation.projectId,
+    })
+    .writeQuery({
+      query: GetConversationMessageHistoryDocument,
+      variables: newestPage,
+      data: (
+        answerConversationOperation(
+          {
+            thread: canonicalMessages,
+            conversations: [],
+            olderCursor: historyCursor,
+          },
+          "GetConversationMessageHistory",
+          newestPage,
+        ).body as unknown as { data: GetConversationMessageHistoryQuery }
+      ).data,
+    });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retryDelay: 0 } },
   });

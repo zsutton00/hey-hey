@@ -1,6 +1,4 @@
-import { renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import {
   AgentSessionStatus,
@@ -9,20 +7,23 @@ import {
   WorkflowName,
 } from "../../../api";
 import { agentSessionsClient } from "../../../clients/serviceClients";
+import {
+  conversationNode,
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
+import { useConversations } from "../useConversations";
 import { useCreateAgentSessionConversation } from "../useCreateAgentSessionConversation";
 
 vi.mock("../../../clients/serviceClients", () => ({
   agentSessionsClient: {
-    createAgentSessionConversation:
-      vi.fn(),
+    createAgentSessionConversation: vi.fn(),
   },
 }));
 
 import { agentSessionKeys } from "../../collections/agentSessions";
-import { conversationKeys } from "../../collections/conversations";
 
-const mockEndpoint =
-  agentSessionsClient.createAgentSessionConversation as Mock;
+const mockEndpoint = agentSessionsClient.createAgentSessionConversation as Mock;
 
 describe("useCreateAgentSessionConversation", () => {
   const organizationId = "org-1";
@@ -56,33 +57,42 @@ describe("useCreateAgentSessionConversation", () => {
 
   const responseData = { agentSession, conversation };
 
-  let queryClient: QueryClient;
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  const listKey = conversationKeys.list(organizationId, projectId, {});
-  const envelopeKey = conversationKeys.envelope(
-    organizationId,
-    projectId,
-    conversation.id
-  );
+  let server: FakeConversationServer;
+  let queryClient: FakeConversationServer["queryClient"];
   const detailKey = agentSessionKeys.detail(
     organizationId,
     projectId,
-    agentSessionId
+    agentSessionId,
   );
   const cachedSession = { ...agentSession, conversationId: null };
-  const expectConversationsUntouched = () => {
-    expect(queryClient.getQueryData(envelopeKey)).toBeUndefined();
-    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(false);
+  const listReads = () => server.received("GetActiveConversations").length;
+
+  /** Mounts the hook beside a conversation list, as the app does. */
+  const mountHook = async (
+    options?: Parameters<typeof useCreateAgentSessionConversation>[0],
+  ) => {
+    const view = renderHook(
+      () => ({
+        create: useCreateAgentSessionConversation(options),
+        list: useConversations(organizationId, projectId),
+      }),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(view.result.current.list.isReady).toBe(true));
+    return view;
+  };
+
+  /** Conversation lists are left alone: no further list read happens. */
+  const expectConversationsUntouched = async (readsBefore: number) => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(listReads()).toBe(readsBefore);
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retryDelay: 0 } },
-    });
-    queryClient.setQueryData(listKey, []);
+    server = new FakeConversationServer(threadOf(1));
+    server.conversations = [];
+    queryClient = server.queryClient;
     queryClient.setQueryData(detailKey, cachedSession);
     mockEndpoint.mockResolvedValue({
       data: {
@@ -95,14 +105,13 @@ describe("useCreateAgentSessionConversation", () => {
     });
   });
 
-  it("writes the conversation, sets the agent session, and invalidates conversation lists", async () => {
+  it("sets the agent session and refreshes conversation lists", async () => {
     const onSuccess = vi.fn();
-    const { result } = renderHook(() =>
-      useCreateAgentSessionConversation({ onSuccess }), {
-      wrapper,
-    });
+    const { result } = await mountHook({ onSuccess });
+    expect(result.current.list.data).toEqual([]);
+    server.conversations = [{ ...conversationNode, id: conversation.id }];
 
-    const payload = await result.current.mutate({
+    const payload = await result.current.create.mutate({
       organizationId,
       projectId,
       agentSessionId,
@@ -124,14 +133,16 @@ describe("useCreateAgentSessionConversation", () => {
           workflowAboutType: "task",
           workflowAboutId: "task-1",
         },
-      })
+      }),
     );
-
-    expect(queryClient.getQueryData(envelopeKey)).toEqual(conversation);
 
     expect(queryClient.getQueryData(detailKey)).toEqual(agentSession);
 
-    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
+    await waitFor(() =>
+      expect(result.current.list.data?.map((c) => c.id)).toEqual([
+        conversation.id,
+      ]),
+    );
 
     expect(onSuccess).toHaveBeenCalledWith(responseData);
   });
@@ -147,22 +158,21 @@ describe("useCreateAgentSessionConversation", () => {
       },
     });
 
-    const { result } = renderHook(() => useCreateAgentSessionConversation(), {
-      wrapper,
-    });
+    const { result } = await mountHook();
+    const readsBefore = listReads();
     await expect(
-      result.current.mutate({
+      result.current.create.mutate({
         organizationId,
         projectId,
         agentSessionId,
         body: { workflowType: WorkflowName.AgentTaskRefining },
-      })
+      }),
     ).rejects.toThrow(
-      "No data returned from create-agent-session-conversation endpoint"
+      "No data returned from create-agent-session-conversation endpoint",
     );
     expect(queryClient.getQueryData(detailKey)).toBe(cachedSession);
     expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(false);
-    expectConversationsUntouched();
+    await expectConversationsUntouched(readsBefore);
   });
 
   it("marks the agent session stale on 409 and re-throws", async () => {
@@ -172,22 +182,20 @@ describe("useCreateAgentSessionConversation", () => {
     mockEndpoint.mockRejectedValue(error);
 
     const onError = vi.fn();
-    const { result } = renderHook(() =>
-      useCreateAgentSessionConversation({ onError }), {
-      wrapper,
-    });
+    const { result } = await mountHook({ onError });
+    const readsBefore = listReads();
 
     await expect(
-      result.current.mutate({
+      result.current.create.mutate({
         organizationId,
         projectId,
         agentSessionId,
         body: { workflowType: WorkflowName.AgentTaskRefining },
-      })
+      }),
     ).rejects.toBe(error);
 
     expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true);
-    expectConversationsUntouched();
+    await expectConversationsUntouched(readsBefore);
     expect(onError).toHaveBeenCalledWith(error);
   });
 
@@ -197,19 +205,18 @@ describe("useCreateAgentSessionConversation", () => {
     });
     mockEndpoint.mockRejectedValue(error);
 
-    const { result } = renderHook(() => useCreateAgentSessionConversation(), {
-      wrapper,
-    });
+    const { result } = await mountHook();
+    const readsBefore = listReads();
     await expect(
-      result.current.mutate({
+      result.current.create.mutate({
         organizationId,
         projectId,
         agentSessionId,
         body: { workflowType: WorkflowName.AgentTaskRefining },
-      })
+      }),
     ).rejects.toBe(error);
 
     expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(false);
-    expectConversationsUntouched();
+    await expectConversationsUntouched(readsBefore);
   });
 });

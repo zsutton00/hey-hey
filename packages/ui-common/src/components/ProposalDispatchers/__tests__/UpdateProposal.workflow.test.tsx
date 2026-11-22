@@ -270,9 +270,24 @@ beforeEach(() => {
     ),
   );
   vi.clearAllMocks();
-  vi.mocked(unifiedApiClient.getTask).mockResolvedValue({
-    data: { data: existingWorkflow },
-  } as never);
+  // Reads are keyed by item id, so each id must resolve to a record of its own.
+  vi.mocked(unifiedApiClient.getTask).mockImplementation((async ({
+    taskId,
+  }: {
+    taskId: string;
+  }) => ({
+    data: {
+      data:
+        taskId === "workflow-step-1"
+          ? {
+              ...existingWorkflow,
+              id: taskId,
+              name: "Existing step",
+              type: "workflow_step",
+            }
+          : { ...existingWorkflow, id: taskId },
+    },
+  })) as never);
   mockValidate.mockResolvedValue({
     data: {
       data: {

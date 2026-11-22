@@ -1235,8 +1235,11 @@ export class WebSocketHandler {
       { conversationId: event.conversationId },
     );
 
+    // A conversation update only brings new messages; the conversation itself
+    // stays as read, so a reply is admitted against the version read at submit.
     if (event.type === "conversation.updated") {
       this.refreshConversationMessages(event);
+      return;
     }
 
     emitDataEvent(

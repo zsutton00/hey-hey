@@ -126,27 +126,29 @@ describe("work-item reference reads", () => {
 
 describe("work-item reference status filters", () => {
   const base = {
-    organizationId: "org",
-    projectId: "project",
+    ...scope,
     workItemType: "RECIPE",
     page: 1,
     limit: 20,
   };
 
-  it("keeps names containing commas intact in cache identity and requests", async () => {
+  it("keeps names containing commas intact in requests", async () => {
+    const server = new FakeWorkItemServer([]);
     const joined = ["Ready, pending sign-off"];
     const split = ["Ready", "pending sign-off"];
 
-    expect(
-      workItemReferenceKeys.page({ ...base, statuses: joined }),
-    ).not.toEqual(workItemReferenceKeys.page({ ...base, statuses: split }));
+    for (const statuses of [joined, split]) {
+      await server.graphql.forProject(scope).query({
+        query: workItemReferencePageRead({ ...base, statuses }).document,
+        variables: workItemReferencePageRead({ ...base, statuses })
+          .variables as never,
+        context: scope,
+        fetchPolicy: "network-only",
+      });
+    }
 
-    listWorkItemReferencesMock.mockResolvedValue(pageResponse(1, [], false, 0));
-    await fetchWorkItemReferencePageQuery({ ...base, statuses: joined });
-    await fetchWorkItemReferencePageQuery({ ...base, statuses: split });
-
     expect(
-      listWorkItemReferencesMock.mock.calls.map(([q]) => q.statuses),
+      server.received("GetWorkItemReferencePage").map((v) => v.statuses),
     ).toEqual([joined, split]);
   });
 });

@@ -1,6 +1,5 @@
 import { http, HttpResponse } from "msw";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { conversationKeys } from "../../../data/collections/conversations";
 import React from "react";
 import {
   act,
@@ -23,7 +22,25 @@ import {
   launchScope,
   launchSession,
 } from "../../../test/planLaunchHarness";
+import {
+  conversationNode,
+  FakeConversationServer,
+} from "../../../test/conversationGraphQL";
+import { TestGraphQLProvider } from "../../../test/TestGraphQLProvider";
+import { useWorkflowConversations } from "../../../data/hooks/useWorkflowConversations";
 import { PlanFromDesignDocChat } from "../PlanFromDesignDocChat";
+
+/** A mounted view of the plan's workflow conversations, as the app keeps one. */
+const WorkflowConversationsView = () => {
+  useWorkflowConversations(
+    launchScope.organizationId,
+    launchScope.projectId,
+    launchConversation.workflowName,
+    launchPlan.id,
+  );
+
+  return null;
+};
 
 const Chat = () => (
   <PlanFromDesignDocChat
@@ -82,21 +99,24 @@ describe("plan launch to rendered conversation", () => {
   it("retains preparation, pending dispatch and acceptance across remounts, then yields to runtime and later IDLE", async () => {
     const harness = createLaunchHarness();
     const { queryClient } = harness;
-    const workflowKey = conversationKeys.workflowList(
-      launchScope.organizationId,
-      launchScope.projectId,
+    const server = new FakeConversationServer([]);
+    server.conversations = [
       {
-        workflowName: launchConversation.workflowName!,
+        ...conversationNode,
+        id: launchConversation.id,
+        workflowName: launchConversation.workflowName,
         workflowAboutId: launchPlan.id,
       },
-    );
-    queryClient.setQueryData(workflowKey, [launchConversation]);
+    ];
     const saved = deferred<{ status: "applied"; plan: typeof launchPlan }>();
     launchMocks.updatePlan.mockReturnValueOnce(saved.promise);
     const tree = (visible: boolean) => (
       <QueryClientProvider client={queryClient}>
         <harness.Wrapper>
-          <MemoryRouter>{visible && <Chat />}</MemoryRouter>
+          <TestGraphQLProvider client={server.graphql.apollo}>
+            <WorkflowConversationsView />
+            <MemoryRouter>{visible && <Chat />}</MemoryRouter>
+          </TestGraphQLProvider>
         </harness.Wrapper>
       </QueryClientProvider>
     );
@@ -132,9 +152,14 @@ describe("plan launch to rendered conversation", () => {
     await act(async () => harness.finish("succeeded"));
     const handoff = await screen.findByTestId("agent-launch-handoff");
     expect(within(handoff).getByRole("progressbar")).toBeInTheDocument();
-    expect(within(handoff).getByRole("status")).toHaveTextContent("Loading…");
+    expect(within(handoff).getByRole("status")).toBeInTheDocument();
     expect(handoff).not.toHaveTextContent("CLI accepted the launch");
-    expect(queryClient.getQueryState(workflowKey)?.isInvalidated).toBe(true);
+    // Acceptance reads the plan's conversations again.
+    await waitFor(() =>
+      expect(
+        server.received("GetWorkflowConversations").length,
+      ).toBeGreaterThan(1),
+    );
     expect(
       screen.getByTestId("empty-conversation-history"),
     ).toBeInTheDocument();

@@ -1,11 +1,14 @@
-import { renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { useCreateConversation } from "../useCreateConversation";
 import { platformClient } from "../../../clients/serviceClients";
 import { ConversationStatus, InitiationType } from "../../../api";
-import { conversationKeys } from "../../collections/conversations";
+import {
+  conversationNode,
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
+import { useConversations } from "../useConversations";
 
 const TASK_GENERATION_CATEGORY = "task-generation" as const;
 
@@ -17,16 +20,6 @@ vi.mock("../../../clients/serviceClients", () => ({
 }));
 
 const mockPlatformClient = platformClient.createConversation as Mock;
-
-function createHarness() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0 } },
-  });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return { queryClient, wrapper };
-}
 
 describe("useCreateConversation", () => {
   const mockConversation = {
@@ -67,35 +60,34 @@ describe("useCreateConversation", () => {
   describe("successful creation", () => {
     it("should create conversation and update collection state", async () => {
       const onSuccess = vi.fn();
-      const { queryClient, wrapper } = createHarness();
-      const listKey = conversationKeys.list("org-123", "project-123", {});
-      const workflowKey = conversationKeys.workflowList(
-        "org-123",
-        "project-123",
-        { workflowName: "task-generation", workflowAboutId: "initiative-123" }
+      const server = new FakeConversationServer(threadOf(1));
+      const { result } = renderHook(
+        () => ({
+          create: useCreateConversation({ onSuccess }),
+          list: useConversations("org-123", "project-123"),
+        }),
+        { wrapper: server.wrapper },
       );
-      const otherProjectKey = conversationKeys.list("org-123", "project-999", {});
-      for (const key of [listKey, workflowKey, otherProjectKey])
-        queryClient.setQueryData(key, []);
-      const { result } = renderHook(() => useCreateConversation({ onSuccess }), {
-        wrapper,
-      });
+      await waitFor(() => expect(result.current.list.isReady).toBe(true));
+      expect(result.current.list.data?.map((c) => c.id)).toEqual([
+        conversationNode.id,
+      ]);
 
       // Initial state should be idle
-      expect(result.current.isPending).toBe(false);
-      expect(result.current.isSuccess).toBe(false);
-      expect(result.current.isError).toBe(false);
-      expect(result.current.error).toBeNull();
+      expect(result.current.create.isPending).toBe(false);
+      expect(result.current.create.isSuccess).toBe(false);
+      expect(result.current.create.isError).toBe(false);
+      expect(result.current.create.error).toBeNull();
 
-      // Call the mutate function
-      const resultPromise = result.current.mutate({
+      server.conversations = [
+        conversationNode,
+        { ...conversationNode, id: mockConversation.id },
+      ];
+      const createdConversation = await result.current.create.mutate({
         organizationId: "org-123",
         projectId: "project-123",
         conversationDto: mockCreateDto,
       });
-
-      // Wait for the mutation to complete
-      const createdConversation = await resultPromise;
 
       expect(createdConversation).toEqual(mockConversation);
       expect(mockPlatformClient).toHaveBeenCalledWith(
@@ -103,22 +95,16 @@ describe("useCreateConversation", () => {
           organizationId: "org-123",
           projectId: "project-123",
           createConversationDto: mockCreateDto,
-        })
+        }),
       );
 
-      // The created conversation is readable by id without a request, and
-      // every conversation list in the project re-reads for membership.
-      expect(
-        queryClient.getQueryData(
-          conversationKeys.envelope("org-123", "project-123", "conv-123")
-        )
-      ).toEqual(mockConversation);
-      expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
-      expect(queryClient.getQueryState(workflowKey)?.isInvalidated).toBe(true);
-      expect(queryClient.getQueryState(otherProjectKey)?.isInvalidated).toBe(
-        false
+      // Mounted conversation lists re-read so the new conversation joins them.
+      await waitFor(() =>
+        expect(result.current.list.data?.map((c) => c.id)).toEqual([
+          conversationNode.id,
+          mockConversation.id,
+        ]),
       );
-
       expect(onSuccess).toHaveBeenCalledWith(mockConversation);
     });
 
@@ -134,7 +120,6 @@ describe("useCreateConversation", () => {
 
       expect(onSuccess).toHaveBeenCalledWith(mockConversation);
     });
-
   });
 
   describe("error handling", () => {
@@ -150,7 +135,7 @@ describe("useCreateConversation", () => {
           organizationId: "org-123",
           projectId: "project-123",
           conversationDto: mockCreateDto,
-        })
+        }),
       ).rejects.toThrow(errorMessage);
 
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
@@ -168,7 +153,7 @@ describe("useCreateConversation", () => {
           organizationId: "org-123",
           projectId: "project-123",
           conversationDto: mockCreateDto,
-        })
+        }),
       ).rejects.toThrow("Test error");
 
       expect(onError).toHaveBeenCalledWith(error);
@@ -193,7 +178,7 @@ describe("useCreateConversation", () => {
           organizationId: "org-123",
           projectId: "project-123",
           conversationDto: mockCreateDto,
-        })
+        }),
       ).rejects.toThrow("No conversation data returned from API");
     });
   });
@@ -234,7 +219,7 @@ describe("useCreateConversation", () => {
           organizationId: "org-123",
           projectId: "project-123",
           conversationDto: mockCreateDto,
-        })
+        }),
       ).rejects.toThrow();
 
       expect(onSettled).toHaveBeenCalled();

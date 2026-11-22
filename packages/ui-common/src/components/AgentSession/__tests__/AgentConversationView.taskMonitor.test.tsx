@@ -1,5 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { messageKeys } from "../../../data/collections/messages";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -10,6 +8,11 @@ import {
   type GoalPmRoutingSelectionPayload,
   type GoalPmRoutingEnactmentResponse,
 } from "../../../api";
+import {
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
+import { TestGraphQLProvider } from "../../../test/TestGraphQLProvider";
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
 import { AgentConversationView } from "../AgentConversationView";
 
@@ -241,18 +244,10 @@ describe("AgentConversationView Task Monitor replies", () => {
       },
     }));
 
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const messagesKey = messageKeys.list(
-      "org-1",
-      "project-1",
-      conversationState.current!.id,
-    );
-    queryClient.setQueryData(messagesKey, []);
+    const server = new FakeConversationServer(threadOf(1));
 
     render(
-      <QueryClientProvider client={queryClient}>
+      <TestGraphQLProvider client={server.graphql.apollo}>
         <AgentConversationView
           organizationId="org-1"
           projectId="project-1"
@@ -260,7 +255,7 @@ describe("AgentConversationView Task Monitor replies", () => {
           conversationId="conversation-1"
           buildReplyMessage={buildReplyMessage}
         />
-      </QueryClientProvider>,
+      </TestGraphQLProvider>,
     );
 
     screen.getByTestId("task-monitor-reply-submit").click();
@@ -297,7 +292,9 @@ describe("AgentConversationView Task Monitor replies", () => {
       }),
     );
     await waitFor(() =>
-      expect(queryClient.getQueryState(messagesKey)?.isInvalidated).toBe(true),
+      expect(server.received("GetConversationMessageHistory")).not.toHaveLength(
+        0,
+      ),
     );
   });
 

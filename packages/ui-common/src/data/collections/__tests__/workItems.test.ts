@@ -8,6 +8,7 @@ import {
   WorkStatus,
   type TaskResponseDto,
 } from "../../../api";
+import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   FakeWorkItemServer,
   type FakeWorkItem,

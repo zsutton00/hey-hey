@@ -1,4 +1,3 @@
-import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { MemoryRouter } from "react-router-dom";
@@ -13,7 +12,7 @@ const registry = vi.hoisted(() => ({
     name: "Custom",
     role: "work-item",
     sections: [],
-    statuses: legacyStatuses([]),
+    statuses: [],
     iconKey: "star",
     colorKey: "secondary",
   },
@@ -71,7 +70,7 @@ describe("registry custom color across identity consumers", () => {
                     name: "Custom",
                     role: "work-item",
                     sections: [],
-                    statuses: legacyStatuses([]),
+                    statuses: [],
                     iconKey: "star",
                     colorKey: "secondary",
                   },
