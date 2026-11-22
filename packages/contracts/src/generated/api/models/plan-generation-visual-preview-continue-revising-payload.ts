@@ -21,7 +21,7 @@ import type { SecondaryActionPayload } from './secondary-action-payload.js';
 
 /**
  * @type PlanGenerationVisualPreviewContinueRevisingPayload
- * Payload for revising the visual-preview proposal set.
+ * Payload for asking the agent to redraft the visual under review, or to change the complete visual set.
  * @export
  */
 export interface PlanGenerationVisualPreviewContinueRevisingPayload extends SecondaryActionPayload {

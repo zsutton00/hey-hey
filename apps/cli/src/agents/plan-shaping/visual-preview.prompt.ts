@@ -43,43 +43,49 @@ approval or using a proposal group. When a refinement revises one of those
 visuals through a new proposal, link to the new proposal ID; links to the
 previous proposal are not carried forward.
 
-On every review, including the initial review and every refinement, submit
-all selected visuals as one complete ordered set: new or revised proposals and
-unchanged reused proposals, including APPROVED proposals from another
-conversation in the same project. Only new or revised visuals are submitted as
-new proposals. An unchanged reused visual keeps its canonical Proposal ID:
-retain it in the entries submitted through \`submit_visual_preview_ready\`
-(READY), and call \`include_existing_proposals_in_current_message\` with it in
-\`proposalIds\` before submission so the current final Message attaches it.
-The review shows an unchanged APPROVED visual as its Mockup or Diagram content
-instead of a proposal card (an entry's \`materializedEntity\` names that work
-item); new, revised, and pending visuals stay reviewable proposals. A prose
-statement that existing visuals are reused is insufficient: both the ordered
-preview submission and current Message must include their Proposal IDs.
-Reuse creates no duplicate proposal and preserves proposal identity, original
-Conversation and Message ownership, any Proposal Group home, and approval status.
-An individually APPROVED proposal needs no renewed individual decision.
-Explicit user approval of the complete visual set is still required before
-plan stages or tasks, even when every selected visual is already APPROVED;
-READY presents the set for review and never supplies that user approval.
+The user reviews visuals one by one, in presentation order, and cannot move
+past a visual until it is APPROVED. Each turn drafts or redrafts exactly one
+visual:
+- When \`reviewProposalId\` is set, that visual is under review and is not
+  APPROVED yet. Redraft only that visual, using the feedback when there is
+  any. Update it in place while it is still DRAFT; when it was REJECTED,
+  create a new revision proposal and put the new Proposal ID in its place in
+  the order. A rejected visual is redrafted, never silently dropped.
+- When \`reviewProposalId\` is absent, every visual so far is APPROVED. If the
+  user asked for changes to approved visuals, replace only each affected
+  entry with a new revision proposal at the same place in the order; those
+  are then reviewed in order like any other visual. Otherwise add the next
+  visual in presentation order as one new proposal, or reuse one existing
+  visual.
+- Apart from replacing visuals the user asked to change, never add more than
+  one visual that is not yet APPROVED in a single turn. Approved visuals stay
+  approved and are not revised unless the user asks for that.
 
-Mixed-set example: two unchanged APPROVED Mockups from an earlier same-project
-conversation plus one new Diagram are reviewed as two Mockups shown as content
-and one Diagram proposal. Include both existing Mockup Proposal IDs in the
-current Message, then submit all three canonical Proposal IDs in the intended
-presentation order, retaining the second Mockup's same-family relationship to
-the first. Do not submit only the new Diagram or replace the reused Mockups
-with a narrative reuse statement.
-All-approved example: when both selected Mockups are unchanged and APPROVED,
-include both existing Proposal IDs in the current Message and submit both in
-the complete ordered preview; they are shown as their content. Preserve their
-approvals and ownership, and await explicit user approval of this complete set.
+Submit the ordered set so far through \`submit_visual_preview_ready\` (READY):
+every visual already in the set plus the one drafted this turn. Keep every
+visual you were not asked to change, with its Proposal ID and presentation
+order unchanged; a submission that drops, reorders or replaces another
+visual is rejected. Set
+\`setComplete\` to true only when no further visual should follow; leave it
+false when another visual comes next. You may submit with setComplete true
+and no new visual when the set is already complete.
 
-On a refinement round, revise only visuals affected by attributable feedback;
-update a draft in place when it is still draft; and
-create a new revision proposal when its predecessor is approved or rejected.
-Omit clearly rejected visuals from the next set and add requested visuals as
-new proposals. Preserve proposal history and never infer approval from text.
+An unchanged reused visual keeps its canonical Proposal ID, including an
+APPROVED proposal from another conversation in the same project: retain it in
+the submitted entries and call \`include_existing_proposals_in_current_message\`
+with it in \`proposalIds\` before submission so the current final Message
+attaches it. A prose statement that a visual is reused is insufficient. Reuse
+creates no duplicate proposal and preserves proposal identity, original
+Conversation and Message ownership, any Proposal Group home, and approval
+status. A reused visual that is still DRAFT is reviewed at its place in the
+order, so it counts as this turn's visual. An APPROVED reused visual is shown
+as its Mockup or Diagram content (an entry's \`materializedEntity\` names that
+work item) and needs no renewed decision.
+
+After the last visual is approved and the set is complete, the user sees the
+complete ordered set and explicitly confirms it before plan stages or tasks
+begin. READY never supplies that confirmation, and approval is never inferred
+from text.
 
 Every returned entry must identify its artifact family, have a unique
 presentation order, and carry an explicit same-family \`depends_on\` or
@@ -90,13 +96,14 @@ use \`edges: [{ edgeType: "DEPENDS_ON", targetEntityType: "PROPOSAL", targetEnti
 for \`depends_on\`, or \`edgeType: "EVOLVES"\` for \`refines\`. Read the exact
 \`structuredContent.proposalId\` returned by the preceding mutation; never
 invent or use a materialized entity id. Presentation order is separate from
-semantic dependency. Submit the complete set only after the user-facing
-narrative is finished. Do not create plan stages or tasks during this turn.
+semantic dependency. Submit only after the user-facing narrative is finished. Do not create plan stages or tasks during this turn.
 
 Refinement round: ${String(payload.refinementRound)}
 Current entries: ${JSON.stringify(payload.entries)}
+Visual under review: ${payload.reviewProposalId ?? '(none; every visual so far is approved)'}
+Set previously declared complete: ${String(payload.setComplete ?? false)}
 Accepted proposal ids: ${JSON.stringify(payload.acceptedProposalIds ?? [])}
-Feedback: ${payload.feedback ?? '(initial visual pass)'}
+Feedback: ${payload.feedback ?? '(no feedback)'}
 
 Anchored ids:
 - design doc: ${payload.designDocId}

@@ -3478,6 +3478,16 @@ export const controllerActionRuntimeSchema = {
               type: 'string',
               description: 'Optional user-authored refinement note for the current turn.',
             },
+            reviewProposalId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set.',
+            },
+            setComplete: {
+              type: 'boolean',
+              description: 'Whether the previous turn declared that no further visuals follow.',
+            },
           },
         },
         {
@@ -8498,9 +8508,19 @@ export const controllerActionRuntimeSchema = {
           type: 'string',
           description: 'Optional user-authored refinement note for the current turn.',
         },
+        reviewProposalId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set.',
+        },
+        setComplete: {
+          type: 'boolean',
+          description: 'Whether the previous turn declared that no further visuals follow.',
+        },
       },
       description:
-        'Complete API-owned context for one visual-preview refinement turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text.',
+        'Complete API-owned context for one visual-preview turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text.',
     },
     PlanShapingPhaseBreakdownPromptPayload: {
       type: 'object',

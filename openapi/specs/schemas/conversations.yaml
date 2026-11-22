@@ -9079,7 +9079,7 @@ PlanShapingVisualPreviewActionSchemas:
               enum: [false]
   description: >
     Action declared by the plan-shaping visual-preview node. The completion
-    payload carries the complete ordered proposal set for the current round.
+    payload carries the ordered proposal set so far and whether it is complete.
 
 PlanShapingPhaseBreakdownActionSchemas:
   type: object
@@ -10071,7 +10071,10 @@ PlanGenerationVisualPreviewApprovePayload:
     - $ref: "#/SecondaryActionPayload"
     - type: object
       properties: {}
-  description: Payload for approving the complete visual-preview proposal set.
+  description: >-
+    Payload for moving past the visual under review once it is approved, or
+    for confirming the complete visual set once every visual is approved.
+    It never approves visuals itself.
   x-discriminator-value: plan_generation_visual_preview_approve
 
 PlanGenerationVisualPreviewContinueRevisingPayload:
@@ -10079,7 +10082,9 @@ PlanGenerationVisualPreviewContinueRevisingPayload:
     - $ref: "#/SecondaryActionPayload"
     - type: object
       properties: {}
-  description: Payload for revising the visual-preview proposal set.
+  description: >-
+    Payload for asking the agent to redraft the visual under review, or to
+    change the complete visual set.
   x-discriminator-value: plan_generation_visual_preview_continue_revising
 
 PlanGenerationJourneyMapApprovePayload:
@@ -10425,7 +10430,8 @@ PlanShapingVisualPreviewFeedbackRefineSubmission:
   description: |
     User-submission shape for the plan-shaping visual-preview-feedback gate's
     `REFINE` action. Routes back to visual-preview generation with the user's
-    feedback while preserving the carried-forward proposal set.
+    feedback: the agent redrafts the visual under review, or, on the complete
+    set, replaces the visuals the user asks to change.
 
 PlanShapingVisualPreviewFeedbackApprovedSubmission:
   type: object
@@ -10441,8 +10447,10 @@ PlanShapingVisualPreviewFeedbackApprovedSubmission:
       $ref: "#/QuestionsApprovedPayload"
   description: |
     User-submission shape for the plan-shaping visual-preview-feedback gate's
-    `APPROVED` action. Accepts the complete ordered visual proposal set before
-    stage selection begins.
+    `APPROVED` action. While a visual is under review it moves on only when
+    that visual's live proposal status is APPROVED. On the complete set,
+    where every visual is already approved, it confirms the set and starts
+    stage selection. It never approves visuals itself.
 
 # ----- refine-stage / validation-choice -----
 

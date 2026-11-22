@@ -79,6 +79,7 @@ export const visualPreviewCompletionPayloadSchema = z
   .object({
     refinementRound: z.number().int().nonnegative(),
     entries: visualPreviewEntriesSchema,
+    setComplete: z.boolean(),
   })
   .strict();
 
@@ -88,6 +89,7 @@ export const asVisualPreviewCompletionPayload = (
   payload: VisualPreviewCompletionPayload,
 ): PlanShapingVisualPreviewCompletionPayload => ({
   refinementRound: payload.refinementRound,
+  setComplete: payload.setComplete,
   entries: payload.entries.map((entry) => ({
     proposalId: entry.proposalId,
     artifactFamily: entry.artifactFamily,

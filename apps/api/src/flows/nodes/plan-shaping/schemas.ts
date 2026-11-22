@@ -247,6 +247,7 @@ export const planShapingVisualPreviewCompletionPayloadSchema = z
   .object({
     refinementRound: z.number().int().nonnegative(),
     entries: visualPreviewEntriesSchema,
+    setComplete: z.boolean().optional(),
   })
   .strict() satisfies z.ZodType<
   PlanShapingVisualPreviewCompletionPayload,

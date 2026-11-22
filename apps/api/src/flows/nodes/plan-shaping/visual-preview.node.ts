@@ -27,6 +27,11 @@ import {
   planShapingVisualPreviewCompletionPayloadSchema,
   planShapingVisualPreviewActions,
 } from './schemas';
+import {
+  findFirstUnapprovedEntry,
+  findTurnScopeViolation,
+  type VisualPreviewEntry,
+} from './visual-preview-review';
 
 const MATERIALIZED_VISUAL_TYPES = ['mockup', 'DIAGRAM'] as const;
 
@@ -125,6 +130,46 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
     );
   }
 
+  /**
+   * Rejects a turn that changes visuals the user did not ask to change, so an
+   * approved visual can never drop out of the set or move because the agent
+   * left it out of its submission.
+   */
+  private assertTurnStaysInScope(
+    context: PlanFromDesignDocFlowContext,
+    submittedEntries: readonly VisualPreviewEntry[],
+    submittedProposals: ReadonlyArray<{ id: string; status: string }>,
+  ): void {
+    const statusById = new Map(
+      submittedProposals.map((proposal) => [proposal.id, proposal.status]),
+    );
+    const violation = findTurnScopeViolation(
+      context.visualPreviewEntries ?? [],
+      submittedEntries,
+      statusById,
+      context.visualPreviewTurnScope,
+    );
+    if (!violation) {
+      return;
+    }
+
+    this.logger.warn('Visual-preview completion changed visuals out of scope', {
+      conversationId: context.core.conversationId,
+      turnScope: context.visualPreviewTurnScope?.kind ?? 'unrecorded',
+      previousProposalIds: (context.visualPreviewEntries ?? []).map(
+        (entry) => entry.proposalId,
+      ),
+      submittedProposalIds: submittedEntries.map((entry) => entry.proposalId),
+      violation,
+    });
+    throw new ExternalAgentValidationError({
+      nodeId: this.id,
+      action: PLAN_SHAPING_ACTIONS.READY,
+      reason: 'invalid_payload',
+      issues: [{ code: 'custom', path: ['entries'], message: violation }],
+    });
+  }
+
   async buildTriggerMessage(
     tracker: MutableContextHandle<PlanFromDesignDocFlowContext>,
   ): Promise<ExternalAgentTriggerMessage> {
@@ -188,6 +233,7 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
       });
     }
 
+    const reviewEntry = findFirstUnapprovedEntry(currentEntries, statusById);
     const payload = {
       designDocId: seed.designDocId,
       planId: seed.planId,
@@ -196,6 +242,8 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
       entries,
       acceptedProposalIds: context.visualPreviewAcceptedProposalIds ?? [],
       ...(feedback ? { feedback } : {}),
+      ...(reviewEntry ? { reviewProposalId: reviewEntry.proposalId } : {}),
+      setComplete: context.visualPreviewSetComplete === true,
     } satisfies PlanShapingVisualPreviewPromptPayload;
 
     this.logger.debug('Plan-shaping visual-preview trigger prepared', {
@@ -205,6 +253,8 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
       proposalCount: entries.length,
       statusCount: proposals.length,
       hasFeedback: Boolean(feedback),
+      redraftingVisual: Boolean(reviewEntry),
+      setComplete: payload.setComplete,
     });
 
     const uiElements: UIElement[] = [
@@ -218,9 +268,11 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
     ];
 
     return {
-      response: feedback
-        ? 'Reworking the visual plan preview with your feedback…'
-        : 'Preparing the visual plan preview…',
+      response: reviewEntry
+        ? 'Redrafting the visual under review…'
+        : feedback
+          ? 'Reworking the visual plan with your feedback…'
+          : 'Preparing the next visual…',
       uiElements,
       triggersAgent: {
         promptType: this.promptType,
@@ -277,10 +329,11 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
         ],
       });
     }
-    await this.resolveProposals(
+    const submittedProposals = await this.resolveProposals(
       context,
       payload.entries.map((entry) => entry.proposalId),
     );
+    this.assertTurnStaysInScope(context, payload.entries, submittedProposals);
     let stageHandoffSteps = context.journeySteps;
     if (!stageHandoffSteps || stageHandoffSteps.length === 0) {
       const seed = await this.seedService.resolve(context.core.conversationId);
@@ -316,12 +369,14 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
     tracker.mutate((draft) => {
       draft.visualPreviewEntries = payload.entries;
       draft.visualPreviewRound = payload.refinementRound;
+      draft.visualPreviewSetComplete = payload.setComplete === true;
       draft.journeySteps = stageHandoffSteps;
     });
     this.logger.debug('Visual-preview completion captured', {
       conversationId: context.core.conversationId,
       entryCount: payload.entries.length,
       refinementRound: payload.refinementRound,
+      setComplete: payload.setComplete === true,
       stageHandoffCount: stageHandoffSteps.length,
     });
   }

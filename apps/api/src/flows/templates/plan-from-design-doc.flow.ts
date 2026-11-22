@@ -95,10 +95,14 @@ import { createFlow } from './utils';
  *     action: READY    → VISUAL_PREVIEW_FEEDBACK
  *     default fallback → VISUAL_PREVIEW
  *
- *   VISUAL_PREVIEW_FEEDBACK (QUESTIONS, user-driven review gate)
- *     action: continue_revising → VISUAL_PREVIEW
- *     action: approve_all       → PHASE_BREAKDOWN (explicit approval of the
- *       complete visual set is the only entry into stage/Task generation)
+ *   VISUAL_PREVIEW_FEEDBACK (QUESTIONS, user-driven review gate; visuals
+ *   are reviewed one by one in presentation order)
+ *     action: continue_revising → VISUAL_PREVIEW (redraft the visual under
+ *       review, or change the complete set)
+ *     action: approve_all       → routed by live status: the next drafted
+ *       visual or the complete set (VISUAL_PREVIEW_FEEDBACK), the next visual
+ *       to draft (VISUAL_PREVIEW), or, only when the user confirms the
+ *       complete all-approved set, PHASE_BREAKDOWN
  *     default fallback          → VISUAL_PREVIEW_FEEDBACK
  *
  *   PHASE_BREAKDOWN (EXTERNAL_AGENT, self-loops once per journey step)
@@ -292,7 +296,7 @@ export const planFromDesignDocFlow = createFlow<PlanFromDesignDocFlowContext>({
         [PLAN_SHAPING_ACTIONS.READY]: {
           nextNodeId: PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK,
           description:
-            'The agent completed one visual proposal round; present the complete ordered set for user review.',
+            'The agent drafted or redrafted one visual; present it for one-by-one review, or present the complete all-approved set once the agent declares it complete.',
         },
       },
     },
@@ -302,17 +306,17 @@ export const planFromDesignDocFlow = createFlow<PlanFromDesignDocFlowContext>({
         default: {
           nextNodeId: PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK,
           description:
-            'Self-loop fallback — keep the visual-preview review parked on the user.',
+            'Self-loop fallback — keep the visual review parked on the user. The node routing hook also returns here to present the next already-drafted visual, or the complete set after the last visual is approved.',
         },
         [PLAN_SHAPING_ACTIONS.REFINE]: {
           nextNodeId: PLAN_SHAPING_NODES.VISUAL_PREVIEW,
           description:
-            'User requested attributable visual changes; loop back for one refinement round while unchanged proposal identities carry forward.',
+            'User asked for a redraft of the visual under review, or for changes to the complete set; loop back for one agent turn while unchanged proposal identities carry forward.',
         },
         [PLAN_SHAPING_ACTIONS.APPROVED]: {
           nextNodeId: PLAN_SHAPING_NODES.PHASE_BREAKDOWN,
           description:
-            'User explicitly approved the complete visual set; only now may the existing phase-breakdown and plan materialization handoff begin.',
+            'Structural destination for APPROVED. The node routing hook sends APPROVED here only when the user confirms the presented complete, all-approved visual set; moving past one approved visual instead routes back to the gate or to VISUAL_PREVIEW for the next visual.',
         },
       },
     },

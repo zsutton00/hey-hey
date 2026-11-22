@@ -201,7 +201,6 @@ export const createFormContext = (
   parentMessageData: SystemMessageData | undefined,
   isLastInTimeline: boolean | undefined,
   interaction: FieldComponentContext["interaction"],
-  currentVisualPreviewProposalIds: string[] | undefined,
   latestTurnToolCalls: LatestTurnToolCallsState | undefined,
   onFocusComposer?: () => void,
 ): FieldComponentContext => ({
@@ -222,7 +221,6 @@ export const createFormContext = (
   latestTurnToolCalls,
   onFocusComposer,
   interaction,
-  currentVisualPreviewProposalIds,
 });
 
 /**

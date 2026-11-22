@@ -13,10 +13,15 @@ import { IncludeExistingProposalsInCurrentMessageTool } from '../submission-tool
 
 const inputSchema: SubmissionToolInputSchema = {
   type: 'object',
-  required: ['refinementRound', 'entries'],
+  required: ['refinementRound', 'entries', 'setComplete'],
   additionalProperties: false,
   properties: {
     refinementRound: { type: 'integer', minimum: 0 },
+    setComplete: {
+      type: 'boolean',
+      description:
+        'True only when no further visuals follow the ones in this set. False when another visual should come after this one.',
+    },
     entries: {
       type: 'array',
       items: {
@@ -45,7 +50,7 @@ const inputSchema: SubmissionToolInputSchema = {
 export const submitVisualPreviewReadyTool: ActionSubmissionToolDeclaration = {
   name: 'submit_visual_preview_ready',
   description:
-    'Call this only after the narrative is complete and every visual proposal for this round has been authored or carried forward. Submit the complete ordered Mockup and Diagram set; do not use a proposal group.',
+    'Call this only after the narrative is complete and the one visual for this turn has been drafted or redrafted. Submit the ordered Mockup and Diagram set so far and say whether it is complete; do not use a proposal group.',
   inputSchema,
   execute: ({ args }) => {
     const parsed = visualPreviewCompletionPayloadSchema.safeParse(args);
@@ -67,6 +72,7 @@ export const submitVisualPreviewReadyTool: ActionSubmissionToolDeclaration = {
       payload: {
         refinementRound: payload.refinementRound,
         entries: payload.entries,
+        setComplete: payload.setComplete,
       },
     };
   },

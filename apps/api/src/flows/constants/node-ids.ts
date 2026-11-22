@@ -305,9 +305,10 @@ export const FEATURE_SYNC_NODES = {
 // → VISUAL_PREVIEW_FEEDBACK → PHASE_BREAKDOWN* → STEP_REVIEW* → FINALIZE.
 // The FEEDBACK gates are user-driven QUESTIONS surfaces:
 // PROPOSED_STAGES_FEEDBACK loops back into PROPOSED_STAGES or records
-// readiness and advances to VISUAL_PREVIEW; VISUAL_PREVIEW_FEEDBACK loops
-// back into VISUAL_PREVIEW or, on explicit approval of the complete visual
-// set, enters the per-step PHASE_BREAKDOWN loop, then the per-stage
+// readiness and advances to VISUAL_PREVIEW; VISUAL_PREVIEW_FEEDBACK reviews
+// visuals one by one, looping back into VISUAL_PREVIEW for each next visual
+// or redraft, and, on explicit confirmation of the complete all-approved
+// visual set, enters the per-step PHASE_BREAKDOWN loop, then the per-stage
 // STEP_REVIEW tightening sweep. Materialization runs exactly once on
 // STEP_REVIEW's loop-exit branch.
 export const PLAN_SHAPING_NODES = {

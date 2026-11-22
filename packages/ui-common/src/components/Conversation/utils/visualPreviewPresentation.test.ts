@@ -6,10 +6,7 @@ import type {
 } from "../../../api";
 import { SecondaryActionHandler } from "../../../api";
 import type { ConversationMessage } from "../../../types/conversation";
-import {
-  applyVisualPreviewPresentationState,
-  resolveCurrentVisualPreviewProposalIds,
-} from "./visualPreviewPresentation";
+import { applyVisualPreviewPresentationState } from "./visualPreviewPresentation";
 
 const preview = (proposalIds: string[]): UIElement => ({
   id: "visuals",
@@ -29,7 +26,7 @@ const system = (
   id: string,
   uiElements: UIElement[],
   responses: MessageResponseDto[] = [],
-  secondaryActions?: QuestionsSystemMessageData["secondaryActions"]
+  secondaryActions?: QuestionsSystemMessageData["secondaryActions"],
 ): MessageResponseDto => ({
   id,
   type: "SYSTEM",
@@ -51,7 +48,7 @@ const system = (
 
 const answeredFeedback = (
   id: string,
-  responses: MessageResponseDto[]
+  responses: MessageResponseDto[],
 ): MessageResponseDto =>
   system(
     id,
@@ -78,7 +75,7 @@ const answeredFeedback = (
         label: "Continue Revising",
         fieldId: "feedback",
       },
-    ]
+    ],
   );
 
 const flatten = (message: MessageResponseDto): ConversationMessage[] => [
@@ -89,11 +86,11 @@ const flatten = (message: MessageResponseDto): ConversationMessage[] => [
 ];
 
 const presentedTimeline = (
-  messages: MessageResponseDto[]
+  messages: MessageResponseDto[],
 ): ConversationMessage[] =>
   applyVisualPreviewPresentationState(messages.flatMap(flatten), messages);
 
-describe("resolveCurrentVisualPreviewProposalIds", () => {
+describe("current visual preview after a retried review", () => {
   it("keeps a replacement feedback gate current after a submitted review, including on reload", () => {
     const retry = system(
       "retry",
@@ -107,7 +104,7 @@ describe("resolveCurrentVisualPreviewProposalIds", () => {
           handler: SecondaryActionHandler.PlanGenerationVisualPreviewApprove,
           fieldId: "feedback",
         },
-      ]
+      ],
     );
     const completion: MessageResponseDto = {
       ...system("completion", [], [answeredFeedback("failed-review", [retry])]),
@@ -135,54 +132,20 @@ describe("resolveCurrentVisualPreviewProposalIds", () => {
           ({ canEdit, message }) =>
             canEdit &&
             message.data.uiElements?.some(
-              ({ type }) => type === "plan_generation_visual_preview"
-            )
+              ({ type }) => type === "plan_generation_visual_preview",
+            ),
         )
-        .map(({ message }) => message.id)
+        .map(({ message }) => message.id),
     ).toEqual(["retry"]);
-    expect(resolveCurrentVisualPreviewProposalIds(timeline)).toEqual([
-      "current-a",
-      "current-b",
-    ]);
     retry.responses = answeredFeedback("submitted-retry", []).responses;
     expect(
-      resolveCurrentVisualPreviewProposalIds(presentedTimeline(messages))
-    ).toBeUndefined();
-  });
-
-  it("returns the proposal IDs of the single current preview", () => {
-    const messages = [system("preview", [preview(["a", "b"])])];
-
-    expect(
-      resolveCurrentVisualPreviewProposalIds(presentedTimeline(messages))
-    ).toEqual(["a", "b"]);
-  });
-
-  it("returns only the current round when a historical preview precedes it", () => {
-    const messages = [
-      system(
-        "old-preview",
-        [preview(["a", "old-only"])],
-        [
-          answeredFeedback("old-feedback", [
-            system("current-preview", [preview(["a", "new"])]),
-          ]),
-        ]
+      presentedTimeline(messages).some(
+        ({ canEdit, message }) =>
+          canEdit &&
+          message.data.uiElements?.some(
+            ({ type }) => type === "plan_generation_visual_preview",
+          ),
       ),
-    ];
-
-    expect(
-      resolveCurrentVisualPreviewProposalIds(presentedTimeline(messages))
-    ).toEqual(["a", "new"]);
-  });
-
-  it("returns undefined when no current preview is presented", () => {
-    const messages = [
-      system("question", [{ id: "q", type: "textarea", label: "Q" }]),
-    ];
-
-    expect(
-      resolveCurrentVisualPreviewProposalIds(presentedTimeline(messages))
-    ).toBeUndefined();
+    ).toBe(false);
   });
 });

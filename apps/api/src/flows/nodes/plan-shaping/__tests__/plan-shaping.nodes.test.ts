@@ -18,8 +18,7 @@ import {
   NodeType,
   validateExternalAgentCompletion,
 } from 'src/types/flow-internal.types';
-import { Logger, NotFoundException } from '@nestjs/common';
-import { CustomLoggerService } from 'src/common/logger/logger.service';
+import { NotFoundException } from '@nestjs/common';
 import { createMutableContextHandle } from 'src/utils/mutable-context';
 import * as TestUtils from 'src/utils/testUtils';
 import { PLAN_SHAPING_NODES } from '../../../constants/node-ids';
@@ -1130,17 +1129,11 @@ describe('visual proposal reuse across conversations', () => {
       buildSeedStub({ parentFeatureId: VALID_DESIGN_DOC_ID as never }),
       prisma as unknown as import('src/prisma/prisma.service').PrismaService,
     );
-    const approve = jest.fn(async (proposalId: string) => {
-      const row = rows.find((candidate) => candidate.id === proposalId)!;
-      row.status = 'APPROVED';
-      return { enacted: true, resultingEntityId: proposalId };
-    });
     const feedback = new PlanShapingVisualPreviewFeedbackNode(
       prisma as unknown as import('src/prisma/prisma.service').PrismaService,
-      { approve } as never,
     );
     const tracker = createMutableContextHandle(context);
-    const ready = () =>
+    const ready = ({ setComplete }: { setComplete: boolean }) =>
       preview.processUserResponse(
         tracker,
         buildAgentMessage({
@@ -1148,19 +1141,78 @@ describe('visual proposal reuse across conversations', () => {
           payload: {
             refinementRound: 0,
             entries: entries.slice(0, statuses.length),
+            setComplete,
           },
         }),
       );
-    return { rows, prisma, preview, feedback, tracker, ready, approve };
+    return { rows, prisma, preview, feedback, tracker, ready };
   }
+
+  const approvedVisual = [
+    {
+      proposalId: '33333333-3333-4333-8333-333333333333',
+      entityId: '55555555-5555-4555-8555-555555555555',
+      entityType: 'MOCKUP',
+      title: 'Review surface',
+      summary: 'Shows the review surface.',
+    },
+    {
+      proposalId: '44444444-4444-4444-8444-444444444444',
+      entityId: '66666666-6666-4666-8666-666666666666',
+      entityType: 'DIAGRAM',
+      title: 'Review sequence',
+      summary: '',
+    },
+  ];
+
+  const answer = (action: string, feedbackText = '') =>
+    buildReviewMessage(
+      action === PLAN_SHAPING_ACTIONS.REFINE
+        ? { action, payload: { feedback: feedbackText } }
+        : { action, payload: {} },
+    );
+
+  const gateView = (
+    result: Awaited<
+      ReturnType<PlanShapingVisualPreviewFeedbackNode['execute']>
+    >,
+  ) => ({
+    presented: (
+      result.uiElements?.find(
+        ({ type }) => type === ExtendedUIFieldType.PlanGenerationVisualPreview,
+      )?.payload as { entries: typeof entries }
+    ).entries.map(({ proposalId }) => proposalId),
+    labels: (
+      result.data as { secondaryActions: SecondaryActionConfig[] }
+    ).secondaryActions.map(({ label }) => label),
+  });
+
+  const visualTriggerPayload = (
+    trigger: Awaited<
+      ReturnType<PlanShapingVisualPreviewNode['buildTriggerMessage']>
+    >,
+  ) => {
+    const triggersAgent = trigger.triggersAgent;
+    if (triggersAgent?.promptType !== 'plan_shaping_visual_preview') {
+      throw new Error('Expected visual-preview trigger.');
+    }
+    return triggersAgent.payload;
+  };
+
+  const expectNoProposalWrites = (
+    prisma: ReturnType<typeof setup>['prisma'],
+  ) => {
+    expect(prisma.db.proposal.create).not.toHaveBeenCalled();
+    expect(prisma.db.proposal.update).not.toHaveBeenCalled();
+    expect(prisma.db.proposal.updateMany).not.toHaveBeenCalled();
+  };
 
   it.each([
     { statuses: ['APPROVED'], sameConversation: false },
     { statuses: ['APPROVED', 'APPROVED'], sameConversation: false },
-    { statuses: ['DRAFT', 'APPROVED'], sameConversation: false },
-    { statuses: ['DRAFT', 'APPROVED'], sameConversation: true },
+    { statuses: ['APPROVED', 'APPROVED'], sameConversation: true },
   ])(
-    'requires explicit set approval for $statuses (same conversation: $sameConversation)',
+    'presents a complete all-approved set for explicit confirmation ($statuses, same conversation: $sameConversation)',
     async ({ statuses, sameConversation }) => {
       const { rows, prisma, feedback, tracker, ready } = setup(
         statuses,
@@ -1168,290 +1220,407 @@ describe('visual proposal reuse across conversations', () => {
       );
       const originalHomes = rows.map((row) => ({ ...row }));
       const expectedEntries = entries.slice(0, statuses.length);
-      await ready();
-      const result = await feedback.execute(tracker);
-      expect(result.type).toBe(NodeType.QUESTIONS);
-      const actions = (
-        result.data as { secondaryActions: SecondaryActionConfig[] }
-      ).secondaryActions;
-      const textareaId = result.uiElements?.find(
-        ({ type }) => type === ExtendedUIFieldType.Textarea,
-      )?.id;
-      expect(
-        actions.map(({ label, disabled, fieldId }) => ({
-          label,
-          disabled,
-          fieldId,
-        })),
-      ).toEqual([
-        {
-          label: 'Continue Revising',
-          disabled: false,
-          fieldId: textareaId,
-        },
-        {
-          label: 'Approve Visual Set',
-          disabled: false,
-          fieldId: textareaId,
-        },
-      ]);
-      expect(tracker.getContext().visualPreviewEntries).toEqual(
-        expectedEntries,
-      );
+      await ready({ setComplete: true });
+
+      const gate = await feedback.execute(tracker);
+      expect(gate.type).toBe(NodeType.QUESTIONS);
+      expect(gateView(gate)).toEqual({
+        presented: expectedEntries.map(({ proposalId }) => proposalId),
+        labels: ['Continue Revising', 'Confirm Visual Set'],
+      });
       expect(
         tracker.getContext().visualPreviewAcceptedProposalIds,
       ).toBeUndefined();
+
+      const confirm = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+      await feedback.processUserResponse(tracker, confirm);
       expect(
         await feedback.determineRoutingFromUserMessage(
           tracker.getContext(),
-          buildAgentMessage({ action: PLAN_SHAPING_ACTIONS.READY }),
+          confirm,
         ),
-      ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
-      const approval = buildReviewMessage({
-        action: PLAN_SHAPING_ACTIONS.APPROVED,
-        payload: {},
-      });
-      await feedback.processUserResponse(tracker, approval);
+      ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
       expect(tracker.getContext().visualPreviewAcceptedProposalIds).toEqual(
         expectedEntries.map((entry) => entry.proposalId),
       );
       expect(tracker.getContext().visualPreviewApprovedVisuals).toEqual(
-        [
-          {
-            proposalId: '33333333-3333-4333-8333-333333333333',
-            entityId: '55555555-5555-4555-8555-555555555555',
-            entityType: 'MOCKUP',
-            title: 'Review surface',
-            summary: 'Shows the review surface.',
-          },
-          {
-            proposalId: '44444444-4444-4444-8444-444444444444',
-            entityId: '66666666-6666-4666-8666-666666666666',
-            entityType: 'DIAGRAM',
-            title: 'Review sequence',
-            summary: '',
-          },
-        ].slice(0, statuses.length),
-      );
-      expect(
-        await feedback.determineRoutingFromUserMessage(
-          tracker.getContext(),
-          approval,
-        ),
-      ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
-      expect(rows.map(({ status }) => status)).toEqual(
-        statuses.map(() => 'APPROVED'),
+        approvedVisual.slice(0, statuses.length),
       );
       expect(rows.map(({ status: _status, ...home }) => home)).toEqual(
         originalHomes.map(({ status: _status, ...home }) => home),
       );
-      expect(prisma.db.proposal.create).not.toHaveBeenCalled();
-      expect(prisma.db.proposal.update).not.toHaveBeenCalled();
-      expect(prisma.db.proposal.updateMany).not.toHaveBeenCalled();
+      expectNoProposalWrites(prisma);
     },
   );
 
-  it('approves only remaining drafts in the current set before advancing', async () => {
-    const { rows, feedback, tracker, ready, approve } = setup([
-      'DRAFT',
-      'APPROVED',
-    ]);
-    await ready();
-    const previousRoundOnly = '55555555-5555-4555-8555-555555555555';
-    rows.push({ ...rows[0]!, id: previousRoundOnly, status: 'DRAFT' });
-    const approval = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
-    });
-    await feedback.processUserResponse(tracker, approval);
+  it.each([false, true])(
+    'reviews a reused DRAFT visual at its place before the complete set (same conversation: %s)',
+    async (sameConversation) => {
+      const { rows, prisma, feedback, tracker, ready } = setup(
+        ['DRAFT', 'APPROVED'],
+        sameConversation,
+      );
+      await ready({ setComplete: true });
 
-    expect(approve).toHaveBeenCalledTimes(1);
-    expect(approve.mock.calls[0]?.[0]).toBe(rows[0]!.id);
-    expect(approve.mock.calls.map(([id]) => id)).not.toContain(
-      previousRoundOnly,
+      expect(gateView(await feedback.execute(tracker))).toEqual({
+        presented: [entries[0]!.proposalId],
+        labels: ['Continue Revising', 'Next Visual'],
+      });
+
+      // Moving on before the visual is approved keeps it under review.
+      const early = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+      await feedback.processUserResponse(tracker, early);
+      expect(
+        await feedback.determineRoutingFromUserMessage(
+          tracker.getContext(),
+          early,
+        ),
+      ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
+      const stillReviewing = await feedback.execute(tracker);
+      expect(stillReviewing.message).toContain('Approve this visual');
+      expect(gateView(stillReviewing).presented).toEqual([
+        entries[0]!.proposalId,
+      ]);
+      expect(rows[0]!.status).toBe('DRAFT');
+
+      // The user approves the card; the answer moves on to the complete set.
+      rows[0]!.status = 'APPROVED';
+      const next = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+      await feedback.processUserResponse(tracker, next);
+      expect(
+        await feedback.determineRoutingFromUserMessage(
+          tracker.getContext(),
+          next,
+        ),
+      ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
+      expect(
+        tracker.getContext().visualPreviewAcceptedProposalIds,
+      ).toBeUndefined();
+      expect(gateView(await feedback.execute(tracker))).toEqual({
+        presented: entries.map(({ proposalId }) => proposalId),
+        labels: ['Continue Revising', 'Confirm Visual Set'],
+      });
+
+      const confirm = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+      await feedback.processUserResponse(tracker, confirm);
+      expect(
+        await feedback.determineRoutingFromUserMessage(
+          tracker.getContext(),
+          confirm,
+        ),
+      ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
+      expect(tracker.getContext().visualPreviewApprovedVisuals).toEqual(
+        approvedVisual,
+      );
+      expectNoProposalWrites(prisma);
+    },
+  );
+
+  it('asks the agent for the next visual only after the current one is approved', async () => {
+    const { rows, preview, feedback, tracker, ready } = setup(['DRAFT']);
+    await ready({ setComplete: false });
+    expect(gateView(await feedback.execute(tracker))).toEqual({
+      presented: [entries[0]!.proposalId],
+      labels: ['Continue Revising', 'Next Visual'],
+    });
+
+    rows[0]!.status = 'APPROVED';
+    const next = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+    await feedback.processUserResponse(tracker, next);
+    expect(
+      await feedback.determineRoutingFromUserMessage(
+        tracker.getContext(),
+        next,
+      ),
+    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW);
+    const trigger = await preview.buildTriggerMessage(tracker);
+    expect(visualTriggerPayload(trigger)).not.toHaveProperty(
+      'reviewProposalId',
     );
-    expect(rows[1]!.status).toBe('APPROVED');
-    expect(rows[2]!.status).toBe('DRAFT');
+    expect(visualTriggerPayload(trigger)).toMatchObject({
+      setComplete: false,
+      entries: [{ ...entries[0], status: 'APPROVED' }],
+    });
+
+    // The agent drafts the second visual and declares the set complete.
+    rows.push({ ...rows[0]!, id: entries[1]!.proposalId, status: 'DRAFT' });
+    await preview.processUserResponse(
+      tracker,
+      buildAgentMessage({
+        action: PLAN_SHAPING_ACTIONS.READY,
+        payload: { refinementRound: 0, entries, setComplete: true },
+      }),
+    );
+    expect(gateView(await feedback.execute(tracker))).toEqual({
+      presented: entries.map(({ proposalId }) => proposalId),
+      labels: ['Continue Revising', 'Next Visual'],
+    });
+
+    rows[1]!.status = 'APPROVED';
+    const last = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+    await feedback.processUserResponse(tracker, last);
     expect(
       await feedback.determineRoutingFromUserMessage(
         tracker.getContext(),
-        approval,
-      ),
-    ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
-  });
-
-  it('skips rejected proposals in the current set', async () => {
-    const { rows, feedback, tracker, ready, approve } = setup([
-      'DRAFT',
-      'DRAFT',
-    ]);
-    await ready();
-    rows[1]!.status = 'REJECTED';
-    const approval = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
-    });
-    await feedback.processUserResponse(tracker, approval);
-    expect(approve.mock.calls.map(([id]) => id)).toEqual([rows[0]!.id]);
-    expect(rows[1]!.status).toBe('REJECTED');
-    expect(
-      await feedback.determineRoutingFromUserMessage(
-        tracker.getContext(),
-        approval,
-      ),
-    ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
-  });
-
-  it('keeps the gate active with an actionable failure and retries only the remainder', async () => {
-    const { rows, feedback, tracker, ready, approve } = setup([
-      'DRAFT',
-      'DRAFT',
-    ]);
-    await ready();
-    approve.mockImplementationOnce(async (proposalId: string) => {
-      rows.find((row) => row.id === proposalId)!.status = 'APPROVED';
-      return { enacted: true, resultingEntityId: proposalId };
-    });
-    approve.mockRejectedValueOnce(new Error('approval failed'));
-    const approval = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
-    });
-    await feedback.processUserResponse(tracker, approval);
-
-    expect(
-      await feedback.determineRoutingFromUserMessage(
-        tracker.getContext(),
-        approval,
+        last,
       ),
     ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
-    expect(rows.map(({ status }) => status)).toEqual(['APPROVED', 'DRAFT']);
+    expect(gateView(await feedback.execute(tracker)).labels).toEqual([
+      'Continue Revising',
+      'Confirm Visual Set',
+    ]);
+  });
+
+  it('redrafts a rejected visual instead of moving past it', async () => {
+    const { rows, preview, feedback, tracker, ready } = setup(['DRAFT']);
+    await ready({ setComplete: false });
+    await feedback.execute(tracker);
+    rows[0]!.status = 'REJECTED';
+
+    const next = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+    await feedback.processUserResponse(tracker, next);
+    expect(
+      await feedback.determineRoutingFromUserMessage(
+        tracker.getContext(),
+        next,
+      ),
+    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
+    const gate = await feedback.execute(tracker);
+    expect(gate.message).toContain('This visual was rejected');
+    expect(gateView(gate).presented).toEqual([entries[0]!.proposalId]);
+
+    const revise = answer(PLAN_SHAPING_ACTIONS.REFINE, 'Show the empty state');
+    await feedback.processUserResponse(tracker, revise);
+    expect(
+      await feedback.determineRoutingFromUserMessage(
+        tracker.getContext(),
+        revise,
+      ),
+    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW);
+    const trigger = await preview.buildTriggerMessage(tracker);
+    expect(visualTriggerPayload(trigger)).toMatchObject({
+      reviewProposalId: entries[0]!.proposalId,
+      feedback: 'Show the empty state',
+      entries: [{ ...entries[0], status: 'REJECTED' }],
+    });
+  });
+
+  it('rejects a turn that drafts more than one undecided visual, but allows replacing visuals the user asked to change', async () => {
+    const { rows, preview, feedback, tracker, ready } = setup([
+      'DRAFT',
+      'DRAFT',
+    ]);
+    await expect(ready({ setComplete: true })).rejects.toBeInstanceOf(
+      ExternalAgentValidationError,
+    );
+    expect(tracker.getContext().visualPreviewEntries).toBeUndefined();
+
+    // Both visuals are approved and the set is complete; on the complete set
+    // the user asks to change both, so the agent replaces each in its place.
+    rows.forEach((row) => {
+      row.status = 'APPROVED';
+    });
+    await ready({ setComplete: true });
+    await feedback.execute(tracker);
+    await feedback.processUserResponse(
+      tracker,
+      answer(PLAN_SHAPING_ACTIONS.REFINE, 'Rework both visuals'),
+    );
+    expect(tracker.getContext().visualPreviewTurnScope).toEqual({
+      kind: 'set_feedback',
+    });
+    const revisionIds = [
+      '77777777-7777-4777-8777-777777777777',
+      '88888888-8888-4888-8888-888888888888',
+    ];
+    rows.push(
+      ...revisionIds.map((id) => ({ ...rows[0]!, id, status: 'DRAFT' })),
+    );
+    const revisions = [
+      { ...entries[0]!, proposalId: revisionIds[0]! },
+      {
+        ...entries[1]!,
+        proposalId: revisionIds[1]!,
+        relationship: {
+          kind: 'depends_on' as const,
+          proposalId: revisionIds[0]!,
+        },
+      },
+    ];
+    await preview.processUserResponse(
+      tracker,
+      buildAgentMessage({
+        action: PLAN_SHAPING_ACTIONS.READY,
+        payload: { refinementRound: 1, entries: revisions, setComplete: true },
+      }),
+    );
+    expect(tracker.getContext().visualPreviewEntries).toEqual(revisions);
+  });
+
+  describe('keeps visuals the user did not ask to change', () => {
+    const redraftId = '77777777-7777-4777-8777-777777777777';
+    const redraftOfB = {
+      ...entries[1]!,
+      proposalId: redraftId,
+    };
+
+    /** A approved, B under review, and the user asks for a redraft of B. */
+    const reviewBWithFeedback = async () => {
+      const harness = setup(['APPROVED', 'DRAFT']);
+      harness.rows.push({
+        ...harness.rows[0]!,
+        id: redraftId,
+        status: 'DRAFT',
+      });
+      await harness.ready({ setComplete: true });
+      expect(gateView(await harness.feedback.execute(harness.tracker))).toEqual(
+        {
+          presented: entries.map(({ proposalId }) => proposalId),
+          labels: ['Continue Revising', 'Next Visual'],
+        },
+      );
+      await harness.feedback.processUserResponse(
+        harness.tracker,
+        answer(PLAN_SHAPING_ACTIONS.REFINE, 'Show the failure path'),
+      );
+      expect(harness.tracker.getContext().visualPreviewTurnScope).toEqual({
+        kind: 'redraft',
+        proposalId: entries[1]!.proposalId,
+      });
+      const submit = (submitted: typeof entries) =>
+        harness.preview.processUserResponse(
+          harness.tracker,
+          buildAgentMessage({
+            action: PLAN_SHAPING_ACTIONS.READY,
+            payload: {
+              refinementRound: 1,
+              entries: submitted,
+              setComplete: true,
+            },
+          }),
+        );
+      return { ...harness, submit };
+    };
+
+    it('rejects a redraft of B that leaves approved A out, and keeps A in the set', async () => {
+      const { tracker, submit } = await reviewBWithFeedback();
+
+      await expect(submit([redraftOfB])).rejects.toBeInstanceOf(
+        ExternalAgentValidationError,
+      );
+      expect(tracker.getContext().visualPreviewEntries).toEqual(entries);
+
+      await submit([entries[0]!, redraftOfB]);
+      expect(tracker.getContext().visualPreviewEntries).toEqual([
+        entries[0],
+        redraftOfB,
+      ]);
+    });
+
+    it('rejects a redraft of B that also replaces approved A', async () => {
+      const { rows, tracker, submit } = await reviewBWithFeedback();
+      const replacementOfA = '88888888-8888-4888-8888-888888888888';
+      rows.push({ ...rows[0]!, id: replacementOfA, status: 'DRAFT' });
+
+      await expect(
+        submit([
+          { ...entries[0]!, proposalId: replacementOfA },
+          {
+            ...redraftOfB,
+            relationship: { kind: 'depends_on', proposalId: replacementOfA },
+          },
+        ]),
+      ).rejects.toBeInstanceOf(ExternalAgentValidationError);
+      expect(tracker.getContext().visualPreviewEntries).toEqual(entries);
+    });
+
+    it('rejects a next-visual turn that drops or reorders an earlier visual', async () => {
+      const { rows, preview, feedback, tracker, ready } = setup(['DRAFT']);
+      await ready({ setComplete: false });
+      await feedback.execute(tracker);
+      rows[0]!.status = 'APPROVED';
+      await feedback.processUserResponse(
+        tracker,
+        answer(PLAN_SHAPING_ACTIONS.APPROVED),
+      );
+      expect(tracker.getContext().visualPreviewTurnScope).toEqual({
+        kind: 'next',
+      });
+      rows.push({ ...rows[0]!, id: entries[1]!.proposalId, status: 'DRAFT' });
+      const submit = (submitted: typeof entries) =>
+        preview.processUserResponse(
+          tracker,
+          buildAgentMessage({
+            action: PLAN_SHAPING_ACTIONS.READY,
+            payload: {
+              refinementRound: 0,
+              entries: submitted,
+              setComplete: true,
+            },
+          }),
+        );
+
+      await expect(
+        submit([{ ...entries[1]!, relationship: undefined }]),
+      ).rejects.toBeInstanceOf(ExternalAgentValidationError);
+      await expect(
+        submit([
+          { ...entries[1]!, presentationOrder: 0, relationship: undefined },
+          { ...entries[0]!, presentationOrder: 1 },
+        ]),
+      ).rejects.toBeInstanceOf(ExternalAgentValidationError);
+      expect(tracker.getContext().visualPreviewEntries).toEqual([entries[0]]);
+
+      await submit(entries);
+      expect(tracker.getContext().visualPreviewEntries).toEqual(entries);
+    });
+  });
+
+  it('moves a run parked on the earlier whole-set screen into one-by-one review without approving drafts', async () => {
+    const { prisma, feedback, tracker } = setup(['APPROVED', 'DRAFT']);
+    // Earlier deployments stored neither the set-complete flag nor a visual under review.
+    tracker.mutate((draft) => {
+      draft.visualPreviewEntries = entries;
+    });
+
+    const approveSet = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+    await feedback.processUserResponse(tracker, approveSet);
+    expect(
+      await feedback.determineRoutingFromUserMessage(
+        tracker.getContext(),
+        approveSet,
+      ),
+    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
     expect(
       tracker.getContext().visualPreviewAcceptedProposalIds,
     ).toBeUndefined();
-    const gate = await feedback.execute(tracker);
-    expect(gate.message).toContain('1 of the remaining visual proposals');
-    expect(gate.uiElements).toContainEqual(
-      expect.objectContaining({
-        type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-        payload: { responseType: 'plan_generation_visual_preview_v1', entries },
-      }),
+    expect(gateView(await feedback.execute(tracker))).toEqual({
+      presented: entries.map(({ proposalId }) => proposalId),
+      labels: ['Continue Revising', 'Next Visual'],
+    });
+    expect(tracker.getContext().visualPreviewReviewProposalId).toBe(
+      entries[1]!.proposalId,
     );
+    expectNoProposalWrites(prisma);
+  });
 
-    approve.mockClear();
-    const retry = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
+  it('asks the agent whether a parked all-approved set is complete before stage selection', async () => {
+    const { feedback, tracker } = setup(['APPROVED', 'APPROVED']);
+    tracker.mutate((draft) => {
+      draft.visualPreviewEntries = entries;
     });
-    await feedback.processUserResponse(tracker, retry);
-    expect(approve.mock.calls.map(([id]) => id)).toEqual([rows[1]!.id]);
+
+    const approveSet = answer(PLAN_SHAPING_ACTIONS.APPROVED);
+    await feedback.processUserResponse(tracker, approveSet);
     expect(
       await feedback.determineRoutingFromUserMessage(
         tracker.getContext(),
-        retry,
+        approveSet,
       ),
-    ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
-    expect(tracker.getContext().visualPreviewApprovalFailure).toBeUndefined();
-  });
-
-  it('preserves sanitized diagnostics and the current set across failure, manual approval, and reload', async () => {
-    const { rows, feedback, tracker, ready, approve } = setup([
-      'DRAFT',
-      'DRAFT',
-    ]);
-    await ready();
-    const logger = new CustomLoggerService();
-    const records: ReturnType<CustomLoggerService['buildEnvelopeForTest']>[] =
-      [];
-    const log = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation((message, ...params) => {
-        records.push(logger.buildEnvelopeForTest('error', message, ...params));
-      });
-    try {
-      approve.mockRejectedValueOnce(
-        new Error('approval rejected password=hidden', {
-          cause: new Error('database constraint failed token=private'),
-        }),
-      );
-      const submission = buildReviewMessage({
-        action: PLAN_SHAPING_ACTIONS.APPROVED,
-        payload: {},
-      });
-      await feedback.processUserResponse(tracker, submission);
-      expect(rows.map(({ status }) => status)).toEqual(['DRAFT', 'APPROVED']);
-      expect(records).toContainEqual(
-        expect.objectContaining({
-          conversationId: tracker.getContext().core.conversationId,
-          proposalId: rows[0]!.id,
-          errorMessage: expect.stringContaining('approval rejected'),
-          errorCause: expect.stringContaining('database constraint failed'),
-        }),
-      );
-      expect(JSON.stringify(records)).not.toMatch(/hidden|private/);
-
-      // Individual approval does not record complete-set acceptance. Reload
-      // uses the persisted flow context and regenerates the current gate.
-      rows[0]!.status = 'APPROVED';
-      const persisted: PlanFromDesignDocFlowContext = JSON.parse(
-        JSON.stringify(tracker.getContext()),
-      );
-      const reloaded = createMutableContextHandle(persisted);
-      const gate = await feedback.execute(reloaded);
-      expect(gate.uiElements).toContainEqual(
-        expect.objectContaining({
-          type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-          payload: {
-            responseType: 'plan_generation_visual_preview_v1',
-            entries,
-          },
-        }),
-      );
-      expect(
-        reloaded.getContext().visualPreviewAcceptedProposalIds,
-      ).toBeUndefined();
-      expect(
-        await feedback.determineRoutingFromUserMessage(
-          reloaded.getContext(),
-          submission,
-        ),
-      ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
-      approve.mockClear();
-      const retry = buildReviewMessage({
-        action: PLAN_SHAPING_ACTIONS.APPROVED,
-        payload: {},
-      });
-      await feedback.processUserResponse(reloaded, retry);
-      expect(approve).not.toHaveBeenCalled();
-      expect(reloaded.getContext().visualPreviewAcceptedProposalIds).toEqual(
-        entries.map(({ proposalId }) => proposalId),
-      );
-      expect(
-        await feedback.determineRoutingFromUserMessage(
-          reloaded.getContext(),
-          retry,
-        ),
-      ).toBe(PLAN_SHAPING_NODES.PHASE_BREAKDOWN);
-    } finally {
-      log.mockRestore();
-    }
-  });
-
-  it('treats an approval that was not enacted as a failure', async () => {
-    const { feedback, tracker, ready, approve } = setup(['DRAFT']);
-    await ready();
-    approve.mockResolvedValueOnce({ enacted: false, resultingEntityId: '' });
-    const approval = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
-    });
-    await feedback.processUserResponse(tracker, approval);
+    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW);
     expect(
-      await feedback.determineRoutingFromUserMessage(
-        tracker.getContext(),
-        approval,
-      ),
-    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
+      tracker.getContext().visualPreviewAcceptedProposalIds,
+    ).toBeUndefined();
   });
 
   it('refreshes reused proposal statuses and retains ordered relationships during refinement', async () => {
@@ -1459,7 +1628,7 @@ describe('visual proposal reuse across conversations', () => {
       'DRAFT',
       'APPROVED',
     ]);
-    await ready();
+    await ready({ setComplete: true });
     await feedback.execute(tracker);
     const revision = buildReviewMessage({
       action: PLAN_SHAPING_ACTIONS.REFINE,
@@ -1479,6 +1648,8 @@ describe('visual proposal reuse across conversations', () => {
       payload: {
         refinementRound: 1,
         feedback: 'Clarify the diagram',
+        reviewProposalId: entries[1]!.proposalId,
+        setComplete: true,
         acceptedProposalIds: [],
         entries: [
           { ...entries[0], status: 'APPROVED' },
@@ -1561,31 +1732,6 @@ describe('visual proposal reuse across conversations', () => {
     );
   });
 
-  it('excludes rejected entries from presentation and rereads status before acceptance', async () => {
-    const { rows, feedback, tracker, ready } = setup(['APPROVED', 'REJECTED']);
-    await ready();
-    await feedback.execute(tracker);
-    expect(tracker.getContext().visualPreviewEntries).toEqual([entries[0]]);
-    rows[0]!.status = 'REJECTED';
-    const approval = buildReviewMessage({
-      action: PLAN_SHAPING_ACTIONS.APPROVED,
-      payload: {},
-    });
-    await feedback.processUserResponse(tracker, approval);
-    expect(
-      tracker.getContext().visualPreviewAcceptedProposalIds,
-    ).toBeUndefined();
-    expect(
-      await feedback.determineRoutingFromUserMessage(
-        tracker.getContext(),
-        approval,
-      ),
-    ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
-    await expect(feedback.execute(tracker)).rejects.toThrow(
-      'cannot execute without visual proposals',
-    );
-  });
-
   describe.each(['missing', 'foreign organization', 'foreign project'])(
     '%s identity',
     (invalidKind) => {
@@ -1602,7 +1748,7 @@ describe('visual proposal reuse across conversations', () => {
           if (invalidKind === 'foreign project')
             invalidRow.projectId = 'foreign-project';
           const before = tracker.getContext();
-          await expect(ready()).rejects.toThrow(
+          await expect(ready({ setComplete: true })).rejects.toThrow(
             'proposal identities are no longer available',
           );
           expect(tracker.getContext()).toEqual(before);
@@ -1638,18 +1784,15 @@ describe('visual proposal reuse across conversations', () => {
 describe('PlanShapingVisualPreviewFeedbackNode', () => {
   it('renders feedback with the authoritative current visual set', async () => {
     const proposalId = '44444444-4444-4444-8444-444444444444';
-    const node = new PlanShapingVisualPreviewFeedbackNode(
-      {
-        db: {
-          proposal: {
-            findMany: jest
-              .fn()
-              .mockResolvedValue([{ id: proposalId, status: 'DRAFT' }]),
-          },
+    const node = new PlanShapingVisualPreviewFeedbackNode({
+      db: {
+        proposal: {
+          findMany: jest
+            .fn()
+            .mockResolvedValue([{ id: proposalId, status: 'DRAFT' }]),
         },
-      } as never,
-      { approve: jest.fn() } as never,
-    );
+      },
+    } as never);
     const tracker = createMutableContextHandle(
       buildContext({
         visualPreviewEntries: [
@@ -1676,7 +1819,7 @@ describe('PlanShapingVisualPreviewFeedbackNode', () => {
     });
     expect(element).toMatchObject({
       type: ExtendedUIFieldType.Textarea,
-      label: 'Feedback on the visual plan preview',
+      label: 'Feedback on this visual',
       multiline: true,
     });
     expect(element?.payload).toBeUndefined();

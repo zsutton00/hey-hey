@@ -87,6 +87,18 @@ export interface RunCreatePayloadPlanShapingVisualPreview {
      * @memberof RunCreatePayloadPlanShapingVisualPreview
      */
     'userMessage'?: string;
+    /**
+     * The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set.
+     * @type {string}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
+    'reviewProposalId'?: string;
+    /**
+     * Whether the previous turn declared that no further visuals follow.
+     * @type {boolean}
+     * @memberof RunCreatePayloadPlanShapingVisualPreview
+     */
+    'setComplete'?: boolean;
 }
 
 

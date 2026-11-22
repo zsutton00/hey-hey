@@ -19,7 +19,7 @@
 import type { QuestionsFeedbackPayload } from './questions-feedback-payload.js';
 
 /**
- * User-submission shape for the plan-shaping visual-preview-feedback gate\'s `REFINE` action. Routes back to visual-preview generation with the user\'s feedback while preserving the carried-forward proposal set.
+ * User-submission shape for the plan-shaping visual-preview-feedback gate\'s `REFINE` action. Routes back to visual-preview generation with the user\'s feedback: the agent redrafts the visual under review, or, on the complete set, replaces the visuals the user asks to change.
  * @export
  * @interface PlanShapingVisualPreviewFeedbackRefineSubmission
  */

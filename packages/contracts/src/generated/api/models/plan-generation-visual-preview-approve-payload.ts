@@ -21,7 +21,7 @@ import type { SecondaryActionPayload } from './secondary-action-payload.js';
 
 /**
  * @type PlanGenerationVisualPreviewApprovePayload
- * Payload for approving the complete visual-preview proposal set.
+ * Payload for moving past the visual under review once it is approved, or for confirming the complete visual set once every visual is approved. It never approves visuals itself.
  * @export
  */
 export interface PlanGenerationVisualPreviewApprovePayload extends SecondaryActionPayload {
