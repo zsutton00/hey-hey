@@ -256,6 +256,9 @@ export const toCreateRunRequest = (
   ...(payload.payload !== undefined ? { payload: payload.payload } : {}),
   ...(payload.triggersAgent !== undefined ? { triggersAgent: payload.triggersAgent } : {}),
   ...(payload.worktree !== undefined ? { worktree: payload.worktree } : {}),
+  ...(payload.servicePlaceChoices !== undefined
+    ? { servicePlaceChoices: payload.servicePlaceChoices }
+    : {}),
   ...(payload.config !== undefined ? { config: payload.config } : {}),
   model: payload.model,
   // reasoningEffort is optional: providers like OpenCode don't support it
@@ -930,6 +933,7 @@ export class TriggerFrameRouter {
           agentType: body.agentType,
           decision: body.decision,
           reason: body.reason ?? null,
+          ...(body.servicePlaceChoices ? { servicePlaceChoices: body.servicePlaceChoices } : {}),
           idempotencyToken: body.idempotencyToken,
           nonce: verified.envelope.nonce,
           userId: verified.envelope.userId,

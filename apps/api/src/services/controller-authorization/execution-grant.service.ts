@@ -18,6 +18,7 @@ import * as crypto from 'node:crypto';
 import {
   AdmissionEnvelopeAuthorization,
   RuntimeModelCatalogHostActionPreparation,
+  WorkspaceServicePlacesHostActionPreparation,
   AgentSessionContinuationInspectHostActionPreparation,
   WorkspaceSkillsHostActionPreparation,
   CliReadWorkspaceSkillsListRequest,
@@ -346,6 +347,26 @@ export class ExecutionGrantService {
     envelopeAuthorization: ExecutableEnvelopeAuthorization;
   }> {
     return this.assertMachineCliReadAuthorized(params, {});
+  }
+
+  assertServicePlacesReadAuthorized(params: {
+    authorization: AdmissionEnvelopeAuthorization;
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    userId: UserId;
+    machineId: MachineId;
+    serviceIds: string[];
+    branchQuery?: string;
+    controllerBindingSecret: string | undefined;
+  }): Promise<{
+    action: WorkspaceServicePlacesHostActionPreparation;
+    authorizationId: string;
+    envelopeAuthorization: ExecutableEnvelopeAuthorization;
+  }> {
+    return this.assertMachineCliReadAuthorized(params, {
+      serviceIds: params.serviceIds,
+      branchQuery: params.branchQuery,
+    });
   }
 
   assertContinuationInspectionAuthorized(params: {

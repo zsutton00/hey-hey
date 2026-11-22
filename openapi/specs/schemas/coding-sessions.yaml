@@ -186,6 +186,14 @@ AgentSessionConfigV2:
         Branch name to materialize as a git worktree per selected service at launch.
         Presence means worktree-enabled (the branch to materialize); absence means
         worktree off. Omitted entirely when the wizard has not enabled worktree.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "#/ServicePlaceChoice"
+      description: |
+        Where each selected Service works, chosen on the launch screen. Saved with the
+        session so the Run start sends the same choices after a reload. Omitted when the
+        launch uses a Plan's locked branch or the wizard recorded no per-Service choice.
     sessionMonitorTerminalPolicy:
       $ref: "#/SessionMonitorTerminalPolicy"
       description: |
@@ -466,6 +474,7 @@ AgentSessionDto:
     - autoDecide
     - type
     - currentState
+    - servicePlaces
   properties:
     id:
       type: string
@@ -525,6 +534,11 @@ AgentSessionDto:
       type: string
       format: uuid
       description: The service the CLI launches the session against. Must be a member of serviceIds when serviceIds is non-empty.
+    servicePlaces:
+      type: array
+      items:
+        $ref: "#/AgentSessionServicePlace"
+      description: Where each Service works, listing only Services with a recorded place. Empty when nothing has been reported, as for older sessions and older CLIs.
     service:
       allOf:
         - $ref: "#/AgentSessionServiceSummary"
@@ -1131,6 +1145,161 @@ GrantAgentSessionServicesDto:
         format: uuid
       description: Project Services to add to the durable Agent Session scope.
 
+AgentSessionServicePlaceKind:
+  type: string
+  enum:
+    - MAIN_FOLDER
+    - WORKTREE
+  description: Whether a Service works in its main folder or in a worktree.
+
+AgentSessionServicePlace:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+    - branch
+    - recordedAt
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    kind:
+      $ref: "#/AgentSessionServicePlaceKind"
+    branch:
+      type: string
+      nullable: true
+      description: Branch the Service works on. Null means detached; always non-null for WORKTREE.
+    worktreePath:
+      type: string
+      description: Worktree folder. Present for WORKTREE, absent for MAIN_FOLDER.
+    recordedAt:
+      type: string
+      format: date-time
+
+ReportedAgentSessionServicePlace:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+    - branch
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    kind:
+      $ref: "#/AgentSessionServicePlaceKind"
+    branch:
+      type: string
+      minLength: 1
+      nullable: true
+      description: Branch the Service works on. Null means detached, allowed for MAIN_FOLDER only; WORKTREE requires a branch.
+    worktreePath:
+      type: string
+      minLength: 1
+      description: Worktree folder. Required for WORKTREE, ignored for MAIN_FOLDER.
+
+ReportAgentSessionServicePlacesDto:
+  type: object
+  additionalProperties: false
+  required:
+    - machineId
+    - places
+  properties:
+    machineId:
+      type: string
+      format: uuid
+      description: Authenticated CLI machine bound to the Agent Session.
+    places:
+      type: array
+      minItems: 1
+      uniqueItems: true
+      items:
+        $ref: "#/ReportedAgentSessionServicePlace"
+      description: One place per Service. A Service may appear only once.
+
+AgentSessionServicePlaceOutcome:
+  type: string
+  enum:
+    - RECORDED
+    - ALREADY_RECORDED
+    - CONFLICT
+    - NOT_MEMBER
+
+AgentSessionServicePlaceResult:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - outcome
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    outcome:
+      $ref: "#/AgentSessionServicePlaceOutcome"
+
+ReportAgentSessionServicePlacesResultDto:
+  type: object
+  additionalProperties: false
+  required:
+    - session
+    - results
+  properties:
+    session:
+      $ref: "#/AgentSessionDto"
+    results:
+      type: array
+      items:
+        $ref: "#/AgentSessionServicePlaceResult"
+      description: One outcome per submitted Service.
+
+RecentServicePlaceBranch:
+  type: object
+  additionalProperties: false
+  required:
+    - branch
+    - kind
+    - lastRecordedAt
+  properties:
+    branch:
+      type: string
+    kind:
+      $ref: "#/AgentSessionServicePlaceKind"
+    lastRecordedAt:
+      type: string
+      format: date-time
+
+RecentServicePlaces:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - branches
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    branches:
+      type: array
+      maxItems: 10
+      items:
+        $ref: "#/RecentServicePlaceBranch"
+      description: Distinct branches recorded for this Service in the project, newest first.
+
+RecentServicePlacesDto:
+  type: object
+  additionalProperties: false
+  required:
+    - services
+  properties:
+    services:
+      type: array
+      items:
+        $ref: "#/RecentServicePlaces"
+      description: One entry per requested Service, in request order.
+
 CreateAgentSessionConversationDto:
   type: object
   required:
@@ -1154,6 +1323,62 @@ CreateAgentSessionConversationDto:
     entityId:
       type: string
       description: Identifier of the entity this conversation is about (the universal about-target).
+
+ServicePlaceChoice:
+  oneOf:
+    - $ref: "#/MainFolderServicePlaceChoice"
+    - $ref: "#/WorktreeServicePlaceChoice"
+  discriminator:
+    propertyName: kind
+    mapping:
+      MAIN_FOLDER: "#/MainFolderServicePlaceChoice"
+      WORKTREE: "#/WorktreeServicePlaceChoice"
+  description: >-
+    Where one Service works. MAIN_FOLDER is the main folder as it is.
+    WORKTREE with newBranch false uses the worktree already on `branch`, or
+    opens an existing branch that is not checked out anywhere as a new
+    worktree. WORKTREE with newBranch true creates `branch` from the main
+    folder's current branch in a new worktree.
+
+MainFolderServicePlaceChoice:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+  description: The Service works in its main folder. It names no branch.
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    kind:
+      type: string
+      enum:
+        - MAIN_FOLDER
+
+WorktreeServicePlaceChoice:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+    - branch
+  description: The Service works in a worktree on `branch`.
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    kind:
+      type: string
+      enum:
+        - WORKTREE
+    branch:
+      type: string
+      minLength: 1
+    newBranch:
+      type: boolean
+      default: false
+      description: True creates `branch` as a new branch.
 
 PermissionDecisionRequestDto:
   type: object
@@ -1210,6 +1435,14 @@ PermissionDecisionRequestDto:
       description: >-
         User-supplied explanation for the decision, rendered alongside the
         Approved/Denied message in CLI output.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "#/ServicePlaceChoice"
+      description: >-
+        Where each newly requested Service works. Allowed only with `approve`,
+        one choice per Service. The CLI checks each choice belongs to the
+        pending request.
     idempotencyToken:
       type: string
       minLength: 1

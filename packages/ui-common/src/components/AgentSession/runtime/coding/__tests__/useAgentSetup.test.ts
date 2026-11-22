@@ -4,7 +4,6 @@ import {
   filterCodingSessionServices,
   resolveInitialServiceSelection,
   resolveCodingSetupSelection,
-  resolveWorktreeBranchChange,
 } from "../useAgentSetup";
 
 const createService = (
@@ -195,69 +194,5 @@ describe("resolveInitialServiceSelection", () => {
         persistedLaunchServiceId: null,
       }),
     ).toEqual({ selectedServiceIds: [], launchServiceId: null });
-  });
-});
-
-describe("resolveWorktreeBranchChange", () => {
-  it("seeds the locked branch when a locked value is present", () => {
-    const result = resolveWorktreeBranchChange({
-      currentBranch: null,
-      requestedBranch: "",
-      lockedWorktreeBranch: "plan/shared-branch",
-      taskName: "Fix launch flow",
-    });
-
-    expect(result).toBe("plan/shared-branch");
-  });
-
-  it("keeps the locked branch immutable when callers try to change or clear it", () => {
-    const changed = resolveWorktreeBranchChange({
-      currentBranch: "plan/shared-branch",
-      requestedBranch: "custom-branch",
-      lockedWorktreeBranch: "plan/shared-branch",
-      taskName: "Fix launch flow",
-    });
-    const cleared = resolveWorktreeBranchChange({
-      currentBranch: "plan/shared-branch",
-      requestedBranch: null,
-      lockedWorktreeBranch: "plan/shared-branch",
-      taskName: "Fix launch flow",
-    });
-
-    expect(changed).toBe("plan/shared-branch");
-    expect(cleared).toBe("plan/shared-branch");
-  });
-
-  it("keeps unlocked worktree state null until the user chooses a branch", () => {
-    const result = resolveWorktreeBranchChange({
-      currentBranch: null,
-      requestedBranch: null,
-      lockedWorktreeBranch: null,
-      taskName: "Fix launch flow",
-    });
-
-    expect(result).toBeNull();
-  });
-
-  it("seeds an unlocked branch from the task name when enabling from null", () => {
-    const result = resolveWorktreeBranchChange({
-      currentBranch: null,
-      requestedBranch: "",
-      lockedWorktreeBranch: null,
-      taskName: "Fix the Launch Flow!",
-    });
-
-    expect(result).toBe("fix-the-launch-flow");
-  });
-
-  it("keeps an unlocked enabled branch editable, including clearing text", () => {
-    const result = resolveWorktreeBranchChange({
-      currentBranch: "feature/worktree",
-      requestedBranch: "",
-      lockedWorktreeBranch: null,
-      taskName: "Fix launch flow",
-    });
-
-    expect(result).toBe("");
   });
 });

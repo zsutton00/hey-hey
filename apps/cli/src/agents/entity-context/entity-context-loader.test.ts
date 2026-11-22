@@ -40,6 +40,7 @@ const sourceAgentSession = (): AgentSessionDto => ({
   hasUnsyncedChanges: false,
   monitoringEnabled: false,
   autoDecide: false,
+  servicePlaces: [],
   type: AgentSessionType.EntityConversation,
 });
 

@@ -1240,6 +1240,7 @@ export class TriggerEmitter {
       sessionId: string;
       agentType: ConversationControlPermissionDecision.AgentTypeEnum;
       reason?: string | null;
+      servicePlaceChoices?: ConversationControlPermissionDecision['servicePlaceChoices'];
       idempotencyToken: string;
     },
   ): Promise<{ emitted: boolean; reason?: string }> {
@@ -1257,6 +1258,7 @@ export class TriggerEmitter {
         sessionId: params.sessionId,
         agentType: params.agentType,
         reason: params.reason,
+        servicePlaceChoices: params.servicePlaceChoices,
         idempotencyToken: params.idempotencyToken,
       },
     );

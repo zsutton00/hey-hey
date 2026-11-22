@@ -55,6 +55,9 @@ import type { CliReadRunToolCallsLatestTurnEnvelopeBody } from './cli-read-run-t
 import type { CliReadRuntimeModelCatalogGetEnvelopeBody } from './cli-read-runtime-model-catalog-get-envelope-body.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { CliReadWorkspaceServicePlacesListEnvelopeBody1 } from './cli-read-workspace-service-places-list-envelope-body1.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadWorkspaceSkillsListEnvelopeBody1 } from './cli-read-workspace-skills-list-envelope-body1.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -64,4 +67,4 @@ import type { ImplementReportEdit } from './implement-report-edit.js';
  * @type CliReadEnvelopeBody1
  * @export
  */
-export type CliReadEnvelopeBody1 = { operation: 'agent_session.continuation.inspect' } & CliReadAgentSessionContinuationInspectEnvelopeBody1 | { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;
+export type CliReadEnvelopeBody1 = { operation: 'agent_session.continuation.inspect' } & CliReadAgentSessionContinuationInspectEnvelopeBody1 | { operation: 'project.session_costs.list' } & CliReadProjectSessionCostsListEnvelopeBody | { operation: 'provider.usage.get' } & CliReadProviderUsageGetEnvelopeBody1 | { operation: 'run.changed_files.count' } & CliReadRunChangedFilesCountEnvelopeBody | { operation: 'run.changed_files.detail' } & CliReadRunChangedFileDetailEnvelopeBody1 | { operation: 'run.changed_files.inventory' } & CliReadRunChangedFilesInventoryEnvelopeBody1 | { operation: 'run.context_usage.get' } & CliReadRunContextUsageGetEnvelopeBody1 | { operation: 'run.recorded_edit.read' } & CliReadRunRecordedEditEnvelopeBody1 | { operation: 'run.skills.list' } & CliReadRunSkillsListEnvelopeBody1 | { operation: 'run.tool_calls.latest_turn' } & CliReadRunToolCallsLatestTurnEnvelopeBody1 | { operation: 'runtime.model_catalog.get' } & CliReadRuntimeModelCatalogGetEnvelopeBody1 | { operation: 'workspace.service_places.list' } & CliReadWorkspaceServicePlacesListEnvelopeBody1 | { operation: 'workspace.skills.list' } & CliReadWorkspaceSkillsListEnvelopeBody1;

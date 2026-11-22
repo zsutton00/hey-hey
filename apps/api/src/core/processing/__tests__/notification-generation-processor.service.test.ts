@@ -101,6 +101,7 @@ const buildAgentSessionStatusChangedEvent = (
       hasUnsyncedChanges: false,
       monitoringEnabled: false,
       autoDecide: false,
+      servicePlaces: [],
       type: 'CODING',
     },
     timestamp: new Date().toISOString(),

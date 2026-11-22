@@ -159,7 +159,6 @@ export const AgenticSetupSection = ({
     boundServiceId,
     taskServiceIds,
     boundProvider,
-    taskName: taskData?.name ?? null,
     lockedWorktreeBranch,
     skipServiceSelection,
     onPromptSubmitted,
@@ -213,11 +212,16 @@ export const AgenticSetupSection = ({
         onSelectProjectMode={setup.selectProjectMode}
         projectModeSelection={setup.projectModeSelection}
         recoveryState={recoveryState}
-        repositoryPath={setup.directoryPath}
-        directoryPaths={setup.directoryPaths}
-        worktreeBranch={setup.worktreeBranch}
-        worktreeLocked={setup.worktreeLocked}
-        setWorktreeBranch={setup.setWorktreeBranch}
+        repositoryPaths={setup.repositoryPaths}
+        lockedWorktreeBranch={setup.lockedWorktreeBranch}
+        servicePlaces={setup.servicePlaces}
+        branchQuery={setup.branchQuery}
+        onBranchQueryChange={setup.setBranchQuery}
+        sessionPlaceChoice={setup.sessionPlaceChoice}
+        perServicePlaceChoices={setup.perServicePlaceChoices}
+        onChangeSessionPlace={setup.setSessionPlaceChoice}
+        onChangeServicePlace={setup.setServicePlaceChoice}
+        onTogglePerServicePlaces={setup.setPerServicePlaceChoicesEnabled}
         launchServiceId={setup.launchServiceId}
         onSelectLaunchService={setup.setLaunchServiceId}
         hasActiveRun={false}

@@ -1,4 +1,5 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -20,11 +21,16 @@ const isPromisifiedOutput = (
   'stderr' in value &&
   typeof value.stderr === 'string';
 
-const execGit = (args: readonly string[], cwd: string): Promise<GitCommandOutput> =>
+const execGit = (
+  args: readonly string[],
+  cwd: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<GitCommandOutput> =>
   new Promise((resolve, reject) => {
-    execFile('git', [...args], { cwd }, (error, stdout, stderr) => {
+    execFile('git', [...args], { cwd, ...(env ? { env } : {}) }, (error, stdout, stderr) => {
       if (error) {
-        reject(error);
+        // The callback form hands stderr over separately; keep git's message on the error.
+        reject(Object.assign(error, { stderr: toText(stderr) }));
         return;
       }
 
@@ -261,3 +267,145 @@ export const isBranchRegisteredToWorktree = async (
 };
 
 export { toBranchSafeName };
+
+export interface RegisteredWorktree {
+  /** Null when the worktree's HEAD is detached. */
+  branch: string | null;
+  worktreePath: string;
+}
+
+export interface WorktreeInventory {
+  /** The repository's own folder: git always lists it first, whichever worktree `repoPath` is. */
+  mainFolder: RegisteredWorktree;
+  /** Linked worktrees only. Prunable ones (folder gone) are not places to work in. */
+  linkedWorktrees: RegisteredWorktree[];
+}
+
+/**
+ * Reads the main folder and linked worktrees from one `git worktree list`, so a
+ * folder is never both. Works when `repoPath` is itself a linked worktree.
+ * Read-only.
+ */
+export const readWorktreeInventory = async (repoPath: string): Promise<WorktreeInventory> => {
+  const [main, ...linkedEntries] = await listWorktrees(repoPath);
+  if (!main) {
+    throw new Error(`git listed no worktrees for ${repoPath}`);
+  }
+
+  return {
+    mainFolder: { branch: main.branch, worktreePath: main.worktreePath },
+    linkedWorktrees: linkedEntries
+      .filter((entry) => !entry.bare && !entry.prunable)
+      .map((entry) => ({ branch: entry.branch, worktreePath: entry.worktreePath })),
+  };
+};
+
+export interface BranchSearchResult {
+  branches: string[];
+  /** True when more branches matched than `limit`. */
+  truncated: boolean;
+}
+
+/**
+ * Searches local branch names, most recently committed first. Matching is
+ * case-insensitive; an empty query matches every branch. Git's output is
+ * streamed and git is stopped after the first `limit + 1` matches, so a huge
+ * branch list neither overflows a buffer nor is read in full. Read-only.
+ */
+export const searchLocalBranches = async (
+  repoPath: string,
+  query: string,
+  limit: number,
+): Promise<BranchSearchResult> => {
+  const needle = query.trim().toLowerCase();
+  const matches: string[] = [];
+  const child = spawn(
+    'git',
+    ['for-each-ref', '--sort=-committerdate', '--format=%(refname:lstrip=2)', 'refs/heads'],
+    { cwd: repoPath, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8');
+  });
+  const exitCode = new Promise<number | null>((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code) => resolve(code));
+  });
+  // A spawn failure must not surface as unhandled before the await below.
+  exitCode.catch(() => undefined);
+  let stoppedEarly = false;
+
+  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  for await (const line of lines) {
+    const branch = line.trim();
+    if (branch === '' || !branch.toLowerCase().includes(needle)) {
+      continue;
+    }
+    matches.push(branch);
+    if (matches.length > limit) {
+      stoppedEarly = true;
+      child.kill();
+      break;
+    }
+  }
+
+  const code = await exitCode;
+  if (!stoppedEarly && code !== 0) {
+    throw new Error(`git for-each-ref failed (exit ${String(code)}): ${stderr.trim()}`);
+  }
+
+  return { branches: matches.slice(0, limit), truncated: matches.length > limit };
+};
+
+/**
+ * Reads the branch checked out in a folder without changing it.
+ * Returns null for a detached HEAD.
+ */
+export async function readCheckedOutBranch(folder: string): Promise<string | null> {
+  try {
+    const { stdout } = await execGit(['symbolic-ref', '--short', '-q', 'HEAD'], folder);
+    const branch = stdout.trim();
+
+    return branch === '' ? null : branch;
+  } catch (error) {
+    // `-q` exits 1 with no output when HEAD is detached; any other failure is real.
+    if (isExitCode(error, 1)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+const isExitCode = (error: unknown, code: number): boolean =>
+  error instanceof Error && 'code' in error && error.code === code;
+
+/**
+ * True when `folder` is inside a git work tree; false only when git itself says
+ * it is not a repository. A missing folder, a permissions failure, an unsafe
+ * (dubious ownership) repository or a git that cannot run all throw, with git's
+ * own message, so the caller can report the real cause. Read-only.
+ */
+export const isGitRepository = async (folder: string): Promise<boolean> => {
+  try {
+    const { stdout } = await execGit(['rev-parse', '--is-inside-work-tree'], folder, {
+      ...process.env,
+      // Git's non-repository message is only stable in the C locale.
+      LC_ALL: 'C',
+    });
+
+    return stdout.trim() === 'true';
+  } catch (error) {
+    if (isNotAGitRepositoryError(error)) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+const isNotAGitRepositoryError = (error: unknown): boolean =>
+  error instanceof Error &&
+  'stderr' in error &&
+  typeof error.stderr === 'string' &&
+  error.stderr.includes('not a git repository');

@@ -82,6 +82,7 @@ describe('ConversationController', () => {
     Pick<
       AgentSessionService,
       | 'resolveStartRunConfiguration'
+      | 'resolvePlanLockedBranch'
       | 'resolveStartRunConversationBinding'
       | 'claimStartRunLaunch'
       | 'releaseStartRunLaunchClaim'
@@ -152,6 +153,7 @@ describe('ConversationController', () => {
         .fn()
         .mockResolvedValue({ kind: 'STANDARD_LAUNCH' }),
       resolveStartRunConfiguration: jest.fn().mockResolvedValue(undefined),
+      resolvePlanLockedBranch: jest.fn().mockResolvedValue(null),
       claimStartRunLaunch: jest.fn().mockResolvedValue(true),
       releaseStartRunLaunchClaim: jest.fn().mockResolvedValue(undefined),
       bindStartRunMachine: jest.fn().mockResolvedValue(undefined),
@@ -1269,6 +1271,51 @@ describe('ConversationController', () => {
           );
         },
       );
+
+      it('rejects place choices that disagree with the Plan an ordinary Plan-step launch comes from', async () => {
+        jest
+          .spyOn(conversationService, 'getConversationFromAdapter')
+          .mockResolvedValue(mockConversation);
+        jest
+          .spyOn(conversationService, 'getOwnerUserId')
+          .mockResolvedValue(ownerUserId);
+        connectionManager.hasCliConnectionForUser.mockReturnValue(true);
+        messageService.addMessage.mockResolvedValue({} as any);
+        agentSessionService.resolvePlanLockedBranch.mockResolvedValue(
+          'plans/locked',
+        );
+        const base = buildRequestDto();
+        const serviceId =
+          base.serviceIds?.[0] ?? '44444444-4444-4444-8444-444444444444';
+        const requestDto: ConversationStartRunRequestDto = {
+          ...base,
+          worktree: { enabled: true, branch: 'plans/other' },
+          servicePlaceChoices: [
+            { serviceId, kind: 'WORKTREE', branch: 'plans/other' },
+          ],
+          contextMetadata: {
+            ...base.contextMetadata,
+            launchPlanId: '33333333-3333-4333-8333-333333333333',
+          },
+        };
+
+        await expect(
+          startConversationRun(
+            testIds.project,
+            testIds.conversation,
+            testIds.organization,
+            callerUserId,
+            requestDto,
+          ),
+        ).rejects.toThrow(serviceId);
+        expect(
+          agentSessionService.resolvePlanLockedBranch,
+        ).toHaveBeenCalledWith({
+          organizationId: testIds.organization,
+          projectId: testIds.project,
+          planId: '33333333-3333-4333-8333-333333333333',
+        });
+      });
 
       it.each([
         ['omitted', undefined],

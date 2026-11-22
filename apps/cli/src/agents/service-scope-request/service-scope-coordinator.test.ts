@@ -128,6 +128,7 @@ const makeHarness = (input?: {
   } else {
     updateRunServices.mockResolvedValue(makeSession(input));
   }
+  vi.spyOn(runStore, 'updateRunServicePlaceChoices').mockResolvedValue(makeSession(input));
   vi.spyOn(runStore, 'updateRunProviderIdentity').mockResolvedValue(makeSession(input));
   vi.spyOn(runStore, 'updateRunPromptType').mockResolvedValue(makeSession(input));
   vi.spyOn(runStore, 'updateRunSessionContext').mockResolvedValue(makeSession(input));
@@ -928,12 +929,18 @@ describe('AgentSessionServiceScopeCoordinator settlement', () => {
   });
 
   it('settles a missing verified machine binding before calling the platform', async () => {
-    const { run, fetchImpl } = makeHarness({ machineId: null });
+    const { run, fetchImpl, poster } = makeHarness({ machineId: null });
 
     await expect(run.serviceScopeCoordinator.decide(decision('approve'))).resolves.toEqual({
       outcome: 'failed',
       reason: 'Approved Service scope requires a verified machine binding.',
     });
+
+    // The browser only sees the settled message, so the reason must ride on it.
+    const settledPayloads = JSON.stringify(vi.mocked(poster.complete).mock.calls);
+    expect(settledPayloads).toContain(
+      '"failureReason":"Approved Service scope requires a verified machine binding."',
+    );
 
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(run.session.services).toEqual([{ id: 'svc-1', path: '/tmp' }]);

@@ -3,17 +3,53 @@ import type { MetadataDisclosureRow } from "../shared/MetadataDisclosure";
 import type { AgentProvider, ReasoningEffort } from "./runtime/types";
 
 export type AgentSessionMetadataPlacement =
-  | "below-composer"
-  | "below-conversation";
+  "below-composer" | "below-conversation";
 
 export interface AgentSessionMetadataValues {
   provider: AgentProvider;
   model: string;
   effort?: ReasoningEffort;
   fastMode?: boolean;
-  worktree?: string;
-  serviceNames?: readonly string[];
+  servicePlaces?: readonly AgentSessionServicePlaceEntry[];
 }
+
+export type AgentSessionServicePlaceView =
+  | { kind: "worktree"; branch: string }
+  | { kind: "main-folder"; branch: string | null }
+  | { kind: "not-recorded" };
+
+export interface AgentSessionServicePlaceEntry {
+  serviceName: string;
+  place: AgentSessionServicePlaceView;
+}
+
+const SERVICE_PLACES_GROUP = "Where each Service works";
+
+const describePlace = (place: AgentSessionServicePlaceView): string => {
+  switch (place.kind) {
+    case "worktree":
+      return `worktree ${place.branch}`;
+    case "main-folder":
+      return place.branch === null
+        ? "main folder, detached"
+        : `main folder on ${place.branch}`;
+    case "not-recorded":
+      return "Not recorded";
+  }
+};
+
+const placeTestId = (place: AgentSessionServicePlaceView): string => {
+  switch (place.kind) {
+    case "worktree":
+      return "agent-session-metadata-place-worktree";
+    case "main-folder":
+      return place.branch === null
+        ? "agent-session-metadata-place-detached"
+        : "agent-session-metadata-place-main";
+    case "not-recorded":
+      return "agent-session-metadata-place-not-recorded";
+  }
+};
 
 export interface AgentSessionMetadataProps extends AgentSessionMetadataValues {
   placement: AgentSessionMetadataPlacement;
@@ -28,24 +64,20 @@ export const AgentSessionMetadata = ({
   model,
   effort,
   fastMode,
-  worktree,
-  serviceNames = [],
+  servicePlaces = [],
 }: AgentSessionMetadataProps) => {
   const displayModel = model.trim();
   const displayProvider = provider.trim();
   const displayEffort = effort?.trim();
   const displayFastMode = fastMode === true ? "fast" : undefined;
-  const displayWorktree = worktree?.trim();
 
   if (!hasDisplayValue(displayModel)) {
     return null;
   }
 
-  const copyWorktree = async (): Promise<void> => {
-    if (!hasDisplayValue(displayWorktree)) return;
-
+  const copyBranch = async (branch: string): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(displayWorktree);
+      await navigator.clipboard.writeText(branch);
     } catch (error) {
       console.error("Failed to copy worktree to clipboard:", error);
     }
@@ -85,26 +117,26 @@ export const AgentSessionMetadata = ({
     });
   }
 
-  if (hasDisplayValue(displayWorktree)) {
-    metadataRows.push({
-      label: "Worktree",
-      value: displayWorktree,
-      testId: "agent-session-metadata-worktree",
-      onCopy: () => {
-        void copyWorktree();
-      },
-    });
-  }
-
-  for (const name of serviceNames) {
-    if (hasDisplayValue(name)) {
-      metadataRows.push({
-        label: "Service",
-        value: name,
-        testId: "agent-session-metadata-service",
-      });
-    }
-  }
+  servicePlaces.forEach(({ serviceName, place }, index) => {
+    const value = describePlace(place);
+    const row: MetadataDisclosureRow = {
+      label: serviceName,
+      value,
+      desktopText: `${serviceName}: ${value}`,
+      group: SERVICE_PLACES_GROUP,
+      testId: placeTestId(place),
+      ...(place.kind === "not-recorded" ? { dashed: true } : {}),
+      ...(place.kind === "worktree"
+        ? {
+            copyTestId: `agent-session-metadata-place-copy-${index}`,
+            onCopy: () => {
+              void copyBranch(place.branch);
+            },
+          }
+        : {}),
+    };
+    metadataRows.push(row);
+  });
 
   const rootSx =
     placement === "below-composer"

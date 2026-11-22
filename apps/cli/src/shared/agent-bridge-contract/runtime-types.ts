@@ -1,3 +1,4 @@
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import type {
   AgentSessionConfig,
   StartRunPromptPayloadReasoningEffortEnum,
@@ -64,6 +65,8 @@ export interface LocalCreateRunRequest {
   scope?: LocalRunScope;
   conversationId: string;
   worktree?: LocalWorktreeConfig;
+  /** Where each Service works, when the launch chose per Service. Absent follows `worktree`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   payload?: RunCreatePayload;
   triggersAgent?: boolean;
   attachments: RunAttachmentReference[];

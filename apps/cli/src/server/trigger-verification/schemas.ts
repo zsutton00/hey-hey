@@ -1,3 +1,4 @@
+import { servicePlaceChoicesSchema } from '../service-place-choice-schema';
 import { recordedEditSchema } from './recorded-edit-schema';
 /**
  * Zod schemas mirroring the generated trigger-frame and signed-envelope types.
@@ -91,6 +92,7 @@ const conversationControlPermissionDecisionBodySchema = z
     sessionId: z.string().min(1),
     agentType: z.enum(['claude', 'codex', 'opencode']),
     reason: z.string().nullable().optional(),
+    servicePlaceChoices: servicePlaceChoicesSchema.optional(),
     idempotencyToken: z.string().min(1),
   })
   .strict();

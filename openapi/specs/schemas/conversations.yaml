@@ -6760,6 +6760,11 @@ AgentSessionServiceScopeRequest:
         type: string
         minLength: 1
       description: Complete proposed Service scope after approval
+    proposedPlaces:
+      type: array
+      items:
+        $ref: "./coding-sessions.yaml#/ServicePlaceChoice"
+      description: Proposed place for each newly requested Service. Absent on requests from older CLIs.
     reason:
       type: string
       minLength: 1
@@ -6789,6 +6794,10 @@ AgentRequestServiceScopePayload:
       format: date-time
       nullable: true
       description: ISO timestamp of the recorded decision
+    failureReason:
+      type: string
+      nullable: true
+      description: Why an approved request could not be applied. Set when the decision was recorded but nothing was granted.
   description: Structured payload for coding-session Service-scope review UI elements
 
 AgentSessionReviewFileScopeRequestFile:

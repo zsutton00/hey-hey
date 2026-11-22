@@ -28,6 +28,9 @@ import type { AgentSkillProvider } from './agent-skill-provider.js';
 import type { RuntimeModelCatalogHostActionPreparation } from './runtime-model-catalog-host-action-preparation.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { WorkspaceServicePlacesHostActionPreparation } from './workspace-service-places-host-action-preparation.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { WorkspaceSkillsHostActionPreparation } from './workspace-skills-host-action-preparation.js';
 
 /**
@@ -35,4 +38,4 @@ import type { WorkspaceSkillsHostActionPreparation } from './workspace-skills-ho
  * Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
  * @export
  */
-export type CliReadHostActionPreparation = AgentSessionContinuationInspectHostActionPreparation | RuntimeModelCatalogHostActionPreparation | WorkspaceSkillsHostActionPreparation;
+export type CliReadHostActionPreparation = AgentSessionContinuationInspectHostActionPreparation | RuntimeModelCatalogHostActionPreparation | WorkspaceServicePlacesHostActionPreparation | WorkspaceSkillsHostActionPreparation;

@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { AgentSession, Prisma } from '@prisma/client';
 import {
   AgentSessionService,
+  RECENT_PLACE_BRANCH_LIMIT,
   parseAgentSessionSearchQuery,
   type PaginatedAgentSessionFilters,
 } from '../agent-session.service';
@@ -24,6 +26,7 @@ import {
   AgentSessionConfigProjectReportV1,
   AgentSessionConfigV2,
   AgentSessionType,
+  type ServicePlaceChoice,
   WorkflowName,
 } from '@hey-hey/contracts/api/models';
 
@@ -93,6 +96,7 @@ const buildPaginatedRow = (overrides: Record<string, unknown> = {}) => ({
   joinedServiceId: null,
   joinedServiceName: null,
   selectedServiceIds: ['cccccccc-cccc-4ccc-8ccc-cccccccccccc'],
+  servicePlaces: [],
   selectedServices: [
     {
       id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
@@ -375,6 +379,414 @@ describe('AgentSessionService', () => {
 
     expect(prisma.db.$transaction).not.toHaveBeenCalled();
     expect(prisma.db.serviceAgentSession.createMany).not.toHaveBeenCalled();
+  });
+
+  describe('listRecentServicePlaces', () => {
+    const apiServiceId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const webServiceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const idleServiceId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+    it('returns one entry per requested Service in request order, keeping the query order within each', async () => {
+      prisma.db.$queryRaw.mockResolvedValue([
+        {
+          serviceId: webServiceId,
+          branch: 'feature/b',
+          kind: 'WORKTREE',
+          recordedAt: '2026-11-02T00:00:00.000Z',
+        },
+        {
+          serviceId: webServiceId,
+          branch: 'main',
+          kind: 'MAIN_FOLDER',
+          recordedAt: '2026-11-01T00:00:00.000Z',
+        },
+        {
+          serviceId: apiServiceId,
+          branch: 'feature/a',
+          kind: 'WORKTREE',
+          recordedAt: '2026-11-03T00:00:00.000Z',
+        },
+      ]);
+
+      const result = await service.listRecentServicePlaces({
+        organizationId: 'org-1' as any,
+        projectId: 'proj-1' as any,
+        serviceIds: [apiServiceId, idleServiceId, webServiceId],
+      });
+
+      expect(result).toEqual({
+        services: [
+          {
+            serviceId: apiServiceId,
+            branches: [
+              {
+                branch: 'feature/a',
+                kind: 'WORKTREE',
+                lastRecordedAt: '2026-11-03T00:00:00.000Z',
+              },
+            ],
+          },
+          { serviceId: idleServiceId, branches: [] },
+          {
+            serviceId: webServiceId,
+            branches: [
+              {
+                branch: 'feature/b',
+                kind: 'WORKTREE',
+                lastRecordedAt: '2026-11-02T00:00:00.000Z',
+              },
+              {
+                branch: 'main',
+                kind: 'MAIN_FOLDER',
+                lastRecordedAt: '2026-11-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    it('scopes the query to the project and caps each Service at ten branches', async () => {
+      prisma.db.$queryRaw.mockResolvedValue([]);
+
+      await service.listRecentServicePlaces({
+        organizationId: 'org-1' as any,
+        projectId: 'proj-1' as any,
+        serviceIds: [apiServiceId],
+      });
+
+      const [, ...values] = prisma.db.$queryRaw.mock.calls.at(-1);
+      const flattened = values.flatMap((value: { values?: unknown[] }) =>
+        Array.isArray(value?.values) ? value.values : [value],
+      );
+      expect(flattened).toEqual(
+        expect.arrayContaining([
+          'org-1',
+          'proj-1',
+          apiServiceId,
+          RECENT_PLACE_BRANCH_LIMIT,
+        ]),
+      );
+      expect(RECENT_PLACE_BRANCH_LIMIT).toBe(10);
+    });
+  });
+
+  describe('recordServicePlaces', () => {
+    const machineId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const apiServiceId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const webServiceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const strangerServiceId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+    type Membership = {
+      id: string;
+      serviceId: string;
+      placeKind: string | null;
+      placeBranch: string | null;
+      placeWorktreePath: string | null;
+      placeRecordedAt: Date | null;
+    };
+    let memberships: Membership[];
+
+    const session = () => ({
+      ...buildAgentSession({
+        id: sessionId1,
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        userId: 'user-1',
+        machineId,
+        serviceId: apiServiceId,
+      }),
+      serviceRelations: memberships.map((membership) => ({
+        serviceId: membership.serviceId,
+        placeKind: membership.placeKind,
+        placeBranch: membership.placeBranch,
+        placeWorktreePath: membership.placeWorktreePath,
+        placeRecordedAt: membership.placeRecordedAt,
+      })),
+    });
+
+    const report = (
+      places: Array<Record<string, unknown>>,
+      overrides: Record<string, unknown> = {},
+    ) =>
+      service.recordServicePlaces({
+        organizationId: 'org-1' as any,
+        projectId: 'proj-1' as any,
+        agentSessionId: sessionId1,
+        userId: 'user-1' as any,
+        report: { machineId, places, ...overrides } as any,
+      });
+
+    beforeEach(() => {
+      memberships = [apiServiceId, webServiceId].map((serviceId) => ({
+        id: `membership-${serviceId}`,
+        serviceId,
+        placeKind: null,
+        placeBranch: null,
+        placeWorktreePath: null,
+        placeRecordedAt: null,
+      }));
+      prisma.db.agentSession.findFirst.mockImplementation(async () =>
+        session(),
+      );
+      prisma.db.agentSession.findUnique.mockImplementation(async () =>
+        session(),
+      );
+      prisma.db.serviceAgentSession.findUnique.mockImplementation(
+        async ({ where }: any) =>
+          memberships.find(
+            (membership) =>
+              membership.serviceId === where.serviceId_agentSessionId.serviceId,
+          ) ?? null,
+      );
+      prisma.db.serviceAgentSession.updateMany.mockImplementation(
+        async ({ where, data }: any) => {
+          const membership = memberships.find(
+            (candidate) =>
+              candidate.id === where.id && candidate.placeKind === null,
+          );
+          if (!membership) {
+            return { count: 0 };
+          }
+          Object.assign(membership, data);
+          return { count: 1 };
+        },
+      );
+    });
+
+    it('reads as not recorded until a place is reported', async () => {
+      const result = await report([
+        { serviceId: strangerServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+      ]);
+
+      expect(result.session.servicePlaces).toEqual([]);
+    });
+
+    it('records a worktree place once and returns it on the session', async () => {
+      const result = await report([
+        {
+          serviceId: apiServiceId,
+          kind: 'WORKTREE',
+          branch: 'feature/x',
+          worktreePath: '/repo/.worktrees/x',
+        },
+      ]);
+
+      expect(result.results).toEqual([
+        { serviceId: apiServiceId, outcome: 'RECORDED' },
+      ]);
+      expect(result.session.servicePlaces).toEqual([
+        {
+          serviceId: apiServiceId,
+          kind: 'WORKTREE',
+          branch: 'feature/x',
+          worktreePath: '/repo/.worktrees/x',
+          recordedAt: expect.any(String),
+        },
+      ]);
+    });
+
+    it('records a detached main folder with a null branch and no path', async () => {
+      const result = await report([
+        { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: null },
+      ]);
+
+      expect(result.session.servicePlaces).toEqual([
+        {
+          serviceId: apiServiceId,
+          kind: 'MAIN_FOLDER',
+          branch: null,
+          recordedAt: expect.any(String),
+        },
+      ]);
+    });
+
+    it('treats an identical repeat as a no-op and a different place as a conflict, leaving the record unchanged', async () => {
+      const first = {
+        serviceId: apiServiceId,
+        kind: 'MAIN_FOLDER',
+        branch: 'main',
+      };
+      await report([first]);
+      const recordedAt = memberships[0]?.placeRecordedAt;
+
+      const repeat = await report([first]);
+      const differing = await report([{ ...first, branch: 'other' }]);
+
+      expect(repeat.results[0]?.outcome).toBe('ALREADY_RECORDED');
+      expect(differing.results[0]?.outcome).toBe('CONFLICT');
+      expect(memberships[0]).toMatchObject({
+        placeKind: 'MAIN_FOLDER',
+        placeBranch: 'main',
+        placeRecordedAt: recordedAt,
+      });
+    });
+
+    it('decides each Service on its own in a mixed report', async () => {
+      await report([
+        { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+      ]);
+
+      const result = await report([
+        { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'other' },
+        {
+          serviceId: webServiceId,
+          kind: 'WORKTREE',
+          branch: 'feature/y',
+          worktreePath: '/web/.worktrees/y',
+        },
+        { serviceId: strangerServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+      ]);
+
+      expect(result.results).toEqual([
+        { serviceId: apiServiceId, outcome: 'CONFLICT' },
+        { serviceId: webServiceId, outcome: 'RECORDED' },
+        { serviceId: strangerServiceId, outcome: 'NOT_MEMBER' },
+      ]);
+      expect(memberships[1]?.placeKind).toBe('WORKTREE');
+    });
+
+    it('rejects a report from another machine without writing anything', async () => {
+      await expect(
+        report(
+          [{ serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' }],
+          { machineId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.db.serviceAgentSession.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a session with no bound machine', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue({
+        ...session(),
+        machineId: null,
+      });
+
+      await expect(
+        report([
+          { serviceId: apiServiceId, kind: 'MAIN_FOLDER', branch: 'main' },
+        ]),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.db.serviceAgentSession.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('servicePlaces on reads', () => {
+    const serviceId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const recordedAt = new Date('2026-11-19T10:00:00.000Z');
+
+    const relation = (overrides: Record<string, unknown> = {}) => ({
+      serviceId,
+      placeKind: null,
+      placeBranch: null,
+      placeWorktreePath: null,
+      placeRecordedAt: null,
+      ...overrides,
+    });
+
+    it('rejects a place report from a user who does not own the session', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue({
+        id: sessionId1,
+        userId: 'someone-else',
+        machineId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      });
+
+      await expect(
+        service.recordServicePlaces({
+          organizationId: 'org-1' as any,
+          projectId: 'proj-1' as any,
+          agentSessionId: sessionId1,
+          userId: 'user-1' as any,
+          report: {
+            machineId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            places: [{ serviceId, kind: 'MAIN_FOLDER', branch: 'main' }],
+          } as any,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.db.serviceAgentSession.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects a place report for an unknown session', async () => {
+      prisma.db.agentSession.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.recordServicePlaces({
+          organizationId: 'org-1' as any,
+          projectId: 'proj-1' as any,
+          agentSessionId: sessionId1,
+          userId: 'user-1' as any,
+          report: {
+            machineId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            places: [{ serviceId, kind: 'MAIN_FOLDER', branch: 'main' }],
+          } as any,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('returns recorded places from get and list reads, and [] when unrecorded', async () => {
+      const recorded = {
+        ...buildAgentSession(),
+        serviceRelations: [
+          relation({
+            placeKind: 'WORKTREE',
+            placeBranch: 'feature/x',
+            placeWorktreePath: '/repo/.worktrees/x',
+            placeRecordedAt: recordedAt,
+          }),
+        ],
+      };
+      const unrecorded = {
+        ...buildAgentSession({ id: sessionId2 }),
+        serviceRelations: [relation()],
+      };
+      prisma.db.agentSession.findFirst.mockResolvedValue(recorded);
+      prisma.db.agentSession.findMany.mockResolvedValue([recorded, unrecorded]);
+
+      const one = await service.findOne('org-1' as any, sessionId1);
+      const all = await service.findAll('org-1' as any, 'proj-1' as any);
+
+      const expected = [
+        {
+          serviceId,
+          kind: 'WORKTREE',
+          branch: 'feature/x',
+          worktreePath: '/repo/.worktrees/x',
+          recordedAt: recordedAt.toISOString(),
+        },
+      ];
+      expect(one.servicePlaces).toEqual(expected);
+      expect(all.map((dto) => dto.servicePlaces)).toEqual([expected, []]);
+    });
+
+    it('maps the aggregated places on a join-row read (SQL aggregate itself is not covered by mocks)', async () => {
+      (prisma.db as any).$queryRaw = jest.fn().mockResolvedValue([
+        buildPaginatedRow({
+          servicePlaces: [
+            {
+              serviceId,
+              kind: 'MAIN_FOLDER',
+              branch: null,
+              worktreePath: null,
+              recordedAt: recordedAt.toISOString(),
+            },
+          ],
+        }),
+      ]);
+
+      const result = await service.findOne('org-1' as any, sessionId1, {
+        includeService: true,
+      });
+
+      expect(result.servicePlaces).toEqual([
+        {
+          serviceId,
+          kind: 'MAIN_FOLDER',
+          branch: null,
+          recordedAt: recordedAt.toISOString(),
+        },
+      ]);
+    });
   });
 
   describe('grantServices launch anchor', () => {
@@ -2613,6 +3025,7 @@ describe('AgentSessionService', () => {
         joinedServiceId: 'service-1',
         joinedServiceName: 'API Service',
         selectedServiceIds: ['service-1'],
+        servicePlaces: [],
       },
     ]);
     (prisma.db as any).$queryRaw = queryRaw;
@@ -2706,6 +3119,7 @@ describe('AgentSessionService', () => {
         joinedServiceId: 'service-1',
         joinedServiceName: 'API Service',
         selectedServiceIds: ['service-1'],
+        servicePlaces: [],
       },
     ]);
     (prisma.db as any).$queryRaw = queryRaw;
@@ -2744,6 +3158,7 @@ describe('AgentSessionService', () => {
         joinedServiceId: null,
         joinedServiceName: null,
         selectedServiceIds: ['service-1'],
+        servicePlaces: [],
       },
     ]);
     (prisma.db as any).$queryRaw = queryRaw;
@@ -2781,6 +3196,7 @@ describe('AgentSessionService', () => {
         joinedServiceId: null,
         joinedServiceName: null,
         selectedServiceIds: [],
+        servicePlaces: [],
       },
     ]);
     (prisma.db as any).$queryRaw = queryRaw;
@@ -2894,6 +3310,7 @@ describe('AgentSessionService', () => {
         joinedServiceId: 'service-1',
         joinedServiceName: 'API Service',
         selectedServiceIds: ['service-1'],
+        servicePlaces: [],
       },
     ]);
     (prisma.db as any).$queryRaw = queryRaw;
@@ -5229,6 +5646,7 @@ describe('AgentSessionService', () => {
           joinedServiceId: 'service-1',
           joinedServiceName: 'API Service',
           selectedServiceIds: ['service-1'],
+          servicePlaces: [],
         },
       ]);
       (prisma.db as any).$queryRaw = queryRaw;
@@ -5286,6 +5704,7 @@ describe('AgentSessionService', () => {
           joinedServiceId: 'service-1',
           joinedServiceName: 'API Service',
           selectedServiceIds: ['service-1'],
+          servicePlaces: [],
         },
       ]);
       (prisma.db as any).$queryRaw = queryRaw;
@@ -5376,6 +5795,7 @@ describe('AgentSessionService', () => {
           joinedServiceId: 'service-1',
           joinedServiceName: 'API Service',
           selectedServiceIds: ['service-1'],
+          servicePlaces: [],
         },
       ]);
       (prisma.db as any).$queryRaw = queryRaw;
@@ -6008,6 +6428,67 @@ describe('AgentSessionService', () => {
         effort: 'medium',
         worktree: 'feature/my-feature',
       });
+    });
+
+    it('persists and reloads the per-Service place choices chosen at launch', async () => {
+      const servicePlaceChoices: ServicePlaceChoice[] = [
+        { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+        {
+          serviceId: 'svc-2',
+          kind: 'WORKTREE',
+          branch: 'feature/y',
+          newBranch: true,
+        },
+      ];
+      const config = {
+        type: 'CODING_SESSION' as const,
+        version: 'v2' as const,
+        method: 'plan' as const,
+        model: 'claude-opus-4-8',
+        servicePlaceChoices,
+      };
+      const txClient = {
+        agentSession: {
+          findFirst: jest.fn().mockResolvedValue(baseRow),
+          update: jest
+            .fn()
+            .mockResolvedValue({ ...baseRow, config } satisfies AgentSession),
+        },
+        service: { findFirst: jest.fn() },
+      };
+      prisma.db.$transaction.mockImplementationOnce(
+        async (cb: (client: typeof txClient) => Promise<unknown>) =>
+          cb(txClient),
+      );
+
+      const dto = await service.update('org-1' as any, 'cs-config', {
+        config,
+      });
+
+      const updateArgs = txClient.agentSession.update.mock.calls[0]?.[0] as
+        | { data: { config: Record<string, unknown> } }
+        | undefined;
+      expect(updateArgs?.data.config.servicePlaceChoices).toEqual(
+        servicePlaceChoices,
+      );
+      expect(dto.config).toMatchObject({ servicePlaceChoices });
+    });
+
+    it('rejects a V2 patch with two place choices for one Service', async () => {
+      await expect(
+        service.update('org-1' as any, 'cs-config', {
+          config: {
+            type: 'CODING_SESSION',
+            version: 'v2',
+            model: 'gpt-4',
+            servicePlaceChoices: [
+              { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+              { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+            ],
+          },
+        }),
+      ).rejects.toThrow('more than one place choice');
+      expect(prisma.db.agentSession.update).not.toHaveBeenCalled();
     });
 
     it.each([

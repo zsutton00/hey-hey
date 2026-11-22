@@ -1,3 +1,4 @@
+import { assertDecisionServicePlaceChoices } from '../services/service-place-choices.validator';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
   BadRequestException,
@@ -49,7 +50,9 @@ import {
   HostActionTargetKind,
   HostAffectingActionType,
   GrantAgentSessionServicesDto,
+  ReportAgentSessionServicePlacesResultDto,
 } from '@hey-hey/contracts/api/models';
+import { ReportAgentSessionServicePlacesRequestDto } from './dto/report-agent-session-service-places.dto';
 import { validate as isUuid } from 'uuid';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
@@ -585,6 +588,27 @@ export class AgentSessionController {
     });
   }
 
+  @Post(':agentSessionId/service-places')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Record where each Service works in an Agent Session',
+  })
+  async reportServicePlaces(
+    @Param('agentSessionId', ParseUUIDPipe) agentSessionId: string,
+    @Param('projectId', ParseUUIDPipe) projectId: ProjectId,
+    @Body() report: ReportAgentSessionServicePlacesRequestDto,
+    @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
+  ): Promise<ReportAgentSessionServicePlacesResultDto> {
+    return this.agentSessionService.recordServicePlaces({
+      organizationId,
+      projectId,
+      agentSessionId,
+      userId,
+      report,
+    });
+  }
+
   @Post(':agentSessionId/conversation')
   @ApiOperation({
     summary: 'Create a conversation on an existing agent session',
@@ -861,6 +885,15 @@ export class AgentSessionController {
     @CurrentUser('userId') userId: UserId,
     @Req() request?: Request,
   ): Promise<void> {
+    try {
+      assertDecisionServicePlaceChoices(dto.servicePlaceChoices, dto.decision);
+    } catch (error) {
+      this.logger.warn(
+        `[permissionDecision] rejected service place choices agentSessionId=${agentSessionId} requestId=${dto.requestId} decision=${dto.decision} cause=${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+
     const session = await this.agentSessionService.findOne(
       organizationId,
       agentSessionId,
@@ -964,6 +997,7 @@ export class AgentSessionController {
       sessionId: dto.sessionId,
       agentType: dto.agentType,
       reason: dto.reason,
+      servicePlaceChoices: dto.servicePlaceChoices,
       idempotencyToken: dto.idempotencyToken,
       authorizationId: executionAdmission.authorizationId,
       envelopeAuthorization: executionAdmission.envelopeAuthorization,

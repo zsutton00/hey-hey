@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AdmissionEnvelopeAuthorization } from './admission-envelope-authorization.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 
 /**
  * A user\'s decision on a pending agent permission request, submitted by the platform UI. The platform signs and emits this as a `permission_decision` control envelope to the CLI that owns the conversation; the CLI matches the frame to the awaiting runner via `requestId`/`sessionId`/`agentType` and unblocks the gate with `decision`. Carries the decision payload only — no free-form prompt fragment. Mirrors the fields of ConversationControlPermissionDecision minus the `kind` discriminator.
@@ -60,6 +63,12 @@ export interface PermissionDecisionRequestDto {
      * @memberof PermissionDecisionRequestDto
      */
     'reason'?: string | null;
+    /**
+     * Where each newly requested Service works. Allowed only with `approve`, one choice per Service. The CLI checks each choice belongs to the pending request.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof PermissionDecisionRequestDto
+     */
+    'servicePlaceChoices'?: Array<ServicePlaceChoice>;
     /**
      * Stable token for deduplicating delivery of this decision. The CLI discards duplicate frames that arrive from re-sends.
      * @type {string}

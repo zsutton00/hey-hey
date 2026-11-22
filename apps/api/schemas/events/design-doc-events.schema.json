@@ -3916,6 +3916,13 @@
         "worktree": {
           "$ref": "#/definitions/StartRunWorktree"
         },
+        "servicePlaceChoices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServicePlaceChoice"
+          },
+          "description": "Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it."
+        },
         "agentSessionId": {
           "type": "string",
           "description": "Canonical id of the platform agent session that owns this run. Mirrors `contextMetadata.agentSessionId` at the top level for symmetry with the context metadata\\'s canonical session id."
@@ -9294,6 +9301,13 @@
               "type": "string",
               "description": "Branch name to materialize as a git worktree per selected service at launch. Presence means worktree-enabled (the branch to materialize); absence means worktree off. Omitted entirely when the wizard has not enabled worktree."
             },
+            "servicePlaceChoices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ServicePlaceChoice"
+              },
+              "description": "Where each selected Service works, chosen on the launch screen. Saved with the session so the Run start sends the same choices after a reload. Omitted when the launch uses a Plan\\'s locked branch or the wizard recorded no per-Service choice."
+            },
             "sessionMonitorTerminalPolicy": {
               "$ref": "#/definitions/SessionMonitorTerminalPolicy"
             },
@@ -9454,6 +9468,50 @@
         {}
       ],
       "description": "Launch method selected by the user in the new-session wizard. Plan is workflow-bound (dispatched through the `workflowName` arm of `/start-run`); the other arms go through the handler path."
+    },
+    "ServicePlaceChoice": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "MAIN_FOLDER"
+            }
+          },
+          "required": [
+            "kind",
+            "serviceId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "WORKTREE"
+            },
+            "branch": {
+              "type": "string"
+            },
+            "newBranch": {
+              "type": "boolean",
+              "description": "True creates `branch` as a new branch."
+            }
+          },
+          "required": [
+            "branch",
+            "kind",
+            "serviceId"
+          ]
+        }
+      ]
     },
     "SessionMonitorTerminalPolicy": {
       "type": "object",
@@ -15030,6 +15088,13 @@
             "null"
           ],
           "description": "ISO timestamp of the recorded decision"
+        },
+        "failureReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why an approved request could not be applied. Set when the decision was recorded but nothing was granted."
         }
       },
       "required": [
@@ -15093,6 +15158,13 @@
             "type": "string"
           },
           "description": "Complete proposed Service scope after approval"
+        },
+        "proposedPlaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServicePlaceChoice"
+          },
+          "description": "Proposed place for each newly requested Service. Absent on requests from older CLIs."
         },
         "reason": {
           "type": "string",

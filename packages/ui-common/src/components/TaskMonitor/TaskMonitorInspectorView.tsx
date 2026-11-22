@@ -1,8 +1,8 @@
 import { Alert, LinearProgress, Stack, Typography } from "@mui/material";
 import type { TaskResponseDto } from "../../api";
 import { usePathService } from "../../contexts";
-import { resolveAgentSessionMetadata } from "../AgentSession/resolveAgentSessionMetadata";
 import { MonitorHeldPermissions } from "../AgentSession/MonitorHeldPermissions";
+import { useAgentSessionMetadata } from "../AgentSession/useAgentSessionMetadata";
 import { TaskMonitorConversationPane } from "./TaskMonitorConversationPane";
 import { TaskMonitorSessionActivityIndicator } from "./TaskMonitorSessionActivityIndicator";
 import { resolveTaskMonitorInspectorPresentation } from "./taskMonitorInspectorState";
@@ -26,6 +26,7 @@ export const TaskMonitorInspectorView = ({
 }: TaskMonitorInspectorViewProps) => {
   const pathService = usePathService();
   const session = node.session.kind === "loaded" ? node.session.session : null;
+  const agentSessionMetadata = useAgentSessionMetadata(session);
   const conversation = useTaskMonitorConversation({
     organizationId,
     projectId,
@@ -93,9 +94,7 @@ export const TaskMonitorInspectorView = ({
               })
             : undefined
         }
-        agentSessionMetadata={
-          session ? resolveAgentSessionMetadata(session) : undefined
-        }
+        agentSessionMetadata={agentSessionMetadata}
         contentAfter={
           <TaskMonitorSessionActivityIndicator
             organizationId={organizationId}

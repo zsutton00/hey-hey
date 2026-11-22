@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import {
   LocalPromptType,
   type RunCreatePayloadWorkflowKickoff,
+  type ServicePlaceChoice,
 } from "../../api";
 import {
   ConversationStartRunRequestDtoProviderEnum,
@@ -51,7 +52,8 @@ export interface StartRunWorktree {
  * looks the conversationId up from the active run state.
  */
 type ConversationIdSource =
-  string | ((runId: string) => string | null | undefined);
+  | string
+  | ((runId: string) => string | null | undefined);
 
 interface UseLaunchRunOrchestrationInput {
   organizationId: string | null;
@@ -132,6 +134,12 @@ interface StartRunInputCommon {
    * persisted a selected branch in AgentSession.config.
    */
   worktree?: StartRunWorktree;
+  /**
+   * Where each Service works, as chosen on the launch screen and saved in
+   * AgentSession.config. Sent with `worktree` (when every Service shares one
+   * worktree branch) so older CLIs keep their session-wide behavior.
+   */
+  servicePlaceChoices?: ServicePlaceChoice[];
   /** Pathless provider-owned Skill identity for the opening user message. */
   skillSelection?: AgentSkillSelection;
 }
@@ -314,6 +322,9 @@ export const useLaunchRunOrchestration = ({
           ? { initialMessage: input.initialMessage }
           : {}),
         ...(input.worktree ? { worktree: input.worktree } : {}),
+        ...(input.servicePlaceChoices?.length
+          ? { servicePlaceChoices: input.servicePlaceChoices }
+          : {}),
       };
 
       const result = await interactionAccess.interactions.startSession({

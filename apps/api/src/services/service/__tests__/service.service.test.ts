@@ -708,6 +708,10 @@ describe('ServiceService', () => {
           serviceId,
           agentSessionId: 'agent-session-123',
           relationType: null,
+          placeKind: null,
+          placeBranch: null,
+          placeWorktreePath: null,
+          placeRecordedAt: null,
           createdAt: new Date('2024-01-04'),
         },
       ];
@@ -850,6 +854,10 @@ describe('ServiceService', () => {
         serviceId,
         agentSessionId: 'agent-session-123',
         relationType: null,
+        placeKind: null,
+        placeBranch: null,
+        placeWorktreePath: null,
+        placeRecordedAt: null,
         createdAt: new Date(),
       };
 

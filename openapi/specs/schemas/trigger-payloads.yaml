@@ -2052,6 +2052,14 @@ StartRunPromptPayload:
         the Agent Bridge worktree field. Present only when the launch wizard
         enabled worktree creation. `branch` carries the chosen branch name the
         CLI should materialize for each selected service.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "./coding-sessions.yaml#/ServicePlaceChoice"
+      description: >
+        Where each Service works, one choice per Service in `serviceIds`.
+        When omitted every Service follows `worktree`, as before. Older CLIs
+        ignore it.
     agentSessionId:
       type: string
       minLength: 1

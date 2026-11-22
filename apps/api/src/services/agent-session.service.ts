@@ -53,11 +53,20 @@ import {
   AgentSessionParentEntitySummary,
   AgentSessionServiceSummary,
   GrantAgentSessionServicesDto,
+  AgentSessionServicePlace,
+  AgentSessionServicePlaceKind,
+  AgentSessionServicePlaceOutcome,
+  AgentSessionServicePlaceResult,
+  ReportAgentSessionServicePlacesDto,
+  ReportAgentSessionServicePlacesResultDto,
+  ReportedAgentSessionServicePlace,
+  RecentServicePlacesDto,
   CreateAgentSessionDto,
   CreateAgentSessionConversationDto,
   CreateAgentSessionConversationResponseDto,
   CreateConversationDto,
   InitiationType,
+  ServicePlaceChoice,
   SessionMethod,
   SessionMonitorImplementationTerminalPolicy,
   SessionMonitorReviewTerminalPolicy,
@@ -81,6 +90,7 @@ import {
   WorkflowName,
   WorkItemTypeLifecycleStatus,
 } from '@hey-hey/contracts/api/models';
+import { assertUniqueAndWellFormed } from './service-place-choices.validator';
 import { ConversationWorkflowService } from './workflows/conversation-workflow.service';
 import { ConversationService } from './conversation.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from './agent-session-title';
@@ -121,6 +131,7 @@ import {
   PROJECT_MODE_SETTINGS_SECTION_KEY,
   resolveProjectModeSessionRole,
 } from './tasks/project-mode-settings.validator';
+import { validatePlanConfigurationContent } from './tasks/plan-configuration.validator';
 import { TaskSectionSchemaValidatorRegistry } from './tasks/task-section-schema-validator.registry';
 import { WorkItemTypeRegistryService } from './tasks/work-item-type-registry.service';
 import { ProjectModeEligibilityService } from './tasks/project-mode-eligibility.service';
@@ -136,6 +147,39 @@ type AgentSessionWithDates = AgentSession & {
 
 type AgentSessionServiceRelationSelection = {
   serviceId: string;
+  placeKind?: string | null;
+  placeBranch?: string | null;
+  placeWorktreePath?: string | null;
+  placeRecordedAt?: Date | null;
+};
+
+const SERVICE_PLACE_KINDS: readonly string[] = Object.values(
+  AgentSessionServicePlaceKind,
+);
+
+/** Narrows a stored `place_kind` string; the table's check constraint limits it to these values. */
+function isServicePlaceKind(
+  value: string,
+): value is AgentSessionServicePlaceKind {
+  return SERVICE_PLACE_KINDS.includes(value);
+}
+
+export const RECENT_PLACE_BRANCH_LIMIT = 10;
+
+type RecentPlaceRow = {
+  serviceId: string;
+  branch: string;
+  kind: string;
+  recordedAt: string;
+};
+
+/** A recorded place as aggregated by the raw session queries. */
+type RawServicePlace = {
+  serviceId: string;
+  kind: string;
+  branch: string | null;
+  worktreePath: string | null;
+  recordedAt: string;
 };
 type MutableInputJsonObject = Record<string, Prisma.InputJsonValue | null>;
 
@@ -397,6 +441,20 @@ type FindOneOptions = {
   projectId?: ProjectId;
 };
 
+const SERVICE_PLACES_AGGREGATE_SQL = Prisma.sql`COALESCE(
+            jsonb_agg(
+              jsonb_build_object(
+                'serviceId', sas.service_id::text,
+                'kind', sas.place_kind,
+                'branch', sas.place_branch,
+                'worktreePath', sas.place_worktree_path,
+                'recordedAt', to_char(sas.place_recorded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+              )
+              ORDER BY sas.created_at, sas.service_id
+            ) FILTER (WHERE sas.place_kind IS NOT NULL),
+            '[]'::jsonb
+          )`;
+
 type AgentSessionWithServiceRow = {
   id: string;
   organizationId: string;
@@ -428,6 +486,7 @@ type AgentSessionWithServiceRow = {
   joinedServiceId: string | null;
   joinedServiceName: string | null;
   selectedServiceIds: string[];
+  servicePlaces: RawServicePlace[];
 };
 
 const SESSION_METHOD_VALUES = new Set<string>(Object.values(SessionMethod));
@@ -1447,6 +1506,7 @@ export class AgentSessionService {
         launch_service.name AS "joinedServiceName",
         COALESCE(selected.selected_service_ids, ARRAY[]::text[]) AS "selectedServiceIds",
         COALESCE(selected.selected_services, '[]'::jsonb) AS "selectedServices",
+        COALESCE(selected.service_places, '[]'::jsonb) AS "servicePlaces",
         latest_message.id AS "lastMessageId",
         latest_message.conversation_id AS "lastMessageConversationId",
         latest_message.type AS "lastMessageType",
@@ -1467,7 +1527,8 @@ export class AgentSessionService {
           jsonb_agg(
             jsonb_build_object('id', selected_service.id, 'name', selected_service.name)
             ORDER BY sas.created_at, sas.service_id
-          ) AS selected_services
+          ) AS selected_services,
+          ${SERVICE_PLACES_AGGREGATE_SQL} AS service_places
         FROM "service_agent_sessions" sas
         JOIN "services" selected_service
           ON selected_service.id::text = sas.service_id::text
@@ -1848,6 +1909,182 @@ export class AgentSessionService {
   }
 
   /**
+   * Records where each Service works. Whole-request checks (owner, bound
+   * machine) reject with nothing written; each Service is then decided on its
+   * own so one conflict or non-member never blocks the others.
+   */
+  async recordServicePlaces(input: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    agentSessionId: string;
+    userId: UserId;
+    report: ReportAgentSessionServicePlacesDto;
+  }): Promise<ReportAgentSessionServicePlacesResultDto> {
+    const session = await this.prisma.db.agentSession.findFirst({
+      where: {
+        id: input.agentSessionId,
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+      },
+      select: { id: true, userId: true, machineId: true },
+    });
+    if (!session) {
+      throw new NotFoundException('Agent session not found');
+    }
+    if (session.userId !== input.userId) {
+      throw new ForbiddenException(
+        'Agent session is owned by a different user',
+      );
+    }
+    if (!session.machineId || session.machineId !== input.report.machineId) {
+      throw new BadRequestException(
+        'The authenticated machine does not match the Agent Session binding',
+      );
+    }
+
+    const results: AgentSessionServicePlaceResult[] = [];
+    for (const place of input.report.places) {
+      const outcome = await this.recordServicePlace(session.id, place);
+      this.logger.debug('Agent Session Service place decided', {
+        agentSessionId: session.id,
+        serviceId: place.serviceId,
+        kind: place.kind,
+        outcome,
+      });
+      results.push({ serviceId: place.serviceId, outcome });
+    }
+
+    const updated = await this.prisma.db.agentSession.findUnique({
+      where: { id: session.id },
+      include: this.buildSelectedServiceRelationsInclude(),
+    });
+    if (!updated) {
+      throw new NotFoundException('Agent session not found after place report');
+    }
+    const dto = await this.enrichAgentSessionDto(
+      this.toDto(updated as AgentSessionWithSelectedServices),
+      this.toCurrentStateIdentity(updated),
+    );
+    return { session: dto, results };
+  }
+
+  /**
+   * Branches earlier sessions in this project recorded for each Service:
+   * distinct, newest first, at most RECENT_PLACE_BRANCH_LIMIT per Service.
+   * Detached main folders record no branch and are skipped. Reads stored
+   * places only; it never asks a machine.
+   */
+  async listRecentServicePlaces(input: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    serviceIds: string[];
+  }): Promise<RecentServicePlacesDto> {
+    const rows = await this.prisma.db.$queryRaw<RecentPlaceRow[]>`
+      SELECT "serviceId", "branch", "kind", "recordedAt"
+      FROM (
+        SELECT
+          latest.service_id::text AS "serviceId",
+          latest.place_branch AS "branch",
+          latest.place_kind AS "kind",
+          to_char(latest.place_recorded_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "recordedAt",
+          latest.place_recorded_at AS recorded_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY latest.service_id
+            ORDER BY latest.place_recorded_at DESC, latest.place_branch
+          ) AS rank
+        FROM (
+          SELECT DISTINCT ON (sas.service_id, sas.place_branch)
+            sas.service_id, sas.place_branch, sas.place_kind, sas.place_recorded_at
+          FROM "service_agent_sessions" sas
+          JOIN "agent_sessions" cs ON cs.id::text = sas.agent_session_id::text
+          WHERE cs.organization_id::text = ${input.organizationId}
+            AND cs.project_id::text = ${input.projectId}
+            AND sas.service_id::text IN (${Prisma.join(input.serviceIds)})
+            AND sas.place_branch IS NOT NULL
+          ORDER BY sas.service_id, sas.place_branch, sas.place_recorded_at DESC
+        ) latest
+      ) ranked
+      WHERE rank <= ${RECENT_PLACE_BRANCH_LIMIT}
+      ORDER BY "serviceId", recorded_at DESC, "branch"
+    `;
+
+    const branchesByService = new Map<
+      string,
+      RecentServicePlacesDto['services'][number]['branches']
+    >();
+    for (const row of rows) {
+      const branches = branchesByService.get(row.serviceId) ?? [];
+      branches.push({
+        branch: row.branch,
+        kind: isServicePlaceKind(row.kind)
+          ? row.kind
+          : AgentSessionServicePlaceKind.MainFolder,
+        lastRecordedAt: row.recordedAt,
+      });
+      branchesByService.set(row.serviceId, branches);
+    }
+
+    return {
+      services: input.serviceIds.map((serviceId) => ({
+        serviceId,
+        branches: branchesByService.get(serviceId) ?? [],
+      })),
+    };
+  }
+
+  private async recordServicePlace(
+    agentSessionId: string,
+    place: ReportedAgentSessionServicePlace,
+  ): Promise<AgentSessionServicePlaceOutcome> {
+    const branch = place.branch ?? null;
+    const worktreePath =
+      place.kind === AgentSessionServicePlaceKind.Worktree
+        ? (place.worktreePath ?? null)
+        : null;
+
+    return this.prisma.db.$transaction(
+      async (tx) => {
+        const membership = await tx.serviceAgentSession.findUnique({
+          where: {
+            serviceId_agentSessionId: {
+              serviceId: place.serviceId,
+              agentSessionId,
+            },
+          },
+        });
+        if (!membership) {
+          return AgentSessionServicePlaceOutcome.NotMember;
+        }
+
+        if (membership.placeKind) {
+          const identical =
+            membership.placeKind === place.kind &&
+            membership.placeBranch === branch &&
+            membership.placeWorktreePath === worktreePath;
+          return identical
+            ? AgentSessionServicePlaceOutcome.AlreadyRecorded
+            : AgentSessionServicePlaceOutcome.Conflict;
+        }
+
+        // The guard keeps a concurrent first report from overwriting the winner.
+        const written = await tx.serviceAgentSession.updateMany({
+          where: { id: membership.id, placeKind: null },
+          data: {
+            placeKind: place.kind,
+            placeBranch: branch,
+            placeWorktreePath: worktreePath,
+            placeRecordedAt: new Date(),
+          },
+        });
+        return written.count === 1
+          ? AgentSessionServicePlaceOutcome.Recorded
+          : AgentSessionServicePlaceOutcome.Conflict;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  /**
    * Compatibility wrapper for older callers that need to move a session off
    * NOT_STARTED. New start-run paths should call claimStartRunLaunch before
    * authoring any rows so duplicate launch requests are suppressed early.
@@ -2046,6 +2283,47 @@ export class AgentSessionService {
       leftSnapshot.files.schemaVersion === rightSnapshot.files.schemaVersion &&
       filesMatch
     );
+  }
+
+  /**
+   * The branch a Plan locks for its launches, read from the Plan's own
+   * configuration. Null when the Plan locks no branch or its configuration is
+   * unreadable; the latter is logged so a bad Plan is diagnosable.
+   */
+  async resolvePlanLockedBranch(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    planId: string;
+  }): Promise<string | null> {
+    const section = await this.prisma.db.taskSection.findFirst({
+      where: {
+        key: 'planConfiguration',
+        task: {
+          id: params.planId,
+          organizationId: params.organizationId,
+          projectId: params.projectId,
+          type: 'PLAN',
+        },
+      },
+      select: { materializedMarkdown: true },
+    });
+    if (!section) {
+      return null;
+    }
+
+    const configuration = validatePlanConfigurationContent(
+      section.materializedMarkdown,
+    );
+    if (!configuration.success) {
+      this.logger.warn('Plan configuration unreadable for launch lock', {
+        organizationId: params.organizationId,
+        planId: params.planId,
+        cause: configuration.message,
+      });
+      return null;
+    }
+
+    return configuration.value.worktreeBranch;
   }
 
   /**
@@ -2950,6 +3228,10 @@ export class AgentSessionService {
       if (config.worktree !== undefined) {
         serialized.worktree = config.worktree;
       }
+      if (config.servicePlaceChoices !== undefined) {
+        serialized.servicePlaceChoices =
+          config.servicePlaceChoices as unknown as Prisma.InputJsonValue;
+      }
       if (config.sessionMonitorTerminalPolicy !== undefined) {
         serialized.sessionMonitorTerminalPolicy = this.buildTerminalPolicyJson(
           config.sessionMonitorTerminalPolicy,
@@ -3085,6 +3367,7 @@ export class AgentSessionService {
       currentState: AgentSessionCurrentState.Idle,
       launchServiceId: session.serviceId ?? undefined,
       serviceIds,
+      servicePlaces: this.toServicePlaces(session),
       provider,
       agentSessionId: session.providerAgentSessionId ?? undefined,
       conversationId: session.conversationId,
@@ -3219,13 +3502,15 @@ export class AgentSessionService {
         cs.updated_at AS "updatedAt",
         svc.id AS "joinedServiceId",
         svc.name AS "joinedServiceName",
-        COALESCE(selected.selected_service_ids, ARRAY[]::text[]) AS "selectedServiceIds"
+        COALESCE(selected.selected_service_ids, ARRAY[]::text[]) AS "selectedServiceIds",
+        COALESCE(selected.service_places, '[]'::jsonb) AS "servicePlaces"
       FROM "agent_sessions" cs
       LEFT JOIN "services" svc
         ON svc.id::text = cs.service_id::text
        AND svc.organization_id::text = cs.organization_id::text
       LEFT JOIN LATERAL (
-        SELECT array_agg(sas.service_id::text ORDER BY sas.created_at) AS selected_service_ids
+        SELECT array_agg(sas.service_id::text ORDER BY sas.created_at) AS selected_service_ids,
+          ${SERVICE_PLACES_AGGREGATE_SQL} AS service_places
         FROM "service_agent_sessions" sas
         WHERE sas.agent_session_id::text = cs.id::text
       ) selected ON TRUE
@@ -3326,9 +3611,18 @@ export class AgentSessionService {
       contextSizeMaxTokens: row.contextSizeMaxTokens,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      serviceRelations: row.selectedServiceIds.map((serviceId) => ({
-        serviceId,
-      })),
+      serviceRelations: row.selectedServiceIds.map((serviceId) => {
+        const place = row.servicePlaces.find(
+          (candidate) => candidate.serviceId === serviceId,
+        );
+        return {
+          serviceId,
+          placeKind: place?.kind ?? null,
+          placeBranch: place?.branch ?? null,
+          placeWorktreePath: place?.worktreePath ?? null,
+          placeRecordedAt: place ? new Date(place.recordedAt) : null,
+        };
+      }),
     };
 
     return this.toDtoWithService(
@@ -3759,6 +4053,9 @@ export class AgentSessionService {
           'config.worktree must be a non-empty string branch name when present',
         );
       }
+      if (config.servicePlaceChoices !== undefined) {
+        assertUniqueAndWellFormed(config.servicePlaceChoices);
+      }
       if (config.sessionMonitorTerminalPolicy !== undefined) {
         this.assertValidSessionMonitorTerminalPolicy(
           config.sessionMonitorTerminalPolicy,
@@ -4161,6 +4458,21 @@ export class AgentSessionService {
     }
     if (typeof record.worktree === 'string' && record.worktree.length > 0) {
       result.worktree = record.worktree;
+    }
+    if (Array.isArray(record.servicePlaceChoices)) {
+      const stored =
+        record.servicePlaceChoices as unknown as ServicePlaceChoice[];
+      try {
+        assertUniqueAndWellFormed(stored);
+        result.servicePlaceChoices = stored;
+      } catch (error) {
+        this.logger.warn(
+          'Agent session V2 config has invalid servicePlaceChoices; dropping them',
+          {
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
     }
     const terminalPolicy = this.parseStoredSessionMonitorTerminalPolicy(
       record.sessionMonitorTerminalPolicy,
@@ -4973,10 +5285,41 @@ export class AgentSessionService {
     };
   }
 
+  private toServicePlaces(
+    session: AgentSessionWithSelectedServices,
+  ): AgentSessionServicePlace[] {
+    const places: AgentSessionServicePlace[] = [];
+    for (const relation of session.serviceRelations ?? []) {
+      if (
+        !relation.placeKind ||
+        !relation.placeRecordedAt ||
+        !isServicePlaceKind(relation.placeKind)
+      ) {
+        continue;
+      }
+      places.push({
+        serviceId: relation.serviceId,
+        kind: relation.placeKind,
+        branch: relation.placeBranch ?? null,
+        ...(relation.placeWorktreePath
+          ? { worktreePath: relation.placeWorktreePath }
+          : {}),
+        recordedAt: relation.placeRecordedAt.toISOString(),
+      });
+    }
+    return places;
+  }
+
   private buildSelectedServiceRelationsInclude() {
     return {
       serviceRelations: {
-        select: { serviceId: true },
+        select: {
+          serviceId: true,
+          placeKind: true,
+          placeBranch: true,
+          placeWorktreePath: true,
+          placeRecordedAt: true,
+        },
         orderBy: { createdAt: 'asc' as const },
       },
     };

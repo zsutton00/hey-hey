@@ -57,6 +57,8 @@ import type { CliReadRequestDto } from '../models.js';
 // @ts-ignore
 import type { CliReadRuntimeModelCatalogGetRequest } from '../models.js';
 // @ts-ignore
+import type { CliReadWorkspaceServicePlacesListRequest } from '../models.js';
+// @ts-ignore
 import type { CliReadWorkspaceSkillsListRequest } from '../models.js';
 // @ts-ignore
 import type { CommitAgentSessionContinuationRequestDto } from '../models.js';
@@ -91,6 +93,10 @@ import type { ListAgentSessions200Response } from '../models.js';
 // @ts-ignore
 import type { ListAgentSessionsPaginated200Response } from '../models.js';
 // @ts-ignore
+import type { ListMachineServicePlaces200Response } from '../models.js';
+// @ts-ignore
+import type { ListRecentServicePlaces200Response } from '../models.js';
+// @ts-ignore
 import type { ListWorkspaceSkills200Response } from '../models.js';
 // @ts-ignore
 import type { PermissionDecisionRequestDto } from '../models.js';
@@ -100,6 +106,10 @@ import type { QuestionAnswerRequestDto } from '../models.js';
 import type { ReadAgentSessionCliState200Response } from '../models.js';
 // @ts-ignore
 import type { ReportAgentSessionContinuationStartup200Response } from '../models.js';
+// @ts-ignore
+import type { ReportAgentSessionServicePlaces200Response } from '../models.js';
+// @ts-ignore
+import type { ReportAgentSessionServicePlacesDto } from '../models.js';
 // @ts-ignore
 import type { ResolveWorkItemCoordinator200Response } from '../models.js';
 // @ts-ignore
@@ -1394,6 +1404,107 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
+         * Read each requested Service\'s main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+         * @summary Read the places Services can work in on a machine
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} machineId Machine ID
+         * @param {CliReadWorkspaceServicePlacesListRequest} cliReadWorkspaceServicePlacesListRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listMachineServicePlaces: async (organizationId: string, projectId: string, machineId: string, cliReadWorkspaceServicePlacesListRequest: CliReadWorkspaceServicePlacesListRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listMachineServicePlaces', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listMachineServicePlaces', 'projectId', projectId)
+            // verify required parameter 'machineId' is not null or undefined
+            assertParamExists('listMachineServicePlaces', 'machineId', machineId)
+            // verify required parameter 'cliReadWorkspaceServicePlacesListRequest' is not null or undefined
+            assertParamExists('listMachineServicePlaces', 'cliReadWorkspaceServicePlacesListRequest', cliReadWorkspaceServicePlacesListRequest)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/machines/{machineId}/service-places`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"machineId"}}`, encodeURIComponent(String(machineId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(cliReadWorkspaceServicePlacesListRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+         * @summary List branches recently used by Services in this project
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {Array<string>} serviceIds Project Services to read recent branches for. Repeat the parameter for each Service.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listRecentServicePlaces: async (organizationId: string, projectId: string, serviceIds: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listRecentServicePlaces', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listRecentServicePlaces', 'projectId', projectId)
+            // verify required parameter 'serviceIds' is not null or undefined
+            assertParamExists('listRecentServicePlaces', 'serviceIds', serviceIds)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/service-places/recent`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (serviceIds) {
+                localVarQueryParameter['serviceIds'] = Array.from(serviceIds);
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          *
          * @summary List claimable session-message admissions for the authenticated target machine
          * @param {*} [options] Override http request option.
@@ -1615,6 +1726,58 @@ export const AgentSessionsApiAxiosParamCreator = function (configuration?: Confi
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(agentSessionContinuationStartupReport, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Records, once per Service, whether the Service works in its main folder or a worktree, and on which branch. Each Service is decided on its own: an unrecorded member is recorded, an identical repeat is a no-op, a different place for a recorded Service is a conflict that leaves the record unchanged, and a non-member is refused. The owning user and the session\'s bound machine are validated before anything is written.
+         * @summary Record where each Service works in an Agent Session
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} agentSessionId
+         * @param {ReportAgentSessionServicePlacesDto} reportAgentSessionServicePlacesDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        reportAgentSessionServicePlaces: async (organizationId: string, projectId: string, agentSessionId: string, reportAgentSessionServicePlacesDto: ReportAgentSessionServicePlacesDto, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('reportAgentSessionServicePlaces', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('reportAgentSessionServicePlaces', 'projectId', projectId)
+            // verify required parameter 'agentSessionId' is not null or undefined
+            assertParamExists('reportAgentSessionServicePlaces', 'agentSessionId', agentSessionId)
+            // verify required parameter 'reportAgentSessionServicePlacesDto' is not null or undefined
+            assertParamExists('reportAgentSessionServicePlaces', 'reportAgentSessionServicePlacesDto', reportAgentSessionServicePlacesDto)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"agentSessionId"}}`, encodeURIComponent(String(agentSessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(reportAgentSessionServicePlacesDto, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2908,6 +3071,37 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Read each requested Service\'s main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+         * @summary Read the places Services can work in on a machine
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {string} machineId Machine ID
+         * @param {CliReadWorkspaceServicePlacesListRequest} cliReadWorkspaceServicePlacesListRequest
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listMachineServicePlaces(organizationId: string, projectId: string, machineId: string, cliReadWorkspaceServicePlacesListRequest: CliReadWorkspaceServicePlacesListRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListMachineServicePlaces200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listMachineServicePlaces(organizationId, projectId, machineId, cliReadWorkspaceServicePlacesListRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.listMachineServicePlaces']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+         * @summary List branches recently used by Services in this project
+         * @param {string} organizationId Organization ID
+         * @param {string} projectId Project ID
+         * @param {Array<string>} serviceIds Project Services to read recent branches for. Repeat the parameter for each Service.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listRecentServicePlaces(organizationId: string, projectId: string, serviceIds: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListRecentServicePlaces200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listRecentServicePlaces(organizationId, projectId, serviceIds, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.listRecentServicePlaces']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          *
          * @summary List claimable session-message admissions for the authenticated target machine
          * @param {*} [options] Override http request option.
@@ -2978,6 +3172,22 @@ export const AgentSessionsApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.reportAgentSessionContinuationStartup(organizationId, projectId, agentSessionId, continuationId, agentSessionContinuationStartupReport, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.reportAgentSessionContinuationStartup']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Records, once per Service, whether the Service works in its main folder or a worktree, and on which branch. Each Service is decided on its own: an unrecorded member is recorded, an identical repeat is a no-op, a different place for a recorded Service is a conflict that leaves the record unchanged, and a non-member is refused. The owning user and the session\'s bound machine are validated before anything is written.
+         * @summary Record where each Service works in an Agent Session
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} agentSessionId
+         * @param {ReportAgentSessionServicePlacesDto} reportAgentSessionServicePlacesDto
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async reportAgentSessionServicePlaces(organizationId: string, projectId: string, agentSessionId: string, reportAgentSessionServicePlacesDto: ReportAgentSessionServicePlacesDto, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ReportAgentSessionServicePlaces200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.reportAgentSessionServicePlaces(organizationId, projectId, agentSessionId, reportAgentSessionServicePlacesDto, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AgentSessionsApi.reportAgentSessionServicePlaces']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -3498,6 +3708,26 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
             return localVarFp.listAgentSessionsPaginated(requestParameters.organizationId, requestParameters.projectId, requestParameters.type, requestParameters.excludeType, requestParameters.hasUserMessage, requestParameters.userId, requestParameters.serviceId, requestParameters.taskId, requestParameters.status, requestParameters.sort, requestParameters.search, requestParameters.limit, requestParameters.cursor, options).then((request) => request(axios, basePath));
         },
         /**
+         * Read each requested Service\'s main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+         * @summary Read the places Services can work in on a machine
+         * @param {AgentSessionsApiListMachineServicePlacesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listMachineServicePlaces(requestParameters: AgentSessionsApiListMachineServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListMachineServicePlaces200Response> {
+            return localVarFp.listMachineServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.machineId, requestParameters.cliReadWorkspaceServicePlacesListRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+         * @summary List branches recently used by Services in this project
+         * @param {AgentSessionsApiListRecentServicePlacesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listRecentServicePlaces(requestParameters: AgentSessionsApiListRecentServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListRecentServicePlaces200Response> {
+            return localVarFp.listRecentServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.serviceIds, options).then((request) => request(axios, basePath));
+        },
+        /**
          *
          * @summary List claimable session-message admissions for the authenticated target machine
          * @param {*} [options] Override http request option.
@@ -3544,6 +3774,16 @@ export const AgentSessionsApiFactory = function (configuration?: Configuration, 
          */
         reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionContinuationStartup200Response> {
             return localVarFp.reportAgentSessionContinuationStartup(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.agentSessionContinuationStartupReport, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Records, once per Service, whether the Service works in its main folder or a worktree, and on which branch. Each Service is decided on its own: an unrecorded member is recorded, an identical repeat is a no-op, a different place for a recorded Service is a conflict that leaves the record unchanged, and a non-member is refused. The owning user and the session\'s bound machine are validated before anything is written.
+         * @summary Record where each Service works in an Agent Session
+         * @param {AgentSessionsApiReportAgentSessionServicePlacesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        reportAgentSessionServicePlaces(requestParameters: AgentSessionsApiReportAgentSessionServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionServicePlaces200Response> {
+            return localVarFp.reportAgentSessionServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.reportAgentSessionServicePlacesDto, options).then((request) => request(axios, basePath));
         },
         /**
          *
@@ -3955,6 +4195,26 @@ export interface AgentSessionsApiInterface {
     listAgentSessionsPaginated(requestParameters: AgentSessionsApiListAgentSessionsPaginatedRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListAgentSessionsPaginated200Response>;
 
     /**
+     * Read each requested Service\'s main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+     * @summary Read the places Services can work in on a machine
+     * @param {AgentSessionsApiListMachineServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    listMachineServicePlaces(requestParameters: AgentSessionsApiListMachineServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListMachineServicePlaces200Response>;
+
+    /**
+     * For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+     * @summary List branches recently used by Services in this project
+     * @param {AgentSessionsApiListRecentServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    listRecentServicePlaces(requestParameters: AgentSessionsApiListRecentServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListRecentServicePlaces200Response>;
+
+    /**
      *
      * @summary List claimable session-message admissions for the authenticated target machine
      * @param {*} [options] Override http request option.
@@ -4001,6 +4261,16 @@ export interface AgentSessionsApiInterface {
      * @memberof AgentSessionsApiInterface
      */
     reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionContinuationStartup200Response>;
+
+    /**
+     * Records, once per Service, whether the Service works in its main folder or a worktree, and on which branch. Each Service is decided on its own: an unrecorded member is recorded, an identical repeat is a no-op, a different place for a recorded Service is a conflict that leaves the record unchanged, and a non-member is refused. The owning user and the session\'s bound machine are validated before anything is written.
+     * @summary Record where each Service works in an Agent Session
+     * @param {AgentSessionsApiReportAgentSessionServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApiInterface
+     */
+    reportAgentSessionServicePlaces(requestParameters: AgentSessionsApiReportAgentSessionServicePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ReportAgentSessionServicePlaces200Response>;
 
     /**
      *
@@ -5036,6 +5306,69 @@ export interface AgentSessionsApiListAgentSessionsPaginatedRequest {
 }
 
 /**
+ * Request parameters for listMachineServicePlaces operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiListMachineServicePlacesRequest
+ */
+export interface AgentSessionsApiListMachineServicePlacesRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiListMachineServicePlaces
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiListMachineServicePlaces
+     */
+    readonly projectId: string
+
+    /**
+     * Machine ID
+     * @type {string}
+     * @memberof AgentSessionsApiListMachineServicePlaces
+     */
+    readonly machineId: string
+
+    /**
+     *
+     * @type {CliReadWorkspaceServicePlacesListRequest}
+     * @memberof AgentSessionsApiListMachineServicePlaces
+     */
+    readonly cliReadWorkspaceServicePlacesListRequest: CliReadWorkspaceServicePlacesListRequest
+}
+
+/**
+ * Request parameters for listRecentServicePlaces operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiListRecentServicePlacesRequest
+ */
+export interface AgentSessionsApiListRecentServicePlacesRequest {
+    /**
+     * Organization ID
+     * @type {string}
+     * @memberof AgentSessionsApiListRecentServicePlaces
+     */
+    readonly organizationId: string
+
+    /**
+     * Project ID
+     * @type {string}
+     * @memberof AgentSessionsApiListRecentServicePlaces
+     */
+    readonly projectId: string
+
+    /**
+     * Project Services to read recent branches for. Repeat the parameter for each Service.
+     * @type {Array<string>}
+     * @memberof AgentSessionsApiListRecentServicePlaces
+     */
+    readonly serviceIds: Array<string>
+}
+
+/**
  * Request parameters for listWorkspaceSkills operation in AgentSessionsApi.
  * @export
  * @interface AgentSessionsApiListWorkspaceSkillsRequest
@@ -5145,6 +5478,41 @@ export interface AgentSessionsApiReportAgentSessionContinuationStartupRequest {
      * @memberof AgentSessionsApiReportAgentSessionContinuationStartup
      */
     readonly agentSessionContinuationStartupReport: AgentSessionContinuationStartupReport
+}
+
+/**
+ * Request parameters for reportAgentSessionServicePlaces operation in AgentSessionsApi.
+ * @export
+ * @interface AgentSessionsApiReportAgentSessionServicePlacesRequest
+ */
+export interface AgentSessionsApiReportAgentSessionServicePlacesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionServicePlaces
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionServicePlaces
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof AgentSessionsApiReportAgentSessionServicePlaces
+     */
+    readonly agentSessionId: string
+
+    /**
+     *
+     * @type {ReportAgentSessionServicePlacesDto}
+     * @memberof AgentSessionsApiReportAgentSessionServicePlaces
+     */
+    readonly reportAgentSessionServicePlacesDto: ReportAgentSessionServicePlacesDto
 }
 
 /**
@@ -6061,6 +6429,30 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
     }
 
     /**
+     * Read each requested Service\'s main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+     * @summary Read the places Services can work in on a machine
+     * @param {AgentSessionsApiListMachineServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public listMachineServicePlaces(requestParameters: AgentSessionsApiListMachineServicePlacesRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).listMachineServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.machineId, requestParameters.cliReadWorkspaceServicePlacesListRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+     * @summary List branches recently used by Services in this project
+     * @param {AgentSessionsApiListRecentServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public listRecentServicePlaces(requestParameters: AgentSessionsApiListRecentServicePlacesRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).listRecentServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.serviceIds, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      *
      * @summary List claimable session-message admissions for the authenticated target machine
      * @param {*} [options] Override http request option.
@@ -6116,6 +6508,18 @@ export class AgentSessionsApi extends BaseAPI implements AgentSessionsApiInterfa
      */
     public reportAgentSessionContinuationStartup(requestParameters: AgentSessionsApiReportAgentSessionContinuationStartupRequest, options?: RawAxiosRequestConfig) {
         return AgentSessionsApiFp(this.configuration).reportAgentSessionContinuationStartup(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.continuationId, requestParameters.agentSessionContinuationStartupReport, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Records, once per Service, whether the Service works in its main folder or a worktree, and on which branch. Each Service is decided on its own: an unrecorded member is recorded, an identical repeat is a no-op, a different place for a recorded Service is a conflict that leaves the record unchanged, and a non-member is refused. The owning user and the session\'s bound machine are validated before anything is written.
+     * @summary Record where each Service works in an Agent Session
+     * @param {AgentSessionsApiReportAgentSessionServicePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof AgentSessionsApi
+     */
+    public reportAgentSessionServicePlaces(requestParameters: AgentSessionsApiReportAgentSessionServicePlacesRequest, options?: RawAxiosRequestConfig) {
+        return AgentSessionsApiFp(this.configuration).reportAgentSessionServicePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.reportAgentSessionServicePlacesDto, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

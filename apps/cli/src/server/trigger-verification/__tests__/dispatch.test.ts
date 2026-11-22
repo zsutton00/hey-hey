@@ -4412,6 +4412,25 @@ describe('toCreateRunRequest — service field mapping', () => {
     expect(request.context).not.toHaveProperty('serviceId');
   });
 
+  it('carries a mixed main-folder/worktree choice for two Services into the Run request', () => {
+    const servicePlaceChoices = [
+      { serviceId: 'svc-1', kind: 'MAIN_FOLDER' as const },
+      { serviceId: 'svc-2', kind: 'WORKTREE' as const, branch: 'feature/x', newBranch: true },
+    ];
+
+    const request = toCreateRunRequest(
+      {
+        ...basePayload,
+        serviceIds: ['svc-1', 'svc-2'],
+        launchServiceId: 'svc-1',
+        servicePlaceChoices,
+      } as StartRunTriggerPayload,
+      'c0000000-0000-4000-8000-000000000001',
+    );
+
+    expect(request.servicePlaceChoices).toEqual(servicePlaceChoices);
+  });
+
   it.each([
     LocalPromptType.EntityConversation,
     LocalPromptType.FeatureTreeConversation,

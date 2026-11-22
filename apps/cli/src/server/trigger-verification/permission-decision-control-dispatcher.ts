@@ -1,6 +1,7 @@
 import type { MessagePoster } from '../../run/message-poster';
 import { toTaskMonitorPermissionAnswerResultMessage } from '../../agents/task-monitor/task-monitor-decision-message';
 import type { PermissionAnswerDisposition } from '../state-machine-input-adapter';
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import type { PermissionDecisionRoutingInput } from '../../agents/permission-response-routing';
 import type {
   PermissionDecisionDeliveryOutcome,
@@ -24,6 +25,7 @@ export interface PermissionDecisionControlInput {
   readonly agentType: PermissionDecisionRoutingInput['agentType'];
   readonly decision: PermissionDecisionRoutingInput['decision'];
   readonly reason: string | null;
+  readonly servicePlaceChoices?: ServicePlaceChoice[] | undefined;
   readonly idempotencyToken: string;
   readonly userId: string;
   readonly routingUserId?: string | undefined;
@@ -193,6 +195,7 @@ export class PermissionDecisionControlDispatcher {
       agentType: input.agentType,
       decision: input.decision,
       reason: input.reason,
+      ...(input.servicePlaceChoices ? { servicePlaceChoices: input.servicePlaceChoices } : {}),
       idempotencyToken: input.idempotencyToken,
       deciderUserId: input.userId,
       ...(input.routingUserId ? { userId: input.routingUserId } : {}),

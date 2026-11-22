@@ -114,26 +114,21 @@ vi.mock("../AgentSessions", () => ({
   AgentSetupView: ({
     onAddService,
     onSubmitPrompt,
-    worktreeBranch,
-    worktreeLocked,
+    lockedWorktreeBranch,
     compatibleSessionMethods,
     launchErrorMessages = [],
   }: {
     onAddService: (() => void) | null;
     onSubmitPrompt: () => void;
-    worktreeBranch: string | null;
-    worktreeLocked: boolean;
+    lockedWorktreeBranch: string | null;
     compatibleSessionMethods: readonly string[];
     launchErrorMessages?: readonly string[];
   }) => (
     <>
-      <div data-testid="stub-worktree-enabled">
-        {worktreeBranch !== null ? "true" : "false"}
-      </div>
       <div data-testid="stub-worktree-locked">
-        {worktreeLocked ? "true" : "false"}
+        {lockedWorktreeBranch !== null ? "true" : "false"}
       </div>
-      <div data-testid="stub-worktree-branch">{worktreeBranch ?? ""}</div>
+      <div data-testid="stub-worktree-branch">{lockedWorktreeBranch ?? ""}</div>
       <button
         type="button"
         data-testid="stub-add-service"
@@ -169,8 +164,7 @@ interface SetupOverrides {
   selectedModel: string | null;
   selectedReasoningEffort: ReasoningEffort | null;
   selectedFastMode?: boolean;
-  worktreeBranch?: string | null;
-  worktreeLocked?: boolean;
+  lockedWorktreeBranch?: string | null;
   error?: string | null;
 }
 
@@ -222,12 +216,18 @@ const buildSetup = (overrides: SetupOverrides) => ({
   start: vi.fn().mockResolvedValue({ ok: true }),
   launchServiceId: "service-1",
   setLaunchServiceId: vi.fn(),
-  directoryPaths: {},
+  repositoryPaths: {},
   setDirectoryPathForService: vi.fn(),
   pickDirectoryForService: vi.fn().mockResolvedValue(undefined),
-  worktreeBranch: overrides.worktreeBranch ?? null,
-  worktreeLocked: overrides.worktreeLocked ?? false,
-  setWorktreeBranch: vi.fn(),
+  lockedWorktreeBranch: overrides.lockedWorktreeBranch ?? null,
+  sessionPlaceChoice: null,
+  perServicePlaceChoices: null,
+  servicePlaces: { status: "idle" },
+  branchQuery: "",
+  setSessionPlaceChoice: vi.fn(),
+  setServicePlaceChoice: vi.fn(),
+  setPerServicePlaceChoicesEnabled: vi.fn(),
+  setBranchQuery: vi.fn(),
 });
 
 const renderSection = (
@@ -496,16 +496,12 @@ describe("AgenticSetupSection worktree prop threading", () => {
         selectedProvider: "claude",
         selectedModel: "claude-opus-4-7",
         selectedReasoningEffort: "medium",
-        worktreeBranch: "feature/worktree",
-        worktreeLocked: true,
+        lockedWorktreeBranch: "feature/worktree",
       }),
     );
 
     renderSection(vi.fn());
 
-    expect(screen.getByTestId("stub-worktree-enabled")).toHaveTextContent(
-      "true",
-    );
     expect(screen.getByTestId("stub-worktree-branch")).toHaveTextContent(
       "feature/worktree",
     );
@@ -520,8 +516,7 @@ describe("AgenticSetupSection worktree prop threading", () => {
         selectedProvider: "claude",
         selectedModel: "claude-opus-4-7",
         selectedReasoningEffort: "medium",
-        worktreeBranch: "plan/shared-branch",
-        worktreeLocked: true,
+        lockedWorktreeBranch: "plan/shared-branch",
       }),
     );
 

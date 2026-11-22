@@ -48,7 +48,7 @@ import {
   useLaunchRunOrchestration,
   type StartRunWorktree,
 } from "./useLaunchRunOrchestration";
-import { resolveAgentSessionMetadata } from "./resolveAgentSessionMetadata";
+import { useAgentSessionMetadata } from "./useAgentSessionMetadata";
 import { usePlanCreationCreatingState } from "./usePlanCreationCreatingState";
 import { usePlanFromDesignDocSeed } from "./usePlanFromDesignDocSeed";
 import { resolveDefaultPlanWorktreeBranch } from "../Plans/planWorktreeBranch";
@@ -131,6 +131,7 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
   const conversationId = agentSession.conversationId ?? conversation.id;
   const [persistedSession, setPersistedSession] =
     useState<AgentSessionDto>(agentSession);
+  const agentSessionMetadata = useAgentSessionMetadata(persistedSession);
 
   const context = useMemo(() => ({ projectId }), [projectId]);
 
@@ -704,7 +705,7 @@ const PlanFromDesignDocActive: React.FC<PlanFromDesignDocActiveProps> = ({
           onSubmitReply={handleSubmitReply}
           submittingPrompt={submittingReply}
           composerPolicy="when-no-usable-response"
-          agentSessionMetadata={resolveAgentSessionMetadata(persistedSession)}
+          agentSessionMetadata={agentSessionMetadata}
           scrollPolicy={scrollPolicy}
         />
       </Stack>

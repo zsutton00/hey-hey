@@ -63,7 +63,10 @@ import {
   RunWorktreeCollisionError,
   type ResolvedRunWorkspace,
 } from '../agents/run-scope';
-import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
+import type {
+  ServicePlaceChoice,
+  UserMessageAdmittedServiceScope,
+} from '@hey-hey/contracts/api/models';
 import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
@@ -144,6 +147,7 @@ import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
   LocalRunScope,
+  LocalWorktreeState,
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
@@ -207,6 +211,7 @@ import {
   type HeldAdmission,
   type InputSettlementEvidence,
 } from './run-service-scope';
+import { ServicePlaceReporter } from './service-place-reporter';
 import { ReviewFileScopeCoordinator } from '../agents/review-file-scope-request/review-file-scope-coordinator';
 import type { ReviewFileScopeDecisionInput } from '../agents/review-file-scope-request/review-file-scope-types';
 import {
@@ -736,6 +741,7 @@ export class Run {
   >();
   readonly serviceScope: RunServiceScope;
   readonly serviceScopeCoordinator: AgentSessionServiceScopeCoordinator;
+  private readonly servicePlaceReporter: ServicePlaceReporter;
   private readonly reviewFileScopeCoordinator: ReviewFileScopeCoordinator;
   private activeTurnInput: InternalRunPromptRequest | null = null;
   triggerContext: { externalAgentNodeId: string; triggerMessageId: string } | null = null;
@@ -1162,6 +1168,21 @@ export class Run {
       agentSessionId: () => this.agentSessionId,
       taskMonitorAdmission: () => collaborators.taskMonitorServiceScopeAdmission?.() ?? null,
       applyApprovedServiceScope: (input) => this.applyApprovedServiceScope(input),
+      recordResolvedServiceWorktree: (serviceId, worktree) =>
+        this.recordResolvedServiceWorktree(serviceId, worktree),
+    });
+    this.servicePlaceReporter = new ServicePlaceReporter({
+      runId: this.runId,
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      apiBaseUrl: this.handlerDeps.apiBaseUrl,
+      auth: this.handlerDeps.auth,
+      fetchImpl: this.handlerDeps.fetchImpl,
+      keyPairStore: collaborators.keyPairStore ?? new KeyPairStore(),
+      runStore: this.runStore,
+      logger: this.logger,
+      session: () => this.session,
+      patchSession: (patch) => this.refreshSessionFields(patch),
     });
     // Seed Run-lifetime state from values a prior process stamped on the
     // store. The Run is constructed once per agentic session; each seed runs
@@ -1387,6 +1408,31 @@ export class Run {
    * identity, and message.service calls it after activation refreshes the
    * session snapshot on a subsequent sendMessage.
    */
+  /**
+   * Keeps a Service's newly opened worktree on this Run as soon as it
+   * resolves, in memory and on disk, so a launch that fails on a later Service
+   * retries by reusing it. A failed write is logged and the live Run keeps it.
+   */
+  public async recordResolvedServiceWorktree(
+    serviceId: string,
+    worktree: LocalWorktreeState,
+  ): Promise<void> {
+    this.refreshSessionFields({
+      worktreeState: { ...this.session.worktreeState, [serviceId]: worktree },
+    });
+    try {
+      await this.runStore.recordRunServiceWorktree(this.runId, serviceId, worktree);
+    } catch (error) {
+      this.logger.error('local.run.service_worktree_record_failed', {
+        runId: this.runId,
+        serviceId,
+        worktreePath: worktree.worktreePath,
+        branch: worktree.branch,
+        error,
+      });
+    }
+  }
+
   refreshSessionFields(patch: Partial<AgenticSession>): void {
     if (
       'provider_session_id' in patch &&
@@ -1639,6 +1685,7 @@ export class Run {
     const workspace = await resolveRunWorkspace({
       session: reconciledSession,
       repoStore: this.repoStore,
+      worktreeRecorder: this,
       logger: this.logger,
     });
     if (!workspace.ok) {
@@ -1685,6 +1732,7 @@ export class Run {
       launchServiceId,
       worktreeServiceIds: workspace.worktree ? Object.keys(workspace.worktree) : [],
     });
+    await this.servicePlaceReporter.report(workspace);
     return { services: resolution.services, launchServiceId, workspaceBoundaryChanged };
   }
 
@@ -2803,8 +2851,12 @@ export class Run {
     services: ResolvedServiceBinding[];
     launchServiceId: string;
     workspace: ResolvedRunWorkspace;
+    /** Places chosen for the Services this approval adds; absent when none were chosen. */
+    servicePlaceChoices?: ServicePlaceChoice[];
   }): Promise<void> {
+    const approvedChoices = input.servicePlaceChoices ?? [];
     const priorServices = this.session.services;
+    const priorChoices = this.session.servicePlaceChoices;
     const priorScope = this.session.scope;
     const priorWorktree = this.session.worktreeState;
     const expandedScope: LocalRunScope | null = priorScope
@@ -2829,7 +2881,11 @@ export class Run {
       if (input.workspace.worktree) {
         await this.runStore.updateRunWorktreeState(this.runId, input.workspace.worktree);
       }
+      if (approvedChoices.length > 0) {
+        await this.runStore.updateRunServicePlaceChoices(this.runId, approvedChoices);
+      }
     } catch (error) {
+      await this.runStore.updateRunServicePlaceChoices(this.runId, priorChoices ?? []);
       if (expandedScope && priorScope) {
         await this.runStore.updateRunScope(this.runId, priorScope);
       }
@@ -2845,6 +2901,7 @@ export class Run {
       launchServiceId: input.launchServiceId,
       ...(expandedScope ? { scope: expandedScope } : {}),
       ...(input.workspace.worktree ? { worktreeState: input.workspace.worktree } : {}),
+      ...(approvedChoices.length > 0 ? { servicePlaceChoices: approvedChoices } : {}),
     });
     // The boundary was built from the prior roots; the next Turn must rebuild
     // it from the approved workspace or resolution rejects the root mismatch.
@@ -2854,6 +2911,7 @@ export class Run {
     ) {
       await this.resetWorkspaceWriteBoundaryForScopeChange();
     }
+    await this.servicePlaceReporter.report(input.workspace);
   }
 
   private async reconcileAdmittedServiceScope(
@@ -2897,6 +2955,7 @@ export class Run {
     const workspace = await resolveRunWorkspace({
       session: candidate,
       repoStore: this.repoStore,
+      worktreeRecorder: this,
       logger: this.logger,
     });
     if (!workspace.ok) {
@@ -6316,6 +6375,7 @@ export class Run {
       workspace = await resolveRunWorkspace({
         session,
         repoStore: this.repoStore,
+        worktreeRecorder: this,
         logger: this.logger,
       });
     } catch (error) {
@@ -6362,6 +6422,8 @@ export class Run {
         });
       }
     }
+
+    await this.servicePlaceReporter.report(workspace);
 
     this.logger.debug('local.run.turn_workspace.selected', {
       runId: this.runId,

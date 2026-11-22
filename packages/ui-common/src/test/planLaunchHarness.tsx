@@ -183,6 +183,7 @@ export const launchSession: AgentSessionDto = {
   monitoringEnabled: false,
   autoDecide: false,
   hasUnsyncedChanges: false,
+  servicePlaces: [],
   title: "Plan generation",
 };
 export const launchPlan = {

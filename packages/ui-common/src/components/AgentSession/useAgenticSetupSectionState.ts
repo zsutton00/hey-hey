@@ -30,7 +30,6 @@ interface UseAgenticSetupSectionStateParams {
   boundServiceId: string | null;
   taskServiceIds: string[];
   boundProvider: AgentProvider | null;
-  taskName: string | null;
   lockedWorktreeBranch?: string | null;
   skipServiceSelection?: boolean;
   /**
@@ -58,7 +57,6 @@ export const useAgenticSetupSectionState = ({
   boundServiceId,
   taskServiceIds,
   boundProvider,
-  taskName,
   lockedWorktreeBranch,
   skipServiceSelection,
   onPromptSubmitted,
@@ -78,7 +76,6 @@ export const useAgenticSetupSectionState = ({
     boundServiceId,
     taskServiceIds,
     boundProvider,
-    taskName,
     lockedWorktreeBranch: lockedWorktreeBranch ?? null,
     skipServiceSelection,
     selectedMachine,
