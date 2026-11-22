@@ -482,7 +482,7 @@ Recorded features and tasks are still sparse, so much of this project's intent e
 Help establish enough reviewed knowledge for the next useful action: suggest a concrete next step, and at natural breaks in the conversation (not after every message) offer to record points as reviewed knowledge — work items, design docs or Decisions through proposals. Offer based on whether future work will need the point and whether its meaning is clear, not on how often it was said: one consequential choice stated once is worth recording; an idea repeated five times may still be exploration.`;
 
 const hintDefinition =
-  'Hints are short project notes connected to the graph items they concern. They carry direction future agents need but that does not belong in a requirement: guidance the user gave, a correction they do not want to repeat, or a gotcha found while building. Hints are internal: never mention them to the user unless asked. When one matters to a decision, state its substance plainly and say who decides.';
+  'Hints are short project notes connected to the graph items they concern. A hint holds only what a work item cannot: a gotcha found while building, or a correction to how agents should work in this project. A decision about how the product behaves or how the work is done is a requirement, never a hint. Hints are internal: never mention them to the user unless asked. When one matters to a decision, state its substance plainly and say who decides.';
 
 const hintReadingInstructions = `At the start of each session, call \`get_hints_for_items\` with the IDs of the items you are focused on. Include the focused work item, relevant features, selected Services, relevant user IDs when supplied, and other relevant graph items already supplied to the session. This reads graph connections; it is not a Service-only code search. When your focus moves to another area, read hints connected to those items too. Treat results as weak context: requirements, Contracts, Decisions and code take precedence. To review what a particular agent session recorded, call \`get_hints_by_session\` with that session's ID.`;
 
@@ -497,7 +497,7 @@ Here the project is Hey Hey itself, but what it specifies is a product other peo
 
 /** Added to the hint-writing guidance only where Hey Hey itself is developed (staging and local). */
 const productDefectRule = `
-- A hint records direction or a gotcha for this project's work. Never write one to correct how Hey Hey itself behaves, such as its prompts, tool wording, or defaults that would also affect other projects: a hint is seen only in this project, so the defect would stay for everyone else. When you find such behavior wrong, say so and propose a task or change to the product instead.`;
+- Never write one to correct how Hey Hey itself behaves, such as its prompts, tool wording, or defaults that would also affect other projects: a hint is seen only in this project, so the defect would stay for everyone else. When you find such behavior wrong, say so and propose a task or change to the product instead.`;
 
 /**
  * Hint-writing guidance: composed only for sessions that hold `create_hint`
@@ -512,14 +512,15 @@ ${hintReadingInstructions}
 
 Record a new hint with \`create_hint\`. Hint text cannot be edited in place: replace an inaccurate hint with a corrected one and remove the stale hint. If an existing hint also applies to another item, connect it with \`add_hint_connection\` instead of duplicating it:
 
-- In a conversation, when the user gives direction or a correction that is not requirement-worthy, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it.
+- When the user decides how something should behave or be done, even in passing or phrased as a correction, propose the change on the item it governs: its task, feature, design doc or Decision. If no item fits, propose a new task. Write no hint for it, and tell the user where you recorded it. The software this project builds runs for people beyond this conversation, and only work items are reviewed and followed by everyone who builds it.
+- In a conversation, when the user corrects how you or other agents work in this project, write the hint without asking. Always write one when the user is emphatic about a correction or repeats it, unless the correction is a decision about the work, which goes on the item it governs.
 - At the end of coding work, write hints for gotchas that neither the code nor the task makes obvious.${productDevelopment ? productDefectRule : ''}
 
-Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you.
+Delete a hint with \`delete_hint\` when it is wrong, duplicated or no longer applies; leave one that was merely not useful to you. When an existing hint holds a decision about the work, propose it on the item it governs, then delete the hint.
 
-Project direction goes in a hint, which every future agent sees; private memory is only for facts about the user.
+Decisions about the work go in work items and agent corrections go in hints, both of which every future agent sees; private memory is only for facts about the user.
 
-Write the direction itself ("Feature names are never used as identity; use Feature IDs"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
+Write the note itself ("Regenerate the client after editing the spec; the build does not do it"), never how it was said. Connect the hint to what it is relevant to, typically the focused item and its owning feature. In a project with established requirements, raise input that contradicts them with the user instead of recording it.`;
 
 /** The hint-writing guidance every deployment other than staging and local receives. */
 export const hintWritingGuidance = buildHintWritingGuidance(false);
