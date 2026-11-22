@@ -179,6 +179,7 @@ export class MessageController {
   async getMessages(
     @CurrentOrganization() organizationId: OrganizationId,
     @Param('projectId') projectId: ProjectId,
+    @CurrentUser('userId') userId: UserId,
     @Query() query: GetMessagesQueryDto,
     @Query('includeResponses') includeResponses?: string,
     @Query('includeProposals') includeProposals?: string,
@@ -191,6 +192,7 @@ export class MessageController {
       query,
       organizationId,
       projectId,
+      userId,
       shouldIncludeResponses,
       shouldIncludeProposals,
       shouldIncludeReports,
@@ -206,6 +208,7 @@ export class MessageController {
     @Query('workflowAboutId') workflowAboutId: string,
     @Query('workflowAboutType') workflowAboutType: string,
     @Query('query') query: string,
+    @CurrentUser('userId') userId: UserId,
     @Query('limit') limit?: string,
   ): Promise<SearchConversationMessagesResponseDto[]> {
     if (!workflowAboutId) {
@@ -225,6 +228,7 @@ export class MessageController {
       workflowAboutId,
       workflowAboutType,
       query,
+      readerUserId: userId,
       limit: parsedLimit,
     });
   }
@@ -232,6 +236,8 @@ export class MessageController {
   @Get(':id')
   async getMessage(
     @CurrentOrganization() organizationId: OrganizationId,
+    @CurrentUser('userId') userId: UserId,
+    @Param('projectId') projectId: ProjectId,
     @Param('id') id: string,
     @Query('includeResponses') includeResponses?: string,
   ): Promise<MessageRecordDto> {
@@ -240,10 +246,17 @@ export class MessageController {
       id,
       organizationId,
       shouldIncludeResponses,
+      projectId,
     );
     if (!message) {
       throw new NotFoundException('Message not found');
     }
+    await this.messageService.assertConversationMessagesReadable({
+      organizationId,
+      conversationId: message.conversationId as ConversationId,
+      readerUserId: userId,
+      projectId,
+    });
     return message;
   }
 

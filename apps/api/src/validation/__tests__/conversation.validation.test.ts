@@ -13,6 +13,7 @@ describe('ConversationValidation', () => {
   const mockOtherProjectId = 'proj-456' as ProjectId;
 
   const mockConversation = {
+    restricted: true,
     id: mockConversationId,
     projectId: mockProjectId,
     workflowId: 'wf-123',

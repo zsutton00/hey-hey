@@ -2,14 +2,17 @@ import {
   ApolloClient,
   ApolloLink,
   InMemoryCache,
+  gql,
+  makeVar,
   type FieldPolicy,
   type TypePolicies,
 } from "@apollo/client";
 import { ErrorLink } from "@apollo/client/link/error";
 import { HttpLink } from "@apollo/client/link/http";
 import { ServerError } from "@apollo/client/errors";
+import { extractErrorCode } from "../../utils/errorUtils";
 import chunk from "lodash/chunk.js";
-import { forkJoin, map, Observable } from "rxjs";
+import { forkJoin, map, Observable, tap } from "rxjs";
 import { conversationMessagesFieldPolicy } from "./conversationMessagesPolicy";
 import axios, { type AxiosInstance, type AxiosResponse } from "axios";
 
@@ -227,6 +230,111 @@ const batchActivityWorkItemReads = new ApolloLink((operation, forward) => {
   );
 });
 
+// All transcript surfaces on a project client observe the same server refusal.
+const deniedByCache = new WeakMap<
+  ApolloClient["cache"],
+  ReturnType<typeof makeVar<ReadonlySet<string>>>
+>();
+
+export function deniedConversations(cache: ApolloClient["cache"]) {
+  let denied = deniedByCache.get(cache);
+  if (!denied) {
+    denied = makeVar<ReadonlySet<string>>(new Set());
+    deniedByCache.set(cache, denied);
+  }
+  return denied;
+}
+
+const messageConversation = gql`
+  fragment CachedMessageConversation on Message {
+    conversationId
+  }
+`;
+
+export function recordConversationDenial(
+  cache: ApolloClient["cache"],
+  id: string,
+) {
+  const denied = deniedConversations(cache);
+  if (!denied().has(id)) {
+    denied(new Set([...denied(), id]));
+  }
+  cache.evict({
+    id: cache.identify({ __typename: "Conversation", id }),
+    fieldName: "messages",
+  });
+  cache.evict({
+    fieldName: "latestMessage",
+    args: { conversationId: id },
+  });
+  if (cache instanceof InMemoryCache) {
+    for (const [key, record] of Object.entries(cache.extract())) {
+      if (record?.__typename === "Message" && record.conversationId === id) {
+        cache.evict({ id: key });
+      }
+    }
+  }
+  cache.gc();
+}
+
+function transcriptAccessLink(cache: InMemoryCache) {
+  const denied = deniedConversations(cache);
+  return new ApolloLink((operation, forward) => {
+    const name = operation.operationName;
+    let id: unknown;
+    if (name === "GetLatestMessage") {
+      id = operation.variables.conversationId;
+    } else if (name === "GetMessage") {
+      const messageId = cache.identify({
+        __typename: "Message",
+        id: operation.variables.id,
+      });
+      id = cache.readFragment<{ conversationId: string }>({
+        id: messageId,
+        fragment: messageConversation,
+      })?.conversationId;
+    } else if (
+      name === "GetConversationMessages" ||
+      name === "GetConversationMessageHistory" ||
+      name === "ReadConversationThread"
+    ) {
+      id = operation.variables.id;
+    }
+    if (typeof id !== "string") {
+      return forward(operation);
+    }
+
+    const deniedAtStart = denied().has(id);
+    return forward(operation).pipe(
+      tap({
+        error(error: unknown) {
+          if (extractErrorCode(error) === "FORBIDDEN") {
+            recordConversationDenial(cache, id);
+          }
+        },
+        next(result) {
+          if (
+            result.errors?.some(
+              (error) => error.extensions?.code === "FORBIDDEN",
+            )
+          ) {
+            recordConversationDenial(cache, id);
+          } else if (
+            deniedAtStart &&
+            result.data &&
+            !result.errors?.length &&
+            denied().has(id)
+          ) {
+            const allowed = new Set(denied());
+            allowed.delete(id);
+            denied(allowed);
+          }
+        },
+      }),
+    );
+  });
+}
+
 const projectClients = new WeakMap<ApolloClient, WebUiGraphQLClient>();
 
 export function getProjectGraphQLClient(
@@ -273,9 +381,11 @@ export class WebUiGraphQLClient {
   }
 
   private createClient(): ApolloClient {
+    const cache = new InMemoryCache({ typePolicies });
     return new ApolloClient({
-      cache: new InMemoryCache({ typePolicies }),
+      cache,
       link: ApolloLink.from([
+        transcriptAccessLink(cache),
         keepStableErrorCode,
         batchActivityWorkItemReads,
         new HttpLink({

@@ -4,6 +4,7 @@ import type { ConversationResponseDto, MessageResponseDto } from "../../api";
 
 // Mock conversation data for demo
 const mockConversation: ConversationResponseDto = {
+  restricted: true,
   id: "conv-1",
   projectId: "proj-1",
   workflowId: "workflow-1",

@@ -29,13 +29,13 @@ vi.mock("../../../data/hooks/usePlanFromDesignDocConversation", () => ({
     organizationId: string | undefined,
     projectId: string | undefined,
     planId: string | undefined,
-    options: Record<string, unknown> = {}
+    options: Record<string, unknown> = {},
   ) =>
     usePlanFromDesignDocConversationMock(
       organizationId,
       projectId,
       planId,
-      options
+      options,
     ),
 }));
 
@@ -69,6 +69,7 @@ vi.mock("../PlanFromDesignDocChat", () => ({
 import { PlanGenerationChat } from "../PlanGenerationChat";
 
 const planFromDesignDocConversation: ConversationResponseDto = {
+  restricted: true,
   id: "conv-pfdd-1",
   projectId: "proj-1",
   organizationId: "org-1",
@@ -125,7 +126,7 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
             reasoningEffort: null,
           },
         },
-      })
+      }),
     );
     expect(markStale).toHaveBeenCalledOnce();
     expect(screen.queryByTestId("plan-from-design-doc-chat")).toBeNull();
@@ -142,7 +143,7 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
     });
     view.rerender(<PlanGenerationChat {...props} />);
     expect(screen.getByTestId("auto-start-agent-session-id")).toHaveTextContent(
-      "fresh-session"
+      "fresh-session",
     );
   });
   beforeEach(() => {
@@ -165,7 +166,7 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     await waitFor(() => {
@@ -173,14 +174,14 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
     });
 
     expect(
-      screen.getByTestId("plan-from-design-doc-conversation-id").textContent
+      screen.getByTestId("plan-from-design-doc-conversation-id").textContent,
     ).toBe(planFromDesignDocConversation.id);
     expect(screen.getByTestId("plan-from-design-doc-chat")).toHaveAttribute(
       "data-scroll-policy",
-      "disabled"
+      "disabled",
     );
     expect(
-      screen.queryByTestId("plan-generation-conversation-scrollport")
+      screen.queryByTestId("plan-generation-conversation-scrollport"),
     ).not.toBeInTheDocument();
   });
 
@@ -200,12 +201,12 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     expect(screen.queryByTestId("plan-from-design-doc-chat")).toBeNull();
     expect(
-      container.querySelector('[data-testid="plan-generation-setup"]')
+      container.querySelector('[data-testid="plan-generation-setup"]'),
     ).toHaveTextContent("Start generating");
   });
 
@@ -229,7 +230,7 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
           conversationId: "conv-pfdd-2",
           agentSessionId: "session-pfdd-2",
         }}
-      />
+      />,
     );
 
     expect(screen.queryByTestId("plan-from-design-doc-chat")).toBeNull();
@@ -258,14 +259,14 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
           conversationId: "conv-pfdd-2",
           agentSessionId: "session-pfdd-2",
         }}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-from-design-doc-conversation-id")
+      screen.getByTestId("plan-from-design-doc-conversation-id"),
     ).toHaveTextContent("conv-pfdd-2");
     expect(screen.getByTestId("auto-start-agent-session-id")).toHaveTextContent(
-      "session-pfdd-2"
+      "session-pfdd-2",
     );
   });
 
@@ -288,11 +289,11 @@ describe("PlanGenerationChat plan-from-design-doc routing", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     expect(screen.getByTestId("auto-start-agent-session-id")).toHaveTextContent(
-      "none"
+      "none",
     );
   });
 });
@@ -311,10 +312,10 @@ it("surfaces a failed conversation lookup rather than an empty or loading view",
       planId="plan-1"
       plan={plan}
       configuration={configuration}
-    />
+    />,
   );
   expect(screen.getByTestId("plan-generation-error")).toHaveTextContent(
-    "Generation lookup failed"
+    "Generation lookup failed",
   );
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 });

@@ -4,10 +4,11 @@ import type { ConversationResponseDto, MessageResponseDto } from "../../api";
 import { useConversationPolling } from "./useConversationPolling";
 
 const createConversation = (
-  messages: MessageResponseDto[]
+  messages: MessageResponseDto[],
 ): ConversationResponseDto => {
   canonicalMessagesMock.mockReturnValue({ data: messages });
   return {
+    restricted: true,
     id: "conv-1",
     projectId: "project-1",
     workflowId: "workflow-1",
@@ -44,7 +45,7 @@ describe("useConversationPolling", () => {
     ]);
 
     const { result } = renderHook(() =>
-      useConversationPolling(conversation, { enabled: false })
+      useConversationPolling(conversation, { enabled: false }),
     );
 
     expect(result.current.isWaitingForFirstMessage).toBe(true);
@@ -93,7 +94,7 @@ describe("useConversationPolling", () => {
     ]);
 
     const { result } = renderHook(() =>
-      useConversationPolling(conversation, { enabled: false })
+      useConversationPolling(conversation, { enabled: false }),
     );
 
     expect(result.current.isWaitingForFirstMessage).toBe(false);

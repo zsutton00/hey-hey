@@ -10148,7 +10148,7 @@ paths:
           description: Internal Server Error - An unexpected error occurred
 
   # =============================================
-  # Organization-scoped Message Routes
+  # Project-scoped Message Routes
   # =============================================
   /organizations/{organizationId}/projects/{projectId}/messages:
     parameters:
@@ -10168,9 +10168,9 @@ paths:
         description: Project ID
 
     get:
-      summary: Get all Message interactions in organization
+      summary: Get Message interactions in the route project
       description: |
-        Retrieve Message interactions within the organization. Omitting
+        Retrieve Message interactions within the authorized route project. Omitting
         `mode` preserves existing full-thread reads and forward `since`
         deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page
         selected newest-first by stable `(createdAt, id)` order.
@@ -10181,7 +10181,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by project ID
+          description: Legacy query parameter. The route project controls the scope.
         - name: conversationId
           in: query
           schema:
@@ -10264,6 +10264,14 @@ paths:
                           - $ref: "#/components/schemas/ConversationMessageHistoryPageDto"
         "400":
           description: Invalid mode or pagination parameter combination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "403":
+          description: >-
+            The requested conversation is restricted and the caller is not its
+            creator. Conversation metadata and reports remain readable.
           content:
             application/json:
               schema:
@@ -10470,6 +10478,14 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/MessageRecordDto"
+        "403":
+          description: >-
+            The message's conversation is restricted and the caller is not its
+            creator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Message interaction not found
           content:
@@ -11591,6 +11607,14 @@ paths:
                         allOf:
                           - $ref: "#/components/schemas/MessageResponseDto"
                         nullable: true
+        "403":
+          description: >-
+            The message's conversation is restricted and the caller is not its
+            creator.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Conversation not found
           content:

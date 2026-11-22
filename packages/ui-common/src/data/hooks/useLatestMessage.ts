@@ -1,3 +1,10 @@
+import { useApolloClient, useReactiveVar } from "@apollo/client/react";
+import {
+  deniedConversations,
+  getProjectGraphQLClient,
+  GraphQLRequestError,
+} from "../graphql/client";
+import { isConversationReadDenied } from "../query/queryPolicy";
 import { useMemo } from "react";
 import type { MessageResponseDto } from "../../api";
 import { latestMessageRead } from "../collections/messages";
@@ -54,5 +61,18 @@ export function useLatestMessage(
     { enabled },
   );
 
-  return state;
+  const client = getProjectGraphQLClient(useApolloClient(), spec.scope);
+  const denied = useReactiveVar(deniedConversations(client.cache)).has(
+    conversationId ?? "",
+  );
+  return denied || isConversationReadDenied(state.error)
+    ? {
+        ...state,
+        error:
+          state.error ??
+          new GraphQLRequestError("Conversation is private", "FORBIDDEN"),
+        data: null,
+        isReady: false,
+      }
+    : state;
 }

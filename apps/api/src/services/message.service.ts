@@ -1,4 +1,5 @@
 import { ProposalReconciliationService } from './proposal/proposal-reconciliation.service';
+import { canReadConversationTranscript } from './conversation-transcript-access';
 import {
   TIMELINE_MESSAGE_WHERE,
   timelineCreatedAt,
@@ -6,6 +7,7 @@ import {
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Inject,
   Injectable,
@@ -991,14 +993,103 @@ export class MessageService {
   }
 
   // Adapter methods for external API integration
+  /**
+   * The single message-content access rule. A restricted conversation's
+   * messages are readable only by its recorded creator; a conversation with no
+   * recorded creator therefore has no user reader. Metadata and reports are
+   * not message content and are never gated here.
+   */
+  async assertConversationMessagesReadable(params: {
+    organizationId: OrganizationId;
+    conversationId: ConversationId;
+    readerUserId: UserId;
+    projectId?: ProjectId;
+  }): Promise<void> {
+    const { organizationId, conversationId, readerUserId, projectId } = params;
+    const conversation = await this.prisma.db.conversation.findFirst({
+      where: { id: conversationId, organizationId, projectId },
+      select: { restricted: true, createdBy: true },
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+    if (canReadConversationTranscript(conversation, readerUserId)) {
+      return;
+    }
+
+    this.logger.warn('Denied message read of restricted conversation', {
+      organizationId,
+      conversationId,
+      readerUserId,
+      conversationCreatedBy: conversation.createdBy,
+      creatorRecorded: conversation.createdBy !== null,
+    });
+    throw new ForbiddenException(
+      'This conversation is restricted to its creator',
+    );
+  }
+
+  /**
+   * Batch form of {@link assertConversationMessagesReadable}: returns the subset of the
+   * given conversations whose messages the reader may see, logging each denial.
+   */
+  async filterReadableConversationIds(params: {
+    organizationId: OrganizationId;
+    conversationIds: ConversationId[];
+    readerUserId: UserId;
+  }): Promise<Set<ConversationId>> {
+    const { organizationId, conversationIds, readerUserId } = params;
+    if (conversationIds.length === 0) {
+      return new Set();
+    }
+
+    const conversations = await this.prisma.db.conversation.findMany({
+      where: { id: { in: conversationIds }, organizationId },
+      select: { id: true, restricted: true, createdBy: true },
+    });
+
+    const readable = new Set<ConversationId>();
+    for (const conversation of conversations) {
+      if (canReadConversationTranscript(conversation, readerUserId)) {
+        readable.add(conversation.id as ConversationId);
+        continue;
+      }
+
+      this.logger.warn('Denied message read of restricted conversation', {
+        organizationId,
+        conversationId: conversation.id,
+        readerUserId,
+        conversationCreatedBy: conversation.createdBy,
+        creatorRecorded: conversation.createdBy !== null,
+      });
+    }
+    return readable;
+  }
+
+  /** Conversations whose messages the reader may see, for reads not scoped to one conversation. */
+  private readableConversationsWhere(
+    readerUserId: UserId,
+  ): Prisma.ConversationWhereInput {
+    return { OR: [{ restricted: false }, { createdBy: readerUserId }] };
+  }
+
   async getMessagesForAdapter(
     query: GetMessagesQueryDto,
     organizationId: OrganizationId,
     authorizedProjectId: ProjectId,
+    readerUserId: UserId,
     includeResponses = true,
     includeProposals = true,
     includeReports = false,
   ): Promise<MessageResponseDto[] | ConversationMessageHistoryPageDto> {
+    if (query.conversationId) {
+      await this.assertConversationMessagesReadable({
+        organizationId,
+        conversationId: query.conversationId,
+        readerUserId,
+        projectId: authorizedProjectId,
+      });
+    }
     if (query.mode === MessageReadMode.ReverseHistory) {
       return this.getConversationMessageHistoryPage({
         query,
@@ -1010,11 +1101,12 @@ export class MessageService {
       });
     }
     return this.getMessages(
-      query,
+      { ...query, projectId: authorizedProjectId },
       organizationId,
       includeResponses,
       includeProposals,
       includeReports,
+      query.conversationId ? undefined : readerUserId,
     );
   }
 
@@ -1022,8 +1114,9 @@ export class MessageService {
     id: string,
     organizationId: OrganizationId,
     includeResponses = true,
+    projectId?: ProjectId,
   ): Promise<MessageRecordDto | null> {
-    return this.getMessage(id, organizationId, includeResponses);
+    return this.getMessage(id, organizationId, includeResponses, projectId);
   }
 
   async addMessageFromAdapter(
@@ -1210,13 +1303,16 @@ export class MessageService {
     id: string,
     organizationId: OrganizationId,
     includeResponses = true,
+    projectId?: ProjectId,
   ): Promise<MessageRecordDto | null> {
     const result = await this.prisma.db.message.findFirst({
       where: {
         id,
+        projectId,
         // CRITICAL: Filter by organization through conversation relationship
         conversation: {
           organizationId,
+          projectId,
         },
       },
       include: {
@@ -1490,6 +1586,7 @@ export class MessageService {
     workflowAboutId: string;
     workflowAboutType: string;
     query: string;
+    readerUserId: UserId;
     limit?: number;
   }): Promise<SearchConversationMessagesResponseDto[]> {
     const {
@@ -1498,6 +1595,7 @@ export class MessageService {
       workflowAboutId,
       workflowAboutType,
       query,
+      readerUserId,
     } = params;
 
     const trimmedQuery = (query ?? '').trim();
@@ -1561,6 +1659,7 @@ export class MessageService {
         AND c.project_id = ${projectId}
         AND c.workflow_about_id = ${workflowAboutId}
         AND c.workflow_about_type = ${workflowAboutType}
+        AND (c.restricted = false OR c.created_by = ${readerUserId})
         AND m.data::text ILIKE ${pattern}
         AND m.created_at IS NOT NULL
       ORDER BY m.created_at DESC
@@ -1682,6 +1781,7 @@ export class MessageService {
     includeResponses = true,
     includeProposals = true,
     includeReports = false,
+    scopeToReadableBy?: UserId,
   ): Promise<MessageResponseDto[]> {
     if (query.historyCursor) {
       throw new BadRequestException(
@@ -1704,7 +1804,8 @@ export class MessageService {
           id: since,
           conversationId,
           ...TIMELINE_MESSAGE_WHERE,
-          conversation: { organizationId },
+          projectId,
+          conversation: { organizationId, projectId },
         },
         select: { id: true, createdAt: true },
       });
@@ -1741,6 +1842,9 @@ export class MessageService {
         // CRITICAL: Always filter by organization through conversation relationship
         conversation: {
           organizationId,
+          projectId,
+          ...(scopeToReadableBy &&
+            this.readableConversationsWhere(scopeToReadableBy)),
         },
         ...(projectId && { projectId }),
         ...(conversationId && { conversationId }),

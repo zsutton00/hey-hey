@@ -29,6 +29,7 @@ const TEST_TOKEN = 'test-bearer-token';
 function makeRequest(token: string | null = TEST_TOKEN): Request {
   const user = {
     id: testIds.user,
+    userId: testIds.user,
     currentOrgId: testIds.organization,
     orgId: testIds.organization,
   };
@@ -214,7 +215,10 @@ describe('GetContextToolsProvider', () => {
     ),
   };
 
+  let projectAccess: { assertProject: jest.Mock };
+
   beforeEach(() => {
+    projectAccess = { assertProject: jest.fn().mockResolvedValue(undefined) };
     entityContextService = {
       getFullEntityContext: jest.fn(),
     } as unknown as jest.Mocked<EntityContextService>;
@@ -233,6 +237,7 @@ describe('GetContextToolsProvider', () => {
       agentEdgeClient as any,
       proposalApprovalService as any,
       workItemTypeRegistry as unknown as WorkItemTypeRegistryService,
+      projectAccess as any,
       {
         resolveScope: jest.fn().mockReturnValue({
           agentSessionId: '123e4567-e89b-42d3-a456-426614174098',
@@ -654,6 +659,7 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
+        testIds.user,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
@@ -745,6 +751,7 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
+        testIds.user,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
@@ -985,6 +992,7 @@ describe('GetContextToolsProvider', () => {
           'TASK',
           entityId,
           TEST_TOKEN,
+          testIds.user,
           {
             relatedEntityDepth: 2,
             relatedEntitySelection: { maxEntities: 100 },
@@ -1025,6 +1033,98 @@ describe('GetContextToolsProvider', () => {
         content: [{ text: expect.stringContaining('mockup') }],
       });
       expect(entityContextService.getFullEntityContext).not.toHaveBeenCalled();
+    });
+
+    it('passes the authenticated reader and checks project access for MESSAGE and CONVERSATION seeds', async () => {
+      entityContextService.getFullEntityContext.mockResolvedValue(
+        makeFullEntityContext() as any,
+      );
+
+      await provider.getContext(
+        makeParams({ entityType: 'MESSAGE' }),
+        {} as any,
+        makeRequest(),
+      );
+
+      expect(projectAccess.assertProject).toHaveBeenCalledWith(
+        testIds.user,
+        testIds.organization,
+        testIds.project,
+      );
+      expect(entityContextService.getFullEntityContext).toHaveBeenCalledWith(
+        testIds.organization,
+        testIds.project,
+        'MESSAGE',
+        entityId,
+        TEST_TOKEN,
+        testIds.user,
+        expect.anything(),
+      );
+    });
+
+    it('returns no Message or Conversation context to a caller without project access', async () => {
+      projectAccess.assertProject.mockRejectedValue(
+        new Error('Access denied to this project'),
+      );
+      const seeds = ['MESSAGE', 'CONVERSATION'].map((entityType) =>
+        makeSeed(entityId, { entityType }),
+      );
+
+      const result = await provider.getContext(
+        { seeds },
+        {} as any,
+        makeRequest(),
+      );
+
+      expect(entityContextService.getFullEntityContext).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        items: [{ error: expect.anything() }, { error: expect.anything() }],
+      });
+    });
+
+    it('applies the transcript rule per seed in a mixed batch', async () => {
+      const permittedId = '123e4567-e89b-42d3-a456-426614174201';
+      const withheldId = '123e4567-e89b-42d3-a456-426614174202';
+      entityContextService.getFullEntityContext.mockImplementation(
+        async (_org, _project, _type, id) =>
+          makeFullEntityContext({
+            entityId: id,
+            conversationContext: {
+              conversationId: 'c1',
+              agentSessions: [],
+              proposals: [],
+              reports: [],
+              ...(id === permittedId
+                ? {
+                    message: {
+                      messageId: id,
+                      type: 'SYSTEM',
+                      createdAt: null,
+                      excerpt: 'visible text',
+                      truncated: false,
+                      length: 12,
+                    },
+                  }
+                : {}),
+            },
+          }) as any,
+      );
+      const seeds = [permittedId, withheldId].map((id) =>
+        makeSeed(id, { entityType: 'MESSAGE' }),
+      );
+
+      const result = (await provider.getContext(
+        { seeds },
+        {} as any,
+        makeRequest(),
+      )) as { items: any[] };
+
+      expect(result.items[0].result.conversationContext.message.excerpt).toBe(
+        'visible text',
+      );
+      expect(
+        result.items[1].result.conversationContext.message,
+      ).toBeUndefined();
     });
 
     it('resolves built-in and custom keys independently in a batch', async () => {
@@ -1460,6 +1560,7 @@ describe('GetContextToolsProvider', () => {
         'TASK',
         entityId,
         TEST_TOKEN,
+        testIds.user,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },
@@ -1486,6 +1587,7 @@ describe('GetContextToolsProvider', () => {
         'DESIGN_DOC',
         entityId,
         TEST_TOKEN,
+        testIds.user,
         {
           relatedEntityDepth: 2,
           relatedEntitySelection: { maxEntities: 100 },

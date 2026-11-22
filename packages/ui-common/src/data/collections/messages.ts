@@ -23,11 +23,15 @@ import logger from "../../utils/logger";
 import { captureRequestOptions } from "../core/requestInitiator";
 import {
   getProjectGraphQLClient,
+  recordConversationDenial,
   type GraphQLProjectScope,
 } from "../graphql/client";
 import { toMessageDetail, toMessageResponse } from "../graphql/records";
 import type { GraphQLReadSpec } from "../graphql/useGraphQLRead";
-import { dataLayerQueryPolicy } from "../query/queryPolicy";
+import {
+  dataLayerQueryPolicy,
+  isConversationReadDenied,
+} from "../query/queryPolicy";
 
 /** How many of a conversation's newest messages it opens with, and each older page. */
 export const MESSAGE_PAGE_SIZE = 8;
@@ -67,6 +71,7 @@ export const messageKeys = {
 };
 
 export function queuedInputsQueryOptions(
+  client: ApolloClient,
   organizationId: string,
   projectId: string,
   conversationId: string,
@@ -79,12 +84,19 @@ export function queuedInputsQueryOptions(
       conversationId,
     ),
     queryFn: async ({ signal }): Promise<MessageRecordDto[]> => {
-      const response = await projectsClient.getQueuedConversationInputs(
-        { organizationId, projectId, conversationId },
-        { ...captureRequestOptions(), signal },
-      );
+      try {
+        const response = await projectsClient.getQueuedConversationInputs(
+          { organizationId, projectId, conversationId },
+          { ...captureRequestOptions(), signal },
+        );
 
-      return response.data.data ?? [];
+        return response.data.data ?? [];
+      } catch (error) {
+        if (isConversationReadDenied(error)) {
+          recordConversationDenial(client.cache, conversationId);
+        }
+        throw error;
+      }
     },
   });
 }

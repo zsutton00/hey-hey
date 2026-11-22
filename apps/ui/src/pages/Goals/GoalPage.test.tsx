@@ -719,6 +719,7 @@ const createGoalConversation = (
   updatedAt: string,
 ): ConversationResponseDto =>
   ({
+    restricted: true,
     id,
     title,
     projectId: "project-1",

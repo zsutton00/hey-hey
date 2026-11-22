@@ -26,17 +26,20 @@ export const GetAgentSessionErrorCode = {
     ProjectScopeRequired: 'project_scope_required',
     AgentSessionNotFound: 'agent_session_not_found',
     InvalidCursor: 'invalid_cursor',
+    ConversationRestricted: 'conversation_restricted',
     InternalError: 'internal_error',
     "authentication_required": "authentication_required",
     "project_scope_required": "project_scope_required",
     "agent_session_not_found": "agent_session_not_found",
     "invalid_cursor": "invalid_cursor",
+    "conversation_restricted": "conversation_restricted",
     "internal_error": "internal_error",
 } as const;
 Object.defineProperty(GetAgentSessionErrorCode, "authentication_required", { enumerable: false, value: GetAgentSessionErrorCode["AuthenticationRequired"] });
 Object.defineProperty(GetAgentSessionErrorCode, "project_scope_required", { enumerable: false, value: GetAgentSessionErrorCode["ProjectScopeRequired"] });
 Object.defineProperty(GetAgentSessionErrorCode, "agent_session_not_found", { enumerable: false, value: GetAgentSessionErrorCode["AgentSessionNotFound"] });
 Object.defineProperty(GetAgentSessionErrorCode, "invalid_cursor", { enumerable: false, value: GetAgentSessionErrorCode["InvalidCursor"] });
+Object.defineProperty(GetAgentSessionErrorCode, "conversation_restricted", { enumerable: false, value: GetAgentSessionErrorCode["ConversationRestricted"] });
 Object.defineProperty(GetAgentSessionErrorCode, "internal_error", { enumerable: false, value: GetAgentSessionErrorCode["InternalError"] });
 
 export type GetAgentSessionErrorCode = typeof GetAgentSessionErrorCode[keyof typeof GetAgentSessionErrorCode];

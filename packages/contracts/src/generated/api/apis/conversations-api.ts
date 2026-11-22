@@ -1015,11 +1015,11 @@ export const ConversationsApiAxiosParamCreator = function (configuration?: Confi
             };
         },
         /**
-         * Retrieve Message interactions within the organization. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
-         * @summary Get all Message interactions in organization
+         * Retrieve Message interactions within the authorized route project. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
+         * @summary Get Message interactions in the route project
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
-         * @param {string} [projectId2] Filter by project ID
+         * @param {string} [projectId2] Legacy query parameter. The route project controls the scope.
          * @param {string} [conversationId] Filter by conversation ID
          * @param {MessageType} [type] Filter by message type (USER or SYSTEM)
          * @param {number} [page] Page number
@@ -2226,11 +2226,11 @@ export const ConversationsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Retrieve Message interactions within the organization. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
-         * @summary Get all Message interactions in organization
+         * Retrieve Message interactions within the authorized route project. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
+         * @summary Get Message interactions in the route project
          * @param {string} organizationId Organization ID
          * @param {string} projectId Project ID
-         * @param {string} [projectId2] Filter by project ID
+         * @param {string} [projectId2] Legacy query parameter. The route project controls the scope.
          * @param {string} [conversationId] Filter by conversation ID
          * @param {MessageType} [type] Filter by message type (USER or SYSTEM)
          * @param {number} [page] Page number
@@ -2679,8 +2679,8 @@ export const ConversationsApiFactory = function (configuration?: Configuration, 
             return localVarFp.getMessage(requestParameters.id, requestParameters.projectId, requestParameters.organizationId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Retrieve Message interactions within the organization. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
-         * @summary Get all Message interactions in organization
+         * Retrieve Message interactions within the authorized route project. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
+         * @summary Get Message interactions in the route project
          * @param {ConversationsApiGetMessagesRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -3018,8 +3018,8 @@ export interface ConversationsApiInterface {
     getMessage(requestParameters: ConversationsApiGetMessageRequest, options?: RawAxiosRequestConfig): AxiosPromise<GetMessage200Response>;
 
     /**
-     * Retrieve Message interactions within the organization. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
-     * @summary Get all Message interactions in organization
+     * Retrieve Message interactions within the authorized route project. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
+     * @summary Get Message interactions in the route project
      * @param {ConversationsApiGetMessagesRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
@@ -3861,7 +3861,7 @@ export interface ConversationsApiGetMessagesRequest {
     readonly projectId: string
 
     /**
-     * Filter by project ID
+     * Legacy query parameter. The route project controls the scope.
      * @type {string}
      * @memberof ConversationsApiGetMessages
      */
@@ -4712,8 +4712,8 @@ export class ConversationsApi extends BaseAPI implements ConversationsApiInterfa
     }
 
     /**
-     * Retrieve Message interactions within the organization. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
-     * @summary Get all Message interactions in organization
+     * Retrieve Message interactions within the authorized route project. Omitting `mode` preserves existing full-thread reads and forward `since` deltas. `mode=REVERSE_HISTORY` returns a bounded chronological page selected newest-first by stable `(createdAt, id)` order.
+     * @summary Get Message interactions in the route project
      * @param {ConversationsApiGetMessagesRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}

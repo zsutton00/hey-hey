@@ -53,10 +53,11 @@ describe('ConversationResolver', () => {
   const messageService = {
     getMessagesForAdapter: jest.fn(),
     getMessageForAdapter: jest.fn(),
+    assertConversationMessagesReadable: jest.fn(),
     getLatestMessage: jest.fn(),
   };
 
-  const query = async (body: string, viewer?: string) => {
+  const query = async (body: string, viewer = 'reader') => {
     const response = await request(app.getHttpServer())
       .post(`/o/${ORG}/p/${PROJECT}/graphql`)
       .set(viewer ? { 'x-viewer': viewer } : {})
@@ -133,6 +134,7 @@ describe('ConversationResolver', () => {
       { conversationId: CONVERSATION, projectId: PROJECT, since: undefined },
       ORG,
       PROJECT,
+      'reader',
       false,
       false,
       false,
@@ -154,6 +156,7 @@ describe('ConversationResolver', () => {
       expect.objectContaining({ conversationId: CONVERSATION, since: 'm3' }),
       ORG,
       PROJECT,
+      'reader',
       false,
       false,
       false,
@@ -205,6 +208,7 @@ describe('ConversationResolver', () => {
         },
         ORG,
         PROJECT,
+        'reader',
         false,
         false,
         false,
@@ -232,6 +236,7 @@ describe('ConversationResolver', () => {
         }),
         ORG,
         PROJECT,
+        'reader',
         false,
         false,
         false,
@@ -249,6 +254,7 @@ describe('ConversationResolver', () => {
         expect.anything(),
         ORG,
         PROJECT,
+        'reader',
         false,
         true,
         true,
@@ -284,6 +290,7 @@ describe('ConversationResolver', () => {
         { conversationId: CONVERSATION, projectId: PROJECT, since: 'm3' },
         ORG,
         PROJECT,
+        'reader',
         false,
         false,
         false,
@@ -317,6 +324,7 @@ describe('ConversationResolver', () => {
       expect.anything(),
       ORG,
       PROJECT,
+      'reader',
       false,
       true,
       true,
@@ -493,6 +501,7 @@ describe('ConversationResolver', () => {
       'm2',
       expect.anything(),
       true,
+      PROJECT,
     );
     expect(found.data.message).toEqual({
       id: 'm2',

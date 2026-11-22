@@ -290,6 +290,7 @@ describe("ConversationListTab", () => {
 
   it("keeps conversation selection and navigation in the shared list", () => {
     const conversation = {
+      restricted: true,
       id: "conversation-1",
       title: "Existing thread",
       workflowName: "task-refinement",
@@ -313,6 +314,7 @@ describe("ConversationListTab", () => {
 
   it("keeps agent conversation routing in the shared list", () => {
     const conversation = {
+      restricted: true,
       id: "agent-conversation-1",
       title: "Agent conversation",
       workflowName: "agent-coding",

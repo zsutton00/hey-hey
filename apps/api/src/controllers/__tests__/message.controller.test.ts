@@ -168,6 +168,7 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
       );
 
@@ -175,6 +176,7 @@ describe('MessageController', () => {
         baseQuery,
         testIds.organization,
         testIds.project,
+        testIds.user,
         true, // includeResponses default
         true, // includeProposals default
         false, // includeReports default
@@ -185,6 +187,7 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
@@ -195,6 +198,7 @@ describe('MessageController', () => {
         baseQuery,
         testIds.organization,
         testIds.project,
+        testIds.user,
         true,
         true,
         true,
@@ -205,15 +209,22 @@ describe('MessageController', () => {
       await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
         '1',
       );
 
-      const call = messageService.getMessagesForAdapter.mock.calls[0];
-      // 6th positional arg is includeReports
-      expect(call?.[5]).toBe(false);
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        baseQuery,
+        testIds.organization,
+        testIds.project,
+        testIds.user,
+        true,
+        true,
+        false,
+      );
     });
 
     it('returns the service result unchanged', async () => {
@@ -225,6 +236,7 @@ describe('MessageController', () => {
       const result = await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
         undefined,
         undefined,
@@ -244,6 +256,7 @@ describe('MessageController', () => {
       const result = await controller.getMessages(
         testIds.organization,
         testIds.project as ProjectId,
+        testIds.user as UserId,
         baseQuery,
       );
 
@@ -724,6 +737,7 @@ describe('MessageController', () => {
         opts.workflowAboutId ?? ANCHOR_ID,
         opts.workflowAboutType ?? ANCHOR_TYPE,
         query,
+        testIds.user as UserId,
         opts.limit,
       );
 
@@ -759,6 +773,7 @@ describe('MessageController', () => {
         workflowAboutId: ANCHOR_ID,
         workflowAboutType: ANCHOR_TYPE,
         query: 'matching',
+        readerUserId: testIds.user,
         limit: undefined,
       });
       const distinctConversations = new Set(

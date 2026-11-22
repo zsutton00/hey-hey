@@ -2,6 +2,37 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DebugController } from '../debug.controller';
 
 describe('DebugController', () => {
+  describe('getProjectMessages', () => {
+    it('scopes the message list to conversations the caller can read', async () => {
+      const messageService = { getMessages: jest.fn().mockResolvedValue([]) };
+      const controller = new DebugController(
+        {} as any,
+        {} as any,
+        {} as any,
+        messageService as any,
+        ...Array.from({ length: 12 }, () => ({}) as any),
+      );
+
+      await controller.getProjectMessages(
+        { userId: 'reader-1', currentOrgId: 'org-1' } as any,
+        'project-1' as any,
+        'conversation-1' as any,
+      );
+
+      expect(messageService.getMessages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'project-1',
+          conversationId: 'conversation-1',
+        }),
+        'org-1',
+        true,
+        true,
+        false,
+        'reader-1',
+      );
+    });
+  });
+
   describe('getEntityOutboxEvents', () => {
     it('normalizes the entity type to lowercase before querying the outbox store', async () => {
       const outboxStore = {

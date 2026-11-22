@@ -24,13 +24,13 @@ vi.mock("../../../data/hooks/usePlanFromDesignDocConversation", () => ({
     organizationId: string | undefined,
     projectId: string | undefined,
     planId: string | undefined,
-    options: Record<string, unknown> = {}
+    options: Record<string, unknown> = {},
   ) =>
     usePlanFromDesignDocConversationMock(
       organizationId,
       projectId,
       planId,
-      options
+      options,
     ),
 }));
 
@@ -66,6 +66,7 @@ vi.mock("../PlanFromDesignDocChat", () => ({
 import { PlanGenerationChat } from "../PlanGenerationChat";
 
 const baseConversation: ConversationResponseDto = {
+  restricted: true,
   id: "conv-pfdd-1",
   projectId: "proj-1",
   organizationId: "org-1",
@@ -106,7 +107,7 @@ describe("PlanGenerationChat NOT_STARTED handling", () => {
 
   it("routes a NOT_STARTED conversation straight into the pre-start placeholder path without auto-starting it", () => {
     usePlanFromDesignDocConversationMock.mockReturnValue(
-      mockHookReturn(ConversationStatus.NotStarted)
+      mockHookReturn(ConversationStatus.NotStarted),
     );
 
     render(
@@ -116,18 +117,18 @@ describe("PlanGenerationChat NOT_STARTED handling", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     // The pre-start placeholder lives inside PlanFromDesignDocChat, so a
     // NOT_STARTED conversation is delegated rather than gated behind a spinner.
     expect(screen.getByTestId("plan-from-design-doc-chat")).toBeTruthy();
     expect(
-      screen.getByTestId("plan-from-design-doc-conversation-id").textContent
+      screen.getByTestId("plan-from-design-doc-conversation-id").textContent,
     ).toBe(baseConversation.id);
     expect(screen.getByTestId("plan-from-design-doc-chat")).toHaveAttribute(
       "data-scroll-policy",
-      "disabled"
+      "disabled",
     );
     // No platform start-conversation is auto-fired on this surface anymore.
     expect(startConversationMutateMock).not.toHaveBeenCalled();
@@ -149,7 +150,7 @@ describe("PlanGenerationChat NOT_STARTED handling", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     expect(container.querySelector(".MuiLinearProgress-root")).toBeTruthy();
@@ -172,18 +173,18 @@ describe("PlanGenerationChat NOT_STARTED handling", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     expect(screen.queryByTestId("plan-from-design-doc-chat")).toBeNull();
     expect(
-      container.querySelector('[data-testid="plan-generation-setup"]')
+      container.querySelector('[data-testid="plan-generation-setup"]'),
     ).toHaveTextContent("Start generating");
   });
 
   it("delegates with the same conversation id regardless of status", () => {
     usePlanFromDesignDocConversationMock.mockReturnValue(
-      mockHookReturn(ConversationStatus.InProgress)
+      mockHookReturn(ConversationStatus.InProgress),
     );
 
     render(
@@ -193,11 +194,11 @@ describe("PlanGenerationChat NOT_STARTED handling", () => {
         planId="plan-1"
         plan={plan}
         configuration={configuration}
-      />
+      />,
     );
 
     expect(
-      screen.getByTestId("plan-from-design-doc-conversation-id").textContent
+      screen.getByTestId("plan-from-design-doc-conversation-id").textContent,
     ).toBe(baseConversation.id);
     expect(startConversationMutateMock).not.toHaveBeenCalled();
   });

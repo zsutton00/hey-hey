@@ -1,3 +1,4 @@
+import { isConversationReadDenied } from "../../../data/query/queryPolicy";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import {
   Box,
@@ -950,7 +951,9 @@ const AgentSessionPreview: React.FC<{
           </Typography>
         ) : latestMessageError ? (
           <Typography variant="caption" color="text.secondary" display="block">
-            Latest message unavailable
+            {isConversationReadDenied(latestMessageError)
+              ? "This conversation is private"
+              : "Latest message unavailable"}
           </Typography>
         ) : latestMessageContent ? (
           <Box
