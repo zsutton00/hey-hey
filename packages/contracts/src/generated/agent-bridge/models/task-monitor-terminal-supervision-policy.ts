@@ -18,6 +18,9 @@ import { TaskMonitorReviewMode } from './task-monitor-review-mode.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { TaskMonitorReviewMode } from './task-monitor-review-mode.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { TaskMonitorRuntimeSelection } from './task-monitor-runtime-selection.js';
 
 /**
  *
@@ -31,6 +34,12 @@ export interface TaskMonitorTerminalSupervisionPolicy {
      * @memberof TaskMonitorTerminalSupervisionPolicy
      */
     'mode': TaskMonitorReviewMode;
+    /**
+     *
+     * @type {TaskMonitorRuntimeSelection}
+     * @memberof TaskMonitorTerminalSupervisionPolicy
+     */
+    'reviewRuntime'?: TaskMonitorRuntimeSelection;
 }
 
 export namespace TaskMonitorTerminalSupervisionPolicy {
