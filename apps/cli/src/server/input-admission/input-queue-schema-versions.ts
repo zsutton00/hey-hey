@@ -190,6 +190,6 @@ export const SHIPPED_INPUT_QUEUE_VERSIONS: readonly ShippedInputQueueVersion[] =
     fixture: null,
     expectedQuarantinedKeys: [],
     schemas: inputQueueV16Schemas,
-    fingerprint: 'PLACEHOLDER',
+    fingerprint: 'f3b384352358c5c15270727c8d3a10cbaf503cc74425dfdfdf1281c20a7f8232',
   },
 ];

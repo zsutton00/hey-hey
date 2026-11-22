@@ -711,7 +711,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         intentFirst: context.intentFirst,
         maturity: context.maturity,
         hints: resolveHintPromptAccess(context.hintsEnabled, args.additionalAllowedTools ?? []),
-        hintsProductDevelopment: context.hintsProductDevelopment,
+        productDevelopment: context.productDevelopment,
       },
     );
   }

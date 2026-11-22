@@ -1787,7 +1787,7 @@ export const controllerActionRuntimeSchema = {
         },
         agentType: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
           description: 'Agent provider that issued the permission request.',
         },
         reason: {

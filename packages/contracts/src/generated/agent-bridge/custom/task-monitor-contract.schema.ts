@@ -182,7 +182,8 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
                   "enum": [
                     "claude",
                     "codex",
-                    "opencode"
+                    "opencode",
+                    "antigravity"
                   ]
                 },
                 "model": {
@@ -228,7 +229,8 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "model": {

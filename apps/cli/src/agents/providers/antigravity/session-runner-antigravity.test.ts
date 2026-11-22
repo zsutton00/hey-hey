@@ -3,6 +3,9 @@
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +14,7 @@ import { createTestRun, createTestRunStore } from '../../../run/run.test-support
 import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { ProjectMaturity } from '../../../shared/api/index';
+import { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
 import { SubmissionToolRegistry } from '../../submission-tools/registry';
 import { antigravityModelsFromSession } from '../../../server/model-catalog/antigravity-models';
 import { acpResultSchemas } from './acp-schemas';
@@ -26,7 +30,7 @@ vi.mock('../../prompts/session-start-context', () => ({
     maturity: ProjectMaturity.Established,
     intentFirst: false,
     hintsEnabled: false,
-    hintsProductDevelopment: false,
+    productDevelopment: false,
   }),
 }));
 
@@ -73,10 +77,28 @@ const recorded = (() => {
 /** Plays agy: answers from the recorded session and applies config changes like agy would. */
 const COMPACT_USAGE = { inputTokens: 900, outputTokens: 100, totalTokens: 1000 };
 
+const PERMISSION_ID_BASE = 1000;
+interface PermissionAsk {
+  toolCall: { toolCallId: string; kind?: string; rawInput?: Record<string, unknown> };
+  options: { optionId: string; kind: string; name: string }[];
+}
+interface PermissionResponse {
+  id: number;
+  result?: { outcome: { outcome: string; optionId?: string } };
+}
+
 const startFakeAgy = (
-  options: { keepOption?: string; omitModelOption?: boolean; compactUsage?: boolean } = {},
+  options: {
+    keepOption?: string;
+    omitModelOption?: boolean;
+    compactUsage?: boolean;
+    permissionRequests?: PermissionAsk[];
+    /** agy prints this on stderr and exits instead of answering `initialize`. */
+    failStartWith?: string;
+  } = {},
 ) => {
   const requests: Frame[] = [];
+  const permissionResponses: PermissionResponse[] = [];
   const options_: ConfigOption[] = structuredClone(recorded.created.configOptions ?? []).filter(
     (option) => !(options.omitModelOption && option.id === 'model'),
   );
@@ -89,11 +111,29 @@ const startFakeAgy = (
     });
     const reply = (id: number, result: unknown) =>
       child.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
+    const asks = options.permissionRequests ?? [];
+    let promptId: number | undefined;
     child.stdin.on('data', (chunk: Buffer) => {
-      const request: Frame = JSON.parse(chunk.toString());
+      for (const line of chunk.toString().split('\n').filter(Boolean)) {
+        handle(JSON.parse(line));
+      }
+    });
+    const handle = (request: Frame & PermissionResponse) => {
+      if (request.id >= PERMISSION_ID_BASE) {
+        permissionResponses.push(request);
+        if (permissionResponses.length === asks.length && promptId !== undefined) {
+          reply(promptId, { stopReason: 'end_turn' });
+        }
+        return;
+      }
       requests.push(request);
       switch (request.method) {
         case 'initialize':
+          if (options.failStartWith) {
+            child.stderr.write(options.failStartWith);
+            setTimeout(() => child.emit('exit', 1, null), 10);
+            break;
+          }
           reply(request.id, { protocolVersion: 1 });
           break;
         case 'session/new':
@@ -121,6 +161,20 @@ const startFakeAgy = (
           reply(request.id, {});
           break;
         case 'session/prompt':
+          if (asks.length > 0 && !JSON.stringify(request.params?.prompt).includes('/compact')) {
+            promptId = request.id;
+            asks.forEach((ask, index) =>
+              child.stdout.write(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: PERMISSION_ID_BASE + index,
+                  method: 'session/request_permission',
+                  params: { sessionId: recorded.created.sessionId, ...ask },
+                }) + '\n',
+              ),
+            );
+            break;
+          }
           reply(request.id, {
             stopReason: 'end_turn',
             ...(options.compactUsage && JSON.stringify(request.params?.prompt).includes('/compact')
@@ -129,18 +183,18 @@ const startFakeAgy = (
           });
           break;
       }
-    });
+    };
     return child as unknown as ReturnType<typeof spawn>;
   });
-  return requests;
+  return Object.assign(requests, { permissionResponses });
 };
 
 const makeRunner = () => {
   const run = createTestRun({ provider: 'antigravity' });
   const runStore = createTestRunStore();
-  const recordTokens = vi.spyOn(runStore, 'updateRunTokenUsage').mockImplementation(() =>
-    Promise.resolve(run.session),
-  );
+  const recordTokens = vi
+    .spyOn(runStore, 'updateRunTokenUsage')
+    .mockImplementation(() => Promise.resolve(run.session));
   vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
   const runner = new AntigravityAgentSessionRunner({
     agentOutputOwner: run,
@@ -307,6 +361,176 @@ describe('Antigravity launch selection and compaction', () => {
         runner.runPrompt({ session, prompt: 'hello', model: otherModel.modelId }),
       ).rejects.toMatchObject({ code: 'RUN_FAILED' });
       await runner.dispose();
+    });
+  });
+});
+
+describe('Antigravity repository-bound sessions', () => {
+  beforeEach(() => {
+    vi.mocked(spawn).mockReset();
+  });
+
+  it('refuses a repository-bound session that has no write containment', async () => {
+    startFakeAgy();
+    const { runner, session } = makeRunner();
+
+    await expect(
+      runner.runPrompt({ session: { ...session, workspaceBound: true }, prompt: 'hello' }),
+    ).rejects.toMatchObject({ code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED' });
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('reports a sandbox that cannot start as a containment failure, not an org-policy denial or sign-in problem', async () => {
+    startFakeAgy({
+      failStartWith: 'sandbox-exec: sandbox_apply: Operation not permitted\n',
+    });
+    const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agy-no-sandbox-')));
+    const service = path.join(base, 'service');
+    await fs.mkdir(path.join(service, '.git'), { recursive: true });
+    const boundary = await RunWorkspaceWriteBoundary.create(
+      {
+        ok: true,
+        runMode: 'default',
+        repositoryPathForRunStarted: service,
+        cwd: service,
+        allowedRepositoryRoots: [service],
+        bindingRepositoryPath: service,
+        workspaceRoot: null,
+      },
+      { runScopeId: 'agy-no-sandbox', providerStateRoot: path.join(base, 'state') },
+    );
+    const { runner, session } = makeRunner();
+    try {
+      const error = await runner
+        .runPrompt({
+          session: { ...session, workspaceBound: true },
+          prompt: 'hello',
+          workspaceWriteBoundary: boundary,
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({ code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED' });
+      expect((error as Error).message).toMatch(/Operation not permitted/);
+      expect((error as Error).message).not.toMatch(/organization|sign in/i);
+    } finally {
+      await runner.dispose();
+      await boundary.dispose();
+      await fs.rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it('launches agy inside the Run sandbox with the real HOME and answers writes outside the roots with a rejection', async () => {
+    startFakeAgy();
+    const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agy-contained-')));
+    const service = path.join(base, 'service');
+    await fs.mkdir(path.join(service, '.git'), { recursive: true });
+    const boundary = await RunWorkspaceWriteBoundary.create(
+      {
+        ok: true,
+        runMode: 'default',
+        repositoryPathForRunStarted: service,
+        cwd: service,
+        allowedRepositoryRoots: [service],
+        bindingRepositoryPath: service,
+        workspaceRoot: null,
+      },
+      { runScopeId: 'agy-contained', providerStateRoot: path.join(base, 'state') },
+    );
+    const { runner, session } = makeRunner();
+    try {
+      await runner.runPrompt({
+        session: { ...session, workspaceBound: true },
+        prompt: 'hello',
+        workspaceWriteBoundary: boundary,
+      });
+
+      const [command, args, options] = vi.mocked(spawn).mock.calls[0]!;
+      expect(command).toBe(process.execPath);
+      expect(args).toEqual(expect.arrayContaining(['agy', 'acp']));
+      expect((options as { env: Record<string, string> }).env['HOME']).toBe(process.env['HOME']);
+      await expect(boundary.assertWriteTargets([path.join(base, 'elsewhere.txt')])).rejects.toThrow(
+        /outside the Run workspace/,
+      );
+    } finally {
+      await runner.dispose();
+      await boundary.dispose();
+      await fs.rm(base, { recursive: true, force: true });
+    }
+  });
+
+  describe('permission requests', () => {
+    const OPTIONS = [
+      { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
+      { optionId: 'allow-always', kind: 'allow_always', name: 'Always allow' },
+      { optionId: 'reject-once', kind: 'reject_once', name: 'Reject' },
+    ];
+    const edit = (target: string, options = OPTIONS): PermissionAsk => ({
+      toolCall: { toolCallId: target, kind: 'edit', rawInput: { path: target } },
+      options,
+    });
+
+    /** Runs one skip-permissions prompt in which agy asks about each write; returns agy's answers. */
+    const answersTo = async (asks: (service: string, base: string) => PermissionAsk[]) => {
+      const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agy-permission-')));
+      const service = path.join(base, 'service');
+      await fs.mkdir(path.join(service, '.git'), { recursive: true });
+      const boundary = await RunWorkspaceWriteBoundary.create(
+        {
+          ok: true,
+          runMode: 'default',
+          repositoryPathForRunStarted: service,
+          cwd: service,
+          allowedRepositoryRoots: [service],
+          bindingRepositoryPath: service,
+          workspaceRoot: null,
+        },
+        { runScopeId: 'agy-permission', providerStateRoot: path.join(base, 'state') },
+      );
+      const requests = startFakeAgy({ permissionRequests: asks(service, base) });
+      const { runner, session } = makeRunner();
+      try {
+        await runner.runPrompt({
+          session: { ...session, workspaceBound: true },
+          prompt: 'hello',
+          skipPermissions: true,
+          workspaceWriteBoundary: boundary,
+        });
+        return requests.permissionResponses
+          .sort((a, b) => a.id - b.id)
+          .map((response) => response.result?.outcome.optionId);
+      } finally {
+        await runner.dispose();
+        await boundary.dispose();
+        await fs.rm(base, { recursive: true, force: true });
+      }
+    };
+
+    it('rejects a write outside the Run roots even when permissions are skipped', async () => {
+      const answers = await answersTo((_service, base) => [edit(path.join(base, 'elsewhere.txt'))]);
+
+      expect(answers).toEqual(['reject-once']);
+    });
+
+    it('does not let an allow-always option or a stored always-allow rule widen the roots', async () => {
+      const alwaysOnly = OPTIONS.filter((option) => option.kind !== 'allow_once');
+      const answers = await answersTo((_service, base) => [
+        edit(path.join(base, 'a.txt'), alwaysOnly),
+        edit(path.join(base, 'b.txt'), alwaysOnly),
+      ]);
+
+      expect(answers).toEqual(['reject-once', 'reject-once']);
+    });
+
+    it('lets a write inside the Run roots through the pre-check', async () => {
+      const answers = await answersTo((service) => [edit(path.join(service, 'src', 'a.txt'))]);
+
+      expect(answers).toEqual(['allow-once']);
+    });
+
+    it('resolves a relative path against the boundary cwd', async () => {
+      const answers = await answersTo(() => [edit('src/inside.txt'), edit('../escape.txt')]);
+
+      expect(answers).toEqual(['allow-once', 'reject-once']);
     });
   });
 });

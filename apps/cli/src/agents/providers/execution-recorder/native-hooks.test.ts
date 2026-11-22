@@ -31,7 +31,7 @@ vi.mock('../../prompts/session-start-context', () => ({
     maturity: ProjectMaturity.Established,
     intentFirst: false,
     hintsEnabled: false,
-    hintsProductDevelopment: false,
+    productDevelopment: false,
   }),
 }));
 
