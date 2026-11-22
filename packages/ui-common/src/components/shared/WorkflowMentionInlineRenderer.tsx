@@ -15,12 +15,7 @@ import { DiagramReferenceActions } from "./DiagramReferenceActions";
 import { DIAGRAM_TASK_TYPE } from "../../constants/taskTypes";
 import { MentionArtifactCard } from "./MentionArtifactCard";
 import { useMentionExpansion } from "./MentionExpansionContext";
-import {
-  DIAGRAM_LAYOUT_CANDIDATES,
-  type DiagramLayoutCandidate,
-  type DiagramLayoutDirection,
-} from "./diagramLayoutCandidates";
-import { useDiagramLayoutComparison } from "./useDiagramLayoutComparison";
+import { useAutomaticDiagramLayout } from "./useAutomaticDiagramLayout";
 import {
   buildDiagramLayoutGroupHints,
   computeBoundaryBoxes,
@@ -28,7 +23,6 @@ import {
   parseDiagramGroups,
   type DiagramBoundaryBox,
 } from "./diagramGroupBoundaries";
-import { useDiagramLayoutPreference } from "./useDiagramLayoutPreference";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
@@ -749,8 +743,6 @@ interface WorkflowGraphSurfaceProps {
   onSelectionChange?: (selection: WorkItemGraphSelection) => void;
   onEmptyCanvasDrop?: (drop: WorkItemGraphEmptyCanvasDrop) => void;
   onVisibleCanvasPositionChange?: (position: WorkItemChangeSetPosition) => void;
-  /** Reports whether a layout preview currently suspends editing. */
-  onLayoutPreviewChange?: (previewing: boolean) => void;
   explorationAncestors?: readonly string[];
   participation?: WorkItemGraphParticipationResponseDto | null;
   directEntityLinks?: readonly WorkflowGraphDirectEntityLink[];
@@ -759,16 +751,6 @@ interface WorkflowGraphSurfaceProps {
 }
 
 interface WorkflowGraphViewportSurfaceProps {
-  layoutComparisonControls: {
-    candidate: DiagramLayoutCandidate;
-    direction: DiagramLayoutDirection;
-    automaticCandidate: DiagramLayoutCandidate;
-    automaticDirection: DiagramLayoutDirection;
-    previewRequested: boolean;
-    onPreviewCancel: () => void;
-    onCandidateChange: (candidate: DiagramLayoutCandidate) => void;
-    onDirectionChange: (direction: DiagramLayoutDirection) => void;
-  };
   graphData: WorkflowGraphSurfaceData;
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
@@ -806,7 +788,6 @@ interface WorkflowGraphViewportSurfaceProps {
     | "onSelectionChange"
     | "onEmptyCanvasDrop"
     | "onVisibleCanvasPositionChange"
-    | "onLayoutPreviewChange"
   >;
 }
 
@@ -6005,7 +5986,6 @@ interface DiagramExplorationTarget {
 const WorkflowGraphViewportSurface: React.FC<
   WorkflowGraphViewportSurfaceProps
 > = ({
-  layoutComparisonControls,
   graphData,
   projection,
   graphSizeMode,
@@ -6130,11 +6110,9 @@ const WorkflowGraphViewportSurface: React.FC<
     () => buildModel(authoredPositions, canEdit),
     [authoredPositions, buildModel, canEdit],
   );
-  const preserveAuthoredLayout =
-    Boolean(authoredPositions?.size) &&
-    !layoutComparisonControls.previewRequested;
+  const hasSavedPositions = Boolean(authoredPositions?.size);
   const diagramGroups = useMemo(() => getDiagramGroups(graphData), [graphData]);
-  const comparison = useDiagramLayoutComparison(
+  const comparison = useAutomaticDiagramLayout(
     {
       ...diagramLayoutGroupsFor(
         diagramGroups,
@@ -6161,26 +6139,12 @@ const WorkflowGraphViewportSurface: React.FC<
           edge.type === WORKFLOW_FLOW_EDGE_TYPE ? (edge.data?.label ?? "") : "",
       })),
     },
-    preserveAuthoredLayout
-      ? undefined
-      : layoutComparisonControls.previewRequested
-        ? layoutComparisonControls.candidate
-        : layoutComparisonControls.automaticCandidate,
-    layoutComparisonControls.previewRequested
-      ? layoutComparisonControls.direction
-      : layoutComparisonControls.automaticDirection,
+    !hasSavedPositions,
   );
-  const isPreview =
-    comparison.active && layoutComparisonControls.previewRequested;
-  const isEditing = canEdit && !isPreview;
-  const onLayoutPreviewChange = interaction?.onLayoutPreviewChange;
-  useEffect(() => {
-    onLayoutPreviewChange?.(isPreview);
-  }, [isPreview, onLayoutPreviewChange]);
-  // Only saved positions or the selected engine's arrangement are displayed.
-  // Without saved positions, nothing renders until the engine is ready.
-  const isArranging =
-    comparison.active && !comparison.positions && !authoredPositions?.size;
+  const isEditing = canEdit;
+  // Only saved positions or the automatic arrangement are displayed.
+  // Without saved positions, nothing renders until the arrangement is ready.
+  const isArranging = comparison.active && !comparison.positions;
   const graphModel = useMemo(
     () =>
       comparison.positions
@@ -6560,7 +6524,6 @@ const WorkflowGraphViewportSurface: React.FC<
       data-workflow-id={graphData.workflow.id}
       data-workflow-graph-size={graphSizeMode}
       data-workflow-layout={graphModel.layoutMode}
-      data-layout-candidate={comparison.candidate}
       data-workflow-view-mode={
         isArranging
           ? "arranging"
@@ -6620,75 +6583,11 @@ const WorkflowGraphViewportSurface: React.FC<
           />
         </Stack>
       </Stack>
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        sx={{ px: 1.5, py: 1, flexWrap: "wrap", gap: 1 }}
-        data-testid="diagram-layout-comparison"
-      >
-        <Typography variant="caption">Layout</Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layoutComparisonControls.candidate}
-          aria-label="Layout style"
-        >
-          {DIAGRAM_LAYOUT_CANDIDATES.map((candidate) => (
-            <ToggleButton
-              key={candidate.key}
-              value={candidate.key}
-              data-testid={candidate.testId}
-              onClick={() =>
-                layoutComparisonControls.onCandidateChange(candidate.key)
-              }
-            >
-              {candidate.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layoutComparisonControls.direction}
-          aria-label="Layout direction"
-          disabled={layoutComparisonControls.candidate === "elk-stress"}
-        >
-          <ToggleButton
-            value="RIGHT"
-            data-testid="diagram-layout-horizontal"
-            onClick={() => layoutComparisonControls.onDirectionChange("RIGHT")}
-          >
-            Horizontal
-          </ToggleButton>
-          <ToggleButton
-            value="DOWN"
-            data-testid="diagram-layout-vertical"
-            onClick={() => layoutComparisonControls.onDirectionChange("DOWN")}
-          >
-            Vertical
-          </ToggleButton>
-        </ToggleButtonGroup>
-        {comparison.pending ? (
-          <Typography role="status" variant="caption">
-            Arranging…
-          </Typography>
-        ) : null}
-        {isPreview ? (
-          <Button
-            size="small"
-            data-testid="diagram-layout-cancel-preview"
-            onClick={layoutComparisonControls.onPreviewCancel}
-          >
-            Cancel preview
-          </Button>
-        ) : null}
-        {preserveAuthoredLayout ? (
-          <Typography variant="caption">
-            Saved positions · select a layout to preview
-          </Typography>
-        ) : null}
-      </Stack>
+      {comparison.pending ? (
+        <Typography role="status" variant="caption" sx={{ px: 1.5, py: 1 }}>
+          Arranging…
+        </Typography>
+      ) : null}
       {(() => {
         const hasRole = (...keys: string[]) =>
           graphModel.nodes.some((node) =>
@@ -6736,10 +6635,7 @@ const WorkflowGraphViewportSurface: React.FC<
       })()}
       {comparison.error ? (
         <Alert severity="error" data-testid="diagram-layout-error">
-          {comparison.error}{" "}
-          {isPreview
-            ? "Cancel the preview to resume editing."
-            : "Select another layout to retry."}
+          {comparison.error}
         </Alert>
       ) : null}
       <Box
@@ -7062,7 +6958,6 @@ const WorkflowGraphViewportSurface: React.FC<
 };
 
 interface WorkflowGraphFullscreenDialogProps {
-  layoutComparisonControls: WorkflowGraphViewportSurfaceProps["layoutComparisonControls"];
   graphData: WorkflowGraphSurfaceData;
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
@@ -7089,7 +6984,6 @@ interface WorkflowGraphFullscreenDialogProps {
 const WorkflowGraphFullscreenDialog: React.FC<
   WorkflowGraphFullscreenDialogProps
 > = ({
-  layoutComparisonControls,
   graphData,
   projection,
   graphSizeMode,
@@ -7165,7 +7059,6 @@ const WorkflowGraphFullscreenDialog: React.FC<
       }}
     >
       <WorkflowGraphViewportSurface
-        layoutComparisonControls={layoutComparisonControls}
         graphData={graphData}
         projection={projection}
         graphSizeMode={graphSizeMode}
@@ -7597,15 +7490,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         : undefined,
     [graphDataWithParticipation],
   );
-  const layoutComparisonControls = useDiagramLayoutPreference(
-    hydratedGraphData
-      ? {
-          organizationId: hydratedGraphData.workflow.organizationId,
-          projectId: hydratedGraphData.workflow.projectId,
-          diagramId: hydratedGraphData.workflow.id,
-        }
-      : undefined,
-  );
   if (
     !hydratedGraphData ||
     !(projection
@@ -7656,7 +7540,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   const content = (
     <>
       <WorkflowGraphViewportSurface
-        layoutComparisonControls={layoutComparisonControls}
         graphData={hydratedGraphData}
         projection={projection}
         graphSizeMode={graphSizeMode}
@@ -7686,7 +7569,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
       />
       <ModalWorkOwner.Provider value={isFullscreenOpenOwnerKey}>
         <WorkflowGraphFullscreenDialog
-          layoutComparisonControls={layoutComparisonControls}
           graphData={hydratedGraphData}
           projection={projection}
           graphSizeMode={graphSizeMode}
@@ -7961,11 +7843,6 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     () => hydrateWorkflowGraphEdges(graphData),
     [graphData],
   );
-  const layoutPreference = useDiagramLayoutPreference({
-    organizationId: hydratedGraphData.workflow.organizationId,
-    projectId: hydratedGraphData.workflow.projectId,
-    diagramId: hydratedGraphData.workflow.id,
-  });
   const authoredPositions = useMemo(
     () =>
       hydratedGraphData.layout
@@ -7992,7 +7869,7 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     () => getDiagramGroups(hydratedGraphData),
     [hydratedGraphData],
   );
-  const comparison = useDiagramLayoutComparison(
+  const comparison = useAutomaticDiagramLayout(
     {
       ...diagramLayoutGroupsFor(
         thumbnailGroups,
@@ -8019,11 +7896,9 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
           edge.type === WORKFLOW_FLOW_EDGE_TYPE ? (edge.data?.label ?? "") : "",
       })),
     },
-    hasAuthoredLayout ? undefined : layoutPreference.automaticCandidate,
-    layoutPreference.automaticDirection,
+    !hasAuthoredLayout,
   );
-  const isArranging =
-    comparison.active && !comparison.positions && !hasAuthoredLayout;
+  const isArranging = comparison.active && !comparison.positions;
   const graphModel = useMemo(
     () =>
       comparison.positions

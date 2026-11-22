@@ -49,8 +49,7 @@ import {
 } from "../WorkflowMentionInlineRenderer";
 import { WorkItemMentionInlineRenderer } from "../WorkItemMentionInlineRenderer";
 import { MentionExpansionProvider } from "../MentionExpansionContext";
-import * as diagramLayoutCandidates from "../diagramLayoutCandidates";
-import { diagramLayoutPreferenceKey } from "../useDiagramLayoutPreference";
+import * as automaticDiagramLayout from "../automaticDiagramLayout";
 
 const LocationEvidence = () => (
   <output data-testid="current-path">{useLocation().pathname}</output>
@@ -598,337 +597,175 @@ const SystemMessageMarkdownTestHarness: React.FC<{
   );
 };
 
-describe("diagram layout comparison controls", () => {
+describe("diagram layout", () => {
   beforeEach(() => localStorage.clear());
-  it.each(["success", "failure"] as const)(
-    "keeps automatic layouts editable and restores editing after preview %s",
-    async (outcome) => {
-      mockFlowMeasurements();
-      const identity = { refType: "existing", id: "editable-start" } as const;
-      const projection: WorkItemGraphProjectionData = {
-        layoutSource: "canonical",
-        projectedRoot: {
-          identity: { refType: "existing", id: "editable-diagram" },
-          label: "Editable diagram",
-          name: "Editable diagram",
-          type: "DIAGRAM",
-          sections: [],
-          deleted: false,
-        },
-        children: [
-          {
-            identity,
-            label: "Start",
-            name: "Start",
-            type: "DIAGRAM_ELEMENT",
-            sections: [],
-            deleted: false,
-          },
-        ],
-        incidentRelationships: [],
-        effectiveLayout: { nodes: [] },
-      };
-      const onNodeContextMenu = vi.fn();
-      const compute = vi
-        .spyOn(diagramLayoutCandidates, "computeDiagramLayoutCandidate")
-        .mockResolvedValue(new Map([[identity.id, { x: 32, y: 32 }]]));
-      onTestFinished(() => compute.mockRestore());
-      const { container } = render(
-        <WorkflowGraphSurface
-          projection={projection}
-          organizationId="org-1"
-          projectId="project-1"
-          mode="edit"
-          allowNodeDragging
-          onNodeContextMenu={onNodeContextMenu}
-        />,
-        { wrapper: projectWrapper },
-      );
-      const openMenu = async () => {
-        const element = container.querySelector('[data-id="editable-start"]');
-        expect(element).not.toBeNull();
-        await act(async () => {
-          fireEvent.contextMenu(element!, { clientX: 40, clientY: 40 });
-        });
-      };
-      await waitFor(() =>
-        expect(
-          container.querySelector('[data-id="editable-start"]'),
-        ).not.toBeNull(),
-      );
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Original" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByTestId("diagram-layout-cancel-preview"),
-      ).not.toBeInTheDocument();
-      await openMenu();
-      expect(onNodeContextMenu).toHaveBeenCalledWith(
-        expect.objectContaining({
-          child: identity,
-        }),
-      );
-      onNodeContextMenu.mockClear();
-      let fail: (reason: Error) => void = () => {};
-      let finish: (
-        positions: ReadonlyMap<string, { x: number; y: number }>,
-      ) => void = () => {};
-      compute.mockReturnValueOnce(
-        new Promise((resolve, reject) => {
-          finish = resolve;
-          fail = reject;
-        }),
-      );
-      fireEvent.click(screen.getByTestId("diagram-layout-elk-layered"));
-      expect(screen.getByRole("status")).toHaveTextContent("Arranging");
-      // Unpositioned diagrams show no nodes (so no editable node menu) until
-      // the selected engine resolves.
-      expect(screen.getByTestId("workflow-inline-diagram")).toHaveAttribute(
-        "data-workflow-view-mode",
-        "arranging",
-      );
-      expect(container.querySelector('[data-id="editable-start"]')).toBeNull();
-      await act(async () => {
-        if (outcome === "failure") fail(new Error("Alternative unavailable"));
-        else finish(new Map([[identity.id, { x: 400, y: 300 }]]));
-      });
-      if (outcome === "failure") {
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          "Alternative unavailable",
-        );
-        expect(
-          screen.getByTestId("workflow-inline-diagram-arranging"),
-        ).toHaveTextContent("Layout unavailable");
-        expect(
-          container.querySelector('[data-id="editable-start"]'),
-        ).toBeNull();
-      } else {
-        await waitFor(() =>
-          expect(
-            container.querySelector<HTMLElement>('[data-id="editable-start"]')
-              ?.style.transform,
-          ).toContain("400px"),
-        );
-        await openMenu();
-        expect(onNodeContextMenu).not.toHaveBeenCalled();
-      }
-      fireEvent.click(screen.getByTestId("diagram-layout-cancel-preview"));
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-      expect(
-        screen.queryByTestId("diagram-layout-cancel-preview"),
-      ).not.toBeInTheDocument();
-      await waitForDiagramArranged();
-      await openMenu();
-      expect(onNodeContextMenu).toHaveBeenCalledTimes(1);
-      expect(projection.effectiveLayout.nodes).toEqual([]);
-    },
-  );
 
-  it("previews selected positions through the shared renderer and restores authored positions", async () => {
-    const first = makeWorkflowStep({ id: "comparison-start", name: "Start" });
-    const second = makeWorkflowStep({
-      id: "comparison-finish",
-      name: "Finish",
-    });
-    const graphData: WorkflowGraphSurfaceData = {
-      workflow: makeWorkflow({
-        id: "comparison-flow",
-        name: "Comparison flow",
+  const first = makeWorkflowStep({ id: "layout-start", name: "Start" });
+  const second = makeWorkflowStep({ id: "layout-review", name: "Review" });
+  const third = makeWorkflowStep({ id: "layout-finish", name: "Finish" });
+  const diagram = (
+    savedPositions: readonly (readonly [string, { x: number; y: number }])[],
+  ): WorkflowGraphSurfaceData => ({
+    workflow: makeWorkflow({ id: "layout-flow", name: "Layout flow" }),
+    steps: [first, second, third],
+    edges: [
+      makeEdge({
+        id: "layout-edge-1",
+        sourceNodeId: first.id,
+        targetNodeId: second.id,
+        type: AgentEdgeType.Conditional,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        predicate: "When submitted",
       }),
-      steps: [first, second],
-      edges: [
-        makeEdge({
-          id: "comparison-edge",
-          sourceNodeId: first.id,
-          targetNodeId: second.id,
-          type: AgentEdgeType.Conditional,
-          category: AgentEdgeCategory.Flow,
-          direction: AgentEdgeDirection.Forward,
-          predicate: "When accepted",
-        }),
-      ],
-      layout: {
-        schemaVersion: "work-item-graph-layout.v1",
-        nodes: [
-          {
-            node: { kind: "persistedWorkItem", workItemId: first.id },
-            position: { x: 800, y: 600 },
+      makeEdge({
+        id: "layout-edge-2",
+        sourceNodeId: second.id,
+        targetNodeId: third.id,
+        type: AgentEdgeType.Conditional,
+        category: AgentEdgeCategory.Flow,
+        direction: AgentEdgeDirection.Forward,
+        predicate: "When accepted",
+      }),
+    ],
+    ...(savedPositions.length
+      ? {
+          layout: {
+            schemaVersion: "work-item-graph-layout.v1" as const,
+            nodes: savedPositions.map(([workItemId, position]) => ({
+              node: { kind: "persistedWorkItem" as const, workItemId },
+              position,
+            })),
           },
-          {
-            node: { kind: "persistedWorkItem", workItemId: second.id },
-            position: { x: 1200, y: 600 },
-          },
-        ],
-      },
-    };
-    const onNodeDragStop = vi.fn();
-    let finish: (
-      positions: ReadonlyMap<string, { x: number; y: number }>,
-    ) => void = () => {};
-    const compute = vi
-      .spyOn(diagramLayoutCandidates, "computeDiagramLayoutCandidate")
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-      );
+        }
+      : {}),
+  });
+  const nodeTransform = (container: HTMLElement, id: string) =>
+    container.querySelector<HTMLElement>(`[data-id="${id}"]`)?.style.transform;
+  const expectNoLayoutChoices = () => {
+    for (const testId of [
+      "diagram-layout-comparison",
+      "diagram-layout-dagre",
+      "diagram-layout-elk-layered",
+      "diagram-layout-elk-stress",
+      "diagram-layout-horizontal",
+      "diagram-layout-vertical",
+      "diagram-layout-cancel-preview",
+    ]) {
+      expect(screen.queryByTestId(testId)).not.toBeInTheDocument();
+    }
+  };
+
+  it("opens saved positions as saved, inline and fullscreen, with no layout choices or engine run", async () => {
+    const compute = vi.spyOn(
+      automaticDiagramLayout,
+      "computeAutomaticDiagramLayout",
+    );
     onTestFinished(() => compute.mockRestore());
-    const { container, unmount } = render(
-      <WorkflowGraphSurface
-        graphData={graphData}
-        mode="edit"
-        allowFullscreen
-        allowNodeDragging
-        onNodeDragStop={onNodeDragStop}
-      />,
+    const graphData = diagram([
+      [first.id, { x: 800, y: 600 }],
+      [second.id, { x: 1200, y: 600 }],
+      [third.id, { x: 1600, y: 600 }],
+    ]);
+    const { container } = render(
+      <WorkflowGraphSurface graphData={graphData} allowFullscreen />,
       { wrapper: projectWrapper },
     );
-    const startNode = () =>
-      container.querySelector<HTMLElement>('[data-id="comparison-start"]');
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(startNode()?.style.transform).toContain("800px"),
+      expect(nodeTransform(container, first.id)).toContain("800px"),
     );
-    const originalPosition = startNode()?.style.transform;
+    expectNoLayoutChoices();
+
+    fireEvent.click(
+      screen.getByTestId("workflow-inline-diagram-open-fullscreen"),
+    );
+    expect(screen.getByTestId("workflow-fullscreen-diagram")).toBeVisible();
+    expectNoLayoutChoices();
     expect(compute).not.toHaveBeenCalled();
-    expect(
-      screen.getByTestId("diagram-layout-elk-layered"),
-    ).toHaveAccessibleName("Layered");
-    expect(screen.getByTestId("diagram-layout-dagre")).toHaveAccessibleName(
-      "Flow",
+  });
+
+  it("arranges a Diagram with no saved positions once, with every element and edge", async () => {
+    const compute = vi.spyOn(
+      automaticDiagramLayout,
+      "computeAutomaticDiagramLayout",
     );
-    expect(
-      screen.getByTestId("diagram-layout-elk-stress"),
-    ).toHaveAccessibleName("Network");
-    fireEvent.click(screen.getByTestId("diagram-layout-elk-layered"));
+    onTestFinished(() => compute.mockRestore());
+    const { container } = render(
+      <WorkflowGraphSurface graphData={diagram([])} />,
+      { wrapper: projectWrapper },
+    );
+
     expect(screen.getByRole("status")).toHaveTextContent("Arranging");
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
+    expectNoLayoutChoices();
+    expect(compute).toHaveBeenCalledTimes(1);
     expect(compute).toHaveBeenCalledWith(
       expect.objectContaining({
         nodes: expect.arrayContaining([
           { id: first.id, title: "Start", width: 140, height: 140 },
         ]),
-        edges: [
-          { source: first.id, target: second.id, label: "When accepted" },
-        ],
-      }),
-      "elk-layered",
-      "RIGHT",
-    );
-    await act(async () => {
-      finish(
-        new Map([
-          [first.id, { x: 32, y: 32 }],
-          [second.id, { x: 350, y: 32 }],
+        edges: expect.arrayContaining([
+          { source: first.id, target: second.id, label: "When submitted" },
+          { source: second.id, target: third.id, label: "When accepted" },
         ]),
-      );
-    });
-    await waitFor(() => expect(startNode()?.style.transform).toContain("32px"));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByTestId("workflow-inline-diagram")).toHaveAttribute(
-      "data-layout-candidate",
-      "elk-layered",
-    );
-    expect(onNodeDragStop).not.toHaveBeenCalled();
-    compute.mockResolvedValueOnce(
-      new Map([
-        [first.id, { x: 32, y: 32 }],
-        [second.id, { x: 350, y: 32 }],
-      ]),
-    );
-    fireEvent.click(
-      screen.getByTestId("workflow-inline-diagram-open-fullscreen"),
-    );
-    const fullscreen = screen.getByTestId("workflow-fullscreen-diagram");
-    expect(fullscreen).toHaveAttribute("data-layout-candidate", "elk-layered");
-    expect(
-      within(fullscreen).getByTestId("diagram-layout-elk-layered"),
-    ).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(
-      within(fullscreen).getByTestId("diagram-layout-cancel-preview"),
-    );
-    await waitFor(() =>
-      expect(startNode()?.style.transform).toBe(originalPosition),
-    );
-    expect(graphData.layout?.nodes[0]?.position).toEqual({ x: 800, y: 600 });
-    unmount();
-    compute.mockClear();
-    localStorage.setItem(
-      diagramLayoutPreferenceKey({
-        organizationId: graphData.workflow.organizationId,
-        projectId: graphData.workflow.projectId,
-        diagramId: graphData.workflow.id,
       }),
-      JSON.stringify({ candidate: "elk-stress", direction: "DOWN" }),
     );
-    const reopened = render(<WorkflowGraphSurface graphData={graphData} />, {
-      wrapper: projectWrapper,
-    });
-    expect(screen.getByTestId("diagram-layout-elk-stress")).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    for (const step of [first, second, third]) {
+      expect(nodeTransform(container, step.id)).toBeDefined();
+    }
+  });
+
+  it("keeps saved elements in place when only some positions are saved", async () => {
+    const compute = vi.spyOn(
+      automaticDiagramLayout,
+      "computeAutomaticDiagramLayout",
     );
+    onTestFinished(() => compute.mockRestore());
+    const { container } = render(
+      <WorkflowGraphSurface
+        graphData={diagram([[first.id, { x: 800, y: 600 }]])}
+      />,
+      { wrapper: projectWrapper },
+    );
+
     await waitFor(() =>
-      expect(
-        reopened.container.querySelector<HTMLElement>(
-          '[data-id="comparison-start"]',
-        )?.style.transform,
-      ).toBe(originalPosition),
+      expect(nodeTransform(container, first.id)).toContain("800px"),
     );
+    expect(nodeTransform(container, third.id)).toBeDefined();
     expect(compute).not.toHaveBeenCalled();
   });
 
-  it("uses Flow automatically and restores a selected style and direction after reopening", async () => {
-    const graphData: WorkflowGraphSurfaceData = {
-      workflow: makeWorkflow({
-        id: "remembered-flow",
-        name: "Remembered flow",
-      }),
-      steps: [makeWorkflowStep({ id: "remembered-start", name: "Start" })],
-      edges: [],
-    };
-    const compute = vi
-      .spyOn(diagramLayoutCandidates, "computeDiagramLayoutCandidate")
-      .mockResolvedValue(new Map([["remembered-start", { x: 32, y: 32 }]]));
+  it("ignores layout and direction preferences stored by earlier versions", async () => {
+    const graphData = diagram([]);
+    const legacyKey = `diagram-layout-preference:v1:${JSON.stringify([
+      graphData.workflow.organizationId,
+      graphData.workflow.projectId,
+      graphData.workflow.id,
+    ])}`;
+    localStorage.setItem(
+      legacyKey,
+      JSON.stringify({ candidate: "elk-layered", direction: "DOWN" }),
+    );
+    const compute = vi.spyOn(
+      automaticDiagramLayout,
+      "computeAutomaticDiagramLayout",
+    );
     onTestFinished(() => compute.mockRestore());
-    const first = render(<WorkflowGraphSurface graphData={graphData} />, {
-      wrapper: projectWrapper,
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
-    );
-    expect(compute).toHaveBeenCalledWith(expect.anything(), "dagre", "RIGHT");
-    fireEvent.click(screen.getByTestId("diagram-layout-elk-layered"));
-    fireEvent.click(screen.getByTestId("diagram-layout-vertical"));
-    await waitFor(() =>
-      expect(compute).toHaveBeenLastCalledWith(
-        expect.anything(),
-        "elk-layered",
-        "DOWN",
-      ),
-    );
-    first.unmount();
-    compute.mockClear();
     render(<WorkflowGraphSurface graphData={graphData} />, {
       wrapper: projectWrapper,
     });
-    expect(screen.getByTestId("diagram-layout-elk-layered")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByTestId("diagram-layout-vertical")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await waitFor(() =>
-      expect(compute).toHaveBeenCalledWith(
-        expect.anything(),
-        "elk-layered",
-        "DOWN",
-      ),
-    );
+
     await waitFor(() =>
       expect(screen.queryByRole("status")).not.toBeInTheDocument(),
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expectNoLayoutChoices();
+    expect(compute).toHaveBeenCalledTimes(1);
+    expect(compute.mock.calls[0]).toHaveLength(1);
   });
 });
 
@@ -6080,7 +5917,7 @@ describe("MarkdownRenderer mention rendering", () => {
       ]),
     );
     const compute = vi
-      .spyOn(diagramLayoutCandidates, "computeDiagramLayoutCandidate")
+      .spyOn(automaticDiagramLayout, "computeAutomaticDiagramLayout")
       .mockResolvedValue(enginePositions);
     onTestFinished(() => compute.mockRestore());
     const view = render(<WorkflowGraphSurface projection={projection} />, {

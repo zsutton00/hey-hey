@@ -1,5 +1,5 @@
 import type { DiagramGroup } from "../../../api";
-import type { DiagramLayoutInput } from "../diagramLayoutCandidates";
+import type { DiagramLayoutInput } from "../automaticDiagramLayout";
 import {
   buildDiagramLayoutGroupHints,
   serializeDiagramGroups,
@@ -189,11 +189,11 @@ export const DIAGRAM_GROUP_FIXTURE_PAIRS: readonly DiagramGroupFixturePair[] = [
 export const DIAGRAM_GROUP_FIXTURE_NODE_SIZE = 140;
 
 export function diagramGroupFixtureLayoutInput(
-  fixture: DiagramGroupFixture
+  fixture: DiagramGroupFixture,
 ): DiagramLayoutInput {
   const groups = buildDiagramLayoutGroupHints(
     fixture.groups,
-    new Set(fixture.elements.map((element) => element.id))
+    new Set(fixture.elements.map((element) => element.id)),
   );
   return {
     nodes: fixture.elements.map((element) => ({

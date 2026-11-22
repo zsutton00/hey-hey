@@ -1165,17 +1165,6 @@ describe("WorkItemGraphEditor", () => {
       expect(draftState.current?.projected.effectiveLayout).toEqual(layout);
     });
 
-    it("disables group editing while a layout preview is shown", () => {
-      render(<EditorHarness graphInput={groupsInput()} />, { wrapper });
-      expect(screen.getByTestId("diagram-group-add")).not.toBeDisabled();
-      act(() =>
-        (
-          surfaceProps.current.onLayoutPreviewChange as (value: boolean) => void
-        )(true),
-      );
-      expect(screen.getByTestId("diagram-group-add")).toBeDisabled();
-    });
-
     it("drops a deleted element from pending group membership", () => {
       render(<EditorHarness graphInput={groupsInput()} />, { wrapper });
       selectBoth();
