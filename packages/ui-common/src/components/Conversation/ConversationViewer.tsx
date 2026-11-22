@@ -2,7 +2,7 @@ import { useModalState } from "../Modals/useModalState";
 import { ModalWorkOwner } from "../Modals/ModalWorkOwner";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
 import type { OpenItemsTriageItem } from "../../api";
-import { getResponseStatus } from "../../data/query/queryPolicy";
+import { isConversationReadDenied } from "../../data/query/queryPolicy";
 import { PrivateConversation } from "./PrivateConversation";
 import { SubmissionPreviews } from "./SubmissionPreviews";
 import { DataStateBoundary } from "../shared/DataStateBoundary";
@@ -410,7 +410,7 @@ const ConversationViewerContent: React.FC<{
     latestTurnToolCalls,
   } = useConversationContext();
 
-  const isPrivate = getResponseStatus(messagesError) === 403;
+  const isPrivate = isConversationReadDenied(messagesError);
 
   const isTurnActive =
     agentSessionCurrentState === AgentSessionCurrentState.Starting ||

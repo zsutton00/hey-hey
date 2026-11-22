@@ -1,3 +1,10 @@
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { GraphQLModule } from '@nestjs/graphql';
+import { INestApplication } from '@nestjs/common';
+import type { Request, Response, NextFunction } from 'express';
+import * as request from 'supertest';
+import { ConversationResolver } from '../../graphql/conversations/conversation.resolver';
+import type { GraphQLRequestContext } from '../../graphql/graphql-request-context';
 import type { Client } from '@temporalio/client';
 import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -33,8 +40,9 @@ const otherUser = '99999999-aaaa-4aaa-8aaa-999999999999' as UserId;
  * access rule over a mocked database.
  */
 describe('MessageController restricted conversation reads', () => {
+  let graphqlApp: INestApplication;
   let controller: MessageController;
-  let prisma: ReturnType<typeof TestUtils.createMockPrismaServiceWithTypes>;
+  let prisma: ReturnType<typeof TestUtils.createMockPrismaService>;
 
   const conversationRow = (restricted: boolean, createdBy: string | null) => ({
     restricted,
@@ -57,7 +65,7 @@ describe('MessageController restricted conversation reads', () => {
   const delta = { ...fullThread, since: testIds.message };
 
   beforeEach(async () => {
-    prisma = TestUtils.createMockPrismaServiceWithTypes();
+    prisma = TestUtils.createMockPrismaService();
     prisma.db.message.findMany.mockResolvedValue([]);
     prisma.db.message.findFirst.mockResolvedValue({
       id: testIds.message,
@@ -65,7 +73,28 @@ describe('MessageController restricted conversation reads', () => {
     });
 
     const module = await Test.createTestingModule({
+      imports: [
+        GraphQLModule.forRoot<ApolloDriverConfig>({
+          driver: ApolloDriver,
+          path: 'o/:organizationId/p/:projectId/graphql',
+          autoSchemaFile: true,
+          fieldResolverEnhancers: ['filters'],
+          context: ({ req, res }: GraphQLRequestContext) => ({ req, res }),
+        }),
+      ],
       providers: [
+        ConversationResolver,
+        {
+          provide: ConversationService,
+          useValue: {
+            getConversationFromAdapter: jest.fn().mockResolvedValue({
+              id: testIds.conversation,
+              organizationId: testIds.organization,
+              projectId: testIds.project,
+              title: 'Shared session',
+            }),
+          },
+        },
         MessageService,
         { provide: PrismaService, useValue: prisma },
         {
@@ -102,6 +131,11 @@ describe('MessageController restricted conversation reads', () => {
       ],
     }).compile();
 
+    graphqlApp = module.createNestApplication();
+    graphqlApp.use((req: Request, _res: Response, next: NextFunction) => {
+      req.user = { userId: req.header('x-viewer') };
+      next();
+    });
     controller = new MessageController(
       module.get(MessageService),
       {} as ConversationService,
@@ -111,6 +145,48 @@ describe('MessageController restricted conversation reads', () => {
       {} as ExecutionGrantService,
     );
   });
+
+  afterEach(async () => {
+    await graphqlApp.close();
+  });
+
+  it.each([
+    [true, otherUser, false],
+    [true, creator, true],
+    [false, otherUser, true],
+  ] as const)(
+    'applies privacy to GraphQL history and previews (restricted=%s, viewer=%s)',
+    async (restricted, viewer, readable) => {
+      prisma.db.conversation.findFirst.mockResolvedValue(
+        conversationRow(restricted, creator),
+      );
+      prisma.db.message.findFirst.mockResolvedValue(null);
+      await graphqlApp.init();
+      const read = async (fields: string) =>
+        (
+          await request(graphqlApp.getHttpServer())
+            .post(`/o/${testIds.organization}/p/${testIds.project}/graphql`)
+            .set('x-viewer', viewer)
+            .send({ query: `{ ${fields} }` })
+        ).body;
+      const id = JSON.stringify(testIds.conversation);
+      expect(
+        (await read(`conversation(id: ${id}) { title }`)).data.conversation
+          .title,
+      ).toBe('Shared session');
+      for (const fields of [
+        `conversation(id: ${id}) { messages(last: 8) { nodes { id } } }`,
+        `latestMessage(conversationId: ${id}) { id }`,
+      ]) {
+        const result = await read(fields);
+        if (readable) {
+          expect(result.errors).toBeUndefined();
+        } else {
+          expect(result.errors[0].extensions.code).toBe('FORBIDDEN');
+        }
+      }
+    },
+  );
 
   describe.each([
     ['full-thread', fullThread],
@@ -171,7 +247,9 @@ describe('MessageController restricted conversation reads', () => {
   it('scopes a read without a conversation id to conversations the reader may see', async () => {
     await readMessages(otherUser, { projectId: testIds.project });
 
-    expect(prisma.db.message.findMany.mock.calls[0][0].where.conversation).toEqual(
+    expect(
+      prisma.db.message.findMany.mock.calls[0][0].where.conversation,
+    ).toEqual(
       expect.objectContaining({
         OR: [{ restricted: false }, { createdBy: otherUser }],
       }),

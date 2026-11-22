@@ -1,3 +1,6 @@
+import { agentSessionKeys } from "../../../data/collections/agentSessions";
+import { usePaginatedAgentSessions } from "../../../data/hooks/usePaginatedAgentSessions";
+import { useLatestMessage } from "../../../data/hooks/useLatestMessage";
 import {
   conversationFixture,
   fixtureMessages,
@@ -8,7 +11,11 @@ import { conversationThreadHandlers } from "../../../test/conversationGraphQLHan
 import type { FakeMessage } from "../../../test/conversationGraphQLAnswers";
 import { resetConversationMessageHistoryStateForTests } from "../../../data/collections/conversationMessageHistoryState";
 const queuedInputsRead = vi.hoisted(() =>
-  vi.fn(async () => ({ data: { data: [] } })),
+  vi.fn(
+    async (): Promise<{
+      data: { data: import("../../../api").MessageRecordDto[] };
+    }> => ({ data: { data: [] } }),
+  ),
 );
 const approveProposal = vi.hoisted(() => vi.fn());
 const liveToolCalls = vi.hoisted(() => ({
@@ -104,7 +111,14 @@ import {
   TriageApplicationCoordinator,
   type TriageApplicationPorts,
 } from "../../../data/triage/application";
-import { EntityType } from "../../../api";
+import { AgentSessionListItem } from "../../AgentSessions/AgentSessionListItem";
+import {
+  AgentSessionCurrentState,
+  AgentSessionStatus,
+  AgentSessionType,
+  type PaginatedAgentSessionItemDto,
+  EntityType,
+} from "../../../api";
 import type {
   ConversationResponseDto,
   ProjectResponseDto,
@@ -1706,65 +1720,211 @@ describe("canonical Message lifecycle", () => {
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(messageReads).toEqual([]);
   });
-  it("shows metadata and independently read reports when Messages are private", async () => {
-    canonicalMessageRead.mockRejectedValue(
-      Object.assign(new Error("Forbidden"), { status: 403 }),
-    );
-    readReports.mockResolvedValue({
-      data: {
-        data: [
-          {
-            id: "private-output",
-            organizationId: metadata.organizationId,
-            projectId: metadata.projectId,
-            reportType: "SESSION_SUMMARY",
-            schemaVersion: 1,
-            title: "Session outcome",
-            createdAt: metadata.createdAt,
-            payload: {
-              reportType: "SESSION_SUMMARY",
-              summary:
-                "The session produced a reviewed implementation approach.",
-              text: "Reviewable session output",
+  it.each(["graphql", "queue"])(
+    "preserves a populated session page and reports after %s denies transcript access",
+    async (source) => {
+      servedThread = [
+        agentMessage(
+          "before-denial",
+          "private-message-read",
+          metadata.createdAt,
+          { response: "Previously readable transcript" },
+        ),
+      ];
+      queuedInputsRead.mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              id: "queued-private",
+              type: "USER",
+              conversationId: "private-message-read",
+              projectId: metadata.projectId,
+              createdAt: null,
+              status: MessageStatus.Open,
+              executionStatus: "queued",
+              executionOperationId: "queued-operation",
+              executionQueueConfirmed: true,
+              data: { comment: "Previously queued input" },
             },
-          },
-        ],
-      },
-    });
-    render(
-      <ConversationViewer
-        conversation={{
-          ...metadata,
-          id: "private-message-read",
-          title: "A private session",
-        }}
-        agentSessionId="private-session"
-        project={project}
-        readOnly
-        animationType="minimal"
-        scrollPolicy={{ mode: "disabled" }}
-      />,
-      { wrapper: createTestWrapper() },
-    );
-    expect(await screen.findByTestId("private-conversation")).toHaveTextContent(
-      "A private session",
-    );
-    expect(await screen.findByText("Reviewable session output")).toBeVisible();
-    expect(readReports).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entityType: "AGENT_SESSION",
-        entityId: "private-session",
-      }),
-      expect.anything(),
-    );
-    expect(
-      screen.queryByTestId("conversation-messages-error"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("conversation-timeline"),
-    ).not.toBeInTheDocument();
-    expect(canonicalMessageRead).toHaveBeenCalledTimes(1);
-  });
+          ],
+        },
+      });
+      readReports.mockResolvedValue({
+        data: {
+          data: [
+            {
+              id: "private-output",
+              organizationId: metadata.organizationId,
+              projectId: metadata.projectId,
+              reportType: "SESSION_SUMMARY",
+              schemaVersion: 1,
+              title: "Session outcome",
+              createdAt: metadata.createdAt,
+              payload: {
+                reportType: "SESSION_SUMMARY",
+                summary:
+                  "The session produced a reviewed implementation approach.",
+                text: "Reviewable session output",
+              },
+            },
+          ],
+        },
+      });
+      const items = ["private", "other"].map(
+        (name) =>
+          ({
+            agentSession: {
+              id: name + "-session",
+              organizationId: metadata.organizationId,
+              projectId: metadata.projectId,
+              userId: "creator",
+              conversationId: name + "-message-read",
+              status: AgentSessionStatus.Completed,
+              currentState: AgentSessionCurrentState.Thinking,
+              type: AgentSessionType.Coding,
+              title: name + " row",
+              serviceIds: [],
+              sessionDate: metadata.createdAt,
+              hasUnsyncedChanges: false,
+              monitoringEnabled: false,
+              autoDecide: false,
+            },
+            lastMessage: {
+              id: name + "-latest",
+              conversationId: name + "-message-read",
+              type: MessageType.User,
+              status: MessageStatus.Completed,
+              createdAt: metadata.createdAt,
+              data: { agentInput: { userMessage: name + " embedded preview" } },
+            },
+            parentEntity: null,
+            reports: [],
+            services: [],
+          }) satisfies PaginatedAgentSessionItemDto,
+      );
+      const page = { items, nextCursor: "following-page" };
+      testQueryClient.setQueryData(
+        agentSessionKeys.paginated(metadata.organizationId, metadata.projectId),
+        { pages: [page], pageParams: [null] },
+      );
+      function LoadedPage() {
+        const feed = usePaginatedAgentSessions(
+          metadata.organizationId,
+          metadata.projectId,
+          { staleTimeMs: Infinity },
+        );
+        return (
+          <MemoryRouter>
+            <section
+              data-testid="loaded-rows"
+              data-next-cursor={feed.nextCursor}
+            >
+              {feed.items.map((item) => (
+                <AgentSessionListItem
+                  key={item.agentSession.id}
+                  item={item}
+                  projectId={metadata.projectId}
+                  variant="coding"
+                />
+              ))}
+            </section>
+          </MemoryRouter>
+        );
+      }
+      function Preview() {
+        const latest = useLatestMessage(
+          metadata.organizationId,
+          metadata.projectId,
+          "private-message-read",
+          { refetchOnWindowFocus: false },
+        );
+        return <output data-testid="latest-preview">{latest.data?.id}</output>;
+      }
+      render(
+        <>
+          <LoadedPage />
+          <Preview />
+          <ConversationViewer
+            conversation={{
+              ...metadata,
+              id: "private-message-read",
+              title: "A private session",
+            }}
+            agentSessionId="private-session"
+            project={project}
+            readOnly
+            animationType="minimal"
+            scrollPolicy={{ mode: "disabled" }}
+          />
+        </>,
+        { wrapper: createTestWrapper() },
+      );
+      expect(
+        await screen.findByText("Previously readable transcript"),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(screen.getByTestId("latest-preview")).toHaveTextContent(
+          "before-denial",
+        ),
+      );
+      expect(await screen.findByText("Previously queued input")).toBeVisible();
+      expect(screen.getByText("private embedded preview")).toBeVisible();
+      const rows = () => Array.from(screen.getByTestId("loaded-rows").children);
+      const originalRows = rows();
+      let release = () => {};
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      if (source === "queue") {
+        queuedInputsRead.mockRejectedValueOnce({ status: 403 });
+      }
+      globalThis.mswServer.use(
+        http.post("*/graphql", async () => {
+          if (source === "queue") {
+            await pending;
+          }
+          return HttpResponse.json({
+            errors: [{ message: "Denied", extensions: { code: "FORBIDDEN" } }],
+          });
+        }),
+      );
+      await refreshThread();
+      expect(
+        await screen.findByTestId("private-conversation"),
+      ).toHaveTextContent("A private session");
+      expect(
+        screen.queryByText("Previously queued input"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("latest-preview")).toBeEmptyDOMElement();
+      expect(screen.queryByText("private embedded preview")).toBeNull();
+      expect(screen.getByText("other embedded preview")).toBeVisible();
+      expect(rows()).toEqual(originalRows);
+      expect(screen.getByTestId("loaded-rows")).toHaveAttribute(
+        "data-next-cursor",
+        "following-page",
+      );
+      release();
+      expect(
+        await screen.findByText("Reviewable session output"),
+      ).toBeVisible();
+      expect(readReports).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: "AGENT_SESSION",
+          entityId: "private-session",
+        }),
+        expect.anything(),
+      );
+      expect(
+        screen.queryByTestId("conversation-messages-error"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("conversation-timeline"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Previously readable transcript"),
+      ).not.toBeInTheDocument();
+    },
+  );
   it("presents failed Message reads explicitly", async () => {
     globalThis.mswServer.use(
       http.post("*/graphql", () =>
