@@ -186,6 +186,7 @@ export const TaskMonitor = ({
             isSavingLaunchConfiguration={projection.isSavingLaunchConfiguration}
             onSaveLaunchConfiguration={projection.saveLaunchConfiguration}
             onSaveCoordinatorRuntime={projection.saveCoordinatorRuntime}
+            onSaveReviewRuntime={projection.saveReviewRuntime}
             activePane={activePane}
             renderPaneNavigation={renderPaneNavigation}
           />

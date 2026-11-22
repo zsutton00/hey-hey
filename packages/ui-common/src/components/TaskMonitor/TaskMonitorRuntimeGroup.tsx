@@ -1,4 +1,4 @@
-import { Alert, Stack, Typography } from "@mui/material";
+import { Alert, Button, Stack, Typography } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import type { TaskMonitorRuntimeSelection } from "../../api";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
@@ -43,6 +43,8 @@ const describe = (value: TaskMonitorRuntimeSelection): string =>
 export function TaskMonitorRuntimeGroup({
   label,
   testId,
+  defaultLabel,
+  onClear,
   value,
   catalogSource,
   editable,
@@ -52,6 +54,10 @@ export function TaskMonitorRuntimeGroup({
 }: {
   label: string;
   testId: string;
+  /** What runs when nothing is saved, shown read-only. */
+  defaultLabel: string;
+  /** When given, an editable saved value can be cleared back to the default. */
+  onClear?: () => Promise<void>;
   value: TaskMonitorRuntimeSelection | null;
   catalogSource: RuntimeModelCatalogSource | null;
   editable: boolean;
@@ -175,11 +181,32 @@ export function TaskMonitorRuntimeGroup({
         />
       ) : (
         <Typography data-testid={`${testId}-readonly`}>
-          {value
-            ? describe(value)
-            : "Default (provider default model and effort)"}
+          {value ? describe(value) : defaultLabel}
         </Typography>
       )}
+      {editable && onClear && value ? (
+        <Button
+          size="small"
+          sx={{ alignSelf: "flex-start" }}
+          data-testid={`${testId}-clear`}
+          disabled={isSaving || isSavingLocally}
+          onClick={() => {
+            setSaveError(null);
+            setIsSavingLocally(true);
+            onClear()
+              .catch((error: unknown) => {
+                setSaveError(
+                  error instanceof Error
+                    ? error.message
+                    : `Unable to clear ${label.toLowerCase()}.`,
+                );
+              })
+              .finally(() => setIsSavingLocally(false));
+          }}
+        >
+          Use default
+        </Button>
+      ) : null}
       {saveError ? <Alert severity="error">{saveError}</Alert> : null}
     </Stack>
   );

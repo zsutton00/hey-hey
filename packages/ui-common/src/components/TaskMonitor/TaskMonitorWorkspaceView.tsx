@@ -16,6 +16,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import {
   MessageType,
+  TaskMonitorReviewMode,
   WorkStatus,
   type MachineDto,
   type SubmitTaskMonitorCommandResponseDto,
@@ -86,6 +87,10 @@ export interface TaskMonitorWorkspaceViewProps {
   onSaveCoordinatorRuntime: (
     runtime: TaskMonitorRuntimeSelection,
   ) => Promise<void>;
+  /** Saves the runtime Review runs on; null clears it back to each task's session. */
+  onSaveReviewRuntime: (
+    runtime: TaskMonitorRuntimeSelection | null,
+  ) => Promise<void>;
   activePane: TaskMonitorPane;
   renderPaneNavigation?: (navigation: {
     activePane: TaskMonitorPane;
@@ -119,6 +124,7 @@ export const TaskMonitorWorkspaceView = ({
   isSavingLaunchConfiguration,
   onSaveLaunchConfiguration,
   onSaveCoordinatorRuntime,
+  onSaveReviewRuntime,
   activePane,
   renderPaneNavigation,
   executionState,
@@ -593,7 +599,45 @@ export const TaskMonitorWorkspaceView = ({
               isSaving={isSavingLaunchConfiguration}
               onSave={onSaveCoordinatorRuntime}
               onBusyChange={setIsSavingCoordinatorRuntime}
+              defaultLabel="Default (provider default model and effort)"
             />
+            {definition.launchPolicy.terminalSupervision.mode ===
+            TaskMonitorReviewMode.RequireReview ? (
+              <>
+                <TaskMonitorRuntimeGroup
+                  label="Review runs on"
+                  testId="task-monitor-review-runtime"
+                  value={
+                    definition.launchPolicy.terminalSupervision.reviewRuntime ??
+                    null
+                  }
+                  catalogSource={
+                    selectedMachineId
+                      ? {
+                          organizationId,
+                          projectId,
+                          machineId: selectedMachineId,
+                        }
+                      : null
+                  }
+                  editable={isPreStart}
+                  isSaving={isSavingLaunchConfiguration}
+                  onSave={onSaveReviewRuntime}
+                  onClear={() => onSaveReviewRuntime(null)}
+                  onBusyChange={setIsSavingCoordinatorRuntime}
+                  defaultLabel="Each task's session"
+                />
+                {isPreStart ? (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ px: 2, pb: 1 }}
+                  >
+                    Optional; defaults to each task&apos;s session.
+                  </Typography>
+                ) : null}
+              </>
+            ) : null}
             <Box sx={{ px: 1, py: 1 }}>
               <Stack spacing={1} alignItems="center">
                 <Typography

@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  resetCapabilityCatalogForTests,
+  setCapabilityCatalogForTests,
+} from '../../../../shared/runtime/components/AgentSession/capabilityCatalog';
 
 import type { WorkItemTypeMonitorKind } from '@hey-hey/contracts/api/models';
 import { TaskMonitorKind, taskMonitorKindConfiguration } from '../../kinds/task-monitor-kind';
@@ -36,7 +40,11 @@ import {
   type TaskMonitorSettledRunEvaluationEffectHandlerDependencies,
 } from '../supervision-effect-handlers';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
-import { TaskMonitorReviewMode, WorkStatus } from '@hey-hey/contracts/api/models';
+import {
+  TaskMonitorReviewMode,
+  WorkStatus,
+  type TaskMonitorRuntimeSelection,
+} from '@hey-hey/contracts/api/models';
 import type { LocalTaskMonitorCoordinatorDecision } from '@hey-hey/contracts/agent-bridge';
 
 const effect: EvaluateTaskMonitorSettledRunEffect = {
@@ -152,12 +160,14 @@ describe('Task Monitor settled-Run evaluation', () => {
       kind?: WorkItemTypeMonitorKind;
       remainingNodes?: readonly { taskId: string; agentSessionId: string | null }[];
       nodeResults?: readonly ServedNodeResult[];
+      reviewRuntime?: TaskMonitorRuntimeSelection;
     } = {},
   ) => {
     const {
       kind: kindConfiguration,
       remainingNodes = [],
       nodeResults = [],
+      reviewRuntime,
       ...handlerOverrides
     } = overrides;
     const input = dependencies(createTestPlatformAuthContext(auth));
@@ -191,7 +201,7 @@ describe('Task Monitor settled-Run evaluation', () => {
         ],
         launchPolicy: {
           worktree: undefined,
-          terminalSupervision: { mode },
+          terminalSupervision: { mode, ...(reviewRuntime ? { reviewRuntime } : {}) },
         },
       },
     };
@@ -586,6 +596,37 @@ describe('Task Monitor settled-Run evaluation', () => {
     });
   });
 
+  it.each([
+    [TaskMonitorReviewMode.RequireReview, true],
+    [TaskMonitorReviewMode.AgentDecides, false],
+  ] as const)(
+    'commits the saved Review runtime with a %s Review request only when Review is required',
+    async (mode, carriesRuntime) => {
+      const reviewRuntime: TaskMonitorRuntimeSelection = {
+        provider: 'claude',
+        model: 'claude-review',
+        reasoningEffort: 'high',
+      };
+      const { handler } = await decisionHarness(
+        mode,
+        { action: 'REQUEST_REVIEW', rationale: 'Review is warranted.' },
+        { reviewRuntime },
+      );
+
+      const settlement = await handler.execute(effect, execution);
+
+      expect(settlement).toMatchObject({
+        status: 'succeeded',
+        outcome: { type: 'REVIEW_REQUEST_COMMITTED' },
+      });
+      expect(settlement.outcome).toEqual(
+        carriesRuntime
+          ? expect.objectContaining({ reviewRuntime })
+          : expect.not.objectContaining({ reviewRuntime }),
+      );
+    },
+  );
+
   it('does not treat an unsuccessful bound Review as acceptance authority', async () => {
     const { handler, fetchImpl } = await decisionHarness(TaskMonitorReviewMode.RequireReview, {
       action: 'ACCEPT_TASK',
@@ -737,6 +778,92 @@ describe('Task Monitor Review delivery', () => {
       'REVIEW_REQUEST_RECONCILING',
       'AWAITING_REVIEW',
     ]);
+  });
+
+  describe('with a saved Review runtime', () => {
+    const reviewRuntime = {
+      provider: 'codex',
+      model: 'gpt-review',
+      reasoningEffort: 'high',
+      fastMode: true,
+    } as const;
+    const runtimeEffect: DeliverTaskMonitorReviewEffect = { ...reviewEffect, reviewRuntime };
+
+    const installCatalog = (): void => {
+      setCapabilityCatalogForTests([
+        {
+          provider: 'codex',
+          models: [
+            { id: 'gpt-review', label: 'Review', efforts: ['high'], serviceTiers: ['priority'] },
+          ],
+        },
+      ]);
+    };
+    afterEach(() => resetCapabilityCatalogForTests());
+
+    it('sends the shared Review request with the saved runtime for that Review only', async () => {
+      installCatalog();
+      const { input, sendMessage } = deliveryDependencies('implement');
+      const handler = new TaskMonitorReviewDeliveryEffectHandler(input);
+
+      await expect(handler.execute(runtimeEffect, execution)).resolves.toMatchObject({
+        status: 'succeeded',
+        outcome: { type: 'REVIEW_REQUEST_ACCEPTED' },
+      });
+      expect(sendMessage).toHaveBeenCalledWith(
+        reviewEffect.agentSessionId,
+        expect.objectContaining({
+          promptType: LocalPromptType.CodeReview,
+          turnRuntime: reviewRuntime,
+        }),
+      );
+    });
+
+    it('resends the same runtime when a claimed request is reconciled', async () => {
+      installCatalog();
+      const { input, sendMessage } = deliveryDependencies('implement');
+      const handler = new TaskMonitorReviewDeliveryEffectHandler(input);
+
+      await handler.recovery.reconcile(runtimeEffect);
+
+      expect(sendMessage).toHaveBeenCalledWith(
+        reviewEffect.agentSessionId,
+        expect.objectContaining({ turnRuntime: reviewRuntime }),
+      );
+    });
+
+    it('fails visibly and sends nothing when the saved model left the catalog', async () => {
+      setCapabilityCatalogForTests([
+        {
+          provider: 'codex',
+          models: [{ id: 'other', label: 'Other', efforts: ['high'], serviceTiers: [] }],
+        },
+      ]);
+      const { input, sendMessage, createOutOfBand } = deliveryDependencies('implement');
+      const handler = new TaskMonitorReviewDeliveryEffectHandler(input);
+
+      await expect(handler.execute(runtimeEffect, execution)).resolves.toMatchObject({
+        status: 'failed',
+        outcome: { type: 'REVIEW_REQUEST_FAILED', ambiguous: false },
+      });
+      expect(sendMessage).not.toHaveBeenCalled();
+      const outcomes = createOutOfBand.mock.calls.map(([message]) => message.dto.data);
+      expect(outcomes).toEqual([
+        expect.objectContaining({
+          outcome: 'REVIEW_REQUEST_FAILED',
+          failureContext: expect.stringContaining('gpt-review'),
+        }),
+      ]);
+    });
+  });
+
+  it('sends Review without a turn runtime when none is saved', async () => {
+    const { input, sendMessage } = deliveryDependencies('implement');
+    const handler = new TaskMonitorReviewDeliveryEffectHandler(input);
+
+    await handler.execute(reviewEffect, execution);
+
+    expect(sendMessage.mock.calls[0]?.[1]).not.toHaveProperty('turnRuntime');
   });
 
   it('uses human judgment only when claimed delivery cannot be reconciled', async () => {

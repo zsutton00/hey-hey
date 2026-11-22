@@ -62,6 +62,9 @@ export interface UseTaskMonitorProjectionResult {
   saveCoordinatorRuntime: (
     runtime: TaskMonitorRuntimeSelection,
   ) => Promise<void>;
+  saveReviewRuntime: (
+    runtime: TaskMonitorRuntimeSelection | null,
+  ) => Promise<void>;
 }
 
 const unique = (values: readonly string[]): string[] => [...new Set(values)];
@@ -346,6 +349,51 @@ export const useTaskMonitorProjection = ({
       projectId,
     ],
   );
+  const saveReviewRuntime = useCallback(
+    async (runtime: TaskMonitorRuntimeSelection | null): Promise<void> => {
+      if (!parsed.definition || isSavingLaunchConfiguration) {
+        throw new Error("The Task Monitor setup is unavailable.");
+      }
+      const { launchPolicy } = parsed.definition;
+      const { reviewRuntime: _previous, ...terminalSupervision } =
+        launchPolicy.terminalSupervision;
+      setIsSavingLaunchConfiguration(true);
+      try {
+        await unifiedApiClient.updateTask({
+          organizationId,
+          projectId,
+          taskId: monitorId,
+          updateTaskDto: {
+            sections: [
+              {
+                key: EXECUTION_DEFINITION_SECTION,
+                content: {
+                  ...parsed.definition,
+                  launchPolicy: {
+                    ...launchPolicy,
+                    terminalSupervision: runtime
+                      ? { ...terminalSupervision, reviewRuntime: runtime }
+                      : terminalSupervision,
+                  },
+                },
+              },
+            ],
+          },
+        });
+        await monitorQuery.refetch();
+      } finally {
+        setIsSavingLaunchConfiguration(false);
+      }
+    },
+    [
+      isSavingLaunchConfiguration,
+      monitorId,
+      monitorQuery,
+      organizationId,
+      parsed.definition,
+      projectId,
+    ],
+  );
   return {
     monitor: monitorQuery.workItem,
     definition: parsed.definition,
@@ -367,5 +415,6 @@ export const useTaskMonitorProjection = ({
     reconcileAfterCommand,
     saveLaunchConfiguration,
     saveCoordinatorRuntime,
+    saveReviewRuntime,
   };
 };

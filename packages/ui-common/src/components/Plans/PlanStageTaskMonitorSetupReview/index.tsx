@@ -5,7 +5,10 @@ import type {
   TaskMonitorExecutionPlanNode,
   TaskMonitorExecutionNodeLaunchConfiguration,
 } from "../../../api";
-import { EntityType as EntityTypeValue } from "../../../api";
+import {
+  EntityType as EntityTypeValue,
+  TaskMonitorReviewMode,
+} from "../../../api";
 import { defaultClient } from "../../../clients";
 import { useMentionEntitySearch } from "../../../data/hooks/useMentionEntitySearch";
 import {
@@ -350,10 +353,11 @@ export const PlanStageTaskMonitorSetupReview = ({
           ...current,
           launchPolicy: {
             ...current.launchPolicy,
-            terminalSupervision: {
-              ...current.launchPolicy.terminalSupervision,
-              mode,
-            },
+            // A Review runtime applies only to required Review, so leaving it drops the choice.
+            terminalSupervision:
+              mode === TaskMonitorReviewMode.RequireReview
+                ? { ...current.launchPolicy.terminalSupervision, mode }
+                : { mode },
           },
         }));
       }}

@@ -772,6 +772,13 @@ TaskMonitorTerminalSupervisionPolicy:
   properties:
     mode:
       $ref: "#/TaskMonitorReviewMode"
+    reviewRuntime:
+      $ref: "#/TaskMonitorRuntimeSelection"
+      description: >
+        Optional runtime the Review sub-agent runs on for every Review this monitor
+        requests. Applies only with REQUIRE_REVIEW. Monitor-owned selected-run intent;
+        it holds no session or Review evidence and never changes the task Agent
+        Session's runtime. Absent means Review runs on the task Agent Session's runtime.
 
 TaskMonitorExecutionNodeLaunchConfiguration:
   type: object

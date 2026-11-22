@@ -348,9 +348,8 @@ export const toRunPromptRequest = (event: ConversationPromptEvent): LocalRunProm
     }
     if (handlerPromptType === LocalPromptType.CodeReview) {
       return {
-        ...buildCodeReviewRequest(message.userMessage, message.skillSelection),
+        ...buildCodeReviewRequest(message.userMessage, message.skillSelection, message.runtime),
         attachments: message.attachments,
-        ...(message.runtime ? { turnRuntime: message.runtime } : {}),
       };
     }
     if (

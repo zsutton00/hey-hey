@@ -12,8 +12,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MessageType,
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
+  TaskMonitorReviewMode,
   WorkStatus,
   type CreateUserMessage,
+  type TaskMonitorExecutionDefinition,
 } from "../../../api";
 import { TaskMonitorWorkspaceView } from "../TaskMonitorWorkspaceView";
 import { CapsuleScreenButtonControl } from "../../ActionsCapsule/CapsuleScreenButtonControl";
@@ -260,6 +262,7 @@ const workspaceElement = (
       isSavingLaunchConfiguration={false}
       onSaveLaunchConfiguration={vi.fn()}
       onSaveCoordinatorRuntime={vi.fn()}
+      onSaveReviewRuntime={vi.fn()}
       pendingLifecycleAction={null}
       errorMessage={null}
       operationalErrorMessage={null}
@@ -1101,6 +1104,84 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
       ),
     ).toBeInTheDocument();
     expect(onSaveCoordinatorRuntime).not.toHaveBeenCalled();
+  });
+
+  const reviewDefinition = (
+    reviewRuntime?: typeof savedRuntime,
+  ): TaskMonitorExecutionDefinition => {
+    const base = createTaskMonitorDefinition();
+    return {
+      ...base,
+      launchPolicy: {
+        ...base.launchPolicy,
+        terminalSupervision: {
+          mode: TaskMonitorReviewMode.RequireReview,
+          ...(reviewRuntime ? { reviewRuntime } : {}),
+        },
+      },
+    };
+  };
+
+  it("offers Review runs on only when Review is required", () => {
+    renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+    expect(
+      screen.queryByTestId("task-monitor-review-runtime"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the saved Review runtime and saves a change through the update path", async () => {
+    const onSaveReviewRuntime = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      definition: reviewDefinition(savedRuntime),
+      monitorStatus: WorkStatus.Backlog,
+      onSaveReviewRuntime,
+    });
+
+    const group = screen.getByTestId("task-monitor-review-runtime");
+    expect(group).toHaveTextContent("Review runs on");
+    expect(
+      within(group).getByTestId(
+        "task-monitor-review-runtime-runtime-model-input",
+      ),
+    ).toHaveValue("Sonnet 5.5");
+    expect(onSaveReviewRuntime).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-review-runtime-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        "task-monitor-review-runtime-runtime-effort-option-high",
+      ),
+    );
+    await waitFor(() =>
+      expect(onSaveReviewRuntime).toHaveBeenCalledWith({
+        ...savedRuntime,
+        reasoningEffort: "high",
+      }),
+    );
+
+    await user.click(screen.getByTestId("task-monitor-review-runtime-clear"));
+    await waitFor(() => expect(onSaveReviewRuntime).toHaveBeenCalledWith(null));
+  });
+
+  it("shows the saved Review runtime read-only after Start", () => {
+    renderWorkspace({
+      definition: reviewDefinition(savedRuntime),
+      monitorStatus: WorkStatus.Active,
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-review-runtime-readonly"),
+    ).toHaveTextContent(savedRuntime.model);
+    expect(
+      screen.queryByTestId("task-monitor-review-runtime-clear"),
+    ).not.toBeInTheDocument();
   });
 
   const chooseEffort = async (effort: string) => {
