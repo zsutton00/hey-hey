@@ -30,7 +30,8 @@ import {
   planShapingVisualPreviewFeedbackActions,
 } from './schemas';
 import {
-  findFirstUnapprovedEntry,
+  describeApprovedVisualChanges,
+  findUnapprovedEntries,
   orderVisualEntries,
   resolveVisualReviewPosition,
   type VisualPreviewEntry,
@@ -64,8 +65,8 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
 
   /**
    * Reads the live status of every visual in the current set. Visuals are
-   * never dropped here: a rejected visual stays in place so the agent redraws
-   * it at its position in the order.
+   * never dropped here: a rejected visual stays in place until the agent
+   * redraws it or drops it.
    */
   private async readLiveStatuses(
     context: PlanFromDesignDocFlowContext,
@@ -189,46 +190,60 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
   ): Promise<NodeResult> {
     const context = tracker.getContext();
     const { entries, statusById } = await this.readLiveStatuses(context);
-    if (entries.length === 0) {
+    const setComplete = context.visualPreviewSetComplete === true;
+    if (entries.length === 0 && !setComplete) {
       throw new Error(
-        '[visual-preview-feedback] cannot execute without visual proposals',
+        '[visual-preview-feedback] no visuals and the agent has not declared the set complete',
       );
     }
 
     const position = resolveVisualReviewPosition(
       entries,
       statusById,
-      context.visualPreviewSetComplete === true,
+      setComplete,
     );
     tracker.mutate((draft) => {
       draft.visualPreviewReviewProposalId =
-        position.kind === 'visual' ? position.review.proposalId : undefined;
+        position.kind === 'visual' ? position.review[0]?.proposalId : undefined;
     });
 
-    const reviewingOneVisual = position.kind === 'visual';
+    const reviewingVisuals = position.kind === 'visual';
+    const reviewingSeveral = reviewingVisuals && position.review.length > 1;
     const reviewFieldId = uuidv4();
+    // The preview element requires at least one visual, so an empty complete
+    // set is confirmed without it.
+    const previewElements: UIElement[] =
+      position.presented.length === 0
+        ? []
+        : [
+            {
+              id: uuidv4(),
+              type: ExtendedUIFieldType.PlanGenerationVisualPreview,
+              label: reviewingSeveral
+                ? 'Visuals under review'
+                : reviewingVisuals
+                  ? 'Visual under review'
+                  : 'Complete visual plan',
+              required: false,
+              influences: [],
+              payload: {
+                responseType: 'plan_generation_visual_preview_v1',
+                entries: position.presented,
+              } satisfies PlanGenerationVisualPreviewPayload,
+            },
+          ];
     const uiElements: UIElement[] = [
-      {
-        id: uuidv4(),
-        type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-        label: reviewingOneVisual
-          ? 'Visual under review'
-          : 'Complete visual plan',
-        required: false,
-        influences: [],
-        payload: {
-          responseType: 'plan_generation_visual_preview_v1',
-          entries: position.presented,
-        } satisfies PlanGenerationVisualPreviewPayload,
-      },
+      ...previewElements,
       {
         id: reviewFieldId,
         type: ExtendedUIFieldType.Textarea,
-        label: reviewingOneVisual
-          ? 'Feedback on this visual'
-          : 'Feedback on the visual plan',
-        placeholder: reviewingOneVisual
-          ? 'What should change in this visual?'
+        label: reviewingSeveral
+          ? 'Feedback on these visuals'
+          : reviewingVisuals
+            ? 'Feedback on this visual'
+            : 'Feedback on the visual plan',
+        placeholder: reviewingVisuals
+          ? 'What should change? You can also ask about any other visual.'
           : 'Which visuals should change, and how?',
         multiline: true,
         required: false,
@@ -253,7 +268,7 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
         id: uuidv4(),
         type: SecondaryActionConfig.TypeEnum.FieldAction,
         presentation: SecondaryActionConfig.PresentationEnum.Button,
-        label: reviewingOneVisual ? 'Next Visual' : 'Confirm Visual Set',
+        label: reviewingVisuals ? 'Next Visual' : 'Confirm Visual Set',
         handler: SecondaryActionHandler.PlanGenerationVisualPreviewApprove,
         fieldId: reviewFieldId,
         disabled: false,
@@ -270,14 +285,23 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
       refinementRound: context.visualPreviewRound ?? 0,
     });
 
-    const prompt = reviewingOneVisual
-      ? 'Approve this visual to move on, or add feedback and choose Continue Revising to have it redrafted.'
-      : 'Every visual is approved. Confirm the visual set to start stage selection, or ask for changes.';
+    const prompt = reviewingSeveral
+      ? 'Approve these visuals to move on, or say what should change and choose Continue Revising.'
+      : reviewingVisuals
+        ? "Approve this visual to move on, or say what should change, or that it isn't needed, and choose Continue Revising."
+        : entries.length === 0
+          ? 'No visuals are planned. Confirm to start stage selection, or ask for visuals.'
+          : 'Every visual is approved. Confirm the visual set to start stage selection, or ask for changes.';
+    const message = [
+      describeApprovedVisualChanges(context.visualPreviewApprovedChanges ?? []),
+      context.visualPreviewApprovalFailure,
+      prompt,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join('\n\n');
     return {
       type: NodeType.QUESTIONS,
-      message: context.visualPreviewApprovalFailure
-        ? `${context.visualPreviewApprovalFailure}\n\n${prompt}`
-        : prompt,
+      message,
       uiElements,
       data: {
         type: 'QUESTIONS',
@@ -321,10 +345,10 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
 
     const context = tracker.getContext();
     const { entries, statusById } = await this.readLiveStatuses(context);
-    if (entries.length === 0) {
+    if (entries.length === 0 && context.visualPreviewSetComplete !== true) {
       delete (userMessage.data as Partial<QuestionsActionFlowData>).action;
       this.logger.warn(
-        'Visual-preview-feedback rejected: no presentable proposals',
+        'Visual-preview-feedback rejected: no visuals and the set is not complete',
         { conversationId: context.core.conversationId },
       );
       return;
@@ -332,14 +356,11 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
 
     if (validated.action === PLAN_SHAPING_ACTIONS.REFINE) {
       const feedback = validated.payload.feedback.trim();
-      const reviewProposalId = context.visualPreviewReviewProposalId;
       tracker.mutate((draft) => {
         draft.visualPreviewFeedback = feedback || undefined;
         draft.visualPreviewApprovalFailure = undefined;
+        draft.visualPreviewApprovedChanges = undefined;
         draft.visualPreviewRound = (draft.visualPreviewRound ?? 0) + 1;
-        draft.visualPreviewTurnScope = reviewProposalId
-          ? { kind: 'redraft', proposalId: reviewProposalId }
-          : { kind: 'set_feedback' };
       });
       return;
     }
@@ -348,37 +369,42 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
       return;
     }
 
-    // Moving past a visual requires that visual's live APPROVED status. The
-    // answer never approves visuals itself.
+    // Moving on requires every presented visual's live APPROVED status, and
+    // every visual that is not approved is presented. The answer never
+    // approves visuals itself.
     const reviewProposalId = context.visualPreviewReviewProposalId;
-    if (reviewProposalId && statusById.get(reviewProposalId) !== 'APPROVED') {
+    const unapproved = findUnapprovedEntries(entries, statusById);
+    if (unapproved.length > 0) {
+      const rejected = unapproved.filter(
+        (entry) => statusById.get(entry.proposalId) === 'REJECTED',
+      );
       delete (userMessage.data as Partial<QuestionsActionFlowData>).action;
       tracker.mutate((draft) => {
+        const subject = unapproved.length > 1 ? 'A visual here' : 'This visual';
         draft.visualPreviewApprovalFailure =
-          statusById.get(reviewProposalId) === 'REJECTED'
-            ? 'This visual was rejected. Add feedback if you like and choose Continue Revising to have it redrafted.'
-            : 'Approve this visual before moving on to the next one.';
+          rejected.length > 0
+            ? `${subject} was rejected. Tell us what to change or that it isn't needed, and choose Continue Revising.`
+            : unapproved.length > 1
+              ? 'Approve every visual under review before moving on.'
+              : 'Approve this visual before moving on to the next one.';
       });
-      this.logger.log('Visual-preview-feedback kept the visual under review', {
+      this.logger.log('Visual-preview-feedback kept visuals under review', {
         conversationId: context.core.conversationId,
-        proposalId: reviewProposalId,
-        status: statusById.get(reviewProposalId),
+        unapprovedProposalIds: unapproved.map((entry) => entry.proposalId),
+        rejectedProposalIds: rejected.map((entry) => entry.proposalId),
       });
       return;
     }
 
     const advance = this.resolveAdvance(
       reviewProposalId,
-      findFirstUnapprovedEntry(entries, statusById) !== undefined,
       context.visualPreviewSetComplete === true,
     );
     if (advance !== 'stages') {
       tracker.mutate((draft) => {
         draft.visualPreviewApprovalFailure = undefined;
+        draft.visualPreviewApprovedChanges = undefined;
         draft.visualPreviewAdvance = advance;
-        if (advance === 'draft') {
-          draft.visualPreviewTurnScope = { kind: 'next' };
-        }
       });
       this.logger.log('Visual-preview-feedback moved on', {
         conversationId: context.core.conversationId,
@@ -391,6 +417,7 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
     const approvedVisuals = await this.resolveApprovedVisuals(context, entries);
     tracker.mutate((draft) => {
       draft.visualPreviewApprovalFailure = undefined;
+      draft.visualPreviewApprovedChanges = undefined;
       draft.visualPreviewAdvance = 'stages';
       draft.visualPreviewAcceptedProposalIds = orderVisualEntries(entries).map(
         (entry) => entry.proposalId,
@@ -404,20 +431,16 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
   }
 
   /**
-   * Decides where an accepted answer moves the run. A visual still awaiting
-   * approval is reviewed next, already drafted. A set with no unapproved
-   * visual asks the agent for the next one until the agent declares the set
-   * complete; the complete set is then presented once more for confirmation.
-   * Only confirming that presented complete set starts stage selection.
+   * Decides where an accepted answer moves the run once every visual is
+   * approved. The agent is asked for the next visual until it declares the
+   * set complete; the complete set is then presented once more for
+   * confirmation. Only confirming that presented complete set starts stage
+   * selection.
    */
   private resolveAdvance(
     reviewProposalId: string | undefined,
-    hasUnapprovedVisual: boolean,
     setComplete: boolean,
   ): NonNullable<PlanFromDesignDocFlowContext['visualPreviewAdvance']> {
-    if (hasUnapprovedVisual) {
-      return 'review';
-    }
     if (!setComplete) {
       return 'draft';
     }

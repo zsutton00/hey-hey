@@ -2758,21 +2758,32 @@ export type PlanFromDesignDocFlowContext = Omit<FlowContext, 'metadata'> &
     /** Whether the agent declared that no further visuals follow the current set. */
     visualPreviewSetComplete?: boolean;
     /**
-     * The visual the gate last presented for one-by-one review. Absent while
-     * the gate presents the complete, all-approved set.
+     * The first visual the gate last presented for review. Absent while the
+     * gate presents the complete, all-approved set.
      */
     visualPreviewReviewProposalId?: string;
     /** Where the last accepted gate answer moves the run; read by gate routing. */
     visualPreviewAdvance?: 'review' | 'draft' | 'stages';
     /**
-     * What the user asked the next agent turn to change, set by the gate:
-     * redraft only the visual under review, add the next visual, or change
-     * the complete set. Absent on runs started before this was recorded.
+     * The visuals that were approved when the agent's turn started, captured
+     * when the turn is triggered so a visual the agent drops or deletes can
+     * still be named. Absent on runs triggered before this was recorded.
      */
-    visualPreviewTurnScope?:
-      | { kind: 'redraft'; proposalId: string }
-      | { kind: 'next' }
-      | { kind: 'set_feedback' };
+    visualPreviewApprovedBeforeTurn?: Array<{
+      proposalId: string;
+      title: string;
+      targetEntityId: string;
+    }>;
+    /**
+     * Approved visuals the agent changed or removed since the user last
+     * answered the gate. The next review screen names them; the user's answer
+     * clears them.
+     */
+    visualPreviewApprovedChanges?: Array<{
+      proposalId: string;
+      title: string;
+      change: 'changed' | 'removed';
+    }>;
     /** Complete accepted visual identity set handed to phase breakdown. */
     visualPreviewAcceptedProposalIds?: string[];
     /**

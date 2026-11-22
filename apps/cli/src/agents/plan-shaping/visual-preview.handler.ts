@@ -18,6 +18,7 @@ export const VISUAL_PREVIEW_ALLOWED_TOOLS: readonly string[] = [
   'edit_work_item',
   'get_proposal',
   'update_proposal',
+  'delete_proposal',
   'get_future_revision',
 ];
 

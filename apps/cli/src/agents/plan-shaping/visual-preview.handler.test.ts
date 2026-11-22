@@ -5,6 +5,7 @@ import {
   type PlanShapingVisualPreviewPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
 import { VISUAL_PREVIEW_ALLOWED_TOOLS } from './visual-preview.handler';
+import { resolveMcpToolNames } from '../mcp-server-config';
 import { planShapingVisualPreviewHandler } from './visual-preview.handler';
 import { buildVisualPreviewPrompt } from './visual-preview.prompt';
 import { submitVisualPreviewReadyTool } from './visual-preview.submission-tools';
@@ -75,7 +76,7 @@ describe('plan-shaping visual-preview handler', () => {
       entries: approvedMockups,
     },
   ])(
-    'asks for one visual per turn and explicit set confirmation for $scenario',
+    'lets the agent own the visual set and still asks for explicit set confirmation for $scenario',
     ({ entries, refinementRound }) => {
       const reviewPayload = {
         designDocId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -93,17 +94,15 @@ describe('plan-shaping visual-preview handler', () => {
       expect(prompt).toContain(
         `Accepted proposal ids: ${JSON.stringify(reviewPayload.acceptedProposalIds)}`,
       );
-      expect(guidance).toContain(
-        'The user reviews visuals one by one, in presentation order, and cannot move past a visual until it is APPROVED',
-      );
-      expect(guidance).toContain('Each turn drafts or redrafts exactly one visual');
-      expect(guidance).toContain('A rejected visual is redrafted, never silently dropped');
-      expect(guidance).toContain(
-        'replace only each affected entry with a new revision proposal at the same place in the order',
-      );
-      expect(guidance).toContain(
-        'Set `setComplete` to true only when no further visual should follow',
-      );
+      expect(guidance).toContain("You own the plan's visual design");
+      expect(guidance).toContain('say which visuals you think the work needs and why');
+      expect(guidance).toContain('including for visuals they already approved');
+      expect(guidance).toContain('"change this one" changes only the visual under review');
+      expect(guidance).toContain('Never propose a visual the user declined again');
+      expect(guidance).toContain('Add several in one turn only when they belong together');
+      expect(guidance).toContain('delete its proposal with `delete_proposal`');
+      expect(guidance).toContain('You decide when the set is done');
+      expect(guidance).toContain('say why the set is complete');
       expect(guidance).toContain(
         'including an APPROVED proposal from another conversation in the same project',
       );
@@ -133,6 +132,19 @@ describe('plan-shaping visual-preview handler', () => {
     );
   });
 
+  it('lets the visual agent delete the proposals of visuals it drops', () => {
+    const tools = resolveMcpToolNames({
+      ...(planShapingVisualPreviewHandler.mcpToolUseCase
+        ? { useCase: planShapingVisualPreviewHandler.mcpToolUseCase }
+        : {}),
+      additionalTools: planShapingVisualPreviewHandler.additionalAllowedTools ?? [],
+    });
+
+    expect(tools).toEqual(
+      expect.arrayContaining(['create_work_item', 'update_proposal', 'delete_proposal']),
+    );
+  });
+
   it('keeps current proposal identity, status, order, and feedback in the prompt context', () => {
     const prompt = buildVisualPreviewPrompt(payload());
 
@@ -157,7 +169,7 @@ describe('plan-shaping visual-preview handler', () => {
     expect(prompt).toContain('dddddddd-dddd-dddd-dddd-dddddddddddd');
     expect(prompt).toContain('Add the empty state.');
     expect(prompt).toContain('Refinement round: 1');
-    expect(prompt).toContain('Visual under review: dddddddd-dddd-dddd-dddd-dddddddddddd');
+    expect(prompt).toContain('First visual under review: dddddddd-dddd-dddd-dddd-dddddddddddd');
     expect(prompt).toContain('mcp__heyhey-submission-tools__<name>');
   });
 

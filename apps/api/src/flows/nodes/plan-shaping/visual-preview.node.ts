@@ -28,12 +28,34 @@ import {
   planShapingVisualPreviewActions,
 } from './schemas';
 import {
-  findFirstUnapprovedEntry,
-  findTurnScopeViolation,
+  findApprovedVisualChanges,
+  findSubmissionViolation,
+  findUnapprovedEntries,
+  type ApprovedVisualSnapshot,
   type VisualPreviewEntry,
 } from './visual-preview-review';
 
 const MATERIALIZED_VISUAL_TYPES = ['mockup', 'DIAGRAM'] as const;
+
+const UNTITLED_VISUAL = 'Untitled visual';
+
+type VisualProposal = {
+  id: string;
+  conversationId: string | null;
+  title: string | null;
+  status: string;
+  action: string;
+  targetEntityId: string;
+  targetEntityType: string;
+};
+
+const findMissingIds = (
+  proposalIds: readonly string[],
+  proposals: readonly VisualProposal[],
+): string[] => {
+  const knownIds = new Set(proposals.map((proposal) => proposal.id));
+  return proposalIds.filter((proposalId) => !knownIds.has(proposalId));
+};
 
 @Injectable()
 export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFromDesignDocFlowContext> {
@@ -53,30 +75,38 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
     super();
   }
 
-  private async resolveProposals(
+  private async findProposals(
     context: PlanFromDesignDocFlowContext,
-    proposalIds: string[],
-  ) {
-    if (proposalIds.length === 0) return [];
+    proposalIds: readonly string[],
+  ): Promise<VisualProposal[]> {
+    if (proposalIds.length === 0) {
+      return [];
+    }
 
-    const proposals = await this.prisma.db.proposal.findMany({
+    return this.prisma.db.proposal.findMany({
       where: {
         organizationId: context.core.organizationId,
         projectId: context.core.projectId,
-        id: { in: proposalIds },
+        id: { in: [...proposalIds] },
       },
       select: {
         id: true,
+        conversationId: true,
+        title: true,
         status: true,
         action: true,
         targetEntityId: true,
         targetEntityType: true,
       },
     });
-    const knownProposalIds = new Set(proposals.map((proposal) => proposal.id));
-    const missingProposalIds = proposalIds.filter(
-      (proposalId) => !knownProposalIds.has(proposalId),
-    );
+  }
+
+  private async resolveProposals(
+    context: PlanFromDesignDocFlowContext,
+    proposalIds: string[],
+  ): Promise<VisualProposal[]> {
+    const proposals = await this.findProposals(context, proposalIds);
+    const missingProposalIds = findMissingIds(proposalIds, proposals);
     if (missingProposalIds.length > 0) {
       throw new Error(
         `[visual-preview] proposal identities are no longer available: ${missingProposalIds.join(', ')}`,
@@ -92,14 +122,8 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
    */
   private async resolveMaterializedVisuals(
     context: PlanFromDesignDocFlowContext,
-    proposals: ReadonlyArray<{
-      id: string;
-      status: string;
-      action: string;
-      targetEntityId: string;
-      targetEntityType: string;
-    }>,
-  ): Promise<Map<string, string>> {
+    proposals: readonly VisualProposal[],
+  ): Promise<Map<string, { entityId: string; name: string }>> {
     const approved = proposals.filter(
       (proposal) =>
         proposal.status === 'APPROVED' &&
@@ -118,56 +142,65 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
           type: { in: [...MATERIALIZED_VISUAL_TYPES] },
           archivedAt: null,
         },
-        select: { id: true },
+        select: { id: true, name: true },
       })) ?? [];
-    const liveIds = new Set<string>(
-      workItems.map((workItem) => String(workItem.id)),
+    const nameById = new Map<string, string>(
+      workItems.map((workItem) => [String(workItem.id), workItem.name]),
     );
     return new Map(
       approved
-        .filter((proposal) => liveIds.has(proposal.targetEntityId))
-        .map((proposal) => [proposal.id, proposal.targetEntityId]),
+        .filter((proposal) => nameById.has(proposal.targetEntityId))
+        .map((proposal) => [
+          proposal.id,
+          {
+            entityId: proposal.targetEntityId,
+            name: nameById.get(proposal.targetEntityId)!,
+          },
+        ]),
     );
   }
 
-  /**
-   * Rejects a turn that changes visuals the user did not ask to change, so an
-   * approved visual can never drop out of the set or move because the agent
-   * left it out of its submission.
-   */
-  private assertTurnStaysInScope(
+  private rejectSubmission(
     context: PlanFromDesignDocFlowContext,
     submittedEntries: readonly VisualPreviewEntry[],
-    submittedProposals: ReadonlyArray<{ id: string; status: string }>,
-  ): void {
-    const statusById = new Map(
-      submittedProposals.map((proposal) => [proposal.id, proposal.status]),
-    );
-    const violation = findTurnScopeViolation(
-      context.visualPreviewEntries ?? [],
-      submittedEntries,
-      statusById,
-      context.visualPreviewTurnScope,
-    );
-    if (!violation) {
-      return;
-    }
-
-    this.logger.warn('Visual-preview completion changed visuals out of scope', {
+    message: string,
+  ): never {
+    this.logger.warn('Visual-preview completion rejected', {
       conversationId: context.core.conversationId,
-      turnScope: context.visualPreviewTurnScope?.kind ?? 'unrecorded',
       previousProposalIds: (context.visualPreviewEntries ?? []).map(
         (entry) => entry.proposalId,
       ),
       submittedProposalIds: submittedEntries.map((entry) => entry.proposalId),
-      violation,
+      violation: message,
     });
     throw new ExternalAgentValidationError({
       nodeId: this.id,
       action: PLAN_SHAPING_ACTIONS.READY,
       reason: 'invalid_payload',
-      issues: [{ code: 'custom', path: ['entries'], message: violation }],
+      issues: [{ code: 'custom', path: ['entries'], message }],
     });
+  }
+
+  /**
+   * The approved visuals to compare this submission against. Runs triggered
+   * before the snapshot was recorded fall back to the previous visuals whose
+   * proposals are still approved.
+   */
+  private approvedBeforeTurn(
+    context: PlanFromDesignDocFlowContext,
+    previousProposals: readonly VisualProposal[],
+  ): ApprovedVisualSnapshot[] {
+    if (context.visualPreviewApprovedBeforeTurn) {
+      return context.visualPreviewApprovedBeforeTurn;
+    }
+
+    return previousProposals
+      .filter((proposal) => proposal.status === 'APPROVED')
+      .map((proposal) => ({
+        proposalId: proposal.id,
+        title: proposal.title?.trim() || UNTITLED_VISUAL,
+        targetEntityId: proposal.targetEntityId,
+      }));
   }
 
   async buildTriggerMessage(
@@ -219,21 +252,30 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
         ...(materializedById.has(entry.proposalId)
           ? {
               materializedEntity: {
-                entityId: materializedById.get(entry.proposalId)!,
+                entityId: materializedById.get(entry.proposalId)!.entityId,
                 entityType:
                   PlanShapingVisualPreviewMaterializedEntityEntityTypeEnum.TASK,
               },
             }
           : {}),
       }));
+    const approvedBeforeTurn: ApprovedVisualSnapshot[] = proposals
+      .filter((proposal) => proposal.status === 'APPROVED')
+      .map((proposal) => ({
+        proposalId: proposal.id,
+        title:
+          materializedById.get(proposal.id)?.name.trim() ||
+          proposal.title?.trim() ||
+          UNTITLED_VISUAL,
+        targetEntityId: proposal.targetEntityId,
+      }));
     const feedback = context.visualPreviewFeedback?.trim();
-    if (feedback) {
-      tracker.mutate((draft) => {
-        draft.visualPreviewFeedback = undefined;
-      });
-    }
+    tracker.mutate((draft) => {
+      draft.visualPreviewFeedback = undefined;
+      draft.visualPreviewApprovedBeforeTurn = approvedBeforeTurn;
+    });
 
-    const reviewEntry = findFirstUnapprovedEntry(currentEntries, statusById);
+    const reviewEntry = findUnapprovedEntries(currentEntries, statusById)[0];
     const payload = {
       designDocId: seed.designDocId,
       planId: seed.planId,
@@ -253,7 +295,7 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
       proposalCount: entries.length,
       statusCount: proposals.length,
       hasFeedback: Boolean(feedback),
-      redraftingVisual: Boolean(reviewEntry),
+      underReview: Boolean(reviewEntry),
       setComplete: payload.setComplete,
     });
 
@@ -268,10 +310,10 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
     ];
 
     return {
-      response: reviewEntry
-        ? 'Redrafting the visual under review…'
-        : feedback
-          ? 'Reworking the visual plan with your feedback…'
+      response: feedback
+        ? 'Working on the visuals with your feedback…'
+        : reviewEntry
+          ? 'Revising the visuals under review…'
           : 'Preparing the next visual…',
       uiElements,
       triggersAgent: {
@@ -329,11 +371,44 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
         ],
       });
     }
-    const submittedProposals = await this.resolveProposals(
+    const submittedIds = payload.entries.map((entry) => entry.proposalId);
+    const submittedProposals = await this.findProposals(context, submittedIds);
+    const unknownIds = findMissingIds(submittedIds, submittedProposals);
+    if (unknownIds.length > 0) {
+      this.rejectSubmission(
+        context,
+        payload.entries,
+        `These proposals do not exist in this project: ${unknownIds.join(', ')}. Submit only visuals whose proposals exist.`,
+      );
+    }
+
+    const previousEntries = context.visualPreviewEntries ?? [];
+    const previousProposals = await this.findProposals(
       context,
-      payload.entries.map((entry) => entry.proposalId),
+      previousEntries.map((entry) => entry.proposalId),
     );
-    this.assertTurnStaysInScope(context, payload.entries, submittedProposals);
+    const violation = findSubmissionViolation({
+      previousEntries,
+      submittedEntries: payload.entries,
+      ownStatusById: new Map(
+        previousProposals
+          .filter(
+            (proposal) =>
+              proposal.conversationId === context.core.conversationId,
+          )
+          .map((proposal) => [proposal.id, proposal.status]),
+      ),
+      setComplete: payload.setComplete === true,
+    });
+    if (violation) {
+      this.rejectSubmission(context, payload.entries, violation);
+    }
+
+    const approvedChanges = findApprovedVisualChanges(
+      this.approvedBeforeTurn(context, previousProposals),
+      submittedProposals,
+    );
+
     let stageHandoffSteps = context.journeySteps;
     if (!stageHandoffSteps || stageHandoffSteps.length === 0) {
       const seed = await this.seedService.resolve(context.core.conversationId);
@@ -371,12 +446,26 @@ export class PlanShapingVisualPreviewNode extends ExternalAgentNodeBase<PlanFrom
       draft.visualPreviewRound = payload.refinementRound;
       draft.visualPreviewSetComplete = payload.setComplete === true;
       draft.journeySteps = stageHandoffSteps;
+      draft.visualPreviewApprovedBeforeTurn = undefined;
+      draft.visualPreviewApprovedChanges = [
+        ...(draft.visualPreviewApprovedChanges ?? []).filter(
+          (earlier) =>
+            !approvedChanges.some(
+              (change) => change.proposalId === earlier.proposalId,
+            ),
+        ),
+        ...approvedChanges,
+      ];
     });
     this.logger.debug('Visual-preview completion captured', {
       conversationId: context.core.conversationId,
       entryCount: payload.entries.length,
       refinementRound: payload.refinementRound,
       setComplete: payload.setComplete === true,
+      approvedChanges: approvedChanges.map(({ proposalId, change }) => ({
+        proposalId,
+        change,
+      })),
       stageHandoffCount: stageHandoffSteps.length,
     });
   }

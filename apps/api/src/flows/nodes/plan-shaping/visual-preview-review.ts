@@ -4,13 +4,21 @@ export type VisualPreviewEntry = NonNullable<
   PlanFromDesignDocFlowContext['visualPreviewEntries']
 >[number];
 
+export type ApprovedVisualSnapshot = NonNullable<
+  PlanFromDesignDocFlowContext['visualPreviewApprovedBeforeTurn']
+>[number];
+
+export type ApprovedVisualChange = NonNullable<
+  PlanFromDesignDocFlowContext['visualPreviewApprovedChanges']
+>[number];
+
 /** Where the visual review stands, decided from live proposal status. */
 export type VisualReviewPosition =
   | {
       kind: 'visual';
-      /** The one visual the user decides now. */
-      review: VisualPreviewEntry;
-      /** Earlier visuals plus the one under review, in presentation order. */
+      /** The visuals the user decides now, in presentation order. */
+      review: VisualPreviewEntry[];
+      /** Earlier visuals plus the ones under review, in presentation order. */
       presented: VisualPreviewEntry[];
     }
   | { kind: 'set'; presented: VisualPreviewEntry[] };
@@ -22,21 +30,21 @@ export const orderVisualEntries = (
     (left, right) => left.presentationOrder - right.presentationOrder,
   );
 
-/** The first visual in presentation order whose live status is not APPROVED. */
-export const findFirstUnapprovedEntry = (
+/** Every visual in presentation order whose live status is not APPROVED. */
+export const findUnapprovedEntries = (
   entries: readonly VisualPreviewEntry[],
   statusById: ReadonlyMap<string, string>,
-): VisualPreviewEntry | undefined =>
-  orderVisualEntries(entries).find(
+): VisualPreviewEntry[] =>
+  orderVisualEntries(entries).filter(
     (entry) => statusById.get(entry.proposalId) !== 'APPROVED',
   );
 
 /**
- * Visuals are reviewed one by one in presentation order. The first visual
- * that is not APPROVED is under review. When every visual is approved but the
- * agent has not declared the set complete, the newest visual stays presented
- * so the user can move on to the next one. Only an all-approved, complete set
- * is presented as the complete set.
+ * Every visual that is not APPROVED is under review together: the agent adds
+ * one at a time unless several belong together. When every visual is approved
+ * but the agent has not declared the set complete, the newest visual stays
+ * presented so the user can move on to the next one. Only an all-approved,
+ * complete set is presented as the complete set.
  */
 export const resolveVisualReviewPosition = (
   entries: readonly VisualPreviewEntry[],
@@ -44,11 +52,13 @@ export const resolveVisualReviewPosition = (
   setComplete: boolean,
 ): VisualReviewPosition => {
   const ordered = orderVisualEntries(entries);
+  const unapproved = findUnapprovedEntries(ordered, statusById);
+  const newest = ordered[ordered.length - 1];
   const review =
-    findFirstUnapprovedEntry(ordered, statusById) ??
-    (setComplete ? undefined : ordered[ordered.length - 1]);
+    unapproved.length > 0 ? unapproved : !setComplete && newest ? [newest] : [];
 
-  if (!review) {
+  const lastUnderReview = review[review.length - 1];
+  if (!lastUnderReview) {
     return { kind: 'set', presented: ordered };
   }
 
@@ -56,110 +66,101 @@ export const resolveVisualReviewPosition = (
     kind: 'visual',
     review,
     presented: ordered.filter(
-      (entry) => entry.presentationOrder <= review.presentationOrder,
+      (entry) => entry.presentationOrder <= lastUnderReview.presentationOrder,
     ),
   };
 };
 
-export type VisualTurnScope = NonNullable<
-  PlanFromDesignDocFlowContext['visualPreviewTurnScope']
->;
-
-const sameSequence = (
-  left: readonly string[],
-  right: readonly string[],
-): boolean =>
-  left.length === right.length &&
-  left.every((value, index) => value === right[index]);
-
-const listIds = (proposalIds: readonly string[]): string =>
-  proposalIds.join(', ');
-
 /**
- * Checks that an agent turn changed only what the user asked for. Visuals
- * the user did not ask to change keep their identity and presentation order;
- * the API never relies on the agent to carry them forward. Returns the
- * correction to send back to the agent, or undefined when the turn is valid.
- *
- * - redraft: only the visual under review may be replaced, in its place.
- * - next: every earlier visual stays, in order; new visuals are appended,
- *   and at most one of them may still need the user's decision.
- * - set_feedback: the user asked to change the complete set, so visuals may
- *   be replaced or removed; at most one undecided visual is added per
- *   replaced visual (at least one).
- * - no recorded scope: runs started before scopes were recorded keep the
- *   set_feedback rule once a set exists, and the next rule otherwise.
+ * The structural checks on an agent's visual set. The agent may redraw, drop,
+ * replace, reorder or add any visual; the API only makes sure nothing is lost
+ * by accident. A visual this conversation proposed that is left out of the set
+ * must have had its proposal deleted, so no stray draft is left for the user
+ * to approve later. An approved visual is already a Mockup or Diagram in the
+ * project, and leaving it out is reported to the user at the next review
+ * instead. A reused proposal from another conversation is never the agent's
+ * to delete, so leaving it out is enough. Returns the correction to send back to the
+ * agent, or undefined when the set is valid.
  */
-export const findTurnScopeViolation = (
-  previousEntries: readonly VisualPreviewEntry[],
-  submittedEntries: readonly VisualPreviewEntry[],
-  submittedStatusById: ReadonlyMap<string, string>,
-  scope: VisualTurnScope | undefined,
-): string | undefined => {
-  const previousIds = orderVisualEntries(previousEntries).map(
-    (entry) => entry.proposalId,
+export const findSubmissionViolation = ({
+  previousEntries,
+  submittedEntries,
+  ownStatusById,
+  setComplete,
+}: {
+  previousEntries: readonly VisualPreviewEntry[];
+  submittedEntries: readonly VisualPreviewEntry[];
+  /**
+   * Live status of each previous visual this conversation proposed; absent
+   * when its proposal is gone or came from another conversation.
+   */
+  ownStatusById: ReadonlyMap<string, string>;
+  setComplete: boolean;
+}): string | undefined => {
+  const submittedIds = new Set(
+    submittedEntries.map((entry) => entry.proposalId),
   );
-  const submittedIds = orderVisualEntries(submittedEntries).map(
-    (entry) => entry.proposalId,
-  );
-  const previousIdSet = new Set(previousIds);
-  const submittedIdSet = new Set(submittedIds);
-  const keptIds = submittedIds.filter((id) => previousIdSet.has(id));
-  const newIds = submittedIds.filter((id) => !previousIdSet.has(id));
-  const missingIds = previousIds.filter((id) => !submittedIdSet.has(id));
-  const newUndecidedIds = newIds.filter(
-    (id) => submittedStatusById.get(id) !== 'APPROVED',
-  );
-
-  const effectiveScope: VisualTurnScope =
-    scope ??
-    (previousIds.length === 0 ? { kind: 'next' } : { kind: 'set_feedback' });
-
-  if (effectiveScope.kind === 'redraft') {
-    const reviewIndex = previousIds.indexOf(effectiveScope.proposalId);
-    if (reviewIndex === -1) {
-      return `The visual under review (${effectiveScope.proposalId}) is no longer in the set. Submit the set unchanged except for its redraft.`;
-    }
-    const redraftedInPlace = sameSequence(submittedIds, previousIds);
-    const replacedInPlace =
-      newIds.length === 1 &&
-      sameSequence(
-        submittedIds,
-        previousIds.map((id, index) =>
-          index === reviewIndex ? newIds[0]! : id,
-        ),
-      );
-    if (redraftedInPlace || replacedInPlace) {
-      return undefined;
-    }
-
-    const otherMissingIds = missingIds.filter(
-      (id) => id !== effectiveScope.proposalId,
-    );
-    const missingNote =
-      otherMissingIds.length > 0
-        ? ` Missing: ${listIds(otherMissingIds)}.`
-        : '';
-    const addedNote = newIds.length > 1 ? ` Added: ${listIds(newIds)}.` : '';
-    return `This turn redrafts only the visual under review (${effectiveScope.proposalId}). Keep every other visual unchanged and in the same order, and put its redraft in its place.${missingNote}${addedNote}`;
+  const leftInPlace = orderVisualEntries(previousEntries)
+    .map((entry) => entry.proposalId)
+    .filter((proposalId) => !submittedIds.has(proposalId))
+    .filter((proposalId) => {
+      const status = ownStatusById.get(proposalId);
+      return status !== undefined && status !== 'APPROVED';
+    });
+  if (leftInPlace.length > 0) {
+    return `These visuals were left out of the set but their proposals still exist: ${leftInPlace.join(', ')}. Delete each dropped visual's proposal with delete_proposal, or keep it in the set.`;
   }
 
-  if (effectiveScope.kind === 'next') {
-    if (!sameSequence(keptIds, previousIds) || missingIds.length > 0) {
-      return `Keep every earlier visual unchanged and in the same order, then add the next visual after them.${missingIds.length > 0 ? ` Missing: ${listIds(missingIds)}.` : ''}`;
-    }
-    if (!sameSequence(submittedIds, [...previousIds, ...newIds])) {
-      return 'Add the next visual after every earlier visual; do not insert it between them.';
-    }
-    if (newUndecidedIds.length > 1) {
-      return `Draft one visual per turn: this submission adds ${newUndecidedIds.length} visuals that are not approved yet (${listIds(newUndecidedIds)}). Keep only the next visual in order and submit again.`;
-    }
-    return undefined;
-  }
-
-  const allowedNewUndecided = Math.max(1, missingIds.length);
-  if (newUndecidedIds.length > allowedNewUndecided) {
-    return `Draft one visual per turn: this submission adds ${newUndecidedIds.length} visuals that are not approved yet (${listIds(newUndecidedIds)}). Add at most one replacement for each visual the user asked to change and submit again.`;
+  if (submittedEntries.length === 0 && !setComplete) {
+    return 'The set is empty. Draft the visuals the work needs, or submit with setComplete true when it needs none.';
   }
   return undefined;
+};
+
+/**
+ * Names each visual that was approved before this turn and is no longer in
+ * the set. One is "changed" when a new proposal in the set updates the same
+ * Mockup or Diagram, and "removed" otherwise.
+ */
+export const findApprovedVisualChanges = (
+  approvedBeforeTurn: readonly ApprovedVisualSnapshot[],
+  submittedProposals: ReadonlyArray<{
+    id: string;
+    action: string;
+    targetEntityId: string;
+  }>,
+): ApprovedVisualChange[] => {
+  const submittedIds = new Set(submittedProposals.map(({ id }) => id));
+  const updatedTargets = new Set(
+    submittedProposals
+      .filter(({ action }) => action === 'UPDATE')
+      .map(({ targetEntityId }) => targetEntityId),
+  );
+  return approvedBeforeTurn
+    .filter(({ proposalId }) => !submittedIds.has(proposalId))
+    .map(({ proposalId, title, targetEntityId }) => ({
+      proposalId,
+      title,
+      change: updatedTargets.has(targetEntityId) ? 'changed' : 'removed',
+    }));
+};
+
+const quoteTitles = (changes: readonly ApprovedVisualChange[]): string =>
+  changes.map(({ title }) => `"${title}"`).join(', ');
+
+/** The review-screen notice naming approved visuals the agent changed or removed. */
+export const describeApprovedVisualChanges = (
+  changes: readonly ApprovedVisualChange[],
+): string | undefined => {
+  const changed = changes.filter(({ change }) => change === 'changed');
+  const removed = changes.filter(({ change }) => change === 'removed');
+  const lines = [
+    ...(changed.length > 0
+      ? [`Changed after you approved it: ${quoteTitles(changed)}.`]
+      : []),
+    ...(removed.length > 0
+      ? [`Removed from the set after you approved it: ${quoteTitles(removed)}.`]
+      : []),
+  ];
+  return lines.length > 0 ? lines.join('\n') : undefined;
 };
