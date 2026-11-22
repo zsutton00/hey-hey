@@ -248,6 +248,7 @@ export class RunRegistry {
           agentType: input.agentType,
           decision: input.decision === 'approve' ? 'approve' : 'deny',
           reason: input.reason,
+          ...(input.servicePlaceChoices ? { servicePlaceChoices: input.servicePlaceChoices } : {}),
           idempotencyToken: input.idempotencyToken,
         });
       } catch (error) {

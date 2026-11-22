@@ -1659,6 +1659,7 @@ export const createMockPrismaService = () => ({
       createMany: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
       deleteMany: jest.fn(),
       delete: jest.fn(),
     },

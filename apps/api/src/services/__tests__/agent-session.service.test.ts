@@ -26,6 +26,7 @@ import {
   AgentSessionConfigProjectReportV1,
   AgentSessionConfigV2,
   AgentSessionType,
+  type ServicePlaceChoice,
   WorkflowName,
 } from '@hey-hey/contracts/api/models';
 
@@ -6427,6 +6428,67 @@ describe('AgentSessionService', () => {
         effort: 'medium',
         worktree: 'feature/my-feature',
       });
+    });
+
+    it('persists and reloads the per-Service place choices chosen at launch', async () => {
+      const servicePlaceChoices: ServicePlaceChoice[] = [
+        { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+        {
+          serviceId: 'svc-2',
+          kind: 'WORKTREE',
+          branch: 'feature/y',
+          newBranch: true,
+        },
+      ];
+      const config = {
+        type: 'CODING_SESSION' as const,
+        version: 'v2' as const,
+        method: 'plan' as const,
+        model: 'claude-opus-4-8',
+        servicePlaceChoices,
+      };
+      const txClient = {
+        agentSession: {
+          findFirst: jest.fn().mockResolvedValue(baseRow),
+          update: jest
+            .fn()
+            .mockResolvedValue({ ...baseRow, config } satisfies AgentSession),
+        },
+        service: { findFirst: jest.fn() },
+      };
+      prisma.db.$transaction.mockImplementationOnce(
+        async (cb: (client: typeof txClient) => Promise<unknown>) =>
+          cb(txClient),
+      );
+
+      const dto = await service.update('org-1' as any, 'cs-config', {
+        config,
+      });
+
+      const updateArgs = txClient.agentSession.update.mock.calls[0]?.[0] as
+        | { data: { config: Record<string, unknown> } }
+        | undefined;
+      expect(updateArgs?.data.config.servicePlaceChoices).toEqual(
+        servicePlaceChoices,
+      );
+      expect(dto.config).toMatchObject({ servicePlaceChoices });
+    });
+
+    it('rejects a V2 patch with two place choices for one Service', async () => {
+      await expect(
+        service.update('org-1' as any, 'cs-config', {
+          config: {
+            type: 'CODING_SESSION',
+            version: 'v2',
+            model: 'gpt-4',
+            servicePlaceChoices: [
+              { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+              { serviceId: 'svc-1', kind: 'MAIN_FOLDER' },
+            ],
+          },
+        }),
+      ).rejects.toThrow('more than one place choice');
+      expect(prisma.db.agentSession.update).not.toHaveBeenCalled();
     });
 
     it.each([

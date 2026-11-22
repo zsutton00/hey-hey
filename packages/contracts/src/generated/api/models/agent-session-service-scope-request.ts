@@ -18,6 +18,9 @@ import { PermissionRequestAgentType } from './permission-request-agent-type.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PermissionRequestAgentType } from './permission-request-agent-type.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 
 /**
  * Reviewable request for expanding a repository-bound coding session\'s Service scope
@@ -79,6 +82,12 @@ export interface AgentSessionServiceScopeRequest {
      * @memberof AgentSessionServiceScopeRequest
      */
     'requestedServiceIds': Array<string>;
+    /**
+     * Proposed place for each newly requested Service. Absent on requests from older CLIs.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof AgentSessionServiceScopeRequest
+     */
+    'proposedPlaces'?: Array<ServicePlaceChoice>;
     /**
      * Agent explanation for the additional Service scope
      * @type {string}

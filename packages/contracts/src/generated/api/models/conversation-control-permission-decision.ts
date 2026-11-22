@@ -14,6 +14,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 
 /**
  * Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload` escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and `agentType`, then unblocks the gate with the received `decision`.
@@ -69,6 +72,12 @@ export interface ConversationControlPermissionDecision {
      * @memberof ConversationControlPermissionDecision
      */
     'reason'?: string | null;
+    /**
+     * Where each newly requested Service works. Present only with `approve`.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof ConversationControlPermissionDecision
+     */
+    'servicePlaceChoices'?: Array<ServicePlaceChoice>;
     /**
      * Stable token for deduplicating delivery of this decision. The CLI discards duplicate frames that arrive from re-sends.
      * @type {string}

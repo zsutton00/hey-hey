@@ -954,6 +954,7 @@ CliReadHostActionPreparation:
   oneOf:
     - $ref: "#/WorkspaceSkillsHostActionPreparation"
     - $ref: "#/RuntimeModelCatalogHostActionPreparation"
+    - $ref: "#/WorkspaceServicePlacesHostActionPreparation"
     - $ref: "./agent-session-continuations.yaml#/AgentSessionContinuationInspectHostActionPreparation"
   description: Closed selector for a machine-addressed CLI read under existing CLI_READ authority.
 
@@ -1015,6 +1016,34 @@ WorkspaceSkillsHostActionPreparation:
     catalogContext:
       $ref: "../agent-bridge/openapi.yaml#/components/schemas/AgentSkillCatalogContext"
   description: Exact machine-addressed workspace Skill catalog read under existing CLI_READ authority.
+
+WorkspaceServicePlacesHostActionPreparation:
+  type: object
+  additionalProperties: false
+  required:
+    [requestId, actionCategory, actionType, targetKind, targetId, serviceIds]
+  properties:
+    requestId:
+      type: string
+      format: uuid
+    actionCategory:
+      type: string
+      enum: [CLI_READ]
+    actionType:
+      type: string
+      enum: [CLI_READ]
+    targetKind:
+      type: string
+      enum: [CLI_READ]
+    targetId:
+      type: string
+      format: uuid
+      description: Durable selected machine identity, never a request correlation identity.
+    serviceIds:
+      $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadServicePlacesServiceIds"
+    branchQuery:
+      $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadServicePlacesBranchQuery"
+  description: Exact machine-addressed Service places read under existing CLI_READ authority.
 
 ControllerActionInputs:
   oneOf:

@@ -19,6 +19,7 @@ import {
   resolveServiceBindingsForIds,
   RunWorktreeCollisionError,
 } from '../agents/run-scope';
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import type { RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store/run-store';
 import type { AgenticSession } from '../session/types';
@@ -1155,6 +1156,48 @@ describe('Run worktree workspace state', () => {
       '/repos/service-a',
       '/repos/service-b',
     ]);
+    run.cleanup();
+  });
+
+  it('leaves no newly approved place choices when applying a Service approval fails on a Run that had none', async () => {
+    const workspace: ResolvedRunWorkspace = {
+      ok: true,
+      runMode: 'default',
+      repositoryPathForRunStarted: '/repos/service-a',
+      cwd: '/repos/service-a',
+      allowedRepositoryRoots: ['/repos/service-a', '/repos/service-b'],
+      bindingRepositoryPath: '/repos/service-a',
+      workspaceRoot: null,
+    };
+    const store = makeRunStore();
+    let persistedChoices: ServicePlaceChoice[] | undefined;
+    vi.spyOn(store, 'updateRunServicePlaceChoices')
+      .mockImplementationOnce(async (_runId, choices) => {
+        persistedChoices = choices;
+        throw new Error('disk full');
+      })
+      .mockImplementation(async (_runId, choices) => {
+        persistedChoices = choices;
+        return makeSession();
+      });
+    const run = new Run(
+      makeRunArgs(),
+      makeCollaborators(store, () => ({ run: async () => {} })),
+    );
+
+    await expect(
+      run.applyApprovedServiceScope({
+        services: [
+          { id: 'svc-1', path: '/repos/service-a' },
+          { id: 'svc-2', path: '/repos/service-b' },
+        ],
+        launchServiceId: 'svc-1',
+        workspace,
+        servicePlaceChoices: [{ serviceId: 'svc-2', kind: 'MAIN_FOLDER' }],
+      }),
+    ).rejects.toThrow('disk full');
+
+    expect(persistedChoices).toEqual([]);
     run.cleanup();
   });
 

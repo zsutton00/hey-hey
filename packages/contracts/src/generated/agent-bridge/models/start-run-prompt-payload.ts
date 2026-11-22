@@ -34,6 +34,9 @@ import type { RunContextMetadata } from './run-context-metadata.js';
 import type { RunCreatePayload } from './run-create-payload.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { StagedBrowserTabReference } from './staged-browser-tab-reference.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -153,6 +156,12 @@ export interface StartRunPromptPayload {
      * @memberof StartRunPromptPayload
      */
     'worktree'?: StartRunWorktree;
+    /**
+     * Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof StartRunPromptPayload
+     */
+    'servicePlaceChoices'?: Array<ServicePlaceChoice>;
     /**
      * Canonical id of the platform agent session that owns this run. Mirrors `contextMetadata.agentSessionId` at the top level for symmetry with the context metadata\'s canonical session id.
      * @type {string}

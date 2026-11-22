@@ -1,3 +1,4 @@
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 export type PermissionDecision = 'approve' | 'always_approve' | 'deny' | 'whitelist';
 type PermissionAgentType = 'claude' | 'codex' | 'opencode';
 
@@ -14,6 +15,8 @@ export interface PermissionDecisionRoutingInput {
   agentType: PermissionAgentType;
   decision: PermissionDecision;
   reason: string | null;
+  /** Where each newly requested Service works; only meaningful for a Service scope approval. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   idempotencyToken: string | null;
   userId?: string;
   /**

@@ -14,6 +14,7 @@ import {
   type ProjectModeSelection,
   type MachineDto,
   type ServiceDto,
+  type ServicePlaceChoice,
 } from "../../../../api";
 import { resolveCodingSessionWorkflowType } from "../../../../agents/prompts.js";
 import type { AgentSessionMethod } from "../../../../agents/prompts.js";
@@ -41,6 +42,11 @@ import {
 import { supportsFastMode } from "../../capabilityCatalog";
 import { useRuntimeModelCatalog } from "../../useRuntimeModelCatalog";
 import { updateAgentSessionRecord } from "./update-agent-session-record";
+import { buildLaunchPlaces } from "../../launchPlaceChoices";
+import {
+  useServicePlaces,
+  type ServicePlacesState,
+} from "../hooks/useServicePlaces";
 
 export type {
   AgentSessionMethod,
@@ -59,7 +65,6 @@ export interface UseAgentSetupInput {
   boundServiceId: string | null;
   taskServiceIds: string[];
   boundProvider: AgentProvider | null;
-  taskName: string | null;
   lockedWorktreeBranch: string | null;
   skipServiceSelection?: boolean;
   selectedMachine: MachineDto | null;
@@ -82,8 +87,16 @@ export interface UseAgentSetupResult {
   selectedBinding: RepoBinding | null;
   directoryPath: string;
   directoryPaths: Record<string, string>;
-  worktreeBranch: string | null;
-  worktreeLocked: boolean;
+  /** A Plan's branch every Service works on; null when nothing is locked. */
+  lockedWorktreeBranch: string | null;
+  /** The one Work in choice for every Service; null is the default. */
+  sessionPlaceChoice: ServicePlaceChoice | null;
+  /** Per-Service choices by Service id; null while "Choose per Service" is off. */
+  perServicePlaceChoices: Readonly<Record<string, ServicePlaceChoice>> | null;
+  /** Repository path by Service id on the selected machine; Services without one are absent. */
+  repositoryPaths: Readonly<Record<string, string>>;
+  servicePlaces: ServicePlacesState;
+  branchQuery: string;
   step: CodingSetupStep;
   sessionMethodSelection: SessionMethodSelection;
   isMultiServiceMode: boolean;
@@ -112,7 +125,10 @@ export interface UseAgentSetupResult {
   validateProjectModeSelection: () => boolean;
   promptDraft: string;
   setPromptDraft: (value: string) => void;
-  setWorktreeBranch: (branch: string | null) => void;
+  setSessionPlaceChoice: (choice: ServicePlaceChoice) => void;
+  setServicePlaceChoice: (choice: ServicePlaceChoice) => void;
+  setPerServicePlaceChoicesEnabled: (enabled: boolean) => void;
+  setBranchQuery: (query: string) => void;
   mapDirectory: () => Promise<boolean>;
   start: () => Promise<{ ok: true } | { ok: false; error: string }>;
 }
@@ -127,33 +143,6 @@ export const filterCodingSessionServices = (
       service.status !== "ARCHIVED" &&
       !service.archivedAt,
   );
-
-const slugifyTaskName = (value: string): string =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-export interface ResolveWorktreeBranchChangeInput {
-  currentBranch: string | null;
-  requestedBranch: string | null;
-  lockedWorktreeBranch: string | null;
-  taskName: string | null;
-}
-
-export const resolveWorktreeBranchChange = ({
-  currentBranch,
-  requestedBranch,
-  lockedWorktreeBranch,
-  taskName,
-}: ResolveWorktreeBranchChangeInput): string | null => {
-  if (lockedWorktreeBranch !== null) return lockedWorktreeBranch;
-  if (requestedBranch === null) return null;
-  if (requestedBranch.trim().length > 0 || currentBranch !== null) {
-    return requestedBranch;
-  }
-  return taskName ? slugifyTaskName(taskName) : "";
-};
 
 interface ResolveCodingSetupStateInput {
   boundServiceId: string | null;
@@ -182,7 +171,8 @@ interface AgentSetupDraftValues {
   projectModeSelection: ProjectModeSelection | null;
   serviceIds: string[];
   launchServiceId: string | null;
-  worktreeBranch: string | null;
+  sessionPlaceChoice: ServicePlaceChoice | null;
+  perServicePlaceChoices: ServicePlaceChoice[] | null;
   // Null / undefined until the user chooses: nothing is chosen for them before
   // the picked machine's CLI has reported what it offers.
   provider: AgentProvider | null;
@@ -322,7 +312,6 @@ export const useAgentSetup = ({
   boundServiceId,
   taskServiceIds,
   boundProvider,
-  taskName,
   lockedWorktreeBranch,
   skipServiceSelection,
   selectedMachine,
@@ -462,8 +451,8 @@ export const useAgentSetup = ({
         initialSessionMethodSelection.projectModeSelection ?? null,
       serviceIds: initialSelectedServiceIds,
       launchServiceId: initialLaunchServiceId,
-      worktreeBranch:
-        lockedWorktreeBranch ?? restoredDraft?.worktreeBranch ?? null,
+      sessionPlaceChoice: restoredDraft?.sessionPlaceChoice ?? null,
+      perServicePlaceChoices: restoredDraft?.perServicePlaceChoices ?? null,
       provider: boundProvider,
       model: null,
       reasoningEffort: undefined,
@@ -473,7 +462,6 @@ export const useAgentSetup = ({
       initialLaunchServiceId,
       initialSelectedServiceIds,
       initialSessionMethodSelection.method,
-      lockedWorktreeBranch,
       restoredDraft,
     ],
   );
@@ -502,9 +490,12 @@ export const useAgentSetup = ({
   const [directoryPaths, setDirectoryPaths] = useState<Record<string, string>>(
     {},
   );
-  const [worktreeBranch, setWorktreeBranchState] = useState<string | null>(
-    initialDraftValues.worktreeBranch,
-  );
+  const [sessionPlaceChoice, setSessionPlaceChoiceState] =
+    useState<ServicePlaceChoice | null>(initialDraftValues.sessionPlaceChoice);
+  const [perServicePlaceChoiceList, setPerServicePlaceChoiceList] = useState<
+    ServicePlaceChoice[] | null
+  >(initialDraftValues.perServicePlaceChoices);
+  const [branchQuery, setBranchQuery] = useState("");
   // What the user chose; anything not yet chosen follows the initial selection
   // derived from the CLI's catalog.
   const [chosenModel, setSelectedModel] = useState<string | null>(null);
@@ -529,7 +520,6 @@ export const useAgentSetup = ({
   const serviceSelectionTouchedRef = useRef(false);
   const sessionMethodTouchedRef = useRef(false);
   const draftValuesRef = useRef<AgentSetupDraftValues>(initialDraftValues);
-  const previousLockedWorktreeBranchRef = useRef(lockedWorktreeBranch);
 
   const { mutate: createAgentSessionConversation } =
     useCreateAgentSessionConversation();
@@ -598,13 +588,14 @@ export const useAgentSetup = ({
     setLaunchServiceIdState(initialLaunchServiceId);
     setSessionMethodSelection(initialSessionMethodSelection);
     setDirectoryPaths({});
-    setWorktreeBranchState(initialDraftValues.worktreeBranch);
+    setSessionPlaceChoiceState(initialDraftValues.sessionPlaceChoice);
+    setPerServicePlaceChoiceList(initialDraftValues.perServicePlaceChoices);
+    setBranchQuery("");
     setSelectedModel(null);
     setSelectedReasoningEffort(undefined);
     setSelectedFastMode(undefined);
     surfaceSelectionRef.current = null;
     draftValuesRef.current = initialDraftValues;
-    previousLockedWorktreeBranchRef.current = lockedWorktreeBranch;
     initializedServiceSelectionRef.current = null;
     serviceSelectionTouchedRef.current = false;
     sessionMethodTouchedRef.current = false;
@@ -746,15 +737,6 @@ export const useAgentSetup = ({
     });
   }, [selectableServiceIds]);
 
-  useEffect(() => {
-    if (lockedWorktreeBranch !== null) {
-      setWorktreeBranchState(lockedWorktreeBranch);
-    } else if (previousLockedWorktreeBranchRef.current !== null) {
-      setWorktreeBranchState(null);
-    }
-    previousLockedWorktreeBranchRef.current = lockedWorktreeBranch;
-  }, [lockedWorktreeBranch]);
-
   // Keep the read-only setup paths aligned with the current repo bindings. The
   // local CLI can replace a machine-reported binding after the initial render,
   // so only seeding empty entries would leave the setup using a stale path.
@@ -797,6 +779,40 @@ export const useAgentSetup = ({
     }
     return selectedServiceIds[0] ?? null;
   })();
+
+  const perServicePlaceChoices = useMemo(
+    () =>
+      perServicePlaceChoiceList === null
+        ? null
+        : Object.fromEntries(
+            perServicePlaceChoiceList.map((choice) => [
+              choice.serviceId,
+              choice,
+            ]),
+          ),
+    [perServicePlaceChoiceList],
+  );
+  const repositoryPaths = useMemo(
+    () =>
+      Object.fromEntries(
+        repoBindings.map((binding) => [
+          binding.serviceId,
+          binding.repositoryPath.trim(),
+        ]),
+      ),
+    [repoBindings],
+  );
+  const servicePlaces = useServicePlaces({
+    enabled:
+      selectedMachine !== null &&
+      selectedServiceIds.length > 0 &&
+      lockedWorktreeBranch === null,
+    organizationId,
+    projectId,
+    machineId: selectedMachine?.machineId ?? "",
+    serviceIds: selectedServiceIds,
+    branchQuery,
+  });
 
   // Changes build on what the user already chose, else on the initial
   // selection; with neither (catalog not loaded) there is nothing to change.
@@ -955,18 +971,58 @@ export const useAgentSetup = ({
     [persistDraft, selectableServiceIds, selectedServiceIds],
   );
 
-  const setWorktreeBranch = useCallback(
-    (branch: string | null) => {
-      const nextBranch = resolveWorktreeBranchChange({
-        currentBranch: worktreeBranch,
-        requestedBranch: branch,
-        lockedWorktreeBranch,
-        taskName,
-      });
-      setWorktreeBranchState(nextBranch);
-      persistDraft({ worktreeBranch: nextBranch });
+  const setSessionPlaceChoice = useCallback(
+    (choice: ServicePlaceChoice) => {
+      if (lockedWorktreeBranch !== null) {
+        return;
+      }
+      setSessionPlaceChoiceState(choice);
+      persistDraft({ sessionPlaceChoice: choice });
     },
-    [lockedWorktreeBranch, persistDraft, taskName, worktreeBranch],
+    [lockedWorktreeBranch, persistDraft],
+  );
+
+  const setServicePlaceChoice = useCallback(
+    (choice: ServicePlaceChoice) => {
+      if (lockedWorktreeBranch !== null || perServicePlaceChoiceList === null) {
+        return;
+      }
+      const next = [
+        ...perServicePlaceChoiceList.filter(
+          (existing) => existing.serviceId !== choice.serviceId,
+        ),
+        choice,
+      ];
+      setPerServicePlaceChoiceList(next);
+      persistDraft({ perServicePlaceChoices: next });
+    },
+    [lockedWorktreeBranch, perServicePlaceChoiceList, persistDraft],
+  );
+
+  // Turning "Choose per Service" on starts every Service from the session-wide
+  // choice, so nothing changes until the user picks a different place.
+  const setPerServicePlaceChoicesEnabled = useCallback(
+    (enabled: boolean) => {
+      if (lockedWorktreeBranch !== null) {
+        return;
+      }
+      const next = enabled
+        ? selectedServiceIds.map(
+            (serviceId): ServicePlaceChoice => ({
+              ...(sessionPlaceChoice ?? { kind: "MAIN_FOLDER" }),
+              serviceId,
+            }),
+          )
+        : null;
+      setPerServicePlaceChoiceList(next);
+      persistDraft({ perServicePlaceChoices: next });
+    },
+    [
+      lockedWorktreeBranch,
+      persistDraft,
+      selectedServiceIds,
+      sessionPlaceChoice,
+    ],
   );
 
   const selectProvider = useCallback(
@@ -1140,18 +1196,16 @@ export const useAgentSetup = ({
     if (!selectedModel) {
       return { ok: false, error: "Model must be selected before starting." };
     }
-    const selectedWorktreeBranch = worktreeBranch?.trim() ?? null;
-    if (worktreeBranch !== null && !selectedWorktreeBranch) {
-      const error = "Worktree branch must be entered before starting.";
-      setError(error);
-      return { ok: false, error };
-    }
-
     setStarting(true);
     setError(null);
 
     const effectiveLaunchServiceId =
       launchServiceId ?? selectedServiceIds[0] ?? null;
+    const launchPlaces = buildLaunchPlaces(selectedServiceIds, {
+      sessionChoice: sessionPlaceChoice,
+      perServiceChoices: perServicePlaceChoices,
+      lockedBranch: lockedWorktreeBranch,
+    });
     const updateResult = await updateAgentSessionRecord({
       organizationId,
       projectId,
@@ -1181,7 +1235,10 @@ export const useAgentSetup = ({
         ...(supportsFastMode(resolvedState.selectedProvider, selectedModel)
           ? { fastMode: selectedFastMode }
           : {}),
-        ...(selectedWorktreeBranch ? { worktree: selectedWorktreeBranch } : {}),
+        ...(launchPlaces.worktree ? { worktree: launchPlaces.worktree } : {}),
+        ...(launchPlaces.servicePlaceChoices?.length
+          ? { servicePlaceChoices: launchPlaces.servicePlaceChoices }
+          : {}),
       },
     });
 
@@ -1247,7 +1304,9 @@ export const useAgentSetup = ({
     selectedModel,
     selectedReasoningEffort,
     selectedFastMode,
-    worktreeBranch,
+    sessionPlaceChoice,
+    perServicePlaceChoices,
+    lockedWorktreeBranch,
     organizationId,
     projectId,
     agentSessionId,
@@ -1284,8 +1343,12 @@ export const useAgentSetup = ({
     selectedBinding: resolvedState.selectedBinding,
     directoryPath: focusedDirectoryPath,
     directoryPaths,
-    worktreeBranch,
-    worktreeLocked: lockedWorktreeBranch !== null,
+    lockedWorktreeBranch,
+    sessionPlaceChoice,
+    perServicePlaceChoices,
+    repositoryPaths,
+    servicePlaces,
+    branchQuery,
     step,
     sessionMethodSelection,
     isMultiServiceMode,
@@ -1318,7 +1381,10 @@ export const useAgentSetup = ({
     validateProjectModeSelection,
     promptDraft,
     setPromptDraft,
-    setWorktreeBranch,
+    setSessionPlaceChoice,
+    setServicePlaceChoice,
+    setPerServicePlaceChoicesEnabled,
+    setBranchQuery,
     mapDirectory,
     start,
   };

@@ -253,6 +253,50 @@ export const controllerActionRuntimeSchema = {
                 'actionType',
                 'targetKind',
                 'targetId',
+                'serviceIds',
+              ],
+              properties: {
+                requestId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+                actionCategory: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                actionType: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetKind: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetId: {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Durable selected machine identity, never a request correlation identity.',
+                },
+                serviceIds: {
+                  $ref: '#/definitions/CliReadServicePlacesServiceIds',
+                },
+                branchQuery: {
+                  $ref: '#/definitions/CliReadServicePlacesBranchQuery',
+                },
+              },
+              description:
+                'Exact machine-addressed Service places read under existing CLI_READ authority.',
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'requestId',
+                'actionCategory',
+                'actionType',
+                'targetKind',
+                'targetId',
                 'agentSessionId',
                 'continuationId',
                 'expectedSourceMachineId',
@@ -384,6 +428,9 @@ export const controllerActionRuntimeSchema = {
                 },
                 {
                   $ref: '#/definitions/CliReadWorkspaceSkillsListEnvelopeBody',
+                },
+                {
+                  $ref: '#/definitions/CliReadWorkspaceServicePlacesListEnvelopeBody',
                 },
                 {
                   type: 'object',
@@ -558,6 +605,14 @@ export const controllerActionRuntimeSchema = {
                       type: ['string', 'null'],
                       description:
                         'User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.',
+                    },
+                    servicePlaceChoices: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+                      },
+                      description:
+                        'Where each newly requested Service works. Present only with `approve`.',
                     },
                     idempotencyToken: {
                       type: 'string',
@@ -1596,6 +1651,70 @@ export const controllerActionRuntimeSchema = {
         },
       },
     },
+    CliReadWorkspaceServicePlacesListEnvelopeBody: {
+      type: 'object',
+      required: [
+        'requestId',
+        'operation',
+        'serviceIds',
+        'organizationId',
+        'projectId',
+        'machineId',
+        'authorizationRequestId',
+      ],
+      properties: {
+        requestId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Correlation identity minted by the platform for this read.',
+        },
+        operation: {
+          type: 'string',
+          enum: ['workspace.service_places.list'],
+        },
+        serviceIds: {
+          $ref: '#/definitions/CliReadServicePlacesServiceIds',
+        },
+        branchQuery: {
+          $ref: '#/definitions/CliReadServicePlacesBranchQuery',
+        },
+        organizationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        projectId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        machineId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        authorizationRequestId: {
+          type: 'string',
+          format: 'uuid',
+        },
+      },
+      additionalProperties: false,
+    },
+    CliReadServicePlacesServiceIds: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      uniqueItems: true,
+      items: {
+        type: 'string',
+        format: 'uuid',
+      },
+      description:
+        'Project Services whose places on the selected machine are read.',
+    },
+    CliReadServicePlacesBranchQuery: {
+      type: 'string',
+      maxLength: 100,
+      description: 'Case-insensitive text matched against local branch names.',
+    },
     CliReadProviderUsageGetEnvelopeBody: {
       type: 'object',
       required: ['requestId', 'agentSessionId', 'operation'],
@@ -1727,6 +1846,127 @@ export const controllerActionRuntimeSchema = {
         },
       },
       additionalProperties: false,
+    },
+    ConversationControlPermissionDecision: {
+      type: 'object',
+      required: [
+        'kind',
+        'agentSessionId',
+        'decision',
+        'requestId',
+        'sessionId',
+        'agentType',
+        'idempotencyToken',
+      ],
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['permission_decision'],
+          description:
+            "Discriminator for the permission-decision control. Selects the dispatcher branch that delivers the user's permission decision to the live runner awaiting the gate.",
+        },
+        agentSessionId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Canonical Agent Session authorization target.',
+        },
+        replyConversationId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.',
+        },
+        decision: {
+          type: 'string',
+          enum: ['approve', 'always_approve', 'deny', 'whitelist'],
+          description:
+            "The user's approval decision for the pending permission request.",
+        },
+        requestId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Stable identifier for the permission request this decision responds to. The CLI dispatcher uses this to locate the awaiting runner.',
+        },
+        sessionId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the permission gate.',
+        },
+        agentType: {
+          type: 'string',
+          enum: ['claude', 'codex', 'opencode'],
+          description: 'Agent provider that issued the permission request.',
+        },
+        reason: {
+          type: ['string', 'null'],
+          description:
+            'User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.',
+        },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            oneOf: [
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['serviceId', 'kind'],
+                description:
+                  'The Service works in its main folder. It names no branch.',
+                properties: {
+                  serviceId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['MAIN_FOLDER'],
+                  },
+                },
+              },
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['serviceId', 'kind', 'branch'],
+                description: 'The Service works in a worktree on `branch`.',
+                properties: {
+                  serviceId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['WORKTREE'],
+                  },
+                  branch: {
+                    type: 'string',
+                    minLength: 1,
+                  },
+                  newBranch: {
+                    type: 'boolean',
+                    default: false,
+                    description: 'True creates `branch` as a new branch.',
+                  },
+                },
+              },
+            ],
+            description:
+              "Where one Service works. MAIN_FOLDER is the main folder as it is. WORKTREE with newBranch false uses the worktree already on `branch`, or opens an existing branch that is not checked out anywhere as a new worktree. WORKTREE with newBranch true creates `branch` from the main folder's current branch in a new worktree.",
+          },
+          description:
+            'Where each newly requested Service works. Present only with `approve`.',
+        },
+        idempotencyToken: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Stable token for deduplicating delivery of this decision. The CLI discards duplicate frames that arrive from re-sends.',
+        },
+      },
+      additionalProperties: false,
+      description:
+        'Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload` escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and `agentType`, then unblocks the gate with the received `decision`.',
     },
     ConversationControlQuestionAnswer: {
       type: 'object',
@@ -2384,6 +2624,9 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/CliReadWorkspaceSkillsListEnvelopeBody',
         },
         {
+          $ref: '#/definitions/CliReadWorkspaceServicePlacesListEnvelopeBody',
+        },
+        {
           $ref: '#/definitions/CliReadProjectSessionCostsListEnvelopeBody',
         },
         {
@@ -2870,6 +3113,14 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/StartRunWorktree',
           description:
             'Worktree materialization request forwarded to the CLI-side the Agent Bridge worktree field. Present only when the launch wizard enabled worktree creation. `branch` carries the chosen branch name the CLI should materialize for each selected service.\n',
+        },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+          },
+          description:
+            'Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it.\n',
         },
         agentSessionId: {
           type: 'string',
@@ -9869,6 +10120,14 @@ export const controllerActionRuntimeSchema = {
           minLength: 1,
           description:
             'Branch name to materialize as a git worktree per selected service at launch.\nPresence means worktree-enabled (the branch to materialize); absence means\nworktree off. Omitted entirely when the wizard has not enabled worktree.\n',
+        },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+          },
+          description:
+            "Where each selected Service works, chosen on the launch screen. Saved with the\nsession so the Run start sends the same choices after a reload. Omitted when the\nlaunch uses a Plan's locked branch or the wizard recorded no per-Service choice.\n",
         },
         sessionMonitorTerminalPolicy: {
           description:

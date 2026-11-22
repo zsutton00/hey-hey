@@ -35,8 +35,23 @@ vi.mock("../PromptEditor", () => ({
 }));
 
 vi.mock("../../Services/ServiceDirectoryBindingControl", () => ({
-  ServiceDirectoryBindingControl: ({ serviceId }: { serviceId: string }) => (
-    <div data-testid={`directory-binding-control-${serviceId}`} />
+  // Mirrors the real control's label rule: bound shows "Update directory",
+  // otherwise the caller's unboundLabel.
+  ServiceDirectoryBindingControl: ({
+    serviceId,
+    isBound,
+    unboundLabel,
+  }: {
+    serviceId: string;
+    isBound: boolean;
+    unboundLabel: string;
+  }) => (
+    <button
+      type="button"
+      data-testid={`directory-binding-control-${serviceId}`}
+    >
+      {isBound ? "Update directory" : unboundLabel}
+    </button>
   ),
 }));
 
@@ -54,6 +69,32 @@ const machine = (
     CurrentControllerMachineEligibilityState.Eligible,
   bindings: [],
 });
+
+const placesEntry = (branch: string) =>
+  ({
+    status: "ready",
+    mainFolder: { branch },
+    worktrees: [],
+    recentBranches: [],
+    branchMatches: [],
+    branchMatchesTruncated: false,
+  }) as const;
+
+const READY_PLACES: AgentSetupViewProps["servicePlaces"] = {
+  status: "ready",
+  byServiceId: {
+    "service-1": placesEntry("dev"),
+    "service-2": placesEntry("main"),
+  },
+  searching: false,
+  searchError: null,
+};
+
+const manyServices = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `extra-${String(index)}`,
+    name: `Extra ${String(index)}`,
+  }));
 
 const buildProps = (
   overrides: Partial<AgentSetupViewProps> = {},
@@ -91,16 +132,19 @@ const buildProps = (
     type: "ready",
     machine: machine("machine-1", MachineExecutionReadinessState.Ready),
   },
-  repositoryPath: "/repos/api",
-  onRepositoryPathChange: vi.fn(),
-  pickingRepositoryDirectory: false,
-  onPickRepositoryDirectory: vi.fn(),
-  directoryPaths: { "service-1": "/repos/api" },
-  onRepositoryPathChangeForService: vi.fn(),
-  onPickRepositoryDirectoryForService: vi.fn(),
-  worktreeBranch: null,
-  worktreeLocked: false,
-  setWorktreeBranch: vi.fn(),
+  repositoryPaths: {
+    "service-1": "/repos/api",
+    "service-2": "/repos/worker",
+  },
+  lockedWorktreeBranch: null,
+  servicePlaces: READY_PLACES,
+  branchQuery: "",
+  onBranchQueryChange: vi.fn(),
+  sessionPlaceChoice: null,
+  perServicePlaceChoices: null,
+  onChangeSessionPlace: vi.fn(),
+  onChangeServicePlace: vi.fn(),
+  onTogglePerServicePlaces: vi.fn(),
   launchServiceId: "service-1",
   onSelectLaunchService: vi.fn(),
   preparingRun: false,
@@ -224,7 +268,7 @@ describe("AgentSetupView", () => {
     expect(
       screen.getByTestId("directory-binding-control-service-1"),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("coding-worktree-card")).toBeInTheDocument();
+    expect(screen.getByTestId("coding-work-in")).toBeInTheDocument();
     expect(screen.getByTestId("coding-setup-prompt")).toBeInTheDocument();
     expect(screen.getByTestId("prompt-editor")).toBeInTheDocument();
     expect(
@@ -331,10 +375,6 @@ describe("AgentSetupView", () => {
           sessionMethod: "split_by_function",
           selectedServiceIds: ["service-1", "service-2"],
           additionalServices: [{ id: "service-2", name: "Worker" }],
-          directoryPaths: {
-            "service-1": "/repos/api",
-            "service-2": "/repos/worker",
-          },
           launchServiceId: "service-2",
         })}
       />,
@@ -352,10 +392,10 @@ describe("AgentSetupView", () => {
       within(getLaunchServiceRow("service-2")).getByRole("radio"),
     ).toBeChecked();
     expect(
-      within(screen.getByTestId("coding-repository-path-service-2")).getByRole(
-        "textbox",
-      ),
-    ).toHaveValue("/repos/worker");
+      screen
+        .getAllByTestId("coding-service-path")
+        .find((path) => path.dataset.serviceId === "service-2"),
+    ).toHaveTextContent("/repos/worker");
   });
 
   it("renders compact, clamped Service rows", () => {
@@ -462,7 +502,10 @@ describe("AgentSetupView", () => {
       <AgentSetupView
         {...buildProps({
           selectedServiceIds: ["service-1", "service-2"],
-          additionalServices: [{ id: "service-2", name: "Worker" }],
+          additionalServices: [
+            { id: "service-2", name: "Worker" },
+            ...manyServices(8),
+          ],
         })}
       />,
     );
@@ -555,46 +598,127 @@ describe("AgentSetupView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps inherited worktree controls locked through attempted edits", () => {
+  it("shows a Plan's branch as the locked Work in choice", () => {
     render(
       <AgentSetupView
         {...buildProps({
-          worktreeLocked: true,
-          worktreeBranch: "plan/shared-worktree",
-          selectedServiceIds: ["service-1", "service-2"],
-          additionalServices: [{ id: "service-2", name: "Worker" }],
-          directoryPaths: {
-            "service-1": "/repos/api",
-            "service-2": "/repos/worker",
-          },
+          lockedWorktreeBranch: "plan/shared-worktree",
+          servicePlaces: { status: "idle" },
         })}
       />,
     );
 
-    const toggle = screen.getByRole("switch", { name: "Enable worktree" });
-    expect(toggle).toBeChecked();
-    expect(toggle).toBeDisabled();
-    expect(screen.getByLabelText("Branch name")).toHaveValue(
-      "plan/shared-worktree",
+    expect(screen.getByLabelText("Work in")).toBeDisabled();
+    expect(screen.getByLabelText("Work in")).toHaveValue(
+      "Plan branch: plan/shared-worktree",
     );
     expect(
-      screen.queryByTestId("coding-worktree-preview"),
+      screen.queryByTestId("coding-work-in-per-service-toggle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers one Work in choice defaulting to the main folder's branch", () => {
+    render(<AgentSetupView {...buildProps()} />);
+
+    expect(screen.getAllByTestId("work-in")).toHaveLength(1);
+    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
+      "Current: dev (main folder)",
+    );
+    expect(
+      screen.queryByRole("switch", { name: "Enable worktree" }),
     ).not.toBeInTheDocument();
     expect(
-      within(screen.getByTestId("coding-repository-path-service-2")).getByRole(
-        "textbox",
-      ),
-    ).toHaveValue("/repos/worker");
+      screen.queryByTestId("coding-repository-path-service-1"),
+    ).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(toggle);
-    fireEvent.change(screen.getByLabelText("Branch name"), {
-      target: { value: "task/override" },
-    });
-
-    expect(toggle).toBeChecked();
-    expect(screen.getByLabelText("Branch name")).toHaveValue(
-      "plan/shared-worktree",
+  it("shows a Work in choice for each selected Service when choosing per Service", () => {
+    render(
+      <AgentSetupView
+        {...buildProps({
+          selectedServiceIds: ["service-1", "service-2"],
+          additionalServices: [{ id: "service-2", name: "Worker" }],
+          perServicePlaceChoices: {},
+        })}
+      />,
     );
+
+    const selects = screen.getAllByTestId("work-in");
+    expect(selects.map((select) => select.dataset.serviceId)).toEqual([
+      "service-1",
+      "service-2",
+    ]);
+  });
+
+  it("turns on per-Service choices from Advanced", async () => {
+    const user = userEvent.setup();
+    const onTogglePerServicePlaces = vi.fn();
+    render(<AgentSetupView {...buildProps({ onTogglePerServicePlaces })} />);
+
+    await user.click(screen.getByText("Advanced"));
+    await user.click(
+      screen.getByRole("switch", { name: "Choose per Service" }),
+    );
+
+    expect(onTogglePerServicePlaces).toHaveBeenCalledWith(true);
+  });
+
+  it("greys out a Service without a repository path and offers to set one", async () => {
+    const user = userEvent.setup();
+    const onToggleService = vi.fn();
+    render(
+      <AgentSetupView
+        {...buildProps({
+          onToggleService,
+          additionalServices: [{ id: "service-2", name: "Worker" }],
+          repositoryPaths: { "service-1": "/repos/api" },
+        })}
+      />,
+    );
+
+    const row = getServiceRow("service-2");
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(within(row).getByRole("checkbox")).toBeDisabled();
+    await user.click(row);
+    expect(onToggleService).not.toHaveBeenCalled();
+    expect(screen.getByTestId("coding-service-no-path")).toHaveAttribute(
+      "data-service-id",
+      "service-2",
+    );
+    expect(
+      screen.getByTestId("directory-binding-control-service-2"),
+    ).toHaveTextContent("Set repository path");
+  });
+
+  it("shows a Service's repository path with Update directory", () => {
+    render(
+      <AgentSetupView
+        {...buildProps({ repositoryPaths: { "service-1": "/repos/api" } })}
+      />,
+    );
+
+    expect(screen.getByTestId("coding-service-path")).toHaveTextContent(
+      "/repos/api",
+    );
+    expect(
+      screen.getByTestId("directory-binding-control-service-1"),
+    ).toHaveTextContent("Update directory");
+  });
+
+  it("hides the Service search at 9 Services and shows it at 10", () => {
+    const { rerender } = render(
+      <AgentSetupView
+        {...buildProps({ additionalServices: manyServices(8) })}
+      />,
+    ); // 1 primary + 8 additional = 9
+    expect(screen.queryByLabelText("Search services")).not.toBeInTheDocument();
+
+    rerender(
+      <AgentSetupView
+        {...buildProps({ additionalServices: manyServices(9) })}
+      />,
+    ); // 1 primary + 9 additional = 10
+    expect(screen.getByLabelText("Search services")).toBeInTheDocument();
   });
 
   it("offers no provider or model until a machine's CLI catalog is available", () => {

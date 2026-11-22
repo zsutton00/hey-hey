@@ -2,6 +2,7 @@ import {
   taskMonitorLaunchConfigSchema,
   startRunWorktreePayloadSchema,
 } from '../trigger-verification/task-monitor-launch-config';
+import { servicePlaceChoicesSchema } from '../service-place-choice-schema';
 import { ImplementPromptPayloadSchema } from '../../generated/coding-plan.schemas';
 /**
  * Zod schemas mirroring the `triggersAgent.payload` wire shapes the platform
@@ -772,6 +773,7 @@ const startRunPayloadSchema = z
       .min(1, { message: 'launchServiceId must be a non-empty string' })
       .optional(),
     worktree: startRunWorktreePayloadSchema,
+    servicePlaceChoices: servicePlaceChoicesSchema.optional(),
     agentSessionId: z.string().min(1, { message: 'agentSessionId must be a non-empty string' }),
     // A continuation materializes the same Run without a Turn; it carries no authority.
     continuation: z
@@ -1021,6 +1023,12 @@ type _StartRunLaunchServiceIdType = Expect<
 >;
 type _StartRunWorktreeType = Expect<
   Equal<z.infer<typeof startRunPayloadSchema>['worktree'], StartRunPromptPayload['worktree']>
+>;
+type _StartRunServicePlaceChoicesType = Expect<
+  Equal<
+    z.infer<typeof startRunPayloadSchema>['servicePlaceChoices'],
+    StartRunPromptPayload['servicePlaceChoices']
+  >
 >;
 type _StartRunAgentSessionIdType = Expect<
   Equal<

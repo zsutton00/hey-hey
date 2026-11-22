@@ -619,6 +619,9 @@ const CodingSessionActive = memo(
       deferInitialDispatch: true,
       ...(machineId ? { machineId } : {}),
       ...(launchWorktree ? { worktree: launchWorktree } : {}),
+      ...(configV2?.servicePlaceChoices?.length
+        ? { servicePlaceChoices: configV2.servicePlaceChoices }
+        : {}),
     });
 
     const runId = lifecycle.runId;

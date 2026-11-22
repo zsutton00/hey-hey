@@ -66,6 +66,7 @@ import {
   CreateAgentSessionConversationResponseDto,
   CreateConversationDto,
   InitiationType,
+  ServicePlaceChoice,
   SessionMethod,
   SessionMonitorImplementationTerminalPolicy,
   SessionMonitorReviewTerminalPolicy,
@@ -89,6 +90,7 @@ import {
   WorkflowName,
   WorkItemTypeLifecycleStatus,
 } from '@hey-hey/contracts/api/models';
+import { assertUniqueAndWellFormed } from './service-place-choices.validator';
 import { ConversationWorkflowService } from './workflows/conversation-workflow.service';
 import { ConversationService } from './conversation.service';
 import { DEFAULT_AGENT_SESSION_TITLE } from './agent-session-title';
@@ -3226,6 +3228,10 @@ export class AgentSessionService {
       if (config.worktree !== undefined) {
         serialized.worktree = config.worktree;
       }
+      if (config.servicePlaceChoices !== undefined) {
+        serialized.servicePlaceChoices =
+          config.servicePlaceChoices as unknown as Prisma.InputJsonValue;
+      }
       if (config.sessionMonitorTerminalPolicy !== undefined) {
         serialized.sessionMonitorTerminalPolicy = this.buildTerminalPolicyJson(
           config.sessionMonitorTerminalPolicy,
@@ -4047,6 +4053,9 @@ export class AgentSessionService {
           'config.worktree must be a non-empty string branch name when present',
         );
       }
+      if (config.servicePlaceChoices !== undefined) {
+        assertUniqueAndWellFormed(config.servicePlaceChoices);
+      }
       if (config.sessionMonitorTerminalPolicy !== undefined) {
         this.assertValidSessionMonitorTerminalPolicy(
           config.sessionMonitorTerminalPolicy,
@@ -4449,6 +4458,21 @@ export class AgentSessionService {
     }
     if (typeof record.worktree === 'string' && record.worktree.length > 0) {
       result.worktree = record.worktree;
+    }
+    if (Array.isArray(record.servicePlaceChoices)) {
+      const stored =
+        record.servicePlaceChoices as unknown as ServicePlaceChoice[];
+      try {
+        assertUniqueAndWellFormed(stored);
+        result.servicePlaceChoices = stored;
+      } catch (error) {
+        this.logger.warn(
+          'Agent session V2 config has invalid servicePlaceChoices; dropping them',
+          {
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
     }
     const terminalPolicy = this.parseStoredSessionMonitorTerminalPolicy(
       record.sessionMonitorTerminalPolicy,

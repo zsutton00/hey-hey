@@ -186,6 +186,14 @@ AgentSessionConfigV2:
         Branch name to materialize as a git worktree per selected service at launch.
         Presence means worktree-enabled (the branch to materialize); absence means
         worktree off. Omitted entirely when the wizard has not enabled worktree.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "#/ServicePlaceChoice"
+      description: |
+        Where each selected Service works, chosen on the launch screen. Saved with the
+        session so the Run start sends the same choices after a reload. Omitted when the
+        launch uses a Plan's locked branch or the wizard recorded no per-Service choice.
     sessionMonitorTerminalPolicy:
       $ref: "#/SessionMonitorTerminalPolicy"
       description: |
@@ -1247,6 +1255,51 @@ ReportAgentSessionServicePlacesResultDto:
         $ref: "#/AgentSessionServicePlaceResult"
       description: One outcome per submitted Service.
 
+RecentServicePlaceBranch:
+  type: object
+  additionalProperties: false
+  required:
+    - branch
+    - kind
+    - lastRecordedAt
+  properties:
+    branch:
+      type: string
+    kind:
+      $ref: "#/AgentSessionServicePlaceKind"
+    lastRecordedAt:
+      type: string
+      format: date-time
+
+RecentServicePlaces:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - branches
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    branches:
+      type: array
+      maxItems: 10
+      items:
+        $ref: "#/RecentServicePlaceBranch"
+      description: Distinct branches recorded for this Service in the project, newest first.
+
+RecentServicePlacesDto:
+  type: object
+  additionalProperties: false
+  required:
+    - services
+  properties:
+    services:
+      type: array
+      items:
+        $ref: "#/RecentServicePlaces"
+      description: One entry per requested Service, in request order.
+
 CreateAgentSessionConversationDto:
   type: object
   required:
@@ -1272,31 +1325,60 @@ CreateAgentSessionConversationDto:
       description: Identifier of the entity this conversation is about (the universal about-target).
 
 ServicePlaceChoice:
-  type: object
-  additionalProperties: false
-  required:
-    - serviceId
-    - kind
+  oneOf:
+    - $ref: "#/MainFolderServicePlaceChoice"
+    - $ref: "#/WorktreeServicePlaceChoice"
+  discriminator:
+    propertyName: kind
+    mapping:
+      MAIN_FOLDER: "#/MainFolderServicePlaceChoice"
+      WORKTREE: "#/WorktreeServicePlaceChoice"
   description: >-
     Where one Service works. MAIN_FOLDER is the main folder as it is.
     WORKTREE with newBranch false uses the worktree already on `branch`, or
     opens an existing branch that is not checked out anywhere as a new
     worktree. WORKTREE with newBranch true creates `branch` from the main
     folder's current branch in a new worktree.
+
+MainFolderServicePlaceChoice:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+  description: The Service works in its main folder. It names no branch.
   properties:
     serviceId:
       type: string
       format: uuid
     kind:
-      $ref: "#/AgentSessionServicePlaceKind"
+      type: string
+      enum:
+        - MAIN_FOLDER
+
+WorktreeServicePlaceChoice:
+  type: object
+  additionalProperties: false
+  required:
+    - serviceId
+    - kind
+    - branch
+  description: The Service works in a worktree on `branch`.
+  properties:
+    serviceId:
+      type: string
+      format: uuid
+    kind:
+      type: string
+      enum:
+        - WORKTREE
     branch:
       type: string
       minLength: 1
-      description: Required for WORKTREE. Absent for MAIN_FOLDER.
     newBranch:
       type: boolean
       default: false
-      description: WORKTREE only. True creates `branch` as a new branch.
+      description: True creates `branch` as a new branch.
 
 PermissionDecisionRequestDto:
   type: object

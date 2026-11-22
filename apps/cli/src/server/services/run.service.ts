@@ -593,6 +593,7 @@ export class RunService {
       };
       if (input.scope) startArgs.scope = input.scope;
       if (input.worktree) startArgs.worktree = input.worktree;
+      if (input.servicePlaceChoices) startArgs.servicePlaceChoices = input.servicePlaceChoices;
       if (input.config !== undefined) startArgs.config = input.config;
       const inputPromptType = input.payload?.promptType;
       if (inputPromptType) startArgs.promptType = inputPromptType;

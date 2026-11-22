@@ -64,6 +64,9 @@ export {
 } from "./operations/useAgentSessionInteractionAccess";
 export { useConversationMessageSubmitter } from "./useConversationMessageSubmitter";
 export * from "./MachinePicker";
+export * from "./WorkInSelect";
+export * from "./resolveChoice";
+export * from "./runtime/hooks/useServicePlaces";
 export * from "./runtime/coding/machineExecutionReadiness";
 export * from "./runtime/coding/useMachineResolution";
 

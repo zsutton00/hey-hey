@@ -1,3 +1,4 @@
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
@@ -52,6 +53,7 @@ export interface StartAgenticSessionArgs {
   contextMetadata: AgenticSessionContextMetadata;
   scope?: LocalRunScope;
   worktree?: LocalWorktreeConfig;
+  servicePlaceChoices?: ServicePlaceChoice[];
   conversationId: string;
   promptType?: string;
   config?: AgentSessionConfig | null;
@@ -91,6 +93,7 @@ export const startAgenticSession = async ({
   contextMetadata,
   scope,
   worktree,
+  servicePlaceChoices,
   conversationId,
   promptType,
   config,
@@ -159,6 +162,7 @@ export const startAgenticSession = async ({
   if (launchServiceId) sessionInput.launchServiceId = launchServiceId;
   if (scope) sessionInput.scope = scope;
   if (worktree) sessionInput.worktree = worktree;
+  if (servicePlaceChoices) sessionInput.servicePlaceChoices = servicePlaceChoices;
   if (promptType) sessionInput.promptType = promptType;
   if (config !== undefined) sessionInput.config = config;
   if (model) sessionInput.model = model;

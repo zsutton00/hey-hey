@@ -43,6 +43,9 @@ import type { ProjectModeSelection } from './project-mode-selection.js';
 import type { ProjectModeSnapshot } from './project-mode-snapshot.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { SessionMethod } from './session-method.js';
 // May contain unused imports in some cases
 // @ts-ignore

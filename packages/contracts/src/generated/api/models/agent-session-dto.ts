@@ -30,6 +30,9 @@ import type { AgentSessionContextSize } from './agent-session-context-size.js';
 import type { AgentSessionCurrentState } from './agent-session-current-state.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentSessionServicePlace } from './agent-session-service-place.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { AgentSessionServiceSummary } from './agent-session-service-summary.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -131,6 +134,12 @@ export interface AgentSessionDto {
      * @memberof AgentSessionDto
      */
     'launchServiceId'?: string;
+    /**
+     * Where each Service works, listing only Services with a recorded place. Empty when nothing has been reported, as for older sessions and older CLIs.
+     * @type {Array<AgentSessionServicePlace>}
+     * @memberof AgentSessionDto
+     */
+    'servicePlaces': Array<AgentSessionServicePlace>;
     /**
      * Linked service summary. Present when includeService=true and the session is linked to a service.
      * @type {AgentSessionServiceSummary}

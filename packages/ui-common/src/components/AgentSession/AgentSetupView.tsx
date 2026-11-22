@@ -10,6 +10,9 @@ import ChatOutlined from "@mui/icons-material/ChatOutlined";
 import ListAltOutlined from "@mui/icons-material/ListAltOutlined";
 import ScienceOutlined from "@mui/icons-material/ScienceOutlined";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -20,6 +23,8 @@ import {
   Radio,
   Skeleton,
   Stack,
+  Switch,
+  FormControlLabel,
   TextField,
   Typography,
 } from "@mui/material";
@@ -31,7 +36,7 @@ import type {
   CodingServiceOption,
   CodingSetupStep,
 } from "../AgentSessions/types.js";
-import type { ProjectModeSelection } from "../../api";
+import type { ProjectModeSelection, ServicePlaceChoice } from "../../api";
 import type { ProjectModeCatalogEntry } from "../../agents/coordination/projectModeCatalog";
 import type { SessionMethod } from "../../agents/coordination/types";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
@@ -52,7 +57,12 @@ import type { RuntimeModelCatalogSource } from "./useRuntimeModelCatalog";
 import { RuntimeModelSelector } from "./RuntimeModelSelector";
 import { PromptEditor } from "./PromptEditor";
 import { TaskPreviewCard } from "./TaskPreviewCard";
-import { WorktreeSetupControls } from "./WorktreeSetupControls";
+import { WorkInSelect } from "./WorkInSelect";
+import { placeFor } from "./launchPlaceChoices";
+import type {
+  ServicePlacesEntry,
+  ServicePlacesState,
+} from "./runtime/hooks/useServicePlaces";
 import type { MachineResolutionMode } from "./runtime/coding/useMachineResolution";
 import type { AgentBridgeRecoveryState } from "./agentBridgeRecoveryState";
 import { ServiceDirectoryBindingControl } from "../Services/ServiceDirectoryBindingControl";
@@ -134,6 +144,14 @@ const matchesSearch = (
   return services.filter((service) =>
     service.name.toLowerCase().includes(normalizedSearch),
   );
+};
+
+/** The Service search box appears only once the list is long enough to need it. */
+const SERVICE_SEARCH_MIN_SERVICES = 10;
+
+const NOT_RETURNED_ENTRY: ServicePlacesEntry = {
+  status: "error",
+  message: "Where this Service can work was not returned for this machine.",
 };
 
 const pickerSummary = (description: string): string =>
@@ -345,6 +363,205 @@ const ServiceSelectionRow = ({
   </Paper>
 );
 
+interface ServiceListEntryProps {
+  service: CodingServiceOption;
+  fallbackDescription: string;
+  selected: boolean;
+  selectionLocked: boolean;
+  repositoryPath: string;
+  machineId: string | null;
+  onToggle: () => void;
+}
+
+/**
+ * One Service in the list. A Service with a repository path on the chosen
+ * machine shows it with Update directory; one without is greyed out and cannot
+ * be newly selected until its repository path is set.
+ */
+const ServiceListEntry = ({
+  service,
+  fallbackDescription,
+  selected,
+  selectionLocked,
+  repositoryPath,
+  machineId,
+  onToggle,
+}: ServiceListEntryProps) => {
+  const hasPath = repositoryPath.length > 0;
+  // A selected Service can always be unselected, even if its path went away.
+  const rowDisabled = selectionLocked || (!hasPath && !selected);
+
+  return (
+    <Stack spacing={0.5} data-testid="coding-service-entry">
+      <ServiceSelectionRow
+        service={service}
+        fallbackDescription={fallbackDescription}
+        selected={selected}
+        disabled={rowDisabled}
+        selectionMode="multiple"
+        testId="coding-service-row"
+        onChange={onToggle}
+      />
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        alignItems={{ sm: "center" }}
+        sx={{ pl: 4.5 }}
+      >
+        {hasPath ? (
+          <Typography
+            variant="caption"
+            component="code"
+            color="text.secondary"
+            data-testid="coding-service-path"
+            data-service-id={service.id}
+            sx={{ overflowWrap: "anywhere" }}
+          >
+            {repositoryPath}
+          </Typography>
+        ) : (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            data-testid="coding-service-no-path"
+            data-service-id={service.id}
+          >
+            No repository path on this machine.
+          </Typography>
+        )}
+        <ServiceDirectoryBindingControl
+          serviceId={service.id}
+          serviceName={service.name}
+          machineId={machineId}
+          isBound={hasPath}
+          showPath={false}
+          unboundLabel="Set repository path"
+        />
+      </Stack>
+    </Stack>
+  );
+};
+
+interface WorkInChoicesProps {
+  serviceIds: readonly string[];
+  launchServiceId: string;
+  serviceNames: ReadonlyMap<string, string>;
+  lockedBranch: string | null;
+  servicePlaces: ServicePlacesState;
+  branchQuery: string;
+  disabled: boolean;
+  sessionChoice: ServicePlaceChoice | null;
+  perServiceChoices: Readonly<Record<string, ServicePlaceChoice>> | null;
+  onBranchQueryChange: (query: string) => void;
+  onChangeSession: (choice: ServicePlaceChoice) => void;
+  onChangeService: (choice: ServicePlaceChoice) => void;
+  onTogglePerService: (enabled: boolean) => void;
+}
+
+const WorkInChoices = ({
+  serviceIds,
+  launchServiceId,
+  serviceNames,
+  lockedBranch,
+  servicePlaces,
+  branchQuery,
+  disabled,
+  sessionChoice,
+  perServiceChoices,
+  onBranchQueryChange,
+  onChangeSession,
+  onChangeService,
+  onTogglePerService,
+}: WorkInChoicesProps) => {
+  const perService = perServiceChoices !== null;
+
+  // A Plan's branch needs no read from the machine.
+  if (lockedBranch === null && servicePlaces.status !== "ready") {
+    return servicePlaces.status === "unavailable" ? (
+      <Alert severity="error" data-testid="coding-work-in-unavailable">
+        Where each Service can work could not be loaded: {servicePlaces.message}
+      </Alert>
+    ) : (
+      <Skeleton
+        variant="rounded"
+        height={40}
+        data-testid="coding-work-in-loading"
+      />
+    );
+  }
+
+  const entryFor = (serviceId: string): ServicePlacesEntry =>
+    servicePlaces.status === "ready"
+      ? (servicePlaces.byServiceId[serviceId] ?? NOT_RETURNED_ENTRY)
+      : NOT_RETURNED_ENTRY;
+  const searching = servicePlaces.status === "ready" && servicePlaces.searching;
+  const searchError =
+    servicePlaces.status === "ready" ? servicePlaces.searchError : null;
+  const sharedProps = {
+    lockedBranch,
+    branchQuery,
+    searching,
+    searchError,
+    disabled,
+    onBranchQueryChange,
+  };
+
+  return (
+    <Stack spacing={1.5}>
+      {perService ? (
+        serviceIds.map((serviceId) => (
+          <Stack key={serviceId} spacing={0.5}>
+            <Typography variant="caption" color="text.secondary">
+              {serviceNames.get(serviceId) ?? "Service"}
+            </Typography>
+            <WorkInSelect
+              {...sharedProps}
+              serviceId={serviceId}
+              entry={entryFor(serviceId)}
+              value={placeFor(serviceId, { sessionChoice, perServiceChoices })}
+              onChange={onChangeService}
+            />
+          </Stack>
+        ))
+      ) : (
+        <WorkInSelect
+          {...sharedProps}
+          serviceId={launchServiceId}
+          entry={entryFor(launchServiceId)}
+          value={sessionChoice}
+          onChange={onChangeSession}
+        />
+      )}
+      {lockedBranch === null ? (
+        <Accordion
+          variant="outlined"
+          disableGutters
+          data-testid="coding-work-in-advanced"
+        >
+          <AccordionSummary>
+            <Typography variant="body2">Advanced</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={perService}
+                  disabled={disabled}
+                  onChange={(event) => onTogglePerService(event.target.checked)}
+                  data-testid="coding-work-in-per-service-toggle"
+                />
+              }
+              label={
+                <Typography variant="body2">Choose per Service</Typography>
+              }
+            />
+          </AccordionDetails>
+        </Accordion>
+      ) : null}
+    </Stack>
+  );
+};
+
 export interface AgentSetupViewProps {
   /** Retained for callers during the step-collapse migration; rendering is no longer step-gated. */
   step: CodingSetupStep;
@@ -370,11 +587,20 @@ export interface AgentSetupViewProps {
   projectModeSelection: ProjectModeSelection | null;
   onSelectProjectMode: (selection: ProjectModeSelection) => void;
   recoveryState: AgentBridgeRecoveryState;
-  repositoryPath: string;
-  directoryPaths?: Record<string, string>;
-  worktreeBranch: string | null;
-  worktreeLocked: boolean;
-  setWorktreeBranch: (branch: string | null) => void;
+  /** Repository path by Service id on the selected machine; Services without one are absent. */
+  repositoryPaths: Readonly<Record<string, string>>;
+  /** A Plan's branch; when set, Work in shows it and cannot be changed. */
+  lockedWorktreeBranch: string | null;
+  servicePlaces: ServicePlacesState;
+  branchQuery: string;
+  onBranchQueryChange: (query: string) => void;
+  /** The one choice for every Service; null is the default (main folder). */
+  sessionPlaceChoice: ServicePlaceChoice | null;
+  /** Per-Service choices by Service id; null while "Choose per Service" is off. */
+  perServicePlaceChoices: Readonly<Record<string, ServicePlaceChoice>> | null;
+  onChangeSessionPlace: (choice: ServicePlaceChoice) => void;
+  onChangeServicePlace: (choice: ServicePlaceChoice) => void;
+  onTogglePerServicePlaces: (enabled: boolean) => void;
   launchServiceId?: string | null;
   onSelectLaunchService?: (serviceId: string) => void;
   hasActiveRun: boolean;
@@ -437,11 +663,16 @@ export const AgentSetupView = ({
   projectModeSelection,
   onSelectProjectMode,
   recoveryState,
-  repositoryPath,
-  directoryPaths,
-  worktreeBranch,
-  worktreeLocked,
-  setWorktreeBranch,
+  repositoryPaths,
+  lockedWorktreeBranch,
+  servicePlaces,
+  branchQuery,
+  onBranchQueryChange,
+  sessionPlaceChoice,
+  perServicePlaceChoices,
+  onChangeSessionPlace,
+  onChangeServicePlace,
+  onTogglePerServicePlaces,
   launchServiceId,
   onSelectLaunchService,
   canStartCoding,
@@ -480,18 +711,28 @@ export const AgentSetupView = ({
       ),
     })).filter(({ options }) => options.length > 0);
   }, [compatibleSessionMethods]);
+  const combinedServices = [...primaryServices, ...additionalServices];
+  const showServiceSearch =
+    combinedServices.length >= SERVICE_SEARCH_MIN_SERVICES;
+  const activeServiceSearch = showServiceSearch ? serviceSearchValue : "";
   const filteredPrimaryServices = useMemo(
-    () => matchesSearch(primaryServices, serviceSearchValue),
-    [primaryServices, serviceSearchValue],
+    () => matchesSearch(primaryServices, activeServiceSearch),
+    [primaryServices, activeServiceSearch],
   );
   const filteredAdditionalServices = useMemo(
-    () => matchesSearch(additionalServices, serviceSearchValue),
-    [additionalServices, serviceSearchValue],
+    () => matchesSearch(additionalServices, activeServiceSearch),
+    [additionalServices, activeServiceSearch],
   );
-  const combinedServices = [...primaryServices, ...additionalServices];
   const hasFilteredServices =
     filteredPrimaryServices.length > 0 || filteredAdditionalServices.length > 0;
   const isValidation = sessionMethod === "validation";
+  const serviceNames = useMemo(
+    () =>
+      new Map(combinedServices.map((service) => [service.id, service.name])),
+    // combinedServices is rebuilt from the two stable lists each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [primaryServices, additionalServices],
+  );
 
   const isServiceSelected = (id: string) =>
     isMultiServiceMode
@@ -654,23 +895,25 @@ export const AgentSetupView = ({
               <Box>
                 <Typography variant="h6">Services and workspaces</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Select every Service the session may use, map each local
-                  directory, and choose the launch Service.
+                  Select every Service the session may use, choose where each
+                  one works, and choose the launch Service.
                 </Typography>
               </Box>
 
               <Stack spacing={1.5}>
                 <Typography variant="subtitle2">Services</Typography>
-                <TextField
-                  label="Search services"
-                  value={serviceSearchValue}
-                  onChange={(event) =>
-                    setServiceSearchValue(event.target.value)
-                  }
-                  placeholder="Filter services by name"
-                  fullWidth
-                  data-testid="coding-service-search"
-                />
+                {showServiceSearch ? (
+                  <TextField
+                    label="Search services"
+                    value={serviceSearchValue}
+                    onChange={(event) =>
+                      setServiceSearchValue(event.target.value)
+                    }
+                    placeholder="Filter services by name"
+                    fullWidth
+                    data-testid="coding-service-search"
+                  />
+                ) : null}
                 {loadingServices ? (
                   <Box sx={cardGridSx}>
                     {[0, 1, 2].map((index) => (
@@ -693,15 +936,15 @@ export const AgentSetupView = ({
                     </Typography>
                     <Stack spacing={0.5}>
                       {filteredPrimaryServices.map((service) => (
-                        <ServiceSelectionRow
+                        <ServiceListEntry
                           key={service.id}
                           service={service}
                           fallbackDescription="Linked to this task"
                           selected={isServiceSelected(service.id)}
-                          disabled={serviceSelectionLocked}
-                          selectionMode="multiple"
-                          testId="coding-service-row"
-                          onChange={() => handleServiceClick(service.id)}
+                          selectionLocked={serviceSelectionLocked}
+                          repositoryPath={repositoryPaths[service.id] ?? ""}
+                          machineId={selectedMachineId}
+                          onToggle={() => handleServiceClick(service.id)}
                         />
                       ))}
                     </Stack>
@@ -714,15 +957,15 @@ export const AgentSetupView = ({
                     </Typography>
                     <Stack spacing={0.5}>
                       {filteredAdditionalServices.map((service) => (
-                        <ServiceSelectionRow
+                        <ServiceListEntry
                           key={service.id}
                           service={service}
                           fallbackDescription="Available in this project"
                           selected={isServiceSelected(service.id)}
-                          disabled={serviceSelectionLocked}
-                          selectionMode="multiple"
-                          testId="coding-service-row"
-                          onChange={() => handleServiceClick(service.id)}
+                          selectionLocked={serviceSelectionLocked}
+                          repositoryPath={repositoryPaths[service.id] ?? ""}
+                          machineId={selectedMachineId}
+                          onToggle={() => handleServiceClick(service.id)}
                         />
                       ))}
                     </Stack>
@@ -807,73 +1050,36 @@ export const AgentSetupView = ({
                 </Stack>
               ) : null}
 
-              <Card variant="outlined" data-testid="coding-worktree-card">
-                <CardContent>
-                  <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="subtitle2">
-                        Worktree and repositories
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Keep the selected Services on the configured branch and
-                        resolve a local directory for each one.
-                      </Typography>
-                    </Box>
-                    <WorktreeSetupControls
-                      branch={worktreeBranch}
-                      locked={worktreeLocked}
-                      onChangeBranch={setWorktreeBranch}
-                      toggleTestId="coding-worktree-toggle"
-                      controlsTestId="coding-worktree-controls"
-                      branchTestId="coding-worktree-branch-name"
-                    />
-                    <Stack spacing={1.5}>
-                      <Typography variant="subtitle2">
-                        Repository paths
-                      </Typography>
-                      {selectedServiceIds.map((id) => {
-                        const service = combinedServices.find(
-                          (item) => item.id === id,
-                        );
-                        const label = service?.name ?? id;
-                        const value =
-                          directoryPaths?.[id] ??
-                          (launchServiceId === id ? repositoryPath : "");
-                        return (
-                          <Stack
-                            key={id}
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1.5}
-                            alignItems={{ sm: "center" }}
-                            sx={{ maxWidth: 720 }}
-                          >
-                            <TextField
-                              label={`${label} repository path`}
-                              value={value}
-                              placeholder="/absolute/path/to/repo"
-                              fullWidth
-                              size="small"
-                              slotProps={{ input: { readOnly: true } }}
-                              data-testid={`coding-repository-path-${id}`}
-                            />
-                            <ServiceDirectoryBindingControl
-                              serviceId={id}
-                              serviceName={label}
-                              showPath={false}
-                            />
-                          </Stack>
-                        );
-                      })}
-                      {selectedServiceIds.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          Select at least one Service to configure its
-                          repository path.
-                        </Typography>
-                      ) : null}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
+              <Stack spacing={1.5} data-testid="coding-work-in">
+                <Box>
+                  <Typography variant="subtitle2">Work in</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Where the selected Services work. The main folder stays on
+                    its current branch unless you pick a worktree.
+                  </Typography>
+                </Box>
+                {selectedServiceIds.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Select at least one Service to choose where it works.
+                  </Typography>
+                ) : (
+                  <WorkInChoices
+                    serviceIds={selectedServiceIds}
+                    launchServiceId={launchServiceId ?? selectedServiceIds[0]}
+                    serviceNames={serviceNames}
+                    lockedBranch={lockedWorktreeBranch}
+                    servicePlaces={servicePlaces}
+                    branchQuery={branchQuery}
+                    disabled={submittingPrompt}
+                    sessionChoice={sessionPlaceChoice}
+                    perServiceChoices={perServicePlaceChoices}
+                    onBranchQueryChange={onBranchQueryChange}
+                    onChangeSession={onChangeSessionPlace}
+                    onChangeService={onChangeServicePlace}
+                    onTogglePerService={onTogglePerServicePlaces}
+                  />
+                )}
+              </Stack>
             </Stack>
           </CardContent>
         </Card>

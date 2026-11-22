@@ -31,6 +31,8 @@ export interface ServiceDirectoryBindingControlProps {
    */
   isBound?: boolean;
   showPath?: boolean;
+  /** Button text while no directory is linked. */
+  unboundLabel?: string;
   onLinked?: (binding: ServiceRepoBinding) => void;
 }
 
@@ -45,6 +47,7 @@ export const ServiceDirectoryBindingControl = ({
   machineId,
   isBound,
   showPath = true,
+  unboundLabel = "Link directory",
   onLinked,
 }: ServiceDirectoryBindingControlProps) => {
   const theme = useTheme();
@@ -190,7 +193,7 @@ export const ServiceDirectoryBindingControl = ({
                 : "Linking..."
               : hasBinding
                 ? "Update directory"
-                : "Link directory"}
+                : unboundLabel}
           </Button>
           <Button
             variant="text"

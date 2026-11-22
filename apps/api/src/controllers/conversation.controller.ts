@@ -1262,15 +1262,26 @@ export class ConversationController implements IConversationControllerSpec {
         });
       const startRunConfig = resolvedStartRunConfig ?? requestDto.config;
 
-      // A Task Monitor launch belongs to a Plan; its persisted worktree is the
-      // Plan's locked branch.
-      const planLockedBranch = requestDto.contextMetadata.taskMonitorId
+      // A launch belongs to a Plan either through its Task Monitor (persisted
+      // worktree) or through the Plan it was launched from (the Plan's own
+      // configuration). That branch is the Plan's lock.
+      const launchPlanId = requestDto.contextMetadata.launchPlanId;
+      const monitorLockedBranch = requestDto.contextMetadata.taskMonitorId
         ? resolvedStartRunConfig?.worktree
         : undefined;
+      const planLockedBranch =
+        monitorLockedBranch ??
+        (requestDto.servicePlaceChoices && launchPlanId
+          ? ((await this.agentSessionService.resolvePlanLockedBranch({
+              organizationId,
+              projectId,
+              planId: launchPlanId,
+            })) ?? undefined)
+          : undefined);
       try {
         assertLaunchServicePlaceChoices(requestDto.servicePlaceChoices, {
           serviceIds: requestDto.serviceIds ?? [],
-          worktreeBranch: requestDto.worktree?.branch,
+          worktree: requestDto.worktree,
           planLockedBranch,
         });
       } catch (error) {

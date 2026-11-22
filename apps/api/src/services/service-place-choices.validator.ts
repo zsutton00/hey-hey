@@ -23,7 +23,10 @@ function reject(serviceId: string, message: string): never {
   });
 }
 
-function assertUniqueAndWellFormed(choices: readonly ServicePlaceChoice[]) {
+/** Checks one choice per Service, and that each choice names what its kind needs. */
+export function assertUniqueAndWellFormed(
+  choices: readonly ServicePlaceChoice[],
+) {
   const seen = new Set<string>();
 
   for (const choice of choices) {
