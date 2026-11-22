@@ -675,8 +675,7 @@ const ConversationViewerContent: React.FC<{
             flex: 1,
             minWidth: 0, // Prevent flex item from overflowing
             maxWidth: "100%",
-            overflow: "auto", // Allow scrolling within conversation
-            maxHeight: "100%", // Ensure it respects container height
+            // The embedding page owns vertical scroll; the panel never scrolls itself.
             display: "flex",
             flexDirection: "column",
             position: "relative",
