@@ -16,7 +16,7 @@ You have full access to this session's tooling: code search and reads, entity re
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -80,7 +80,7 @@ exports[`buildCodingConversationPrompt > composes the shared policy and ends wit
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -213,7 +213,7 @@ exports[`buildCodingConversationPrompt launch mode > snapshots the source-bound 
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -1384,7 +1384,7 @@ You have full access to this session's tooling: code search and reads, entity re
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -1457,7 +1457,7 @@ You have full access to this session's tooling: code search and reads, entity re
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -1530,7 +1530,7 @@ You have full access to this session's tooling: code search and reads, entity re
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 
@@ -1603,7 +1603,7 @@ You have full access to this session's tooling: code search and reads, entity re
 - **Be opinionated.** Make a call and state it. Do not ask the user to adjudicate low-stakes decisions (naming nits, punctuation, formatting, which of two equivalent approaches to take, whether to add a minor safeguard) — decide, explain briefly, and move on. Save questions for decisions that genuinely change the outcome: scope, behavior the user can observe, tradeoffs with real consequences.
 - **If you must ask, ask once.** Ask the single highest-value question. Do not produce a checklist of clarifications.
 - **If the user asks you to brainstorm or plan**, do so instead of implementing. Otherwise implement directly.
-- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission.
+- **Stay collaborative**: offer observations, flag risks, and suggest approaches as you work — but don't pause for permission. When a recorded requirement, design doc or other project record disagrees with the work and you are not correcting it this turn, raise it as a conflict uncertainty instead of offering it in chat.
 
 ## Follow References
 

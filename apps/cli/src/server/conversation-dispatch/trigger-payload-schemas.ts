@@ -550,6 +550,20 @@ const taskMonitorPromptPayloadShape = {
   userMessage: z.string().optional(),
   launchConfig: taskMonitorLaunchConfigSchema.optional(),
   judgment: taskMonitorJudgmentResponseSchema.optional(),
+  monitoredPermissionRequest: z
+    .object({
+      interventionId: z.string(),
+      providerActionId: z.string(),
+      runId: z.string(),
+      agentSessionId: z.string().uuid(),
+      action: z.string().min(1),
+      target: z.string().min(1),
+      fingerprint: z.string().min(1),
+      createdAt: z.string().datetime(),
+      expiresAt: z.string().datetime().nullable(),
+    })
+    .strict()
+    .optional(),
   settledTurn: taskMonitorSettledTurnEvidenceSchema.optional(),
 } satisfies Record<keyof TaskMonitorPromptPayload, z.ZodTypeAny>;
 

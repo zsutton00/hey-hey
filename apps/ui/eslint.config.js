@@ -1,3 +1,7 @@
+import {
+  entityReadRoutesPlugin,
+  restrictedEntityReads,
+} from "../../scripts/eslint-ui-entity-reads.mjs";
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -15,11 +19,14 @@ export default tseslint.config(
       globals: globals.browser,
     },
     plugins: {
+      "ui-entity-reads": entityReadRoutesPlugin,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
       "unused-imports": unusedImports,
     },
     rules: {
+      "ui-entity-reads/no-rest-entity-read-url": "error",
+      "no-restricted-syntax": restrictedEntityReads,
       ...reactHooks.configs.recommended.rules,
       "react-hooks/rules-of-hooks": "error",
       "unused-imports/no-unused-imports": "error",
@@ -49,5 +56,5 @@ export default tseslint.config(
         },
       ],
     },
-  }
+  },
 );

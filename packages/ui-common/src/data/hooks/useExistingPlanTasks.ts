@@ -1,5 +1,6 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueries } from "@tanstack/react-query";
-import { workItemListQueryOptions } from "../collections/workItemLists";
+import { fetchWorkItemList } from "../collections/workItemLists";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 // GET tasks accepts at most 200 distinct taskIds per request.
@@ -17,13 +18,17 @@ export function useExistingPlanTasks(
     batches.push(ids.slice(offset, offset + TASK_ID_BATCH_SIZE));
   }
 
+  const graphqlClient = useApolloClient();
   const reads = useQueries({
-    queries: batches.map((batch) =>
-      workItemListQueryOptions(organizationId, projectId, {
-        taskIds: batch,
-        limit: batch.length,
-      }),
-    ),
+    queries: batches.map((batch) => ({
+      queryKey: ["existingPlanTasks", organizationId, projectId, batch],
+      queryFn: () =>
+        fetchWorkItemList(
+          graphqlClient,
+          { organizationId, projectId },
+          { taskIds: batch, limit: batch.length },
+        ),
+    })),
   });
   useWebsocketSubscriptions({ projectIds: [projectId] }, { enabled: true });
 

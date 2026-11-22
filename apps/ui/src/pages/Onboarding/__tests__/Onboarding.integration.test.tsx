@@ -1,4 +1,13 @@
 import { WebSocketHandler } from "../../../../../../packages/ui-common/src/data/websockets/handler";
+import {
+  answerConversationOperation,
+  conversationNode,
+  type FakeMessage,
+} from "../../../../../../packages/ui-common/src/test/conversationGraphQLAnswers";
+import {
+  createTestGraphQLClient,
+  TestGraphQLProvider,
+} from "../../../../../../packages/ui-common/src/test/TestGraphQLProvider";
 import { useConversationMessages } from "@hey-hey/ui-common/data";
 import type { ConversationResponseDto } from "@hey-hey/contracts/api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -327,6 +336,7 @@ const createTestWrapper = (
   initialEntry = "/projects/5528269f-ab34-48ca-95f4-dd46e8a3393f/onboarding",
   store = createStore(),
   queryClient = createTestQueryClient(),
+  graphqlClient = createTestGraphQLClient(),
 ) => {
   const theme = createTheme({
     palette: {
@@ -336,37 +346,46 @@ const createTestWrapper = (
 
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <JotaiProvider store={store}>
-        <AuthProvider>
-          <WebSocketProvider>
-            <ThemeProvider theme={theme}>
-              <I18nextProvider i18n={i18n}>
-                <OrganizationProvider>
-                  <DebugProvider>
-                    <TrackingProvider enabled={false}>
-                      <MemoryRouter initialEntries={[initialEntry]}>
-                        <Routes>
-                          <Route
-                            path="/projects/:projectId/onboarding"
-                            element={children}
-                          />
-                          <Route
-                            path="/projects/:projectId"
-                            element={<LocationDisplay />}
-                          />
-                        </Routes>
-                      </MemoryRouter>
-                    </TrackingProvider>
-                  </DebugProvider>
-                </OrganizationProvider>
-              </I18nextProvider>
-            </ThemeProvider>
-          </WebSocketProvider>
-        </AuthProvider>
-      </JotaiProvider>
+      <TestGraphQLProvider client={graphqlClient}>
+        <JotaiProvider store={store}>
+          <AuthProvider>
+            <WebSocketProvider>
+              <ThemeProvider theme={theme}>
+                <I18nextProvider i18n={i18n}>
+                  <OrganizationProvider>
+                    <DebugProvider>
+                      <TrackingProvider enabled={false}>
+                        <MemoryRouter initialEntries={[initialEntry]}>
+                          <Routes>
+                            <Route
+                              path="/projects/:projectId/onboarding"
+                              element={children}
+                            />
+                            <Route
+                              path="/projects/:projectId"
+                              element={<LocationDisplay />}
+                            />
+                          </Routes>
+                        </MemoryRouter>
+                      </TrackingProvider>
+                    </DebugProvider>
+                  </OrganizationProvider>
+                </I18nextProvider>
+              </ThemeProvider>
+            </WebSocketProvider>
+          </AuthProvider>
+        </JotaiProvider>
+      </TestGraphQLProvider>
     </QueryClientProvider>
   );
 };
+
+const METADATA_READS = new Set([
+  "GetConversation",
+  "GetConversations",
+  "GetActiveConversations",
+  "GetWorkflowConversations",
+]);
 
 describe("Onboarding Page Integration Tests", () => {
   const mockOrganization: OrganizationResponseDto = {
@@ -593,6 +612,9 @@ describe("Onboarding Page Integration Tests", () => {
   };
 
   let currentMessages = mockMessages;
+  let currentConversation: Record<string, unknown> = mockConversation;
+  let metadataReads = 0;
+  let currentVersion = 33;
   const mockIntentReplyConversation = {
     ...mockReplyConversation,
     messages: [
@@ -636,6 +658,9 @@ describe("Onboarding Page Integration Tests", () => {
   };
   beforeEach(() => {
     currentMessages = mockMessages;
+    currentConversation = mockConversation;
+    metadataReads = 0;
+    currentVersion = 33;
     vi.clearAllMocks();
     mockAgentSessions.sessions.length = 0;
     initializeBrowserApiRuntime({
@@ -647,13 +672,57 @@ describe("Onboarding Page Integration Tests", () => {
 
     // Set up MSW handlers
     globalThis.mswServer.use(
+      // The page reads its conversation and messages through GraphQL.
+      http.post("*/graphql", async ({ request }) => {
+        const { operationName, variables = {} } = (await request.json()) as {
+          operationName: string;
+          variables?: Record<string, unknown>;
+        };
+        const { messages: _messages, ...fields } = currentConversation;
+        const conversation = { ...conversationNode, ...fields };
+        if (METADATA_READS.has(operationName)) {
+          metadataReads++;
+        }
+        const { status, body } = answerConversationOperation(
+          {
+            thread: currentMessages as unknown as FakeMessage[],
+            conversations: [conversation],
+          },
+          operationName,
+          variables,
+        );
+        const answered =
+          operationName === "GetConversation"
+            ? { status: 200, body: { data: { conversation } } }
+            : operationName === "GetOnboardingReplyVersion"
+              ? {
+                  status: 200,
+                  body: {
+                    data: {
+                      conversation: {
+                        __typename: "Conversation",
+                        id: conversation.id,
+                        version: currentVersion,
+                      },
+                    },
+                  },
+                }
+              : { status, body };
+
+        // The shared answers use a placeholder conversation id; this page's own
+        // conversation must own its thread.
+        const own = JSON.parse(
+          JSON.stringify(answered.body).replaceAll(
+            `"${conversationNode.id}"`,
+            JSON.stringify(conversation.id),
+          ),
+        );
+
+        return HttpResponse.json(own, { status: answered.status });
+      }),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/queued-inputs",
         () => HttpResponse.json({ success: true, data: [] }),
-      ),
-      http.get(
-        "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/version",
-        () => HttpResponse.json({ success: true, data: { version: 33 } }),
       ),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/messages",
@@ -847,31 +916,26 @@ describe("Onboarding Page Integration Tests", () => {
   });
 
   it("renders completion Messages from websocket updates without refreshing metadata", async () => {
+    currentConversation = mockReplyConversation;
     currentMessages = mockReplyMessages;
-    let envelopeReads = 0;
-    globalThis.mswServer.use(
-      http.get(
-        "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
-        () => {
-          envelopeReads += 1;
-          return HttpResponse.json({
-            success: true,
-            data: { data: [mockReplyConversation] },
-          });
-        },
-      ),
-    );
+    globalThis.mswServer.use();
     const store = createStore();
     const queryClient = createTestQueryClient();
+    const graphqlClient = createTestGraphQLClient();
     render(<OnboardingPage />, {
-      wrapper: createTestWrapper(undefined, store, queryClient),
+      wrapper: createTestWrapper(undefined, store, queryClient, graphqlClient),
     });
     await screen.findByTestId("textarea-field-project_concept");
     currentMessages = mockReplyMessages.map((message) => ({
       ...message,
       awaitingResponse: false,
     }));
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = new WebSocketHandler(
+      store,
+      undefined,
+      queryClient,
+      graphqlClient,
+    );
     const completion = {
       type: "conversation.updated" as const,
       conversationId: mockConversation.id,
@@ -890,7 +954,7 @@ describe("Onboarding Page Integration Tests", () => {
     expect(
       screen.queryByTestId("textarea-field-project_concept"),
     ).not.toBeInTheDocument();
-    expect(envelopeReads).toBe(1);
+    expect(metadataReads).toBe(1);
   });
 
   it("renders existing-project breadcrumbs without changing the import conversation route", async () => {
@@ -1037,15 +1101,13 @@ describe("Onboarding Page Integration Tests", () => {
   });
 
   it("submits onboarding replies with the current version despite older mounted metadata", async () => {
+    currentConversation = mockReplyConversation;
+    currentVersion = 34;
     const user = userEvent.setup();
     const requests: unknown[] = [];
     currentMessages = mockReplyMessages;
 
     globalThis.mswServer.use(
-      http.get(
-        "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations/:conversationId/version",
-        () => HttpResponse.json({ success: true, data: { version: 34 } }),
-      ),
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId/conversations",
         () =>
@@ -1110,6 +1172,7 @@ describe("Onboarding Page Integration Tests", () => {
   });
 
   it("submits the existing-work intent as an admitted option through onboarding admission", async () => {
+    currentConversation = mockIntentReplyConversation;
     const requests: unknown[] = [];
     currentMessages = mockIntentReplyConversation.messages;
     let replyAdmitted = false;
@@ -1219,6 +1282,7 @@ describe("Onboarding Page Integration Tests", () => {
   });
 
   it("routes a reloaded completed existing-work conversation to Help", async () => {
+    currentConversation = mockCompletedIntentConversation;
     globalThis.mswServer.use(
       http.get(
         "http://localhost:3000/api/v1/organizations/:organizationId/projects/:projectId",
@@ -1272,6 +1336,7 @@ describe("Onboarding Page Integration Tests", () => {
   });
 
   it("keeps the onboarding form available when admission is rejected", async () => {
+    currentConversation = mockReplyConversation;
     const user = userEvent.setup();
     const requests: unknown[] = [];
     currentMessages = mockReplyMessages;

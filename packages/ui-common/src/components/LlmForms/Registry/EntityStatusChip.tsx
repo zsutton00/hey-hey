@@ -11,10 +11,11 @@ interface EntityStatusChipProps {
   entityId: string;
   entityType: string;
   organizationId: string;
+  projectId: string;
 }
 
 export const EntityStatusChip: React.FC<EntityStatusChipProps> = memo(
-  ({ entityId, entityType, organizationId }) => {
+  ({ entityId, entityType, organizationId, projectId }) => {
     const entityTypeLower = entityType.toLowerCase();
     const isDesignDoc =
       entityTypeLower === "design_docs" || entityTypeLower === "design_doc";
@@ -30,7 +31,7 @@ export const EntityStatusChip: React.FC<EntityStatusChipProps> = memo(
       organizationId,
       "task",
       isTask ? entityId : "",
-      { enabled: isTask },
+      { projectId, enabled: isTask },
     );
 
     const { workItemTypeDefinition } = useWorkItemTypeByKey(

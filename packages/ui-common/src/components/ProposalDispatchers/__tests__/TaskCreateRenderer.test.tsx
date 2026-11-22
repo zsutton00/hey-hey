@@ -1,3 +1,5 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   act,
@@ -210,6 +212,11 @@ function makeTaskProposal(): ProposalResponseDto & { updates: CreateTaskDto } {
 }
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   vi.clearAllMocks();
   localStorage.clear();
   mockOnParentChange = null;
@@ -1130,16 +1137,22 @@ describe("TaskCreateRenderer — Agent Mode availability", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Relationships")).toBeInTheDocument();
     expect(screen.getByText("relates to")).toBeInTheDocument();
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      projectId: PROJ_ID,
-      taskId: "feature-1",
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      projectId: PROJ_ID,
-      taskId: "task-1",
-    });
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG_ID,
+        projectId: PROJ_ID,
+        taskId: "feature-1",
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: ORG_ID,
+        projectId: PROJ_ID,
+        taskId: "task-1",
+      }),
+      expect.anything(),
+    );
   });
 });
 

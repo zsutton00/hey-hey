@@ -11,7 +11,7 @@ const assertNever = (value: never): never => {
 };
 
 const getOutcomePresentation = (
-  data: TaskMonitorSupervisionSystemMessageData
+  data: TaskMonitorSupervisionSystemMessageData,
 ) => {
   switch (data.outcome) {
     case "REQUESTING_REVIEW":
@@ -88,6 +88,21 @@ const getOutcomePresentation = (
           value: data.failureContext,
         },
       };
+    case "PERMISSION_DECIDED":
+      return { label: "Permission decision", color: "default" as const };
+    case "PERMISSION_ANSWER_RESULT":
+      return {
+        label: "Permission answer",
+        color:
+          data.result === "APPLIED"
+            ? ("success" as const)
+            : ("warning" as const),
+        detail: {
+          label: "Result",
+          testId: "supervision-decision-permission-answer-result",
+          value: data.reason,
+        },
+      };
     default:
       return assertNever(data);
   }
@@ -116,14 +131,16 @@ export const SupervisionDecisionMessage = ({
           size="small"
           sx={{ alignSelf: "flex-start" }}
         />
-        <Typography
-          component="div"
-          data-testid="supervision-decision-rationale"
-        >
-          <MarkdownRenderer allowMentionEscapes>
-            {data.rationale}
-          </MarkdownRenderer>
-        </Typography>
+        {data.outcome !== "PERMISSION_ANSWER_RESULT" && (
+          <Typography
+            component="div"
+            data-testid="supervision-decision-rationale"
+          >
+            <MarkdownRenderer allowMentionEscapes>
+              {data.rationale}
+            </MarkdownRenderer>
+          </Typography>
+        )}
         {outcome.detail && (
           <Stack spacing={0.5} data-testid={outcome.detail.testId}>
             <Typography color="text.secondary" variant="caption">

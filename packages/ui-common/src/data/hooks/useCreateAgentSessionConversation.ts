@@ -1,7 +1,7 @@
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 import type {
-  ConversationResponseDto,
   CreateAgentSessionConversationDto,
   CreateAgentSessionConversationResponseDto,
 } from "../../api";
@@ -10,10 +10,7 @@ import {
   invalidateAgentSessionDetail,
   writeAgentSession,
 } from "../collections/agentSessions";
-import {
-  invalidateConversationLists,
-  writeConversation,
-} from "../collections/conversations";
+import { refreshConversationLists } from "../graphql/conversationCache";
 import { useMutation, type MutationOptions } from "../core/useMutation";
 
 export interface CreateAgentSessionConversationVariables {
@@ -32,9 +29,10 @@ export const isConflictError = (error: unknown): boolean => {
 };
 
 export function useCreateAgentSessionConversation(
-  options: UseCreateAgentSessionConversationOptions = {}
+  options: UseCreateAgentSessionConversationOptions = {},
 ) {
   const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   const mutationFn = async ({
     organizationId,
@@ -47,25 +45,24 @@ export function useCreateAgentSessionConversation(
         queryClient,
         organizationId,
         projectId,
-        agentSessionId
+        agentSessionId,
       );
     };
 
     let payload: CreateAgentSessionConversationResponseDto;
     try {
-      const response =
-        await agentSessionsClient.createAgentSessionConversation(
-          {
-            organizationId: organizationId,
-            projectId: projectId,
-            agentSessionId: agentSessionId,
-            createAgentSessionConversationDto: body,
-          }
-        );
+      const response = await agentSessionsClient.createAgentSessionConversation(
+        {
+          organizationId: organizationId,
+          projectId: projectId,
+          agentSessionId: agentSessionId,
+          createAgentSessionConversationDto: body,
+        },
+      );
       const data = response.data?.data;
       if (!data) {
         throw new Error(
-          "No data returned from create-agent-session-conversation endpoint"
+          "No data returned from create-agent-session-conversation endpoint",
         );
       }
       payload = data;
@@ -77,18 +74,11 @@ export function useCreateAgentSessionConversation(
       throw error;
     }
 
-    const { agentSession, conversation } = payload;
-
-    writeConversation(
-      queryClient,
-      organizationId,
-      projectId,
-      conversation as ConversationResponseDto
-    );
+    const { agentSession } = payload;
 
     writeAgentSession(queryClient, organizationId, projectId, agentSession);
 
-    void invalidateConversationLists(queryClient, organizationId, projectId);
+    void refreshConversationLists(graphqlClient);
 
     return payload;
   };

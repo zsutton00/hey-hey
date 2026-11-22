@@ -69,16 +69,21 @@ vi.mock("../../ProposalDispatchers/ProposalTitle", async (importOriginal) => {
   };
 });
 
-vi.mock("../../InteractionComponent", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../../InteractionComponent")>();
-  return {
-    ...actual,
-    InteractionComponent: ({ children }: { children: React.ReactNode }) => (
-      <>{children}</>
-    ),
-  };
-});
+vi.mock(
+  "../../InteractionComponent/InteractionComponent",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../InteractionComponent/InteractionComponent")
+      >();
+    return {
+      ...actual,
+      InteractionComponent: ({ children }: { children: React.ReactNode }) => (
+        <>{children}</>
+      ),
+    };
+  },
+);
 
 const proposal = (
   id: string,

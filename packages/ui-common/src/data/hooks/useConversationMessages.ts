@@ -1,34 +1,48 @@
+import { useApolloClient, useQuery } from "@apollo/client/react";
+import {
+  useQuery as useTanStackQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { MessageRecordDto, MessageResponseDto } from "../../api";
+import { GetConversationMessageHistoryDocument } from "../../graphql/generated/graphql";
+import {
+  buildConversationMessageHistoryKey,
+  getConversationMessageHistorySnapshot,
+  loadOlderConversationMessageHistory,
+  subscribeConversationMessageHistory,
+} from "../collections/conversationMessageHistoryState";
+import {
+  isTimelineMessage,
+  loadOlderConversationMessages,
+  MESSAGE_PAGE_SIZE,
+  mergeQueueIntoTimeline,
+  messageKeys,
+  queuedInputsQueryOptions,
+  readLoadedMessages,
+  refreshConversationMessages,
+} from "../collections/messages";
 import {
   inputScope,
   observeCanonicalInputs,
 } from "../collections/optimisticConversationInputs";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
-import type { MessageRecordDto, MessageResponseDto } from "../../api";
-import {
-  conversationMessagesQueryOptions,
-  isTimelineMessage,
-  loadOlderConversationMessages,
-} from "../collections/messages";
-import {
-  buildConversationMessageHistoryKey,
-  getConversationMessageHistorySnapshot,
-  getPendingOlderConversationMessageCursor,
-  loadOlderConversationMessageHistory,
-  recordOlderConversationMessageHistoryPage,
-  subscribeConversationMessageHistory,
-} from "../collections/conversationMessageHistoryState";
 import type {
   CollectionHookOptions,
   DataCollectionHookReturn,
 } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { getProjectGraphQLClient } from "../graphql/client";
+import { toMessageResponse } from "../graphql/records";
 
 export type UseConversationMessagesOptions =
   CollectionHookOptions<MessageResponseDto>;
 
-export interface UseConversationMessagesReturn
-  extends DataCollectionHookReturn<MessageResponseDto> {
+export interface UseConversationMessagesReturn extends DataCollectionHookReturn<MessageResponseDto> {
   /** Conversation timeline, oldest first. Excludes undated queued inputs. */
   orderedData: readonly MessageResponseDto[];
   /**
@@ -53,9 +67,11 @@ const EMPTY_RECORDS: MessageRecordDto[] = [];
  * used to get from the conversation envelope.
  */
 const buildMessageTree = (
-  flat: readonly MessageResponseDto[]
+  flat: readonly MessageResponseDto[],
 ): MessageResponseDto[] => {
-  if (flat.length === 0) return EMPTY_MESSAGES;
+  if (flat.length === 0) {
+    return EMPTY_MESSAGES;
+  }
 
   const cloned = new Map<string, MessageResponseDto>();
   for (const message of flat) {
@@ -65,7 +81,9 @@ const buildMessageTree = (
   const roots: MessageResponseDto[] = [];
   for (const message of flat) {
     const node = cloned.get(message.id);
-    if (!node) continue;
+    if (!node) {
+      continue;
+    }
     const parentId = message.parentMessageId;
     const parent = parentId ? cloned.get(parentId) : null;
     if (parent) {
@@ -74,131 +92,212 @@ const buildMessageTree = (
       roots.push(node);
     }
   }
+
   return roots;
 };
 
+interface RefreshState {
+  isFetching: boolean;
+  error: Error | null;
+  hasSettled: boolean;
+}
+
+const toError = (cause: unknown): Error =>
+  cause instanceof Error ? cause : new Error(String(cause));
+
+/**
+ * The conversation's messages. The thread is the one list the GraphQL cache
+ * keeps for the conversation: this hook observes it and asks for it to be
+ * brought up to date when it mounts, regains focus, or is refetched. Live
+ * message events update the same list, so every view of it stays current.
+ */
 export function useConversationMessages(
   organizationId: string | undefined,
   projectId: string | undefined,
   conversationId: string | undefined,
-  options: UseConversationMessagesOptions = {}
+  options: UseConversationMessagesOptions = {},
 ): UseConversationMessagesReturn {
   const enabled =
     options.enabled !== false &&
     !!organizationId &&
     !!projectId &&
     !!conversationId;
+  const orgId = organizationId ?? "__noop__";
+  const projId = projectId ?? "__noop__";
+  const convId = conversationId ?? "__noop__";
 
   const queryClient = useQueryClient();
-  const queryOptions = useMemo(
-    () =>
-      conversationMessagesQueryOptions(
-        queryClient,
-        organizationId ?? "__noop__",
-        projectId ?? "__noop__",
-        conversationId ?? "__noop__"
-      ),
-    [queryClient, organizationId, projectId, conversationId]
+  const scope = useMemo(
+    () => ({ organizationId: orgId, projectId: projId }),
+    [orgId, projId],
   );
-  const { result, state: query } = useDataLayerQuery(queryOptions, {
-    enabled,
-    refetchOnMount: options.refetchOnMount,
-    refetchOnWindowFocus: options.refetchOnWindowFocus,
-    staleTimeMs: options.staleTimeMs,
-    maxCacheAgeMs: options.maxCacheAgeMs,
+
+  const client = getProjectGraphQLClient(useApolloClient(), scope);
+
+  // Cache-only: what has been loaded, whichever read loaded it.
+  const thread = useQuery(GetConversationMessageHistoryDocument, {
+    client,
+    variables: { id: convId, last: MESSAGE_PAGE_SIZE },
+    context: scope,
+    fetchPolicy: "cache-only",
+    skip: !enabled,
   });
-  // Realtime keeps the list current only while a view holds the conversation
-  // subscription. When the last view unmounts, mark the list stale so the next
-  // mount reads what arrived meanwhile (one `since` read).
-  useEffect(() => {
-    if (!enabled) return;
-    const { queryKey } = queryOptions;
-    return () => {
-      queueMicrotask(() => {
-        const query = queryClient
-          .getQueryCache()
-          .find({ queryKey, exact: true });
-        if (query && query.getObserversCount() === 0) {
-          void queryClient.invalidateQueries({
-            queryKey,
-            exact: true,
-            refetchType: "none",
-          });
-        }
+  const queuedOptions = useMemo(
+    () => queuedInputsQueryOptions(orgId, projId, convId),
+    [orgId, projId, convId],
+  );
+  const queued = useTanStackQuery({ ...queuedOptions, enabled });
+
+  const [refresh, setRefresh] = useState<RefreshState>({
+    isFetching: false,
+    error: null,
+    hasSettled: false,
+  });
+  const refreshMessages = useCallback(async (): Promise<
+    MessageResponseDto[] | null
+  > => {
+    setRefresh((current) => ({ ...current, isFetching: true }));
+    try {
+      await refreshConversationMessages(client, scope, convId);
+      setRefresh({ isFetching: false, error: null, hasSettled: true });
+    } catch (cause) {
+      setRefresh({
+        isFetching: false,
+        error: toError(cause),
+        hasSettled: true,
       });
+    }
+
+    return readLoadedMessages(client, convId);
+  }, [client, scope, convId]);
+
+  useEffect(() => {
+    if (enabled) {
+      void refreshMessages();
+    }
+  }, [enabled, refreshMessages]);
+
+  const refetchOnFocus = options.refetchOnWindowFocus !== false;
+  useEffect(() => {
+    if (!enabled || !refetchOnFocus) {
+      return;
+    }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshMessages();
+        void queryClient.invalidateQueries({
+          queryKey: messageKeys.queuedInputs(orgId, projId, convId),
+          exact: true,
+        });
+      }
     };
-  }, [enabled, queryClient, queryOptions]);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [
+    enabled,
+    refetchOnFocus,
+    refreshMessages,
+    queryClient,
+    orgId,
+    projId,
+    convId,
+  ]);
 
   const historyKey = useMemo(
     () =>
       buildConversationMessageHistoryKey({
-        organizationId: organizationId ?? "__noop__",
-        projectId: projectId ?? "__noop__",
-        conversationId: conversationId ?? "__noop__",
+        organizationId: orgId,
+        projectId: projId,
+        conversationId: convId,
       }),
-    [conversationId, organizationId, projectId]
+    [orgId, projId, convId],
   );
   const historySnapshot = useSyncExternalStore(
     useCallback(
       (listener) => subscribeConversationMessageHistory(historyKey, listener),
-      [historyKey]
+      [historyKey],
     ),
     useCallback(
       () => getConversationMessageHistorySnapshot(historyKey),
-      [historyKey]
+      [historyKey],
     ),
-    useCallback(
-      () => getConversationMessageHistorySnapshot(historyKey),
-      [historyKey]
-    )
   );
 
-  const records = result.data ?? EMPTY_RECORDS;
+  const messages = thread.data?.conversation.messages;
+  const loadedMessages = useMemo(
+    () => messages?.nodes.map(toMessageResponse) ?? EMPTY_MESSAGES,
+    [messages],
+  );
+  const queuedInputs = queued.data ?? EMPTY_RECORDS;
   // One rule: a message is in the timeline exactly when it has a createdAt.
+  const records = useMemo(
+    () =>
+      queuedInputs.length
+        ? mergeQueueIntoTimeline(loadedMessages, queuedInputs)
+        : loadedMessages,
+    [loadedMessages, queuedInputs],
+  );
   const orderedData = useMemo(
     () => (records.length ? records.filter(isTimelineMessage) : EMPTY_MESSAGES),
-    [records]
-  );
-  const scope = inputScope(
-    organizationId ?? "",
-    projectId ?? "",
-    conversationId ?? ""
+    [records],
   );
   const undatedInputs = useMemo(
     () =>
       records.length
         ? records.filter((message) => !isTimelineMessage(message))
         : EMPTY_RECORDS,
-    [records]
+    [records],
+  );
+  const scopeKey = inputScope(
+    organizationId ?? "",
+    projectId ?? "",
+    conversationId ?? "",
   );
   useEffect(() => {
-    if (enabled) observeCanonicalInputs(scope, records);
-  }, [enabled, scope, records]);
+    if (enabled) {
+      observeCanonicalInputs(scopeKey, records);
+    }
+  }, [enabled, scopeKey, records]);
   const data = useMemo(() => buildMessageTree(orderedData), [orderedData]);
-  const loadOlder = useCallback(async (): Promise<void> => {
-    if (!enabled || !organizationId || !projectId || !conversationId) return;
 
-    await loadOlderConversationMessageHistory(historyKey, async () => {
-      const cursor = getPendingOlderConversationMessageCursor(historyKey);
-      if (!cursor) return;
-      const nextCursor = await loadOlderConversationMessages(
-        queryClient,
-        organizationId,
-        projectId,
-        conversationId,
-        cursor
-      );
-      recordOlderConversationMessageHistoryPage(historyKey, nextCursor);
+  const loadOlder = useCallback(async (): Promise<void> => {
+    if (!enabled) {
+      return;
+    }
+
+    await loadOlderConversationMessageHistory(historyKey, () =>
+      loadOlderConversationMessages(client, scope, convId),
+    );
+  }, [client, convId, enabled, historyKey, scope]);
+
+  const isFetched =
+    enabled &&
+    (messages !== undefined || refresh.hasSettled) &&
+    queued.status !== "pending";
+  const error = enabled ? (refresh.error ?? queued.error) : null;
+  const refetch = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: messageKeys.queuedInputs(orgId, projId, convId),
+      exact: true,
     });
-  }, [conversationId, enabled, historyKey, organizationId, projectId, queryClient]);
+
+    return refreshMessages();
+  }, [convId, orgId, projId, queryClient, refreshMessages]);
 
   return {
     data,
     orderedData,
     undatedInputs,
-    ...query,
-    refetch: query.refetch as () => Promise<MessageResponseDto[] | null>,
-    hasOlder: historySnapshot.nextCursor !== null,
+    isLoading: enabled && !isFetched && !error,
+    isFetching: enabled && (refresh.isFetching || queued.isFetching),
+    isFetched,
+    isReady: isFetched && !error,
+    error,
+    isStale: queued.isStale,
+    refetch,
+    markStale: () => void refetch(),
+    hasOlder: messages?.startCursor != null,
     isLoadingOlder: historySnapshot.isLoadingOlder,
     olderError: historySnapshot.error,
     loadOlder,

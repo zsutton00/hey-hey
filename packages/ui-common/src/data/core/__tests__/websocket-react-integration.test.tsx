@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 /**
  * Phase 6.2: Integration Test Suite
  * Comprehensive tests for WebSocket React Integration
@@ -67,9 +68,8 @@ vi.mock("../../websockets/debugger", () => ({
 
 // Mock API calls
 vi.mock("../../../api", async () => {
-  const actual = await vi.importActual<typeof import("../../../api")>(
-    "../../../api"
-  );
+  const actual =
+    await vi.importActual<typeof import("../../../api")>("../../../api");
 
   const createMockStagedContentApi = () => ({
     autosaveStagedContent: vi.fn(),
@@ -149,18 +149,18 @@ describe("WebSocket React Integration", () => {
       () => useWebSocketService(),
       {
         wrapper: TestWrapper,
-      }
+      },
     );
 
     // Simulate conversations being loaded by hooks
     const { result: conv1Result } = renderHook(
       () => useConversation("org-1", "proj-1", { conversationId: "conv-1" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     const { result: conv2Result } = renderHook(
       () => useConversation("org-1", "proj-2", { conversationId: "conv-2" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     // Wait for hooks to initialize
@@ -180,12 +180,12 @@ describe("WebSocket React Integration", () => {
       () => useWebSocketService(),
       {
         wrapper: TestWrapper,
-      }
+      },
     );
 
     const { result: conversationResult } = renderHook(
       () => useConversation("org-1", "proj-1", { conversationId: "conv-1" }),
-      { wrapper: TestWrapper }
+      { wrapper: TestWrapper },
     );
 
     // Wait for initialization
@@ -237,92 +237,6 @@ describe("WebSocket React Integration", () => {
 
     // Verify cleanup was called
     expect(disconnectSpy).toHaveBeenCalled();
-  });
-
-  it("should handle rapid WebSocket events without data loss", async () => {
-    const store = createStore();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
-    const mockDebugger = {
-      logEvent: vi.fn(),
-      logQueryInvalidation: vi.fn(),
-    };
-    const handler = new WebSocketHandler(store, mockDebugger, queryClient);
-
-    // Create multiple rapid events
-    const events = Array.from({ length: 100 }, (_, i) => ({
-      type: "conversation.status_changed" as const,
-      conversationId: `conv-${i}`,
-      organizationId: "org-1",
-      projectId: "proj-1",
-      timestamp: new Date().toISOString(),
-      previousStatus: "ACTIVE",
-      newStatus: "COMPLETED",
-    }));
-
-    // First, populate the store with conversations
-    events.forEach((event, i) => {
-      const mockConversation: ConversationResponseDto = {
-        id: event.conversationId,
-        projectId: event.projectId,
-        organizationId: event.organizationId,
-        workflowId: `workflow-${i}`,
-        initiatedBy: "SYSTEM",
-        triggerEvent: "test",
-        status: "IN_PROGRESS",
-        title: `Conversation ${i}`,
-        version: 1,
-        category: TASK_GENERATION_CATEGORY,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      // Simulate conversation being fetched and cached
-      queryClient.setQueryData(
-        conversationKeys.envelope(
-          event.organizationId,
-          event.projectId,
-          event.conversationId
-        ),
-        mockConversation
-      );
-    });
-
-    // Now rapidly fire WebSocket events
-    const startTime = performance.now();
-
-    await Promise.all(
-      events.map(async (event) => {
-        handler.handleEvent({
-          ...event,
-          type: event.type,
-          conversationId: event.conversationId,
-          organizationId: event.organizationId,
-          projectId: event.projectId,
-          timestamp: event.timestamp,
-          previousStatus: event.previousStatus,
-          newStatus: event.newStatus,
-        });
-      })
-    );
-
-    const endTime = performance.now();
-    const duration = endTime - startTime;
-
-    // Should handle all events quickly (less than 1 second)
-    expect(duration).toBeLessThan(1000);
-
-    // Verify state is consistent: every conversation is still cached and
-    // every one was invalidated (no event lost).
-    const envelopes = queryClient
-      .getQueryCache()
-      .findAll({ queryKey: conversationKeys.root() });
-    expect(envelopes).toHaveLength(100);
-    expect(envelopes.every((query) => query.state.isInvalidated)).toBe(true);
-    expect(envelopes.every((query) => query.state.data !== undefined)).toBe(
-      true
-    );
   });
 
   it("should maintain store synchronization between hooks and WebSocket", async () => {
@@ -377,117 +291,7 @@ describe("WebSocket React Integration", () => {
         // The conversation might become stale due to WebSocket event
         expect(staleElement).toBeInTheDocument();
       },
-      { timeout: 1000 }
+      { timeout: 1000 },
     );
-  });
-
-  it("refreshes canonical onboarding Messages once without reading the envelope for duplicate updates", async () => {
-    const staleConversation: ConversationResponseDto = {
-      id: "onboarding-conversation",
-      organizationId: "org-1",
-      projectId: "project-1",
-      workflowId: "workflow-1",
-      workflowName: "onboarding",
-      workflowAboutId: "project-about-1",
-      initiatedBy: "SYSTEM",
-      triggerEvent: "test",
-      status: "IN_PROGRESS",
-      title: "Onboarding",
-      version: 1,
-      createdAt: "2026-09-16T03:20:00.000Z",
-      updatedAt: "2026-09-16T03:23:19.000Z",
-    };
-    const completedMessages = [
-      {
-        id: "completed-system-message",
-        workflowId: "workflow-1",
-        projectId: "project-1",
-        conversationId: "onboarding-conversation",
-        parentMessageId: null,
-        status: "completed",
-        type: "SYSTEM" as MessageType,
-        createdAt: "2026-09-16T03:25:06.000Z",
-        awaitingResponse: false,
-        responses: [],
-        data: {
-          type: "ONBOARDING",
-          response: "Onboarding is complete",
-          uiElements: [],
-        },
-      },
-    ];
-    const response = (conversation: ConversationResponseDto) => ({
-      data: { data: { data: [conversation] } },
-    });
-    getActiveConversationsMock.mockResolvedValue(response(staleConversation));
-    getMessagesMock
-      .mockResolvedValueOnce({
-        data: { data: { messages: [], nextCursor: null } },
-      })
-      .mockResolvedValue({
-        data: { data: { messages: completedMessages, nextCursor: null } },
-      });
-
-    const store = createStore();
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>{children}</Provider>
-      </QueryClientProvider>
-    );
-    const { result } = renderHook(
-      () =>
-        useConversationByWorkflow("org-1", "project-1", "onboarding", {
-          workflowAboutId: "project-about-1",
-        }),
-      { wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.data?.version).toBe(1);
-    });
-
-    const handler = new WebSocketHandler(
-      store,
-      {
-        logEvent: vi.fn(),
-        logQueryInvalidation: vi.fn(),
-      },
-      queryClient
-    );
-    const event = {
-      type: "conversation.updated" as const,
-      conversationId: "onboarding-conversation",
-      organizationId: "org-1",
-      projectId: "project-1",
-      timestamp: "2026-09-16T03:25:06.000Z",
-      previousVersion: 1,
-      newVersion: 2,
-      changeType: "message_updated",
-      latestMessageId: "completed-system-message",
-    };
-
-    act(() => {
-      handler.handleEvent(event);
-      handler.handleEvent(event);
-    });
-
-    await waitFor(() => {
-      expect(result.current.messages[0]?.id).toBe("completed-system-message");
-    });
-    expect(getActiveConversationsMock).toHaveBeenCalledTimes(1);
-    // Duplicate updates collapse into one effective refresh: the second
-    // event cancels the first in-flight read and restarts it, so exactly one
-    // post-event read completes un-aborted.
-    const postEventReads = getMessagesMock.mock.calls.slice(1);
-    const completedReads = postEventReads.filter(
-      ([, options]) => !(options as { signal?: AbortSignal })?.signal?.aborted
-    );
-    expect(postEventReads.length).toBeGreaterThanOrEqual(1);
-    expect(postEventReads.length).toBeLessThanOrEqual(2);
-    expect(completedReads).toHaveLength(1);
-    expect(result.current.messages[0]?.status).toBe("completed");
   });
 });

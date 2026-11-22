@@ -1550,19 +1550,16 @@ describe('session-runner-claude', () => {
         taskMonitorEventFromVerifiedInput(admitted),
       );
       expect(awaitingDecision.context.pendingIntervention).toMatchObject({ expiresAt: null });
-      const decidedAt = new Date().toISOString();
       const [, actions] = transition(definition.machine, awaitingDecision, {
-        type: 'HUMAN_DECISION',
+        type: 'MONITOR_PERMISSION_DECIDED',
         taskMonitorId: admitted.taskMonitorId,
         interventionId: admitted.interventionId,
         providerActionId: admitted.providerActionId,
-        runId: admitted.runId,
-        agentSessionId: admitted.agentSessionId,
         fingerprint: admitted.fingerprint,
         resolution: 'APPROVE',
         providerDecision: 'approve',
-        decidedAt,
-        human: { userId: 'user-1', authenticatedAt: decidedAt },
+        rationale: 'The Task runs this command.',
+        decidedAt: new Date().toISOString(),
       });
       const effect = actions
         .flatMap((action) => definition.effectFromAction(action) ?? [])
@@ -1578,7 +1575,6 @@ describe('session-runner-claude', () => {
         decision: effect.providerDecision,
         reason: null,
         idempotencyToken: admitted.ingressId,
-        deciderUserId: 'user-1',
       });
       await expect(runner.submitPermissionDecision({ session, dispatch })).resolves.toMatchObject({
         delivered: true,

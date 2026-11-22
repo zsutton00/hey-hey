@@ -7,6 +7,9 @@ import {
   QueryClientProvider,
   type QueryClientConfig,
 } from "@tanstack/react-query";
+import { ApolloProvider } from "@apollo/client/react";
+import { getRuntimeAxios } from "../clients/serviceClients";
+import { WebUiGraphQLClient } from "./graphql/client";
 import { initRelationshipConfig } from "./relationships";
 import { ControllerAuthorizationPromptHost } from "./controllerAuthorization/controllerAuthorizationPrompt";
 
@@ -16,6 +19,8 @@ export interface DataHooksProviderProps extends PropsWithChildren {
   store?: JotaiStore;
   queryClient?: QueryClient;
   queryClientConfig?: QueryClientConfig;
+  /** Overrides the GraphQL client, e.g. with one pointed at a test endpoint. */
+  graphqlClient?: WebUiGraphQLClient;
   /**
    * Raw relationship-invalidation rules (the validated `InvalidationConfig`
    * shape). When supplied, the provider initializes the relationship config
@@ -35,6 +40,7 @@ export const DataHooksProvider = ({
   store,
   queryClient,
   queryClientConfig,
+  graphqlClient,
   relationshipRules,
 }: DataHooksProviderProps) => {
   const relationshipInitRef = useRef(false);
@@ -53,14 +59,22 @@ export const DataHooksProvider = ({
     defaultQueryClientRef.current = new QueryClient(queryClientConfig);
   }
 
+  const defaultGraphqlClientRef = useRef<WebUiGraphQLClient | null>(null);
+  const resolvedGraphqlClient =
+    graphqlClient ??
+    (defaultGraphqlClientRef.current ??= new WebUiGraphQLClient(
+      getRuntimeAxios,
+    ));
   const resolvedStore = store ?? defaultStoreRef.current;
   const resolvedQueryClient = queryClient ?? defaultQueryClientRef.current;
 
   return (
     <JotaiProvider store={resolvedStore}>
       <QueryClientProvider client={resolvedQueryClient}>
-        <FutureOfferProvider>{children}</FutureOfferProvider>
-        <ControllerAuthorizationPromptHost />
+        <ApolloProvider client={resolvedGraphqlClient.apollo}>
+          <FutureOfferProvider>{children}</FutureOfferProvider>
+          <ControllerAuthorizationPromptHost />
+        </ApolloProvider>
       </QueryClientProvider>
     </JotaiProvider>
   );

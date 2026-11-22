@@ -1,3 +1,5 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { proposalsClient } from "../../../clients/serviceClients";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -40,6 +42,10 @@ const openRejectDialog = async () => {
   await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   return screen.getByTestId("proposal-reject-reason-input");
 };
+
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
 
 describe("read-only proposal presentations", () => {
   it("removes an already-open rejection dialog when the presentation becomes historical", async () => {
@@ -229,6 +235,7 @@ describe("ProposalStateIndicator out-of-date approval state", () => {
           onApply={vi.fn()}
         />
       </ProposalOutOfDateReview>,
+      { wrapper: themeWrapper },
     );
     return onApply;
   };

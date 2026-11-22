@@ -361,6 +361,7 @@ describe("DiscussCapsuleAction", () => {
         entityId: "plan-9",
         entityType: TargetEntityType.Task,
         entitySubtype: "STANDARD",
+        entityTitle: "My Plan",
       },
       provider: ConversationStartRunRequestDtoProviderEnum.Claude,
       model: null,
@@ -574,6 +575,7 @@ describe("DiscussCapsuleAction", () => {
         context: {
           entityId: "project-1",
           entityType: EntityType.Project,
+          entityTitle: "Project Alpha",
         },
       }),
     );

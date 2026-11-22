@@ -16,8 +16,11 @@ export interface PermissionDecisionRoutingInput {
   reason: string | null;
   idempotencyToken: string | null;
   userId?: string;
-  /** Signed decider; owns any Run follow-up the decision causes. */
-  deciderUserId: string;
+  /**
+   * Signed human decider; owns any Run follow-up the decision causes. Absent
+   * when the Task Monitor decided, in which case no follow-up is admitted.
+   */
+  deciderUserId?: string;
 }
 
 interface PermissionDecisionRoutingMetadata {

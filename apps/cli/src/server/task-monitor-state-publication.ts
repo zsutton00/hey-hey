@@ -1,3 +1,7 @@
+import {
+  isHumanHeldQueued,
+  protectedRequestReason,
+} from '../agents/task-monitor/state-machine/context';
 import type { KeyPairStore } from '../credentials';
 import type { TaskMonitorMachineContext } from '../agents/task-monitor/state-machine/context';
 import type {
@@ -146,6 +150,40 @@ const pendingJudgmentProjection = (
   return { request: current.request, guidance: PENDING_JUDGMENT_GUIDANCE };
 };
 
+const LEGACY_HUMAN_OWNED_REASON =
+  'This request was raised before the monitor decided requests, so a person must decide it.';
+
+/**
+ * A request waits on the user only once a person owns it. While the monitor is still deciding it
+ * the intervention region reads PENDING too, so ownership comes from the committed request itself.
+ * State persisted before the monitor decided requests carries no owner and is human-owned.
+ */
+const pendingPermissionJudgment = (
+  context: TaskMonitorMachineContext,
+  admitsHumanDecision: boolean,
+): TaskMonitorStateProjection['pendingJudgment'] => {
+  const pending = context.pendingIntervention;
+  if (!admitsHumanDecision || pending === null || pending.decision !== null) {
+    return undefined;
+  }
+  if (pending.owner === 'MONITOR') {
+    return undefined;
+  }
+
+  return {
+    interventionId: pending.interventionId,
+    providerActionId: pending.providerActionId,
+    runId: pending.runId,
+    agentSessionId: pending.agentSessionId,
+    action: pending.action,
+    target: pending.target,
+    fingerprint: pending.fingerprint,
+    reason: pending.escalationReason ?? LEGACY_HUMAN_OWNED_REASON,
+    ...(pending.escalatedAt ? { escalatedAt: pending.escalatedAt } : {}),
+    answer: { command: 'HUMAN_DECISION', choices: ['APPROVE', 'DENY'] },
+  };
+};
+
 export const taskMonitorStateProjection = ({
   state,
   context,
@@ -170,11 +208,42 @@ export const taskMonitorStateProjection = ({
     retryableLaunchFailure(context) ??
     unclassifiedFailure(context, availableActions);
 
-  const pendingJudgment = pendingJudgmentProjection(context, running);
+  const pending = context.pendingIntervention;
+  const admitsHumanDecision =
+    context.settledRun === null && (state === 'HALTED' || running?.intervention === 'PENDING');
+  const pendingJudgment =
+    pendingPermissionJudgment(context, admitsHumanDecision) ??
+    pendingJudgmentProjection(context, running);
+  const requests = [
+    ...(pending && !pending.decision ? [pending] : []),
+    ...(context.queuedInterventions ?? []),
+  ];
 
   return {
     execution,
     availableActions,
+    outstandingPermissions: requests.map((request) => ({
+      interventionId: request.interventionId,
+      runId: request.runId,
+      agentSessionId: request.agentSessionId,
+      providerActionId: request.providerActionId,
+      providerSessionId: request.providerSessionId,
+      fingerprint: request.fingerprint,
+      action: request.action,
+      target: request.target,
+      owner: request.owner ?? (request === pending || request.userRequired ? 'HUMAN' : 'MONITOR'),
+      answerable:
+        admitsHumanDecision &&
+        (request === pending
+          ? request.owner !== 'MONITOR'
+          : pending !== null && pending.decision === null && isHumanHeldQueued(request)),
+      ...(request.userRequired
+        ? { reason: protectedRequestReason }
+        : request.escalationReason
+          ? { reason: request.escalationReason }
+          : {}),
+      ...(request.escalatedAt ? { escalatedAt: request.escalatedAt } : {}),
+    })),
     ...(failure ? { failure } : {}),
     ...(pendingJudgment ? { pendingJudgment } : {}),
   };

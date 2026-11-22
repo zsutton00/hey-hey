@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { reportKeys } from "../../collections/reports";
 import type { ReportDto, WebSocketSystemNotificationEvent } from "../../../api";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -12,7 +13,7 @@ import {
   type PaginatedAgentSessionsData,
 } from "../../collections/agentSessions";
 import { initiativeKeys } from "../../collections/initiatives";
-import { workItemKeys } from "../../collections/workItemLists";
+import { featureContentKeys } from "../../collections/featureDocumentContent";
 import { machineRepoBindingsByMachineAtom } from "../machineRepoBindingsState";
 import { dataClient } from "../../../clients";
 import {
@@ -210,6 +211,7 @@ describe("WebSocketHandler", () => {
         createStore(),
         mockDebugger,
         queryClient,
+        createUnreachableGraphQLClient(),
       );
       return { queryClient, handler };
     };
@@ -391,213 +393,42 @@ describe("WebSocketHandler", () => {
   it("should require store parameter", () => {
     expect(
       () =>
-        new WebSocketHandler(null as any, mockDebugger, createQueryClient()),
+        new WebSocketHandler(
+          null as any,
+          mockDebugger,
+          createQueryClient(),
+          createUnreachableGraphQLClient(),
+        ),
     ).toThrow("WebSocketHandler requires a store instance");
   });
 
-  it("invalidates the conversation's messages, not its envelope, on conversation.updated", () => {
-    const mockStore = createStore();
-    const queryClient = createQueryClient();
-    const envelopeKey = conversationKeys.envelope(
-      "org-456",
-      "proj-789",
-      "test-123",
-    );
-    const listKey = messageKeys.list("org-456", "proj-789", "test-123");
-    const latestKey = messageKeys.latest("org-456", "proj-789", "test-123");
-    const otherListKey = messageKeys.list("org-456", "proj-789", "other");
-    queryClient.setQueryData(envelopeKey, { id: "test-123" });
-    queryClient.setQueryData(listKey, []);
-    queryClient.setQueryData(latestKey, null);
-    queryClient.setQueryData(otherListKey, []);
-
-    const handler = new WebSocketHandler(mockStore, mockDebugger, queryClient);
-    handler.handleEvent({
-      type: "conversation.updated",
-      conversationId: "test-123",
-      organizationId: "org-456",
-      projectId: "proj-789",
-      timestamp: new Date().toISOString(),
-      changedFields: ["status"],
-    } as WebSocketConversationUpdatedEvent);
-
-    expect(isInvalidated(queryClient, envelopeKey)).toBe(false);
-    expect(isInvalidated(queryClient, listKey)).toBe(true);
-    expect(isInvalidated(queryClient, latestKey)).toBe(true);
-    expect(isInvalidated(queryClient, otherListKey)).toBe(false);
-  });
-
-  it("routes conversation and initiative creation to their caches", () => {
-    const mockStore = createStore();
-    const setSpy = vi.spyOn(mockStore, "set");
-    const queryClient = createQueryClient();
-    const conversationListKey = conversationKeys.list(
-      "org-456",
-      "proj-789",
-      {},
-    );
-    queryClient.setQueryData(conversationListKey, []);
-    const initiativeListKey = initiativeKeys.list("org-456", {
-      projectId: "proj-789",
-    });
-    queryClient.setQueryData(initiativeListKey, []);
-
-    const handler = new WebSocketHandler(mockStore, mockDebugger, queryClient);
-
-    // Test conversation dispatch
-    handler.handleEvent({
-      type: "conversation.created",
-      conversationId: "conv-123",
-      organizationId: "org-456",
-      projectId: "proj-789",
-      timestamp: new Date().toISOString(),
-    } as any);
-
-    // Test initiative dispatch
-    handler.handleEvent({
-      type: "initiative.created",
-      initiativeId: "init-123",
-      organizationId: "org-456",
-      projectId: "proj-789",
-      timestamp: new Date().toISOString(),
-    } as any);
-
-    expect(isInvalidated(queryClient, conversationListKey)).toBe(true);
-    expect(isInvalidated(queryClient, initiativeListKey)).toBe(true);
-    expect(setSpy).not.toHaveBeenCalled();
-  });
-
-  it("should allow different handlers to use different query clients", () => {
-    const queryClient1 = createQueryClient();
-    const queryClient2 = createQueryClient();
-    const handler1 = new WebSocketHandler(
-      createStore(),
-      mockDebugger,
-      queryClient1,
-    );
-    new WebSocketHandler(createStore(), mockDebugger, queryClient2);
-
-    const listKey = conversationKeys.list("org-456", "proj-789", {});
-    const conversation = { id: "conv-123" } as ConversationResponseDto;
-    queryClient1.setQueryData(listKey, [conversation]);
-    queryClient2.setQueryData(listKey, [conversation]);
-
-    handler1.handleEvent({
-      type: "conversation.status_changed",
-      conversationId: "conv-123",
-      organizationId: "org-456",
-      projectId: "proj-789",
-      timestamp: new Date().toISOString(),
-      previousStatus: "ACTIVE",
-      newStatus: "COMPLETED",
-    });
-
-    expect(isInvalidated(queryClient1, listKey)).toBe(true);
-    expect(isInvalidated(queryClient2, listKey)).toBe(false);
-
-    expect(() =>
-      handler1.handleEvent({
-        type: "conversation.updated",
-        conversationId: "conv-123",
-        organizationId: "org-456",
-        projectId: "proj-789",
-        timestamp: new Date().toISOString(),
-        changedFields: ["status"],
-      } as WebSocketConversationUpdatedEvent),
-    ).not.toThrow();
-  });
-
-  it("should successfully share the query cache between handler and React hooks", () => {
-    // Hooks and the handler read and invalidate the same QueryClient.
-    const sharedQueryClient = createQueryClient();
-    const conversation = {
-      id: "conv-shared",
-      projectId: "proj-123",
-      organizationId: "org-456",
-    } as ConversationResponseDto;
-    const listKey = conversationKeys.list("org-456", "proj-123", {});
-    const singleKey = conversationKeys.envelope(
-      "org-456",
-      "proj-123",
-      "conv-shared",
-    );
-    sharedQueryClient.setQueryData(listKey, [conversation]);
-    sharedQueryClient.setQueryData(singleKey, conversation);
-
-    const handler = new WebSocketHandler(
-      createStore(),
-      mockDebugger,
-      sharedQueryClient,
-    );
-
-    handler.handleEvent({
-      type: "conversation.status_changed",
-      conversationId: "conv-shared",
-      organizationId: "org-456",
-      projectId: "proj-123",
-      timestamp: new Date().toISOString(),
-      previousStatus: "ACTIVE",
-      newStatus: "COMPLETED",
-    });
-
-    expect(isInvalidated(sharedQueryClient, listKey)).toBe(true);
-    expect(isInvalidated(sharedQueryClient, singleKey)).toBe(true);
-  });
-
   describe("Task Event Handlers", () => {
-    const seedWorkItemCaches = (queryClient: QueryClient) => {
-      const keys = {
-        list: workItemKeys.list("org-789", "project-1", {
-          taskType: "FEATURE",
-        }),
-        changedDetail: workItemKeys.detail("org-789", "project-1", "task-123"),
-        changedDetailWithEdges: workItemKeys.detail(
-          "org-789",
-          "project-1",
-          "task-123",
-          { includeEdges: true },
-        ),
-        projectlessDetail: workItemKeys.detail("org-789", "", "task-123"),
-        otherDetail: workItemKeys.detail("org-789", "project-1", "task-other"),
-        hierarchy: workItemKeys.hierarchy("org-789", "project-1", "parent-1"),
-        otherProjectList: workItemKeys.list("org-789", "project-2", {}),
-      };
-      const task = { id: "task-123", name: "Task" };
-      queryClient.setQueryData(keys.list, [task]);
-      queryClient.setQueryData(keys.changedDetail, task);
-      queryClient.setQueryData(keys.changedDetailWithEdges, task);
-      queryClient.setQueryData(keys.projectlessDetail, task);
-      queryClient.setQueryData(keys.otherDetail, { id: "task-other" });
-      queryClient.setQueryData(keys.hierarchy, {
-        task: { id: "parent-1" },
-        children: [task],
-      });
-      queryClient.setQueryData(keys.otherProjectList, []);
-      return keys;
-    };
-
-    it("invalidates project lists and hierarchies on task.created", () => {
-      const queryClient = createQueryClient();
-      const keys = seedWorkItemCaches(queryClient);
-      const handler = new WebSocketHandler(
+    // What each event does to shown work-item views is covered by
+    // handler-workItemsGraphql.test.tsx; these cover the handler's own routing.
+    const createHandler = (queryClient: QueryClient) =>
+      new WebSocketHandler(
         createStore(),
         mockDebugger,
         queryClient,
+        createUnreachableGraphQLClient(),
       );
-
-      handler.handleEvent({
-        type: "task.created",
-        taskId: "task-new",
+    const taskEvent = (type: string, extra: object = {}) =>
+      ({
+        type,
+        taskId: "task-123",
         initiativeId: "init-456",
         organizationId: "org-789",
         projectId: "project-1",
         timestamp: new Date().toISOString(),
-      } as any);
+        ...extra,
+      }) as any;
 
-      expect(isInvalidated(queryClient, keys.list)).toBe(true);
-      expect(isInvalidated(queryClient, keys.hierarchy)).toBe(true);
-      expect(isInvalidated(queryClient, keys.changedDetail)).toBe(false);
-      expect(isInvalidated(queryClient, keys.otherProjectList)).toBe(false);
+    it("records each task event under work items", () => {
+      const handler = createHandler(createQueryClient());
+
+      handler.handleEvent(taskEvent("task.created", { taskId: "task-new" }));
+      handler.handleEvent(taskEvent("task.deleted"));
+
       expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "workItems",
         "new-item",
@@ -606,68 +437,6 @@ describe("WebSocketHandler", () => {
           taskId: "task-new",
         }),
       );
-    });
-
-    it.each(["task.updated", "task.status_changed"])(
-      "invalidates the item's single reads in every variant and project on %s",
-      (type) => {
-        const queryClient = createQueryClient();
-        const keys = seedWorkItemCaches(queryClient);
-        const handler = new WebSocketHandler(
-          createStore(),
-          mockDebugger,
-          queryClient,
-        );
-
-        handler.handleEvent({
-          type,
-          taskId: "task-123",
-          initiativeId: "init-456",
-          organizationId: "org-789",
-          projectId: "project-1",
-          timestamp: new Date().toISOString(),
-          previousStatus: "BACKLOG",
-          newStatus: "ACTIVE",
-          changedBy: { userId: "user-999" },
-        } as any);
-
-        expect(isInvalidated(queryClient, keys.changedDetail)).toBe(true);
-        expect(isInvalidated(queryClient, keys.changedDetailWithEdges)).toBe(
-          true,
-        );
-        expect(isInvalidated(queryClient, keys.projectlessDetail)).toBe(true);
-        expect(isInvalidated(queryClient, keys.list)).toBe(true);
-        expect(isInvalidated(queryClient, keys.hierarchy)).toBe(true);
-        expect(isInvalidated(queryClient, keys.otherDetail)).toBe(false);
-        expect(isInvalidated(queryClient, keys.otherProjectList)).toBe(false);
-      },
-    );
-
-    it("removes a deleted item from cached lists, hierarchies and single reads", () => {
-      const queryClient = createQueryClient();
-      const keys = seedWorkItemCaches(queryClient);
-      const handler = new WebSocketHandler(
-        createStore(),
-        mockDebugger,
-        queryClient,
-      );
-
-      handler.handleEvent({
-        type: "task.deleted",
-        taskId: "task-123",
-        organizationId: "org-789",
-        projectId: "project-1",
-        timestamp: new Date().toISOString(),
-      } as any);
-
-      expect(queryClient.getQueryData(keys.list)).toEqual([]);
-      expect(
-        (queryClient.getQueryData(keys.hierarchy) as { children: unknown[] })
-          .children,
-      ).toEqual([]);
-      expect(queryClient.getQueryState(keys.changedDetail)).toBeUndefined();
-      expect(queryClient.getQueryState(keys.projectlessDetail)).toBeUndefined();
-      expect(isInvalidated(queryClient, keys.list)).toBe(true);
       expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "workItems",
         "deleted:task-123",
@@ -675,20 +444,46 @@ describe("WebSocketHandler", () => {
       );
     });
 
-    it("invalidates every work-item read on reconnect", () => {
+    it("invalidates the TanStack data that depends on a task, only in its project", () => {
       const queryClient = createQueryClient();
-      const keys = seedWorkItemCaches(queryClient);
-      const handler = new WebSocketHandler(
-        createStore(),
-        mockDebugger,
-        queryClient,
+      const content = featureContentKeys.byId(
+        "org-789",
+        "project-1",
+        "document",
+        "task-123",
+      );
+      const otherContent = featureContentKeys.byId(
+        "org-789",
+        "project-1",
+        "document",
+        "task-other",
+      );
+      const otherProject = featureContentKeys.byId(
+        "org-789",
+        "project-2",
+        "document",
+        "task-123",
+      );
+      for (const key of [content, otherContent, otherProject]) {
+        queryClient.setQueryData(key, { id: "x" });
+      }
+      const handler = createHandler(queryClient);
+
+      handler.handleEvent(
+        taskEvent("task.status_changed", {
+          previousStatus: "BACKLOG",
+          newStatus: "ACTIVE",
+        }),
       );
 
-      handler.markAllStale();
+      expect(isInvalidated(queryClient, content)).toBe(true);
+      expect(isInvalidated(queryClient, otherContent)).toBe(false);
+      expect(isInvalidated(queryClient, otherProject)).toBe(false);
+    });
 
-      for (const queryKey of Object.values(keys)) {
-        expect(isInvalidated(queryClient, queryKey)).toBe(true);
-      }
+    it("logs a reconnect refresh", () => {
+      createHandler(createQueryClient()).markAllStale();
+
       expect(logQueryInvalidationSpy).toHaveBeenCalledWith(
         "all",
         "all-queries",
@@ -696,47 +491,6 @@ describe("WebSocketHandler", () => {
           reason: expect.stringContaining("reconnected"),
         }),
       );
-    });
-
-    it("routes task and conversation events through one handler", () => {
-      const queryClient = createQueryClient();
-      const conversationListKey = conversationKeys.list(
-        "org-456",
-        "proj-789",
-        {},
-      );
-      queryClient.setQueryData(conversationListKey, []);
-      const initiativeListKey = initiativeKeys.list("org-456", {
-        projectId: "proj-789",
-      });
-      queryClient.setQueryData(initiativeListKey, []);
-      const workItemListKey = workItemKeys.list("org-789", "proj-789", {});
-      queryClient.setQueryData(workItemListKey, []);
-
-      const handler = new WebSocketHandler(
-        createStore(),
-        mockDebugger,
-        queryClient,
-      );
-
-      handler.handleEvent({
-        type: "task.created",
-        taskId: "task-123",
-        initiativeId: "init-456",
-        organizationId: "org-789",
-        projectId: "proj-789",
-        timestamp: new Date().toISOString(),
-      } as any);
-      handler.handleEvent({
-        type: "conversation.created",
-        conversationId: "conv-123",
-        organizationId: "org-456",
-        projectId: "proj-789",
-        timestamp: new Date().toISOString(),
-      } as any);
-
-      expect(isInvalidated(queryClient, workItemListKey)).toBe(true);
-      expect(isInvalidated(queryClient, conversationListKey)).toBe(true);
     });
   });
 
@@ -756,6 +510,7 @@ describe("WebSocketHandler", () => {
         store,
         mockDebugger,
         createQueryClient(),
+        createUnreachableGraphQLClient(),
       );
 
       handler.handleEvent({
@@ -777,6 +532,7 @@ describe("WebSocketHandler", () => {
         store,
         mockDebugger,
         createQueryClient(),
+        createUnreachableGraphQLClient(),
       );
 
       handler.handleEvent({

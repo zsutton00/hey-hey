@@ -9,7 +9,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 vi.mock("@hey-hey/ui-common/data", () => ({
-  useWorkItem: vi.fn(),
+  useWorkItemWithoutProject: vi.fn(),
 }));
 
 vi.mock("@hey-hey/ui-common/hooks", () => ({
@@ -17,12 +17,12 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
 }));
 
 import { useParams } from "react-router-dom";
-import { useWorkItem } from "@hey-hey/ui-common/data";
+import { useWorkItemWithoutProject } from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { TaskRedirectPage } from "./TaskRedirectPage";
 
 const mockUseParams = vi.mocked(useParams);
-const mockUseWorkItem = vi.mocked(useWorkItem);
+const mockUseWorkItem = vi.mocked(useWorkItemWithoutProject);
 const mockUseUserIdentity = vi.mocked(useUserIdentity);
 
 describe("TaskRedirectPage", () => {
@@ -41,7 +41,7 @@ describe("TaskRedirectPage", () => {
       isLoading: false,
       isFetched: true,
       error: null,
-    } as ReturnType<typeof useWorkItem>);
+    } as ReturnType<typeof useWorkItemWithoutProject>);
   });
 
   it("redirects a task-only Goal URL to the canonical project task path", async () => {

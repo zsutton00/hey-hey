@@ -1,3 +1,4 @@
+import { useActivityWorkItems } from "@hey-hey/ui-common/data";
 import { ActivityHistoryFilters } from "../../components/Activity/ActivityHistoryFilters";
 import { parseOrganizationActivityQuery } from "./activityHistoryRoute";
 import type {
@@ -252,7 +253,9 @@ const getPrimaryTaskIdFromReports = (reports: ReportDto[]): string | null => {
 };
 
 const getTaskSectionMarkdown = (
-  task: TaskResponseDto,
+  task: {
+    sections?: readonly { key: string; materializedMarkdown: string }[] | null;
+  },
   sectionKey: "description" | "acceptanceCriteria",
 ): string => {
   const normalizedSectionKey =
@@ -457,24 +460,11 @@ export const ProjectActivityPage: React.FC = () => {
     return [...ids];
   }, [selectedActivity]);
 
-  const taskQueries = useQueries({
-    queries: taskIds.map((taskId) => ({
-      enabled: isDetailMode && !!currentOrgId,
-      queryFn: async (): Promise<TaskResponseDto | null> => {
-        const response = await unifiedApiClient.getTask({
-          organizationId: currentOrgId || "",
-          taskId,
-          projectId,
-          includeServiceRelations: true,
-        });
-        return (
-          (response as { data?: { data?: TaskResponseDto | null } })?.data
-            ?.data ?? null
-        );
-      },
-      queryKey: ["activity-detail", "task", currentOrgId, taskId],
-    })),
-  });
+  const activityTasks = useActivityWorkItems(
+    { organizationId: currentOrgId ?? "", projectId },
+    taskIds,
+    isDetailMode,
+  );
 
   const reportQueries = useQueries({
     queries: reportIds.map((reportId) => ({
@@ -510,15 +500,12 @@ export const ProjectActivityPage: React.FC = () => {
   );
 
   const hydratedTasks = useMemo(() => {
-    const items = taskQueries
-      .map((query) => query.data)
-      .filter((task): task is TaskResponseDto => Boolean(task));
-    const uniqueById = new Map<string, TaskResponseDto>();
-    items.forEach((task) => {
-      uniqueById.set(task.id, task);
+    const byId = new Map(activityTasks.data?.map((task) => [task.id, task]));
+    return taskIds.flatMap((id) => {
+      const task = byId.get(id);
+      return task ? [task] : [];
     });
-    return [...uniqueById.values()];
-  }, [taskQueries]);
+  }, [activityTasks.data, taskIds]);
 
   const hydratedReports = useMemo(() => {
     const items = reportQueries
@@ -592,17 +579,14 @@ export const ProjectActivityPage: React.FC = () => {
     });
   }, [selectedActivity]);
 
-  const taskHydrationError = useMemo(
-    () => taskQueries.find((query) => query.error)?.error ?? null,
-    [taskQueries],
-  );
+  const taskHydrationError = activityTasks.error;
   const reportHydrationError = useMemo(
     () => reportQueries.find((query) => query.error)?.error ?? null,
     [reportQueries],
   );
   const isHydratingDetails =
     isDetailMode &&
-    (taskQueries.some((query) => query.isLoading || query.isFetching) ||
+    (activityTasks.isFetching ||
       reportQueries.some((query) => query.isLoading || query.isFetching) ||
       (agentSessionIds.length > 0 && isAgentSessionsLoading) ||
       isHierarchyLoading);

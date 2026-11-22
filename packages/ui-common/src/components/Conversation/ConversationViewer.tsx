@@ -113,6 +113,7 @@ export interface ConversationViewerSlotProps {
 }
 
 export interface PersistedConversationViewerProps {
+  sessionPermissions?: React.ReactNode;
   triageApplication?: TriageApplicationCoordinator;
   triageItemHref?: (item: OpenItemsTriageItem) => string;
   onGoalPmAction?: (
@@ -899,6 +900,7 @@ const PersistedConversationViewer: React.FC<
   enableHistory = false,
   onHistoryConversationSelected,
   readOnly = false,
+  sessionPermissions,
   sidebarMode = "full",
   combineSameSections = false,
   timelineAnimationMode = "all",
@@ -1023,6 +1025,7 @@ const PersistedConversationViewer: React.FC<
         agentSessionId={agentSessionId}
         conversationId={conversation.id}
       >
+        {sessionPermissions}
         <ConversationViewerContent
           navigationOrientation={navigationOrientation}
           showNavigation={showNavigation}

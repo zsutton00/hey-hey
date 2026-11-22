@@ -1,5 +1,5 @@
 import { useFutureOffers } from "../futureOffers/FutureOfferContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import { useCallback, useMemo } from "react";
 import {
   type CreateInitiativeDto,
@@ -7,11 +7,9 @@ import {
   type AgentEdgeType,
   type CreateTaskDto,
   type InitiativeResponseDto,
-  Priority,
   type ProposalResponseDto,
   type TaskSortBy,
   type TaskSortDir,
-  TaskSource,
   type TaskResponseDto,
   type UpdateInitiativeDto,
   type UpdateTaskDto,
@@ -19,11 +17,7 @@ import {
   WorkStatus,
 } from "../../api";
 import { unifiedApiClient } from "../../clients/serviceClients";
-import {
-  FEATURE_TASK_TYPE,
-  STANDARD_TASK_TYPE,
-} from "../../constants/taskTypes";
-import { applyTaskSectionInputsToMaterialized } from "../../utils/workItemSections";
+import { FEATURE_TASK_TYPE } from "../../constants/taskTypes";
 import type { WorkItemSectionSelection } from "../../utils/workItemSections";
 import type { WorkItemResponseDto } from "../collections/workItems";
 import type {
@@ -33,25 +27,20 @@ import type {
 } from "../core/types";
 import { useDeepCompareCallback } from "../core/useDeepCompareCallback";
 import {
-  findCachedWorkItem,
-  invalidateWorkItemParents,
-  removeWorkItem,
-  restoreWorkItemCaches,
-  snapshotWorkItemCaches,
-  updateWorkItemLists,
-  workItemListQueryOptions,
-  writeWorkItem,
-  type WorkItemCacheSnapshot,
+  workItemListRead,
   type WorkItemListParams,
 } from "../collections/workItemLists";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { readCachedWorkItem } from "../graphql/workItemCache";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useRelationshipMutationInvalidation } from "./relationshipMutationInvalidation";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 export const ENTITY_TYPE = "Task";
 
 export interface UpdateTaskMutationCallbacks extends MutationCallbacks<TaskResponseDto> {
+  /** @deprecated Writes reach views through the server's change event, not an optimistic copy. */
   authoritativeTask?: TaskResponseDto;
+  /** @deprecated Writes reach views through the server's change event, not an optimistic copy. */
   sectionSelection?: WorkItemSectionSelection;
   /**
    * Fired when the server staged the PATCH behind a pending proposal instead
@@ -164,10 +153,11 @@ export function useWorkItems(
 
   const normalizedSectionKeys = normalizeSectionKeys(includeSectionKeys);
   const invalidateRelationships = useRelationshipMutationInvalidation();
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
   const futureOffers = useFutureOffers();
 
-  const isEnabled = enabledOption !== false && !!organizationId;
+  // The endpoint is project-scoped, so a read needs the project.
+  const isEnabled = enabledOption !== false && !!organizationId && !!projectId;
   // Array params are joined so the memoised options follow their contents.
   // Status names may contain commas, so their key is JSON rather than a join.
   const statusKey = status === undefined ? "" : JSON.stringify([status].flat());
@@ -175,7 +165,7 @@ export function useWorkItems(
   const edgeTypesKey = edgeTypes?.join(",") ?? "";
   const parentTaskIdsKey = parentTaskIds?.join(",") ?? "";
   const taskIdsKey = taskIds?.join(",") ?? "";
-  const listOptions = useMemo(() => {
+  const spec = useMemo(() => {
     const split = <T extends string>(value: string) =>
       value ? (value.split(",") as T[]) : undefined;
     const params: WorkItemListParams = {
@@ -201,7 +191,7 @@ export function useWorkItems(
       sortBy,
       sortDir,
     };
-    return workItemListQueryOptions(organizationId, projectId, params);
+    return workItemListRead({ organizationId, projectId }, params);
   }, [
     organizationId,
     projectId,
@@ -225,58 +215,20 @@ export function useWorkItems(
     sortBy,
     sortDir,
   ]);
-  const { result, state: query } = useDataLayerQuery(listOptions, {
+  const { data, ...query } = useGraphQLRead(spec, {
     enabled: isEnabled,
     refetchOnMount: collectionOptions.refetchOnMount,
     refetchOnWindowFocus: collectionOptions.refetchOnWindowFocus,
     staleTimeMs: collectionOptions.staleTimeMs,
-    maxCacheAgeMs: collectionOptions.maxCacheAgeMs,
   });
-  const data = result.data ?? null;
 
-  const snapshot = useCallback(
-    (taskId?: string): WorkItemCacheSnapshot =>
-      snapshotWorkItemCaches(queryClient, organizationId, projectId, taskId),
-    [queryClient, organizationId, projectId],
-  );
-  const restore = useCallback(
-    (cacheSnapshot: WorkItemCacheSnapshot) =>
-      restoreWorkItemCaches(queryClient, cacheSnapshot),
-    [queryClient],
-  );
-
-  // Create task function with optimistic updates
+  // Writes go to the server; every view of the item, this one included,
+  // updates when the server's change event refreshes the shared record.
   const createTask = useCallback(
     async (
       newTask: CreateTaskDto,
       callbacks?: MutationCallbacks<TaskResponseDto>,
     ): Promise<TaskResponseDto> => {
-      const tempId = `temp-${Date.now()}-${Math.random()}`;
-      const { sections: sectionInputs, ...rest } = newTask;
-      const now = new Date().toISOString();
-      const optimisticDto: WorkItemResponseDto = {
-        id: tempId,
-        ...rest,
-        type: newTask.type ?? STANDARD_TASK_TYPE,
-        sections: applyTaskSectionInputsToMaterialized(
-          undefined,
-          sectionInputs,
-        ),
-        organizationId,
-        projectId,
-        status: newTask.status || WorkStatus.Backlog,
-        source: newTask.source || TaskSource.System,
-        priority: newTask.priority || Priority.Medium,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const cacheSnapshot = snapshot();
-      queryClient.setQueryData<WorkItemResponseDto[]>(
-        listOptions.queryKey,
-        (items) => (items ? [...items, optimisticDto] : items),
-      );
-
       try {
         const response = await unifiedApiClient.createTask({
           organizationId,
@@ -289,10 +241,6 @@ export function useWorkItems(
           throw new Error("No data returned from create task");
         }
 
-        updateWorkItemLists(queryClient, organizationId, projectId, (items) =>
-          items.map((item) => (item.id === tempId ? createdData : item)),
-        );
-
         invalidateRelationships({
           entityType: ENTITY_TYPE,
           operation: "create",
@@ -303,8 +251,6 @@ export function useWorkItems(
         callbacks?.onSuccess?.(createdData);
         return createdData;
       } catch (error) {
-        restore(cacheSnapshot);
-
         const err = error as Error;
         callbacks?.onError?.(err);
         throw err;
@@ -312,72 +258,18 @@ export function useWorkItems(
         callbacks?.onSettled?.();
       }
     },
-    [
-      invalidateRelationships,
-      listOptions.queryKey,
-      organizationId,
-      projectId,
-      queryClient,
-      restore,
-      snapshot,
-    ],
+    [invalidateRelationships, organizationId, projectId],
   );
 
-  // Update task function
   const updateTask = useCallback(
     async (
       id: string,
       updates: UpdateTaskDto,
       callbacks?: UpdateTaskMutationCallbacks,
     ): Promise<TaskResponseDto> => {
-      const currentTask =
-        callbacks?.authoritativeTask ??
-        findCachedWorkItem(queryClient, organizationId, projectId, id);
-
-      if (!currentTask) {
-        throw new Error(`Task ${id} not found in collection state`);
-      }
-
       if (!organizationId) {
         throw new Error("Organization ID is required to update tasks");
       }
-
-      const now = new Date().toISOString();
-      const isParentChange =
-        updates.parentTaskId !== undefined &&
-        updates.parentTaskId !== currentTask.parentTaskId;
-      // The moved item's own hierarchy holds its parent too.
-      const invalidateParents = () =>
-        isParentChange
-          ? void invalidateWorkItemParents(
-              queryClient,
-              organizationId,
-              projectId,
-              [currentTask.parentTaskId, updates.parentTaskId, id],
-            )
-          : undefined;
-
-      const { sections: sectionUpdates, ...restUpdates } = updates;
-      const optimisticTask: WorkItemResponseDto = {
-        ...currentTask,
-        ...restUpdates,
-        sections: applyTaskSectionInputsToMaterialized(
-          currentTask.sections,
-          sectionUpdates,
-          callbacks?.sectionSelection,
-        ),
-        dueDate: updates.dueDate ?? currentTask.dueDate,
-        assigneeId: updates.assigneeId ?? currentTask.assigneeId,
-        parentTaskId:
-          updates.parentTaskId !== undefined
-            ? (updates.parentTaskId ?? undefined)
-            : currentTask.parentTaskId,
-        updatedAt: now,
-      };
-
-      const cacheSnapshot = snapshot(id);
-      writeWorkItem(queryClient, organizationId, projectId, optimisticTask);
-      invalidateParents();
 
       try {
         const response = await unifiedApiClient.updateTask({
@@ -395,14 +287,6 @@ export function useWorkItems(
 
         const serverTask = updatedData.task;
         const isPending = updatedData.status === UpdateTaskResultStatus.Pending;
-
-        if (isPending) {
-          // Server staged the PATCH behind a proposal — drop the optimistic
-          // mutation; the unchanged entity it returned is written below.
-          restore(cacheSnapshot);
-          invalidateParents();
-        }
-        writeWorkItem(queryClient, organizationId, projectId, serverTask);
 
         if (!isPending) {
           invalidateRelationships({
@@ -429,10 +313,6 @@ export function useWorkItems(
         callbacks?.onSuccess?.(serverTask);
         return serverTask;
       } catch (error) {
-        restore(cacheSnapshot);
-        // Re-read the parents' lists so they show the original placement.
-        invalidateParents();
-
         const err = error as Error;
         callbacks?.onError?.(err);
         throw err;
@@ -440,33 +320,20 @@ export function useWorkItems(
         callbacks?.onSettled?.();
       }
     },
-    [
-      invalidateRelationships,
-      futureOffers,
-      organizationId,
-      projectId,
-      queryClient,
-      restore,
-      snapshot,
-    ],
+    [invalidateRelationships, futureOffers, organizationId, projectId],
   );
 
-  // Remove function
   const remove = useCallback(
     async (id: string, callbacks?: MutationCallbacks<void>): Promise<void> => {
-      const itemToDelete = findCachedWorkItem(
-        queryClient,
-        organizationId,
-        projectId,
+      const itemToDelete = readCachedWorkItem(
+        graphqlClient,
+        { organizationId, projectId },
         id,
       );
 
       if (!itemToDelete) {
         throw new Error(`Work item ${id} not found`);
       }
-
-      const cacheSnapshot = snapshot(id);
-      removeWorkItem(queryClient, organizationId, projectId, id);
 
       try {
         await unifiedApiClient.removeTask({
@@ -483,8 +350,6 @@ export function useWorkItems(
         });
         callbacks?.onSuccess?.();
       } catch (error) {
-        restore(cacheSnapshot);
-
         const err = error as Error;
         callbacks?.onError?.(err);
         throw err;
@@ -492,14 +357,7 @@ export function useWorkItems(
         callbacks?.onSettled?.();
       }
     },
-    [
-      invalidateRelationships,
-      organizationId,
-      projectId,
-      queryClient,
-      restore,
-      snapshot,
-    ],
+    [graphqlClient, invalidateRelationships, organizationId, projectId],
   );
 
   useWebsocketSubscriptions(

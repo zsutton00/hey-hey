@@ -18,20 +18,12 @@ import {
   writeSurfaceSelection,
 } from "../AgentSession/surfaceSelectionMemory";
 import { taskMonitorLaunchMethodOptions } from "./TaskMonitorLaunchMethodOptions";
+import { normalizeFastMode } from "./taskMonitorRuntimeSelection";
 import { useMonitorKind } from "./useMonitorKind";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 function isLaunchMethod(value: string): value is TaskMonitorLaunchMethod {
   return value === "plan" || value === "open" || value === "quick";
 }
-
-const normalizeLaunchConfiguration = (
-  configuration: TaskMonitorExecutionNodeLaunchConfiguration,
-): TaskMonitorExecutionNodeLaunchConfiguration => {
-  const { fastMode: _staleFastMode, ...base } = configuration;
-  return supportsFastMode(base.provider, base.model)
-    ? { ...base, fastMode: configuration.fastMode ?? false }
-    : base;
-};
 
 export function TaskMonitorLaunchConfigurationEditor({
   organizationId,
@@ -72,7 +64,7 @@ export function TaskMonitorLaunchConfigurationEditor({
   const saveLaunchConfiguration = async (
     next: TaskMonitorExecutionNodeLaunchConfiguration,
   ): Promise<void> => {
-    next = normalizeLaunchConfiguration(next);
+    next = normalizeFastMode(next);
     launchConfigurationRef.current = next;
     pendingLaunchConfigurationRef.current = next;
     setLaunchConfiguration(next);

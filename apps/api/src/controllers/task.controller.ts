@@ -1,3 +1,13 @@
+import { normalizeStatusFilter } from '../utils/work-item.util';
+import {
+  normalizeReferenceSortField,
+  normalizeReferenceSortOrder,
+  normalizeReferenceStatuses,
+  parseReferencePaginationValue,
+  REFERENCE_SORT_FIELDS,
+  REFERENCE_SORT_ORDERS,
+} from '../utils/work-item-reference-query.util';
+import { normalizeEdgeTypeFilter } from '../utils/edge-type-filter.util';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import { withApiSpan } from 'src/telemetry/api-tracing';
 import {
@@ -80,11 +90,6 @@ import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 const openApiDateTimeSchema = z.string().datetime({ offset: true });
-const REFERENCE_SORT_FIELDS = ['name', 'createdAt'] as const;
-const REFERENCE_SORT_ORDERS = ['asc', 'desc'] as const;
-
-type ReferenceSortField = (typeof REFERENCE_SORT_FIELDS)[number];
-type ReferenceSortOrder = (typeof REFERENCE_SORT_ORDERS)[number];
 
 const assertDueDateMatchesContract = (
   dueDate: string | null | undefined,
@@ -357,13 +362,13 @@ export class TaskController {
       includeAgentSessionCounts?.toLowerCase() === 'true';
     const includeServices = includeServiceRelations?.toLowerCase() === 'true';
     const includeEdgesFlag = includeEdges?.toLowerCase() === 'true';
-    const requestedEdgeTypes = this.normalizeEdgeTypes(edgeTypes);
+    const requestedEdgeTypes = normalizeEdgeTypeFilter(edgeTypes);
     const relatedEntity = this.normalizeRelatedEntity(
       relatedEntityId,
       relatedEntityType,
       requestedEdgeTypes,
     );
-    const statuses = this.normalizeStatuses(status);
+    const statuses = normalizeStatusFilter(status);
     const requestedTaskIds = this.normalizeTaskIds(taskIds);
     const sectionKeys = this.normalizeSectionKeys(includeSectionKeys);
     const parsedPage = page !== undefined ? parseInt(page, 10) : undefined;
@@ -507,13 +512,8 @@ export class TaskController {
       throw new BadRequestException('type is required');
     }
 
-    const parsedPage = this.parseReferencePaginationValue(page, 'page', 1);
-    const parsedLimit = this.parseReferencePaginationValue(
-      limit,
-      'limit',
-      1,
-      500,
-    );
+    const parsedPage = parseReferencePaginationValue(page, 'page', 1);
+    const parsedLimit = parseReferencePaginationValue(limit, 'limit', 1, 500);
 
     return this.taskService.findReferences(
       organizationId,
@@ -522,9 +522,9 @@ export class TaskController {
       parsedPage,
       parsedLimit,
       filter?.trim() || undefined,
-      this.normalizeReferenceStatuses(statuses),
-      this.normalizeReferenceSortField(sortBy),
-      this.normalizeReferenceSortOrder(sortOrder),
+      normalizeReferenceStatuses(statuses),
+      normalizeReferenceSortField(sortBy),
+      normalizeReferenceSortOrder(sortOrder),
     );
   }
 
@@ -661,7 +661,7 @@ export class TaskController {
     @AuthToken() userToken?: string | null,
     @Query('edgeTypes') edgeTypes?: string | string[],
   ): Promise<TaskResponseDto> {
-    const requestedEdgeTypes = this.normalizeEdgeTypes(edgeTypes);
+    const requestedEdgeTypes = normalizeEdgeTypeFilter(edgeTypes);
     const task = requestedEdgeTypes
       ? await this.taskService.findOneByOrganization(
           organizationId,
@@ -1055,88 +1055,6 @@ export class TaskController {
     return this.taskService.removeByOrganization(organizationId, taskId);
   }
 
-  private parseReferencePaginationValue(
-    raw: string | undefined,
-    field: string,
-    minimum: number,
-    maximum?: number,
-  ): number {
-    if (raw === undefined || raw.trim().length === 0) {
-      throw new BadRequestException(`${field} is required`);
-    }
-
-    const parsed = Number(raw);
-    const isOutOfRange =
-      !Number.isFinite(parsed) ||
-      !Number.isInteger(parsed) ||
-      parsed < minimum ||
-      (maximum !== undefined && parsed > maximum);
-    if (isOutOfRange) {
-      const range =
-        maximum === undefined
-          ? `at least ${minimum}`
-          : `between ${minimum} and ${maximum}`;
-      throw new BadRequestException(`${field} must be an integer ${range}`);
-    }
-
-    return parsed;
-  }
-
-  private normalizeReferenceStatuses(
-    statuses?: string | string[],
-  ): TaskResponseDto['status'][] | undefined {
-    if (statuses === undefined) return undefined;
-
-    // Each repeated query value is one exact status name; a name may contain commas.
-    const values = (Array.isArray(statuses) ? statuses : [statuses]).filter(
-      (value) => value.length > 0,
-    );
-    if (values.length === 0) return undefined;
-
-    return [...new Set(values)];
-  }
-
-  private normalizeReferenceSortField(sortBy?: string): ReferenceSortField {
-    if (sortBy === undefined || sortBy.length === 0) return 'name';
-    const match = REFERENCE_SORT_FIELDS.find((field) => field === sortBy);
-    if (!match) {
-      throw new BadRequestException(
-        `sortBy must be one of: ${REFERENCE_SORT_FIELDS.join(', ')}`,
-      );
-    }
-    return match;
-  }
-
-  private normalizeReferenceSortOrder(sortOrder?: string): ReferenceSortOrder {
-    if (sortOrder === undefined || sortOrder.length === 0) return 'asc';
-    const match = REFERENCE_SORT_ORDERS.find((order) => order === sortOrder);
-    if (!match) {
-      throw new BadRequestException(
-        `sortOrder must be one of: ${REFERENCE_SORT_ORDERS.join(', ')}`,
-      );
-    }
-    return match;
-  }
-
-  private normalizeStatuses(
-    status?: string | string[],
-  ): TaskResponseDto['status'][] | undefined {
-    const statuses = Array.isArray(status)
-      ? status
-      : typeof status === 'string'
-        ? [status]
-        : undefined;
-
-    const filteredStatuses = statuses?.filter(
-      (value) =>
-        value && value !== 'undefined' && value !== 'null' && value !== 'false',
-    ) as TaskResponseDto['status'][] | undefined;
-
-    return filteredStatuses && filteredStatuses.length > 0
-      ? filteredStatuses
-      : undefined;
-  }
-
   private normalizeSectionKeys(
     includeSectionKeys?: string | string[],
   ): string[] | undefined {
@@ -1191,47 +1109,6 @@ export class TaskController {
     }
 
     return values;
-  }
-
-  private normalizeEdgeTypes(
-    edgeTypes?: string | string[],
-  ): RelationshipType[] | undefined {
-    if (edgeTypes === undefined) {
-      return undefined;
-    }
-
-    const values = (Array.isArray(edgeTypes) ? edgeTypes : [edgeTypes])
-      .flatMap((value) => value.split(','))
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-
-    if (values.length === 0) {
-      throw new BadRequestException(
-        'edgeTypes must contain at least one AgentEdgeType value',
-      );
-    }
-
-    const allowedAgentTypes = new Set<string>(Object.values(AgentEdgeType));
-    const allowedRelationshipTypes = new Map<string, RelationshipType>(
-      Object.values(RelationshipType).map((value) => [value, value]),
-    );
-    const requestedTypes: RelationshipType[] = [];
-    for (const value of values) {
-      if (!allowedAgentTypes.has(value)) {
-        throw new BadRequestException(
-          `edgeTypes must be one of: ${Object.values(AgentEdgeType).join(', ')}`,
-        );
-      }
-      const relationshipType = allowedRelationshipTypes.get(value);
-      if (!relationshipType) {
-        throw new BadRequestException(
-          `edgeTypes value ${value} is not supported by graph traversal`,
-        );
-      }
-      requestedTypes.push(relationshipType);
-    }
-
-    return [...new Set(requestedTypes)];
   }
 
   private normalizeIncidentRelationshipTypes(

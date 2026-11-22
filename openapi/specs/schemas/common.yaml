@@ -369,6 +369,24 @@ ApiErrorResponse:
         a generic failure of the reported status.
       example: "ORGANIZATION_NOT_FOUND"
 
+MessageCursorNotFoundErrorDto:
+  description: |
+    The `since` cursor does not name a timeline message in the requested
+    conversation, or the `historyCursor` is invalid for it. Unknown, malformed
+    and other-conversation cursors are indistinguishable.
+  allOf:
+    - $ref: "#/ApiErrorResponse"
+    - type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          enum:
+            - MESSAGE_CURSOR_NOT_FOUND
+          description: Stable machine-readable error code
+          example: MESSAGE_CURSOR_NOT_FOUND
+
 PlanTierGatingErrorDto:
   type: object
   required:

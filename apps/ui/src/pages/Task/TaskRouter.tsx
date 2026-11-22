@@ -8,7 +8,10 @@ import {
   CanonicalPageBoundary,
   createCanonicalPageDescriptor,
 } from "@hey-hey/ui-common/context";
-import { useWorkItem } from "@hey-hey/ui-common/data";
+import {
+  useWorkItem,
+  useWorkItemWithoutProject,
+} from "@hey-hey/ui-common/data";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
 import { EvalPage } from "../Eval/EvalPage";
 import { FeaturePage } from "../Features/FeaturePage";
@@ -35,15 +38,16 @@ export const TaskRouter: React.FC = () => {
   const userIdentity = useUserIdentity();
   const organizationId = userIdentity?.currentOrgId || "";
 
-  const { workItem, isLoading, error } = useWorkItem(
-    organizationId,
-    "task",
-    taskId,
-    {
-      projectId,
-      enabled: !!organizationId && !!taskId,
-    },
-  );
+  // A link with a project reads through the shared records; a bare work-item
+  // id has no project yet, so it is looked up once to find it and redirect.
+  const scoped = useWorkItem(organizationId, "task", taskId, {
+    projectId,
+    enabled: !!organizationId && !!taskId && !!projectId,
+  });
+  const bare = useWorkItemWithoutProject(organizationId, taskId, {
+    enabled: !projectId,
+  });
+  const { workItem, isLoading, error } = projectId ? scoped : bare;
 
   const task = workItem as TaskResponseDto | null;
   useEffect(() => {
@@ -108,6 +112,19 @@ export const TaskRouter: React.FC = () => {
     );
   }
 
+  // TaskMonitorPage owns its canonical descriptor: its Plan lineage is only
+  // known after the page resolves the monitor's Plan.
+  if (task.type === WORK_ITEM_TYPE_KEYS.TaskMonitor) {
+    return (
+      <TaskMonitorPage
+        organizationId={organizationId}
+        projectId={projectId}
+        monitorId={taskId}
+        task={task}
+      />
+    );
+  }
+
   let page: React.ReactNode;
   if (task.type === "PLAN") {
     return (
@@ -145,15 +162,6 @@ export const TaskRouter: React.FC = () => {
     task.type === WORK_ITEM_TYPE_KEYS.Workflow
   ) {
     page = <WorkflowDetailPage />;
-  } else if (task.type === WORK_ITEM_TYPE_KEYS.TaskMonitor) {
-    page = (
-      <TaskMonitorPage
-        organizationId={organizationId}
-        projectId={projectId}
-        monitorId={taskId}
-        task={task}
-      />
-    );
   } else {
     page = (
       <TaskPage

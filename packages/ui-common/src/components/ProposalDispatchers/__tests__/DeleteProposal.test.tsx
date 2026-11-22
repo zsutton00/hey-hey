@@ -1,3 +1,7 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import {
   cleanup,
@@ -117,9 +121,18 @@ function makeProposal(
   } as unknown as ProposalResponseDto;
 }
 
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
+
 afterEach(cleanup);
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   vi.clearAllMocks();
   vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
     data: {
@@ -237,6 +250,7 @@ describe("DeleteProposal", () => {
           projectId={PROJ_ID}
         />
       </MemoryRouter>,
+      { wrapper: themeWrapper },
     );
 
     expect(

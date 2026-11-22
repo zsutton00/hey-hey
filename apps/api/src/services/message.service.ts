@@ -1709,9 +1709,10 @@ export class MessageService {
         select: { id: true, createdAt: true },
       });
       if (!cursor) {
-        throw new NotFoundException(
-          `Cursor message ${since} not found in conversation ${conversationId}`,
-        );
+        throw new NotFoundException({
+          code: 'MESSAGE_CURSOR_NOT_FOUND',
+          message: `Cursor message ${since} not found in conversation ${conversationId}`,
+        });
       }
       const cursorCreatedAt = timelineCreatedAt(cursor);
       cursorWhere = {

@@ -1027,3 +1027,7 @@ export const useConversationContext = (): ConversationContextValue => {
   }
   return context;
 };
+
+/** The conversation context when rendered inside a conversation, otherwise null. */
+export const useOptionalConversationContext =
+  (): ConversationContextValue | null => useContext(ConversationContext);

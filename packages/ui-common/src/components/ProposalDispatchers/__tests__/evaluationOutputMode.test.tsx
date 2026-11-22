@@ -1,3 +1,5 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,10 +47,7 @@ vi.mock("../../../data/hooks/useWorkItemTypeLifecycle", () => ({
 
 // The renderer shows the "before" it was given and the shared state control,
 // so the test sees both what the diff is built from and which controls show.
-vi.mock("../TaskUpdateRenderer", async () => {
-  const { ProposalStateIndicator: Indicator } = await vi.importActual<
-    typeof import("../ProposalStateIndicator")
-  >("../ProposalStateIndicator");
+vi.mock("../TaskUpdateRenderer", () => {
   return {
     TaskUpdateRenderer: ({
       existing,
@@ -64,7 +63,7 @@ vi.mock("../TaskUpdateRenderer", async () => {
         <div data-testid="diff-before-section">
           {existing.sections?.[0]?.materializedMarkdown}
         </div>
-        <Indicator
+        <ProposalStateIndicator
           status={{ state: "pending" }}
           action={ProposalAction.Update}
           onApply={onApply}
@@ -75,11 +74,17 @@ vi.mock("../TaskUpdateRenderer", async () => {
   };
 });
 
-vi.mock("../../InteractionComponent", () => ({
-  InteractionComponent: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-}));
+vi.mock(
+  "../../InteractionComponent/InteractionComponent",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../InteractionComponent/InteractionComponent")
+    >()),
+    InteractionComponent: ({ children }: { children: React.ReactNode }) => (
+      <>{children}</>
+    ),
+  }),
+);
 
 const evalProposal = (
   retained: Record<string, unknown> | null,
@@ -121,6 +126,11 @@ const liveMockup = {
 };
 
 beforeEach(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    ),
+  );
   getTask.mockReset();
   getTask.mockResolvedValue({
     data: { data: liveMockup },

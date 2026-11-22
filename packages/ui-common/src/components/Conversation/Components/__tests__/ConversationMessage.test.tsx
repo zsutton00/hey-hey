@@ -487,6 +487,25 @@ describe("ConversationMessage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the result of a late permission answer in the conversation", () => {
+    const reason = "You already answered this request at 2026-11-20T08:00:00Z.";
+    renderSupervisionDecision({
+      type: SystemMessageDataTypeEnum.TaskMonitorSupervision,
+      response: reason,
+      agentIdentity: "task-monitor-coordinator",
+      outcome: "PERMISSION_ANSWER_RESULT",
+      providerActionId: "action-1",
+      answer: "deny",
+      result: "ALREADY_DECIDED",
+      decidedBy: "PERSON",
+      decidedAt: "2026-11-20T08:00:00Z",
+      decidedByUserId: "1ce03260-1b41-43b1-96bd-34f312041a37",
+      reason,
+    });
+
+    expect(screen.getByText(reason)).toBeVisible();
+  });
+
   it("renders a Task Monitor request-changes decision with guidance", () => {
     const data: TaskMonitorSupervisionSystemMessageData = {
       type: SystemMessageDataTypeEnum.TaskMonitorSupervision,

@@ -1,14 +1,14 @@
-import { renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { useUpdateConversation } from "../useUpdateConversation";
 import { platformClient } from "../../../clients/serviceClients";
+import { ConversationStatus } from "../../../api";
 import {
-  ConversationStatus,
-  type ConversationResponseDto,
-} from "../../../api";
-import { conversationKeys } from "../../collections/conversations";
+  conversationNode,
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
+import { useConversations } from "../useConversations";
 
 const TASK_GENERATION_CATEGORY = "task-generation" as const;
 
@@ -20,16 +20,6 @@ vi.mock("../../../clients/serviceClients", () => ({
 }));
 
 const mockPlatformClient = platformClient.updateConversation as Mock;
-
-function createHarness() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retryDelay: 0 } },
-  });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return { queryClient, wrapper };
-}
 
 describe("useUpdateConversation", () => {
   const mockConversation = {
@@ -64,64 +54,47 @@ describe("useUpdateConversation", () => {
   describe("successful update", () => {
     it("should update conversation and update collection state", async () => {
       const onSuccess = vi.fn();
-      const { queryClient, wrapper } = createHarness();
-      const listKey = conversationKeys.list("org-123", "project-123", {});
-      const otherRow = { ...mockConversation, id: "conv-other" };
-      queryClient.setQueryData(listKey, [
-        { ...mockConversation, status: ConversationStatus.Started },
-        otherRow,
-      ]);
-      const variantKey = conversationKeys.envelope(
-        "org-123",
-        "project-123",
-        "conv-123",
-        true
+      const server = new FakeConversationServer(threadOf(1));
+      const { result } = renderHook(
+        () => ({
+          update: useUpdateConversation({ onSuccess }),
+          list: useConversations("org-123", "project-123"),
+        }),
+        { wrapper: server.wrapper },
       );
-      queryClient.setQueryData(variantKey, mockConversation);
-      const { result } = renderHook(() => useUpdateConversation({ onSuccess }), {
-        wrapper,
-      });
+      await waitFor(() => expect(result.current.list.isReady).toBe(true));
+      expect(result.current.list.data?.map((c) => c.id)).toEqual([
+        conversationNode.id,
+      ]);
 
       // Initial state should be idle
-      expect(result.current.isPending).toBe(false);
-      expect(result.current.isSuccess).toBe(false);
-      expect(result.current.isError).toBe(false);
-      expect(result.current.error).toBeNull();
+      expect(result.current.update.isPending).toBe(false);
+      expect(result.current.update.isSuccess).toBe(false);
+      expect(result.current.update.isError).toBe(false);
+      expect(result.current.update.error).toBeNull();
 
-      // Call the mutate function
-      const resultPromise = result.current.mutate({
+      server.conversations = [
+        { ...conversationNode, status: ConversationStatus.Completed },
+      ];
+      const updatedConversation = await result.current.update.mutate({
         organizationId: "org-123",
         projectId: "project-123",
-        conversationId: "conv-123",
+        conversationId: conversationNode.id,
         updateDto: mockUpdateDto,
       });
-
-      // Wait for the mutation to complete
-      const updatedConversation = await resultPromise;
 
       expect(updatedConversation).toEqual(mockConversation);
       expect(mockPlatformClient).toHaveBeenCalledWith(
         expect.objectContaining({
           organizationId: "org-123",
           projectId: "project-123",
-          conversationId: "conv-123",
+          conversationId: conversationNode.id,
           updateConversationDto: mockUpdateDto,
-        })
+        }),
       );
 
-      // The returned conversation is written to its base envelope and to
-      // every cached list row with the same id.
-      expect(
-        queryClient.getQueryData(
-          conversationKeys.envelope("org-123", "project-123", "conv-123")
-        )
-      ).toEqual(mockConversation);
-      expect(
-        queryClient.getQueryData<ConversationResponseDto[]>(listKey)
-      ).toEqual([mockConversation, otherRow]);
-      // The suggestion-decisions variant carries fields this body lacks.
-      expect(queryClient.getQueryState(variantKey)?.isInvalidated).toBe(true);
-
+      // The mounted active list re-reads and drops the completed conversation.
+      await waitFor(() => expect(result.current.list.data).toEqual([]));
       expect(onSuccess).toHaveBeenCalledWith(mockConversation);
     });
 
@@ -154,7 +127,7 @@ describe("useUpdateConversation", () => {
           projectId: "project-123",
           conversationId: "conv-123",
           updateDto: mockUpdateDto,
-        })
+        }),
       ).rejects.toThrow(errorMessage);
 
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
@@ -173,7 +146,7 @@ describe("useUpdateConversation", () => {
           projectId: "project-123",
           conversationId: "conv-123",
           updateDto: mockUpdateDto,
-        })
+        }),
       ).rejects.toThrow("Test error");
 
       expect(onError).toHaveBeenCalledWith(error);
@@ -199,7 +172,7 @@ describe("useUpdateConversation", () => {
           projectId: "project-123",
           conversationId: "conv-123",
           updateDto: mockUpdateDto,
-        })
+        }),
       ).rejects.toThrow("No conversation data returned from API");
     });
   });
@@ -242,7 +215,7 @@ describe("useUpdateConversation", () => {
           projectId: "project-123",
           conversationId: "conv-123",
           updateDto: mockUpdateDto,
-        })
+        }),
       ).rejects.toThrow();
 
       expect(onSettled).toHaveBeenCalled();

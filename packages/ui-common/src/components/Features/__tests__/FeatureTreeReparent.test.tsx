@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import {
   render,
@@ -28,7 +31,7 @@ const PROJ_ID = "proj-1";
 function makeFeature(
   id: string,
   parentTaskId?: string,
-  name = `Feature ${id}`
+  name = `Feature ${id}`,
 ): TaskResponseDto {
   return {
     id,
@@ -60,7 +63,7 @@ const mockedClient = vi.mocked(unifiedApiClient);
 // updateTask expects the server's UpdateTaskResult envelope ({ status, task }).
 function appliedUpdateResponse(
   taskId: string,
-  parentTaskId: string | null | undefined
+  parentTaskId: string | null | undefined,
 ) {
   return {
     data: {
@@ -82,7 +85,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   server = { ...fixtures };
   mockedClient.getTasks.mockImplementation(() =>
-    Promise.resolve({ data: { data: Object.values(server) } } as never)
+    Promise.resolve({ data: { data: Object.values(server) } } as never),
   );
   mockedClient.updateTask.mockImplementation((args: unknown) => {
     const { taskId, updateTaskDto } = args as {
@@ -116,7 +119,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
 
     await act(async () => {
       await expect(result.current.reparent("B", "B")).rejects.toThrow(
-        /onto itself/
+        /onto itself/,
       );
     });
 
@@ -130,7 +133,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
 
     await act(async () => {
       await expect(result.current.reparent("A", "C")).rejects.toThrow(
-        /descendants/
+        /descendants/,
       );
     });
 
@@ -154,7 +157,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
       () =>
         new Promise((resolve) => {
           resolveUpdate = resolve;
-        })
+        }),
     );
 
     const { result } = await setupHook();
@@ -166,7 +169,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
 
     // Optimistic update is visible before the PATCH resolves.
     expect(
-      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId
+      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId,
     ).toBe("D");
     expect(mockedClient.updateTask).toHaveBeenCalledWith({
       organizationId: ORG_ID,
@@ -183,7 +186,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
     });
 
     expect(
-      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId
+      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId,
     ).toBe("D");
     expect(result.current.errorMap.size).toBe(0);
   });
@@ -202,7 +205,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
       updateTaskDto: { parentTaskId: null },
     });
     expect(
-      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId
+      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId,
     ).toBeUndefined();
   });
 
@@ -229,7 +232,7 @@ describe("useFeatureTree.reparent — guards and dispatch", () => {
 
     expect(mockedClient.updateTask).toHaveBeenCalledTimes(1);
     expect(
-      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId
+      result.current.allFeatures.find((f) => f.id === "B")?.parentTaskId,
     ).toBe("A");
     // The optimistic move is rolled back to the pre-attempt snapshot.
     expect(result.current.allFeatures).toEqual(before);
@@ -256,7 +259,7 @@ describe("FeatureTreeNode — error rendering", () => {
           onClearError={() => {}}
           onReparentDrop={() => {}}
         />
-      </DndContext>
+      </DndContext>,
     );
   }
 
@@ -266,7 +269,7 @@ describe("FeatureTreeNode — error rendering", () => {
     await waitFor(() => {
       // MUI Tooltip mounts the title text into a tooltip element when open.
       expect(screen.getAllByText("server unavailable").length).toBeGreaterThan(
-        0
+        0,
       );
     });
   });
@@ -276,4 +279,13 @@ describe("FeatureTreeNode — error rendering", () => {
 
     expect(screen.queryByText("server unavailable")).not.toBeInTheDocument();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

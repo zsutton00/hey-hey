@@ -1,4 +1,4 @@
-import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import { normalizeStatusFilter } from '../utils/work-item.util';
 import {
   ProjectAccessGuard,
   ProjectResourceId,
@@ -98,7 +98,7 @@ export class InitiativeController {
 
     const sectionKeys = this.normalizeSectionKeys(includeSectionKeys);
     const filters = {
-      statuses: this.normalizeStatuses(status),
+      statuses: normalizeStatusFilter(status),
       priority,
       tags: Array.isArray(tags) ? tags : tags ? [tags] : undefined,
       sourceType: { not: InitiativeSourceType.Plan },
@@ -143,25 +143,6 @@ export class InitiativeController {
       userEmail,
       userName,
     );
-  }
-
-  private normalizeStatuses(
-    status?: string | string[],
-  ): TaskResponseDto['status'][] | undefined {
-    const statuses = Array.isArray(status)
-      ? status
-      : typeof status === 'string'
-        ? status.split(',').map((value) => value.trim())
-        : undefined;
-
-    const filteredStatuses = statuses?.filter(
-      (value) =>
-        value && value !== 'undefined' && value !== 'null' && value !== 'false',
-    ) as TaskResponseDto['status'][] | undefined;
-
-    return filteredStatuses && filteredStatuses.length > 0
-      ? filteredStatuses
-      : undefined;
   }
 
   private normalizeSectionKeys(

@@ -1,3 +1,7 @@
+import { unifiedApiClient as workItemFixtureClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
+import { stripIgnoredCharacters } from "graphql";
+import { http } from "msw";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -208,6 +212,20 @@ beforeEach(() => {
 
 describe("TaskUpdateRenderer Agent Mode availability", () => {
   it("shows the resulting persisted and proposed Feature scope while preserving relationship details", async () => {
+    const modeQueries: string[] = [];
+    const fixtureHandlers = workItemHandlersFromClient(
+      workItemFixtureClient as unknown as Record<string, unknown>,
+    );
+    globalThis.mswServer.use(
+      http.post("*/graphql", async ({ request }) => {
+        const body = await request.clone().json();
+        if (body.operationName === "GetModeAvailability") {
+          modeQueries.push(body.query);
+        }
+      }),
+      ...fixtureHandlers,
+    );
+
     render(
       <MemoryRouter>
         <TaskUpdateRenderer
@@ -244,28 +262,60 @@ describe("TaskUpdateRenderer Agent Mode availability", () => {
       "Updated mode guidance",
     );
 
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: modeId,
-      includeEdges: true,
-      edgeTypes: [AgentEdgeType.DependsOn],
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "feature-existing",
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "feature-new",
-    });
-    expect(getTaskMock).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      projectId: "project-1",
-      taskId: "task-proposed",
-    });
+    expect(
+      modeQueries.map((query) =>
+        stripIgnoredCharacters(query.replace(/\b__typename\b/g, "")),
+      ),
+    ).toEqual([
+      stripIgnoredCharacters(`
+        query GetModeAvailability($id: ID!, $edgeTypes: [EdgeType!]!) {
+          workItem(id: $id) {
+            id
+            type
+            edges(types: $edgeTypes) {
+              type
+              targetNodeType
+              source { entityId }
+              target { entityId name }
+            }
+          }
+        }
+      `),
+    ]);
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: modeId,
+        includeEdges: true,
+        edgeTypes: [AgentEdgeType.DependsOn],
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "feature-existing",
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "feature-new",
+      }),
+      expect.anything(),
+    );
+    expect(getTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        projectId: "project-1",
+        taskId: "task-proposed",
+      }),
+      expect.anything(),
+    );
   });
 });
 

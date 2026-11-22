@@ -35,6 +35,7 @@ describe('LoggingInterceptor correlation boundary', () => {
         path: `/projects/project-${suffix}`,
       };
       const context = {
+        getType: () => 'http',
         getHandler: jest.fn(),
         getClass: () => ({ name: 'ProjectController' }),
         switchToHttp: () => ({
@@ -91,6 +92,7 @@ describe('LoggingInterceptor correlation boundary', () => {
       setHeader: jest.fn(),
     };
     const executionContext = {
+      getType: () => 'http',
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: () => ({
@@ -135,6 +137,7 @@ describe('LoggingInterceptor correlation boundary', () => {
       setHeader: jest.fn(),
     };
     const executionContext = {
+      getType: () => 'http',
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: () => ({
@@ -193,6 +196,7 @@ describe('LoggingInterceptor correlation boundary', () => {
       setHeader: jest.fn(),
     };
     const executionContext = {
+      getType: () => 'http',
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: () => ({

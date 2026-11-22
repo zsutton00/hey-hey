@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -207,6 +208,7 @@ describe("by-key reuse of the catalog", () => {
         createStore(),
         undefined,
         queryClient,
+        createUnreachableGraphQLClient(),
       ).markAllStale();
     }
 
@@ -265,7 +267,12 @@ describe("invalidation", () => {
   it("re-reads the catalog exactly once after a WebSocket reconnect", async () => {
     const { queryClient } = await mountConsumers();
 
-    new WebSocketHandler(createStore(), undefined, queryClient).markAllStale();
+    new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    ).markAllStale();
 
     await waitFor(() => expect(catalogRead).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
@@ -277,7 +284,12 @@ describe("invalidation", () => {
     const { queryClient } = createHarness();
     queryClient.setQueryData(catalogKey, [standard]);
 
-    new WebSocketHandler(createStore(), undefined, queryClient).markAllStale();
+    new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    ).markAllStale();
 
     expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true);
     expect(catalogRead).not.toHaveBeenCalled();

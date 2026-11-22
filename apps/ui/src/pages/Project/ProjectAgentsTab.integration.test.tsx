@@ -36,6 +36,11 @@ vi.mock("@hey-hey/ui-common/data", () => ({
     return { workItems: [evalItem], isLoading: false };
   },
   useWorkItem: () => ({ workItem: evalItem, isLoading: false, error: null }),
+  useWorkItemWithoutProject: () => ({
+    workItem: null,
+    isLoading: false,
+    error: null,
+  }),
   useWorkItemStatusVocabularies: () => ({
     definitions: new Map(),
     statusOptions: [],

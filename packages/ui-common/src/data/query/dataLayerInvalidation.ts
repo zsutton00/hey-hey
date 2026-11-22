@@ -15,7 +15,6 @@ import { implementationHintKeys } from "../collections/implementationHints";
 import { fileReferenceKeys } from "../collections/fileReferenceCandidates";
 import { helpKeys } from "../collections/help";
 import { topologyKeys } from "../collections/topologyKeys";
-import { workItemGraphKeys } from "../collections/workItemGraphs";
 import { entityContextKeys } from "../collections/entityContext";
 import { userWorkflowKeys } from "../collections/workflowExecutions";
 import { outboxEventKeys } from "../collections/outboxEvents";
@@ -34,18 +33,12 @@ import { proposalKeys } from "../collections/proposals";
 import { agentSessionKeys } from "../collections/agentSessions";
 import { attentionEventKeys } from "../collections/attentionEvents";
 import { conversationCliStatusKeys } from "../collections/conversationCliStatus";
-import { conversationKeys } from "../collections/conversations";
 import { entityStarKeys } from "../collections/entityStars";
 import { featureContentKeys } from "../collections/featureDocumentContent";
 import { machineKeys } from "../collections/machines";
 import { messageKeys } from "../collections/messages";
 import { privateBetaDisclosureKeys } from "../collections/privateBetaDisclosure";
 import { serviceKeys } from "../collections/services";
-import {
-  workItemDetailFilter,
-  workItemKeys,
-} from "../collections/workItemLists";
-import { workItemReferenceKeys } from "../collections/workItemReferences";
 import { workItemTypeKeys } from "../collections/workItemTypes";
 import { notificationKeys } from "../collections/notifications";
 import { openItemsKeys } from "../collections/openItems";
@@ -69,7 +62,6 @@ export const dataLayerQueryRoots = () => [
   helpKeys.root(),
 
   topologyKeys.root(),
-  workItemGraphKeys.root(),
   entityContextKeys.root(),
   userWorkflowKeys.root(),
   outboxEventKeys.root(),
@@ -86,14 +78,11 @@ export const dataLayerQueryRoots = () => [
   activityKeys.root(),
   proposalKeys.root(),
   workItemTypeKeys.root(),
-  workItemReferenceKeys.root(),
   featureContentKeys.root(),
-  workItemKeys.root(),
   serviceKeys.root(),
   entityStarKeys.root(),
   machineKeys.root(),
   privateBetaDisclosureKeys.root(),
-  conversationKeys.root(),
   messageKeys.root(),
   agentSessionKeys.root(),
   attentionEventKeys.root(),
@@ -103,15 +92,15 @@ export const dataLayerQueryRoots = () => [
 ];
 
 /**
- * Reconnect / forced refresh: every migrated dataset is invalidated and only
- * mounted queries re-read. Work-item reads in flight are restarted, since
- * events may have been missed while disconnected. Open Items is only marked
- * stale: its hook owns the reconnect read, which also replays offline work.
+ * Reconnect / forced refresh: every TanStack dataset is invalidated and only
+ * mounted queries re-read. Reads in flight are restarted, since events may
+ * have been missed while disconnected. Work items and conversations live in
+ * the GraphQL cache and are refreshed there. Open Items is only marked stale:
+ * its hook owns the reconnect read, which also replays offline work.
  */
 export function invalidateAllDataLayerQueries(
   queryClient: QueryClient,
 ): Promise<void> {
-  const [workItemRoot] = workItemKeys.root();
   return Promise.all(
     dataLayerQueryRoots().map((queryKey) =>
       queryKey[0] === reportKeys.root()[0] ||
@@ -127,7 +116,6 @@ export function invalidateAllDataLayerQueries(
       queryKey[0] === fileReferenceKeys.root()[0] ||
       queryKey[0] === helpKeys.root()[0] ||
       queryKey[0] === topologyKeys.root()[0] ||
-      queryKey[0] === workItemGraphKeys.root()[0] ||
       queryKey[0] === entityContextKeys.root()[0] ||
       queryKey[0] === userWorkflowKeys.root()[0] ||
       queryKey[0] === outboxEventKeys.root()[0] ||
@@ -141,7 +129,6 @@ export function invalidateAllDataLayerQueries(
       queryKey[0] === fileHistoryKeys.root()[0] ||
       queryKey[0] === designDocKeys.root()[0] ||
       queryKey[0] === activityKeys.root()[0] ||
-      queryKey[0] === workItemRoot ||
       queryKey[0] === proposalKeys.root()[0] ||
       queryKey[0] === agentSessionKeys.root()[0]
         ? invalidateWithFollowUpRead(queryClient, { queryKey })
@@ -153,15 +140,15 @@ export function invalidateAllDataLayerQueries(
 }
 
 /**
- * A work item was created, changed, moved or removed: reference lists,
- * work-item lists and hierarchies in that project (or, without a project, the
- * whole organization) are invalidated. With a `taskId`, single-item reads are
- * scoped to that item (in any project, since project-less reads key under
- * `""`) and feature content to its by-id entries plus subtree reads (whose
- * membership or contents may include it); without one, every work-item and
- * feature-content read in scope is invalidated.
+ * A work item was created, changed, moved or removed: the TanStack datasets
+ * that depend on it are invalidated, namely proposals and feature content in
+ * that project (or, without a project, the whole organization). With a
+ * `taskId`, feature content is scoped to its by-id entries plus subtree reads
+ * (whose membership or contents may include it); without one, every
+ * feature-content read in scope is invalidated. The work items themselves,
+ * and their reference lists, are refreshed in the GraphQL cache.
  *
- * Work-item reads already in flight are cancelled and restarted
+ * Reads already in flight are cancelled and restarted
  * (`invalidateWithFollowUpRead`): an earlier response never satisfies the
  * invalidation.
  */
@@ -171,36 +158,16 @@ export function invalidateProjectWorkItemQueries(
   projectId?: string,
   taskId?: string,
 ): Promise<void> {
-  const scope =
+  const content =
     projectId === undefined
-      ? {
-          references: workItemReferenceKeys.all(organizationId),
-          content: featureContentKeys.all(organizationId),
-          workItems: workItemKeys.all(organizationId),
-        }
-      : {
-          references: workItemReferenceKeys.project(organizationId, projectId),
-          content: featureContentKeys.project(organizationId, projectId),
-          workItems: workItemKeys.project(organizationId, projectId),
-        };
-  // Work-item keys are [root, org, project, kind, params | taskId, variant].
-  const workItemFilters =
-    taskId === undefined
-      ? [{ queryKey: scope.workItems }]
-      : [
-          {
-            queryKey: scope.workItems,
-            predicate: ({ queryKey }: { queryKey: readonly unknown[] }) =>
-              queryKey[3] === "list" || queryKey[3] === "hierarchy",
-          },
-          workItemDetailFilter(organizationId, taskId),
-        ];
+      ? featureContentKeys.all(organizationId)
+      : featureContentKeys.project(organizationId, projectId);
   // Content keys are [root, org, project, projection, "byId" | "subtree", id].
   const contentFilter =
     taskId === undefined
-      ? { queryKey: scope.content }
+      ? { queryKey: content }
       : {
-          queryKey: scope.content,
+          queryKey: content,
           predicate: ({ queryKey }: { queryKey: readonly unknown[] }) =>
             queryKey[4] === "subtree" ||
             (queryKey[4] === "byId" && queryKey[5] === taskId),
@@ -212,10 +179,6 @@ export function invalidateProjectWorkItemQueries(
           ? [...proposalKeys.root(), organizationId]
           : proposalKeys.project(organizationId, projectId),
     }),
-    queryClient.invalidateQueries({ queryKey: scope.references }),
-    ...workItemFilters.map((filter) =>
-      invalidateWithFollowUpRead(queryClient, filter),
-    ),
     queryClient.invalidateQueries(contentFilter),
   ]).then(() => undefined);
 }

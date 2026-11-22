@@ -17,26 +17,31 @@ const { interaction, preview } = vi.hoisted(() => ({
   interaction: vi.fn(),
   preview: vi.fn(),
 }));
-vi.mock("../../InteractionComponent", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../../InteractionComponent")>();
-  return {
-    ...actual,
-    InteractionComponent: (props: {
-      children: ReactNode;
-      entityId: string;
-      entityType: string;
-      hasProposalSupport: boolean;
-      entityTitle?: string;
-      organizationId?: string;
-      projectId?: string;
-      draggable?: boolean;
-    }) => {
-      interaction(props);
-      return <span data-testid="title-interaction">{props.children}</span>;
-    },
-  };
-});
+vi.mock(
+  "../../InteractionComponent/InteractionComponent",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../InteractionComponent/InteractionComponent")
+      >();
+    return {
+      ...actual,
+      InteractionComponent: (props: {
+        children: ReactNode;
+        entityId: string;
+        entityType: string;
+        hasProposalSupport: boolean;
+        entityTitle?: string;
+        organizationId?: string;
+        projectId?: string;
+        draggable?: boolean;
+      }) => {
+        interaction(props);
+        return <span data-testid="title-interaction">{props.children}</span>;
+      },
+    };
+  },
+);
 vi.mock("../../Entity", () => ({
   EntityLinkWithPreview: (props: EntityLinkWithPreviewProps) => {
     preview(props);

@@ -7,6 +7,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -71,6 +73,9 @@ vi.mock("../../../data/hooks/useConversationMessages", () => ({
     loadOlder: vi.fn(),
     refetch: vi.fn(),
   }),
+}));
+vi.mock("../../../data/hooks/useAgentSessionContinuationStatus", () => ({
+  useAgentSessionContinuationStatus: () => ({ data: null }),
 }));
 vi.mock("../../../data/hooks/useProject", () => ({
   useProject: () => ({
@@ -249,7 +254,7 @@ const wrapper = ({ children }: { children: ReactNode }) => (
         })
       }
     >
-      {children}
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
     </QueryClientProvider>
   </MemoryRouter>
 );

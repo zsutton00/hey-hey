@@ -471,6 +471,12 @@ export const controllerActionRuntimeSchema = {
                       format: 'uuid',
                       description: 'Canonical Agent Session authorization target.',
                     },
+                    replyConversationId: {
+                      type: 'string',
+                      format: 'uuid',
+                      description:
+                        'Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.',
+                    },
                     decision: {
                       type: 'string',
                       enum: ['approve', 'always_approve', 'deny', 'whitelist'],
@@ -3358,6 +3364,9 @@ export const controllerActionRuntimeSchema = {
             },
             judgment: {
               $ref: '#/definitions/TaskMonitorJudgmentResponse',
+            },
+            monitoredPermissionRequest: {
+              $ref: '#/definitions/TaskMonitorPromptPayload/properties/monitoredPermissionRequest',
             },
             settledTurn: {
               $ref: '#/definitions/SessionMonitorSettledTurnEvidence',
@@ -8936,6 +8945,59 @@ export const controllerActionRuntimeSchema = {
         judgment: {
           $ref: '#/definitions/TaskMonitorJudgmentResponse',
         },
+        monitoredPermissionRequest: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'interventionId',
+            'providerActionId',
+            'runId',
+            'agentSessionId',
+            'action',
+            'target',
+            'fingerprint',
+            'createdAt',
+            'expiresAt',
+          ],
+          properties: {
+            interventionId: {
+              type: 'string',
+            },
+            providerActionId: {
+              type: 'string',
+            },
+            runId: {
+              type: 'string',
+            },
+            agentSessionId: {
+              type: 'string',
+              format: 'uuid',
+            },
+            action: {
+              type: 'string',
+              minLength: 1,
+            },
+            target: {
+              type: 'string',
+              minLength: 1,
+            },
+            fingerprint: {
+              type: 'string',
+              minLength: 1,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+            expiresAt: {
+              type: ['string', 'null'],
+              format: 'date-time',
+              description: 'Null when the provider sends no deadline, as Claude does today.',
+            },
+          },
+          description:
+            'The exact provider permission request a monitored coding session is waiting on. Delivered with the PERMISSION_REQUEST cause so the Task Monitor agent can approve, deny or escalate it.\n',
+        },
         settledTurn: {
           $ref: '#/definitions/SessionMonitorSettledTurnEvidence',
           description:
@@ -8956,6 +9018,7 @@ export const controllerActionRuntimeSchema = {
         'CONTINUE',
         'COMPLETE',
         'HALT',
+        'PERMISSION_REQUEST',
       ],
       description:
         'Lifecycle cause delivered to the Task Monitor handler through the signed start-run or user-message dispatch rail.\n',

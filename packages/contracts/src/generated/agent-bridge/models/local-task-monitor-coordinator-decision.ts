@@ -19,6 +19,15 @@
 import type { LocalTaskMonitorAcceptTaskDecision } from './local-task-monitor-accept-task-decision.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { LocalTaskMonitorApprovePermissionDecision } from './local-task-monitor-approve-permission-decision.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { LocalTaskMonitorDenyPermissionDecision } from './local-task-monitor-deny-permission-decision.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { LocalTaskMonitorEscalatePermissionDecision } from './local-task-monitor-escalate-permission-decision.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { LocalTaskMonitorHaltDecision } from './local-task-monitor-halt-decision.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -37,6 +46,6 @@ import type { LocalTaskMonitorWaitDecision } from './local-task-monitor-wait-dec
  * @type LocalTaskMonitorCoordinatorDecision
  * @export
  */
-export type LocalTaskMonitorCoordinatorDecision = { action: 'ACCEPT_TASK' } & LocalTaskMonitorAcceptTaskDecision | { action: 'HALT' } & LocalTaskMonitorHaltDecision | { action: 'REQUEST_CHANGES' } & LocalTaskMonitorRequestChangesDecision | { action: 'REQUEST_JUDGMENT' } & LocalTaskMonitorRequestJudgmentDecision | { action: 'REQUEST_REVIEW' } & LocalTaskMonitorRequestReviewDecision | { action: 'WAIT' } & LocalTaskMonitorWaitDecision;
+export type LocalTaskMonitorCoordinatorDecision = { action: 'ACCEPT_TASK' } & LocalTaskMonitorAcceptTaskDecision | { action: 'APPROVE_PERMISSION' } & LocalTaskMonitorApprovePermissionDecision | { action: 'DENY_PERMISSION' } & LocalTaskMonitorDenyPermissionDecision | { action: 'ESCALATE_PERMISSION' } & LocalTaskMonitorEscalatePermissionDecision | { action: 'HALT' } & LocalTaskMonitorHaltDecision | { action: 'REQUEST_CHANGES' } & LocalTaskMonitorRequestChangesDecision | { action: 'REQUEST_JUDGMENT' } & LocalTaskMonitorRequestJudgmentDecision | { action: 'REQUEST_REVIEW' } & LocalTaskMonitorRequestReviewDecision | { action: 'WAIT' } & LocalTaskMonitorWaitDecision;
 
-export const LocalTaskMonitorCoordinatorDecisionDiscriminatorValues = ["REQUEST_REVIEW","REQUEST_CHANGES","ACCEPT_TASK","WAIT","REQUEST_JUDGMENT","HALT"] as const;
+export const LocalTaskMonitorCoordinatorDecisionDiscriminatorValues = ["REQUEST_REVIEW","REQUEST_CHANGES","ACCEPT_TASK","WAIT","REQUEST_JUDGMENT","HALT","APPROVE_PERMISSION","DENY_PERMISSION","ESCALATE_PERMISSION"] as const;

@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { createElement, type PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -5,26 +6,20 @@ import { createStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EntityType,
-  TaskSource,
-  WorkStatus,
   type FullEntityContextDto,
   type TopologyEntitySummaryDto,
   type TopologyCategorySummaryDto,
   type TopologySubfacetDto,
-  type WorkItemGraphAggregateResponseDto,
 } from "../../../api";
 import {
   platformClient,
-  unifiedApiClient,
   entityContextClient,
 } from "../../../clients/serviceClients";
 import { useTopologyEntitySummaries } from "../../hooks/useTopologyEntitySummaries";
 import { useTopologyCategorySummaries } from "../../hooks/useTopologyCategorySummaries";
 import { useTopologySubfacets } from "../../hooks/useTopologySubfacets";
-import { useWorkItemGraph } from "../../hooks/useWorkItemGraph";
 import { useFullEntityContext } from "../../hooks/useFullEntityContext";
 import { topologyKeys } from "../../collections/topologyKeys";
-import { workItemGraphKeys } from "../../collections/workItemGraphs";
 import { entityContextKeys } from "../../collections/entityContext";
 import { WebSocketHandler } from "../../websockets/handler";
 import { invalidateAllDataLayerQueries } from "../dataLayerInvalidation";
@@ -35,7 +30,6 @@ vi.mock("../../../clients/serviceClients", () => ({
     listTopologyCategorySummaries: vi.fn(),
     listTopologySubfacets: vi.fn(),
   },
-  unifiedApiClient: { getWorkItemGraph: vi.fn() },
   entityContextClient: { getEntityContext: vi.fn() },
 }));
 
@@ -64,24 +58,6 @@ const subfacets: TopologySubfacetDto[] = [
     updatedAt: timestamp,
   },
 ];
-const graph: WorkItemGraphAggregateResponseDto = {
-  root: {
-    id: "root",
-    name: "Workflow",
-    type: "workflow",
-    sections: [],
-    organizationId: "org",
-    projectId: "project",
-    status: WorkStatus.Backlog,
-    source: TaskSource.System,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  },
-  children: [],
-  relationships: [],
-  layout: null,
-  derivedReferences: [],
-};
 const context: FullEntityContextDto = {
   entityId: "root",
   entityType: EntityType.Task,
@@ -125,15 +101,6 @@ const datasets = [
     key: topologyKeys.subfacets("org", "project"),
   },
   {
-    name: "graph",
-    use: (enabled = true) =>
-      useWorkItemGraph("org", "project", "root", { enabled }),
-    api: unifiedApiClient.getWorkItemGraph,
-    data: graph,
-    empty: null,
-    key: workItemGraphKeys.byId("org", "project", "root"),
-  },
-  {
     name: "context",
     use: (enabled = true) =>
       useFullEntityContext({ ...contextParams, enabled }),
@@ -165,7 +132,7 @@ describe.each(datasets)("$name", (dataset) => {
       () =>
         new Promise((done) => {
           resolve = done;
-        }) as never
+        }) as never,
     );
     const { client, wrapper } = harness();
     const first = renderHook(() => dataset.use(), { wrapper });
@@ -178,7 +145,7 @@ describe.each(datasets)("$name", (dataset) => {
     });
     await act(async () => resolve({ data: { data: dataset.data } }));
     await waitFor(() =>
-      expect(second.result.current.data).toEqual(dataset.data)
+      expect(second.result.current.data).toEqual(dataset.data),
     );
     const third = renderHook(() => dataset.use(), { wrapper });
     expect(third.result.current.data).toEqual(dataset.data);
@@ -187,7 +154,12 @@ describe.each(datasets)("$name", (dataset) => {
       data: { data: dataset.data },
     } as never);
     await act(async () => {
-      new WebSocketHandler(createStore(), undefined, client).markAllStale();
+      new WebSocketHandler(
+        createStore(),
+        undefined,
+        client,
+        createUnreachableGraphQLClient(),
+      ).markAllStale();
     });
     await waitFor(() => expect(dataset.api).toHaveBeenCalledTimes(2));
     first.unmount();
@@ -207,7 +179,7 @@ describe.each(datasets)("$name", (dataset) => {
     const { wrapper } = harness();
     const { result, rerender } = renderHook(
       ({ enabled }) => dataset.use(enabled),
-      { wrapper, initialProps: { enabled: false } }
+      { wrapper, initialProps: { enabled: false } },
     );
     expect(result.current).toMatchObject({
       isLoading: false,
@@ -228,8 +200,8 @@ describe.each(datasets)("$name", (dataset) => {
     const { result } = renderHook(() => dataset.use(), { wrapper });
     await waitFor(() =>
       expect(result.current.error).toEqual(
-        dataset.name === "context" ? error.message : error
-      )
+        dataset.name === "context" ? error.message : error,
+      ),
     );
     expect(result.current.isLoading).toBe(false);
     expect(dataset.api).toHaveBeenCalledTimes(1);
@@ -262,23 +234,18 @@ it("normalizes set filters without collapsing genuinely different variants", () 
   expect(
     topologyKeys.entitySummaries("org", "project", {
       subfacetId: ["b", "a", "a"],
-    })
+    }),
   ).toEqual(
-    topologyKeys.entitySummaries("org", "project", { subfacetId: ["a", "b"] })
-  );
-  expect(
-    workItemGraphKeys.byId("org", "project", "root", ["CONSUMES", "IMPLEMENTS"])
-  ).toEqual(
-    workItemGraphKeys.byId("org", "project", "root", ["IMPLEMENTS", "CONSUMES"])
+    topologyKeys.entitySummaries("org", "project", { subfacetId: ["a", "b"] }),
   );
   expect(entityContextKeys.context(contextParams)).not.toEqual(
     entityContextKeys.context({
       ...contextParams,
       includeRelatedEntities: false,
-    })
+    }),
   );
   expect(
-    topologyKeys.entitySummaries("org", "project", { since: timestamp })
+    topologyKeys.entitySummaries("org", "project", { since: timestamp }),
   ).not.toEqual(topologyKeys.entitySummaries("org", "project"));
 });
 
@@ -296,19 +263,19 @@ it("invalidating one topology key refreshes its consumers without waking other d
   renderHook(() => useTopologyEntitySummaries("org", "project"), { wrapper });
   const other = renderHook(
     () => useTopologyCategorySummaries("org", "project"),
-    { wrapper }
+    { wrapper },
   );
   await waitFor(() =>
     expect(first.result.current.isReady && other.result.current.isReady).toBe(
-      true
-    )
+      true,
+    ),
   );
   let resolve!: (value: unknown) => void;
   vi.mocked(platformClient.listTopologyEntitySummaries).mockImplementationOnce(
     () =>
       new Promise((done) => {
         resolve = done;
-      }) as never
+      }) as never,
   );
   act(() => first.result.current.markStale());
   await waitFor(() => expect(first.result.current.isFetching).toBe(true));
@@ -321,15 +288,12 @@ it("invalidating one topology key refreshes its consumers without waking other d
   expect(first.result.current.isReady).toBe(true);
 });
 
-it("passes canonical filters, graph participation and context flags through to their providers", async () => {
+it("passes canonical filters and context flags through to their providers", async () => {
   vi.mocked(platformClient.listTopologyEntitySummaries).mockResolvedValue({
     data: { data: summaries },
   } as never);
   vi.mocked(platformClient.listTopologySubfacets).mockResolvedValue({
     data: { data: subfacets },
-  } as never);
-  vi.mocked(unifiedApiClient.getWorkItemGraph).mockResolvedValue({
-    data: { data: graph },
   } as never);
   vi.mocked(entityContextClient.getEntityContext).mockResolvedValue({
     data: { data: context },
@@ -347,9 +311,6 @@ it("passes canonical filters, graph participation and context flags through to t
         category: "technology",
         status: "ACTIVE",
       }),
-      graph: useWorkItemGraph("org", "project", "root", {
-        incidentRelationshipTypes: ["IMPLEMENTS", "CONSUMES", "CONSUMES"],
-      }),
       context: useFullEntityContext({
         ...contextParams,
         includeFeatureHierarchy: true,
@@ -357,7 +318,7 @@ it("passes canonical filters, graph participation and context flags through to t
         includeAvailableMcpTools: true,
       }),
     }),
-    { wrapper }
+    { wrapper },
   );
   await waitFor(() => expect(read.result.current.context.isFetched).toBe(true));
   const requestOptions = expect.objectContaining({
@@ -372,7 +333,7 @@ it("passes canonical filters, graph participation and context flags through to t
       since: timestamp,
       limitPerSubfacet: 7,
     },
-    requestOptions
+    requestOptions,
   );
   expect(platformClient.listTopologySubfacets).toHaveBeenCalledWith(
     {
@@ -381,16 +342,7 @@ it("passes canonical filters, graph participation and context flags through to t
       category: "technology",
       status: "ACTIVE",
     },
-    requestOptions
-  );
-  expect(unifiedApiClient.getWorkItemGraph).toHaveBeenCalledWith(
-    {
-      organizationId: "org",
-      projectId: "project",
-      workItemId: "root",
-      incidentRelationshipTypes: new Set(["CONSUMES", "IMPLEMENTS"]),
-    },
-    requestOptions
+    requestOptions,
   );
   expect(entityContextClient.getEntityContext).toHaveBeenCalledWith(
     {
@@ -400,7 +352,7 @@ it("passes canonical filters, graph participation and context flags through to t
       includeAvailableMcpTools: true,
       relatedEntityDepth: 1,
     },
-    requestOptions
+    requestOptions,
   );
 });
 
@@ -411,7 +363,7 @@ it("markStale during an initial read requires a read starting after the invalida
   const { wrapper } = harness();
   const { result } = renderHook(
     () => useTopologyEntitySummaries("org", "project"),
-    { wrapper }
+    { wrapper },
   );
   expect(platformClient.listTopologyEntitySummaries).toHaveBeenCalledTimes(1);
   act(() => result.current.markStale());

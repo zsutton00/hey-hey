@@ -28,9 +28,15 @@ import { DesignDocUpdateRenderer } from "../../ProposalDispatchers/DesignDocUpda
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: { getProposalReconciliation: vi.fn() },
 }));
-vi.mock("../../ProposalDispatchers/proposalHeaderType", () => ({
-  useProposalHeaderTypeResolution: () => ({ presentation: {} }),
-}));
+vi.mock(
+  "../../ProposalDispatchers/proposalHeaderType",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../ProposalDispatchers/proposalHeaderType")
+    >()),
+    useProposalHeaderTypeResolution: () => ({ presentation: {} }),
+  }),
+);
 vi.mock("../../ProposalDispatchers/ProposalTitle", () => ({
   ProposalTitle: () => (
     <header data-testid="retained-identity">Proposal identity</header>

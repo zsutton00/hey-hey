@@ -14,6 +14,8 @@ export interface ConversationCardRelatedRow {
 
 export interface ConversationCardRelatedRowsProps {
   numbered?: boolean;
+  /** Rule between rows; defaults to on. */
+  dividers?: boolean;
   rows: readonly ConversationCardRelatedRow[];
 }
 
@@ -23,7 +25,7 @@ export interface ConversationCardRelatedRowsProps {
  */
 export const ConversationCardRelatedRows: React.FC<
   ConversationCardRelatedRowsProps
-> = ({ numbered, rows }) => (
+> = ({ numbered, dividers = true, rows }) => (
   <Box
     component={numbered ? "ol" : "ul"}
     data-testid="conversation-card-related-rows"
@@ -40,7 +42,7 @@ export const ConversationCardRelatedRows: React.FC<
           flexWrap: "wrap",
           gap: 0.75,
           py: 0.75,
-          borderTop: `1px solid ${theme.palette.divider}`,
+          borderTop: dividers ? `1px solid ${theme.palette.divider}` : "none",
           "&:first-of-type": { borderTop: "none" },
         })}
       >

@@ -1336,6 +1336,10 @@ export class ExecutionGrantService {
       nodeLaunchConfigurations: record.executionPlan.map(
         (entry) => (entry as Record<string, unknown>).launchConfiguration,
       ),
+      // Only when saved, so fingerprints of monitors without the setting are unchanged.
+      ...(record.coordinatorRuntime === undefined
+        ? {}
+        : { coordinatorRuntime: record.coordinatorRuntime }),
     };
 
     return {

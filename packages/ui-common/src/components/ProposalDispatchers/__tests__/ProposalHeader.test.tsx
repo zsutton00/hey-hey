@@ -1,3 +1,8 @@
+// Entering the module graph through InteractionComponent keeps
+// proposalHeaderType and LlmForms/Registry/FeatureListField from importing
+// each other mid-load (FeatureListField calls staticProposalTypePresentation
+// at module scope).
+import "../../InteractionComponent";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";

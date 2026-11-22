@@ -1,16 +1,15 @@
+import {
+  FakeConversationServer,
+  type FakeMessage,
+} from "../../../test/conversationGraphQL";
+import { TestGraphQLProvider } from "../../../test/TestGraphQLProvider";
+import { DataHooksProvider } from "../../../data/DataHooksProvider";
+import { resetConversationMessageHistoryStateForTests } from "../../../data/collections/conversationMessageHistoryState";
 import { useConversationMessages } from "../../../data/hooks/useConversationMessages";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { Provider, createStore } from "jotai";
 import React, { type ReactNode } from "react";
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type Mock,
-  type MockedFunction,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AgentSessionCurrentState,
@@ -21,16 +20,11 @@ import {
   WebSocketSubscriptionRequestEventTypesEnum,
   type ConversationResponseDto,
   type CreateUserMessage,
-  type MessageResponseDto,
   type WebSocketConversationUpdatedEvent,
   type WebSocketAgentSessionCurrentStateChangedEvent,
 } from "../../../api";
-import {
-  platformClient,
-  projectsClient,
-} from "../../../clients/serviceClients";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { messageKeys } from "../../../data/collections/messages";
+import { projectsClient } from "../../../clients/serviceClients";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { WebSocketHandler } from "../../../data/websockets/handler";
 import {
   AgentConversationView,
@@ -43,10 +37,6 @@ import { NO_RESPONSE_TARGET } from "../../Conversation/utils/conversationRespons
 
 vi.mock("../../../clients/serviceClients", () => ({
   projectsClient: { getQueuedConversationInputs: vi.fn() },
-  platformClient: {
-    getMessages: vi.fn(),
-    getMessage: vi.fn(),
-  },
 }));
 
 const useConversationRefetchSpy = vi.fn(async () => null);
@@ -192,40 +182,13 @@ vi.mock("../runtime/hooks/useCliRequired", () => ({
 }));
 
 const buildMessage = (
-  overrides: Partial<MessageResponseDto> = {},
-): MessageResponseDto =>
-  ({
-    id: "msg-1",
-    conversationId: "conv-1",
-    organizationId: "org-1",
-    projectId: "proj-1",
-    type: MessageType.System,
-    status: MessageStatus.Completed,
-    data: { text: "" },
-    createdAt: "2026-04-01T10:00:00.000Z",
-    updatedAt: "2026-04-01T10:00:00.000Z",
-    ...overrides,
-  }) as unknown as MessageResponseDto;
-
-const okMessagesResponse = (messages: MessageResponseDto[]) => ({
-  data: {
-    data: { messages, nextCursor: null },
-    success: true,
-    message: "ok",
-    timestamp: "now",
-  },
-  status: 200,
-  statusText: "OK",
-  headers: {},
-  config: {},
-});
-
-const okDeltaResponse = (messages: MessageResponseDto[]) => ({
-  data: { data: messages, success: true, message: "ok", timestamp: "now" },
-  status: 200,
-  statusText: "OK",
-  headers: {},
-  config: {},
+  overrides: Partial<FakeMessage> & { id: string },
+): FakeMessage => ({
+  type: MessageType.System,
+  status: MessageStatus.Completed,
+  data: { text: "" },
+  createdAt: "2026-04-01T10:00:00.000Z",
+  ...overrides,
 });
 
 const buildConversationEnvelope = (
@@ -243,10 +206,33 @@ const buildConversationEnvelope = (
     ...overrides,
   }) as unknown as ConversationResponseDto;
 
-/** Shared by every render and handler in a test, like the app's one client. */
-let queryClient: QueryClient;
+/** Serves the conversation thread over GraphQL, like the app's one client. */
+let server: FakeConversationServer;
 
 const onPostMessage = vi.fn(async (_message: CreateUserMessage) => {});
+
+const withProviders =
+  (store: ReturnType<typeof createStore>) =>
+  ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={server.queryClient}>
+      <TestGraphQLProvider client={server.graphql.apollo}>
+        <DataHooksProvider
+          queryClient={server.queryClient}
+          graphqlClient={server.graphql}
+        >
+          <Provider store={store}>{children}</Provider>
+        </DataHooksProvider>
+      </TestGraphQLProvider>
+    </QueryClientProvider>
+  );
+
+const newHandler = (store: ReturnType<typeof createStore>, logger?: never) =>
+  new WebSocketHandler(
+    store,
+    logger,
+    server.queryClient,
+    server.graphql.apollo,
+  );
 
 const renderView = (
   store: ReturnType<typeof createStore>,
@@ -264,13 +250,7 @@ const renderView = (
       onPostMessage={onPostMessage}
       {...props}
     />,
-    {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          <Provider store={store}>{children}</Provider>
-        </QueryClientProvider>
-      ),
-    },
+    { wrapper: withProviders(store) },
   );
 
 const newerMessageEvent = (
@@ -303,16 +283,13 @@ const currentStateEvent = (
 });
 
 describe("AgentConversationView messages-collection cutover", () => {
-  let getMessagesMock: MockedFunction<typeof platformClient.getMessages>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(projectsClient.getQueuedConversationInputs).mockResolvedValue({
       data: { data: [] },
     } as never);
-    queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    resetConversationMessageHistoryStateForTests();
+    server = new FakeConversationServer([]);
 
     useConversationRefetchSpy.mockClear();
     useConversationMarkStaleSpy.mockClear();
@@ -338,8 +315,6 @@ describe("AgentConversationView messages-collection cutover", () => {
       markStale: useConversationMarkStaleSpy,
       retryCount: 0,
     };
-
-    getMessagesMock = platformClient.getMessages as Mock;
   });
 
   it("clears sending on message.updated before any agent response or conversation.updated", async () => {
@@ -353,7 +328,7 @@ describe("AgentConversationView messages-collection cutover", () => {
     vi.mocked(projectsClient.getQueuedConversationInputs).mockResolvedValue({
       data: { data: [pending] },
     } as never);
-    getMessagesMock.mockResolvedValue(okMessagesResponse([pending]));
+    server.thread = [pending];
     const store = createStore();
     renderView(store);
     await screen.findByTestId("viewer-message-pending-input");
@@ -365,17 +340,15 @@ describe("AgentConversationView messages-collection cutover", () => {
     vi.mocked(projectsClient.getQueuedConversationInputs).mockResolvedValue({
       data: { data: [] },
     } as never);
-    vi.mocked(platformClient.getMessage).mockResolvedValue({
-      data: { data: started },
-    } as never);
-    getMessagesMock.mockResolvedValue(okMessagesResponse([started]));
+    server.thread = [started];
     const handler = new WebSocketHandler(
       store,
       {
         logEvent: vi.fn(),
         logQueryInvalidation: vi.fn(),
       },
-      queryClient,
+      server.queryClient,
+      server.graphql.apollo,
     );
     act(() =>
       handler.handleEvent({
@@ -383,7 +356,7 @@ describe("AgentConversationView messages-collection cutover", () => {
         timestamp: new Date().toISOString(),
         organizationId: "org-1",
         projectId: "proj-1",
-        conversationId: pending.conversationId,
+        conversationId: "conv-1",
         messageId: pending.id,
         changedFields: [],
       }),
@@ -400,8 +373,6 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("keys shared metadata placement off the hideComposer boundary", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store, {
       agentSessionMetadata: {
@@ -418,8 +389,6 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("places shared metadata below the conversation when the composer is hidden", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store, {
       hideComposer: true,
@@ -451,7 +420,7 @@ describe("AgentConversationView messages-collection cutover", () => {
         createdAt: "2026-04-01T10:05:00.000Z",
       }),
     ];
-    getMessagesMock.mockResolvedValue(okMessagesResponse(initial));
+    server.thread = initial;
 
     const store = createStore();
     renderView(store);
@@ -461,17 +430,7 @@ describe("AgentConversationView messages-collection cutover", () => {
       expect(screen.getByTestId("viewer-message-msg-2")).toBeInTheDocument();
     });
 
-    expect(getMessagesMock).toHaveBeenCalledTimes(1);
-    expect(getMessagesMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: "org-1",
-        projectId: "proj-1",
-        conversationId: "conv-1",
-        includeProposals: true,
-        includeReports: true,
-      }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+    expect(server.received("GetConversationMessageHistory")).toHaveLength(1);
   });
 
   it("shows cached Agent Session messages immediately and appends responses missed while unmounted", async () => {
@@ -479,57 +438,25 @@ describe("AgentConversationView messages-collection cutover", () => {
       buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
       buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
     ];
-    getMessagesMock.mockResolvedValueOnce(okMessagesResponse(cached));
+    server.thread = cached;
 
     const store = createStore();
     const firstMount = renderView(store);
 
     await screen.findByTestId("viewer-message-msg-2");
     firstMount.unmount();
-    // Let the departure settle (the list is marked stale once no view holds it).
+    // Let the departure settle.
     await act(async () => {});
 
-    let resolveRevalidation:
-      ((response: ReturnType<typeof okDeltaResponse>) => void) | undefined;
-    const revalidation = new Promise<ReturnType<typeof okDeltaResponse>>(
-      (resolve) => {
-        resolveRevalidation = resolve;
-      },
+    server.append(
+      buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
     );
-    getMessagesMock.mockReturnValueOnce(revalidation);
-
     renderView(store);
 
     // Cached content is synchronously available on the returning surface;
-    // the authoritative read remains pending in the background.
+    // the authoritative read runs in the background and appends the rest.
     expect(screen.getByTestId("viewer-message-msg-1")).toBeInTheDocument();
     expect(screen.getByTestId("viewer-message-msg-2")).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(getMessagesMock).toHaveBeenCalledTimes(2);
-    });
-    expect(getMessagesMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        organizationId: "org-1",
-        projectId: "proj-1",
-        conversationId: "conv-1",
-        since: "msg-1",
-      }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-
-    await act(async () => {
-      resolveRevalidation?.(
-        okDeltaResponse([
-          cached[1]!,
-          buildMessage({
-            id: "msg-3",
-            createdAt: "2026-04-01T10:10:00.000Z",
-          }),
-        ]),
-      );
-      await revalidation;
-    });
 
     await screen.findByTestId("viewer-message-msg-3");
     expect(screen.getAllByTestId("viewer-message-msg-2")).toHaveLength(1);
@@ -546,9 +473,7 @@ describe("AgentConversationView messages-collection cutover", () => {
       id: "first-agent-response",
       createdAt: "2026-04-01T10:00:00.000Z",
     });
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([launchMessage, firstAgentMessage]),
-    );
+    server.thread = [launchMessage, firstAgentMessage];
 
     const store = createStore();
     renderView(store);
@@ -571,9 +496,7 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("does not synthesize a launch USER message when none was persisted", async () => {
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([buildMessage({ id: "first-agent-response" })]),
-    );
+    server.thread = [buildMessage({ id: "first-agent-response" })];
 
     const store = createStore();
     renderView(store);
@@ -589,31 +512,23 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("scrolls only the bounded conversation scrollport after messages render", async () => {
-    let resolveMessages:
-      ((response: ReturnType<typeof okMessagesResponse>) => void) | undefined;
-    const messagesResponsePromise = new Promise<
-      ReturnType<typeof okMessagesResponse>
-    >((resolve) => {
-      resolveMessages = resolve;
-    });
-    getMessagesMock.mockReturnValue(messagesResponsePromise);
+    server.thread = [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+    ];
 
     const store = createStore();
     render(
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <div data-testid="page-scroll-container">
-            <AgentConversationView
-              organizationId="org-1"
-              projectId="proj-1"
-              agentSessionId="agent-session-1"
-              conversationId="conv-1"
-              onPostMessage={onPostMessage}
-              scrollable
-            />
-          </div>
-        </Provider>
-      </QueryClientProvider>,
+      <div data-testid="page-scroll-container">
+        <AgentConversationView
+          organizationId="org-1"
+          projectId="proj-1"
+          agentSessionId="agent-session-1"
+          conversationId="conv-1"
+          onPostMessage={onPostMessage}
+          scrollable
+        />
+      </div>,
+      { wrapper: withProviders(store) },
     );
 
     const ancestor = screen.getByTestId("page-scroll-container");
@@ -635,18 +550,6 @@ describe("AgentConversationView messages-collection cutover", () => {
 
     expect(scrollTo).not.toHaveBeenCalled();
 
-    await act(async () => {
-      resolveMessages?.(
-        okMessagesResponse([
-          buildMessage({
-            id: "msg-1",
-            createdAt: "2026-04-01T10:00:00.000Z",
-          }),
-        ]),
-      );
-      await messagesResponsePromise;
-    });
-
     await waitFor(() => {
       expect(scrollTo).toHaveBeenCalledWith({
         top: 1200,
@@ -658,14 +561,9 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("uses a supplied embedding scrollport as the only owner", async () => {
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([
-        buildMessage({
-          id: "msg-1",
-          createdAt: "2026-04-01T10:00:00.000Z",
-        }),
-      ]),
-    );
+    server.thread = [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+    ];
 
     const ownerRef = { current: null as HTMLElement | null };
     const scrollPolicy = {
@@ -674,27 +572,24 @@ describe("AgentConversationView messages-collection cutover", () => {
     } as const satisfies ConversationScrollPolicy;
     const store = createStore();
     render(
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <div data-testid="page-scroll-container">
-            <div
-              data-testid="embedding-scrollport"
-              ref={(element) => {
-                ownerRef.current = element;
-              }}
-            >
-              <AgentConversationView
-                organizationId="org-1"
-                projectId="proj-1"
-                agentSessionId="agent-session-1"
-                conversationId="conv-1"
-                onPostMessage={onPostMessage}
-                scrollPolicy={scrollPolicy}
-              />
-            </div>
-          </div>
-        </Provider>
-      </QueryClientProvider>,
+      <div data-testid="page-scroll-container">
+        <div
+          data-testid="embedding-scrollport"
+          ref={(element) => {
+            ownerRef.current = element;
+          }}
+        >
+          <AgentConversationView
+            organizationId="org-1"
+            projectId="proj-1"
+            agentSessionId="agent-session-1"
+            conversationId="conv-1"
+            onPostMessage={onPostMessage}
+            scrollPolicy={scrollPolicy}
+          />
+        </div>
+      </div>,
+      { wrapper: withProviders(store) },
     );
 
     const ancestor = screen.getByTestId("page-scroll-container");
@@ -720,29 +615,15 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("contains intrinsically wide inline content in embedded mode", async () => {
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([
-        buildMessage({
-          id: "wide-message",
-          createdAt: "2026-04-01T10:00:00.000Z",
-        }),
-      ]),
-    );
+    server.thread = [
+      buildMessage({
+        id: "wide-message",
+        createdAt: "2026-04-01T10:00:00.000Z",
+      }),
+    ];
 
     const store = createStore();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <AgentConversationView
-            organizationId="org-1"
-            projectId="proj-1"
-            agentSessionId="agent-session-1"
-            conversationId="conv-1"
-            onPostMessage={onPostMessage}
-          />
-        </Provider>
-      </QueryClientProvider>,
-    );
+    renderView(store);
 
     await screen.findByTestId("viewer-message-wide-message");
 
@@ -771,135 +652,90 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("appends a delta on conversation.updated without refetching the envelope", async () => {
-    const initial = [
+    server.thread = [
       buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
       buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
     ];
-    const delta = [
-      buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
-    ];
-    getMessagesMock
-      .mockResolvedValueOnce(okMessagesResponse(initial))
-      .mockResolvedValueOnce(okDeltaResponse(delta));
 
     const store = createStore();
     renderView(store);
 
-    await waitFor(() => {
-      expect(getMessagesMock).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId("viewer-message-msg-2")).toBeInTheDocument();
-    });
+    await screen.findByTestId("viewer-message-msg-2");
+    expect(server.received("GetConversationMessageHistory")).toHaveLength(1);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    server.append(
+      buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
+    );
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(newerMessageEvent("msg-3"));
     });
 
-    await waitFor(() => {
-      expect(getMessagesMock).toHaveBeenCalledTimes(2);
-    });
-    // Second call carries the boundary terminal message (one before the
-    // latest) as the `since` cursor, so a late edit to the most recent
-    // already-terminal message is pulled back in and re-merged.
-    expect(getMessagesMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        organizationId: "org-1",
-        projectId: "proj-1",
-        conversationId: "conv-1",
-        since: "msg-1",
-        includeProposals: true,
-        includeReports: true,
-      }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("viewer-message-msg-3")).toBeInTheDocument();
-    });
+    await screen.findByTestId("viewer-message-msg-3");
+    expect(server.received("GetConversationMessages")).toHaveLength(1);
+    expect(server.received("GetConversationMessageHistory")).toHaveLength(1);
+    expect(server.received("GetConversation")).toHaveLength(0);
 
     expect(useConversationRefetchSpy).not.toHaveBeenCalled();
     expect(useConversationMarkStaleSpy).not.toHaveBeenCalled();
   });
 
   it("shares a single delta fetch across two simultaneously mounted views", async () => {
-    const initial = [
+    server.thread = [
       buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
       buildMessage({ id: "msg-2", createdAt: "2026-04-01T10:05:00.000Z" }),
     ];
-    const delta = [
-      buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
-    ];
-    getMessagesMock
-      .mockResolvedValueOnce(okMessagesResponse(initial))
-      .mockResolvedValueOnce(okDeltaResponse(delta));
 
     const store = createStore();
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <Provider store={store}>
-          <AgentConversationView
-            organizationId="org-1"
-            projectId="proj-1"
-            agentSessionId="agent-session-a"
-            conversationId="conv-1"
-            onPostMessage={onPostMessage}
-          />
-          <AgentConversationView
-            organizationId="org-1"
-            projectId="proj-1"
-            agentSessionId="agent-session-b"
-            conversationId="conv-1"
-            onPostMessage={onPostMessage}
-          />
-        </Provider>
-      </QueryClientProvider>,
+      <>
+        <AgentConversationView
+          organizationId="org-1"
+          projectId="proj-1"
+          agentSessionId="agent-session-a"
+          conversationId="conv-1"
+          onPostMessage={onPostMessage}
+        />
+        <AgentConversationView
+          organizationId="org-1"
+          projectId="proj-1"
+          agentSessionId="agent-session-b"
+          conversationId="conv-1"
+          onPostMessage={onPostMessage}
+        />
+      </>,
+      { wrapper: withProviders(store) },
     );
 
-    // Both views read the same messages query; the collection dedupes the
-    // initial fetch into a single platformClient.getMessages call.
+    // Both views read the same thread; the initial read is shared.
     await waitFor(() => {
-      expect(getMessagesMock).toHaveBeenCalledTimes(1);
+      expect(screen.getAllByTestId("viewer-message-msg-2")).toHaveLength(2);
     });
-    await waitFor(() => {
-      expect(
-        screen.getAllByTestId("viewer-message-msg-2").length,
-      ).toBeGreaterThanOrEqual(2);
-    });
+    expect(server.received("GetConversationMessageHistory")).toHaveLength(1);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const deltasBefore = server.received("GetConversationMessages").length;
+    server.append(
+      buildMessage({ id: "msg-3", createdAt: "2026-04-01T10:10:00.000Z" }),
+    );
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(newerMessageEvent("msg-3"));
     });
 
-    // Single delta fetch services both mounted views.
-    await waitFor(() => {
-      expect(getMessagesMock).toHaveBeenCalledTimes(2);
-    });
-
-    // Cache is the shared source for both readers.
-    const cached = queryClient.getQueryData<{ id: string }[]>(
-      messageKeys.list("org-1", "proj-1", "conv-1"),
-    );
-    expect(cached?.map((message) => message.id)).toEqual([
-      "msg-1",
-      "msg-2",
-      "msg-3",
-    ]);
+    // Both views show the new message from one delta fetch.
     await waitFor(() => {
       expect(screen.getAllByTestId("viewer-message-msg-3")).toHaveLength(2);
     });
-    expect(getMessagesMock).toHaveBeenCalledTimes(2);
+    expect(server.received("GetConversationMessages")).toHaveLength(
+      deltasBefore + 1,
+    );
   });
 
   it("renders the reply composer by default", async () => {
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([
-        buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
-      ]),
-    );
+    server.thread = [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+    ];
 
     const store = createStore();
     renderView(store);
@@ -910,7 +746,6 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("replaces the reply editor with guidance for the bound machine", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
     cliResultRef.current = {
       type: "disconnected",
       machine: {
@@ -931,12 +766,10 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("renders the thinking indicator from the Agent Session current-state channel", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Thinking));
     });
@@ -959,12 +792,10 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("renders the starting indicator from the Agent Session current-state channel", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Starting));
     });
@@ -983,12 +814,10 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("renders the writing indicator from the Agent Session current-state channel", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(currentStateEvent(AgentSessionCurrentState.Writing));
     });
@@ -1011,12 +840,10 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("renders the awaiting approval indicator from the Agent Session current-state channel", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store);
 
-    const handler = new WebSocketHandler(store, undefined, queryClient);
+    const handler = newHandler(store);
     await act(async () => {
       handler.handleEvent(
         currentStateEvent(AgentSessionCurrentState.AwaitingApproval),
@@ -1055,12 +882,10 @@ describe("AgentConversationView messages-collection cutover", () => {
   ])(
     "renders the distinct $label label without a review control",
     async ({ currentState, label }) => {
-      getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
       const store = createStore();
       renderView(store);
 
-      const handler = new WebSocketHandler(store, undefined, queryClient);
+      const handler = newHandler(store);
       await act(async () => {
         handler.handleEvent(currentStateEvent(currentState));
       });
@@ -1085,8 +910,6 @@ describe("AgentConversationView messages-collection cutover", () => {
   );
 
   it("does not render a thinking indicator before any platform phase arrives", async () => {
-    getMessagesMock.mockResolvedValue(okMessagesResponse([]));
-
     const store = createStore();
     renderView(store);
 
@@ -1104,30 +927,11 @@ describe("AgentConversationView messages-collection cutover", () => {
   });
 
   it("hides the reply composer when hideComposer is set", async () => {
-    getMessagesMock.mockResolvedValue(
-      okMessagesResponse([
-        buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
-      ]),
-    );
+    server.thread = [
+      buildMessage({ id: "msg-1", createdAt: "2026-04-01T10:00:00.000Z" }),
+    ];
 
-    const store = createStore();
-    render(
-      <AgentConversationView
-        organizationId="org-1"
-        projectId="proj-1"
-        agentSessionId="agent-session-1"
-        conversationId="conv-1"
-        onPostMessage={onPostMessage}
-        hideComposer
-      />,
-      {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <QueryClientProvider client={queryClient}>
-            <Provider store={store}>{children}</Provider>
-          </QueryClientProvider>
-        ),
-      },
-    );
+    renderView(createStore(), { hideComposer: true });
 
     await waitFor(() => {
       expect(screen.getByTestId("conversation-viewer")).toBeInTheDocument();

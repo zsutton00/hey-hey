@@ -34,20 +34,8 @@ overrides:
   rollup: 4.60.4
 
 # Native builds run only where an owning package already allowed them.
-onlyBuiltDependencies:
-  - "@openapitools/openapi-generator-cli" # api, cli
-  - "@prisma/client" # api
-  - "@prisma/engines" # api
-  - "@swc/core" # ui, api
-  - "@temporalio/core-bridge" # api
-  - bcrypt # api
-  - esbuild # ui, ui-common, cli
-  - msw # ui, ui-common
-  - prisma # api
-  - protobufjs # api
-  - vue-demi # ui, ui-common
-
 allowBuilds:
+  '@apollo/protobufjs': false
   "@nestjs/core": false
   "@openapitools/openapi-generator-cli": true
   "@prisma/client": true

@@ -1,3 +1,7 @@
+import {
+  entityReadRoutesPlugin,
+  restrictedEntityReads,
+} from "../../scripts/eslint-ui-entity-reads.mjs";
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
@@ -24,11 +28,14 @@ export default tseslint.config(
       globals: globals.browser,
     },
     plugins: {
+      "ui-entity-reads": entityReadRoutesPlugin,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
       "unused-imports": unusedImports,
     },
     rules: {
+      "ui-entity-reads/no-rest-entity-read-url": "error",
+      "no-restricted-syntax": restrictedEntityReads,
       ...reactHooks.configs.recommended.rules,
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [
@@ -59,9 +66,14 @@ export default tseslint.config(
     },
   },
   {
+    // Fixtures adapt REST-shaped test data to GraphQL responses.
+    files: ["src/test/workItemGraphQLHandlers.ts"],
+    rules: { "no-restricted-syntax": "off" },
+  },
+  {
     files: ["src/api/**/*.ts"], // Generated API files
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
     },
-  }
+  },
 );

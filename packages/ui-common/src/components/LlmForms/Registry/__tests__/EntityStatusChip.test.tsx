@@ -1,8 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { workItemDetailQueryOptions } from "../../../../data/collections/workItemLists";
 import { workItemTypeByKeyQueryOptions } from "../../../../data/collections/workItemTypes";
+import { FakeWorkItemServer } from "../../../../test/workItemGraphQL";
 import { statusDefinition } from "../../../../test/statusDefinitionFixture";
 import { EntityStatusChip } from "../EntityStatusChip";
 
@@ -13,21 +12,17 @@ describe("EntityStatusChip", () => {
     { status: "Retired QA", label: "Retired QA" },
   ])(
     "displays the project's label or retained name for $status",
-    ({ status, label }) => {
-      const client = new QueryClient();
-      client.setQueryData(
-        workItemDetailQueryOptions("org", "", "item").queryKey,
-        {
-          id: "item",
-          organizationId: "org",
-          projectId: "project",
-          type: "STANDARD",
-          status,
-        },
-      );
-      client.setQueryData(
-        workItemTypeByKeyQueryOptions(client, "org", "project", "STANDARD")
-          .queryKey,
+    async ({ status, label }) => {
+      const server = new FakeWorkItemServer([
+        { id: "item", name: "Item", type: "STANDARD", status },
+      ]);
+      server.queryClient.setQueryData(
+        workItemTypeByKeyQueryOptions(
+          server.queryClient,
+          "org-1",
+          "project-1",
+          "STANDARD",
+        ).queryKey,
         {
           definition: statusDefinition([], {
             statuses: [
@@ -38,16 +33,16 @@ describe("EntityStatusChip", () => {
         },
       );
       render(
-        <QueryClientProvider client={client}>
-          <EntityStatusChip
-            entityId="item"
-            entityType="task"
-            organizationId="org"
-          />
-        </QueryClientProvider>,
+        <EntityStatusChip
+          entityId="item"
+          entityType="task"
+          organizationId="org-1"
+          projectId="project-1"
+        />,
+        { wrapper: server.wrapper },
       );
-      expect(screen.getByText(label)).toBeVisible();
-      client.clear();
+      expect(await screen.findByText(label)).toBeVisible();
+      server.queryClient.clear();
     },
   );
 });

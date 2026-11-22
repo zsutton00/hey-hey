@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { LaunchEvalRunRequest } from "../../api";
 import {
-  evalAttemptOutputQueryOptions,
   evalAttemptsQueryOptions,
   evalHumanReviewsQueryOptions,
   evalRunKeys,
@@ -27,6 +26,13 @@ import type {
 import type { MutationOptions } from "../core/useMutation";
 import { useMutation } from "../core/useMutation";
 import { invalidateWithFollowUpRead } from "../query/invalidateWithFollowUpRead";
+import {
+  GetConversationMessagesDocument,
+  type GetConversationMessagesQuery,
+} from "../../graphql/generated/graphql";
+import { toMessageResponse } from "../graphql/records";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
+import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 import { useDataLayerQuery } from "../query/useDataLayerQuery";
 
 const NOOP = "__noop__";
@@ -122,6 +128,11 @@ export interface UseEvalAttemptOutputReturn extends DataHookReturn<EvalAttemptOu
   hasRecordedConversation: boolean;
 }
 
+const selectAttemptOutput = (
+  data: GetConversationMessagesQuery,
+): EvalAttemptOutput =>
+  toEvalAttemptOutput(data.conversation.messages.nodes.map(toMessageResponse));
+
 /**
  * Everything one attempt produced: its target conversation's messages and the
  * proposals and reports made from them. Proposals carry their retained
@@ -134,30 +145,31 @@ export function useEvalAttemptOutput(
 ): UseEvalAttemptOutputReturn {
   const projectId = attempt?.projectId;
   const conversationId = attempt?.payload.targetConversationId ?? undefined;
-  const queryOptions = useMemo(
-    () => ({
-      ...evalAttemptOutputQueryOptions(
-        organizationId ?? NOOP,
-        projectId ?? NOOP,
-        conversationId ?? NOOP,
-      ),
-      select: toEvalAttemptOutput,
-    }),
-    [organizationId, projectId, conversationId],
+  const enabled =
+    options.enabled !== false &&
+    !!organizationId &&
+    !!projectId &&
+    !!conversationId;
+  const output = useGraphQLRead(
+    {
+      document: GetConversationMessagesDocument,
+      // A recent page can satisfy the selection in the cache, so read the
+      // whole thread from the server on mount.
+      fetchPolicy: "network-only",
+      variables: { id: conversationId ?? NOOP },
+      scope: {
+        organizationId: organizationId ?? NOOP,
+        projectId: projectId ?? NOOP,
+      },
+      select: selectAttemptOutput,
+    },
+    { ...options, enabled },
   );
-  const { result, state } = useDataLayerQuery(queryOptions, {
-    ...options,
-    enabled:
-      (options.enabled ?? true) &&
-      !!organizationId &&
-      !!projectId &&
-      !!conversationId,
-  });
-  return {
-    ...state,
-    data: result.data ?? null,
-    hasRecordedConversation: !!conversationId,
-  };
+  useWebsocketSubscriptions(
+    { conversationIds: conversationId ? [conversationId] : [] },
+    { enabled },
+  );
+  return { ...output, hasRecordedConversation: !!conversationId };
 }
 
 export interface LaunchEvalRunVariables {

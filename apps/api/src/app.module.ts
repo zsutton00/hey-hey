@@ -15,6 +15,9 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { ConversationGraphqlModule } from './graphql/conversations/conversation-graphql.module';
+import { WorkItemGraphqlModule } from './graphql/work-items/work-item-graphql.module';
+import { WebUiReadGraphqlModule } from './graphql/web-ui-read-graphql.module';
 import { OAuthModule } from './auth/oauth/oauth.module';
 import {
   ApiKeyThrottlerGuard,
@@ -234,6 +237,9 @@ import { isLocalApplication } from './deployment-environment';
     CoreModule,
     WebsocketsModule,
     AuthModule,
+    WebUiReadGraphqlModule,
+    ConversationGraphqlModule,
+    WorkItemGraphqlModule,
     AccountPasskeyModule,
     OAuthModule,
     OutboxPublisherModule,

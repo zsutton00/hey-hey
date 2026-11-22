@@ -76,6 +76,11 @@ export interface RunServiceScopeDeps {
 export class RunServiceScope {
   private readonly requests = new Map<string, ServiceScopeRequestEntry>();
   private readonly settledRequestIds = new Set<string>();
+  /**
+   * Requests restored from disk. The in-memory monitor marker did not survive the restart, so their
+   * owner is read from the Task Monitor machine instead of assumed.
+   */
+  private readonly restoredRequestIds = new Set<string>();
   private approvalWait: ApprovalWait | null = null;
   private automaticTaskMonitorScopeRequestId: string | null = null;
   private automaticTaskMonitorScopeAbortRequestId: string | null = null;
@@ -103,6 +108,7 @@ export class RunServiceScope {
         messageId: presentation.messageId,
         data: null,
       });
+      this.restoredRequestIds.add(presentation.request.id);
     }
     const persistedRequest = persistedPresentations[0]?.request;
     if (persistedRequest) {
@@ -211,6 +217,7 @@ export class RunServiceScope {
     data: SystemMessageData,
   ): void {
     this.settledRequestIds.delete(request.id);
+    this.restoredRequestIds.delete(request.id);
     this.requests.set(request.id, { request, messageId, data });
     this.deps.readStateChanged();
     const presentations: ServiceScopeRequestPresentation[] = [
@@ -233,6 +240,7 @@ export class RunServiceScope {
 
   public settleServiceScopeRequest(requestId: string): void {
     this.requests.delete(requestId);
+    this.restoredRequestIds.delete(requestId);
     this.settledRequestIds.add(requestId);
     this.deps.readStateChanged();
     const presentations = (this.deps.session().serviceScopeRequestPresentations ?? []).filter(
@@ -350,6 +358,29 @@ export class RunServiceScope {
       requestId,
       nextPhase,
     });
+    return true;
+  }
+
+  /** The Task Monitor owns a request until it hands it over; every other request is the person's. */
+  public serviceScopeDecisionOwner(requestId: string): 'monitor' | 'person' {
+    return this.automaticTaskMonitorScopeRequestId === requestId ? 'monitor' : 'person';
+  }
+
+  /** True for a request restored from disk, whose owner only the Task Monitor machine knows. */
+  public isRestoredServiceScopeRequest(requestId: string): boolean {
+    return this.restoredRequestIds.has(requestId);
+  }
+
+  /**
+   * Moves a request the Task Monitor was deciding to the person: the Run waits for approval
+   * instead of for the monitor. False when the request is no longer waiting on the monitor.
+   */
+  public handAutomaticRequestToHuman(requestId: string): boolean {
+    if (this.automaticTaskMonitorScopeRequestId !== requestId) {
+      return false;
+    }
+    this.automaticTaskMonitorScopeRequestId = null;
+    this.beginApprovalWait({ kind: 'service_scope', requestId });
     return true;
   }
 

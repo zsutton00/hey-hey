@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { transition } from 'xstate';
+import { createNoopMessagePoster } from './__tests__/helpers/test-run-registry';
+import { TaskMonitorInterventionProjectionEffectHandler } from '../agents/task-monitor/state-machine/intervention-effect-handlers';
 import type {
   WorkItemExecutionStateObservation,
   WorkItemExecutionStateObservationReceipt,
@@ -191,6 +193,7 @@ describe('committed Task Monitor state projection', () => {
 
     const projection = project(failed);
     expect(projection).toEqual({
+      outstandingPermissions: [],
       execution: {
         lifecycle: 'RUNNING',
         control: 'PAUSING',
@@ -283,6 +286,227 @@ describe('committed Task Monitor state projection', () => {
     expect(project(cases[2]!).execution).toMatchObject({
       control: 'RESUMING',
       intervention: 'PENDING',
+    });
+  });
+
+  describe('a request that waits on the user', () => {
+    const INTERVENTION_ID = '90000000-0000-4000-8000-000000000009';
+    const RUN_ID = '50000000-0000-4000-8000-000000000005';
+    const exactAction = {
+      type: 'EXACT_ACTION_REQUIRED' as const,
+      taskMonitorId: MONITOR_ID,
+      interventionId: INTERVENTION_ID,
+      providerActionId: 'provider-action-1',
+      providerSessionId: 'provider-session-1',
+      runId: RUN_ID,
+      agentSessionId: SESSION_ID,
+      action: 'exec',
+      target: 'pnpm deploy',
+      fingerprint: 'sha256:exact-action',
+      createdAt: '2026-08-07T00:00:00.000Z',
+      expiresAt: null,
+    };
+    const ESCALATION_REASON = 'The monitor could not tell whether deploying is part of this Task.';
+
+    const observing = () =>
+      resolve({ control: 'ACTIVE', work: 'OBSERVING_RUN', intervention: 'CLEAR' });
+
+    /** What a restarted CLI holds: the persisted snapshot decoded through the real store codec. */
+    const reconstructed = (state: ResolvedState) => {
+      const persisted = JSON.parse(JSON.stringify({ value: state.value, context: state.context }));
+      return {
+        state: taskMonitorStateStoreCodec.decodeState(persisted.value),
+        context: taskMonitorStateStoreCodec.decodeContext(persisted.context),
+      };
+    };
+
+    const projectReconstructed = (state: ResolvedState) =>
+      taskMonitorStateProjection({
+        identity: { machineType: 'TASK_MONITOR', instanceId: MONITOR_ID },
+        revision: 2,
+        ...reconstructed(state),
+      });
+
+    it('is not a pending judgment while the monitor is still deciding it', () => {
+      const [deciding] = transition(definition.machine, observing(), exactAction);
+
+      expect(project(deciding).execution.intervention).toBe('PENDING');
+      expect(project(deciding).pendingJudgment).toBeUndefined();
+      expect(projectReconstructed(deciding).pendingJudgment).toBeUndefined();
+    });
+
+    it('publishes the human handoff with its reason and how to answer, once the monitor escalates', async () => {
+      const [deciding] = transition(definition.machine, observing(), exactAction);
+      const [escalated, actions] = transition(definition.machine, deciding, {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: INTERVENTION_ID,
+        providerActionId: 'provider-action-1',
+        reason: ESCALATION_REASON,
+      });
+      const expected = {
+        interventionId: INTERVENTION_ID,
+        providerActionId: 'provider-action-1',
+        runId: RUN_ID,
+        agentSessionId: SESSION_ID,
+        action: 'exec',
+        target: 'pnpm deploy',
+        fingerprint: 'sha256:exact-action',
+        reason: ESCALATION_REASON,
+        answer: { command: 'HUMAN_DECISION', choices: ['APPROVE', 'DENY'] },
+      };
+
+      expect(project(deciding).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: false },
+      ]);
+      expect(project(escalated).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: true },
+      ]);
+      expect(project(escalated).execution.intervention).toBe('PENDING');
+      expect(project(escalated).pendingJudgment).toEqual(expected);
+      expect(project(escalated).failure).toBeUndefined();
+      const effect = actions
+        .flatMap((action) => definition.effectFromAction(action) ?? [])
+        .find((item) => item.type === 'PROJECT_TASK_MONITOR_INTERVENTION');
+      if (!effect) {
+        throw new Error('Expected the handoff to post the intervention');
+      }
+      const poster = createNoopMessagePoster();
+      vi.mocked(poster.createOutOfBand).mockRejectedValue(new Error('Conversation unavailable'));
+      const handler = new TaskMonitorInterventionProjectionEffectHandler(poster, NOOP_LOGGER);
+      const failed = await handler.execute(effect, {
+        machineType: 'TASK_MONITOR',
+        instanceId: MONITOR_ID,
+        effectId: 'post-card',
+      });
+      expect(failed.outcome.type).toBe('INTERVENTION_PROJECTION_FAILED');
+      const [postFailed] = transition(definition.machine, escalated, failed.outcome);
+      expect(projectReconstructed(postFailed).pendingJudgment).toEqual(expected);
+      expect(projectReconstructed(postFailed).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'HUMAN', answerable: true },
+      ]);
+    });
+
+    it('publishes a queued handoff as answerable while the monitor decides the front request', () => {
+      const [front] = transition(definition.machine, observing(), exactAction);
+      const second = {
+        ...exactAction,
+        interventionId: '90000000-0000-4000-8000-000000000007',
+        providerActionId: 'provider-action-2',
+      };
+      const [queued] = transition(definition.machine, front, second);
+      const [handedOver] = transition(definition.machine, queued, {
+        type: 'MONITOR_PERMISSION_ESCALATED',
+        taskMonitorId: MONITOR_ID,
+        interventionId: second.interventionId,
+        providerActionId: second.providerActionId,
+        reason: ESCALATION_REASON,
+      });
+      expect(projectReconstructed(handedOver).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'MONITOR', answerable: false },
+        { interventionId: second.interventionId, owner: 'HUMAN', answerable: true },
+      ]);
+    });
+
+    it('publishes both protected requests as immediately answerable after reconstruction', () => {
+      const [first] = transition(definition.machine, observing(), {
+        ...exactAction,
+        userRequired: true,
+      });
+      const second = {
+        ...exactAction,
+        interventionId: '90000000-0000-4000-8000-000000000007',
+        providerActionId: 'provider-action-2',
+        userRequired: true,
+      };
+      const [both] = transition(definition.machine, first, second);
+      expect(projectReconstructed(both).outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, owner: 'HUMAN', answerable: true },
+        {
+          interventionId: second.interventionId,
+          owner: 'HUMAN',
+          answerable: true,
+          reason: expect.stringContaining('USER_REQUIRED'),
+        },
+      ]);
+    });
+
+    it('keeps the human handoff answerable when a stopped monitor is restored', () => {
+      const [deciding] = transition(definition.machine, observing(), exactAction);
+      const [stopped] = transition(definition.machine, deciding, {
+        type: 'STOP',
+        taskMonitorId: MONITOR_ID,
+      });
+      const snapshot = projectReconstructed(stopped);
+      expect(snapshot.pendingJudgment).toMatchObject({ interventionId: INTERVENTION_ID });
+      expect(snapshot.outstandingPermissions).toMatchObject([
+        { interventionId: INTERVENTION_ID, answerable: true },
+      ]);
+    });
+
+    it('publishes a USER_REQUIRED request as the user’s from the start', () => {
+      const [handedOver] = transition(definition.machine, observing(), {
+        ...exactAction,
+        userRequired: true,
+      });
+
+      expect(projectReconstructed(handedOver).pendingJudgment).toMatchObject({
+        interventionId: INTERVENTION_ID,
+        reason: expect.stringContaining('USER_REQUIRED'),
+      });
+    });
+
+    it('treats a request persisted before the monitor decided requests as the user’s', () => {
+      const legacy = resolve(
+        { control: 'ACTIVE', work: 'OBSERVING_RUN', intervention: 'PENDING' },
+        {
+          pendingIntervention: {
+            interventionId: INTERVENTION_ID,
+            providerActionId: 'provider-action-1',
+            providerSessionId: 'provider-session-1',
+            runId: RUN_ID,
+            agentSessionId: SESSION_ID,
+            action: 'exec',
+            target: 'pnpm deploy',
+            fingerprint: 'sha256:exact-action',
+            createdAt: '2026-08-07T00:00:00.000Z',
+            expiresAt: null,
+            decision: null,
+            applicationFailure: null,
+          },
+        },
+      );
+
+      expect(projectReconstructed(legacy).pendingJudgment).toMatchObject({
+        interventionId: INTERVENTION_ID,
+        answer: { command: 'HUMAN_DECISION' },
+      });
+    });
+
+    it('stops publishing the judgment once the request is answered', () => {
+      const [pending] = transition(definition.machine, observing(), {
+        ...exactAction,
+        userRequired: true,
+      });
+      const [answered] = transition(definition.machine, pending, {
+        type: 'HUMAN_DECISION',
+        taskMonitorId: MONITOR_ID,
+        interventionId: INTERVENTION_ID,
+        providerActionId: 'provider-action-1',
+        runId: RUN_ID,
+        agentSessionId: SESSION_ID,
+        fingerprint: 'sha256:exact-action',
+        resolution: 'APPROVE',
+        providerDecision: 'approve',
+        decidedAt: '2026-08-07T00:01:00.000Z',
+        human: {
+          userId: '90000000-0000-4000-8000-0000000000aa',
+          authenticatedAt: '2026-08-07T00:00:30.000Z',
+        },
+      });
+
+      expect(project(answered).pendingJudgment).toBeUndefined();
+      expect(project(answered).outstandingPermissions).toEqual([]);
     });
   });
 
@@ -396,6 +620,7 @@ describe('committed Task Monitor state projection', () => {
         context: { ...context, executionPlan: [], selectedTaskId: null, cursor: null },
       }),
     ).toEqual({
+      outstandingPermissions: [],
       execution: { lifecycle: 'COMPLETED', control: null, work: null, intervention: null },
       availableActions: [],
     });

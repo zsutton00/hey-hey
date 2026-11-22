@@ -867,6 +867,61 @@ describe('ExecutionGrantService', () => {
     });
   });
 
+  it('covers the coordinator runtime in the policy fingerprint only when one is saved', async () => {
+    const { db, service } = harness();
+    const definition = {
+      executionPlan: [
+        {
+          taskId: 'd0000000-0000-4000-8000-00000000000d',
+          dependsOnTaskIds: [],
+          launchConfiguration: { provider: 'codex', model: 'gpt-5.6' },
+        },
+      ],
+      launchPolicy: { terminalSupervision: { mode: 'REQUIRE_REVIEW' } },
+    };
+    const snapshotOf = async (body: Record<string, unknown>) => {
+      db.task.findFirst.mockResolvedValue({
+        sections: [{ materializedMarkdown: JSON.stringify(body) }],
+      });
+      return (service as any).resolveTaskMonitorSnapshot(
+        db,
+        ids.organization,
+        ids.project,
+        ids.monitor,
+      );
+    };
+
+    const withoutRuntime = await snapshotOf(definition);
+    const withClaude = await snapshotOf({
+      ...definition,
+      coordinatorRuntime: {
+        provider: 'claude',
+        model: 'claude-sonnet-5-5',
+        reasoningEffort: 'medium',
+      },
+    });
+    const withCodex = await snapshotOf({
+      ...definition,
+      coordinatorRuntime: {
+        provider: 'codex',
+        model: 'gpt-5.6',
+        reasoningEffort: 'high',
+      },
+    });
+
+    expect(withClaude.policyFingerprint).not.toBe(
+      withoutRuntime.policyFingerprint,
+    );
+    expect(withCodex.policyFingerprint).not.toBe(withClaude.policyFingerprint);
+    // Selection is unaffected, and monitors without the setting keep their fingerprint.
+    expect(withClaude.selectionFingerprint).toBe(
+      withoutRuntime.selectionFingerprint,
+    );
+    expect((await snapshotOf(definition)).policyFingerprint).toBe(
+      withoutRuntime.policyFingerprint,
+    );
+  });
+
   it('keeps pause, stop, and halt independently available as reductions', async () => {
     const { db, service } = harness();
     db.executionGrant.updateMany.mockResolvedValue({ count: 1 });

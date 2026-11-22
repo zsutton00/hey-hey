@@ -84,3 +84,57 @@ Do not include fields not allowed by the selected action. The CLI validates the 
 
 Output may be one plain JSON object or one complete optional \`json\` fence. Emit no surrounding prose, extra fences, multiple JSON values, comments, repairs, fallback values, or unsupported fields.`;
 };
+
+/** Prompt for the one-request decision the monitor makes about its coding session's permission ask. */
+export const buildTaskMonitorPermissionPrompt = (
+  payload: TaskMonitorPromptPayload,
+  evidence: TaskMonitorCanonicalEvidence,
+): string => {
+  const request = payload.monitoredPermissionRequest;
+  if (!request) {
+    throw new Error('Task Monitor permission prompt requires the pending permission request.');
+  }
+  const trigger = {
+    monitorId: payload.monitorId,
+    cause: payload.cause,
+    correlationId: payload.correlationId,
+    ...(payload.coordinatorAttemptId ? { coordinatorAttemptId: payload.coordinatorAttemptId } : {}),
+    ...(payload.correction ? { correction: payload.correction } : {}),
+    permissionRequest: request,
+  };
+  return `You are the Task Monitor for one mission. The coding session you launched is paused on a request: either a provider permission for one exact action, or a request for access to additional project Services. You decide it: approve what the selected Task plainly needs, deny what it does not.
+
+## Pending request
+
+\`\`\`json
+${JSON.stringify(trigger, null, 2)}
+\`\`\`
+
+${
+  payload.correction
+    ? `## Correction required
+
+Your previous output failed validation. Correct trigger.correction.validationFailure and return one valid decision. This is correction attempt ${payload.correction.attempt} of 2.
+
+`
+    : ''
+}## Canonical evidence
+
+The selected Task, its topology, the monitor policy and guidance, and the selected session's service scope. Do not call tools to refresh it.
+
+\`\`\`json
+${JSON.stringify(evidence, null, 2)}
+\`\`\`
+
+## How to decide
+
+1. Judge the exact \`action\` and \`target\` against the selected Task's description, acceptance criteria and the monitor guidance. Do not approve by category: a write inside the Task's service scope that the work needs is different from a write elsewhere.
+2. \`APPROVE_PERMISSION\` only when the action and target are plainly required by the selected work and are safe to run unattended.
+3. \`DENY_PERMISSION\` when the work does not need the action or the target is outside what the Task justifies. The coding session receives your rationale as the reason.
+4. A request for additional Services is approved only when the selected Task's description or acceptance criteria require work in those Services and the reason given matches that work. Otherwise deny it, or escalate when the evidence does not settle it.
+5. \`ESCALATE_PERMISSION\` when you cannot judge it safely: the evidence is missing or ambiguous, the action could be destructive or irreversible, or it reaches beyond the Task. Put the reason a person needs to decide in \`rationale\`. Never guess to avoid escalating.
+
+## Output contract
+
+Return exactly one JSON object with \`action\` (one of \`APPROVE_PERMISSION\`, \`DENY_PERMISSION\`, \`ESCALATE_PERMISSION\`) and a non-empty \`rationale\` that names the action, the target and the deciding fact. No other fields and no other actions. Output may be one plain JSON object or one complete optional \`json\` fence, with no surrounding prose.`;
+};

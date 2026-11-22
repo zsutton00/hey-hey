@@ -43,8 +43,20 @@ export type WorkItemExecutionStateResult =
 export function useWorkItemExecutionState(
   workItemId: string,
 ): WorkItemExecutionStateResult {
-  const queryClient = useQueryClient();
   const { organizationId, projectId } = useRequiredProjectContext();
+  return useProjectWorkItemExecutionState(
+    organizationId,
+    projectId,
+    workItemId,
+  );
+}
+
+export function useProjectWorkItemExecutionState(
+  organizationId: string,
+  projectId: string,
+  workItemId: string,
+): WorkItemExecutionStateResult {
+  const queryClient = useQueryClient();
   const query = useQuery(
     workItemExecutionStateQueryOptions(
       queryClient,

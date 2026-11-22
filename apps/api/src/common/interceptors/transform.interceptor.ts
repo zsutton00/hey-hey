@@ -11,15 +11,21 @@ import { Reflector } from '@nestjs/core';
 import { SKIP_TRANSFORM_KEY } from '../decorators/skip-transform.decorator';
 
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
-{
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T>
+> {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T>> {
+    // GraphQL results are not wrapped in the REST envelope.
+    if (context.getType() !== 'http') {
+      return next.handle() as unknown as Observable<ApiResponse<T>>;
+    }
+
     const ctx = context.switchToHttp();
     const request = ctx.getRequest();
     const response = ctx.getResponse();

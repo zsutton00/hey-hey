@@ -1,3 +1,4 @@
+import type { ApolloClient } from "@apollo/client";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AgentSessionDto } from "../api";
 import {
@@ -6,9 +7,9 @@ import {
   writeAgentSession,
 } from "./collections/agentSessions";
 import {
-  invalidateConversation,
-  invalidateConversationLists,
-} from "./collections/conversations";
+  refreshConversation,
+  refreshConversationLists,
+} from "./graphql/conversationCache";
 import { invalidateWithFollowUpRead } from "./query/invalidateWithFollowUpRead";
 
 interface LaunchScope {
@@ -21,24 +22,21 @@ interface LaunchScope {
 /** Acceptance is launch evidence, not a fabricated lifecycle status. Refresh canonical reads. */
 export function reconcileAcceptedAgentLaunch(
   queryClient: QueryClient,
-  scope: LaunchScope
+  graphqlClient: ApolloClient,
+  scope: LaunchScope,
 ) {
   void invalidateAgentSessionDetail(
     queryClient,
     scope.organizationId,
     scope.projectId,
-    scope.agentSessionId
+    scope.agentSessionId,
   );
-  void invalidateConversation(queryClient, scope.conversationId);
-  void invalidateConversationLists(
-    queryClient,
-    scope.organizationId,
-    scope.projectId
-  );
+  void refreshConversation(graphqlClient, scope.conversationId);
+  void refreshConversationLists(graphqlClient);
   void invalidateWithFollowUpRead(queryClient, {
     queryKey: agentSessionKeys.paginatedLists(
       scope.organizationId,
-      scope.projectId
+      scope.projectId,
     ),
   });
 }
@@ -46,7 +44,12 @@ export function reconcileAcceptedAgentLaunch(
 export function reconcileAgentSessionMutation(
   queryClient: QueryClient,
   scope: { organizationId: string; projectId: string },
-  session: AgentSessionDto
+  session: AgentSessionDto,
 ) {
-  writeAgentSession(queryClient, scope.organizationId, scope.projectId, session);
+  writeAgentSession(
+    queryClient,
+    scope.organizationId,
+    scope.projectId,
+    session,
+  );
 }

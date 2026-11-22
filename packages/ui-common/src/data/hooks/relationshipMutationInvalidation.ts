@@ -1,4 +1,6 @@
-import { useMemo } from "react";
+import type { ApolloClient } from "@apollo/client";
+import { getApolloContext } from "@apollo/client/react";
+import { useContext, useMemo } from "react";
 import {
   useQueryClient,
   type InvalidateQueryFilters,
@@ -16,7 +18,14 @@ import {
   type InvalidationContext,
 } from "../relationships";
 import { createInitiativeInvalidator } from "../collections/initiatives";
-import { createWorkItemInvalidator } from "../collections/workItemLists";
+import {
+  createWorkItemInvalidator,
+  type WorkItemRefresh,
+} from "../collections/workItemLists";
+import {
+  refreshWorkItem,
+  refreshWorkItemLists,
+} from "../graphql/workItemCache";
 import { createDesignDocInvalidator } from "../collections/designDocs";
 import { createServiceInvalidator } from "../collections/services";
 import { logger } from "../../utils/logger";
@@ -41,8 +50,10 @@ interface RelationshipMutationInvalidationInput<
 export interface RelationshipMutationInvalidationDispatches {
   /** Invalidates a TanStack key prefix (services are on TanStack Query). */
   invalidateQueryKey: (queryKey: TanStackQueryKey) => void;
-  /** Invalidates TanStack queries matching a filter (work items). */
+  /** Invalidates TanStack queries matching a filter. */
   invalidateQueries: (filters: InvalidateQueryFilters) => void;
+  /** Refreshes the work-item reads the GraphQL cache serves. */
+  workItemRefresh: WorkItemRefresh;
   /** Central initiative invalidation also runs without relationship config. */
   invalidateInitiativeChange: (
     organizationId: string,
@@ -118,7 +129,7 @@ function createInvalidationContext(
     Task: createWorkItemInvalidator(
       organizationId,
       projectId,
-      dispatches.invalidateQueries,
+      dispatches.workItemRefresh,
       { listsInvalidated },
     ),
     DesignDoc: createDesignDocInvalidator(
@@ -213,8 +224,35 @@ export function createRelationshipMutationInvalidator(
   };
 }
 
+/** Work-item reads refreshed through the GraphQL client, when one is provided. */
+export function graphqlWorkItemRefresh(
+  client: ApolloClient | undefined,
+): WorkItemRefresh {
+  return {
+    lists: (organizationId, projectId) => {
+      if (client) {
+        void refreshWorkItemLists(
+          client,
+          projectId ? { organizationId, projectId } : undefined,
+        );
+      }
+    },
+    item: (organizationId, projectId, taskId) => {
+      if (client) {
+        void refreshWorkItem(
+          client,
+          taskId,
+          projectId ? { organizationId, projectId } : undefined,
+        );
+      }
+    },
+  };
+}
+
 export function useRelationshipMutationInvalidation(): RelationshipMutationInvalidator {
   const queryClient = useQueryClient();
+  // Hooks that only write other entities may run without a GraphQL provider.
+  const { client: graphqlClient } = useContext(getApolloContext());
 
   return useMemo(
     () =>
@@ -237,6 +275,7 @@ export function useRelationshipMutationInvalidation(): RelationshipMutationInval
         invalidateQueries: (filters) => {
           void invalidateWithFollowUpRead(queryClient, filters);
         },
+        workItemRefresh: graphqlWorkItemRefresh(graphqlClient),
         invalidateWorkItemChange: (organizationId, projectId, taskId) => {
           void invalidateProjectWorkItemQueries(
             queryClient,
@@ -246,6 +285,6 @@ export function useRelationshipMutationInvalidation(): RelationshipMutationInval
           );
         },
       }),
-    [queryClient],
+    [queryClient, graphqlClient],
   );
 }

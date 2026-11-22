@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { Provider } from "jotai";
 import { act, render, screen, waitFor } from "@testing-library/react";
@@ -19,7 +22,7 @@ vi.mock("../../../clients/serviceClients", () => ({
 const feature = (
   id: string,
   name: string,
-  parentTaskId?: string
+  parentTaskId?: string,
 ): TaskResponseDto => ({
   id,
   name,
@@ -46,7 +49,7 @@ const task: TaskResponseDto = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-    referencesResponse(features) as never
+    referencesResponse(features) as never,
   );
   vi.mocked(unifiedApiClient.getTask).mockResolvedValue({
     data: { data: task },
@@ -58,10 +61,10 @@ beforeEach(() => {
           data: params.taskIds
             ? features.filter((item) => params.taskIds?.includes(item.id))
             : [...features, task].filter(
-                (item) => item.parentTaskId === params.parentTaskId
+                (item) => item.parentTaskId === params.parentTaskId,
               ),
         },
-      } as never)
+      }) as never,
   );
 });
 
@@ -73,13 +76,13 @@ describe("TaskTreePicker cached feature levels", () => {
         ? (Promise.resolve({
             data: {
               data: features.filter((item) =>
-                params.taskIds?.includes(item.id)
+                params.taskIds?.includes(item.id),
               ),
             },
           }) as never)
         : (new Promise((_resolve, reject) => {
             rejectRead = reject;
-          }) as never)
+          }) as never),
     );
     const user = userEvent.setup();
     render(
@@ -90,14 +93,16 @@ describe("TaskTreePicker cached feature levels", () => {
           value={null}
           onChange={vi.fn()}
         />
-      </Provider>
+      </Provider>,
     );
     await user.click(screen.getByTestId("task-tree-picker-trigger"));
     await user.click(await screen.findByLabelText("Expand Root"));
     expect(await screen.findByText("Parent")).toBeVisible();
     expect(screen.getByRole("progressbar")).toBeVisible();
+    await waitFor(() => expect(rejectRead).toBeDefined());
     expect(unifiedApiClient.getTasks).toHaveBeenCalledWith(
-      expect.objectContaining({ parentTaskId: "root" })
+      expect.objectContaining({ parentTaskId: "root" }),
+      expect.anything(),
     );
     await act(async () => rejectRead(new Error("Unavailable")));
     expect(await screen.findByText("Failed to load")).toBeVisible();
@@ -116,21 +121,24 @@ describe("TaskTreePicker cached feature levels", () => {
           taskType="FEATURE"
           onChange={onChange}
         />
-      </Provider>
+      </Provider>,
     );
     await user.click(await screen.findByText("Leaf"));
     await waitFor(() => expect(screen.getAllByText("Leaf")).toHaveLength(2));
     expect(screen.getByText("Root")).toBeVisible();
     expect(screen.getByText("Parent")).toBeVisible();
     await user.click(screen.getByText("Parent"));
-    expect(onChange).toHaveBeenCalledWith("parent", features[1]);
+    expect(onChange).toHaveBeenCalledWith(
+      "parent",
+      expect.objectContaining(features[1]),
+    );
     expect(unifiedApiClient.getTask).not.toHaveBeenCalled();
     expect(
       vi
         .mocked(unifiedApiClient.getTasks)
         .mock.calls.every(
-          ([params]) => params.taskIds && params.parentTaskId === undefined
-        )
+          ([params]) => params.taskIds && params.parentTaskId === undefined,
+        ),
     ).toBe(true);
   });
 
@@ -144,24 +152,24 @@ describe("TaskTreePicker cached feature levels", () => {
           value="task"
           onChange={vi.fn()}
         />
-      </Provider>
+      </Provider>,
     );
     await user.click(await screen.findByText("Implementation"));
     expect(await screen.findByText("Root")).toBeVisible();
     expect(await screen.findByText("Parent")).toBeVisible();
     expect(await screen.findByText("Leaf")).toBeVisible();
     await waitFor(() =>
-      expect(screen.getAllByText("Implementation")).toHaveLength(2)
+      expect(screen.getAllByText("Implementation")).toHaveLength(2),
     );
     expect(
       vi
         .mocked(unifiedApiClient.getTask)
-        .mock.calls.every(([params]) => params.taskId === task.id)
+        .mock.calls.every(([params]) => params.taskId === task.id),
     ).toBe(true);
     expect(
       vi
         .mocked(unifiedApiClient.getTasks)
-        .mock.calls.every(([params]) => params.parentTaskId !== null)
+        .mock.calls.every(([params]) => params.parentTaskId !== null),
     ).toBe(true);
   });
 
@@ -176,7 +184,7 @@ describe("TaskTreePicker cached feature levels", () => {
           taskType="FEATURE"
           onChange={vi.fn()}
         />
-      </Provider>
+      </Provider>,
     );
     await user.click(screen.getByText("None"));
     await user.click(await screen.findByLabelText("Expand Root"));
@@ -186,7 +194,16 @@ describe("TaskTreePicker cached feature levels", () => {
     expect(
       vi
         .mocked(unifiedApiClient.getTasks)
-        .mock.calls.every(([params]) => params.taskIds)
+        .mock.calls.every(([params]) => params.taskIds),
     ).toBe(true);
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

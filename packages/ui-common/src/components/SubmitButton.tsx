@@ -7,6 +7,7 @@ import {
   type SxProps,
   type Theme,
 } from "@mui/material";
+import { BRANDED_TEAL, useBrandedAppearance } from "./BrandedFrame";
 
 type ArrayElement<T> = T extends ReadonlyArray<infer Element> ? Element : never;
 type SubmitButtonSxArrayElement = ArrayElement<SxProps<Theme>>;
@@ -25,6 +26,15 @@ const sharedSubmitButtonSx: SubmitButtonSxArrayElement = {
   },
 };
 
+// On the branded frame the primary action is a white fill with teal text.
+const brandedSubmitButtonSx: SubmitButtonSxArrayElement = {
+  backgroundColor: "#fff",
+  color: BRANDED_TEAL,
+  "&:hover": {
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+  },
+};
+
 const iconOnlySubmitButtonSx: SubmitButtonSxArrayElement = {
   width: 40,
   height: 40,
@@ -38,9 +48,8 @@ const labelledSubmitButtonSx: SubmitButtonSxArrayElement = {
   borderRadius: 1,
 };
 
-const isSxArray = (
-  sx: SxProps<Theme>,
-): sx is SubmitButtonSxArray => Array.isArray(sx);
+const isSxArray = (sx: SxProps<Theme>): sx is SubmitButtonSxArray =>
+  Array.isArray(sx);
 
 const normalizeSx = (sx: SxProps<Theme> | undefined): SubmitButtonSxArray => {
   if (!sx) {
@@ -63,10 +72,12 @@ export const SubmitButton = ({
   "aria-label": ariaLabel,
   ...iconButtonProps
 }: SubmitButtonProps) => {
+  const isBranded = useBrandedAppearance();
+  const brandedSx = isBranded ? [brandedSubmitButtonSx] : [];
   const content = loading ? (
     <CircularProgress size={16} color="inherit" />
   ) : (
-    children ?? <SendOutlinedIcon fontSize="small" />
+    (children ?? <SendOutlinedIcon fontSize="small" />)
   );
   const commonProps = {
     ...iconButtonProps,
@@ -84,6 +95,7 @@ export const SubmitButton = ({
         sx={[
           sharedSubmitButtonSx,
           labelledSubmitButtonSx,
+          ...brandedSx,
           ...normalizeSx(sx),
         ]}
       >
@@ -98,6 +110,7 @@ export const SubmitButton = ({
       sx={[
         sharedSubmitButtonSx,
         iconOnlySubmitButtonSx,
+        ...brandedSx,
         ...normalizeSx(sx),
       ]}
     >

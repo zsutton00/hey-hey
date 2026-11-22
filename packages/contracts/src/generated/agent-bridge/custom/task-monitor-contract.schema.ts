@@ -171,6 +171,48 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
         }
       }
     },
+    "coordinatorRuntime": {
+      "description": "Optional runtime the monitor's own coordinator runs on. Absent on monitors saved before this setting existed; the provider default applies then.\n",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex",
+            "opencode"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra",
+            "default"
+          ],
+          "description": "Omitted for models whose catalog entry offers no effort choices."
+        },
+        "fastMode": {
+          "type": "boolean",
+          "description": "Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections."
+        }
+      }
+    },
     "cursor": {
       "type": "integer",
       "minimum": 0
@@ -317,6 +359,69 @@ export const taskMonitorCoordinatorDecisionJsonSchema = {
           "maxLength": 5000
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Approve the pending provider permission request for the exact action and target.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "APPROVE_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Deny the pending provider permission request.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "DENY_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Hand the pending request to the human because the monitor cannot judge it safely; rationale is the reason shown to them.",
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "ESCALATE_PERMISSION"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   ],
   "discriminator": {
@@ -327,7 +432,10 @@ export const taskMonitorCoordinatorDecisionJsonSchema = {
       "ACCEPT_TASK": "#/components/schemas/LocalTaskMonitorAcceptTaskDecision",
       "WAIT": "#/components/schemas/LocalTaskMonitorWaitDecision",
       "REQUEST_JUDGMENT": "#/components/schemas/LocalTaskMonitorRequestJudgmentDecision",
-      "HALT": "#/components/schemas/LocalTaskMonitorHaltDecision"
+      "HALT": "#/components/schemas/LocalTaskMonitorHaltDecision",
+      "APPROVE_PERMISSION": "#/components/schemas/LocalTaskMonitorApprovePermissionDecision",
+      "DENY_PERMISSION": "#/components/schemas/LocalTaskMonitorDenyPermissionDecision",
+      "ESCALATE_PERMISSION": "#/components/schemas/LocalTaskMonitorEscalatePermissionDecision"
     }
   }
 } as const;

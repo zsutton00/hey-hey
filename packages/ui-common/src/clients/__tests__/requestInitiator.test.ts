@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBrowserApiRuntime } from "../createApiRuntime";
 import { REQUEST_INITIATOR_TRACKING_STORAGE_KEY } from "../../data/core/initiatorContext";
 import { initiatorRequestOptions } from "../../data/core/requestInitiator";
-import { createUnifiedApiClient } from "../serviceClients";
 import * as initiatorContext from "../../data/core/initiatorContext";
 
 function runtimeWithRequests() {
@@ -41,7 +40,7 @@ describe("request-local initiator options through generated clients", () => {
     const { runtime, requests } = runtimeWithRequests();
     window.localStorage.setItem(REQUEST_INITIATOR_TRACKING_STORAGE_KEY, "true");
     vi.spyOn(initiatorContext, "captureInitiator").mockReturnValue(
-      `Error\n at minified (${window.location.origin}/assets/direct.js:1:20)`
+      `Error\n at minified (${window.location.origin}/assets/direct.js:1:20)`,
     );
     vi.stubGlobal(
       "fetch",
@@ -52,11 +51,11 @@ describe("request-local initiator options through generated clients", () => {
             sources: ["../src/components/DirectView.tsx"],
             names: [],
             mappings: "AAAA",
-          })
-        )
-      )
+          }),
+        ),
+      ),
     );
-    await runtime.clients.conversations.getMessages(params);
+    await runtime.clients.projects.getQueuedConversationInputs(params);
     expect(requests[0].params._from).toBe("src/components/DirectView.tsx:1:1");
   });
 
@@ -66,11 +65,11 @@ describe("request-local initiator options through generated clients", () => {
       ...initiatorRequestOptions(trace("View")),
       params: { existing: "yes" },
     };
-    await runtime.clients.conversations.getMessages(params, options);
+    await runtime.clients.projects.getQueuedConversationInputs(params, options);
     window.localStorage.setItem(REQUEST_INITIATOR_TRACKING_STORAGE_KEY, "true");
-    await runtime.clients.conversations.getMessages(params, options);
+    await runtime.clients.projects.getQueuedConversationInputs(params, options);
     window.localStorage.removeItem(REQUEST_INITIATOR_TRACKING_STORAGE_KEY);
-    await runtime.clients.conversations.getMessages(params, options);
+    await runtime.clients.projects.getQueuedConversationInputs(params, options);
     expect(requests.map((request) => request.params)).toEqual([
       { existing: "yes" },
       { existing: "yes", _from: "src/components/View.tsx:270:7" },
@@ -86,8 +85,14 @@ describe("request-local initiator options through generated clients", () => {
     const read = async (name: string) => {
       const options = initiatorRequestOptions(trace(name));
       await Promise.resolve();
-      await runtime.clients.conversations.getMessages(params, options);
-      await runtime.clients.conversations.getMessages(params, options);
+      await runtime.clients.projects.getQueuedConversationInputs(
+        params,
+        options,
+      );
+      await runtime.clients.projects.getQueuedConversationInputs(
+        params,
+        options,
+      );
     };
     await Promise.all([read("First"), read("Second")]);
     expect(requests.map((request) => request.params._from)).toEqual([
@@ -96,27 +101,5 @@ describe("request-local initiator options through generated clients", () => {
       "src/components/First.tsx:270:7",
       "src/components/Second.tsx:270:7",
     ]);
-  });
-
-  it("forwards options through the custom task facade methods", async () => {
-    const { runtime, requests } = runtimeWithRequests();
-    window.localStorage.setItem(REQUEST_INITIATOR_TRACKING_STORAGE_KEY, "true");
-    const client = createUnifiedApiClient(runtime);
-    const options = initiatorRequestOptions(trace("TaskView"));
-    await client.getTask(
-      { organizationId: "org", projectId: "project", taskId: "task" },
-      options
-    );
-    await client.getTasks(
-      { organizationId: "org", projectId: "project" },
-      options
-    );
-    await client.getWorkItemGraph(
-      { organizationId: "org", projectId: "project", workItemId: "task" },
-      options
-    );
-    expect(requests.map((request) => request.params._from)).toEqual(
-      Array(3).fill("src/components/TaskView.tsx:270:7")
-    );
   });
 });

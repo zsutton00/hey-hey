@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { Provider } from "jotai";
 import { referencesResponse } from "../../Features/__tests__/featureTreeReferences";
@@ -189,7 +192,7 @@ const renderField = ({
       onValidityChange={onValidityChange}
       context={context}
       isSubmitted={isSubmitted}
-    />
+    />,
   );
   return { onChange, value, ...renderResult };
 };
@@ -206,12 +209,12 @@ describe("RepositoryPlacementReviewField", () => {
             name: item.name,
             tag: item.tag,
             parentTaskId: item.parentFeatureId,
-          }))
+          })),
         ),
         deepFeature,
         isolatedParent,
         isolatedFeature,
-      ]) as never
+      ]) as never,
     );
     vi.mocked(unifiedApiClient.getTasks).mockResolvedValue({
       data: {
@@ -223,7 +226,7 @@ describe("RepositoryPlacementReviewField", () => {
               name: item.name,
               tag: item.tag,
               parentTaskId: item.parentFeatureId,
-            }))
+            })),
           ),
           deepFeature,
           isolatedParent,
@@ -244,10 +247,10 @@ describe("RepositoryPlacementReviewField", () => {
     expect(within(roots[0]).getByText("Dashboard")).toBeInTheDocument();
     expect(within(roots[0]).getByText("Metrics API")).toBeInTheDocument();
     expect(
-      within(roots[0]).getByTestId("feature-list-children")
+      within(roots[0]).getByTestId("feature-list-children"),
     ).toBeInTheDocument();
     expect(
-      within(roots[0]).getAllByTestId("feature-list-child-card")
+      within(roots[0]).getAllByTestId("feature-list-child-card"),
     ).toHaveLength(2);
     expect(within(roots[1]).getByText("Platform")).toBeInTheDocument();
     expect(within(roots[1]).getByText("Operations")).toBeInTheDocument();
@@ -262,7 +265,7 @@ describe("RepositoryPlacementReviewField", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: "Parent for Insights choose Operations",
-      })
+      }),
     );
 
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -290,7 +293,7 @@ describe("RepositoryPlacementReviewField", () => {
         onChange={onChange}
         context={context}
         isSubmitted={false}
-      />
+      />,
     );
     const updatedRoot = screen
       .getAllByTestId("repository-placement-review-root")
@@ -306,7 +309,7 @@ describe("RepositoryPlacementReviewField", () => {
   it("supports Project root without changing sibling roots or proposed children", () => {
     const { onChange, value } = renderField();
     const projectRootButtons = screen.getAllByTestId(
-      "repository-placement-project-root"
+      "repository-placement-project-root",
     );
     fireEvent.click(projectRootButtons[0]);
 
@@ -337,7 +340,7 @@ describe("RepositoryPlacementReviewField", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: "Parent for Insights choose Support",
-      })
+      }),
     );
     const nextValue = onChange.mock.calls[0][0];
     rerender(
@@ -347,7 +350,7 @@ describe("RepositoryPlacementReviewField", () => {
         onChange={onChange}
         context={context}
         isSubmitted={false}
-      />
+      />,
     );
 
     const updatedRoot = screen
@@ -356,7 +359,7 @@ describe("RepositoryPlacementReviewField", () => {
     expect(updatedRoot).toBeDefined();
     await waitFor(() => {
       expect(
-        within(updatedRoot!).getByText("Customer Experience")
+        within(updatedRoot!).getByText("Customer Experience"),
       ).toBeInTheDocument();
     });
     expect(within(updatedRoot!).getByText("Support")).toBeInTheDocument();
@@ -366,7 +369,8 @@ describe("RepositoryPlacementReviewField", () => {
       expect.objectContaining({
         taskIds: [isolatedParent.id, isolatedFeature.id],
         includeSectionKeys: undefined,
-      })
+      }),
+      expect.anything(),
     );
   });
 
@@ -375,7 +379,7 @@ describe("RepositoryPlacementReviewField", () => {
     async (failure) => {
       if (failure === "request failure")
         vi.mocked(unifiedApiClient.getTasks).mockRejectedValue(
-          new Error("lineage unavailable")
+          new Error("lineage unavailable"),
         );
       else
         vi.mocked(unifiedApiClient.getTasks).mockResolvedValue({
@@ -389,7 +393,7 @@ describe("RepositoryPlacementReviewField", () => {
       fireEvent.click(
         screen.getByRole("button", {
           name: "Parent for Insights choose Support",
-        })
+        }),
       );
       rerender(
         <RepositoryPlacementReviewField
@@ -399,16 +403,16 @@ describe("RepositoryPlacementReviewField", () => {
           onValidityChange={onValidityChange}
           context={context}
           isSubmitted={false}
-        />
+        />,
       );
 
       await waitFor(() => {
         expect(onValidityChange).toHaveBeenLastCalledWith("invalid");
       });
       expect(
-        screen.getByText("Complete parent lineage is unavailable.")
+        screen.getByText("Complete parent lineage is unavailable."),
       ).toBeInTheDocument();
-    }
+    },
   );
 
   it("is read-only after submission and performs no work on attempted edits", () => {
@@ -417,16 +421,25 @@ describe("RepositoryPlacementReviewField", () => {
     expect(
       screen.getByRole("button", {
         name: "Parent for Insights choose Operations",
-      })
+      }),
     ).toBeDisabled();
     expect(
-      screen.getAllByTestId("repository-placement-project-root")[0]
+      screen.getAllByTestId("repository-placement-project-root")[0],
     ).toBeDisabled();
     fireEvent.click(
       screen.getByRole("button", {
         name: "Parent for Insights choose Operations",
-      })
+      }),
     );
     expect(onChange).not.toHaveBeenCalled();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

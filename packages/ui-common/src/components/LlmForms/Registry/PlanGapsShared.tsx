@@ -433,6 +433,7 @@ const PlanGapsAddedExistingListComponent: React.FC<
                   entityId={item.entityId}
                   entityType={item.entityType}
                   organizationId={organizationId}
+                  projectId={projectId}
                 />
                 <Chip label="Added" size="small" color="primary" />
               </Stack>

@@ -56,6 +56,7 @@ const mockUseWorkItem = vi.fn();
 vi.mock("@hey-hey/ui-common/data", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hey-hey/ui-common/data")>()),
   useWorkItem: (...args: unknown[]) => mockUseWorkItem(...args),
+  useEntityNames: () => ({ names: new Map<string, string>() }),
 }));
 vi.mock("../pages/Task/TaskPage", () => ({
   TaskPage: ({ taskId, preview }: { taskId: string; preview?: boolean }) => (

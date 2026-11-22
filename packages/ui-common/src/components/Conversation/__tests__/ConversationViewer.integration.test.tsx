@@ -3,9 +3,10 @@ import {
   fixtureMessages,
   flattenFixtureMessages,
 } from "../../../test/conversationFixtures";
-import { messageKeys } from "../../../data/collections/messages";
+import { http, HttpResponse } from "msw";
+import { conversationThreadHandlers } from "../../../test/conversationGraphQLHandlers";
+import type { FakeMessage } from "../../../test/conversationGraphQLAnswers";
 import { resetConversationMessageHistoryStateForTests } from "../../../data/collections/conversationMessageHistoryState";
-const canonicalMessageRead = vi.hoisted(() => vi.fn());
 const queuedInputsRead = vi.hoisted(() =>
   vi.fn(async () => ({ data: { data: [] } })),
 );
@@ -74,10 +75,6 @@ vi.mock("../../../clients/serviceClients", async (importOriginal) => {
     unifiedApiClient: {
       ...original.unifiedApiClient,
       getDesignDoc: readDesignDoc,
-    },
-    platformClient: {
-      ...original.platformClient,
-      getMessages: canonicalMessageRead,
     },
     projectsClient: {
       ...original.projectsClient,
@@ -183,7 +180,38 @@ vi.mock("../../../contexts/TrackingContext", () => ({
  * messages seeded by `withCanonicalMessages` are what the viewer reads.
  */
 let testQueryClient: QueryClient;
+/** The thread the GraphQL endpoint serves; tests change it between reads. */
+let servedThread: FakeMessage[];
+/** Message operations the endpoint has answered, with their variables. */
+let messageReads: Array<{
+  operationName: string;
+  variables: Record<string, unknown>;
+}>;
+const serveThread = (messages: MessageResponseDto[]) => {
+  servedThread = flattenFixtureMessages(messages);
+};
+/** What the viewer does when the tab becomes visible again. */
+const refreshThread = () =>
+  act(async () => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
 beforeEach(() => {
+  servedThread = [];
+  messageReads = [];
+  globalThis.mswServer.use(
+    http.post("*/graphql", async ({ request }) => {
+      const { operationName, variables = {} } = (await request
+        .clone()
+        .json()) as {
+        operationName: string;
+        variables?: Record<string, unknown>;
+      };
+      if (operationName.startsWith("GetConversationMessage")) {
+        messageReads.push({ operationName, variables });
+      }
+    }),
+    ...conversationThreadHandlers(() => servedThread),
+  );
   // Transient-failure retries still run (the Data Layer policy owns them),
   // without real backoff delays.
   testQueryClient = new QueryClient({
@@ -424,7 +452,7 @@ describe("ConversationViewer width containment", () => {
     expect(onGoalPmAction).toHaveBeenCalledTimes(1);
     expect(mockPostMessage).not.toHaveBeenCalled();
   });
-  it("renders no row or content for a response-bearing hidden SYSTEM message", () => {
+  it("renders no row or content for a response-bearing hidden SYSTEM message", async () => {
     const project = {
       id: "proj-hidden",
       name: "Test Project",
@@ -472,6 +500,11 @@ describe("ConversationViewer width containment", () => {
       />,
       { wrapper: createTestWrapper() },
     );
+    await screen.findByTestId("conversation-timeline");
+    await waitFor(() => expect(messageReads.length).toBeGreaterThan(0));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     expect(screen.queryByText("Starting...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("hidden-system")).not.toBeInTheDocument();
     expect(
@@ -621,8 +654,8 @@ describe("ConversationViewer explicit message associations", () => {
       screen.getByTestId("report-viewer-interactive-report-plan-interactive"),
     ).toBeInTheDocument();
   };
-  it("renders each report from the completed message once after a payload reload", () => {
-    const { rerender } = render(
+  it("renders each report from the completed message once after a payload reload", async () => {
+    const first = render(
       <ConversationViewer
         conversation={withCanonicalMessages(conversation)}
         project={project}
@@ -631,6 +664,7 @@ describe("ConversationViewer explicit message associations", () => {
       />,
       { wrapper: createTestWrapper() },
     );
+    await screen.findByTestId("final-message");
     expectRenderedAttachments();
     const reloadedConversation: ConversationResponseDto = conversationFixture(
       {
@@ -647,14 +681,17 @@ describe("ConversationViewer explicit message associations", () => {
         },
       ],
     );
-    rerender(
+    first.unmount();
+    render(
       <ConversationViewer
         conversation={withCanonicalMessages(reloadedConversation)}
         project={project}
         showNavigation={false}
         timelineAnimationMode="none"
       />,
+      { wrapper: createTestWrapper() },
     );
+    await screen.findByText("Completed response after reload.");
     expectRenderedAttachments();
     expect(screen.getByTestId("final-message")).toHaveTextContent(
       "Completed response after reload.",
@@ -1392,16 +1429,7 @@ describe.skip("ConversationViewer Integration Tests - Version Conflicts", () => 
 });
 
 function withCanonicalMessages(conversation: ConversationResponseDto) {
-  const messages = flattenFixtureMessages(fixtureMessages(conversation));
-  canonicalMessageRead.mockResolvedValue({ data: { data: { messages } } });
-  testQueryClient.setQueryData(
-    messageKeys.list(
-      conversation.organizationId,
-      conversation.projectId,
-      conversation.id,
-    ),
-    messages,
-  );
+  serveThread(fixtureMessages(conversation));
   return conversation;
 }
 
@@ -1480,6 +1508,7 @@ describe("current response target publication", () => {
       createdAt: "2026-09-28T00:01:00Z",
     };
     view.rerender(renderViewer([first, second]));
+    await refreshThread();
     await waitFor(() =>
       expect(onResponseTargetChange).toHaveBeenLastCalledWith(
         expect.objectContaining({ messageId: second.id }),
@@ -1497,6 +1526,7 @@ describe("current response target publication", () => {
       data: { reply: "Answered" },
     };
     view.rerender(renderViewer([first, { ...second, responses: [answer] }]));
+    await refreshThread();
     await waitFor(() =>
       expect(onResponseTargetChange).toHaveBeenLastCalledWith(
         { ownership: "none" },
@@ -1537,29 +1567,56 @@ describe("canonical Message lifecycle", () => {
     organizationId: metadata.organizationId,
     name: "Lifecycle",
   } as ProjectResponseDto;
+  const agentMessage = (
+    id: string,
+    conversationId: string,
+    createdAt: string,
+    data: Record<string, unknown>,
+  ): FakeMessage => ({
+    id,
+    projectId: project.id,
+    conversationId,
+    type: "SYSTEM",
+    status: "completed",
+    createdAt,
+    awaitingResponse: false,
+    data: { type: "AGENT", ...data },
+  });
+  /** A thread of nine messages: the newest page of eight leaves `older` behind. */
+  const pagedThread = (
+    conversationId: string,
+    older: string,
+    recent: string,
+  ): FakeMessage[] => [
+    agentMessage(older, conversationId, "2026-09-01T00:00:00Z", {
+      response: "Older response",
+    }),
+    ...Array.from({ length: 7 }, (_, index) =>
+      agentMessage(
+        `${recent}-filler-${index}`,
+        conversationId,
+        `2026-09-01T00:0${index + 1}:00Z`,
+        { response: `Filler ${index}` },
+      ),
+    ),
+    agentMessage(recent, conversationId, "2026-09-02T00:00:00Z", {
+      response: "Recent response",
+    }),
+  ];
+  const timelineIds = () =>
+    Array.from(
+      screen
+        .getByTestId("conversation-timeline")
+        .querySelectorAll("[data-message-id]"),
+    ).map((element) => element.getAttribute("data-message-id"));
+
   it("renders read-only content from the Message endpoint with no embedded field", async () => {
-    canonicalMessageRead.mockResolvedValue({
-      data: {
-        data: {
-          messages: [
-            {
-              id: "canonical-read-only",
-              projectId: project.id,
-              conversationId: metadata.id,
-              type: "SYSTEM",
-              status: "completed",
-              createdAt: metadata.createdAt,
-              awaitingResponse: false,
-              data: {
-                type: "AGENT",
-                response: "Canonical read-only response",
-                title: "Canonical step",
-              },
-            },
-          ],
-        },
-      },
-    });
+    servedThread = [
+      agentMessage("canonical-read-only", metadata.id, metadata.createdAt, {
+        response: "Canonical read-only response",
+        title: "Canonical step",
+      }),
+    ];
     render(
       <ConversationViewer
         conversation={metadata}
@@ -1578,14 +1635,9 @@ describe("canonical Message lifecycle", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Canonical step")).toBeInTheDocument();
-    expect(canonicalMessageRead).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conversationId: metadata.id,
-        includeProposals: true,
-        includeReports: true,
-      }),
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+    expect(
+      messageReads.some(({ variables }) => variables.id === metadata.id),
+    ).toBe(true);
     expect(
       screen.queryByLabelText("Retry last message"),
     ).not.toBeInTheDocument();
@@ -1599,30 +1651,18 @@ describe("canonical Message lifecycle", () => {
     "renders one persistent terminal explanation after reload: %s",
     async (response) => {
       const conversation = { ...metadata, id: "terminal-failure-read" };
-      canonicalMessageRead.mockResolvedValue({
-        data: {
-          data: {
-            messages: [
-              {
-                id: "terminal-explanation",
-                projectId: project.id,
-                conversationId: conversation.id,
-                type: "SYSTEM",
-                status: "completed",
-                parentMessageId: null,
-                createdAt: metadata.createdAt,
-                awaitingResponse: false,
-                data: {
-                  type: "AGENT",
-                  response,
-                  detectedIntent: "agent_response",
-                  intentConfidence: 1,
-                },
-              },
-            ],
+      servedThread = [
+        agentMessage(
+          "terminal-explanation",
+          conversation.id,
+          metadata.createdAt,
+          {
+            response,
+            detectedIntent: "agent_response",
+            intentConfidence: 1,
           },
-        },
-      });
+        ),
+      ];
       const viewer = () =>
         render(
           <ConversationViewer
@@ -1638,17 +1678,17 @@ describe("canonical Message lifecycle", () => {
       const first = viewer();
       await screen.findByText(response);
       expect(screen.getAllByText(response)).toHaveLength(1);
+      const readsBeforeReload = messageReads.length;
       first.unmount();
       testQueryClient.clear();
       viewer();
       await screen.findByText(response);
       expect(screen.getAllByText(response)).toHaveLength(1);
-      expect(canonicalMessageRead.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(messageReads.length).toBeGreaterThan(readsBeforeReload);
     },
   );
 
   it("keeps a preview outside persisted reads", async () => {
-    canonicalMessageRead.mockClear();
     render(
       <ConversationViewer
         preview={{
@@ -1661,10 +1701,17 @@ describe("canonical Message lifecycle", () => {
     );
     expect(screen.getByText("Starting a new session")).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 80));
-    expect(canonicalMessageRead).not.toHaveBeenCalled();
+    expect(messageReads).toEqual([]);
   });
   it("presents failed Message reads explicitly", async () => {
-    canonicalMessageRead.mockRejectedValue(new Error("Messages unavailable"));
+    globalThis.mswServer.use(
+      http.post("*/graphql", () =>
+        HttpResponse.json(
+          { errors: [{ message: "Messages unavailable" }] },
+          { status: 200 },
+        ),
+      ),
+    );
     render(
       <ConversationViewer
         conversation={{ ...metadata, id: "failed-message-read" }}
@@ -1682,9 +1729,7 @@ describe("canonical Message lifecycle", () => {
     );
   });
   it("renders an empty timeline without a placeholder for empty Message reads", async () => {
-    canonicalMessageRead.mockResolvedValue({
-      data: { data: { messages: [] } },
-    });
+    servedThread = [];
     render(
       <ConversationViewer
         conversation={{ ...metadata, id: "empty-message-read" }}
@@ -1703,36 +1748,7 @@ describe("canonical Message lifecycle", () => {
 
   it("prepends older history into the same rendered timeline", async () => {
     const conversation = { ...metadata, id: "paged-message-read" };
-    const message = (id: string, response: string, createdAt: string) => ({
-      id,
-      projectId: project.id,
-      conversationId: conversation.id,
-      type: "SYSTEM" as const,
-      status: "completed",
-      createdAt,
-      awaitingResponse: false,
-      data: { type: "AGENT", response },
-    });
-    canonicalMessageRead
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            messages: [
-              message("recent", "Recent response", "2026-09-02T00:00:00Z"),
-            ],
-            nextCursor: "older-page",
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            messages: [
-              message("older", "Older response", "2026-09-01T00:00:00Z"),
-            ],
-          },
-        },
-      });
+    servedThread = pagedThread(conversation.id, "older", "recent");
     const user = userEvent.setup();
 
     render(
@@ -1747,53 +1763,23 @@ describe("canonical Message lifecycle", () => {
       { wrapper: createTestWrapper() },
     );
     await screen.findByTestId("recent");
+    expect(timelineIds()).not.toContain("older");
     await user.click(screen.getByTestId("show-older-messages-button"));
 
     await screen.findByTestId("older");
-    const timelineMessageIds = Array.from(
-      screen
-        .getByTestId("conversation-timeline")
-        .querySelectorAll("[data-message-id]"),
-    ).map((element) => element.getAttribute("data-message-id"));
-    expect(timelineMessageIds).toEqual(["older", "recent"]);
+    const ids = timelineIds();
+    expect(ids[0]).toBe("older");
+    expect(ids.at(-1)).toBe("recent");
+    expect(ids).toHaveLength(9);
   });
 
   it("prepends history without repeating reveal or overriding native anchoring", async () => {
     const conversation = { ...metadata, id: "anchored-paged-message-read" };
-    const message = (id: string, response: string, createdAt: string) => ({
-      id,
-      projectId: project.id,
-      conversationId: conversation.id,
-      type: "SYSTEM" as const,
-      status: "completed",
-      createdAt,
-      awaitingResponse: false,
-      data: { type: "AGENT", response },
-    });
-    canonicalMessageRead
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            messages: [
-              message(
-                "anchor-recent",
-                "Recent response",
-                "2026-09-02T00:00:00Z",
-              ),
-            ],
-            nextCursor: "older-page",
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            messages: [
-              message("anchor-older", "Older response", "2026-09-01T00:00:00Z"),
-            ],
-          },
-        },
-      });
+    servedThread = pagedThread(
+      conversation.id,
+      "anchor-older",
+      "anchor-recent",
+    );
     const ownerRef: { current: HTMLElement | null } = { current: null };
     const ownerScrollTo = vi.fn(({ top }: ScrollToOptions) => {
       if (ownerRef.current && typeof top === "number") {
@@ -1847,27 +1833,28 @@ describe("canonical Message lifecycle", () => {
 
   it("keeps recent history visible when loading an older page fails", async () => {
     const conversation = { ...metadata, id: "failed-older-page" };
-    canonicalMessageRead
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            messages: [
-              {
-                id: "recent-after-failure",
-                projectId: project.id,
-                conversationId: conversation.id,
-                type: "SYSTEM",
-                status: "completed",
-                createdAt: "2026-09-02T00:00:00Z",
-                awaitingResponse: false,
-                data: { type: "AGENT", response: "Still visible" },
-              },
-            ],
-            nextCursor: "older-page",
-          },
-        },
-      })
-      .mockRejectedValueOnce(new Error("older history unavailable"));
+    servedThread = pagedThread(
+      conversation.id,
+      "older-after-failure",
+      "recent-after-failure",
+    );
+    globalThis.mswServer.use(
+      http.post("*/graphql", async ({ request }) => {
+        const { operationName, variables } = (await request.clone().json()) as {
+          operationName: string;
+          variables?: { before?: string };
+        };
+        if (
+          operationName === "GetConversationMessageHistory" &&
+          variables?.before
+        ) {
+          return HttpResponse.json(
+            { errors: [{ message: "older history unavailable" }] },
+            { status: 500 },
+          );
+        }
+      }),
+    );
     const user = userEvent.setup();
 
     render(
@@ -2024,13 +2011,6 @@ describe("inline approval through production viewer wiring", () => {
       const ownerRef: { current: HTMLDivElement | null } = { current: null };
       const accepted = vi.fn();
       const seededConversation = withCanonicalMessages(conversation);
-      canonicalMessageRead.mockResolvedValue({
-        data: {
-          data: {
-            messages: flattenFixtureMessages(fixtureMessages(conversation)),
-          },
-        },
-      });
       const { unmount } = renderApprovalViewer(
         seededConversation,
         project,

@@ -112,20 +112,26 @@ vi.mock("../../Entity/adapters", () => ({
   },
 }));
 
-vi.mock("../../LlmForms/Registry/InterstitialField", () => ({
-  InterstitialThought: (props: { thought: string }) => {
-    mocks.interstitialThought(props);
-    return <div data-testid="interstitial-thought">{props.thought}</div>;
-  },
-  isInterstitialMessageData: (messageData: {
-    uiElements?: { type: string }[];
-  }) =>
-    messageData.uiElements?.some(
-      (element) => element.type === "interstitial",
-    ) === true,
-  splitInterstitialThoughts: (body: string) =>
-    mocks.splitInterstitialThoughts(body),
-}));
+vi.mock(
+  "../../LlmForms/Registry/InterstitialField",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../LlmForms/Registry/InterstitialField")
+    >()),
+    InterstitialThought: (props: { thought: string }) => {
+      mocks.interstitialThought(props);
+      return <div data-testid="interstitial-thought">{props.thought}</div>;
+    },
+    isInterstitialMessageData: (messageData: {
+      uiElements?: { type: string }[];
+    }) =>
+      messageData.uiElements?.some(
+        (element) => element.type === "interstitial",
+      ) === true,
+    splitInterstitialThoughts: (body: string) =>
+      mocks.splitInterstitialThoughts(body),
+  }),
+);
 
 vi.mock("../../shared/MarkdownRenderer", () => ({
   MarkdownRenderer: (props: { children: string }) => (

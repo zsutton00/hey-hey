@@ -3,7 +3,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { createHeyTheme } from "../../../contexts/ThemeContext";
-import { conversationKeys } from "../../../data/collections/conversations";
+import { http, HttpResponse } from "msw";
+import { useConversation } from "../../../data/hooks/useConversation";
+import { conversationNode } from "../../../test/conversationGraphQLAnswers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VerifyFeatureElement } from "../../../api";
 import type { ConversationResponseDto } from "../../../api";
@@ -165,6 +167,36 @@ function ConversationDecisions({
 
 const queryClient = new QueryClient();
 
+/** A view of the source conversation, standing in for the page the user returns to. */
+function SourceConversationView() {
+  useConversation("org", "project", { conversationId: "source-conversation" });
+  return null;
+}
+
+/** Serves the source conversation and counts how often it is read. */
+const serveSourceConversation = () => {
+  const reads = { count: 0 };
+  globalThis.mswServer.use(
+    http.post("*/graphql", async ({ request }) => {
+      const { operationName } = (await request.clone().json()) as {
+        operationName: string;
+      };
+      if (operationName !== "GetConversation") {
+        return;
+      }
+      reads.count += 1;
+
+      return HttpResponse.json({
+        data: {
+          conversation: { ...conversationNode, id: "source-conversation" },
+        },
+      });
+    }),
+  );
+
+  return reads;
+};
+
 const renderSuggestion = (
   messageId = "message-1",
   conversation: ConversationResponseDto = loadedConversation([]),
@@ -173,6 +205,7 @@ const renderSuggestion = (
     <ThemeProvider theme={createHeyTheme("light")}>
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
+          <SourceConversationView />
           <ConversationDecisions conversation={conversation}>
             <VerificationRuntimeContext.Provider
               value={{
@@ -241,7 +274,6 @@ const loadedConversation = (decisions: unknown[]): ConversationResponseDto =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
   mocks.mutate.mockResolvedValue(startedDecision);
 });
 
@@ -305,7 +337,9 @@ describe("Verify Feature remembers that it was started", () => {
       ...startedDecision,
       metadata: { kind: "VERIFY_FEATURE", agentSessionId: "created-session" },
     });
+    const sourceReads = serveSourceConversation();
     renderSuggestion();
+    await waitFor(() => expect(sourceReads.count).toBe(1));
 
     launchAndSubmit();
 
@@ -328,13 +362,7 @@ describe("Verify Feature remembers that it was started", () => {
     expect(mocks.launch).toHaveBeenCalledTimes(1);
     // The launch navigates away, so the cached conversation must be refreshed
     // for the started state to show on return.
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: conversationKeys.conversation(
-        "org",
-        "project",
-        "source-conversation",
-      ),
-    });
+    await waitFor(() => expect(sourceReads.count).toBe(2));
     expect(
       screen.queryByTestId("verify-feature-save-failed"),
     ).not.toBeInTheDocument();

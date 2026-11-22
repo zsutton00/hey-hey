@@ -21,9 +21,10 @@ import {
   type TaskMonitorCanonicalEvidence,
 } from './task-monitor-evidence';
 import { parseTaskMonitorCoordinationLocalState } from './task-monitor-coordination';
-import { buildTaskMonitorPrompt } from './task-monitor-prompt';
+import { buildTaskMonitorPermissionPrompt, buildTaskMonitorPrompt } from './task-monitor-prompt';
 import { buildTaskMonitorConversationPrompt } from './task-monitor-conversation-prompt';
 import { parseTaskMonitorDecision } from './task-monitor-response';
+import { decisionActionAllowedForCause } from './task-monitor-permission-decision';
 
 type TaskMonitorDecisionPromptInput = TaskMonitorPromptPayload & {
   _canonicalEvidence?: TaskMonitorCanonicalEvidence;
@@ -130,10 +131,14 @@ export const taskMonitorHandler: PromptTypeHandler<TaskMonitorPromptInput> = {
     ) {
       throw new Error('Task Monitor coordination judgment requires an active Agent Session.');
     }
+    if (payload.cause === 'PERMISSION_REQUEST' && !payload.monitoredPermissionRequest) {
+      throw new Error('Task Monitor permission decision requires the pending permission request.');
+    }
     if (
       payload.cause === 'RESUME' ||
       payload.cause === 'START' ||
       payload.cause === 'CONTINUE' ||
+      payload.cause === 'PERMISSION_REQUEST' ||
       payload.cause === 'JUDGMENT_RESOLVED'
     ) {
       deps.taskMonitorDecisionStore.bind(
@@ -205,6 +210,9 @@ export const taskMonitorHandler: PromptTypeHandler<TaskMonitorPromptInput> = {
         'Task Monitor coordinator prompt requires freshly loaded canonical evidence.',
       );
     }
+    if (trigger.cause === 'PERMISSION_REQUEST') {
+      return buildTaskMonitorPermissionPrompt(trigger, evidence);
+    }
     return buildTaskMonitorPrompt(trigger, evidence);
   },
 
@@ -215,7 +223,21 @@ export const taskMonitorHandler: PromptTypeHandler<TaskMonitorPromptInput> = {
   validateCompletion(event: AssistantCompleteEvent, payload): CompletionValidationResult {
     if (isConversationInput(payload as TaskMonitorPromptInput)) return { ok: true };
     const result = parseTaskMonitorDecision(event.summary);
-    return result.ok ? { ok: true } : { ok: false, error: result.error };
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+    const cause = (payload as TaskMonitorDecisionPromptInput | undefined)?.cause;
+    if (cause !== undefined && !decisionActionAllowedForCause(cause, result.value.action)) {
+      return {
+        ok: false,
+        error: {
+          code: 'SCHEMA_VALIDATION_FAILED',
+          message: `Action ${result.value.action} is not allowed for a ${cause} trigger.`,
+          issues: [`/action is not allowed for ${cause}`],
+        },
+      };
+    }
+    return { ok: true };
   },
 
   transformCompletionOutput(event: AssistantCompleteEvent, payload) {

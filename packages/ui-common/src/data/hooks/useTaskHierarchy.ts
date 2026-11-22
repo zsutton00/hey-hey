@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import type { TaskHierarchyResponseDto, TaskResponseDto } from "../../api";
 import type { WorkItemResponseDto } from "../collections/workItems";
-import { workItemHierarchyQueryOptions } from "../collections/workItemLists";
+import { workItemHierarchyRead } from "../collections/workItemLists";
 import type { CollectionHookOptions, DataHookReturn } from "../core/types";
-import { useDataLayerQuery } from "../query/useDataLayerQuery";
+import { useGraphQLRead } from "../graphql/useGraphQLRead";
 import { useWebsocketSubscriptions } from "./useWebsocketSubscriptions";
 
 export type UseTaskHierarchyOptions =
@@ -13,8 +13,10 @@ export type UseTaskHierarchyOptions =
     includeAgentSessionCounts?: boolean;
   };
 
-export interface UseTaskHierarchyReturn
-  extends Omit<DataHookReturn<TaskHierarchyResponseDto>, "data"> {
+export interface UseTaskHierarchyReturn extends Omit<
+  DataHookReturn<TaskHierarchyResponseDto>,
+  "data"
+> {
   hierarchy: TaskHierarchyResponseDto | null;
   parent?: TaskResponseDto | null;
   task: TaskResponseDto | null;
@@ -26,12 +28,12 @@ export function useTaskHierarchy(
   organizationId: string,
   projectId: string,
   taskId: string,
-  options: UseTaskHierarchyOptions = {}
+  options: UseTaskHierarchyOptions = {},
 ): UseTaskHierarchyReturn {
   const { includeDesignDocCounts, includeAgentSessionCounts } = options;
-  const queryOptions = useMemo(
+  const spec = useMemo(
     () =>
-      workItemHierarchyQueryOptions(organizationId, projectId, taskId, {
+      workItemHierarchyRead({ organizationId, projectId }, taskId, {
         includeDesignDocCounts,
         includeAgentSessionCounts,
       }),
@@ -41,16 +43,15 @@ export function useTaskHierarchy(
       taskId,
       includeDesignDocCounts,
       includeAgentSessionCounts,
-    ]
+    ],
   );
 
-  const { result, state } = useDataLayerQuery(queryOptions, {
+  const { data, ...state } = useGraphQLRead(spec, {
     enabled:
       options.enabled !== false && !!organizationId && !!projectId && !!taskId,
     refetchOnMount: options.refetchOnMount,
     refetchOnWindowFocus: options.refetchOnWindowFocus,
     staleTimeMs: options.staleTimeMs,
-    maxCacheAgeMs: options.maxCacheAgeMs,
   });
 
   useWebsocketSubscriptions(
@@ -60,11 +61,11 @@ export function useTaskHierarchy(
     },
     {
       enabled: options.enabled ?? true,
-    }
+    },
   );
 
   // A failed read presents no hierarchy, as before.
-  const hierarchy = state.error ? null : (result.data ?? null);
+  const hierarchy = state.error ? null : data;
 
   return {
     ...state,

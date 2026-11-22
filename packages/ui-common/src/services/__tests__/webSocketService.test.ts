@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../test/graphqlTestClient";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createStore } from "jotai";
 import { WebSocketService } from "../webSocketService";
@@ -5,7 +6,12 @@ import { WebSocketHandler } from "../../data/websockets/handler";
 import type { WebSocketDebugger } from "../../data/websockets/debug";
 import { logger } from "../../utils/logger";
 import { QueryClient } from "@tanstack/react-query";
-import { messageKeys } from "../../data/collections/messages";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { useConversationMessages } from "../../data/hooks/useConversationMessages";
+import {
+  FakeConversationServer,
+  threadOf,
+} from "../../test/conversationGraphQL";
 import { agentSessionKeys } from "../../data/collections/agentSessions";
 import { conversationPhaseByIdAtom } from "../../data/websockets/conversationPhase";
 import { ToastService } from "../toastService";
@@ -83,6 +89,7 @@ describe("WebSocketService", () => {
       mockStore,
       mockDebugger,
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
     vi.clearAllMocks();
 
@@ -537,7 +544,12 @@ describe("WebSocketService", () => {
 
   it("applies complete current-state events without invalidating Agent Session collections", () => {
     const queryClient = new QueryClient();
-    mockHandler = new WebSocketHandler(mockStore, mockDebugger, queryClient);
+    mockHandler = new WebSocketHandler(
+      mockStore,
+      mockDebugger,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     const service = new WebSocketService(mockHandler);
     const markAllStaleSpy = vi.spyOn(mockHandler, "markAllStale");
     const batchRequestSpy = vi.spyOn(dataClient, "request");
@@ -1134,11 +1146,13 @@ describe("WebSocketService", () => {
       store1,
       createMockDebugger(),
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
     const handler2 = new WebSocketHandler(
       store2,
       createMockDebugger(),
       new QueryClient(),
+      createUnreachableGraphQLClient(),
     );
 
     const service1 = new WebSocketService(handler1);
@@ -1183,39 +1197,45 @@ describe("WebSocketService", () => {
     expect(state.connectionError).toBe(null);
   });
 
-  it("should demonstrate the solution - handler and service share same store", () => {
-    // This test shows how the solution works - when both handler and service
-    // operate on the same store, WebSocket events can properly mark items stale
-    const sharedStore = createStore();
-    const sharedQueryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
-    const messagesKey = messageKeys.list("org-456", "proj-123", "conv-shared");
-    // Simulates a React hook having read the conversation's messages.
-    sharedQueryClient.setQueryData(messagesKey, []);
+  it("should demonstrate the solution - handler and service share the data layer with views", async () => {
+    // When the handler and the views read through the same clients, a
+    // WebSocket event brings the mounted views up to date.
+    const server = new FakeConversationServer(threadOf(2));
+    const { result } = renderHook(
+      () => useConversationMessages("org-1", "project-1", "conv-1"),
+      { wrapper: server.wrapper },
+    );
+    await waitFor(() => expect(result.current.isReady).toBe(true));
 
     const sharedHandler = new WebSocketHandler(
-      sharedStore,
+      createStore(),
       createMockDebugger(),
-      sharedQueryClient,
+      server.queryClient,
+      server.graphql.apollo,
     );
     const service = new WebSocketService(sharedHandler);
     service.initialize({ userId: "test-user" });
 
-    sharedHandler.handleEvent({
-      type: "conversation.updated",
-      conversationId: "conv-shared",
-      organizationId: "org-456",
-      projectId: "proj-123",
-      timestamp: new Date().toISOString(),
-      changedFields: ["status"],
-    } as any);
-
-    expect(sharedQueryClient.getQueryState(messagesKey)?.isInvalidated).toBe(
-      true,
+    server.append(...threadOf(3).slice(2));
+    act(() =>
+      sharedHandler.handleEvent({
+        type: "conversation.updated",
+        conversationId: "conv-1",
+        organizationId: "org-1",
+        projectId: "project-1",
+        timestamp: new Date().toISOString(),
+        previousVersion: 1,
+        newVersion: 2,
+        changeType: "message_added",
+      }),
     );
 
-    // This demonstrates the fix - the same store is used by both
-    // React hooks and WebSocket events, so state synchronization works!
+    await waitFor(() =>
+      expect(result.current.orderedData.map((m) => m.id)).toEqual([
+        "m1",
+        "m2",
+        "m3",
+      ]),
+    );
   });
 });

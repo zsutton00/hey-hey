@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -49,6 +49,7 @@ vi.mock("@hey-hey/ui-common/context", () => ({
 vi.mock("@hey-hey/ui-common/data", () => ({
   usePlatformAdminAccess: () => ({ isPlatformAdmin: true, isResolved: true }),
   useCanonicalPlanMutations: () => ({ updatePlan: vi.fn() }),
+  useFutureOffers: () => null,
   useCanonicalPlanAggregate: (...args: unknown[]) => mocks.aggregate(...args),
   useProject: () => ({ data: { name: "Project" } }),
   // A cache miss exercises the parent read fallback.
@@ -172,7 +173,18 @@ vi.mock(
 );
 vi.mock("../../components/Layout", () => ({
   DetailPageContainer: ({ children }: { children: ReactNode }) => children,
-  DetailPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  DetailPageHeader: ({
+    title,
+    titleAdornment,
+  }: {
+    title: string;
+    titleAdornment?: ReactNode;
+  }) => (
+    <header data-testid="plan-header">
+      <h1>{title}</h1>
+      {titleAdornment}
+    </header>
+  ),
   PageBreadcrumbs: ({ items }: { items: { label: string; to?: string }[] }) => (
     <nav>
       {items.map((item, index) => (
@@ -476,6 +488,28 @@ describe("canonical Plan page", () => {
   });
 });
 
+it("shows the plan status chip beside the name on every tab", async () => {
+  mocks.aggregate.mockReturnValue({
+    status: "ready",
+    aggregate: {
+      plan: { ...plan, status: "VERIFYING" },
+      configuration,
+      stages: [],
+    },
+    error: null,
+  });
+  renderPage();
+
+  const header = screen.getByTestId("plan-header");
+  const chip = within(header).getByTestId("plan-status-chip");
+  expect(chip).toHaveTextContent("Verifying");
+
+  await userEvent.click(screen.getByRole("tab", { name: /Updates/ }));
+  expect(
+    within(screen.getByTestId("plan-header")).getByTestId("plan-status-chip"),
+  ).toHaveTextContent("Verifying");
+});
+
 it("shows Draft generation for BACKLOG even when stage outlines exist", () => {
   const draft = { ...plan, status: "BACKLOG" };
   mocks.aggregate.mockReturnValue({
@@ -488,7 +522,7 @@ it("shows Draft generation for BACKLOG even when stage outlines exist", () => {
     error: null,
   });
   renderPage();
-  expect(screen.getByText("Draft")).toBeInTheDocument();
+  expect(screen.getByTestId("plan-status-chip")).toHaveTextContent("Draft");
   expect(screen.getByTestId("plan-generation")).toBeInTheDocument();
   expect(screen.queryByTestId("plan-viewer")).not.toBeInTheDocument();
   expect(mocks.generation).toHaveBeenCalledWith(

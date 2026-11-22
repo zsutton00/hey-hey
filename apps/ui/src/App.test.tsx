@@ -54,6 +54,7 @@ vi.mock("@hey-hey/ui-common/clients", () => ({
 
 vi.mock("@hey-hey/ui-common/data", () => ({
   ControllerAuthorizationPromptHost: () => null,
+  GraphQLProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   hasDemoSandboxSession: () => false,
   useDemoSandbox: () => ({
     sandbox: null,

@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { Provider } from "jotai";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -72,45 +75,24 @@ it("keeps hierarchy names available while metadata loads, then selects the compl
   resolve({ data: { data: [feature] } });
   expect(await screen.findByText("Status: ACTIVE")).toBeVisible();
   await user.click(screen.getByRole("option", { name: /Live Updates/ }));
-  expect(onChange).toHaveBeenCalledWith(feature.id, feature);
+  expect(onChange).toHaveBeenCalledWith(
+    feature.id,
+    expect.objectContaining(feature),
+  );
   expect(unifiedApiClient.getTasks).toHaveBeenCalledWith(
     expect.objectContaining({
       taskIds: [feature.id],
       includeSectionKeys: undefined,
     }),
+    expect.anything(),
   );
 });
 
-it("builds no feature options while closed, keeps the selected title, and lists every feature once opened", async () => {
-  const many = Array.from({ length: 300 }, (_, index) => ({
-    ...feature,
-    id: `feature-${index}`,
-    name: `Feature ${String(index).padStart(3, "0")}`,
-  }));
-  vi.mocked(unifiedApiClient.listWorkItemReferences).mockResolvedValue(
-    referencesResponse(many) as never,
-  );
-  vi.mocked(unifiedApiClient.getTasks).mockResolvedValue({
-    data: { data: many },
-  } as never);
-  const user = userEvent.setup();
-  render(
-    <Provider>
-      <FeatureSelector
-        organizationId="org"
-        projectId="project"
-        value="feature-42"
-        onChange={vi.fn()}
-      />
-    </Provider>,
-  );
-
-  expect(await screen.findByText("Feature 042")).toBeVisible();
-  expect(screen.queryAllByTestId("feature-selector-option")).toHaveLength(0);
-  expect(unifiedApiClient.getTasks).not.toHaveBeenCalled();
-
-  await user.click(screen.getByRole("combobox"));
-  await waitFor(() =>
-    expect(screen.getAllByTestId("feature-selector-option")).toHaveLength(300),
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
   );
 });

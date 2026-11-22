@@ -284,31 +284,25 @@ describe('SessionRunnerFacade — skipPermissions derivation', () => {
     const readAgentSession = vi.fn(async () => dto(true));
     const facade = buildFacade(readAgentSession);
     const run = buildRun();
-    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
 
     await facade.runPrompt(run, buildRunArgs());
 
     expect(readAgentSession).toHaveBeenCalledWith('agent-session-1');
-    expect(setAuthorization).toHaveBeenCalledWith(true);
     expect(opencodeState.runPromptCalls).toBe(1);
     expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: true });
   });
 
-  it('keeps explicit permissions on a Task Monitor Run when autoDecide is off, without granting scope automation', async () => {
+  it('keeps explicit permissions on a Task Monitor Run when autoDecide is off', async () => {
     resetState();
     const facade = buildFacade(async () => dto(false));
     const run = buildRun();
     vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
-    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
 
     await facade.runPrompt(run, buildRunArgs());
     await facade.resumeSession(run, buildResumeArgs());
 
     expect(opencodeState.lastRunPromptArgs).toMatchObject({ skipPermissions: false });
     expect(opencodeState.lastResumeArgs).toMatchObject({ skipPermissions: false });
-    expect(setAuthorization).toHaveBeenCalledTimes(2);
-    expect(setAuthorization).toHaveBeenNthCalledWith(1, false);
-    expect(setAuthorization).toHaveBeenNthCalledWith(2, false);
   });
 
   it('forwards skipPermissions=false when autoDecide is false', async () => {
@@ -353,7 +347,6 @@ describe('SessionRunnerFacade — provider permission mode', () => {
     const facade = buildFacade(async () => dto(true));
     const run = buildRun({ provider: 'claude' });
     vi.spyOn(run, 'taskMonitorId', 'get').mockReturnValue('monitor-1');
-    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
 
     await facade.runPrompt(run, buildRunArgs());
     await facade.resumeSession(run, buildResumeArgs());
@@ -367,7 +360,6 @@ describe('SessionRunnerFacade — provider permission mode', () => {
       providerPermissionMode: 'auto',
     });
     // The monitor-owned authorization is unchanged by the provider mode.
-    expect(setAuthorization).toHaveBeenCalledWith(true);
   });
 
   it('keeps explicit permissions, with no blanket approval, whenever native automation is unavailable or authorization is unknown', async () => {
@@ -435,12 +427,10 @@ describe('SessionRunnerFacade — skipPermissions derivation on resume', () => {
     const readAgentSession = vi.fn(async () => dto(true));
     const facade = buildFacade(readAgentSession);
     const run = buildRun();
-    const setAuthorization = vi.spyOn(run, 'setTaskMonitorAutomationAuthorization');
 
     await facade.resumeSession(run, buildResumeArgs());
 
     expect(readAgentSession).toHaveBeenCalledWith('agent-session-1');
-    expect(setAuthorization).toHaveBeenCalledWith(true);
     expect(opencodeState.resumeCalls).toBe(1);
     expect(opencodeState.lastResumeArgs).toMatchObject({ skipPermissions: true });
   });

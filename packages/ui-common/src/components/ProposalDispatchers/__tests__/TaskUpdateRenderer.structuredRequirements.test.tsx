@@ -1,3 +1,5 @@
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { legacyStatuses } from "../../../test/fixtures/workItemStatuses";
 import { invalidateProposalReconciliation } from "../../ProposalReconciliation/reconciliationInvalidation";
 import {
@@ -241,6 +243,10 @@ const renderProposal = (
       />
     </MemoryRouter>,
   );
+
+const themeWrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+);
 
 describe("TaskUpdateRenderer structured requirements", () => {
   it("renders simultaneous statement, citation, and group changes on one UUID", () => {
@@ -611,6 +617,7 @@ it("edits a future's structured overlap by hand and shows the complete revised r
         />
       </ProposalReconciliationReview>
     </MemoryRouter>,
+    { wrapper: themeWrapper },
   );
   fireEvent.click(
     await screen.findByTestId("proposal-reconciliation-edit-by-hand"),

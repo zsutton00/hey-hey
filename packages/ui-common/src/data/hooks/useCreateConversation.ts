@@ -1,10 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
 import type { ConversationResponseDto, CreateConversationDto } from "../../api";
 import { platformClient } from "../../clients/serviceClients";
-import {
-  invalidateConversationLists,
-  writeConversation,
-} from "../collections/conversations";
+import { refreshConversationLists } from "../graphql/conversationCache";
 import { useMutation } from "../core/useMutation";
 
 export interface CreateConversationVariables {
@@ -20,9 +17,9 @@ export interface UseCreateConversationOptions {
 }
 
 export function useCreateConversation(
-  options: UseCreateConversationOptions = {}
+  options: UseCreateConversationOptions = {},
 ) {
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   const mutationFn = async ({
     organizationId,
@@ -39,8 +36,7 @@ export function useCreateConversation(
       throw new Error("No conversation data returned from API");
     }
 
-    writeConversation(queryClient, organizationId, projectId, conversationData);
-    void invalidateConversationLists(queryClient, organizationId, projectId);
+    void refreshConversationLists(graphqlClient);
 
     return conversationData;
   };

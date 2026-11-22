@@ -37,6 +37,13 @@ vi.mock("../../../contexts/ModalContext", () => ({
   useModal: () => ({ openModal }),
 }));
 
+vi.mock("../../Conversation/Components/ConversationContext", () => ({
+  useOptionalConversationContext: () => ({
+    agentSessionId: "session-1",
+    project: { id: "project-1", organizationId: "org-1" },
+  }),
+}));
+
 vi.mock("../../InteractionComponent/useEntityConversationLauncher", () => ({
   useEntityConversationLauncher: () => launcherMock,
 }));
@@ -231,7 +238,7 @@ const renderReport = (
   );
 
 describe("CodingResearchReport", () => {
-  it("opens Discuss on the report's focal entity, seeded with the statement and references", async () => {
+  it("opens Discuss about the current session, seeded with the statement and references", async () => {
     renderReport(fullPayload, "research");
 
     const card = screen.getByTestId(
@@ -245,9 +252,8 @@ describe("CodingResearchReport", () => {
       type: "discuss",
       organizationId: "org-1",
       projectId: "project-1",
-      entityId: FOCAL_TASK_ID,
-      entityType: EntityType.Task,
-      entityTitle: "Improve CODING_RESEARCH renderer",
+      entityId: "session-1",
+      entityType: EntityType.AgentSession,
       contextPreview: [
         "The user wants to discuss an uncertainty an agent raised.",
         "Severity: medium. Category: Conflict.",

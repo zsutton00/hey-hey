@@ -285,18 +285,20 @@ export const validateCanonicalPlanRegistry = (
   return messages;
 };
 
-export const isPlanWorkItem = (
-  item: WorkItemResponseDto,
-): item is PlanWorkItem => item.type === PLAN_WORK_ITEM_TYPE;
+type WorkItemParent = Pick<WorkItemResponseDto, "type" | "parentTaskId">;
 
-export const isPlanStageWorkItem = (
-  item: WorkItemResponseDto,
-): item is PlanStageWorkItem =>
+export const isPlanWorkItem = <T extends Pick<WorkItemResponseDto, "type">>(
+  item: T,
+): item is T & Pick<PlanWorkItem, "type"> => item.type === PLAN_WORK_ITEM_TYPE;
+
+export const isPlanStageWorkItem = <T extends WorkItemParent>(
+  item: T,
+): item is T & Pick<PlanStageWorkItem, "type" | "parentTaskId"> =>
   item.type === PLAN_STAGE_WORK_ITEM_TYPE && isNonEmpty(item.parentTaskId);
 
-export const isPlanStageStandardTask = (
-  item: WorkItemResponseDto,
-): item is PlanStageStandardTask =>
+export const isPlanStageStandardTask = <T extends WorkItemParent>(
+  item: T,
+): item is T & Pick<PlanStageStandardTask, "type" | "parentTaskId"> =>
   (item.type === STANDARD_WORK_ITEM_TYPE || item.type === BUG_WORK_ITEM_TYPE) &&
   isNonEmpty(item.parentTaskId);
 

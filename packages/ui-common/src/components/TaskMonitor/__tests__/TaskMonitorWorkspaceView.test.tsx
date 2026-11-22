@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MessageType,
@@ -26,6 +27,8 @@ import {
 } from "../../../api";
 import type { TaskMonitorProjectedNode } from "../useTaskMonitorProjection";
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
+import { setCapabilityCatalogForTests } from "../../AgentSession/capabilityCatalog";
+import { TEST_CAPABILITY_CATALOG } from "../../../test/capabilityCatalogFixture";
 import {
   createSession,
   createTask,
@@ -256,6 +259,7 @@ const workspaceElement = (
       startPresentation={{ status: "ready" }}
       isSavingLaunchConfiguration={false}
       onSaveLaunchConfiguration={vi.fn()}
+      onSaveCoordinatorRuntime={vi.fn()}
       pendingLifecycleAction={null}
       errorMessage={null}
       operationalErrorMessage={null}
@@ -1014,5 +1018,218 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(
       screen.getByTestId("task-monitor-result-evidence"),
     ).not.toHaveTextContent("Accepted");
+  });
+});
+
+describe("TaskMonitorWorkspaceView Monitor runs on", () => {
+  const savedRuntime = {
+    provider: "claude" as const,
+    model: "claude-sonnet-5-5",
+    reasoningEffort: "medium" as const,
+  };
+
+  beforeEach(() => {
+    setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
+    useReportsMock.mockReturnValue({
+      reports: [],
+      isLoading: false,
+      error: null,
+    });
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      conversation: null,
+      project: null,
+      session: null,
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(vi.fn());
+  });
+
+  it("shows the saved choice before Start and saves a change through the update path", async () => {
+    const onSaveCoordinatorRuntime = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      definition: {
+        ...createTaskMonitorDefinition(),
+        coordinatorRuntime: savedRuntime,
+      },
+      monitorStatus: WorkStatus.Backlog,
+      onSaveCoordinatorRuntime,
+    });
+
+    const group = screen.getByTestId("task-monitor-coordinator-runtime");
+    expect(group).toHaveTextContent("Monitor runs on");
+    expect(
+      within(group).getByTestId(
+        "task-monitor-coordinator-runtime-runtime-model-input",
+      ),
+    ).toHaveValue("Sonnet 5.5");
+    expect(onSaveCoordinatorRuntime).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-coordinator-runtime-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        "task-monitor-coordinator-runtime-runtime-effort-option-high",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(onSaveCoordinatorRuntime).toHaveBeenCalledWith({
+        ...savedRuntime,
+        reasoningEffort: "high",
+      }),
+    );
+  });
+
+  it("does not save anything when a monitor without the setting is only opened", async () => {
+    const onSaveCoordinatorRuntime = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      onSaveCoordinatorRuntime,
+    });
+
+    expect(
+      await screen.findByTestId(
+        "task-monitor-coordinator-runtime-runtime-catalog-ready",
+      ),
+    ).toBeInTheDocument();
+    expect(onSaveCoordinatorRuntime).not.toHaveBeenCalled();
+  });
+
+  const chooseEffort = async (effort: string) => {
+    const user = userEvent.setup();
+    const group = screen.getByTestId("task-monitor-coordinator-runtime");
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-coordinator-runtime-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        `task-monitor-coordinator-runtime-runtime-effort-option-${effort}`,
+      ),
+    );
+  };
+
+  const savedDefinition = () => ({
+    ...createTaskMonitorDefinition(),
+    coordinatorRuntime: savedRuntime,
+  });
+
+  it("keeps Start unavailable until the runtime save has finished", async () => {
+    let finishSave: () => void = () => undefined;
+    const onSaveCoordinatorRuntime = vi.fn(
+      () => new Promise<void>((resolve) => (finishSave = resolve)),
+    );
+    renderWorkspace({
+      definition: savedDefinition(),
+      monitorStatus: WorkStatus.Backlog,
+      onSaveCoordinatorRuntime,
+    });
+
+    await chooseEffort("high");
+
+    await waitFor(() => expect(lifecycleButton("Start")).toBeDisabled());
+    finishSave();
+    await waitFor(() => expect(lifecycleButton("Start")).toBeEnabled());
+  });
+
+  it("returns the picker to the saved choice when the save is rejected", async () => {
+    const onSaveCoordinatorRuntime = vi
+      .fn()
+      .mockRejectedValue(new Error("Save failed"));
+    renderWorkspace({
+      definition: savedDefinition(),
+      monitorStatus: WorkStatus.Backlog,
+      onSaveCoordinatorRuntime,
+    });
+
+    await chooseEffort("high");
+
+    expect(await screen.findByText("Save failed")).toBeInTheDocument();
+    await waitFor(() => expect(lifecycleButton("Start")).toBeEnabled());
+    expect(
+      within(
+        screen.getByTestId(
+          "task-monitor-coordinator-runtime-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    ).toHaveTextContent(/medium/i);
+  });
+
+  it("saves a model that offers no effort choices without an effort", async () => {
+    const onSaveCoordinatorRuntime = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      definition: {
+        ...createTaskMonitorDefinition(),
+        coordinatorRuntime: {
+          provider: "opencode",
+          model: "glm-5.3",
+          reasoningEffort: "high",
+        },
+      },
+      monitorStatus: WorkStatus.Backlog,
+      onSaveCoordinatorRuntime,
+    });
+    const user = userEvent.setup();
+    const input = await screen.findByTestId(
+      "task-monitor-coordinator-runtime-runtime-model-input",
+    );
+
+    await user.click(input);
+    await user.click(await screen.findByRole("option", { name: /Default/ }));
+
+    await waitFor(() =>
+      expect(onSaveCoordinatorRuntime).toHaveBeenLastCalledWith({
+        provider: "opencode",
+        model: "opencode-default",
+      }),
+    );
+  });
+
+  it("shows the Claude default for a monitor saved before this setting existed", async () => {
+    setCapabilityCatalogForTests([
+      ...TEST_CAPABILITY_CATALOG.filter((row) => row.provider !== "claude"),
+      ...TEST_CAPABILITY_CATALOG.filter((row) => row.provider === "claude"),
+    ]);
+    renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+
+    const input = await screen.findByTestId(
+      "task-monitor-coordinator-runtime-runtime-model-input",
+    );
+    const claudeModel = TEST_CAPABILITY_CATALOG.find(
+      (row) => row.provider === "claude",
+    )?.models[0];
+    expect(input).toHaveValue(claudeModel?.label);
+  });
+
+  it("shows the saved choice read-only after Start", () => {
+    renderWorkspace({
+      definition: {
+        ...createTaskMonitorDefinition(),
+        coordinatorRuntime: savedRuntime,
+      },
+      monitorStatus: WorkStatus.Active,
+      startPresentation: { status: "active" },
+    });
+
+    const group = screen.getByTestId("task-monitor-coordinator-runtime");
+    expect(
+      within(group).getByTestId("task-monitor-coordinator-runtime-readonly"),
+    ).toHaveTextContent("claude · claude-sonnet-5-5 · medium");
+    expect(
+      within(group).queryByTestId(
+        "task-monitor-coordinator-runtime-runtime-model-input",
+      ),
+    ).not.toBeInTheDocument();
   });
 });

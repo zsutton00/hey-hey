@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useApolloClient } from "@apollo/client/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { EntityType, type ConversationResponseDto } from "../../api";
-import {
-  conversationQueryOptions,
-  updateConversation,
-} from "../collections/conversations";
+import { platformClient } from "../../clients/serviceClients";
+import { conversationRead } from "../collections/conversations";
+import { refreshConversation } from "../graphql/conversationCache";
+import { getProjectGraphQLClient } from "../graphql/client";
 import { getOpenItemsAdapter } from "../collections/openItems";
 import type { OpenItemsScope } from "../openItemsAdapter";
 import logger from "../../utils/logger";
@@ -25,6 +26,7 @@ export function useOpenItemSessionRename(
   onSaved: () => void,
 ) {
   const queryClient = useQueryClient();
+  const apollo = useApolloClient();
   const [conversation, setConversation] =
     useState<ConversationResponseDto | null>(null);
   const [latest, setLatest] = useState<ConversationResponseDto | null>(null);
@@ -37,16 +39,21 @@ export function useOpenItemSessionRename(
   const titleSaved = useRef(false);
   const refreshKey = useRef(crypto.randomUUID());
   const alive = useRef(true);
-  const read = () =>
-    queryClient.fetchQuery({
-      ...conversationQueryOptions(
-        scope.organizationId,
-        scope.projectId,
-        conversationId,
-      ),
-      staleTime: 0,
-      retry: false,
+  const read = async (): Promise<ConversationResponseDto> => {
+    const spec = conversationRead(scope, conversationId, false);
+    const { data } = await getProjectGraphQLClient(apollo, scope).query({
+      query: spec.document,
+      variables: spec.variables,
+      context: scope,
+      fetchPolicy: "network-only",
     });
+    const conversation = data ? spec.select(data) : null;
+    if (!conversation) {
+      throw new Error("Conversation read returned no conversation");
+    }
+
+    return conversation;
+  };
 
   const load = async () => {
     if (pending.current) {
@@ -101,13 +108,16 @@ export function useOpenItemSessionRename(
     try {
       if (!titleSaved.current && conversation) {
         try {
-          await updateConversation(
-            queryClient,
-            scope.organizationId,
-            scope.projectId,
+          await platformClient.updateConversation({
+            organizationId: scope.organizationId,
+            projectId: scope.projectId,
             conversationId,
-            { expectedVersion: conversation.version, title },
-          );
+            updateConversationDto: {
+              expectedVersion: conversation.version,
+              title,
+            },
+          });
+          await refreshConversation(apollo, conversationId);
           titleSaved.current = true;
         } catch (cause) {
           logger.error("data_core", "Session rename title write failed", {

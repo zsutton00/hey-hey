@@ -45,9 +45,7 @@ describe("public exports preserved by the plan migration", () => {
   it("keeps reference, authorization, and template APIs alongside canonical plans", () => {
     const { names, modules } = readExports("src/data/index.ts");
     for (const name of [
-      "fetchAllWorkItemReferences",
-      "workItemReferenceKeys",
-      "workItemReferencesQueryOptions",
+      "workItemReferencesRead",
       "WorkItemReferenceScope",
       "dataLayerQueryRoots",
       "invalidateAllDataLayerQueries",

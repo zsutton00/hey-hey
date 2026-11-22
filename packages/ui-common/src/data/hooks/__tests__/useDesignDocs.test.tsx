@@ -1,3 +1,4 @@
+import { createUnreachableGraphQLClient } from "../../../test/graphqlTestClient";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createStore } from "jotai";
@@ -20,7 +21,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("design-doc lists", () => {
   it("shares lists with ADR projections and excludes other templates", async () => {
     mocks.request.mockResolvedValue(
-      ok([doc(), doc("adr", { template: "ADR" })])
+      ok([doc(), doc("adr", { template: "ADR" })]),
     );
     const queryClient = client();
     const mounted = renderHook(
@@ -28,13 +29,13 @@ describe("design-doc lists", () => {
         docs: useDesignDocs("org", { projectId: "project" }),
         adrs: useAdrs("org", { projectId: "project" }),
       }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     await waitFor(() => expect(mounted.result.current.docs.isReady).toBe(true));
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mounted.result.current.docs.designDocs).toHaveLength(2);
     expect(mounted.result.current.adrs.designDocs.map((doc) => doc.id)).toEqual(
-      ["adr"]
+      ["adr"],
     );
     queryClient.clear();
   });
@@ -49,7 +50,7 @@ describe("design-doc lists", () => {
           page: 2,
           limit: 10,
         }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     await waitFor(() => expect(mounted.result.current.isReady).toBe(true));
     expect(mounted.result.current.data).toEqual([]);
@@ -61,7 +62,7 @@ describe("design-doc lists", () => {
           page: 2,
           limit: 10,
         },
-      })
+      }),
     );
     queryClient.clear();
   });
@@ -72,11 +73,11 @@ describe("design-doc lists", () => {
     const key = designDocKeys.list("org", { projectId: "project" });
     queryClient.setQueryData(
       designDocKeys.list("org", { projectId: "other" }),
-      []
+      [],
     );
     queryClient.setQueryData(
       designDocKeys.detail("org", "other"),
-      doc("other")
+      doc("other"),
     );
     const mounted = renderHook(
       () => ({
@@ -84,15 +85,20 @@ describe("design-doc lists", () => {
         two: useDesignDocs("org", { projectId: "project" }),
         library: useProjectLibrary("org", "project"),
       }),
-      { wrapper: wrapper(queryClient) }
+      { wrapper: wrapper(queryClient) },
     );
     await waitFor(() =>
       expect(
         mounted.result.current.one.isReady &&
-          mounted.result.current.library.isReady
-      ).toBe(true)
+          mounted.result.current.library.isReady,
+      ).toBe(true),
     );
-    const handler = new WebSocketHandler(createStore(), undefined, queryClient);
+    const handler = new WebSocketHandler(
+      createStore(),
+      undefined,
+      queryClient,
+      createUnreachableGraphQLClient(),
+    );
     act(() =>
       handler.handleEvent({
         type: "design_doc.created",
@@ -100,19 +106,19 @@ describe("design-doc lists", () => {
         projectId: "project",
         designDocId: "new",
         timestamp: "2026-01-01",
-      })
+      }),
     );
     await waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(mocks.library).toHaveBeenCalledTimes(2));
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
     expect(
       queryClient.getQueryState(
-        designDocKeys.list("org", { projectId: "other" })
-      )?.isInvalidated
+        designDocKeys.list("org", { projectId: "other" }),
+      )?.isInvalidated,
     ).toBe(false);
     expect(
       queryClient.getQueryState(designDocKeys.detail("org", "other"))
-        ?.isInvalidated
+        ?.isInvalidated,
     ).toBe(false);
     queryClient.clear();
   });

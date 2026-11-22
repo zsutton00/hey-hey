@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachWorkItemRead } from "vitest";
+import { unifiedApiClient as workItemRestClient } from "../../../clients/serviceClients";
+import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import { referencesResponse } from "./featureTreeReferences";
 import { DndContext } from "@dnd-kit/core";
@@ -39,7 +42,7 @@ const FOCUSED_FEATURE_ID = "feature-focused";
 function makeFeature(
   id: string,
   name: string,
-  parentTaskId?: string
+  parentTaskId?: string,
 ): TaskResponseDto {
   return {
     id,
@@ -56,7 +59,7 @@ function makeFeature(
 function makeStructuralEntry(
   id: string,
   relationship: FeatureHierarchyEntryDtoRelationshipEnum,
-  distance: number
+  distance: number,
 ): FeatureHierarchyEntryDto {
   return {
     id,
@@ -79,27 +82,27 @@ const focusedFeatureHierarchy: FeatureHierarchyEntryDto[] = [
   makeStructuralEntry(
     "feature-parent",
     FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
-    1
+    1,
   ),
   makeStructuralEntry(
     "feature-grandparent",
     FeatureHierarchyEntryDtoRelationshipEnum.Ancestor,
-    2
+    2,
   ),
   makeStructuralEntry(
     "feature-sibling",
     FeatureHierarchyEntryDtoRelationshipEnum.Sibling,
-    1
+    1,
   ),
   makeStructuralEntry(
     "feature-child",
     FeatureHierarchyEntryDtoRelationshipEnum.Descendant,
-    1
+    1,
   ),
   makeStructuralEntry(
     "feature-grandchild",
     FeatureHierarchyEntryDtoRelationshipEnum.Descendant,
-    2
+    2,
   ),
   {
     id: "feature-related",
@@ -121,17 +124,17 @@ beforeEach(() => {
     makeFeature("feature-unrelated", "Unrelated Feature"),
   ];
   mockedApi.listWorkItemReferences.mockResolvedValue(
-    referencesResponse(features) as never
+    referencesResponse(features) as never,
   );
   mockedApi.getTasks.mockImplementation(
     async (params) =>
       ({
         data: {
           data: features.filter((feature) =>
-            params.taskIds?.includes(feature.id)
+            params.taskIds?.includes(feature.id),
           ),
         },
-      } as never)
+      }) as never,
   );
   mockedContext.getEntityContext.mockResolvedValue({
     data: {
@@ -139,7 +142,7 @@ beforeEach(() => {
         featureHierarchy: focusedFeatureHierarchy.filter(
           (entry) =>
             entry.relationshipType !==
-            FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural
+            FeatureHierarchyEntryDtoRelationshipTypeEnum.Structural,
         ),
       },
     },
@@ -163,14 +166,14 @@ function renderLocalTree() {
           </DndContext>
         </PathServiceProvider>
       </MemoryRouter>
-    </Provider>
+    </Provider>,
   );
 }
 
 describe("FeatureTreeVisualization local neighborhood source", () => {
   it("opens the structural neighborhood while the related-feature context read is pending", async () => {
     mockedContext.getEntityContext.mockImplementation(
-      () => new Promise(() => {}) as never
+      () => new Promise(() => {}) as never,
     );
     renderLocalTree();
     expect(await screen.findByText("Focused Feature")).toBeVisible();
@@ -198,10 +201,19 @@ describe("FeatureTreeVisualization local neighborhood source", () => {
       includeSectionKeys?: string[];
     };
     expect(featureRequest).toMatchObject({
-      taskIds: ["feature-parent", FOCUSED_FEATURE_ID, "feature-child"],
+      taskIds: ["feature-parent", FOCUSED_FEATURE_ID, "feature-child"].sort(),
       type: "FEATURE",
       limit: 500,
     });
     expect(featureRequest.includeSectionKeys).toBeUndefined();
   });
+});
+
+// Work items are read through GraphQL; this suite's fakes answer those reads.
+beforeEachWorkItemRead(() => {
+  globalThis.mswServer.use(
+    ...workItemHandlersFromClient(
+      workItemRestClient as unknown as Record<string, unknown>,
+    ),
+  );
 });

@@ -57,7 +57,9 @@ const makeHarness = (runId: string | null = 'local-run-1') => {
     runtime,
     runStore,
     agentService,
-    handler: new TaskMonitorControlEffectHandler(runtime, runStore, agentService, NOOP_LOGGER),
+    handler: new TaskMonitorControlEffectHandler(runtime, runStore, agentService, NOOP_LOGGER, () =>
+      Date.parse('2026-11-20T04:00:00.000Z'),
+    ),
   };
 };
 
@@ -114,6 +116,7 @@ describe('TaskMonitorControlEffectHandler', () => {
       outcome: {
         type: 'TASK_MONITOR_STOP_SUCCEEDED',
         taskMonitorId: effect.taskMonitorId,
+        stoppedAt: '2026-11-20T04:00:00.000Z',
       },
     });
     expect(harness.runtime.haltMonitor).toHaveBeenCalledWith({

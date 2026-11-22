@@ -1,6 +1,8 @@
 import { AgentEdgeType, type TaskResponseDto } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
+import type { ApolloClient } from "@apollo/client";
+import { fetchWorkItemList } from "../../data/collections/workItemLists";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
+import { fetchWorkItemParent } from "../../data/graphql/workItemLookups";
 import {
   isPlanStageStandardTask,
   isPlanStageWorkItem,
@@ -26,7 +28,7 @@ const EMPTY_TASK_NEIGHBORHOOD: FinalAssessmentTaskNeighborhoodInput = {
 };
 
 const taskResponseToRelatedTask = (
-  task: WorkItemResponseDto
+  task: WorkItemResponseDto,
 ): FinalAssessmentRelatedTaskInput => ({
   id: task.id,
   title: task.name,
@@ -34,13 +36,13 @@ const taskResponseToRelatedTask = (
   description: getWorkItemSectionContent(task.sections, "description"),
   acceptanceCriteria: getWorkItemSectionContent(
     task.sections,
-    "acceptanceCriteria"
+    "acceptanceCriteria",
   ),
 });
 
 const dependencyIdsFor = (
   task: PlanStageStandardTask,
-  siblingTaskIds: ReadonlySet<string>
+  siblingTaskIds: ReadonlySet<string>,
 ): string[] => [
   ...new Set(
     (task.edges ?? []).flatMap((edge) =>
@@ -48,8 +50,8 @@ const dependencyIdsFor = (
       edge.sourceNodeId === task.id &&
       siblingTaskIds.has(edge.targetNodeId)
         ? [edge.targetNodeId]
-        : []
-    )
+        : [],
+    ),
   ),
 ];
 
@@ -72,15 +74,17 @@ export const deriveFinalAssessmentTaskNeighborhood = (input: {
     input.siblingTasks.flatMap((task) =>
       dependencyIdsFor(task, siblingTaskIds).includes(activeTaskId)
         ? [task.id]
-        : []
-    )
+        : [],
+    ),
   );
 
-  const collect = (ids: ReadonlySet<string>): FinalAssessmentRelatedTaskInput[] =>
+  const collect = (
+    ids: ReadonlySet<string>,
+  ): FinalAssessmentRelatedTaskInput[] =>
     input.siblingTasks.flatMap((task) =>
       ids.has(task.id) && task.id !== activeTaskId
         ? [taskResponseToRelatedTask(task)]
-        : []
+        : [],
     );
 
   return {
@@ -99,7 +103,7 @@ export const deriveSiblingTaskNeighborhood = (input: {
   }
 
   const activeIndex = input.siblingTasks.findIndex(
-    (task) => task.id === activeTaskId
+    (task) => task.id === activeTaskId,
   );
   if (activeIndex < 0) return EMPTY_TASK_NEIGHBORHOOD;
 
@@ -115,23 +119,9 @@ export const deriveSiblingTaskNeighborhood = (input: {
 export const deriveInitiativeFinalAssessmentTaskNeighborhood =
   deriveSiblingTaskNeighborhood;
 
-const requireTask = async (input: {
-  organizationId: string;
-  projectId: string;
-  taskId: string;
-}): Promise<TaskResponseDto> => {
-  const response = await unifiedApiClient.getTask({
-    ...input,
-    includeEdges: true,
-    edgeTypes: [AgentEdgeType.DependsOn],
-  });
-  const task = response.data?.data;
-  if (!task) throw new Error(`Failed to load Work Item ${input.taskId}`);
-  return task;
-};
-
 export const resolveFinalAssessmentTaskNeighborhood = async (
-  input: ResolveFinalAssessmentTaskNeighborhoodInput
+  graphqlClient: ApolloClient,
+  input: ResolveFinalAssessmentTaskNeighborhoodInput,
 ): Promise<FinalAssessmentTaskNeighborhoodInput> => {
   const organizationId = input.organizationId.trim();
   const projectId = input.projectId.trim();
@@ -146,45 +136,50 @@ export const resolveFinalAssessmentTaskNeighborhood = async (
     return EMPTY_TASK_NEIGHBORHOOD;
   }
 
-  const activeTask = await requireTask({ organizationId, projectId, taskId });
+  const scope = { organizationId, projectId };
+  const activeTask = await fetchWorkItemParent(graphqlClient, scope, taskId);
   if (!isPlanStageStandardTask(activeTask)) {
-    throw new Error(`Work Item ${taskId} is not a Standard Task in a Plan Stage`);
+    throw new Error(
+      `Work Item ${taskId} is not a Standard Task in a Plan Stage`,
+    );
   }
 
-  const stage = await requireTask({
-    organizationId,
-    projectId,
-    taskId: activeTask.parentTaskId,
-  });
+  const stage = await fetchWorkItemParent(
+    graphqlClient,
+    scope,
+    activeTask.parentTaskId,
+  );
   if (!isPlanStageWorkItem(stage) || stage.parentTaskId !== planId) {
     throw new Error(`Task ${taskId} does not belong to Plan ${planId}`);
   }
 
-  const plan = await requireTask({ organizationId, projectId, taskId: planId });
+  const plan = await fetchWorkItemParent(graphqlClient, scope, planId);
   if (!isPlanWorkItem(plan)) {
     throw new Error(`Work Item ${planId} is not a canonical Plan`);
   }
 
-  const response = await unifiedApiClient.getTasks({
-    organizationId,
-    projectId,
+  const tasks = await fetchWorkItemList(graphqlClient, scope, {
     parentTaskId: stage.id,
-    type: "STANDARD",
+    taskType: "STANDARD",
+    includeTrackedEntities: false,
     includeEdges: true,
     edgeTypes: [AgentEdgeType.DependsOn],
     includeSectionKeys: ["description", "acceptanceCriteria"],
     limit: 500,
   });
-  const tasks = response.data?.data ?? [];
   if (tasks.length >= 500) {
-    throw new Error(`Plan Stage ${stage.id} has too many Tasks to resolve safely`);
+    throw new Error(
+      `Plan Stage ${stage.id} has too many Tasks to resolve safely`,
+    );
   }
   const canonicalTasks = tasks.filter(
     (task): task is TaskResponseDto & PlanStageStandardTask =>
-      isPlanStageStandardTask(task)
+      isPlanStageStandardTask(task),
   );
   if (canonicalTasks.length !== tasks.length) {
-    throw new Error(`Plan Stage ${stage.id} returned an invalid Task hierarchy`);
+    throw new Error(
+      `Plan Stage ${stage.id} returned an invalid Task hierarchy`,
+    );
   }
 
   return deriveFinalAssessmentTaskNeighborhood({

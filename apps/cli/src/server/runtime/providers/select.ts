@@ -299,11 +299,9 @@ export class SessionRunnerFacade {
       if (model) launch = { ...args, model };
     }
     if (launch.skipPermissions !== undefined) {
-      run.setTaskMonitorAutomationAuthorization(false);
       return runner.runPrompt(launch);
     }
     const autoDecide = await this.readAutoDecide(launch);
-    run.setTaskMonitorAutomationAuthorization(autoDecide === true);
     const approval = await this.approvalFor(run, autoDecide);
     return runner.runPrompt({ ...launch, ...approval });
   }
@@ -315,11 +313,9 @@ export class SessionRunnerFacade {
     await this.decidePreciseTracking(run);
     const runner = this.forRun(run);
     if (args.skipPermissions !== undefined) {
-      run.setTaskMonitorAutomationAuthorization(false);
       return runner.resumeSession(args);
     }
     const autoDecide = await this.readAutoDecide(args);
-    run.setTaskMonitorAutomationAuthorization(autoDecide === true);
     const approval = await this.approvalFor(run, autoDecide);
     return runner.resumeSession({ ...args, ...approval });
   }
@@ -328,10 +324,13 @@ export class SessionRunnerFacade {
    * A Task Monitor run never gets blanket approval. It runs in the provider's
    * native automation mode only when the monitor's authorization was read as
    * on and the installed provider supports that mode; in every other case it
-   * keeps explicit permission handling, so each unresolved request becomes a
-   * pending request a human can decide. The provider mode is its own field;
-   * `autoDecide` stays the monitor-owned authorization. Runs outside Task
-   * Monitor derive `skipPermissions` from `autoDecide` as before.
+   * keeps explicit permission handling. Either way, each request the provider
+   * still raises is admitted to the Task Monitor, which decides it; only a
+   * request the monitor escalates reaches a person, so a run that is not in
+   * native auto mode does not surface ordinary requests to the user. The
+   * provider mode is its own field; `autoDecide` stays the monitor-owned
+   * authorization. Runs outside Task Monitor derive `skipPermissions` from
+   * `autoDecide` as before.
    */
   private async approvalFor(
     run: Run,

@@ -1,6 +1,10 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useApolloClient } from "@apollo/client/react";
+import { getProjectGraphQLClient } from "../graphql/client";
 import { platformClient } from "../../clients/serviceClients";
-import { removeConversation } from "../collections/conversations";
+import {
+  evictConversation,
+  refreshConversationLists,
+} from "../graphql/conversationCache";
 import { useMutation } from "../core/useMutation";
 import type { DeleteConversationRequest } from "../../api";
 
@@ -18,9 +22,9 @@ export interface UseDeleteConversationOptions {
 }
 
 export function useDeleteConversation(
-  options: UseDeleteConversationOptions = {}
+  options: UseDeleteConversationOptions = {},
 ) {
-  const queryClient = useQueryClient();
+  const graphqlClient = useApolloClient();
 
   const mutationFn = async ({
     organizationId,
@@ -35,8 +39,12 @@ export function useDeleteConversation(
       deleteConversationRequest: deleteRequest,
     });
 
-    // Remove the conversation from collection state
-    removeConversation(queryClient, organizationId, projectId, conversationId);
+    const client = getProjectGraphQLClient(graphqlClient, {
+      organizationId,
+      projectId,
+    });
+    evictConversation(client, conversationId);
+    void refreshConversationLists(client);
   };
 
   return useMutation(mutationFn, options);

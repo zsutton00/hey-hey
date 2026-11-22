@@ -17,6 +17,15 @@ export const UNCERTAINTY_CATEGORY_LABELS: Record<
   question: "Question",
 };
 
+const visuallyHidden = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+} as const;
+
 type Severity = AgentUncertaintySystemMessageData["severity"];
 
 /** Card-standard severity colors: orange high, amber medium, grey low. */
@@ -127,9 +136,12 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
       tone={{ severity }}
       icon={<UncertaintyBadge />}
       kindLabel="Uncertainty"
+      headerDivider={false}
       chips={
         <>
-          <SeverityChip severity={severity} />
+          <Box component="span" sx={visuallyHidden}>
+            {`${severity} severity`}
+          </Box>
           <Chip
             label={UNCERTAINTY_CATEGORY_LABELS[category]}
             size="small"
@@ -137,9 +149,13 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
           />
         </>
       }
-      lead={statement}
-      leading={
-        onDiscuss ? <UncertaintyDiscussControl onDiscuss={onDiscuss} /> : null
+      lead={
+        <>
+          {statement}
+          {onDiscuss ? (
+            <UncertaintyDiscussControl onDiscuss={onDiscuss} />
+          ) : null}
+        </>
       }
     >
       {children}

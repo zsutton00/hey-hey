@@ -1,30 +1,24 @@
-import { act, renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import {
   MessageStatus,
   SystemMessageDataTypeEnum,
   type MessageResponseDto,
 } from "../../../api";
-import { platformClient } from "../../../clients/serviceClients";
+import { GetConversationMessageHistoryDocument } from "../../../graphql/generated/graphql";
 import {
-  getCachedMessagesForConversation,
-  messageKeys,
-} from "../../collections/messages";
+  FakeConversationServer,
+  threadOf,
+} from "../../../test/conversationGraphQL";
 import {
   readCachedConversationMentionOptions,
   useCachedConversationMentionOptions,
 } from "../useCachedConversationMentionOptions";
 
-vi.mock("../../../clients/serviceClients", () => ({
-  platformClient: { getMessages: vi.fn() },
-}));
-
 const userMessage = (
   id: string,
   comment: string,
-  conversationId = "conversation-1"
+  conversationId = "conversation-1",
 ): MessageResponseDto => ({
   id,
   projectId: "project-1",
@@ -38,7 +32,7 @@ const userMessage = (
 const systemMessage = (
   id: string,
   response: string,
-  conversationId = "conversation-1"
+  conversationId = "conversation-1",
 ): MessageResponseDto => ({
   id,
   projectId: "project-1",
@@ -50,64 +44,19 @@ const systemMessage = (
   data: { type: SystemMessageDataTypeEnum.Agent, response },
 });
 
-const createQueryClient = () =>
-  new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
-
-/** Appends to the conversation's cached message list. */
-const addMessage = (
-  queryClient: QueryClient,
-  message: MessageResponseDto
-): void => {
-  queryClient.setQueryData<MessageResponseDto[]>(
-    messageKeys.list("org-1", "project-1", message.conversationId),
-    (current = []) => [...current, message]
-  );
-};
-
-/** Caches a single-message read, outside any list. */
-const addSingleMessage = (
-  queryClient: QueryClient,
-  message: MessageResponseDto
-): void => {
-  queryClient.setQueryData(
-    messageKeys.byId("org-1", "project-1", message.id),
-    message
-  );
-};
-
-const wrapper = (queryClient: QueryClient) =>
-  function TestProvider({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-
 describe("useCachedConversationMentionOptions", () => {
-  it("extracts USER and SYSTEM mentions, scopes by conversation, and deduplicates by type and id", () => {
-    const queryClient = createQueryClient();
-    addMessage(
-      queryClient,
-      userMessage(
-        "user-1",
-        "Review @[task:task-1|First title] and @[feature:feature-1|Feature one]."
-      )
-    );
-    addSingleMessage(
-      queryClient,
-      systemMessage(
-        "system-1",
-        "Updated @[task:task-1|Canonical title] and @\\[service:service-1|API]."
-      )
-    );
-    addMessage(
-      queryClient,
-      userMessage("other-1", "Ignore @[goal:goal-1|Other].", "conversation-2")
-    );
-
+  it("extracts USER and SYSTEM mentions and deduplicates by type and id", () => {
     expect(
-      readCachedConversationMentionOptions(
-        getCachedMessagesForConversation(queryClient, "conversation-1")
-      )
+      readCachedConversationMentionOptions([
+        userMessage(
+          "user-1",
+          "Review @[task:task-1|First title] and @[feature:feature-1|Feature one].",
+        ),
+        systemMessage(
+          "system-1",
+          "Updated @[task:task-1|Canonical title] and @\\[service:service-1|API].",
+        ),
+      ]),
     ).toEqual([
       { id: "task-1", type: "task", name: "Canonical title" },
       { id: "feature-1", type: "feature", name: "Feature one" },
@@ -115,39 +64,52 @@ describe("useCachedConversationMentionOptions", () => {
     ]);
   });
 
-  it("reacts to cached collection updates without issuing a message request", () => {
-    const queryClient = createQueryClient();
+  it("observes only the selected project's cached thread without fetching", async () => {
+    const scope = { organizationId: "org-1", projectId: "project-1" };
+    const server = new FakeConversationServer(threadOf(1));
+    server.rename("m1", {
+      response: "See @[workflow:workflow-1|Release flow].",
+    });
     const { result } = renderHook(
-      () => useCachedConversationMentionOptions("conversation-1"),
-      { wrapper: wrapper(queryClient) }
+      () =>
+        useCachedConversationMentionOptions(
+          scope.organizationId,
+          scope.projectId,
+          "conv-1",
+        ),
+      { wrapper: server.wrapper },
     );
     expect(result.current).toEqual([]);
 
-    act(() => {
-      addMessage(
-        queryClient,
-        userMessage("user-1", "See @[workflow:workflow-1|Release flow].")
-      );
+    const loadThread = (projectId: string) => {
+      const project = { ...scope, projectId };
+      return server.graphql.forProject(project).query({
+        query: GetConversationMessageHistoryDocument,
+        variables: { id: "conv-1", last: 8 },
+        context: project,
+      });
+    };
+    await act(async () => {
+      await loadThread("project-2");
     });
+    expect(result.current).toEqual([]);
 
-    expect(result.current).toEqual([
-      { id: "workflow-1", type: "workflow", name: "Release flow" },
-    ]);
-    expect(platformClient.getMessages).not.toHaveBeenCalled();
+    await act(async () => {
+      await loadThread("project-1");
+    });
+    await waitFor(() =>
+      expect(result.current).toEqual([
+        { id: "workflow-1", type: "workflow", name: "Release flow" },
+      ]),
+    );
+    expect(server.requests).toHaveLength(2);
   });
 
   it("does not scan serialized transport metadata", () => {
-    const queryClient = createQueryClient();
     const message = userMessage("user-1", "Visible text");
     message.data.transportMetadata = {
       hidden: "@[task:hidden-task|Hidden task]",
     };
-    addMessage(queryClient, message);
-
-    expect(
-      readCachedConversationMentionOptions(
-        getCachedMessagesForConversation(queryClient, "conversation-1")
-      )
-    ).toEqual([]);
+    expect(readCachedConversationMentionOptions([message])).toEqual([]);
   });
 });

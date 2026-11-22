@@ -30,6 +30,7 @@ export * from "./MiniDemoPlayer";
 export * from "./Modals";
 export * from "./Notifications";
 export * from "./OrganizationHome";
+export * from "./PaneToggle";
 export * from "./PlanList";
 export * from "./ProposalDetail";
 export * from "./ProposalGroupReview";

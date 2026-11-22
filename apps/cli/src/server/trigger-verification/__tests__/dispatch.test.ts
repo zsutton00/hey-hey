@@ -116,6 +116,8 @@ interface TestRouterDependencies {
   readUserMessage?: LocalAgentService['readUserMessage'];
   restoreRun?: RunReadRestoreCoordinator['restore'];
   taskMonitorId?: string;
+  /** Whether the Task Monitor machine is running and can admit decisions; defaults to running. */
+  taskMonitorRecordsRequest?: boolean;
   hostActionAdmission?: HostActionAdmission;
   machineControllerAuthority?: Pick<MachineControllerAuthority, 'applyVerifiedAuthorityReduction'>;
   dropSurfacing?: TestDropSurfacingDependencies;
@@ -261,6 +263,9 @@ const createTestRouter = (dependencies: TestRouterDependencies): TriggerFrameRou
         reason: 'ROUTE_REJECTED',
         message: 'Task Monitor command admission is not configured.',
       })),
+  );
+  vi.spyOn(taskMonitorStateMachineInputAdapter, 'holdsPermissionRequest').mockResolvedValue(
+    dependencies.taskMonitorRecordsRequest ?? true,
   );
   if (dependencies.admitTaskMonitorPermissionDecision) {
     vi.spyOn(taskMonitorStateMachineInputAdapter, 'admitPermissionDecision').mockImplementation(
@@ -1594,6 +1599,7 @@ describe('createTestRouter', () => {
       ingressId: 'conversation-message:trigger-task-monitor',
       snapshot: { revision: 2 },
       effects: [],
+      disposition: { result: 'APPLIED' },
     });
     const router = createTestRouter({
       verifier: buildVerifier({ ok: true, verified }),
@@ -3307,12 +3313,15 @@ describe('createTestRouter', () => {
   };
 
   const buildVerifiedPermissionDecisionControl = (
-    overrides: { decision?: string; nonce?: string } = {},
+    overrides: { decision?: string; nonce?: string; replyConversationId?: string } = {},
   ): VerifiedTriggerFrame => {
     const decision = overrides.decision ?? 'approve';
     const nonce = overrides.nonce ?? 'n-perm';
     const event = {
       kind: 'permission_decision',
+      ...(overrides.replyConversationId
+        ? { replyConversationId: overrides.replyConversationId }
+        : {}),
       decision,
       requestId: 'req-1',
       sessionId: 'sess-1',
@@ -3460,6 +3469,7 @@ describe('createTestRouter', () => {
       ingressId: 'permission-decision:idem-1',
       snapshot: { revision: 2 },
       effects: [],
+      disposition: { result: 'APPLIED' },
     });
     const auditFilePath = path.join(tmpdir(), `hey-hey-permission-audit-${randomUUID()}.jsonl`);
     const logger = noopLogger();
@@ -3507,6 +3517,242 @@ describe('createTestRouter', () => {
     ]);
   });
 
+  describe('telling the person what happened to their permission answer', () => {
+    const runConversation = 'c0000000-0000-4000-8000-000000000001';
+    const workspaceConversation = 'c0000000-0000-4000-8000-000000000002';
+
+    const answerWith = async (options: {
+      admission?: unknown;
+      fromWorkspace?: boolean;
+      monitored?: boolean;
+      providerOutcome?: { outcome: string; reason?: string };
+      taskMonitorRecordsRequest?: boolean;
+      permissionDecisionOwner?: PermissionDecisionOwner;
+    }) => {
+      const { surfacing, poster } = buildSurfacing();
+      const submitPermissionDecision = vi
+        .fn()
+        .mockResolvedValue(options.providerOutcome ?? { outcome: 'delivered' });
+      const router = createTestRouter({
+        verifier: buildVerifier({
+          ok: true,
+          verified: buildVerifiedPermissionDecisionControl(
+            options.fromWorkspace ? { replyConversationId: workspaceConversation } : {},
+          ),
+        }),
+        resolveConversationRun: (conversationId) =>
+          conversationId === runConversation
+            ? { runId: 'binding-run', conversationId: asConversationId(runConversation) }
+            : null,
+        sendMessage: vi.fn(),
+        createRun: vi.fn(),
+        stopRun: vi.fn().mockResolvedValue(undefined),
+        compactRun: vi.fn().mockResolvedValue(undefined),
+        submitPermissionDecision,
+        permissionDecisionAuditFilePath: path.join(
+          tmpdir(),
+          `hey-hey-permission-audit-${randomUUID()}.jsonl`,
+        ),
+        ...(options.monitored === false
+          ? {}
+          : { taskMonitorId: '10000000-0000-4000-8000-000000000001' }),
+        ...(options.permissionDecisionOwner
+          ? { permissionDecisionOwner: options.permissionDecisionOwner }
+          : {}),
+        ...(options.taskMonitorRecordsRequest === undefined
+          ? {}
+          : { taskMonitorRecordsRequest: options.taskMonitorRecordsRequest }),
+        ...(options.admission
+          ? { admitTaskMonitorPermissionDecision: vi.fn().mockResolvedValue(options.admission) }
+          : {}),
+        dropSurfacing: surfacing,
+        logger: noopLogger(),
+      });
+      router.handlePlatformEvent(controlFrameEvent);
+      await settle();
+      const createOutOfBand = poster.createOutOfBand as ReturnType<typeof vi.fn>;
+      if (options.monitored === false) {
+        await vi.waitFor(() => expect(submitPermissionDecision).toHaveBeenCalled());
+      } else {
+        await vi.waitFor(() => expect(createOutOfBand).toHaveBeenCalled());
+      }
+
+      return createOutOfBand;
+    };
+
+    const reported = (
+      createOutOfBand: ReturnType<typeof vi.fn>,
+      expectedConversation = runConversation,
+    ) => {
+      expect(createOutOfBand).toHaveBeenCalledTimes(1);
+      const call = createOutOfBand.mock.calls[0]![0];
+      expect(call.conversationId).toBe(expectedConversation);
+
+      return call.dto.data;
+    };
+
+    it('reports an applied answer in the conversation it came from', async () => {
+      const data = reported(
+        await answerWith({
+          admission: { status: 'accepted', effects: [], disposition: { result: 'APPLIED' } },
+        }),
+      );
+
+      expect(data).toMatchObject({
+        outcome: 'PERMISSION_ANSWER_RESULT',
+        providerActionId: 'req-1',
+        result: 'APPLIED',
+      });
+    });
+
+    it('persists a confirmed workspace answer against the same intervention in the coding conversation', async () => {
+      const interventionId = '11111111-1111-4111-8111-111111111111';
+      const post = await answerWith({
+        fromWorkspace: true,
+        admission: {
+          status: 'accepted',
+          effects: [],
+          interventionId,
+          disposition: { result: 'APPLIED' },
+        },
+      });
+      for (const conversationId of [workspaceConversation, runConversation]) {
+        expect(post).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conversationId,
+            dto: expect.objectContaining({
+              data: expect.objectContaining({
+                outcome: 'PERMISSION_ANSWER_RESULT',
+                interventionId,
+                result: 'APPLIED',
+                answer: 'approve',
+              }),
+            }),
+          }),
+        );
+      }
+    });
+
+    it('reports who decided a request first and when, instead of applying a late answer', async () => {
+      const data = reported(
+        await answerWith({
+          fromWorkspace: true,
+          admission: {
+            status: 'rejected',
+            code: 'input_rejected',
+            reason: 'settled',
+            disposition: {
+              result: 'ALREADY_DECIDED',
+              decidedBy: 'PERSON',
+              decidedByUserId: 'u-2',
+              decidedAt: '2026-01-02T03:04:05.000Z',
+            },
+          },
+        }),
+        workspaceConversation,
+      );
+
+      expect(data).toMatchObject({
+        result: 'ALREADY_DECIDED',
+        decidedBy: 'PERSON',
+        decidedByUserId: 'u-2',
+        decidedAt: '2026-01-02T03:04:05.000Z',
+      });
+    });
+
+    it('explains a refusal the person can understand', async () => {
+      const data = reported(
+        await answerWith({
+          admission: {
+            status: 'rejected',
+            code: 'input_rejected',
+            reason: 'x',
+            disposition: {
+              result: 'REFUSED',
+              reason: 'The Task Monitor is still deciding this request.',
+            },
+          },
+        }),
+      );
+
+      expect(data).toMatchObject({
+        result: 'REFUSED',
+        reason: 'The Task Monitor is still deciding this request.',
+      });
+    });
+
+    it('reports a request the Task Monitor has no record of when the provider cannot take it either', async () => {
+      const data = reported(
+        await answerWith({
+          taskMonitorRecordsRequest: false,
+          providerOutcome: { outcome: 'dropped', reason: 'no_run_registered' },
+        }),
+      );
+
+      expect(data).toMatchObject({ result: 'UNKNOWN_REQUEST' });
+    });
+
+    it('reports a provider answer that was not delivered', async () => {
+      const data = reported(
+        await answerWith({
+          taskMonitorRecordsRequest: false,
+          providerOutcome: { outcome: 'failed', reason: 'runner_error' },
+        }),
+      );
+
+      expect(data).toMatchObject({ result: 'NOT_DELIVERED' });
+    });
+
+    it('leaves unmonitored permission answers on the ordinary provider path', async () => {
+      const createOutOfBand = await answerWith({ monitored: false });
+      expect(createOutOfBand).not.toHaveBeenCalled();
+    });
+  });
+
+  it('answers a request on the provider path when its Task Monitor has no record of it', async () => {
+    const verifier = buildVerifier({
+      ok: true,
+      verified: buildVerifiedPermissionDecisionControl(),
+    });
+    const submitPermissionDecision = vi.fn().mockResolvedValue({ outcome: 'delivered' });
+    const admitTaskMonitorPermissionDecision = vi.fn();
+    const logger = noopLogger();
+    const router = createTestRouter({
+      verifier,
+      resolveConversationRun: () => ({
+        runId: 'binding-run',
+        conversationId: asConversationId('c0000000-0000-4000-8000-000000000001'),
+      }),
+      sendMessage: vi.fn(),
+      createRun: vi.fn(),
+      stopRun: vi.fn().mockResolvedValue(undefined),
+      compactRun: vi.fn().mockResolvedValue(undefined),
+      submitPermissionDecision,
+      permissionDecisionAuditFilePath: path.join(
+        tmpdir(),
+        `hey-hey-permission-audit-${randomUUID()}.jsonl`,
+      ),
+      taskMonitorId: '10000000-0000-4000-8000-000000000001',
+      taskMonitorRecordsRequest: false,
+      admitTaskMonitorPermissionDecision,
+      logger,
+    });
+
+    router.handlePlatformEvent(controlFrameEvent);
+    await settle();
+
+    expect(admitTaskMonitorPermissionDecision).not.toHaveBeenCalled();
+    expect(submitPermissionDecision).toHaveBeenCalledTimes(1);
+    expect(logger.warnCalls).toContainEqual([
+      'trigger-verification.control.permission_decision.no_monitor_record',
+      expect.objectContaining({
+        requestId: 'req-1',
+        owner: 'HUMAN',
+        cause: 'task_monitor_has_no_record_of_request',
+      }),
+    ]);
+  });
+
   it('restores ownership before routing a persisted Task Monitor decision to durable admission', async () => {
     const verifier = buildVerifier({
       ok: true,
@@ -3521,6 +3767,7 @@ describe('createTestRouter', () => {
       ingressId: 'permission-decision:idem-1',
       snapshot: { revision: 2 },
       effects: [],
+      disposition: { result: 'APPLIED' },
     });
     const router = createTestRouter({
       verifier,
