@@ -9,6 +9,7 @@ import type { ConversationControlCancelInput } from '@hey-hey/contracts/api/mode
  */
 
 import crypto from 'node:crypto';
+import type { ZodIssue } from 'zod';
 import { toOpenApiUserId } from '../../shared/api/identifierAdapters';
 
 import type {
@@ -281,18 +282,45 @@ export type VerifyResult =
       details: Record<string, unknown>;
     };
 
+type SchemaDropIssue = { path: string; message: string };
+
+const isOperationLiteralMismatch = (issue: ZodIssue): boolean =>
+  issue.code === 'invalid_literal' && issue.path.at(-1) === 'operation';
+
+/**
+ * A failed `z.union` reports only "Invalid input", which hides the field that
+ * actually failed. Expand it to the issues of the branches whose `operation`
+ * literal matched; when none matched, say so instead of listing every branch.
+ */
+const describeSchemaIssues = (issues: ReadonlyArray<ZodIssue>): SchemaDropIssue[] =>
+  issues.flatMap((issue): SchemaDropIssue[] => {
+    const path = issue.path.map(String).join('.');
+    if (issue.code !== 'invalid_union') {
+      return [{ path, message: issue.message }];
+    }
+
+    const operationMatched = issue.unionErrors.filter(
+      (branch) => !branch.issues.some(isOperationLiteralMismatch),
+    );
+    if (operationMatched.length === 0) {
+      return [{ path, message: `${issue.message}: no union branch matched` }];
+    }
+
+    return [
+      { path, message: issue.message },
+      ...operationMatched.flatMap((branch) => describeSchemaIssues(branch.issues)),
+    ];
+  });
+
 const schemaDrop = (
   frameType: string,
-  error: { issues: ReadonlyArray<{ path: PropertyKey[]; message: string }> },
+  error: { issues: ReadonlyArray<ZodIssue> },
 ): Extract<VerifyResult, { ok: false }> => ({
   ok: false,
   reason: 'schema',
   details: {
     frameType,
-    issues: error.issues.map((issue) => ({
-      path: issue.path.map(String).join('.'),
-      message: issue.message,
-    })),
+    issues: describeSchemaIssues(error.issues),
   },
 });
 
