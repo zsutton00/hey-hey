@@ -195,6 +195,7 @@ const buildConversationEnvelope = (
   overrides: Partial<ConversationResponseDto> = {},
 ): ConversationResponseDto =>
   ({
+    restricted: true,
     id: "conv-1",
     projectId: "proj-1",
     organizationId: "org-1",

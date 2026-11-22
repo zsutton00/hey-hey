@@ -703,6 +703,7 @@ describe('MessageService', () => {
           where: {
             conversation: {
               organizationId: mockOrganizationId,
+              projectId: mockProjectId,
             },
             projectId: mockProjectId,
             conversationId: mockConversationId,
@@ -823,7 +824,11 @@ describe('MessageService', () => {
             conversationId: mockConversationId,
             // An undated queued input is never a valid cursor.
             createdAt: { not: null },
-            conversation: { organizationId: mockOrganizationId },
+            projectId: mockProjectId,
+            conversation: {
+              organizationId: mockOrganizationId,
+              projectId: mockProjectId,
+            },
           },
           select: { id: true, createdAt: true },
         });
@@ -920,6 +925,12 @@ describe('MessageService', () => {
       const middleId = '22222222-2222-4222-8222-222222222222' as MessageId;
       const oldestId = '33333333-3333-4333-8333-333333333333' as MessageId;
 
+      beforeEach(() => {
+        jest
+          .spyOn(prismaService.db.conversation, 'findFirst')
+          .mockResolvedValue({ restricted: false } as never);
+      });
+
       it('selects newest rows stably and returns the page chronologically', async () => {
         const newest = TestUtils.createMockDbMessage({
           id: newestId,
@@ -941,6 +952,7 @@ describe('MessageService', () => {
           historyQuery,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           true,
           true,
           false,
@@ -1007,6 +1019,7 @@ describe('MessageService', () => {
           historyQuery,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           true,
           true,
           false,
@@ -1018,6 +1031,7 @@ describe('MessageService', () => {
           { ...historyQuery, historyCursor: first.nextCursor },
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           true,
           true,
           true,
@@ -1055,6 +1069,7 @@ describe('MessageService', () => {
             { ...historyQuery, since: mockMessageId },
             mockOrganizationId,
             mockProjectId,
+            testIds.user,
             true,
             true,
             false,
@@ -2733,6 +2748,7 @@ describe('MessageService', () => {
           query,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           false,
         );
 
@@ -2742,6 +2758,7 @@ describe('MessageService', () => {
           false,
           true,
           false,
+          testIds.user,
         );
       });
 
@@ -2753,6 +2770,7 @@ describe('MessageService', () => {
           query,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           true,
           true,
           true,
@@ -2764,6 +2782,7 @@ describe('MessageService', () => {
           true,
           true,
           true,
+          testIds.user,
         );
       });
     });
@@ -2776,12 +2795,14 @@ describe('MessageService', () => {
           mockMessageId,
           mockOrganizationId,
           false,
+          mockProjectId,
         );
 
         expect(spy).toHaveBeenCalledWith(
           mockMessageId,
           mockOrganizationId,
           false,
+          mockProjectId,
         );
       });
     });
@@ -3292,6 +3313,9 @@ describe('MessageService', () => {
     it.each(['full', 'delta', 'reverse history', 'older history'] as const)(
       '%s reads omit undated replies while preserving dated replies and associations',
       async (read) => {
+        jest
+          .spyOn(prismaService.db.conversation, 'findFirst')
+          .mockResolvedValue({ restricted: false } as never);
         const datedReply = TestUtils.createMockDbMessage({
           id: testIds.parentMessage,
           parentMessageId: mockMessageId,
@@ -3351,6 +3375,7 @@ describe('MessageService', () => {
           query,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           true,
           true,
           true,
@@ -3376,6 +3401,7 @@ describe('MessageService', () => {
           query,
           mockOrganizationId,
           mockProjectId,
+          testIds.user,
           false,
           false,
           false,

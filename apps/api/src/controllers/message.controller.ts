@@ -237,6 +237,7 @@ export class MessageController {
   async getMessage(
     @CurrentOrganization() organizationId: OrganizationId,
     @CurrentUser('userId') userId: UserId,
+    @Param('projectId') projectId: ProjectId,
     @Param('id') id: string,
     @Query('includeResponses') includeResponses?: string,
   ): Promise<MessageRecordDto> {
@@ -245,6 +246,7 @@ export class MessageController {
       id,
       organizationId,
       shouldIncludeResponses,
+      projectId,
     );
     if (!message) {
       throw new NotFoundException('Message not found');
@@ -253,6 +255,7 @@ export class MessageController {
       organizationId,
       conversationId: message.conversationId as ConversationId,
       readerUserId: userId,
+      projectId,
     });
     return message;
   }

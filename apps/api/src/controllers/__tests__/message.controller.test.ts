@@ -216,9 +216,15 @@ describe('MessageController', () => {
         '1',
       );
 
-      const call = messageService.getMessagesForAdapter.mock.calls[0];
-      // 6th positional arg is includeReports
-      expect(call?.[5]).toBe(false);
+      expect(messageService.getMessagesForAdapter).toHaveBeenCalledWith(
+        baseQuery,
+        testIds.organization,
+        testIds.project,
+        testIds.user,
+        true,
+        true,
+        false,
+      );
     });
 
     it('returns the service result unchanged', async () => {

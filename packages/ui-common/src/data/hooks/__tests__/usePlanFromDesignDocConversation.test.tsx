@@ -11,14 +11,14 @@ vi.mock("../useWorkflowConversations", () => ({
     projectId: string | undefined,
     workflowName: string | undefined,
     workflowAboutId: string | undefined,
-    options: Record<string, unknown> = {}
+    options: Record<string, unknown> = {},
   ) =>
     useWorkflowConversationsMock(
       organizationId,
       projectId,
       workflowName,
       workflowAboutId,
-      options
+      options,
     ),
 }));
 
@@ -44,7 +44,7 @@ describe("usePlanFromDesignDocConversation", () => {
 
   it("filters useWorkflowConversations by the plan-from-design-doc workflow", () => {
     renderHook(() =>
-      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1")
+      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1"),
     );
 
     expect(useWorkflowConversationsMock).toHaveBeenCalledTimes(1);
@@ -63,6 +63,7 @@ describe("usePlanFromDesignDocConversation", () => {
 
   it("returns the most recent conversation when one exists", () => {
     const conversation = {
+      restricted: true,
       id: "conv-1",
       workflowName: WorkflowName.PlanFromDesignDoc,
     } as unknown as ConversationResponseDto;
@@ -72,7 +73,7 @@ describe("usePlanFromDesignDocConversation", () => {
     });
 
     const { result } = renderHook(() =>
-      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1")
+      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1"),
     );
 
     expect(result.current.conversation).toBe(conversation);
@@ -81,7 +82,7 @@ describe("usePlanFromDesignDocConversation", () => {
 
   it("returns null when no conversation exists", () => {
     const { result } = renderHook(() =>
-      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1")
+      usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1"),
     );
 
     expect(result.current.conversation).toBeNull();
@@ -91,7 +92,7 @@ describe("usePlanFromDesignDocConversation", () => {
     renderHook(() =>
       usePlanFromDesignDocConversation("org-1", "proj-1", "plan-1", {
         enabled: false,
-      })
+      }),
     );
 
     const [, , , , options] = useWorkflowConversationsMock.mock.calls[0];

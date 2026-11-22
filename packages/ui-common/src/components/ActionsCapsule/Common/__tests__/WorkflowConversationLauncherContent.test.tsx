@@ -19,9 +19,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>(
-    "react-router-dom"
-  );
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
 
   return {
     ...actual,
@@ -45,8 +46,9 @@ vi.mock("react-i18next", () => ({
 
 const buildConversation = (
   conversationId: string,
-  title: string
+  title: string,
 ): ConversationResponseDto => ({
+  restricted: true,
   id: conversationId,
   projectId: "project-1",
   organizationId: "org-1",
@@ -74,7 +76,7 @@ const defaultCreateConversationDto: CreateConversationDto = {
 };
 
 const setupWorkflowConversations = (
-  conversations: ConversationResponseDto[]
+  conversations: ConversationResponseDto[],
 ): void => {
   mocks.useWorkflowConversations.mockReturnValue({
     data: conversations,
@@ -108,7 +110,7 @@ describe("WorkflowConversationLauncherContent", () => {
     const user = userEvent.setup();
     const existingConversation = buildConversation(
       "conversation-1",
-      "Existing Plan Update"
+      "Existing Plan Update",
     );
 
     setupWorkflowConversations([existingConversation]);
@@ -124,13 +126,13 @@ describe("WorkflowConversationLauncherContent", () => {
         workflowName={WorkflowName.PlanUpdate}
         workflowAboutId="plan-1"
         createConversationDto={() => defaultCreateConversationDto}
-      />
+      />,
     );
 
     await user.click(screen.getByText("Existing Plan Update"));
 
     expect(mocks.navigate).toHaveBeenCalledWith(
-      "/projects/project-1/resolve-agent-session/conversation-1"
+      "/projects/project-1/resolve-agent-session/conversation-1",
     );
   });
 
@@ -139,7 +141,7 @@ describe("WorkflowConversationLauncherContent", () => {
     const createConversationMutate = vi.fn();
     const createdConversation = buildConversation(
       "conversation-2",
-      "New Plan Update"
+      "New Plan Update",
     );
 
     setupWorkflowConversations([]);
@@ -156,7 +158,7 @@ describe("WorkflowConversationLauncherContent", () => {
           options?.onSuccess?.(createdConversation);
         },
         isPending: false,
-      })
+      }),
     );
 
     render(
@@ -166,11 +168,13 @@ describe("WorkflowConversationLauncherContent", () => {
         workflowName={WorkflowName.PlanUpdate}
         workflowAboutId="plan-1"
         createConversationDto={() => defaultCreateConversationDto}
-      />
+      />,
     );
 
     await user.click(
-      screen.getByTestId("workflow-conversation-launcher-content-create-button")
+      screen.getByTestId(
+        "workflow-conversation-launcher-content-create-button",
+      ),
     );
 
     expect(createConversationMutate).toHaveBeenCalledWith({
@@ -179,7 +183,7 @@ describe("WorkflowConversationLauncherContent", () => {
       conversationDto: defaultCreateConversationDto,
     });
     expect(mocks.navigate).toHaveBeenCalledWith(
-      "/projects/project-1/resolve-agent-session/conversation-2"
+      "/projects/project-1/resolve-agent-session/conversation-2",
     );
   });
 });

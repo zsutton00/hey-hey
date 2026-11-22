@@ -91,6 +91,7 @@ const makeConversation = (
   title: string,
 ): ConversationResponseDto =>
   ({
+    restricted: true,
     id,
     createdBy,
     title,

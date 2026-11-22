@@ -217,6 +217,7 @@ const machine = (
 const readyMachine = machine("machine-1");
 
 const conversation: ConversationResponseDto = {
+  restricted: true,
   id: CONVERSATION_ID,
   projectId: "proj-1",
   organizationId: "org-1",

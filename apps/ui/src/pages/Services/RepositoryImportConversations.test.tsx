@@ -40,6 +40,7 @@ const conversation = (
   status: ConversationStatus,
   overrides: Partial<ConversationResponseDto> = {},
 ): ConversationResponseDto => ({
+  restricted: true,
   id,
   organizationId: "organization-1",
   projectId: "project-1",

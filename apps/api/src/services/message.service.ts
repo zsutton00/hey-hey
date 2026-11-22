@@ -1003,10 +1003,11 @@ export class MessageService {
     organizationId: OrganizationId;
     conversationId: ConversationId;
     readerUserId: UserId;
+    projectId?: ProjectId;
   }): Promise<void> {
-    const { organizationId, conversationId, readerUserId } = params;
+    const { organizationId, conversationId, readerUserId, projectId } = params;
     const conversation = await this.prisma.db.conversation.findFirst({
-      where: { id: conversationId, organizationId },
+      where: { id: conversationId, organizationId, projectId },
       select: { restricted: true, createdBy: true },
     });
     if (!conversation) {
@@ -1086,6 +1087,7 @@ export class MessageService {
         organizationId,
         conversationId: query.conversationId,
         readerUserId,
+        projectId: authorizedProjectId,
       });
     }
     if (query.mode === MessageReadMode.ReverseHistory) {
@@ -1099,7 +1101,7 @@ export class MessageService {
       });
     }
     return this.getMessages(
-      query,
+      { ...query, projectId: authorizedProjectId },
       organizationId,
       includeResponses,
       includeProposals,
@@ -1112,8 +1114,9 @@ export class MessageService {
     id: string,
     organizationId: OrganizationId,
     includeResponses = true,
+    projectId?: ProjectId,
   ): Promise<MessageRecordDto | null> {
-    return this.getMessage(id, organizationId, includeResponses);
+    return this.getMessage(id, organizationId, includeResponses, projectId);
   }
 
   async addMessageFromAdapter(
@@ -1300,13 +1303,16 @@ export class MessageService {
     id: string,
     organizationId: OrganizationId,
     includeResponses = true,
+    projectId?: ProjectId,
   ): Promise<MessageRecordDto | null> {
     const result = await this.prisma.db.message.findFirst({
       where: {
         id,
+        projectId,
         // CRITICAL: Filter by organization through conversation relationship
         conversation: {
           organizationId,
+          projectId,
         },
       },
       include: {
@@ -1798,7 +1804,8 @@ export class MessageService {
           id: since,
           conversationId,
           ...TIMELINE_MESSAGE_WHERE,
-          conversation: { organizationId },
+          projectId,
+          conversation: { organizationId, projectId },
         },
         select: { id: true, createdAt: true },
       });
@@ -1835,6 +1842,7 @@ export class MessageService {
         // CRITICAL: Always filter by organization through conversation relationship
         conversation: {
           organizationId,
+          projectId,
           ...(scopeToReadableBy &&
             this.readableConversationsWhere(scopeToReadableBy)),
         },
