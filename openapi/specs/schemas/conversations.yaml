@@ -4510,6 +4510,8 @@ SystemMessageData:
         Severity of an automated notice, independent of the notice
         classification. Only meaningful when presentation is "notice"; a
         notice without it renders as info.
+    compaction:
+      $ref: "#/CompactionNoticeMarker"
     reasoning:
       type: string
       description: LLM's reasoning for the intent detection
@@ -4662,6 +4664,27 @@ UIHint:
       example: true
   description: Hint about expected UI elements for loading skeleton
 
+CompactionNoticeMarker:
+  type: object
+  description: >-
+    Typed lifecycle marker on a Run's explicit compaction notice, so clients
+    track compaction without parsing the notice text. Absent on other
+    messages and on historical compaction notices.
+  required:
+    - phase
+  properties:
+    phase:
+      type: string
+      enum: [queued, started, completed, failed]
+      description: >-
+        queued: deferred until the active Turn ends; started: compaction
+        began; completed: the provider reported compaction done; failed: it
+        did not complete (see code).
+    code:
+      type: string
+      description: >-
+        Runner error code for a failed compaction, e.g. NOT_SUPPORTED,
+        NO_ACTIVE_SESSION or FAILED. Only set when phase is failed.
 UIHints:
   type: object
   required:
@@ -7492,6 +7515,34 @@ PlanShapingFeatureSyncItemDecision:
     note:
       type: string
 
+PlanShapingFeatureSyncReportSelection:
+  type: object
+  additionalProperties: false
+  required:
+    - groupId
+    - groupTitle
+    - choiceId
+    - choiceLabel
+    - isNoChange
+  description: >
+    The choice the user picked for one question on the Feature Sync
+    decision report. Directs the next revision pass only; it never
+    approves a proposal.
+  properties:
+    groupId:
+      type: string
+      minLength: 1
+    groupTitle:
+      type: string
+    choiceId:
+      type: string
+      minLength: 1
+    choiceLabel:
+      type: string
+    isNoChange:
+      type: boolean
+      description: True when the picked choice is the question's "no change" option.
+
 PlanShapingFeatureSyncReviewRefineAnswerPayload:
   type: object
   additionalProperties: false
@@ -7503,6 +7554,13 @@ PlanShapingFeatureSyncReviewRefineAnswerPayload:
       type: array
       items:
         $ref: "#/PlanShapingFeatureSyncItemDecision"
+    reportSelections:
+      type: array
+      items:
+        $ref: "#/PlanShapingFeatureSyncReportSelection"
+      description: >
+        The choice the user picked for each question on the Feature Sync
+        decision report, in report order.
   description: User feedback and per-item choices for one bounded feature-sync revision pass.
 
 PlanShapingFeatureSyncReviewDismissedWorkflowAnswer:

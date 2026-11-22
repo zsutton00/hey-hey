@@ -137,6 +137,7 @@ import {
   MessageType,
   MessageStatus,
   SystemMessageDataPresentationEnum,
+  type CompactionNoticeMarker,
   SystemMessageDataTypeEnum,
 } from '../shared/api/index';
 import type {
@@ -1032,11 +1033,21 @@ export class Run {
           : null,
       runner: () => this.runner ?? undefined,
       isProcessing: () => this._processing,
+      holdRun: () => {
+        this._processing = true;
+      },
+      releaseRun: () => {
+        void this.drainQueue()
+          .catch((error: unknown) => {
+            this.logger.error('local.run.compaction.drain_failed', { runId: this.runId, error });
+          })
+          .finally(() => this.armInactivityTimerIfIdle());
+      },
       session: () => this.session,
       activeTurn: () => this.activeTurn,
       contextProviderSessionId: () => this.contextProviderSessionId(),
-      postRuntimeNotice: (response, severity, session) =>
-        this.postAgentSystemMessage(response, session, severity),
+      postRuntimeNotice: (response, severity, session, compaction) =>
+        this.postAgentSystemMessage(response, session, severity, compaction),
     });
     this.proposalTracker = new RunProposalTracker({
       runId: this.runId,
@@ -5219,7 +5230,10 @@ export class Run {
     this.agentSessionCurrentState.settleTurn(this.serviceScope.isWaitingForApproval());
     this.conversationPhase.settleTurn(this.serviceScope.isWaitingForApproval());
 
-    this._processing = false;
+    // The Run stays held through the rest of turn-end cleanup; only
+    // `drainQueue()` below releases it. A message or compact request arriving
+    // meanwhile queues or defers into `afterTurnEnd`, so no compaction can
+    // start here that this cleanup would then release mid-compaction.
     this.resetAbort();
 
     // Flush the turn's EXTERNAL_AGENT completion as its terminal write only
@@ -6802,6 +6816,7 @@ export class Run {
     response: string,
     session: AgenticSession = this.session,
     noticeSeverity?: NoticeSeverity,
+    compaction?: CompactionNoticeMarker,
   ): Promise<void> {
     const agentData: AgentSystemMessageData = {
       type: SystemMessageDataTypeEnum.Agent,
@@ -6811,6 +6826,7 @@ export class Run {
       ...(noticeSeverity
         ? { presentation: SystemMessageDataPresentationEnum.Notice, noticeSeverity }
         : {}),
+      ...(compaction ? { compaction } : {}),
     };
     const dto = {
       type: MessageType.System,

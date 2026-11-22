@@ -38,6 +38,12 @@ const makeHarness = (
     autoCompact: null,
     runner: () => runner,
     isProcessing: () => state.processing,
+    holdRun: () => {
+      calls.push('hold');
+    },
+    releaseRun: () => {
+      calls.push('release');
+    },
     session: () => session,
     activeTurn: () => null,
     contextProviderSessionId: () => 'provider-session-1',
@@ -93,7 +99,7 @@ describe('RunCompaction', () => {
       const h = makeHarness();
       Reflect.deleteProperty(h.runner, 'compact');
       await expect(h.compaction.compact()).rejects.toMatchObject({ code: 'NOT_SUPPORTED' });
-      expect(notes(h)).toEqual([]);
+      expect(notes(h)).toEqual(['Compact failed: No active runner supports compaction.']);
     });
 
     it('defers while processing and runs once at afterTurnEnd', async () => {
@@ -118,7 +124,11 @@ describe('RunCompaction', () => {
       await h.compaction.afterTurnEnd();
       await Promise.all([first, second]);
       expect(h.compact).toHaveBeenCalledTimes(1);
-      expect(notes(h)).toEqual(['Starting compact…', 'Finished compact…']);
+      expect(notes(h)).toEqual([
+        'Compact queued until the current turn finishes',
+        'Starting compact…',
+        'Finished compact…',
+      ]);
     });
 
     it('stays silent when every coalesced caller is silent', async () => {
