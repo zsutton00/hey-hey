@@ -37,6 +37,14 @@ export type {
   UseTaskMonitorPauseResumeResult,
 } from "./useTaskMonitorPauseResume";
 export { useTaskMonitorConversationFormResolver } from "./useTaskMonitorConversationFormResolver";
+export type { UseTaskMonitorConversationFormResolverOptions } from "./useTaskMonitorConversationFormResolver";
+export { useTaskMonitorRowSignals } from "./useTaskMonitorRowSignals";
+export {
+  TASK_MONITOR_ROW_LABELS,
+  taskMonitorRowSignal,
+  taskMonitorRowStatus,
+} from "./taskMonitorRowSignal";
 export type {
-  UseTaskMonitorConversationFormResolverOptions,
-} from "./useTaskMonitorConversationFormResolver";
+  TaskMonitorRowSignal,
+  TaskMonitorRowStatus,
+} from "./taskMonitorRowSignal";

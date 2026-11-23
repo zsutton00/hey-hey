@@ -7,6 +7,10 @@ import { OpenItemsProvider } from "../../contexts/OpenItemsContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import {
+  useTaskMonitorRowSignals,
+  type TaskMonitorRowSignal,
+} from "@hey-hey/ui-common/components";
+import {
   AgentSessionCurrentState,
   AgentSessionOutputAttentionState,
   AgentSessionType,
@@ -143,6 +147,8 @@ vi.mock("@hey-hey/ui-common/components", async (importOriginal) => {
   return {
     getAgentSessionRowSignalPresentation:
       actual.getAgentSessionRowSignalPresentation,
+    TASK_MONITOR_ROW_LABELS: actual.TASK_MONITOR_ROW_LABELS,
+    useTaskMonitorRowSignals: vi.fn(actual.useTaskMonitorRowSignals),
     ConversationPhaseIndicator: ({ phase }: { phase: string | undefined }) =>
       phase ? (
         <span
@@ -455,6 +461,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 const useWorkItemMock = vi.mocked(useWorkItem);
+const useTaskMonitorRowSignalsMock = vi.mocked(useTaskMonitorRowSignals);
 const useAgentSessionMock = vi.mocked(useAgentSession);
 const useAgentSessionCurrentStatesMock = vi.mocked(
   useAgentSessionCurrentStates,
@@ -2573,6 +2580,97 @@ describe("OpenItemsSection", () => {
       undefined,
     );
     expect(getEntityColorsMock).toHaveBeenCalledWith("CONTRACT");
+  });
+
+  describe("Task Monitor row status", () => {
+    const monitorId = "e8a970e8-3ee8-5d4f-a62e-d273e23779ab";
+
+    const renderMonitorRow = (signal: TaskMonitorRowSignal) => {
+      setWorkItemTypeDefinitions({
+        key: "TASK_MONITOR",
+        name: "Task Monitor",
+      } as WorkItemTypeDefinitionDto);
+      useTaskMonitorRowSignalsMock.mockReturnValue({ [monitorId]: signal });
+      localStorage.setItem(
+        "open-items:v1:project-1",
+        JSON.stringify({
+          version: 1,
+          items: [
+            {
+              entityId: monitorId,
+              entityType: "task",
+              presentation: {
+                kind: "task",
+                label: "Nightly monitor",
+                taskType: "TASK_MONITOR",
+              },
+            },
+          ],
+        }),
+      );
+      const tree = () => (
+        <MemoryRouter initialEntries={["/projects/project-1"]}>
+          <OpenItemsProvider
+            organizationId="org-1"
+            userId={openItemsTestUserId()}
+            projectId="project-1"
+          >
+            <OpenItemsSection organizationId="org-1" projectId="project-1" />
+            <CanonicalOpenItemsReady />
+          </OpenItemsProvider>
+        </MemoryRouter>
+      );
+      const view = render(tree());
+
+      return { ...view, update: () => view.rerender(tree()) };
+    };
+
+    it("shows the monitor's status beside its title, without its page open, and follows a pushed snapshot", async () => {
+      const view = renderMonitorRow({
+        kind: "status",
+        status: "running",
+        stale: false,
+      });
+      expect(
+        await screen.findByTestId("open-item-monitor-status"),
+      ).toHaveTextContent("Running");
+      await waitFor(() =>
+        expect(useTaskMonitorRowSignalsMock).toHaveBeenLastCalledWith(
+          "org-1",
+          "project-1",
+          [monitorId],
+        ),
+      );
+
+      useTaskMonitorRowSignalsMock.mockReturnValue({
+        [monitorId]: { kind: "status", status: "needs_feedback", stale: false },
+      });
+      view.update();
+      expect(
+        await screen.findByText("Needs feedback", {
+          selector: "[data-testid=open-item-monitor-status]",
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("marks a last-known status as such", async () => {
+      renderMonitorRow({ kind: "status", status: "paused", stale: true });
+
+      expect(
+        await screen.findByTestId("open-item-monitor-status"),
+      ).toHaveTextContent("Last known: Paused");
+    });
+
+    it("shows no status when the monitor's state is unknown", async () => {
+      renderMonitorRow({ kind: "none", reason: "missing" });
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("canonical-open-items-ready"),
+        ).toHaveAttribute("data-ready", "true"),
+      );
+
+      expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
+    });
   });
 
   it("backfills the dedicated Task Monitor icon for an existing definition", async () => {

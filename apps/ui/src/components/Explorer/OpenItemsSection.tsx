@@ -47,6 +47,9 @@ import {
   getAgentSessionRowSignalPresentation,
   type AgentSessionRowLifecycleSignal,
   type AgentSessionRowSignalPresentation,
+  TASK_MONITOR_ROW_LABELS,
+  useTaskMonitorRowSignals,
+  type TaskMonitorRowSignal,
 } from "@hey-hey/ui-common/components";
 import {
   useCurrentCanonicalPage,
@@ -502,6 +505,7 @@ type OpenItemRowProps = {
   projectId: string;
   evalStatusLabel?: string;
   currentState?: AgentSessionCurrentState;
+  monitorSignal?: TaskMonitorRowSignal;
   outputAttentionState?: AgentSessionOutputAttentionState;
   conversationPhase?: Parameters<typeof ConversationPhaseIndicator>[0]["phase"];
   workItemTypeDefinitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>;
@@ -562,6 +566,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   organizationId,
   projectId,
   currentState,
+  monitorSignal,
   evalStatusLabel,
   outputAttentionState,
   conversationPhase,
@@ -1020,6 +1025,25 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             >
               {label}
             </Typography>
+            {monitorSignal?.kind === "status" ? (
+              <Typography
+                variant="caption"
+                color={
+                  monitorSignal.status === "needs_feedback" ||
+                  monitorSignal.status === "awaiting_approval" ||
+                  monitorSignal.status === "failed"
+                    ? "warning.main"
+                    : "text.secondary"
+                }
+                noWrap
+                data-testid="open-item-monitor-status"
+                data-stale={monitorSignal.stale}
+                sx={{ opacity: monitorSignal.stale ? 0.6 : 1 }}
+              >
+                {monitorSignal.stale ? "Last known: " : ""}
+                {TASK_MONITOR_ROW_LABELS[monitorSignal.status]}
+              </Typography>
+            ) : null}
             {evalStatusLabel ? (
               <Typography
                 variant="caption"
@@ -1321,6 +1345,23 @@ export const OpenItemsSection: React.FC<{
       ),
     [visibleProjectedItems],
   );
+  const visibleMonitorIds = useMemo<string[]>(
+    () =>
+      visibleProjectedItems
+        .filter(
+          ({ item }) =>
+            item.entityType === "task" &&
+            item.presentation?.kind === "task" &&
+            item.presentation.taskType === "TASK_MONITOR",
+        )
+        .map(({ item }) => item.entityId),
+    [visibleProjectedItems],
+  );
+  const monitorSignalById = useTaskMonitorRowSignals(
+    organizationId,
+    projectId,
+    visibleMonitorIds,
+  );
   const visibleConversationIds = useMemo<string[]>(
     () =>
       Array.from(
@@ -1583,6 +1624,7 @@ export const OpenItemsSection: React.FC<{
             ? currentStateById[item.entityId]?.currentState
             : undefined
         }
+        monitorSignal={monitorSignalById[item.entityId]}
         outputAttentionState={
           item.entityType === "agent_session"
             ? outputAttentionById[item.entityId]?.state

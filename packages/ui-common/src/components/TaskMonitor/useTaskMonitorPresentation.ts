@@ -12,6 +12,22 @@ export const MONITOR_PANES: readonly MonitorPane[] = [
   "session",
 ];
 
+/** The monitor waits on a person: a judgment or an intervention. */
+export function monitorNeedsFeedback(
+  snapshot: TaskMonitorStateProjection,
+): boolean {
+  const { execution } = snapshot;
+
+  return (
+    execution.intervention === "PENDING" ||
+    execution.intervention === "APPLICATION_FAILED" ||
+    execution.intervention === "APPLICATION_STALE" ||
+    execution.intervention === "APPLICATION_UNCERTAIN" ||
+    execution.work === "LAUNCH_JUDGMENT" ||
+    execution.work === "OUTCOME_JUDGMENT"
+  );
+}
+
 export function monitorPhase(
   snapshot: TaskMonitorStateProjection | null,
   initialSetup: boolean,
@@ -29,15 +45,7 @@ export function monitorPhase(
   if (execution.lifecycle === "ABSENT") {
     return initialSetup ? "setup" : "unknown";
   }
-  if (
-    failure ||
-    execution.intervention === "PENDING" ||
-    execution.intervention === "APPLICATION_FAILED" ||
-    execution.intervention === "APPLICATION_STALE" ||
-    execution.intervention === "APPLICATION_UNCERTAIN" ||
-    execution.work === "LAUNCH_JUDGMENT" ||
-    execution.work === "OUTCOME_JUDGMENT"
-  ) {
+  if (failure || monitorNeedsFeedback(snapshot)) {
     return "attention";
   }
   if (execution.control === "PAUSED" || execution.control === "PAUSING") {
