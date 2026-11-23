@@ -39,6 +39,7 @@ import { ListReportsByEntityToolsProvider } from './tools/list-reports-by-entity
 import { RecentlyViewedToolsProvider } from './tools/recently-viewed-tools.provider';
 import { PlanToolsProvider } from './tools/plan-tools.provider';
 import { GetDiagramToolsProvider } from './tools/get-diagram-tools.provider';
+import { FindDiagramElementsToolsProvider } from './tools/find-diagram-elements-tools.provider';
 import { HelpService } from '../services/help.service';
 import {
   HINT_READ_TOOL_PROVIDERS,
@@ -86,6 +87,7 @@ import {
     RecentlyViewedToolsProvider,
     PlanToolsProvider,
     GetDiagramToolsProvider,
+    FindDiagramElementsToolsProvider,
     ...HINT_WRITE_TOOL_PROVIDERS,
     ...HINT_READ_TOOL_PROVIDERS,
   ],

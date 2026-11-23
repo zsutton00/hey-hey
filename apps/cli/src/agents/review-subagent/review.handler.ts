@@ -42,6 +42,9 @@ export const REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS: readonly string[] = [
   'get_context',
   'get_edges',
   'get_full_entity',
+  // Diagram Elements for the walkthrough's parts; both are reads.
+  'get_diagram',
+  'find_diagram_elements',
   'get_agent_sessions',
   'get_report_body',
   'get_report_schema',

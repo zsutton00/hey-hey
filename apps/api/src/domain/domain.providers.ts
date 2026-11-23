@@ -36,6 +36,7 @@ import { SecurityLoggerService } from '../services/security-logger.service';
 import { TagService } from '../services/tag.service';
 import { TaskService } from '../services/tasks/task.service';
 import { WorkItemGraphParticipationComposer } from '../services/tasks/work-item-graph-participation';
+import { DiagramElementLookupService } from '../services/tasks/diagram-element-lookup.service';
 import { FeatureRequirementAuthoringService } from '../services/tasks/feature-requirement-authoring.service';
 import { GoalTracksService } from '../services/tasks/goal-tracks.service';
 import { TaskSupersedeService } from '../services/tasks/task-supersede.service';
@@ -245,6 +246,7 @@ export const DOMAIN_SERVICES: Provider[] = [
   TagService,
   TaskService,
   WorkItemGraphParticipationComposer,
+  DiagramElementLookupService,
   FeatureRequirementAuthoringService,
   GoalTracksService,
   WorkItemTypeImpactService,
@@ -391,6 +393,7 @@ export const DOMAIN_EXPORTS = [
   TagService,
   TaskService,
   WorkItemGraphParticipationComposer,
+  DiagramElementLookupService,
   FeatureRequirementAuthoringService,
   GoalTracksService,
   WorkItemTypeImpactService,

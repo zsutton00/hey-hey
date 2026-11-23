@@ -38,6 +38,14 @@ describe('reviewHandler', () => {
     expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('add_hint_connection');
   });
 
+  it('can look up Diagram Elements for walkthrough parts without any editing tool', () => {
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).toEqual(
+      expect.arrayContaining(['find_diagram_elements', 'get_diagram']),
+    );
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('create_edge');
+    expect(REVIEW_SUBAGENT_MCP_ALLOWED_TOOLS).not.toContain('edit_work_item');
+  });
+
   it('asks the reviewer to review the target session hints silently', () => {
     const prompt = reviewHandler.buildPrompt({
       _sessionId: '55555555-5555-4555-8555-555555555555',

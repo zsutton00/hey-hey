@@ -32,6 +32,33 @@ export type UxFlowElementRow = Prisma.TaskGetPayload<{
 }>;
 
 /**
+ * Where clause for live Diagram elements, inside a live Diagram, whose metadata
+ * mentions any of the entity ids. The text match only narrows candidates; the
+ * caller decides on the parsed canonical reference.
+ */
+export function diagramElementsMentioningWhere(params: {
+  organizationId: string;
+  projectId: string;
+  entityIds: readonly string[];
+}) {
+  return restrictTaskWhere({
+    organizationId: params.organizationId,
+    projectId: params.projectId,
+    type: 'DIAGRAM_ELEMENT',
+    ...LIVE,
+    parentTask: { is: { type: 'DIAGRAM', ...LIVE } },
+    OR: params.entityIds.map((entityId) => ({
+      sections: {
+        some: {
+          key: 'diagramElementMetadata',
+          materializedMarkdown: { contains: entityId },
+        },
+      },
+    })),
+  } satisfies Prisma.TaskWhereInput);
+}
+
+/**
  * Query for live Diagram elements whose metadata mentions the work item. The
  * text match only narrows candidates; `uxFlowMembershipsFromElements` decides.
  */
@@ -41,18 +68,10 @@ export function uxFlowElementsQuery(params: {
   workItemId: string;
 }) {
   return {
-    where: restrictTaskWhere({
+    where: diagramElementsMentioningWhere({
       organizationId: params.organizationId,
       projectId: params.projectId,
-      type: 'DIAGRAM_ELEMENT',
-      ...LIVE,
-      parentTask: { is: { type: 'DIAGRAM', ...LIVE } },
-      sections: {
-        some: {
-          key: 'diagramElementMetadata',
-          materializedMarkdown: { contains: params.workItemId },
-        },
-      },
+      entityIds: [params.workItemId],
     }),
     select: UX_FLOW_ELEMENT_SELECT,
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

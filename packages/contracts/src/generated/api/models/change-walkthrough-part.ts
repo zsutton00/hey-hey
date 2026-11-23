@@ -43,7 +43,7 @@ export interface ChangeWalkthroughPart {
      */
     'relations': string;
     /**
-     * Reserved for pointing the part at Diagram Elements. Left empty for now and not rendered.
+     * Diagram Elements the part belongs to, set only when a recorded project link (the originating task, the part\'s Service or Contracts, Contract participation, or FULFILLED_BY) leads to the element. Empty when no link exists; never guessed from names. Elements that no longer resolve are omitted when the report is shown.
      * @type {Array<ChangeWalkthroughDiagramElementRef>}
      * @memberof ChangeWalkthroughPart
      */
