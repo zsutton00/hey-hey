@@ -5,10 +5,6 @@ import { useWorkItemExecutionState } from "../../data/hooks/useWorkItemExecution
 import { TrackingProvider } from "../../contexts";
 import { DataStateBoundary } from "../shared/DataStateBoundary";
 import { TaskMonitorWorkspaceView } from "./TaskMonitorWorkspaceView";
-import type {
-  TaskMonitorPane,
-  TaskMonitorWorkspaceViewProps,
-} from "./TaskMonitorWorkspaceView";
 import { useTaskMonitorProjection } from "./useTaskMonitorProjection";
 import { useTaskMonitorStart } from "./useTaskMonitorStart";
 import { useTaskMonitorPauseResume } from "./useTaskMonitorPauseResume";
@@ -31,16 +27,12 @@ export interface TaskMonitorProps {
   organizationId: string;
   projectId: string;
   monitorId: string;
-  activePane: TaskMonitorPane;
-  renderPaneNavigation?: TaskMonitorWorkspaceViewProps["renderPaneNavigation"];
 }
 
 export const TaskMonitor = ({
   organizationId,
   projectId,
   monitorId,
-  activePane,
-  renderPaneNavigation,
 }: TaskMonitorProps) => {
   const executionState = useWorkItemExecutionState(monitorId);
   const snapshot =
@@ -270,8 +262,6 @@ export const TaskMonitor = ({
               setUserMessage(message);
             }}
             taskServices={taskServices}
-            activePane={activePane}
-            renderPaneNavigation={renderPaneNavigation}
           />
         </DataStateBoundary>
       </Stack>

@@ -1,6 +1,6 @@
 import type { TaskResponseDto } from "../../api/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AgentSessionStatus,
   WorkStatus,
@@ -12,6 +12,7 @@ import {
   type TaskMonitorRuntimeSelection,
 } from "../../api";
 import { tasksClient, unifiedApiClient } from "../../clients/serviceClients";
+import { getErrorMessage } from "../../utils/errorUtils";
 import { agentSessionListQueryOptions } from "../../data/collections/agentSessions";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { useAgentSessions, useWorkItem, useWorkItems } from "../../data/hooks";
@@ -23,9 +24,15 @@ const EXECUTION_DEFINITION_SECTION = "executionDefinition";
 export type TaskMonitorProjectedTask =
   { kind: "loaded"; task: WorkItemResponseDto } | { kind: "missing" };
 
+/**
+ * A linked session's read is scoped to that session: "loading" and "failed"
+ * never hold up the rest of the workspace once it has loaded.
+ */
 export type TaskMonitorProjectedSession =
   | { kind: "none" }
+  | { kind: "loading" }
   | { kind: "loaded"; session: AgentSessionDto }
+  | { kind: "failed" }
   | { kind: "missing" };
 
 export type TaskMonitorNodeVisualStatus =
@@ -164,7 +171,13 @@ const visualStatusFor = (
   task: TaskMonitorProjectedTask,
   session: TaskMonitorProjectedSession,
 ): TaskMonitorNodeVisualStatus => {
-  if (task.kind === "missing" || session.kind === "missing") return "errored";
+  if (
+    task.kind === "missing" ||
+    session.kind === "missing" ||
+    session.kind === "failed"
+  ) {
+    return "errored";
+  }
   if (session.kind === "loaded") {
     return sessionStatusToVisualStatus(session.session.status);
   }
@@ -229,12 +242,32 @@ export const useTaskMonitorProjection = ({
     enabled: enabled && sessionIds.length > 0 && !parsed.errorMessage,
   });
 
+  // A newly linked session changes the read, so the previous sessions are
+  // kept until it answers instead of disappearing while it loads.
+  const retainedSessions = useRef(new Map<string, AgentSessionDto>());
+  const sessionsById = useMemo(() => {
+    const current = new Map(
+      sessionsQuery.agentSessions.map((session) => [session.id, session]),
+    );
+    const merged = sessionsQuery.isFetched
+      ? current
+      : new Map([...retainedSessions.current, ...current]);
+    retainedSessions.current = merged;
+    return merged;
+  }, [sessionsQuery.agentSessions, sessionsQuery.isFetched]);
+  const sessionsRead = sessionsQuery.error
+    ? "failed"
+    : sessionsQuery.isFetched
+      ? "settled"
+      : "loading";
+  const sessionsReadOnce = useRef(false);
+  if (sessionsQuery.isFetched) {
+    sessionsReadOnce.current = true;
+  }
+
   const nodes = useMemo<readonly TaskMonitorProjectedNode[]>(() => {
     const tasksById = new Map(
       tasksQuery.workItems.map((task) => [task.id, task]),
-    );
-    const sessionsById = new Map(
-      sessionsQuery.agentSessions.map((session) => [session.id, session]),
     );
     return (parsed.definition?.executionPlan ?? []).map((node, position) => {
       const canonicalTask = tasksById.get(node.taskId);
@@ -248,7 +281,9 @@ export const useTaskMonitorProjection = ({
         ? { kind: "none" }
         : canonicalSession
           ? { kind: "loaded", session: canonicalSession }
-          : { kind: "missing" };
+          : sessionsRead === "settled"
+            ? { kind: "missing" }
+            : { kind: sessionsRead };
       return {
         position,
         taskId: node.taskId,
@@ -260,12 +295,23 @@ export const useTaskMonitorProjection = ({
         launchConfiguration: node.launchConfiguration,
       };
     });
-  }, [parsed.definition, sessionsQuery.agentSessions, tasksQuery.workItems]);
+  }, [parsed.definition, sessionsById, sessionsRead, tasksQuery.workItems]);
 
   const tasksRequired = Boolean(parsed.definition && taskIds.length > 0);
-  const sessionsRequired = Boolean(parsed.definition && sessionIds.length > 0);
-  const loadError =
-    monitorQuery.error ?? tasksQuery.error ?? sessionsQuery.error;
+  // Only the first session read holds the workspace; later reads, and any
+  // read failure, show in the linked session's own pane.
+  const sessionsHoldWorkspace = Boolean(
+    parsed.definition && sessionIds.length > 0 && !sessionsReadOnce.current,
+  );
+  const loadError = monitorQuery.error ?? tasksQuery.error;
+  useEffect(() => {
+    if (sessionsQuery.error) {
+      console.error(
+        `Task Monitor ${monitorId}: reading linked sessions failed: ${getErrorMessage(sessionsQuery.error, "unknown error")}`,
+        sessionsQuery.error,
+      );
+    }
+  }, [monitorId, sessionsQuery.error]);
   const reconcileAfterCommand = useCallback(async (): Promise<void> => {
     const refreshedMonitor = await monitorQuery.refetch();
     if (!refreshedMonitor) {
@@ -420,12 +466,14 @@ export const useTaskMonitorProjection = ({
       enabled &&
       (monitorQuery.isLoading ||
         (tasksRequired && tasksQuery.isLoading) ||
-        (sessionsRequired && sessionsQuery.isLoading)),
+        (sessionsHoldWorkspace && sessionsQuery.isLoading)),
     isFetched:
       !enabled ||
       (monitorQuery.isFetched &&
         (!tasksRequired || tasksQuery.isFetched) &&
-        (!sessionsRequired || sessionsQuery.isFetched)),
+        (!sessionsHoldWorkspace ||
+          sessionsQuery.isFetched ||
+          Boolean(sessionsQuery.error))),
     errorMessage:
       parsed.errorMessage ??
       (loadError ? "Unable to load the Task Monitor execution data." : null),

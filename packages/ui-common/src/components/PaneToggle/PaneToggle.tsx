@@ -3,6 +3,7 @@ import {
   ButtonBase,
   MenuItem,
   Select,
+  type Breakpoint,
   type SelectChangeEvent,
   useMediaQuery,
   useTheme,
@@ -19,6 +20,8 @@ export interface PaneToggleProps<T extends string> {
   visibleValues: readonly T[];
   onChange: (visible: readonly T[]) => void;
   ariaLabel: string;
+  /** Below this width the control becomes a pick-one dropdown. */
+  compactBelow?: Breakpoint;
 }
 
 export function PaneToggle<T extends string>({
@@ -26,9 +29,10 @@ export function PaneToggle<T extends string>({
   visibleValues,
   onChange,
   ariaLabel,
+  compactBelow = "md",
 }: PaneToggleProps<T>): React.ReactElement {
   const theme = useTheme();
-  const isCompact = useMediaQuery(theme.breakpoints.down("md"));
+  const isCompact = useMediaQuery(theme.breakpoints.down(compactBelow));
 
   const shown = segments.filter((segment) =>
     visibleValues.includes(segment.value),

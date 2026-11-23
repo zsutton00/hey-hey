@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { TaskMonitorResponsePresentationContext } from "./TaskMonitorResponsePresentationContext";
 import { useTaskMonitorComposing } from "./useTaskMonitorComposing";
 import { useTaskMonitorDockMotion } from "./useTaskMonitorDockMotion";
@@ -6,12 +5,12 @@ import type { TaskResponseDto } from "../../api/api";
 import {
   Alert,
   Box,
-  Button,
-  ButtonGroup,
   CircularProgress,
   Paper,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
 import {
@@ -33,6 +32,7 @@ import {
   toOpenApiProjectId,
 } from "../../clients/contractIdentifierAdapters";
 import { AgentConversationView } from "../AgentSession";
+import { PaneToggle, type PaneToggleSegment } from "../PaneToggle";
 import {
   buildAgentInput,
   buildUserMessageData,
@@ -63,6 +63,7 @@ import {
 import {
   monitorPhase,
   useTaskMonitorPresentation,
+  type MonitorPane,
 } from "./useTaskMonitorPresentation";
 import type { WorkItemExecutionStateResult } from "../../data/hooks/useWorkItemExecutionState";
 import { TaskMonitorInspectorView } from "./TaskMonitorInspectorView";
@@ -74,7 +75,16 @@ import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 import { useTaskMonitorCoordinatorConversation } from "./useTaskMonitorSessionReports";
 import { useTaskMonitorConversationFormResolver } from "./useTaskMonitorConversationFormResolver";
 
-export type TaskMonitorPane = "steps" | "monitor" | "session";
+export type TaskMonitorPane = MonitorPane;
+
+/** Side-by-side panes need this width; below it one pane shows at a time. */
+const SIDE_BY_SIDE_BREAKPOINT = "lg";
+
+const PANE_SEGMENTS: readonly PaneToggleSegment<TaskMonitorPane>[] = [
+  { value: "steps", label: "Tasks" },
+  { value: "monitor", label: "Task Monitor" },
+  { value: "session", label: "Active Session" },
+];
 
 const FINISHED_MONITOR_STATUSES: ReadonlySet<TaskResponseDto["status"]> =
   new Set([
@@ -126,12 +136,6 @@ export interface TaskMonitorWorkspaceViewProps {
   startMessage: string;
   onChangeStartMessage: (message: string) => void;
   taskServices: TaskMonitorTaskServicesControl;
-  activePane: TaskMonitorPane;
-  renderPaneNavigation?: (navigation: {
-    activePane: TaskMonitorPane;
-    availablePanes: readonly TaskMonitorPane[];
-    onSelectPane: (pane: TaskMonitorPane) => void;
-  }) => ReactNode;
   executionState?: WorkItemExecutionStateResult;
   isStartCatalogLoading?: boolean;
 }
@@ -165,8 +169,6 @@ export const TaskMonitorWorkspaceView = ({
   startMessage,
   onChangeStartMessage,
   taskServices,
-  activePane,
-  renderPaneNavigation,
   executionState,
   isStartCatalogLoading = false,
 }: TaskMonitorWorkspaceViewProps) => {
@@ -181,14 +183,25 @@ export const TaskMonitorWorkspaceView = ({
       ? executionState.state.projection
       : null;
   const phase = monitorPhase(snapshot, monitorStatus === WorkStatus.Backlog);
-  const presentation = useTaskMonitorPresentation(phase, composing, activePane);
-  const { compactPane, openPane, closePane } = presentation;
+  const theme = useTheme();
+  const compactLayout = useMediaQuery(
+    theme.breakpoints.down(SIDE_BY_SIDE_BREAKPOINT),
+  );
+  // Active Session is offered once a selected task has a linked session,
+  // whether or not that session's record has been read yet.
+  const sessionAvailable = nodes.some((node) => node.session.kind !== "none");
+  const presentation = useTaskMonitorPresentation({
+    phase,
+    composing,
+    sessionAvailable,
+  });
+  const { compactPane, openMonitor, dockMonitor } = presentation;
   const handleOpenMonitor = useCallback(() => {
-    openPane("monitor");
+    openMonitor();
     requestAnimationFrame(() => monitorRef.current?.focus());
-  }, [openPane]);
+  }, [openMonitor]);
   const handleCloseMonitor = useCallback(() => {
-    closePane("monitor");
+    dockMonitor();
     requestAnimationFrame(() => {
       const button = Array.from(
         document.querySelectorAll<HTMLButtonElement>("[data-screen-key]"),
@@ -202,7 +215,7 @@ export const TaskMonitorWorkspaceView = ({
         );
       target?.focus();
     });
-  }, [closePane, monitorId]);
+  }, [dockMonitor, monitorId]);
   const handleGuidanceAnswered = useCallback(
     (targetMonitorId: string) => {
       if (targetMonitorId !== monitorId) {
@@ -219,7 +232,17 @@ export const TaskMonitorWorkspaceView = ({
     identity: selectionIdentity,
     node: rawSelection,
   });
-  if (!composing || retainedSelection.current.identity === selectionIdentity) {
+  const retainedNode = retainedSelection.current.node;
+  // A session still being read for the same task may fill in while composing.
+  const fillsInSession =
+    retainedNode !== null &&
+    retainedNode.taskId === rawSelection?.taskId &&
+    retainedNode.session.kind !== "loaded";
+  if (
+    !composing ||
+    fillsInSession ||
+    retainedSelection.current.identity === selectionIdentity
+  ) {
     retainedSelection.current = {
       identity: selectionIdentity,
       node: rawSelection,
@@ -258,7 +281,9 @@ export const TaskMonitorWorkspaceView = ({
         (action) => action.command === "START" || action.command === "RESUME",
       ),
   };
-  const panes = presentation.panes;
+  const stepsOpen = presentation.visible.includes("steps");
+  const monitorOpen = presentation.monitorOpen;
+  const sessionOpen = presentation.visible.includes("session");
   const freshness =
     executionState?.status === "retained" &&
     (executionState.delivery !== "LIVE" ||
@@ -271,7 +296,7 @@ export const TaskMonitorWorkspaceView = ({
     hasCommittedExecution:
       snapshot !== null && snapshot.execution.lifecycle !== "ABSENT",
     composing,
-    monitorOpen: panes.monitor,
+    monitorOpen,
     monitorRef,
     startIntent,
   });
@@ -504,53 +529,23 @@ export const TaskMonitorWorkspaceView = ({
             onOpen={handleOpenMonitor}
           />
         ) : null}
-        {renderPaneNavigation?.({
-          activePane: compactPane,
-          availablePanes: setup
-            ? ["steps", "monitor"]
-            : ["steps", "monitor", "session"],
-          onSelectPane: openPane,
-        })}
-        <ButtonGroup
-          size="small"
-          aria-label="Workspace panes"
-          data-testid="task-monitor-pane-navigation"
-          sx={{
-            flexWrap: "wrap",
-            display: {
-              xs: renderPaneNavigation ? "none" : "inline-flex",
-              lg: "inline-flex",
-            },
-          }}
-        >
-          <Button
-            data-testid="task-monitor-open-steps"
-            aria-pressed={panes.steps}
-            onClick={() => {
-              presentation.openPane("steps");
+        <Box data-testid="task-monitor-pane-control" sx={{ flexShrink: 0 }}>
+          <PaneToggle
+            ariaLabel="Workspace panes"
+            compactBelow={SIDE_BY_SIDE_BREAKPOINT}
+            segments={PANE_SEGMENTS.filter((segment) =>
+              presentation.offered.includes(segment.value),
+            )}
+            visibleValues={compactLayout ? [compactPane] : presentation.visible}
+            onChange={(visible) => {
+              if (compactLayout) {
+                presentation.showCompactPane(visible[0]);
+                return;
+              }
+              presentation.showWidePanes(visible);
             }}
-          >
-            Tasks
-          </Button>
-          <Button
-            data-testid="task-monitor-open-monitor"
-            aria-pressed={panes.monitor}
-            onClick={handleOpenMonitor}
-          >
-            Task Monitor
-          </Button>
-          {!setup ? (
-            <Button
-              data-testid="task-monitor-open-session"
-              aria-pressed={panes.session}
-              onClick={() => {
-                presentation.openPane("session");
-              }}
-            >
-              Active Session
-            </Button>
-          ) : null}
-        </ButtonGroup>
+          />
+        </Box>
         {freshness ? (
           <Alert severity="warning" data-testid="task-monitor-state-stale">
             {freshness}
@@ -584,12 +579,12 @@ export const TaskMonitorWorkspaceView = ({
           sx={{
             display: { xs: "block", lg: "grid" },
             gridTemplateColumns: {
-              lg: `${panes.steps ? (!panes.session && !panes.monitor ? "minmax(0, 1fr)" : setup ? "minmax(0, 1fr)" : "minmax(0, 28%)") : "44px"} ${panes.monitor ? "minmax(0, 1fr)" : "0px"} ${panes.session && !setup ? "minmax(0, 1fr)" : "0px"}`,
+              lg: `${stepsOpen ? (!sessionOpen && !monitorOpen ? "minmax(0, 1fr)" : setup ? "minmax(0, 1fr)" : "minmax(0, 28%)") : "44px"} ${monitorOpen ? "minmax(0, 1fr)" : "0px"} ${sessionOpen ? "minmax(0, 1fr)" : "0px"}`,
             },
             flex: 1,
             height: "100%",
             minHeight: 0,
-            columnGap: panes.monitor && panes.session ? 1.5 : 0,
+            columnGap: monitorOpen && sessionOpen ? 1.5 : 0,
           }}
         >
           <Paper
@@ -609,22 +604,34 @@ export const TaskMonitorWorkspaceView = ({
               pb: 0,
             }}
           >
-            <Button
-              data-testid="task-monitor-toggle-steps"
-              onClick={() =>
-                panes.steps
-                  ? presentation.closePane("steps")
-                  : presentation.openPane("steps")
-              }
-              aria-label={
-                panes.steps ? "Collapse task list" : "Expand task list"
-              }
+            <Typography
+              variant="h6"
+              data-testid="task-monitor-steps-heading"
+              sx={{
+                display: { xs: "block", lg: stepsOpen ? "block" : "none" },
+                px: 2,
+                pt: 1,
+              }}
             >
-              {panes.steps ? (results ? "Results" : "Tasks") : "☰"}
-            </Button>
+              {results ? "Results" : "Tasks"}
+            </Typography>
+            <Typography
+              variant="overline"
+              aria-hidden
+              data-testid="task-monitor-steps-rail"
+              sx={{
+                display: { xs: "none", lg: stepsOpen ? "none" : "block" },
+                writingMode: "vertical-rl",
+                alignSelf: "center",
+                color: "text.secondary",
+                pt: 1.5,
+              }}
+            >
+              {results ? "Results" : "Tasks"}
+            </Typography>
             <Box
               sx={{
-                display: panes.steps ? "flex" : "none",
+                display: { xs: "flex", lg: stepsOpen ? "flex" : "none" },
                 flex: 1,
                 minHeight: 0,
                 flexDirection: "column",
@@ -639,7 +646,7 @@ export const TaskMonitorWorkspaceView = ({
                 onSelectTask={(taskId) => {
                   setExplicitTaskId(taskId);
                   if (!setup) {
-                    presentation.openPane("session");
+                    presentation.revealSession();
                   }
                 }}
                 taskSetup={taskSetup}
@@ -670,13 +677,13 @@ export const TaskMonitorWorkspaceView = ({
             tabIndex={-1}
             variant="outlined"
             data-testid="task-monitor-coordinator-pane"
-            inert={!panes.monitor && compactPane !== "monitor"}
+            inert={compactLayout ? compactPane !== "monitor" : !monitorOpen}
             sx={{
               display: {
                 xs: compactPane === "monitor" ? "flex" : "none",
                 lg: "flex",
               },
-              visibility: { lg: panes.monitor ? "visible" : "hidden" },
+              visibility: { lg: monitorOpen ? "visible" : "hidden" },
               flexDirection: "column",
               minWidth: 0,
               minHeight: 0,
@@ -684,20 +691,9 @@ export const TaskMonitorWorkspaceView = ({
               overflowY: "auto",
             }}
           >
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ px: 2, pt: 1 }}
-            >
-              <Typography variant="h6">Task Monitor settings</Typography>
-              <Button
-                data-testid="task-monitor-close-monitor"
-                onClick={handleCloseMonitor}
-              >
-                Dock
-              </Button>
-            </Stack>
+            <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
+              Task Monitor settings
+            </Typography>
             <Stack spacing={1.5} sx={{ px: 2, py: 1 }}>
               <TaskMonitorSettingsSection
                 title="Task Monitor"
@@ -917,11 +913,11 @@ export const TaskMonitorWorkspaceView = ({
             data-testid="task-monitor-inspector-pane"
             sx={{
               display: {
-                xs: !setup && compactPane === "session" ? "flex" : "none",
+                xs: compactPane === "session" ? "flex" : "none",
                 lg: "flex",
               },
               visibility: {
-                lg: panes.session && !setup ? "visible" : "hidden",
+                lg: sessionOpen ? "visible" : "hidden",
               },
               flexDirection: "column",
               minWidth: 0,
@@ -930,28 +926,9 @@ export const TaskMonitorWorkspaceView = ({
               overflow: "hidden",
             }}
           >
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              sx={{ px: 2, pt: 1 }}
-            >
-              <Typography variant="h6">Active Session</Typography>
-              <Button
-                data-testid="task-monitor-close-session"
-                onClick={() => {
-                  presentation.closePane("session");
-                  requestAnimationFrame(() =>
-                    rootRef.current
-                      ?.querySelector<HTMLButtonElement>(
-                        '[data-testid="task-monitor-open-session"]',
-                      )
-                      ?.focus(),
-                  );
-                }}
-              >
-                Close
-              </Button>
-            </Stack>
+            <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
+              Active Session
+            </Typography>
             {selectedNode ? (
               <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                 <TaskMonitorInspectorView

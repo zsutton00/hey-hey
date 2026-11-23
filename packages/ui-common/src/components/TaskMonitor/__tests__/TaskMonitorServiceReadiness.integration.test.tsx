@@ -222,7 +222,6 @@ describe("Task Monitor Service readiness", () => {
               organizationId={ORGANIZATION_ID}
               projectId={PROJECT_ID}
               monitorId={MONITOR_ID}
-              activePane="monitor"
             />
           </ActionsCapsuleProvider>
         </ProjectContext.Provider>

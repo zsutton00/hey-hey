@@ -4,6 +4,13 @@ import { usePathService } from "../../contexts";
 import { formatStatus, getStatusLabel } from "../../utils/statusUtils";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 
+const LINKED_SESSION_TEXT = {
+  none: "No linked session",
+  loading: "Loading linked session…",
+  failed: "Linked session could not be read",
+  missing: "Linked session unavailable",
+} as const;
+
 export function TaskMonitorResultEvidence({
   organizationId,
   projectId,
@@ -35,18 +42,19 @@ export function TaskMonitorResultEvidence({
           ? getStatusLabel(node.task.task.status)
           : "Unavailable"}
       </Typography>
-      {session ? (
+      {node.session.kind === "loaded" ? (
         <Link
-          href={paths.agentSession({ projectId, agentSessionId: session.id })}
+          href={paths.agentSession({
+            projectId,
+            agentSessionId: node.session.session.id,
+          })}
           data-testid="task-monitor-result-session"
         >
-          Session · {formatStatus(session.status)}
+          Session · {formatStatus(node.session.session.status)}
         </Link>
       ) : (
         <Typography variant="body2">
-          {node.session.kind === "missing"
-            ? "Linked session unavailable"
-            : "No linked session"}
+          {LINKED_SESSION_TEXT[node.session.kind]}
         </Typography>
       )}
       {reports.error ? (

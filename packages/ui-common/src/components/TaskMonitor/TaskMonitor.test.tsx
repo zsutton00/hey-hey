@@ -105,7 +105,6 @@ describe("TaskMonitor", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        activePane="monitor"
       />,
     );
 
@@ -147,7 +146,6 @@ describe("TaskMonitor", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        activePane="monitor"
       />,
     );
 
@@ -231,7 +229,6 @@ describe("TaskMonitor", () => {
           organizationId="org-1"
           projectId="project-1"
           monitorId="monitor-1"
-          activePane="monitor"
         />,
       );
 
@@ -301,7 +298,6 @@ describe("TaskMonitor", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        activePane="monitor"
       />,
     );
 
@@ -348,7 +344,6 @@ describe("TaskMonitor", () => {
         organizationId="org-1"
         projectId="project-1"
         monitorId="monitor-1"
-        activePane="monitor"
       />,
     );
 
@@ -362,7 +357,6 @@ describe("TaskMonitor", () => {
       organizationId: "org-1",
       projectId: "project-1",
       monitorId: "monitor-1",
-      activePane: "monitor",
     } satisfies React.ComponentProps<typeof TaskMonitor>;
     const { rerender } = render(<TaskMonitor {...props} />);
     const workspace = screen.getByTestId("task-monitor-workspace-stub");

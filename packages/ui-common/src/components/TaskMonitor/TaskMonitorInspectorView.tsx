@@ -40,6 +40,31 @@ export const TaskMonitorInspectorView = ({
     );
   }
 
+  if (node.session.kind === "loading") {
+    return (
+      <Stack
+        spacing={2}
+        data-testid="task-monitor-inspector-loading-session"
+        sx={{ p: 2 }}
+      >
+        <LinearProgress aria-label="Loading linked session" />
+        <Typography color="text.secondary">Loading linked session…</Typography>
+      </Stack>
+    );
+  }
+
+  if (node.session.kind === "failed") {
+    return (
+      <Alert
+        severity="error"
+        data-testid="task-monitor-inspector-session-read-failed"
+      >
+        The linked session could not be read. It will be read again on the next
+        update.
+      </Alert>
+    );
+  }
+
   if (node.session.kind === "missing") {
     return (
       <Alert

@@ -294,7 +294,6 @@ const workspaceElement = (
       onSelectMachine={vi.fn()}
       onStart={vi.fn()}
       onPause={vi.fn()}
-      activePane="monitor"
       {...overrides}
     />
   </ActionsCapsuleProvider>
@@ -308,6 +307,45 @@ const renderWorkspace = (
     React.ComponentProps<typeof TaskMonitorWorkspaceView>
   > = {},
 ) => render(workspaceElement(overrides));
+
+/** The shared pane control's segment for one pane, when it is offered. */
+const paneSegment = (pane: "steps" | "monitor" | "session") =>
+  screen
+    .queryAllByTestId("pane-toggle-segment")
+    .find((segment) => segment.dataset.value === pane);
+const offeredPanes = () =>
+  screen
+    .getAllByTestId("pane-toggle-segment")
+    .map((segment) => segment.textContent);
+const pressedPanes = () =>
+  screen
+    .getAllByTestId("pane-toggle-segment")
+    .filter((segment) => segment.getAttribute("aria-pressed") === "true")
+    .map((segment) => segment.dataset.value);
+const offeredPane = (pane: "steps" | "monitor" | "session") => {
+  const segment = paneSegment(pane);
+  if (!segment) {
+    throw new Error(`The ${pane} pane is not offered.`);
+  }
+  return segment;
+};
+const clickPane = (pane: "steps" | "monitor" | "session") => {
+  fireEvent.click(offeredPane(pane));
+};
+
+/** Screens narrower than the side-by-side layout. */
+const useNarrowScreen = () => {
+  vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+    matches: query.includes("max-width"),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+};
 
 const generatedStylesFor = (element: HTMLElement) => {
   const classNames = element.className.split(/\s+/).filter(Boolean);
@@ -347,6 +385,16 @@ describe("TaskMonitorWorkspaceView", () => {
       .mockReturnValueOnce("correlation-1")
       .mockReturnValueOnce("correlation-2");
     vi.stubGlobal("crypto", { randomUUID: randomUUIDMock });
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
   });
 
   it("shows Review mode read-only and offers no setup selection after Start", () => {
@@ -408,32 +456,6 @@ describe("TaskMonitorWorkspaceView", () => {
       screen.getByTestId("task-monitor-inspector-pane"),
     );
   });
-
-  it.each([
-    ["steps", "task-monitor-steps-surface"],
-    ["monitor", "task-monitor-coordinator-pane"],
-    ["session", "task-monitor-inspector-pane"],
-  ] as const)(
-    "keeps %s as the active compact pane",
-    (activePane, activeSurfaceTestId) => {
-      renderWorkspace({ activePane });
-
-      for (const surfaceTestId of [
-        "task-monitor-steps-surface",
-        "task-monitor-coordinator-pane",
-        "task-monitor-inspector-pane",
-      ]) {
-        const styles = generatedStylesFor(screen.getByTestId(surfaceTestId));
-        const expectedDisplay =
-          surfaceTestId === activeSurfaceTestId
-            ? "display:flex"
-            : "display:none";
-
-        expect(styles).toContain("@media (min-width:0px)");
-        expect(styles).toContain(expectedDisplay);
-      }
-    },
-  );
 
   it("offers Start in the Action Capsule and on the Ready card, enabled together", () => {
     renderWorkspace({ monitorStatus: WorkStatus.Backlog });
@@ -758,16 +780,11 @@ describe("TaskMonitorWorkspaceView", () => {
       monitorStatus: WorkStatus.Backlog,
       executionState: { status: "missing", delivery: "LIVE" },
     });
-    expect(
-      screen.queryByTestId("task-monitor-open-session"),
-    ).not.toBeInTheDocument();
+    expect(paneSegment("session")).toBeUndefined();
     expect(
       screen.queryByRole("button", { name: "Pause" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
 
     rerender(
       workspaceElement({
@@ -780,33 +797,19 @@ describe("TaskMonitorWorkspaceView", () => {
       "data-phase",
       "setup",
     );
-    expect(
-      screen.queryByTestId("task-monitor-open-session"),
-    ).not.toBeInTheDocument();
+    expect(paneSegment("session")).toBeUndefined();
     expect(lifecycleButton("Start")).toBeDisabled();
 
     rerender(workspaceElement({ executionState: retainedState("running") }));
     await waitFor(() =>
-      expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      ),
+      expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false"),
     );
     const inspector = screen.getByTestId("task-monitor-current-session");
     rerender(workspaceElement({ executionState: retainedState("attention") }));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByTestId("task-monitor-open-steps")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
+    clickPane("monitor");
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(paneSegment("steps")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("task-monitor-current-session")).toBe(inspector);
     // A new delivery of the same meaningful state must preserve manual expansion.
     rerender(
@@ -814,15 +817,9 @@ describe("TaskMonitorWorkspaceView", () => {
         executionState: { ...retainedState("attention"), revision: 9 },
       }),
     );
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    fireEvent.click(screen.getByTestId("task-monitor-close-monitor"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
+    clickPane("monitor");
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
 
     rerender(workspaceElement({ executionState: retainedState("done") }));
     await waitFor(() =>
@@ -831,10 +828,7 @@ describe("TaskMonitorWorkspaceView", () => {
         "done",
       ),
     );
-    expect(screen.getByTestId("task-monitor-open-session")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("session")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("task-monitor-result-session")).toHaveAttribute(
       "href",
       expect.stringContaining(sessionId),
@@ -860,7 +854,7 @@ describe("TaskMonitorWorkspaceView", () => {
     const { rerender } = renderWorkspace({
       executionState: retainedState("running"),
     });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     const draft = screen.getByTestId("workspace-draft");
     const inspector = screen.getByTestId("task-monitor-current-session");
     draft.focus();
@@ -911,7 +905,7 @@ describe("TaskMonitorWorkspaceView", () => {
       throw new Error("Expected retained fixture");
     }
     renderWorkspace({ executionState: { ...state, delivery: "INTERRUPTED" } });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     expect(screen.getByTestId("task-monitor-state-stale")).toBeVisible();
     expect(lifecycleButton("Start")).toBeDisabled();
   });
@@ -955,14 +949,11 @@ describe("TaskMonitorWorkspaceView", () => {
       errorMessage: null,
     });
     renderWorkspace({ executionState: retainedState("attention") });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     const draft = screen.getByTestId("workspace-draft");
     fireEvent.change(draft, { target: { value: "Preserve this discussion" } });
     fireEvent.click(screen.getByTestId("task-monitor-reply-submit"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
     const message = {
       message: {
         id: "judgment-request",
@@ -991,21 +982,227 @@ describe("TaskMonitorWorkspaceView", () => {
     await expect(form.submit({ decision: "request_changes" })).rejects.toThrow(
       "Judgment is stale",
     );
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
     expect(draft).toHaveValue("Preserve this discussion");
     await act(async () => {
       await form.submit({ decision: "request_changes" });
     });
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("workspace-draft")).toBe(draft);
     expect(draft).toHaveValue("Preserve this discussion");
   });
+  describe("pane control", () => {
+    const unlinked = { ...selectedNode, session: { kind: "none" as const } };
+    const gridColumns = () =>
+      generatedStylesFor(
+        screen.getByTestId("task-monitor-workspace-layout"),
+      ).match(/grid-template-columns:([^;]+);/)?.[1];
+
+    it("offers Tasks and Task Monitor before a session exists, with no pane-header controls", () => {
+      renderWorkspace({
+        monitorStatus: WorkStatus.Backlog,
+        executionState: { status: "missing", delivery: "LIVE" },
+        nodes: [unlinked],
+      });
+
+      expect(offeredPanes()).toEqual(["Tasks", "Task Monitor"]);
+      expect(pressedPanes()).toEqual(["steps", "monitor"]);
+      for (const legacy of [
+        "task-monitor-pane-navigation",
+        "task-monitor-toggle-steps",
+        "task-monitor-close-monitor",
+        "task-monitor-close-session",
+      ]) {
+        expect(screen.queryByTestId(legacy)).not.toBeInTheDocument();
+      }
+      expect(
+        screen.queryByRole("button", { name: "Dock" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Close" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("task-monitor-steps-heading"),
+      ).toHaveTextContent("Tasks");
+
+      // The last pane on screen stays on.
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(paneSegment("steps")).toHaveAttribute("aria-disabled", "true");
+      clickPane("steps");
+      expect(pressedPanes()).toEqual(["steps"]);
+    });
+
+    it("keeps the monitor docked until the first session is linked, then gives it the main area", () => {
+      const { rerender } = renderWorkspace({
+        executionState: retainedState("running"),
+        nodes: [unlinked],
+      });
+
+      expect(offeredPanes()).toEqual(["Tasks", "Task Monitor"]);
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(gridColumns()).toBe("minmax(0, 1fr) 0px 0px");
+
+      rerender(
+        workspaceElement({
+          executionState: retainedState("running"),
+          nodes: [selectedNode],
+        }),
+      );
+
+      expect(offeredPanes()).toEqual([
+        "Tasks",
+        "Task Monitor",
+        "Active Session",
+      ]);
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+      expect(gridColumns()).toBe("minmax(0, 28%) 0px minmax(0, 1fr)");
+    });
+
+    it("shows a linked session's loading and read failure inside the session pane", () => {
+      const { rerender } = renderWorkspace({
+        executionState: retainedState("running"),
+        nodes: [{ ...selectedNode, session: { kind: "loading" } }],
+      });
+
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+      expect(
+        screen.getByTestId("task-monitor-inspector-loading-session"),
+      ).toBeInTheDocument();
+      const workspace = screen.getByTestId("task-monitor-workspace");
+
+      rerender(
+        workspaceElement({
+          executionState: retainedState("running"),
+          nodes: [{ ...selectedNode, session: { kind: "failed" } }],
+        }),
+      );
+
+      expect(
+        screen.getByTestId("task-monitor-inspector-session-read-failed"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("task-monitor-workspace")).toBe(workspace);
+    });
+
+    it("switches each wide pane on its own without resetting the others", async () => {
+      const user = userEvent.setup();
+      renderWorkspace({ executionState: retainedState("running") });
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+
+      await user.click(offeredPane("monitor"));
+      expect(pressedPanes()).toEqual(["steps", "monitor", "session"]);
+      // Selecting a pane leaves keyboard focus on the control.
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      expect(paneSegment("monitor")).toHaveFocus();
+
+      clickPane("session");
+      expect(pressedPanes()).toEqual(["steps", "monitor"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(gridColumns()).toBe("minmax(0, 1fr) 0px 0px");
+    });
+
+    it("opens pending guidance from the Capsule beside the session, and Tasks reopens the collapsed list", async () => {
+      renderWorkspace({ executionState: retainedState("attention") });
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Open Task Monitor/ }),
+      );
+
+      expect(pressedPanes()).toEqual(["monitor", "session"]);
+      expect(gridColumns()).toBe("44px minmax(0, 1fr) minmax(0, 1fr)");
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("task-monitor-coordinator-pane"),
+        ).toHaveFocus(),
+      );
+
+      clickPane("steps");
+      expect(pressedPanes()).toEqual(["steps", "monitor", "session"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+    });
+
+    it("restores the task list when an opened guidance request is docked", () => {
+      renderWorkspace({ executionState: retainedState("attention") });
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["monitor", "session"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+    });
+
+    it.each([
+      ["setup", "Task Monitor", "task-monitor-coordinator-pane"],
+      ["running", "Active Session", "task-monitor-inspector-pane"],
+      ["done", "Tasks", "task-monitor-steps-surface"],
+    ] as const)(
+      "shows one pane on a narrow screen, defaulting %s to %s",
+      (phase, label, surfaceTestId) => {
+        useNarrowScreen();
+        renderWorkspace(
+          phase === "setup"
+            ? {
+                monitorStatus: WorkStatus.Backlog,
+                executionState: { status: "missing", delivery: "LIVE" },
+                nodes: [unlinked],
+              }
+            : { executionState: retainedState(phase) },
+        );
+
+        expect(
+          within(screen.getByTestId("pane-toggle-dropdown")).getByRole(
+            "combobox",
+          ),
+        ).toHaveTextContent(new RegExp(`^${label}$`));
+        for (const surface of [
+          "task-monitor-steps-surface",
+          "task-monitor-coordinator-pane",
+          "task-monitor-inspector-pane",
+        ]) {
+          const hidden = generatedStylesFor(
+            screen.getByTestId(surface),
+          ).includes("display:none");
+          expect(hidden).toBe(surface !== surfaceTestId);
+        }
+      },
+    );
+
+    it("picks one pane at a time on a narrow screen, with the same labels", async () => {
+      useNarrowScreen();
+      const user = userEvent.setup();
+      renderWorkspace({ executionState: retainedState("running") });
+      const dropdown = within(
+        screen.getByTestId("pane-toggle-dropdown"),
+      ).getByRole("combobox");
+
+      await user.click(dropdown);
+      expect(
+        screen.getAllByRole("option").map((option) => option.textContent),
+      ).toEqual(["Tasks", "Task Monitor", "Active Session"]);
+      await user.click(screen.getByRole("option", { name: "Task Monitor" }));
+
+      expect(dropdown).toHaveTextContent(/^Task Monitor$/);
+      expect(
+        generatedStylesFor(screen.getByTestId("task-monitor-coordinator-pane")),
+      ).not.toContain("display:none");
+      expect(
+        generatedStylesFor(screen.getByTestId("task-monitor-inspector-pane")),
+      ).toContain("display:none");
+
+      await user.click(dropdown);
+      await user.click(screen.getByRole("option", { name: "Tasks" }));
+      expect(dropdown).toHaveTextContent(/^Tasks$/);
+      expect(
+        screen.getByTestId("task-monitor-coordinator-pane"),
+      ).toHaveAttribute("inert");
+    });
+  });
+
   it("links available canonical reports without turning session completion into acceptance", () => {
     useReportsMock.mockReturnValue({
       isLoading: false,
