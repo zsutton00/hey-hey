@@ -104,15 +104,6 @@ export function mapAntigravityUpdate(
   logger: ServerLogger,
 ) {
   switch (update.sessionUpdate) {
-    case 'agent_message_chunk':
-      return normalizeAntigravityEvent(
-        context,
-        'agent_output',
-        { messageType: 'assistant', summary: update.content.text },
-        {
-          narration: { delivery: 'delta', text: update.content.text, isFinal: false },
-        },
-      );
     case 'agent_thought_chunk':
       return normalizeAntigravityEvent(context, 'agent_output', {
         messageType: 'thinking',
@@ -130,6 +121,9 @@ export function mapAntigravityUpdate(
       return normalizeAntigravityEvent(context, 'permission_mode_changed', {
         mode: update.currentModeId,
       });
+    // Message chunks are fragments of one passage, not passages. The runner
+    // buffers them and emits whole passages at tool-call and turn boundaries.
+    case 'agent_message_chunk':
     case 'user_message_chunk':
     case 'available_commands_update':
     case 'config_option_update':

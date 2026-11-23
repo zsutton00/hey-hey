@@ -89,7 +89,8 @@ interface Dependencies {
 }
 
 interface ActivePrompt {
-  narration: string[];
+  /** Chunks of the passage being streamed; flushed at a tool call or turn end. */
+  passage: string[];
   skipPermissions: boolean;
 }
 
@@ -536,7 +537,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         }
         args.signal?.throwIfAborted();
         const prompt: ActivePrompt = {
-          narration: [],
+          passage: [],
           skipPermissions: args.skipPermissions === true,
         };
         this.activePrompt = prompt;
@@ -564,17 +565,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
               `Antigravity stopped with reason ${result.stopReason}.`,
             );
           }
-          const text = prompt.narration.join('');
-          if (text) {
-            this.emit(
-              sessionId,
-              'agent_output',
-              { messageType: 'assistant', summary: text, taskComplete: true },
-              {
-                narration: { delivery: 'message', text, isFinal: true },
-              },
-            );
-          }
+          this.flushPassage(sessionId, prompt, true);
         } finally {
           args.signal?.removeEventListener('abort', cancel);
         }
@@ -735,6 +726,28 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     });
   }
 
+  /**
+   * Emits the buffered passage as one assistant message. A tool call ends a
+   * passage, which stays an interstitial entry; the passage left when the
+   * prompt returns is the final reply, emitted once.
+   */
+  private flushPassage(sessionId: string, prompt: ActivePrompt, isFinal: boolean): void {
+    const text = prompt.passage.join('');
+    prompt.passage = [];
+    if (!text) {
+      return;
+    }
+
+    this.emit(
+      sessionId,
+      'agent_output',
+      { messageType: 'assistant', summary: text, ...(isFinal ? { taskComplete: true } : {}) },
+      // Each passage is a complete entry; closing it keeps the next passage
+      // from overwriting it in the activity feed.
+      { narration: { delivery: 'message', text, isFinal: true } },
+    );
+  }
+
   private onUpdate({
     sessionId,
     update,
@@ -770,7 +783,11 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return;
     }
     if (update.sessionUpdate === 'agent_message_chunk') {
-      this.activePrompt.narration.push(update.content.text);
+      this.activePrompt.passage.push(update.content.text);
+      return;
+    }
+    if (update.sessionUpdate === 'tool_call') {
+      this.flushPassage(sessionId, this.activePrompt, false);
     }
     const event = mapAntigravityUpdate(
       this.eventContext(sessionId),

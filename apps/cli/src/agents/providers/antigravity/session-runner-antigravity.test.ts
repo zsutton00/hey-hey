@@ -93,6 +93,8 @@ const startFakeAgy = (
     omitModelOption?: boolean;
     compactUsage?: boolean;
     permissionRequests?: PermissionAsk[];
+    /** Updates agy streams for a prompt before it returns. */
+    promptUpdates?: Record<string, unknown>[];
     /** agy prints this on stderr and exits instead of answering `initialize`. */
     failStartWith?: string;
   } = {},
@@ -175,6 +177,15 @@ const startFakeAgy = (
             );
             break;
           }
+          for (const update of options.promptUpdates ?? []) {
+            child.stdout.write(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'session/update',
+                params: { sessionId: recorded.created.sessionId, update },
+              }) + '\n',
+            );
+          }
           reply(request.id, {
             stopReason: 'end_turn',
             ...(options.compactUsage && JSON.stringify(request.params?.prompt).includes('/compact')
@@ -195,7 +206,7 @@ const makeRunner = () => {
   const recordTokens = vi
     .spyOn(runStore, 'updateRunTokenUsage')
     .mockImplementation(() => Promise.resolve(run.session));
-  vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
+  const agentOutput = vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
   const runner = new AntigravityAgentSessionRunner({
     agentOutputOwner: run,
     runStore,
@@ -213,8 +224,53 @@ const makeRunner = () => {
   });
   const { launchServiceId: _launch, ...baseSession } = run.session;
   const session = { ...baseSession, provider: 'antigravity' as const, services: [] };
-  return { runner, session, recordTokens };
+  return { runner, session, recordTokens, agentOutput };
 };
+
+describe('Antigravity streamed replies', () => {
+  beforeEach(() => {
+    vi.mocked(spawn).mockReset();
+  });
+
+  const chunk = (text: string) => ({
+    sessionUpdate: 'agent_message_chunk',
+    content: { type: 'text', text },
+  });
+
+  it('shows each passage once, whole, and keeps passages split by a tool call apart', async () => {
+    startFakeAgy({
+      promptUpdates: [
+        chunk('Looking at @[task:2d5158b4-f564-'),
+        chunk('4891-a9ea-4134ebd2ea72|Fix login]'),
+        chunk(' first.'),
+        { sessionUpdate: 'tool_call', toolCallId: 'read-1', name: 'read', status: 'pending' },
+        chunk('Done, '),
+        chunk('the fix is in.'),
+      ],
+    });
+    const { runner, session, agentOutput } = makeRunner();
+
+    await runner.runPrompt({ session, prompt: 'hello' });
+
+    const replies = agentOutput.mock.calls
+      .map(([{ event }]) => event.payload)
+      .filter((payload) => payload['messageType'] === 'assistant');
+    expect(replies).toEqual([
+      {
+        messageType: 'assistant',
+        summary: 'Looking at @[task:2d5158b4-f564-4891-a9ea-4134ebd2ea72|Fix login] first.',
+      },
+      { messageType: 'assistant', summary: 'Done, the fix is in.', taskComplete: true },
+    ]);
+    // Each passage closes its own activity entry, so the reply after the tool
+    // call cannot overwrite the passage before it.
+    const narration = agentOutput.mock.calls
+      .map(([{ event }]) => event.providerFacts?.narration)
+      .filter((fact) => fact != null);
+    expect(narration.map((fact) => fact?.isFinal)).toEqual([true, true]);
+    await runner.dispose();
+  });
+});
 
 describe('Antigravity launch selection and compaction', () => {
   beforeEach(() => {

@@ -218,17 +218,9 @@ describe('Antigravity ACP replay', () => {
     expect(events.some(({ providerFacts }) => providerFacts.identity?.providerSessionId)).toBe(
       true,
     );
-    expect(
-      events.flatMap(({ providerFacts }) =>
-        providerFacts.narration ? [providerFacts.narration.text] : [],
-      ),
-    ).toEqual(
-      frames.flatMap(({ frame }) =>
-        frame.params?.update?.sessionUpdate === 'agent_message_chunk'
-          ? [frame.params.update.content?.text]
-          : [],
-      ),
-    );
+    // Message chunks are passage fragments; the runner, not the mapper, turns
+    // them into narration, so no single chunk may reach the conversation alone.
+    expect(events.some(({ providerFacts }) => providerFacts.narration)).toBe(false);
     expect(events.every(({ providerFacts }) => providerFacts.provider === 'antigravity')).toBe(
       true,
     );
