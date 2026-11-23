@@ -77,6 +77,10 @@ import {
   type GraphWorkItem,
 } from "./diagramElementMetadata";
 import {
+  displayToSavedPosition,
+  savedToDisplayPosition,
+} from "./workflowGraphSavedPositions";
+import {
   Box,
   Alert,
   Button,
@@ -6028,7 +6032,7 @@ const WorkflowGraphViewportSurface: React.FC<
       return new Map(
         projection.effectiveLayout.nodes.map(({ node, position }) => [
           workItemIdentityKey(node),
-          position,
+          savedToDisplayPosition(position, graphSizeMode),
         ]),
       );
     }
@@ -6038,11 +6042,16 @@ const WorkflowGraphViewportSurface: React.FC<
     return new Map(
       graphData.layout.nodes.flatMap(({ node, position }) =>
         node.kind === "persistedWorkItem"
-          ? [[node.workItemId, position] as const]
+          ? [
+              [
+                node.workItemId,
+                savedToDisplayPosition(position, graphSizeMode),
+              ] as const,
+            ]
           : [],
       ),
     );
-  }, [graphData.layout, projection]);
+  }, [graphData.layout, graphSizeMode, projection]);
   const reconnectableEdgeIds = useMemo(
     () =>
       new Set(
@@ -6348,6 +6357,11 @@ const WorkflowGraphViewportSurface: React.FC<
     };
   }, [open]);
 
+  const toSavedPosition = useCallback(
+    (position: WorkItemChangeSetPosition) =>
+      displayToSavedPosition(position, graphSizeMode),
+    [graphSizeMode],
+  );
   const onVisibleCanvasPositionChange =
     interaction?.onVisibleCanvasPositionChange;
   const publishVisibleCanvasPosition = useCallback(() => {
@@ -6362,8 +6376,8 @@ const WorkflowGraphViewportSurface: React.FC<
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
       return;
     }
-    onVisibleCanvasPositionChange?.(position);
-  }, [onVisibleCanvasPositionChange, reactFlowInstance]);
+    onVisibleCanvasPositionChange?.(toSavedPosition(position));
+  }, [onVisibleCanvasPositionChange, reactFlowInstance, toSavedPosition]);
 
   useEffect(() => {
     publishVisibleCanvasPosition();
@@ -6409,10 +6423,12 @@ const WorkflowGraphViewportSurface: React.FC<
       }
       const menu = resolveNodeContextMenu({
         child,
-        position: reactFlowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        }),
+        position: toSavedPosition(
+          reactFlowInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          }),
+        ),
         menuPosition: { x: event.clientX, y: event.clientY },
         allowContextMenu: true,
       });
@@ -6423,7 +6439,13 @@ const WorkflowGraphViewportSurface: React.FC<
       event.stopPropagation();
       onNodeContextMenu(menu);
     },
-    [identitiesByNodeId, interaction, isEditing, reactFlowInstance],
+    [
+      identitiesByNodeId,
+      interaction,
+      isEditing,
+      reactFlowInstance,
+      toSavedPosition,
+    ],
   );
 
   const handlePaneContextMenu = useCallback(
@@ -6433,10 +6455,12 @@ const WorkflowGraphViewportSurface: React.FC<
         return;
       }
       const menu = resolveEmptyCanvasContextMenu({
-        position: reactFlowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        }),
+        position: toSavedPosition(
+          reactFlowInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          }),
+        ),
         menuPosition: { x: event.clientX, y: event.clientY },
         allowContextMenu: true,
       });
@@ -6447,7 +6471,7 @@ const WorkflowGraphViewportSurface: React.FC<
       event.stopPropagation();
       onEmptyCanvasContextMenu(menu);
     },
-    [interaction, isEditing, reactFlowInstance],
+    [interaction, isEditing, reactFlowInstance, toSavedPosition],
   );
 
   const updateGestureTarget = useCallback(
@@ -6739,7 +6763,7 @@ const WorkflowGraphViewportSurface: React.FC<
                 onNodeDragStop={(_event, node) => {
                   const completion = resolveNodeDragCompletion({
                     child: identitiesByNodeId.get(node.id),
-                    position: node.position,
+                    position: toSavedPosition(node.position),
                     allowNodeDragging: Boolean(interaction?.allowNodeDragging),
                     isConnecting: connectingSourceIdRef.current !== null,
                     isReconnecting: reconnectingRef.current,
@@ -6750,7 +6774,14 @@ const WorkflowGraphViewportSurface: React.FC<
                       completion.position,
                       surfaceNodes.flatMap(({ id, position }) => {
                         const identity = identitiesByNodeId.get(id);
-                        return identity ? [{ node: identity, position }] : [];
+                        return identity
+                          ? [
+                              {
+                                node: identity,
+                                position: toSavedPosition(position),
+                              },
+                            ]
+                          : [];
                       }),
                     );
                   } else {
@@ -6865,8 +6896,10 @@ const WorkflowGraphViewportSurface: React.FC<
                     isReconnecting: reconnectingRef.current,
                     emptyCanvasPosition:
                       !target && reactFlowInstance
-                        ? reactFlowInstance.screenToFlowPosition(
-                            pointerEventPoint(event),
+                        ? toSavedPosition(
+                            reactFlowInstance.screenToFlowPosition(
+                              pointerEventPoint(event),
+                            ),
                           )
                         : undefined,
                   });
