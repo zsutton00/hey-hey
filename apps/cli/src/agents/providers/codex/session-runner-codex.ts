@@ -1526,7 +1526,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             this.submitMcpElicitationResponse(request.id, {
               action: 'accept',
               content: null,
-              _meta: { [CODEX_MCP_PERSIST_KEY]: CODEX_MCP_PERSIST_ALWAYS },
+              _meta:
+                serverName !== null && HEYHEY_MCP_SERVER_NAMES.has(serverName)
+                  ? null
+                  : { [CODEX_MCP_PERSIST_KEY]: CODEX_MCP_PERSIST_ALWAYS },
             });
             persistAutomaticDecision('allow');
           } catch (error) {
