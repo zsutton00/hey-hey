@@ -3,6 +3,7 @@ import type { Theme } from "@mui/material/styles";
 import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
 import { ConversationCard } from "../Conversation/Card";
+import { renderInlineMentions } from "../SmarterTextAreaCard/renderInlineMentions";
 import { NEEDS_YOUR_ANSWER_LABEL } from "./QuestionFrame";
 import { UncertaintyDiscussControl } from "./UncertaintyDiscussControl";
 
@@ -128,7 +129,7 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
             ) : null}
           </>
         }
-        lead={statement}
+        lead={renderInlineMentions(statement)}
       >
         {children}
       </ConversationCard>
@@ -156,7 +157,7 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
       }
       lead={
         <>
-          {statement}
+          {renderInlineMentions(statement)}
           {onDiscuss ? (
             <UncertaintyDiscussControl onDiscuss={onDiscuss} />
           ) : null}

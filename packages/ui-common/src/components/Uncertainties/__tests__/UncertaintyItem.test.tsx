@@ -1,6 +1,7 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { render as baseRender, screen } from "@testing-library/react";
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentUncertaintySystemMessageData } from "../../../api";
@@ -232,4 +233,29 @@ describe("UncertaintyItem", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  it.each([
+    AgentUncertaintySystemMessageDataCategoryEnum.Conflict,
+    AgentUncertaintySystemMessageDataCategoryEnum.Question,
+  ])(
+    "renders a canonical mention in a %s statement as a mention node",
+    (category) => {
+      render(
+        <MemoryRouter>
+          <UncertaintyItem
+            category={category}
+            severity="high"
+            statement="@[bug:d7c6524b-b381-4b1a-99ba-29623b12495a|Keep sent file chips on the same row] still says X"
+            testId="uncertainty"
+            onDiscuss={() => undefined}
+          />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByTestId("mention-badge")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("conversation-card-lead"),
+      ).not.toHaveTextContent("@[bug:");
+    },
+  );
 });
