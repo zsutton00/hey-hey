@@ -113,6 +113,24 @@ describe("UncertaintyItem", () => {
     },
   );
 
+  it("keeps the screen-reader severity label from taking up layout space", () => {
+    render(
+      <UncertaintyItem
+        category={AgentUncertaintySystemMessageDataCategoryEnum.Conflict}
+        severity="low"
+        statement="Two requirements disagree."
+        testId="uncertainty"
+      />,
+    );
+
+    // A full-size hidden label overflows the conversation and adds a scroller.
+    expect(screen.getByText("low severity")).toHaveStyle({
+      position: "absolute",
+      width: "1px",
+      height: "1px",
+    });
+  });
+
   it.each([
     ["light", "high"],
     ["dark", "high"],
