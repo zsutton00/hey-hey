@@ -39,6 +39,12 @@ export interface FutureRevisionCancellation {
      * @memberof FutureRevisionCancellation
      */
     'expectedRevision': number;
+    /**
+     * Pending refinements the reviewer saw and confirmed would be rejected by this cancellation. When present, cancellation is refused with a conflict if the future\'s pending refinements differ at submission or approval, so a refinement that arrived later is never rejected unseen. Omit to cancel without a reviewed set.
+     * @type {Array<string>}
+     * @memberof FutureRevisionCancellation
+     */
+    'reviewedRefinementProposalIds'?: Array<string>;
 }
 
 
