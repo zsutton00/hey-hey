@@ -1,4 +1,4 @@
-import { Box, Skeleton, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import React, { useMemo } from "react";
 import { WorkItemTypeSectionDefinitionKindEnum } from "../../api";
 import { getTaskSectionContent } from "../../utils/workItemSections";
@@ -6,14 +6,15 @@ import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { UxFlowThumbnail } from "./UxFlowThumbnail";
 import {
+  VISUAL_ARTIFACT_PREVIEW_HEIGHT,
+  VisualArtifactPreviewContent,
+  VisualArtifactPreviewLoading,
+} from "./VisualArtifactPreview";
+import {
   getDiagramMetadata,
   hydrateWorkflowGraphEdges,
   WorkflowGraphThumbnail,
 } from "./WorkflowMentionInlineRenderer";
-
-export const DIAGRAM_THUMBNAIL_HEIGHT = 180;
-
-const DESCRIPTION_LINE_CLAMP = 3;
 
 /** Flattens markdown into one readable line for a clamped caption. */
 const toPlainText = (markdown: string): string =>
@@ -30,9 +31,6 @@ export interface DiagramThumbnailProps {
   organizationId: string;
   projectId: string;
   diagramId: string;
-  /** Defers loading until the host decides the thumbnail is near view. */
-  enabled?: boolean;
-  height?: number;
 }
 
 /**
@@ -43,21 +41,17 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
   organizationId,
   projectId,
   diagramId,
-  enabled = true,
-  height = DIAGRAM_THUMBNAIL_HEIGHT,
 }) => {
-  const graphQuery = useWorkItemGraph(organizationId, projectId, diagramId, {
-    enabled,
-  });
+  const graphQuery = useWorkItemGraph(organizationId, projectId, diagramId);
   const diagramType = useWorkItemTypeByKey(
-    enabled ? organizationId : undefined,
-    enabled ? projectId : undefined,
-    enabled ? "DIAGRAM" : undefined,
+    organizationId,
+    projectId,
+    "DIAGRAM",
   );
   const elementType = useWorkItemTypeByKey(
-    enabled ? organizationId : undefined,
-    enabled ? projectId : undefined,
-    enabled ? "DIAGRAM_ELEMENT" : undefined,
+    organizationId,
+    projectId,
+    "DIAGRAM_ELEMENT",
   );
   const graph = graphQuery.data;
   const description = useMemo(() => {
@@ -75,37 +69,30 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
   }, [diagramType.workItemTypeDefinition, graph]);
 
   if (
-    !enabled ||
     !graphQuery.isFetched ||
     !diagramType.isFetched ||
     !elementType.isFetched
   ) {
-    return (
-      <Skeleton
-        variant="rounded"
-        height={height}
-        data-testid="diagram-thumbnail-loading"
-      />
-    );
+    return <VisualArtifactPreviewLoading testId="diagram-thumbnail-loading" />;
   }
 
   if (graphQuery.error || !graph?.root) {
     return (
-      <Box
-        data-testid="diagram-thumbnail-unavailable"
-        sx={{
-          height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 1,
-          bgcolor: "action.hover",
-        }}
-      >
-        <Typography variant="caption" color="text.secondary">
-          Diagram preview unavailable
-        </Typography>
-      </Box>
+      <VisualArtifactPreviewContent>
+        <Box
+          data-testid="diagram-thumbnail-unavailable"
+          sx={{
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 1,
+            bgcolor: "action.hover",
+          }}
+        >
+          <Typography variant="caption" color="text.secondary">
+            Diagram preview unavailable
+          </Typography>
+        </Box>
+      </VisualArtifactPreviewContent>
     );
   }
 
@@ -124,33 +111,16 @@ export const DiagramThumbnail: React.FC<DiagramThumbnailProps> = ({
   // The mention only says "diagram", so the kind is known once the load resolves.
   if (getDiagramMetadata(graph.root)?.kind === "UX_FLOW") {
     return (
-      <UxFlowThumbnail
-        height={height}
-        graphData={hydrateWorkflowGraphEdges(graphData)}
-      />
+      <VisualArtifactPreviewContent>
+        <UxFlowThumbnail
+          height={VISUAL_ARTIFACT_PREVIEW_HEIGHT}
+          graphData={hydrateWorkflowGraphEdges(graphData)}
+        />
+      </VisualArtifactPreviewContent>
     );
   }
 
   return (
-    <Box>
-      <WorkflowGraphThumbnail height={height} graphData={graphData} />
-      {description ? (
-        <Typography
-          variant="body2"
-          color="text.primary"
-          data-testid="diagram-thumbnail-description"
-          sx={{
-            mt: 1,
-            textAlign: "left",
-            overflow: "hidden",
-            display: "-webkit-box",
-            WebkitLineClamp: DESCRIPTION_LINE_CLAMP,
-            WebkitBoxOrient: "vertical",
-          }}
-        >
-          {description}
-        </Typography>
-      ) : null}
-    </Box>
+    <WorkflowGraphThumbnail graphData={graphData} description={description} />
   );
 };

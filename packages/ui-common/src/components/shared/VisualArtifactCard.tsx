@@ -1,10 +1,4 @@
-import {
-  Box,
-  ButtonBase,
-  Skeleton,
-  ThemeProvider,
-  Typography,
-} from "@mui/material";
+import { Box, ButtonBase, ThemeProvider, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 import {
   type WorkItemTypeSectionDefinition,
@@ -27,10 +21,15 @@ import { useRefElementWidth } from "./useRefElementWidth";
 import { HtmlCssSectionThumbnail } from "./HtmlCssSectionThumbnail";
 import { StructuredMockupSectionThumbnail } from "./StructuredMockupSectionThumbnail";
 import { MOCKUP_TYPE_KEY, type VisualArtifact } from "./visualArtifacts";
+import {
+  VISUAL_ARTIFACT_PREVIEW_HEIGHT,
+  VISUAL_ARTIFACT_THUMBNAIL_HEIGHT,
+  VisualArtifactPreviewContent,
+  VisualArtifactPreviewLoading,
+} from "./VisualArtifactPreview";
 
 /** Begin loading a card shortly before it scrolls into view. */
 const PRELOAD_ROOT_MARGIN = "240px 0px";
-const LOADING_HEIGHT = 180;
 
 /**
  * Mockup miniatures are always light, so the card around them stays white with
@@ -93,14 +92,6 @@ const useNearViewport = (ref: React.RefObject<HTMLElement | null>): boolean => {
   return isNear;
 };
 
-const LoadingPreview: React.FC = () => (
-  <Skeleton
-    variant="rounded"
-    height={LOADING_HEIGHT}
-    data-testid="visual-artifact-card-loading"
-  />
-);
-
 const MockupPreview: React.FC<{
   organizationId: string;
   projectId: string;
@@ -120,7 +111,9 @@ const MockupPreview: React.FC<{
   );
 
   if (!isFetched || !typeQuery.isFetched || width <= 0) {
-    return <LoadingPreview />;
+    return (
+      <VisualArtifactPreviewLoading testId="visual-artifact-card-loading" />
+    );
   }
 
   // The mockup section is found by its declared kind, never by section key.
@@ -136,9 +129,13 @@ const MockupPreview: React.FC<{
 
   if (!mockup) {
     return (
-      <Typography variant="caption" color="text.primary">
-        No mockup preview.
-      </Typography>
+      <VisualArtifactPreviewContent>
+        <Box sx={{ alignSelf: "center" }}>
+          <Typography variant="caption" color="text.primary">
+            No mockup preview.
+          </Typography>
+        </Box>
+      </VisualArtifactPreviewContent>
     );
   }
 
@@ -148,6 +145,9 @@ const MockupPreview: React.FC<{
     .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+  const maxHeight = purpose
+    ? VISUAL_ARTIFACT_THUMBNAIL_HEIGHT
+    : VISUAL_ARTIFACT_PREVIEW_HEIGHT;
 
   const thumbnail =
     mockup.definition.kind === WorkItemTypeSectionDefinitionKindEnum.HtmlCss ? (
@@ -155,7 +155,7 @@ const MockupPreview: React.FC<{
         content={mockup.content}
         definition={mockup.definition}
         width={width}
-        maxHeight={LOADING_HEIGHT}
+        maxHeight={maxHeight}
         title={`${workItem?.name ?? "Mockup"} thumbnail`}
       />
     ) : (
@@ -163,34 +163,28 @@ const MockupPreview: React.FC<{
         content={mockup.content}
         definition={mockup.definition}
         width={width}
-        maxHeight={LOADING_HEIGHT}
+        maxHeight={maxHeight}
         organizationId={organizationId}
         projectId={projectId}
       />
     );
 
   return (
-    <>
-      {thumbnail}
-      {purpose && (
-        <Typography
-          variant="caption"
-          color="text.primary"
-          data-testid="mockup-purpose"
-          sx={{
-            mt: 1,
-            textAlign: "left",
-            display: "-webkit-box",
-            WebkitBoxOrient: "vertical",
-            WebkitLineClamp: 3,
-            overflow: "hidden",
-            overflowWrap: "anywhere",
-          }}
-        >
-          {purpose}
-        </Typography>
-      )}
-    </>
+    <VisualArtifactPreviewContent
+      caption={purpose}
+      captionTestId="mockup-purpose"
+    >
+      <Box
+        sx={{
+          display: "grid",
+          alignItems: "center",
+          borderRadius: 1,
+          bgcolor: "grey.100",
+        }}
+      >
+        {thumbnail}
+      </Box>
+    </VisualArtifactPreviewContent>
   );
 };
 
@@ -293,12 +287,13 @@ export const VisualArtifactCard: React.FC<VisualArtifactCardProps> = ({
               data-load-state={isNear ? "eligible" : "deferred"}
               sx={{
                 width: "100%",
-                minHeight: LOADING_HEIGHT,
+                height: VISUAL_ARTIFACT_PREVIEW_HEIGHT,
                 overflow: "hidden",
+                overflowAnchor: "none",
               }}
             >
               {!isNear ? (
-                <LoadingPreview />
+                <VisualArtifactPreviewLoading testId="visual-artifact-card-loading" />
               ) : isDiagram ? (
                 <DiagramThumbnail
                   organizationId={organizationId}

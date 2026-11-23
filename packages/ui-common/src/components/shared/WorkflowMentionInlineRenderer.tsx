@@ -17,6 +17,10 @@ import { MentionArtifactCard } from "./MentionArtifactCard";
 import { useMentionExpansion } from "./MentionExpansionContext";
 import { useAutomaticDiagramLayout } from "./useAutomaticDiagramLayout";
 import {
+  VisualArtifactPreviewContent,
+  VisualArtifactPreviewLoading,
+} from "./VisualArtifactPreview";
+import {
   buildDiagramLayoutGroupHints,
   computeBoundaryBoxes,
   DIAGRAM_GROUPS_SECTION_KEY,
@@ -7826,7 +7830,7 @@ const getThumbnailNodeSize = (
 
 export interface WorkflowGraphThumbnailProps {
   graphData: WorkflowGraphSurfaceData;
-  height: number;
+  description: string;
 }
 
 /**
@@ -7837,7 +7841,7 @@ export interface WorkflowGraphThumbnailProps {
  */
 export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
   graphData,
-  height,
+  description,
 }) => {
   const hydratedGraphData = useMemo(
     () => hydrateWorkflowGraphEdges(graphData),
@@ -7898,7 +7902,6 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     },
     !hasAuthoredLayout,
   );
-  const isArranging = comparison.active && !comparison.positions;
   const graphModel = useMemo(
     () =>
       comparison.positions
@@ -7959,54 +7962,63 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     };
   }, [graphModel.edges, graphModel.nodes]);
 
+  if (comparison.pending) {
+    return <VisualArtifactPreviewLoading testId="diagram-thumbnail-loading" />;
+  }
+
   return (
-    <Box
-      data-testid="workflow-graph-thumbnail"
-      aria-hidden
-      sx={{
-        position: "relative",
-        width: "100%",
-        height,
-        overflow: "hidden",
-        borderRadius: 1,
-        pointerEvents: "none",
-        bgcolor:
-          theme.palette.mode === "dark"
-            ? theme.palette.grey[900]
-            : theme.palette.grey[100],
-      }}
+    <VisualArtifactPreviewContent
+      caption={description}
+      captionTestId="diagram-thumbnail-description"
     >
-      {isArranging || !shapes ? null : (
-        <svg
-          width="100%"
-          height="100%"
-          viewBox={shapes.viewBox}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {shapes.lines.map((line) => (
-            <line
-              key={line.id}
-              {...{ x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 }}
-              stroke={theme.palette.text.secondary}
-              strokeWidth={Math.max(2, shapes.strokeScale * 1.5)}
-            />
-          ))}
-          {shapes.boxes.map(([id, box]) => (
-            <rect
-              key={id}
-              data-testid="workflow-graph-thumbnail-node"
-              x={box.x}
-              y={box.y}
-              width={box.width}
-              height={box.height}
-              rx={Math.min(box.width, box.height) / (box.round ? 6 : 10)}
-              fill={theme.palette.background.paper}
-              stroke={theme.palette.primary.main}
-              strokeWidth={Math.max(2, shapes.strokeScale * 2)}
-            />
-          ))}
-        </svg>
-      )}
-    </Box>
+      <Box
+        data-testid="workflow-graph-thumbnail"
+        aria-hidden
+        sx={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          borderRadius: 1,
+          pointerEvents: "none",
+          bgcolor:
+            theme.palette.mode === "dark"
+              ? theme.palette.grey[900]
+              : theme.palette.grey[100],
+        }}
+      >
+        {shapes && (
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={shapes.viewBox}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {shapes.lines.map((line) => (
+              <line
+                key={line.id}
+                {...{ x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 }}
+                stroke={theme.palette.text.secondary}
+                strokeWidth={Math.max(2, shapes.strokeScale * 1.5)}
+              />
+            ))}
+            {shapes.boxes.map(([id, box]) => (
+              <rect
+                key={id}
+                data-testid="workflow-graph-thumbnail-node"
+                x={box.x}
+                y={box.y}
+                width={box.width}
+                height={box.height}
+                rx={Math.min(box.width, box.height) / (box.round ? 6 : 10)}
+                fill={theme.palette.background.paper}
+                stroke={theme.palette.primary.main}
+                strokeWidth={Math.max(2, shapes.strokeScale * 2)}
+              />
+            ))}
+          </svg>
+        )}
+      </Box>
+    </VisualArtifactPreviewContent>
   );
 };

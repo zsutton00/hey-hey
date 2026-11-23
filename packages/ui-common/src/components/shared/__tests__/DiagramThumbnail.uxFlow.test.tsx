@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DiagramThumbnail } from "../DiagramThumbnail";
 
 const { graphState, mockupState } = vi.hoisted(() => ({
-  graphState: { kind: "UX_FLOW" as string },
+  graphState: { kind: "UX_FLOW", description: "", isFetched: true },
   mockupState: {} as Record<
     string,
     { type: string; status: string; name: string } | undefined
@@ -51,7 +51,7 @@ const edge = (
 
 vi.mock("../../../data/hooks/useWorkItemGraph", () => ({
   useWorkItemGraph: () => ({
-    isFetched: true,
+    isFetched: graphState.isFetched,
     error: null,
     data: {
       root: {
@@ -69,6 +69,7 @@ vi.mock("../../../data/hooks/useWorkItemGraph", () => ({
               level: "OVERVIEW",
             }),
           },
+          { key: "summary", materializedMarkdown: graphState.description },
         ],
       },
       children: [
@@ -96,7 +97,10 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
     isFetched: true,
     error: null,
     workItemTypeDefinition: {
-      sections: [{ key: "screen", kind: "html/css" }],
+      sections: [
+        { key: "summary", kind: "markdown" },
+        { key: "screen", kind: "html/css" },
+      ],
     },
   }),
 }));
@@ -120,6 +124,8 @@ vi.mock("../HtmlCssSectionThumbnail", () => ({
 describe("DiagramThumbnail for a UX flow", () => {
   beforeEach(() => {
     graphState.kind = "UX_FLOW";
+    graphState.isFetched = true;
+    graphState.description = "";
     mockupState["m-cart"] = { type: "mockup", status: "ACTIVE", name: "Cart" };
     mockupState["m-pay"] = { type: "mockup", status: "ACTIVE", name: "Pay" };
     mockupState["m-gone"] = {
@@ -129,14 +135,14 @@ describe("DiagramThumbnail for a UX flow", () => {
     };
   });
 
-  const renderThumbnail = () =>
-    render(
-      <DiagramThumbnail
-        organizationId={ORG}
-        projectId={PROJECT}
-        diagramId="flow-1"
-      />,
-    );
+  const thumbnail = () => (
+    <DiagramThumbnail
+      organizationId={ORG}
+      projectId={PROJECT}
+      diagramId="flow-1"
+    />
+  );
+  const renderThumbnail = () => render(thumbnail());
 
   it("shows the screens joined by action-labelled arrows instead of the graph outline", () => {
     renderThumbnail();
@@ -191,11 +197,59 @@ describe("DiagramThumbnail for a UX flow", () => {
     });
   });
 
-  it("keeps the fitted outline for other Diagram kinds", () => {
+  it("keeps the fitted outline for other Diagram kinds", async () => {
     graphState.kind = "GENERAL";
     renderThumbnail();
 
-    expect(screen.getByTestId("workflow-graph-thumbnail")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("workflow-graph-thumbnail"),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("ux-flow-thumbnail")).toBeNull();
+  });
+
+  it.each(["", "How checkout hands off to payment and issues a receipt."])(
+    "fills the reserved frame after a Diagram loads with description %j",
+    async (description) => {
+      graphState.kind = "GENERAL";
+      graphState.description = description;
+      graphState.isFetched = false;
+      const { rerender } = renderThumbnail();
+
+      expect(screen.getByTestId("diagram-thumbnail-loading")).toHaveStyle({
+        height: "100%",
+      });
+      graphState.isFetched = true;
+      rerender(thumbnail());
+
+      expect(
+        await screen.findByTestId("visual-artifact-preview-content"),
+      ).toHaveStyle({
+        height: "100%",
+      });
+      expect(screen.getByTestId("workflow-graph-thumbnail")).toHaveStyle({
+        height: "100%",
+      });
+      const caption = screen.queryByTestId("diagram-thumbnail-description");
+      if (description) {
+        expect(caption).toHaveTextContent(description);
+      } else {
+        expect(caption).toBeNull();
+      }
+    },
+  );
+
+  it("keeps the UX flow frame fixed as a saved screen becomes available", () => {
+    const payScreen = mockupState["m-pay"];
+    mockupState["m-pay"] = undefined;
+    const { rerender } = renderThumbnail();
+    const flow = screen.getByTestId("ux-flow-thumbnail");
+    expect(flow).toHaveStyle({ height: "242px" });
+
+    mockupState["m-pay"] = payScreen;
+    rerender(thumbnail());
+
+    expect(screen.getByTestId("ux-flow-thumbnail")).toBe(flow);
+    expect(flow).toHaveStyle({ height: "242px" });
+    expect(screen.getAllByTestId("html-css-thumbnail")).toHaveLength(3);
   });
 });
