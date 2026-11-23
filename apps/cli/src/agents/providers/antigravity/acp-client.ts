@@ -68,7 +68,7 @@ export class AntigravityAcpClient {
   private readonly child: ChildProcessByStdio<Writable, Readable, Readable>;
   private readonly requests = new Map<number, PendingRequest>();
   private nextId = 0;
-  private closed = false;
+  private closeError: Error | undefined;
   private stderrTail = '';
 
   constructor(
@@ -128,17 +128,20 @@ export class AntigravityAcpClient {
     return this.request('session/prompt', { sessionId, prompt });
   }
 
-  cancel(sessionId: string): void {
+  cancel(sessionId: string): Promise<void> {
     this.logger.debug('antigravity.acp.cancel', { sessionId });
-    this.send({ method: 'session/cancel', params: { sessionId } });
+    return this.send({ method: 'session/cancel', params: { sessionId } });
   }
 
-  respondToPermission(id: AcpPermissionRequest['id'], option: AcpOption | undefined): void {
+  respondToPermission(
+    id: AcpPermissionRequest['id'],
+    option: AcpOption | undefined,
+  ): Promise<void> {
     const outcome = option
       ? { outcome: 'selected', optionId: option.optionId }
       : { outcome: 'cancelled' };
     this.logger.debug('antigravity.acp.permission_response', { id, kind: option?.kind });
-    this.send({ id, result: { outcome } });
+    return this.send({ id, result: { outcome } });
   }
 
   dispose(): void {
@@ -146,11 +149,11 @@ export class AntigravityAcpClient {
   }
 
   private close(error: Error): void {
-    if (this.closed) {
+    if (this.closeError) {
       return;
     }
 
-    this.closed = true;
+    this.closeError = error;
     this.logger.debug('antigravity.acp.closed', { reason: error.message });
     for (const pending of this.requests.values()) {
       pending.reject(error);
@@ -173,11 +176,22 @@ export class AntigravityAcpClient {
     return new Error(`ACP ${method} timed out`);
   }
 
-  private send(frame: Record<string, unknown>): void {
-    if (this.closed) {
-      throw new Error('ACP process is closed');
+  private async send(frame: Record<string, unknown>): Promise<void> {
+    if (this.closeError) {
+      throw this.closeError;
     }
-    this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', ...frame }) + '\n');
+
+    const line = JSON.stringify({ jsonrpc: '2.0', ...frame }) + '\n';
+    await new Promise<void>((resolve, reject) => {
+      this.child.stdin.write(line, (error) => {
+        if (error) {
+          this.close(error);
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
   }
 
   private request<M extends AcpMethod>(
@@ -235,12 +249,10 @@ export class AntigravityAcpClient {
       }
 
       this.logger.debug('antigravity.acp.request', { id, method });
-      try {
-        this.send({ id, method, params });
-      } catch (error) {
+      void this.send({ id, method, params }).catch((error: unknown) => {
         cleanup();
         reject(error);
-      }
+      });
     });
   }
 

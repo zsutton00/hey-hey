@@ -1,5 +1,8 @@
 import type { ServerLogger } from '../../../server/logger';
+import { PermissionDecisionRequestDtoDecisionEnum } from '@hey-hey/contracts/api/models';
+import { z } from 'zod';
 import { toDurableJsonValue } from '../../../run-store/durable-events';
+import { antigravityPermissionKinds } from '../../permission-response-routing';
 import {
   buildNormalizedProviderFacts,
   permissionFingerprint,
@@ -18,6 +21,11 @@ interface EventContext {
 
 type AcpToolUpdate = Extract<AcpUpdate, { sessionUpdate: 'tool_call' | 'tool_call_update' }>;
 type Permission = Extract<AcpInboundCall, { method: 'session/request_permission' }>['params'];
+
+const commandInputSchema = z.object({
+  CommandLine: z.string().optional(),
+  toolSummary: z.string().optional(),
+});
 
 export function normalizeAntigravityEvent(
   context: EventContext,
@@ -143,6 +151,18 @@ export function mapAntigravityPermission(
   const tool = params.toolCall;
   const action = tool.name ?? tool.kind ?? 'tool';
   const target = tool.title ?? action;
+  const commandInput =
+    tool.kind === 'execute'
+      ? commandInputSchema.safeParse(tool.rawInput ?? tool.args).data
+      : undefined;
+  const command = commandInput?.CommandLine;
+  const reason = commandInput?.toolSummary;
+  // Whitelist is a legacy alias for allow_always, which gets one control.
+  const availableDecisions = Object.values(PermissionDecisionRequestDtoDecisionEnum).filter(
+    (decision) =>
+      decision !== 'whitelist' &&
+      params.options.some((option) => option.kind === antigravityPermissionKinds[decision]),
+  );
   const fingerprint = permissionFingerprint({
     provider: PROVIDER,
     requestId,
@@ -150,6 +170,7 @@ export function mapAntigravityPermission(
     input: tool.rawInput ?? tool.args,
   });
   return normalizeAntigravityEvent(context, 'permission_request_detected', {
+    ...(command || reason ? { enrichment_metadata: { command, reason } } : {}),
     permission_request: {
       id: requestId,
       permission_type: tool.kind === 'edit' ? 'file_change' : 'command_execution',
@@ -161,6 +182,7 @@ export function mapAntigravityPermission(
       agent_type: PROVIDER,
       timestamp: context.timestamp,
       idempotency_token: requestId,
+      availableDecisions,
     },
   });
 }

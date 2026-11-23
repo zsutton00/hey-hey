@@ -6578,6 +6578,12 @@ PermissionRequestSummary:
       items:
         type: string
       description: Diffs referenced by the permission request
+    availableDecisions:
+      type: array
+      items:
+        type: string
+        enum: [approve, always_approve, whitelist, deny]
+      description: Decisions the provider and Run policy permit for this request, when known
   description: Normalized permission request details for UI rendering
 
 AgentRequestPermissionPayload:

@@ -14937,6 +14937,13 @@
             "type": "string"
           },
           "description": "Diffs referenced by the permission request"
+        },
+        "availableDecisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PermissionRequestSummaryAvailableDecisionsEnum"
+          },
+          "description": "Decisions the provider and Run policy permit for this request, when known"
         }
       },
       "required": [
@@ -14951,6 +14958,27 @@
         "referencedDiffs"
       ],
       "description": "Normalized permission request details for UI rendering"
+    },
+    "PermissionRequestSummaryAvailableDecisionsEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "approve"
+        },
+        {
+          "type": "string",
+          "const": "always_approve"
+        },
+        {
+          "type": "string",
+          "const": "whitelist"
+        },
+        {
+          "type": "string",
+          "const": "deny"
+        },
+        {}
+      ]
     },
     "AgentRequestPermissionPayloadDecisionEnum": {
       "anyOf": [

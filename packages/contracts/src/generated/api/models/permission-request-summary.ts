@@ -97,9 +97,36 @@ export interface PermissionRequestSummary {
      * @memberof PermissionRequestSummary
      */
     'referencedDiffs': Array<string>;
+    /**
+     * Decisions the provider and Run policy permit for this request, when known
+     * @type {Array<string>}
+     * @memberof PermissionRequestSummary
+     */
+    'availableDecisions'?: Array<PermissionRequestSummaryAvailableDecisionsEnum>;
 }
+
+
+
+export const PermissionRequestSummaryAvailableDecisionsEnum = {
+    Approve: 'approve',
+    AlwaysApprove: 'always_approve',
+    Whitelist: 'whitelist',
+    Deny: 'deny',
+    "approve": "approve",
+    "always_approve": "always_approve",
+    "whitelist": "whitelist",
+    "deny": "deny",
+} as const;
+Object.defineProperty(PermissionRequestSummaryAvailableDecisionsEnum, "approve", { enumerable: false, value: PermissionRequestSummaryAvailableDecisionsEnum["Approve"] });
+Object.defineProperty(PermissionRequestSummaryAvailableDecisionsEnum, "always_approve", { enumerable: false, value: PermissionRequestSummaryAvailableDecisionsEnum["AlwaysApprove"] });
+Object.defineProperty(PermissionRequestSummaryAvailableDecisionsEnum, "whitelist", { enumerable: false, value: PermissionRequestSummaryAvailableDecisionsEnum["Whitelist"] });
+Object.defineProperty(PermissionRequestSummaryAvailableDecisionsEnum, "deny", { enumerable: false, value: PermissionRequestSummaryAvailableDecisionsEnum["Deny"] });
+
+export type PermissionRequestSummaryAvailableDecisionsEnum = typeof PermissionRequestSummaryAvailableDecisionsEnum[keyof typeof PermissionRequestSummaryAvailableDecisionsEnum];
 
 export namespace PermissionRequestSummary {
     export const AgentTypeEnum = AgentProviderId;
     export type AgentTypeEnum = AgentProviderId;
+    export const AvailableDecisionsEnum = PermissionRequestSummaryAvailableDecisionsEnum;
+    export type AvailableDecisionsEnum = PermissionRequestSummaryAvailableDecisionsEnum;
 }

@@ -91,7 +91,7 @@ interface AntigravityPermissionDecisionDispatch {
   agentType: 'antigravity';
   decision: PermissionDecision;
   callbackType: 'antigravity_permission_response';
-  callbackPayload: { kind: 'allow_once' | 'allow_always' | 'reject_once' };
+  callbackPayload: { kind: (typeof antigravityPermissionKinds)[PermissionDecision] };
   routing: PermissionDecisionRoutingMetadata;
 }
 
@@ -103,6 +103,13 @@ export type AgentPermissionDecisionDispatch =
 
 const toDenyReason = (reason: string | null): string =>
   reason && reason.trim().length > 0 ? reason : 'Denied by user.';
+
+export const antigravityPermissionKinds = {
+  approve: 'allow_once',
+  always_approve: 'allow_always',
+  whitelist: 'allow_always',
+  deny: 'reject_once',
+} as const satisfies Record<PermissionDecision, string>;
 
 export const translatePermissionDecisionToDispatch = (
   input: PermissionDecisionRoutingInput,
@@ -168,17 +175,11 @@ export const translatePermissionDecisionToDispatch = (
   }
 
   if (input.agentType === 'antigravity') {
-    const kinds = {
-      approve: 'allow_once',
-      always_approve: 'allow_always',
-      whitelist: 'allow_always',
-      deny: 'reject_once',
-    } as const;
     return {
       agentType: 'antigravity',
       decision: input.decision,
       callbackType: 'antigravity_permission_response',
-      callbackPayload: { kind: kinds[input.decision] },
+      callbackPayload: { kind: antigravityPermissionKinds[input.decision] },
       routing,
     };
   }

@@ -15,7 +15,7 @@ import type { FieldComponentProps, FieldConfig } from "./types";
 import { type AgentRequestPermissionPayload } from "../../../api";
 
 type PermissionDeliveryState =
-  "idle" | "queued" | "in-flight" | "delivered" | "failed";
+  "idle" | "queued" | "in-flight" | "sent" | "delivered" | "failed";
 
 type JsonObject = Record<string, unknown>;
 
@@ -31,6 +31,7 @@ const DELIVERY_STATE_LABEL: Record<PermissionDeliveryState, string> = {
   idle: "Pending",
   queued: "Queued",
   "in-flight": "In Flight",
+  sent: "Sent",
   delivered: "Delivered",
   failed: "Failed",
 };
@@ -186,21 +187,36 @@ const SinglePermissionRequestField: React.FC<
 
   const payload = config.payload;
   const permissionRequest = payload.permissionRequest;
+  const isAntigravity = permissionRequest.agentType === "antigravity";
+  const command = readString(payload.enrichmentMetadata?.["command"]);
+  // Older Antigravity cards have no option inventory. Keep the basic controls
+  // so the runner can validate the decision against the pending ACP request.
+  const availableDecisions =
+    permissionRequest.availableDecisions ??
+    (isAntigravity
+      ? ["approve", "deny"]
+      : ["approve", "always_approve", "whitelist", "deny"]);
   // The persisted decision is the source of truth; fall back to the in-flight
   // submittedDecision for the pre-flush window so the live submit highlights
   // immediately before the message update round-trips.
   const resolvedDecision =
-    (payload.decision as PermissionDecision | null | undefined) ??
-    submittedDecision;
+    payload.decision ??
+    (deliveryState === "sent" || deliveryState === "failed"
+      ? null
+      : submittedDecision);
+  const visibleDecision =
+    resolvedDecision ?? (deliveryState === "sent" ? submittedDecision : null);
   const editToolDetails = React.useMemo(
     () => parseEditToolPermissionDetails(payload.rawEvent),
     [payload.rawEvent],
   );
   const targetFile =
     editToolDetails?.filePath ?? permissionRequest.referencedFiles[0] ?? null;
-  const summarizedRequest = targetFile
-    ? `${permissionRequest.permissionType} request for ${targetFile}`
-    : `${permissionRequest.permissionType} request`;
+  const summarizedRequest = command
+    ? "Command execution request"
+    : targetFile
+      ? `${permissionRequest.permissionType} request for ${targetFile}`
+      : `${permissionRequest.permissionType} request`;
   const shouldShowReason =
     !isRedundantReason(
       permissionRequest.reason ?? null,
@@ -266,7 +282,9 @@ const SinglePermissionRequestField: React.FC<
 
       try {
         await submitControllerDecision(decisionRequest);
-        setDeliveryState("delivered");
+        // The control endpoint confirms dispatch to the machine. The card's
+        // persisted decision confirms that Antigravity accepted the choice.
+        setDeliveryState(isAntigravity ? "sent" : "delivered");
       } catch (error) {
         const errorMessage =
           error instanceof Error
@@ -278,6 +296,7 @@ const SinglePermissionRequestField: React.FC<
     },
     [
       agentSessionId,
+      isAntigravity,
       permissionRequest.agentType,
       permissionRequest.id,
       permissionRequest.idempotencyToken,
@@ -299,6 +318,20 @@ const SinglePermissionRequestField: React.FC<
         >
           {summarizedRequest}
         </Typography>
+
+        {command ? (
+          <Typography
+            component="code"
+            variant="body2"
+            sx={{
+              fontFamily: "monospace",
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {command}
+          </Typography>
+        ) : null}
 
         {shouldShowReason ? (
           <Typography
@@ -369,66 +402,82 @@ const SinglePermissionRequestField: React.FC<
       </Stack>
 
       <Stack direction="row" spacing={1} justifyContent="flex-start">
-        <Button
-          variant={resolvedDecision === "approve" ? "contained" : "outlined"}
-          color="success"
-          disabled={shouldDisableDecisionButtons}
-          onClick={() => {
-            void handleDecisionClick("approve");
-          }}
-          data-testid={`permission-request-approve-${permissionRequest.id}`}
-        >
-          Approve
-        </Button>
-        <Button
-          variant={
-            resolvedDecision === "always_approve" ? "contained" : "outlined"
-          }
-          color="success"
-          disabled={shouldDisableDecisionButtons}
-          onClick={() => {
-            void handleDecisionClick("always_approve");
-          }}
-          data-testid={`permission-request-always-approve-${permissionRequest.id}`}
-        >
-          Always Approve
-        </Button>
-        <Button
-          variant={resolvedDecision === "whitelist" ? "contained" : "outlined"}
-          color="success"
-          disabled={shouldDisableDecisionButtons}
-          onClick={() => {
-            void handleDecisionClick("whitelist");
-          }}
-          data-testid={`permission-request-whitelist-${permissionRequest.id}`}
-        >
-          Whitelist
-        </Button>
-        <Button
-          variant={resolvedDecision === "deny" ? "contained" : "outlined"}
-          color="error"
-          disabled={shouldDisableDecisionButtons}
-          onClick={() => {
-            void handleDecisionClick("deny");
-          }}
-          data-testid={`permission-request-deny-${permissionRequest.id}`}
-        >
-          Deny
-        </Button>
+        {availableDecisions.includes("approve") && (
+          <Button
+            variant={resolvedDecision === "approve" ? "contained" : "outlined"}
+            color="success"
+            disabled={shouldDisableDecisionButtons}
+            onClick={() => {
+              void handleDecisionClick("approve");
+            }}
+            data-testid={`permission-request-approve-${permissionRequest.id}`}
+          >
+            Approve
+          </Button>
+        )}
+        {availableDecisions.includes("always_approve") && (
+          <Button
+            variant={
+              resolvedDecision === "always_approve" ? "contained" : "outlined"
+            }
+            color="success"
+            disabled={shouldDisableDecisionButtons}
+            onClick={() => {
+              void handleDecisionClick("always_approve");
+            }}
+            data-testid={`permission-request-always-approve-${permissionRequest.id}`}
+          >
+            Always Approve
+          </Button>
+        )}
+        {availableDecisions.includes("whitelist") && (
+          <Button
+            variant={
+              resolvedDecision === "whitelist" ? "contained" : "outlined"
+            }
+            color="success"
+            disabled={shouldDisableDecisionButtons}
+            onClick={() => {
+              void handleDecisionClick("whitelist");
+            }}
+            data-testid={`permission-request-whitelist-${permissionRequest.id}`}
+          >
+            Whitelist
+          </Button>
+        )}
+        {availableDecisions.includes("deny") && (
+          <Button
+            variant={resolvedDecision === "deny" ? "contained" : "outlined"}
+            color="error"
+            disabled={shouldDisableDecisionButtons}
+            onClick={() => {
+              void handleDecisionClick("deny");
+            }}
+            data-testid={`permission-request-deny-${permissionRequest.id}`}
+          >
+            Deny
+          </Button>
+        )}
       </Stack>
 
-      {resolvedDecision ? (
+      {availableDecisions.length === 0 && !resolvedDecision ? (
+        <Alert severity="warning">
+          The provider offered no supported decisions for this request.
+        </Alert>
+      ) : null}
+
+      {visibleDecision ? (
         <Typography
           variant="caption"
           color="text.secondary"
           data-testid={`permission-request-submitted-decision-${permissionRequest.id}`}
         >
           {`Decision: ${
-            resolvedDecision === "always_approve"
+            visibleDecision === "always_approve"
               ? "always approve"
-              : resolvedDecision === "whitelist"
+              : visibleDecision === "whitelist"
                 ? "whitelisted"
-                : resolvedDecision
+                : visibleDecision
           }${
             !payload.decision ? ` (${DELIVERY_STATE_LABEL[deliveryState]})` : ""
           }`}

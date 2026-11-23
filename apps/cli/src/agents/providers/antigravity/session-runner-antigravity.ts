@@ -356,24 +356,51 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     if (!request || !this.client || dispatch.agentType !== 'antigravity') {
       return { delivered: false, outcome: 'stale', reason: 'request_not_found' };
     }
-    this.permissions.delete(dispatch.routing.requestId);
     const kind = dispatch.callbackPayload.kind;
     const option = request.params.options.find((entry) => entry.kind === kind);
     if (!option) {
       this.dependencies.logger.warn('antigravity.permission.option_missing', {
         requestId: dispatch.routing.requestId,
+        decision: dispatch.decision,
         kind,
+        offeredKinds: request.params.options.map((entry) => entry.kind),
       });
+      return {
+        delivered: false,
+        outcome: 'refused',
+        reason: `Antigravity does not offer "${dispatch.decision.replaceAll('_', ' ')}" for this request. Choose an available decision on the permission card.`,
+      };
     }
-    if (!option || option.kind.startsWith('reject')) {
+    try {
+      await this.client.respondToPermission(request.id, option);
+    } catch (error) {
+      this.dependencies.logger.warn('antigravity.permission.reply_failed', {
+        requestId: dispatch.routing.requestId,
+        kind,
+        error: String(error),
+      });
+      return {
+        delivered: false,
+        outcome: 'refused',
+        reason:
+          'The connection to Antigravity closed before this decision could be sent. Resend your prompt to request approval again.',
+      };
+    }
+    this.permissions.delete(dispatch.routing.requestId);
+    if (option.kind === 'reject_once') {
       this.executionCapture?.denied(request.params.sessionId, request.params.toolCall.toolCallId);
     }
-    this.client.respondToPermission(request.id, option);
     await recordPermissionDecisionSubmitted({
       dispatch,
       agenticSessionId: session.agentic_session_id,
       runStore: this.dependencies.runStore,
       emitRawEvent: (event) => this.dependencies.agentOutputOwner.onAgentOutput({ event }),
+    }).catch((error: unknown) => {
+      this.dependencies.logger.error('antigravity.permission.decision_record_failed', {
+        requestId: dispatch.routing.requestId,
+        decision: dispatch.decision,
+        error: String(error),
+      });
     });
     return { delivered: true, callbackType: dispatch.callbackType };
   }
@@ -548,11 +575,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         };
         this.activePrompt = prompt;
         const cancel = () => {
-          try {
-            client.cancel(sessionId);
-          } catch (error) {
+          void client.cancel(sessionId).catch((error: unknown) => {
             logger.warn('antigravity.cancel.failed', { sessionId, error: String(error) });
-          }
+          });
         };
         args.signal?.addEventListener('abort', cancel, { once: true });
         try {
@@ -844,12 +869,19 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   }
 
   private onPermission(request: PermissionRequest): void {
-    void this.handlePermission(request).catch((error: unknown) => {
+    void this.handlePermission(request).catch(async (error: unknown) => {
       this.dependencies.logger.warn('antigravity.permission.failed', {
         id: request.id,
         error: String(error),
       });
-      this.client?.respondToPermission(request.id, undefined);
+      try {
+        await this.client?.respondToPermission(request.id, undefined);
+      } catch (replyError) {
+        this.dependencies.logger.warn('antigravity.permission.cancel_failed', {
+          id: request.id,
+          error: String(replyError),
+        });
+      }
     });
   }
 
@@ -879,13 +911,13 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     const { id, params } = request;
     const prompt = this.activePrompt;
     if (!prompt || params.sessionId !== this.sessionId) {
-      this.client?.respondToPermission(id, undefined);
+      await this.client?.respondToPermission(id, undefined);
       return;
     }
     this.observePromptActivity(params.sessionId, prompt);
     if (await this.refusesOutsideRoots(request)) {
       this.executionCapture?.denied(params.sessionId, params.toolCall.toolCallId);
-      this.client?.respondToPermission(
+      await this.client?.respondToPermission(
         id,
         params.options.find((option) => option.kind === 'reject_once'),
       );
@@ -898,7 +930,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         kind,
         sessionId: params.sessionId,
       });
-      this.client?.respondToPermission(
+      await this.client?.respondToPermission(
         id,
         params.options.find((option) => option.kind === kind),
       );

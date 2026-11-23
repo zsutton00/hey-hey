@@ -1800,6 +1800,19 @@ export class Run {
     this.runner = runner;
   }
 
+  async notePermissionDecisionRefused(requestId: string, reason: string): Promise<void> {
+    try {
+      await this.postAgentSystemMessage(reason, this.session, 'warning');
+    } catch (error) {
+      this.logger.error('local.run.permission_decision.refusal_notice_failed', {
+        runId: this.runId,
+        requestId,
+        reason,
+        error,
+      });
+    }
+  }
+
   /** Set only for a Run whose provider hooks are sent; null means every edit stays approximate. */
   notePermissionDecisionDelivered(input: {
     requestId: string;

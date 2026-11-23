@@ -19,6 +19,7 @@ import type { SystemMessageData } from '../../shared/api/index';
 import type { PermissionEvent, HandlerDeps, DiffEvent } from '../types';
 import type { Run } from '../run';
 import {
+  availablePermissionDecisionsSchema,
   tryParsePermissionRequestResponse,
   toPermissionRequestUiMarker,
   toPermissionRequestSummaryText,
@@ -39,6 +40,7 @@ const permissionPayloadSchema = z.object({
     agentIntent: z.string().nullable().optional(),
     referencedFiles: z.array(z.string()),
     referencedDiffs: z.array(z.string()),
+    availableDecisions: availablePermissionDecisionsSchema.optional(),
   }),
   rawEvent: z.record(z.unknown()).nullable().optional(),
   enrichmentMetadata: z.record(z.unknown()).nullable().optional(),

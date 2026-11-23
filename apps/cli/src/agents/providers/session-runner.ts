@@ -242,7 +242,8 @@ interface StalePermissionDecisionDispatchResult {
 
 export type PermissionDecisionDispatchResult =
   | DeliveredPermissionDecisionDispatchResult
-  | StalePermissionDecisionDispatchResult;
+  | StalePermissionDecisionDispatchResult
+  | { delivered: false; outcome: 'refused'; reason: string };
 
 export interface QuestionAnswerDispatchArgs {
   requestId: string;

@@ -14,19 +14,30 @@ import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 import { OAuthClient } from '../../../auth';
 import type { LocalAgentOutputEvent } from '../../../run/types';
 import { handleDiff } from '../../../run/handlers/diff';
+import { RunRegistry } from '../../../run/run-registry';
+import { RunLifecycleEvents } from '../../../server/run-lifecycle-events';
 import { makeDeps } from '../../../run/handlers/__test-utils';
 import { inboundCallSchema } from './acp-schemas';
 import { normalizeEvent } from '../../../run/normalize';
 import {
   createTestRun,
+  createTestMessagePoster,
+  createTestMonitorProjectContext,
+  createTestRepoMappingStore,
   createTestRunEventPublisher,
+  createTestRunOwnership,
   createTestRunnerPicker,
   createTestRunStore,
+  createTestSessionRunnerFacade,
 } from '../../../run/run.test-support';
 import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { NOOP_LOGGER } from '../../../server/logger';
-import { ProjectMaturity } from '../../../shared/api/index';
-import { translatePermissionDecisionToDispatch } from '../../permission-response-routing';
+import { ExtendedUIFieldType, ProjectMaturity } from '../../../shared/api/index';
+import {
+  translatePermissionDecisionToDispatch,
+  type PermissionDecision,
+} from '../../permission-response-routing';
+import type { AgentRequestPermissionPayload } from '../../../shared/api/index';
 import { SubmissionToolRegistry } from '../../submission-tools/registry';
 import { nativeProviderSessionId } from '../runner-common';
 import { AntigravityAgentSessionRunner } from './session-runner-antigravity';
@@ -64,9 +75,14 @@ interface ReplayFrame {
       modeId?: string;
       mcpServers?: AcpHttpServer[];
       prompt?: Array<{ text?: string }>;
+      options?: Array<{ optionId: string; kind: string; name: string }>;
       update?: { sessionUpdate: string; content?: { text?: string } };
     };
-    result?: { stopReason?: string; sessionId?: string };
+    result?: {
+      stopReason?: string;
+      sessionId?: string;
+      outcome?: { outcome: string; optionId?: string };
+    };
   };
 }
 
@@ -110,6 +126,7 @@ describe('Antigravity ACP replay', () => {
           }) as unknown as ReturnType<typeof spawn>,
       );
 
+      const writes: Promise<void>[] = [];
       const client = new AntigravityAcpClient(
         process.cwd(),
         logger,
@@ -140,7 +157,7 @@ describe('Antigravity ACP replay', () => {
               (recordedReply?.frame.result as { outcome?: { optionId?: string } } | undefined)
                 ?.outcome?.optionId,
           );
-          client.respondToPermission(id, option);
+          writes.push(client.respondToPermission(id, option));
         },
       );
       expect(spawn).toHaveBeenLastCalledWith(
@@ -202,12 +219,13 @@ describe('Antigravity ACP replay', () => {
               pending.push(client.prompt(sessionId, []));
               break;
             case 'session/cancel':
-              client.cancel(sessionId);
+              writes.push(client.cancel(sessionId));
               break;
           }
         }
 
         const results = await Promise.all(pending);
+        await Promise.all(writes);
         expect(results).toHaveLength(receivedResponses.length);
         expect(
           results.map((result) => (result as { stopReason?: string }).stopReason).filter(Boolean),
@@ -349,18 +367,39 @@ describe('Antigravity Run ownership', () => {
     'resume',
     'cancel',
     'permission-allow-once',
-    'permission-allow-always',
+    'permission-offers-always',
+    'permission-reply-pipe-error',
     'permission-reject',
     'heyhey-planning',
     'mcp-tools',
   ])('drives the runner with the recorded %s exchange', async (scenario) => {
+    const offersAlways = scenario === 'permission-offers-always';
+    const failsPermissionWrite = scenario === 'permission-reply-pipe-error';
+    const verifyPermission =
+      offersAlways || failsPermissionWrite || scenario === 'permission-allow-once';
     const frames = capture(
-      scenario === 'heyhey-planning'
+      scenario === 'heyhey-planning' || verifyPermission
         ? 'permission-allow-once'
         : scenario === 'malformed-reply-follow-up'
           ? 'follow-up'
           : scenario,
     ).filter((entry) => entry.direction !== 'driver');
+    if (offersAlways) {
+      // Replay the successful captured tool exchange with one additional ACP
+      // option. The captured Antigravity version only advertised allow_once.
+      for (const { direction, frame } of frames) {
+        if (frame.method === 'session/request_permission') {
+          frame.params?.options?.push({
+            optionId: 'always-for-this-tool',
+            kind: 'allow_always',
+            name: 'Always allow',
+          });
+        }
+        if (direction === 'client->agent' && frame.result?.outcome?.outcome === 'selected') {
+          frame.result.outcome.optionId = 'always-for-this-tool';
+        }
+      }
+    }
     const processes = [...new Set(frames.map((entry) => entry.proc))];
     const outgoing: ReplayFrame['frame'][] = [];
     let controller = new AbortController();
@@ -375,7 +414,17 @@ describe('Antigravity Run ownership', () => {
       const proc = processes[currentProcess++];
       const traffic = frames.filter((entry) => entry.proc === proc);
       const child = Object.assign(new EventEmitter(), {
-        stdin: new PassThrough(),
+        stdin: new PassThrough({
+          transform(chunk: Buffer, _encoding, callback) {
+            const frame: ReplayFrame['frame'] = JSON.parse(chunk.toString());
+            if (failsPermissionWrite && frame.result?.outcome?.outcome === 'selected') {
+              const error = Object.assign(new Error('Broken pipe'), { code: 'EPIPE' });
+              queueMicrotask(() => callback(error));
+              return;
+            }
+            callback(null, chunk);
+          },
+        }),
         stdout: new PassThrough(),
         stderr: new PassThrough(),
         kill: vi.fn(),
@@ -423,10 +472,51 @@ describe('Antigravity Run ownership', () => {
       },
     }));
     const runStore = createTestRunStore();
-    const run = createTestRun(
-      { provider: 'antigravity', skipProjectAssistant: true },
-      { broadcaster, runnerPicker, runStore },
-    );
+    const poster = createTestMessagePoster();
+    const ownership = createTestRunOwnership();
+    const registry = new RunRegistry({
+      runCollaborators: {
+        ...ownership,
+        broadcaster,
+        runnerPicker,
+        runStore,
+        poster,
+        repoStore: createTestRepoMappingStore(),
+        handlerDeps: {} as never,
+        logger: NOOP_LOGGER,
+      },
+      submissionToolRegistry: ownership.submissionToolRegistry,
+      sessionRunnerFacade: createTestSessionRunnerFacade(),
+      monitorProjectContext: createTestMonitorProjectContext(),
+      runLifecycleEvents: new RunLifecycleEvents(),
+    });
+    await runStore.initialize();
+    const session = await runStore.createRun({
+      entity: null,
+      agentic_session_id: 'test-run-id',
+      services: [{ id: 'test-service-id', path: process.cwd() }],
+      launchServiceId: 'test-service-id',
+      provider: 'antigravity',
+      provider_session_id: 'pending_test-run-id',
+      conversationId: 'test-conversation-id',
+      contextMetadata: {
+        organizationId: 'test-org-id',
+        projectId: 'test-project-id',
+        agentSessionId: 'test-run-id',
+        capturedAt: '2026-11-20T07:00:00.000Z',
+        userComments: [],
+        fileReferences: { resolved: [], unresolved: [] },
+      },
+    });
+    const run = registry.create({
+      runId: 'test-run-id',
+      organizationId: 'test-org-id',
+      projectId: 'test-project-id',
+      conversationId: 'test-conversation-id',
+      provider: 'antigravity',
+      session,
+      skipProjectAssistant: true,
+    });
     const submissionToolRegistry = new SubmissionToolRegistry();
     const localAgentEndpoint = new LocalAgentEndpoint();
     const mcp =
@@ -450,6 +540,7 @@ describe('Antigravity Run ownership', () => {
         child: () => NOOP_LOGGER,
       },
     });
+    run.setRunner(runner);
     const pendingDecisions: Promise<unknown>[] = [];
     const respondToPermission = ({ event }: Parameters<typeof run.onAgentOutput>[0]) => {
       const normalized = normalizeEvent(
@@ -460,12 +551,7 @@ describe('Antigravity Run ownership', () => {
       if (!permission) {
         return;
       }
-      const decision =
-        scenario === 'permission-reject'
-          ? 'deny'
-          : scenario === 'permission-allow-always'
-            ? 'always_approve'
-            : 'approve';
+      const decision = scenario === 'permission-reject' ? 'deny' : 'approve';
       pendingDecisions.push(
         runner.submitPermissionDecision({
           session: run.session,
@@ -482,40 +568,115 @@ describe('Antigravity Run ownership', () => {
         }),
       );
     };
-    if (scenario !== 'follow-up') {
+    if (scenario !== 'follow-up' && !verifyPermission) {
       published.mockImplementation(respondToPermission);
     }
     const expectedRequests = frames.filter(({ direction }) => direction === 'client->agent');
     const prompts = expectedRequests.filter(({ frame }) => frame.method === 'session/prompt');
     try {
-      if (scenario === 'follow-up') {
-        await runStore.initialize();
-        const session = await runStore.createRun({
-          entity: null,
-          agentic_session_id: run.runId,
-          services: [{ id: 'test-service-id', path: process.cwd() }],
-          launchServiceId: 'test-service-id',
-          provider: 'antigravity',
-          provider_session_id: `pending_${run.runId}`,
-          conversationId: run.conversationId,
-          contextMetadata: run.session.contextMetadata,
-        });
-        run.refreshSessionFields(session);
-      }
       let providerSessionId: string | null = null;
       for (const { frame } of prompts) {
         const prompt = frame.params?.prompt?.[0]?.text ?? '';
-        if (scenario === 'follow-up') {
+        if (scenario === 'follow-up' || verifyPermission) {
           currentState.mockClear();
           conversationPhase.mockClear();
+          vi.mocked(poster.createOutOfBand).mockClear();
+          vi.mocked(poster.complete).mockClear();
           await run.handleMessage({
             promptType: LocalPromptType.CodingFreeform,
             payload: { promptType: LocalPromptType.CodingFreeform, userMessage: prompt },
             references: { resolved: [], unresolved: [] },
             triggerContext: null,
           });
+          if (verifyPermission) {
+            const card = await vi.waitFor(() => {
+              const marker = vi
+                .mocked(poster.createOutOfBand)
+                .mock.calls.flatMap(([message]) =>
+                  'uiElements' in message.dto.data ? (message.dto.data.uiElements ?? []) : [],
+                )
+                .find((element) => element.type === ExtendedUIFieldType.AgentRequestPermission);
+              expect(marker).toBeDefined();
+              expect(currentState.mock.lastCall?.[0].currentState).toBe('AWAITING_APPROVAL');
+              return marker?.payload as unknown as AgentRequestPermissionPayload;
+            });
+            const request = card.permissionRequest;
+            expect(request.availableDecisions).toEqual(
+              offersAlways ? ['approve', 'always_approve', 'deny'] : ['approve', 'deny'],
+            );
+            expect(card.enrichmentMetadata?.['command']).toContain("printf 'attempt");
+            expect(request.reason).toContain('probe file');
+            const submit = (decision: PermissionDecision) =>
+              registry.submitPermissionDecision(run.runId, {
+                agentType: request.agentType,
+                decision,
+                requestId: request.id,
+                runId: run.runId,
+                sessionId: request.sessionId,
+                idempotencyToken: request.idempotencyToken,
+                reason: null,
+                deciderUserId: 'test-user',
+              });
+            if (!offersAlways) {
+              const outboundCount = outgoing.length;
+              await expect(submit('always_approve')).resolves.toMatchObject({ outcome: 'failed' });
+              expect(outgoing).toHaveLength(outboundCount);
+              expect(poster.complete).not.toHaveBeenCalled();
+              expect(currentState.mock.lastCall?.[0].currentState).toBe('AWAITING_APPROVAL');
+              expect(vi.mocked(poster.createOutOfBand).mock.lastCall?.[0].dto.data).toMatchObject({
+                presentation: 'notice',
+                noticeSeverity: 'warning',
+              });
+            }
+            const decision = offersAlways ? 'always_approve' : 'approve';
+            const delivery = submit(decision);
+            await expect(submit(decision)).resolves.toMatchObject({ outcome: 'dropped' });
+            if (failsPermissionWrite) {
+              await expect(delivery).resolves.toMatchObject({
+                outcome: 'failed',
+                reason: expect.stringContaining('Resend your prompt'),
+              });
+              await run.awaitIdle();
+              expect(poster.complete).not.toHaveBeenCalled();
+              expect(outgoing.some(({ result }) => result?.outcome?.outcome === 'selected')).toBe(
+                false,
+              );
+              expect(warn).toHaveBeenCalledWith(
+                'antigravity.permission.reply_failed',
+                expect.objectContaining({ error: expect.stringContaining('Broken pipe') }),
+              );
+              return;
+            }
+            await expect(delivery).resolves.toMatchObject({ outcome: 'delivered' });
+            await vi.waitFor(() => {
+              expect(poster.complete).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.objectContaining({
+                  status: 'completed',
+                  data: expect.objectContaining({
+                    uiElements: expect.arrayContaining([
+                      expect.objectContaining({
+                        payload: expect.objectContaining({ decision, permissionRequest: request }),
+                      }),
+                    ]),
+                  }),
+                }),
+                null,
+              );
+            });
+          }
           await run.awaitIdle();
           expect(run.providerSessionId).toBe(frame.params?.sessionId);
+          if (verifyPermission) {
+            const states = currentState.mock.calls.map(([observation]) => observation.currentState);
+            const awaitingApproval = states.indexOf('AWAITING_APPROVAL');
+            expect(awaitingApproval).toBeGreaterThanOrEqual(0);
+            expect(states.slice(awaitingApproval + 1)).toContain('THINKING');
+            expect(states.at(-1)).toBe('IDLE');
+            continue;
+          }
           expect(currentState.mock.calls.map(([observation]) => observation.currentState)).toEqual([
             'STARTING',
             'THINKING',
@@ -593,9 +754,7 @@ describe('Antigravity Run ownership', () => {
             'assistant_complete',
         ),
       ).toHaveLength(
-        scenario === 'permission-allow-always' || scenario === 'permission-reject'
-          ? 0
-          : prompts.length - (scenario === 'cancel' ? 1 : 0),
+        scenario === 'permission-reject' ? 0 : prompts.length - (scenario === 'cancel' ? 1 : 0),
       );
     } finally {
       await runner.dispose();

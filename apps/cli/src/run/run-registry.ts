@@ -74,6 +74,7 @@ export interface RunRegistryDependencies {
 
 export class RunRegistry {
   private readonly runs = new Map<string, Run>();
+  private readonly antigravityPermissionDeliveries = new Set<string>();
   private disposed = false;
   private readonly foregroundSubagentHolds = new Map<string, Set<string>>();
 
@@ -293,12 +294,25 @@ export class RunRegistry {
     // existing emitRawEvent/poster path — the server resolves its parent — so
     // no parent message id is declared here.
     const dispatch = translatePermissionDecisionToDispatch(input);
+    const deliveryKey =
+      dispatch.agentType === 'antigravity' ? JSON.stringify([runId, input.requestId]) : null;
+    if (deliveryKey !== null) {
+      if (this.antigravityPermissionDeliveries.has(deliveryKey)) {
+        return { outcome: 'dropped', reason: 'permission_decision_in_flight' };
+      }
+      this.antigravityPermissionDeliveries.add(deliveryKey);
+    }
+
     try {
       const result = await runner.submitPermissionDecision({
         session: run.session,
         dispatch,
       });
       if (!result.delivered) {
+        if (result.outcome === 'refused') {
+          await run.notePermissionDecisionRefused(input.requestId, result.reason);
+          return { outcome: 'failed', reason: result.reason };
+        }
         return run.recoverStalePermissionDecision(input);
       }
       run.notePermissionDecisionDelivered({
@@ -312,6 +326,10 @@ export class RunRegistry {
         outcome: 'failed',
         reason: error instanceof Error ? error.message : String(error),
       };
+    } finally {
+      if (deliveryKey !== null) {
+        this.antigravityPermissionDeliveries.delete(deliveryKey);
+      }
     }
   }
 

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import { PermissionDecisionRequestDtoDecisionEnum } from '@hey-hey/contracts/api/models';
 import { isAgentProviderId } from './providers/provider-config';
 import {
   AgentRequestPermissionPayloadResponseTypeEnum,
@@ -248,6 +250,10 @@ const readRawEventRecord = (
   return null;
 };
 
+export const availablePermissionDecisionsSchema = z.array(
+  z.nativeEnum(PermissionDecisionRequestDtoDecisionEnum),
+);
+
 export const tryParsePermissionRequestResponse = (
   text: string,
 ): AgentRequestPermissionPayload | null => {
@@ -316,6 +322,9 @@ export const tryParsePermissionRequestResponse = (
     referencedFiles.push(...changedFiles);
   }
   const rawEvent = readRawEventRecord(parsed, permissionRoot, permissionRequestRecord);
+  const availableDecisions = availablePermissionDecisionsSchema.safeParse(
+    permissionRequestRecord['availableDecisions'],
+  );
 
   return {
     responseType: AgentRequestPermissionPayloadResponseTypeEnum.AgentRequestPermissionV1,
@@ -332,6 +341,7 @@ export const tryParsePermissionRequestResponse = (
       agentIntent,
       referencedFiles,
       referencedDiffs,
+      ...(availableDecisions.success ? { availableDecisions: availableDecisions.data } : {}),
     },
     rawEvent,
     enrichmentMetadata: enrichment,
