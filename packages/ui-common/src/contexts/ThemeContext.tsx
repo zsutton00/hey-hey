@@ -256,7 +256,7 @@ export const createHeyTheme = (mode: ThemeMode) => {
         contrastText: "#ffffff",
       },
       background: {
-        default: isDark ? "#121212" : "#fafafa",
+        default: isDark ? "#181818" : "#fafafa",
         paper: isDark ? "#1e1e1e" : "#ffffff",
       },
       text: {
