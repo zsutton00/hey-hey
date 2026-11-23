@@ -18,7 +18,7 @@ export const RAISE_UNCERTAINTY_TOOL_NAME = 'raise_uncertainty';
  * The uncertainty guidance travels with the tool, so only agents that hold it
  * receive it. It must not be added to the shared platform prompt.
  */
-const RAISE_UNCERTAINTY_DESCRIPTION = `Record one uncertainty as structured conversation data, separately from your reply. Supply exactly one category — lack_of_evidence, conflict, ambiguity, not_implemented, or question — a severity (low, medium, or high), and a concise statement. Distinguish what you observed from what you infer. A question means you need the user's answer to proceed correctly; use the session's existing interaction behavior to get that answer. The tool records information only; it does not finish work or pause the session.
+const RAISE_UNCERTAINTY_DESCRIPTION = `Record one uncertainty as structured conversation data, separately from your reply. Supply exactly one category — lack_of_evidence, conflict, ambiguity, not_implemented, or question — a severity (low, medium, or high), and a concise statement. Do not use partial UUIDs. Distinguish what you observed from what you infer. A question means you need the user's answer to proceed correctly; use the session's existing interaction behavior to get that answer. The tool records information only; it does not finish work or pause the session.
 
 Use low for a peripheral qualification or an expected, design-consistent dependency; medium for a material qualification or missing delivery scope that needs the user's choice; high for a central reliability concern or conflict with authoritative intended behavior. Map review P0/P1 to high, P2 to medium, and P3/P4 to low; use equivalent high/medium/low review ratings directly. Category and severity are independent.
 
