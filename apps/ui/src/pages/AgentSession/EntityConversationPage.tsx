@@ -311,7 +311,10 @@ export const EntityConversationPage: React.FC = () => {
                 : undefined
             }
           />
-          <Box data-testid="entity-conversation-page">
+          <Box
+            data-testid="entity-conversation-page"
+            sx={{ width: "100%", minWidth: 0 }}
+          >
             <PageBreadcrumbs
               sx={{ mb: 2, flexShrink: 0 }}
               items={(() => {
