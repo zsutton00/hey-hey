@@ -11,7 +11,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { KEYS } from "../../i18n/keys";
 import type { CreateGoalDto, EntityType } from "../../api";
-import { Priority, WorkStatus as WorkStatusEnum } from "../../api";
+import { Priority } from "../../api";
 import {
   formatLocalDateInputValue,
   localDateInputToISOString,
@@ -139,7 +139,6 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({
       name: name.trim(),
       ...(dueDateTimestamp ? { dueDate: dueDateTimestamp } : {}),
       priority: Priority.Medium,
-      status: WorkStatusEnum.RefiningDescription,
       ...(sections ? { sections } : {}),
     };
     onSubmit(payload, sourceEntityRefs);

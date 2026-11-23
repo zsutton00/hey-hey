@@ -18,7 +18,7 @@ import type { SelectChangeEvent } from "@mui/material/Select";
 import { useTranslation } from "react-i18next";
 import { KEYS } from "../../i18n/keys";
 import type { TaskPriority, CreateTaskDto } from "../../api";
-import { Priority, WorkStatus as WorkStatusEnum } from "../../api";
+import { Priority } from "../../api";
 import { SmarterTextAreaCard } from "../SmarterTextAreaCard";
 
 interface FormErrors {
@@ -50,7 +50,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [formData, setFormData] = useState<CreateTaskDto>({
     name: "",
     priority: Priority.Medium,
-    status: WorkStatusEnum.RefiningDescription,
     ...(parentTaskId ? { parentTaskId } : {}),
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -109,7 +108,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       setFormData({
         name: "",
         priority: Priority.Medium,
-        status: WorkStatusEnum.RefiningDescription,
         ...(parentTaskId ? { parentTaskId } : {}),
       });
       setDescription("");

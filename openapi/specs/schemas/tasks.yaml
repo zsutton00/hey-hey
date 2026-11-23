@@ -596,9 +596,6 @@ TrackedEntitySnapshot:
     statusMeaning:
       $ref: "work-item-type-definition.yaml#/WorkItemStatusMeaning"
       description: Effective ordinary status meaning; absent when the stored status is unresolved.
-    completionBehavior:
-      $ref: "work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
-      description: Effective migrated compatibility behavior; never inferred from a name.
     dueDate:
       type: string
       format: date-time
@@ -1048,7 +1045,6 @@ CreateTaskDto:
       description: The ID of the initiative this task belongs to.
     status:
       $ref: "common.yaml#/WorkItemStatus"
-      default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
       default: "system"
@@ -1148,7 +1144,6 @@ CreateFeatureDto:
       description: The ID of the initiative this feature belongs to.
     status:
       $ref: "common.yaml#/WorkItemStatus"
-      default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
       default: "system"
@@ -1198,7 +1193,6 @@ CreateGoalDto:
       description: The ID of the initiative this goal belongs to.
     status:
       $ref: "common.yaml#/WorkItemStatus"
-      default: "BACKLOG"
     source:
       $ref: "#/TaskSource"
       default: "system"

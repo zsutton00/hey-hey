@@ -6,7 +6,7 @@ import type { OpenItemsAdapter } from "../openItemsAdapter";
 import { useAttachToGoal } from "./useAttachToGoal";
 import { useWorkItems } from "./useWorkItems";
 import { refreshWorkItemLists } from "../graphql/workItemCache";
-import { Priority, WorkStatus } from "../../api";
+import { Priority } from "../../api";
 
 export function useTriageApplicationPorts(
   adapter: OpenItemsAdapter,
@@ -106,7 +106,6 @@ export function useTriageApplicationPorts(
           type: "GOAL",
           name: draft.name,
           priority: Priority.Medium,
-          status: WorkStatus.RefiningDescription,
           ...(draft.targetDate ? { dueDate: draft.targetDate } : {}),
         });
         return goal.id;

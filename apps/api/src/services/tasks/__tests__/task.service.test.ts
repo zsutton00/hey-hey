@@ -519,11 +519,14 @@ describe('TaskService', () => {
         typeKey: 'recipe',
         projectId: testIds.project,
         statuses: [
-          { name: 'Idea', meaning: 'NOT_STARTED' },
-          { name: 'Testing', meaning: 'IN_PROGRESS' },
-          { name: 'Made', meaning: 'FINISHED' },
-          { name: 'Rejected', meaning: 'FINISHED' },
-          { name: 'CANCELLED', meaning: 'FINISHED' },
+          {
+            name: 'Idea',
+            meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+          },
+          { name: 'Testing', meaning: { kind: 'IN_PROGRESS' as const } },
+          { name: 'Made', meaning: { kind: 'COMPLETED' as const } },
+          { name: 'Rejected', meaning: { kind: 'COMPLETED' as const } },
+          { name: 'CANCELLED', meaning: { kind: 'COMPLETED' as const } },
         ],
       },
       {
@@ -2928,7 +2931,6 @@ describe('TaskService', () => {
           targetEntityId: shared,
           targetEntityType: 'TASK',
           statusMeaning: undefined,
-          completionBehavior: undefined,
           title: 'Shared work',
           status: 'ACTIVE',
           dueDate: null,
@@ -2974,8 +2976,8 @@ describe('TaskService', () => {
             openUndatedCount: 1 - completedCount,
           });
           expect(
-            service['toTrackedSnapshots'](rows)[0]?.statusMeaning ===
-              'FINISHED',
+            service['toTrackedSnapshots'](rows)[0]?.statusMeaning?.kind ===
+              'COMPLETED',
           ).toBe(completedCount === 1);
         },
       );
@@ -3147,7 +3149,6 @@ describe('TaskService', () => {
             targetEntityId: trackedRow.id,
             targetEntityType: 'TASK',
             statusMeaning: undefined,
-            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,
@@ -5365,12 +5366,10 @@ describe('TaskService', () => {
       );
       jest.spyOn(workItemTypeRegistry, 'getRulesForProject').mockReturnValue({
         statuses: [
-          { name: 'BUILDING', label: 'Building', meaning: 'IN_PROGRESS' },
+          { name: 'BUILDING', meaning: { kind: 'IN_PROGRESS' as const } },
           {
             name: 'DELIVERED',
-            label: 'Delivered',
-            meaning: 'FINISHED',
-            completionBehavior: 'COMPLETED',
+            meaning: { kind: 'COMPLETED' as const },
           },
         ],
       } as unknown as ReturnType<
@@ -5555,7 +5554,6 @@ describe('TaskService', () => {
           targetEntityId: targetTaskId,
           targetEntityType: 'TASK',
           statusMeaning: undefined,
-          completionBehavior: undefined,
           title: 'Tracked feature',
         }),
       );
@@ -5564,7 +5562,6 @@ describe('TaskService', () => {
           targetEntityId: targetPlanId,
           targetEntityType: 'TASK',
           statusMeaning: undefined,
-          completionBehavior: undefined,
           title: 'Tracked plan',
         }),
       );
@@ -7604,6 +7601,43 @@ describe('TaskService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it.each(['STANDARD', 'GOAL', 'mockup', 'recipe'])(
+      'starts a %s in the first status of its own list when no status is sent, and rejects an unlisted status naming it',
+      async (type) => {
+        const allowed = workItemTypeRegistry.getAllowedStatuses(
+          type as CreateTaskDto['type'] & string,
+          testIds.project,
+        );
+        const createSpy = jest.fn().mockImplementation(async ({ data }) => ({
+          ...mockTaskData,
+          type: data.type,
+          status: data.status,
+        }));
+        buildTx(createSpy);
+
+        await service.create(
+          testIds.organization,
+          testIds.initiative,
+          { name: 'Fresh item', type: type as CreateTaskDto['type'] },
+          testIds.project,
+        );
+
+        expect(createSpy.mock.calls[0][0].data.status).toBe(allowed[0]);
+        await expect(
+          service.create(
+            testIds.organization,
+            testIds.initiative,
+            {
+              name: 'Fresh item',
+              type: type as CreateTaskDto['type'],
+              status: 'NOT_A_LISTED_STATUS',
+            },
+            testIds.project,
+          ),
+        ).rejects.toThrow(/NOT_A_LISTED_STATUS[\s\S]*not allowed/i);
+      },
+    );
+
     it('persists the custom type key and derives its sections from the custom definition', async () => {
       const createSpy = jest.fn().mockResolvedValue({
         ...mockTaskData,
@@ -9297,7 +9331,6 @@ describe('TaskService', () => {
             targetEntityId: trackedTaskId,
             targetEntityType: 'TASK',
             statusMeaning: undefined,
-            completionBehavior: undefined,
             title: 'Tracked work item',
             status: 'ACTIVE',
             dueDate: null,
