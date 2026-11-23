@@ -56,14 +56,15 @@ export function OpenItemsTriageReview({
   const sessionId = phase.kind === "session" ? phase.agentSessionId : null;
   const currentSessionId = useRef(sessionId);
   currentSessionId.current = closed ? null : sessionId;
-  // A follow-up run keeps the full height rather than shrinking the dialog
-  // back while the earlier results are still on screen.
+  // The dialog takes the full height only once a result is on screen, and a
+  // follow-up run keeps it rather than shrinking back under the old results.
   const [resultsShownFor, setResultsShownFor] = useState<string | null>(null);
-  const showingResults =
-    phase.kind === "session" && phase.activity === "results";
-  useEffect(() => {
-    if (showingResults && sessionId) setResultsShownFor(sessionId);
-  }, [showingResults, sessionId]);
+  const handleResultPresence = useCallback(
+    (present: boolean) => {
+      if (present && sessionId) setResultsShownFor(sessionId);
+    },
+    [sessionId],
+  );
   const fillHeight =
     !!sessionId && resultsShownFor === sessionId && gate.kind === "none";
 
@@ -168,6 +169,7 @@ export function OpenItemsTriageReview({
     onFreshPassSubmitted: handleFreshPassSubmitted,
     onFollowUpSubmitted: handleFollowUpSubmitted,
     onActivity: handleActivity,
+    onResultPresence: handleResultPresence,
     onRunAgain: () => void handleRerun(),
     onLaunchFailed: handleSessionFailed,
     registerStop: handleRegisterStop,

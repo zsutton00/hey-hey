@@ -77,6 +77,8 @@ export interface OpenItemsTriageReviewBinding {
   onFollowUpSubmitted: (messageId: string) => void;
   /** `runActive`: a request is pending or authoritative state is active. */
   onActivity: (activity: "running" | "results", runActive: boolean) => void;
+  /** Whether a correlated result is rendered; drives the modal's full height. */
+  onResultPresence: (present: boolean) => void;
   onRunAgain: () => void;
   onLaunchFailed: (message: string) => void;
   /** Registers the signed stop for a confirmed close during progress. */
@@ -163,6 +165,10 @@ export function OpenItemsTriagePage({
   const requestMessageIds = review.requestMessageIds;
   const latestRequest = requestMessageIds?.at(-1) ?? null;
   const [hasResult, setHasResult] = useState(false);
+  const onResultPresence = review.onResultPresence;
+  useEffect(() => {
+    onResultPresence(hasResult);
+  }, [onResultPresence, hasResult]);
   const launch = useTriageLaunchOutcome({
     organizationId,
     projectId,

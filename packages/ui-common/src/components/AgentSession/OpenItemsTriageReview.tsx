@@ -60,6 +60,7 @@ export function OpenItemsTriageReview({
     idleSnapshot,
   );
   const [hovered, setHovered] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   useEffect(() => {
     payload.suggestions.forEach((suggestion) =>
       application?.observe(scope, suggestion),
@@ -182,7 +183,34 @@ export function OpenItemsTriageReview({
         minHeight: 0,
       }}
     >
-      <Typography sx={{ flexShrink: 0 }}>{payload.summary}</Typography>
+      <Box sx={{ flexShrink: 0 }}>
+        <Typography
+          data-testid="triage-summary-text"
+          sx={
+            summaryOpen
+              ? undefined
+              : {
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }
+          }
+        >
+          {payload.summary}
+        </Typography>
+        <Link
+          component="button"
+          type="button"
+          data-testid="triage-summary-toggle"
+          onClick={() => setSummaryOpen((open) => !open)}
+          sx={{ fontSize: 12 }}
+        >
+          {summaryOpen
+            ? t("triage.summaryLess", "Show less")
+            : t("triage.summaryMore", "Show more")}
+        </Link>
+      </Box>
       <Box
         data-testid="triage-preview-summary"
         aria-live="polite"

@@ -126,12 +126,14 @@ export function OpenItemsTriageResults({
           </Typography>
         )
       )}
-      <OpenItemsTriageFollowUp
-        key={conversationId}
-        pending={pending}
-        disabled={disabled}
-        onSend={onSend}
-      />
+      {!pending && (
+        <OpenItemsTriageFollowUp
+          key={conversationId}
+          pending={pending}
+          disabled={disabled}
+          onSend={onSend}
+        />
+      )}
     </Stack>
   );
 }

@@ -188,6 +188,7 @@ const binding = (
   onFreshPassSubmitted: vi.fn(),
   onFollowUpSubmitted: vi.fn(),
   onActivity: vi.fn(),
+  onResultPresence: vi.fn(),
   onRunAgain: vi.fn(),
   onLaunchFailed: vi.fn(),
   registerStop: vi.fn(),

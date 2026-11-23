@@ -194,7 +194,7 @@ describe("feature-owned triage results", () => {
     const { props, ports } = setup();
     const view = render(<OpenItemsTriageResults {...props} pending />);
     expect(screen.getByTestId("triage-generating")).toBeInTheDocument();
-    expect(screen.getByTestId("triage-send")).toBeDisabled();
+    expect(screen.queryByTestId("triage-follow-up")).not.toBeInTheDocument();
     mocks.messages = [reply("output", payload)];
     view.rerender(<OpenItemsTriageResults {...props} />);
     expect(screen.getByText(payload.summary)).toBeInTheDocument();
