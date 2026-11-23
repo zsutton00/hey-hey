@@ -1,5 +1,7 @@
-export const AGENT_PROVIDERS = ['claude', 'codex', 'opencode', 'antigravity'] as const;
-export type AgentProviderId = (typeof AGENT_PROVIDERS)[number];
+import { AgentProviderId } from '@hey-hey/contracts/api/models';
+
+export const AGENT_PROVIDERS = Object.values(AgentProviderId);
+export type { AgentProviderId };
 
 const PROVIDER_DISPLAY_NAMES: Record<AgentProviderId, string> = {
   claude: 'Claude',

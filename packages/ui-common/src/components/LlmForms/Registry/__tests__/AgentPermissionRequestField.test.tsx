@@ -20,7 +20,7 @@ const basePayload = {
     permissionType: "filesystem_write",
     sessionId: "run-1",
     agentId: "agent-1",
-    agentType: "codex" as const,
+    agentType: "antigravity" as const,
     timestamp: "2026-03-06T00:00:00.000Z",
     idempotencyToken: "idem-1",
     reason: "Need elevated write access",
@@ -115,7 +115,7 @@ describe("AgentPermissionRequestField", () => {
       decision: "approve",
       requestId: "request-1",
       sessionId: "run-1",
-      agentType: "codex",
+      agentType: "antigravity",
       reason: null,
       idempotencyToken: "idem-1",
     });
@@ -143,7 +143,7 @@ describe("AgentPermissionRequestField", () => {
       decision: "deny",
       requestId: "request-1",
       sessionId: "run-1",
-      agentType: "codex",
+      agentType: "antigravity",
       reason: null,
       idempotencyToken: "idem-1",
     });

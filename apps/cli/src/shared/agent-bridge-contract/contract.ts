@@ -44,7 +44,7 @@ import type {
 } from './runtime-types';
 import {
   StartRunPromptPayloadReasoningEffortEnum as GENERATED_LOCAL_REASONING_EFFORT,
-  StartRunPromptPayloadProviderEnum as GENERATED_LOCAL_RUN_PROVIDER,
+  AgentProviderId as GENERATED_LOCAL_RUN_PROVIDER,
   LocalRunMode as GENERATED_LOCAL_RUN_MODE,
   LocalRunWorkspaceLayout as GENERATED_LOCAL_RUN_WORKSPACE_LAYOUT,
 } from '@hey-hey/contracts/agent-bridge/models';

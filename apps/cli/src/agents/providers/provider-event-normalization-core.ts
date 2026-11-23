@@ -1,3 +1,4 @@
+import type { AgentProviderId } from './provider-config';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { TokenUsage } from '../../session/types';
@@ -37,7 +38,7 @@ interface ProviderEventNormalizationDiagnostics {
 }
 
 export interface NormalizeProviderEventInput {
-  provider: 'codex' | 'claude' | 'opencode' | 'antigravity';
+  provider: AgentProviderId;
   runId: string;
   eventType: string;
   timestamp: string;

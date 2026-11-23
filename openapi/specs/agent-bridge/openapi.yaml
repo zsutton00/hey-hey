@@ -84,6 +84,8 @@ paths:
           description: Invalid machine-local authority
 components:
   schemas:
+    AgentProviderId:
+      $ref: "../schemas/common.yaml#/AgentProviderId"
     LocalStartupBrowserEvent:
       type: string
       description: Closed vocabulary; no arbitrary messages, user content or secret values.
@@ -3845,12 +3847,7 @@ components:
             Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the
             permission gate.
         agentType:
-          type: string
-          enum:
-            - claude
-            - codex
-            - opencode
-            - antigravity
+          $ref: "#/components/schemas/AgentProviderId"
           description: Agent provider that issued the permission request.
         reason:
           type: string
@@ -5730,12 +5727,7 @@ components:
         - models
       properties:
         provider:
-          type: string
-          enum:
-            - claude
-            - codex
-            - opencode
-            - antigravity
+          $ref: "#/components/schemas/AgentProviderId"
         models:
           type: array
           items:

@@ -14,6 +14,8 @@ import { createTestRun, createTestRunStore } from '../../../run/run.test-support
 import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { ProjectMaturity } from '../../../shared/api/index';
+import { tryParsePermissionRequestResponse } from '../../message-mapping';
+import { translatePermissionDecisionToDispatch } from '../../permission-response-routing';
 import { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
 import { SubmissionToolRegistry } from '../../submission-tools/registry';
 import { antigravityModelsFromSession } from '../../../server/model-catalog/antigravity-models';
@@ -523,6 +525,63 @@ describe('Antigravity repository-bound sessions', () => {
     const edit = (target: string, options = OPTIONS): PermissionAsk => ({
       toolCall: { toolCallId: target, kind: 'edit', rawInput: { path: target } },
       options,
+    });
+
+    it('routes manual decisions to the matching pending ACP calls', async () => {
+      const requests = startFakeAgy({
+        permissionRequests: [edit('first.txt'), edit('second.txt')],
+      });
+      const { runner, session, agentOutput } = makeRunner();
+      const prompt = runner.runPrompt({ session, prompt: 'Edit both files' });
+
+      const settledPrompt = Promise.allSettled([prompt]);
+
+      try {
+        const cards = await vi.waitFor(() => {
+          const events = agentOutput.mock.calls
+            .map(([output]) => output.event)
+            .filter((event) => event.eventType === 'permission_request_detected');
+          expect(events).toHaveLength(2);
+          return events.map((event) =>
+            tryParsePermissionRequestResponse(JSON.stringify(event.payload)),
+          );
+        });
+
+        for (const [index, decision] of (['deny', 'approve'] as const).entries()) {
+          const card = cards[1 - index];
+          expect(card?.permissionRequest).toMatchObject({
+            agentId: session.agentic_session_id,
+            agentType: 'antigravity',
+          });
+          if (!card) {
+            throw new Error('Expected an actionable Antigravity permission request');
+          }
+          const request = card.permissionRequest;
+          const dispatch = translatePermissionDecisionToDispatch({
+            runId: session.agentic_session_id,
+            sessionId: request.sessionId,
+            requestId: request.id,
+            agentType: request.agentType,
+            idempotencyToken: request.idempotencyToken,
+            decision,
+            reason: null,
+          });
+          expect(await runner.submitPermissionDecision({ session, dispatch })).toMatchObject({
+            delivered: true,
+          });
+        }
+
+        await prompt;
+        expect(
+          requests.permissionResponses.map(({ id, result }) => [id, result?.outcome.optionId]),
+        ).toEqual([
+          [PERMISSION_ID_BASE + 1, 'reject-once'],
+          [PERMISSION_ID_BASE, 'allow-once'],
+        ]);
+      } finally {
+        await runner.dispose();
+        await settledPrompt;
+      }
     });
 
     /** Runs one skip-permissions prompt in which agy asks about each write; returns agy's answers. */

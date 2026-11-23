@@ -2,6 +2,11 @@
 # Common Shared Schema Definitions
 # =============================================
 
+AgentProviderId:
+  type: string
+  enum: [claude, codex, opencode, antigravity]
+  description: Identifier for a supported agent provider.
+
 # Security Schemes
 BearerAuth:
   type: http

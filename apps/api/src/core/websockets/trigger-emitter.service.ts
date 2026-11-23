@@ -1238,7 +1238,7 @@ export class TriggerEmitter {
       requestId: string;
       replyConversationId?: string;
       sessionId: string;
-      agentType: ConversationControlPermissionDecision.AgentTypeEnum;
+      agentType: ConversationControlPermissionDecision['agentType'];
       reason?: string | null;
       servicePlaceChoices?: ConversationControlPermissionDecision['servicePlaceChoices'];
       idempotencyToken: string;

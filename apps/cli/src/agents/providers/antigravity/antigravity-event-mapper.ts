@@ -5,7 +5,10 @@ import {
   permissionFingerprint,
   type ProviderActivityFacts,
 } from '../provider-event-normalization-core';
+import type { AgentProviderId } from '../provider-config';
 import type { AcpInboundCall, AcpUpdate } from './acp-schemas';
+
+const PROVIDER = 'antigravity' satisfies AgentProviderId;
 
 interface EventContext {
   runId: string;
@@ -22,12 +25,12 @@ export function normalizeAntigravityEvent(
   payload: Record<string, unknown>,
   activity?: ProviderActivityFacts,
 ) {
-  const agentId = 'antigravity';
+  const agentId = context.runId;
   const normalizeInput = {
     ...context,
     eventType,
     agentId,
-    provider: agentId,
+    provider: PROVIDER,
     rawEvent: payload,
   } as const;
   return {
@@ -141,7 +144,7 @@ export function mapAntigravityPermission(
   const action = tool.name ?? tool.kind ?? 'tool';
   const target = tool.title ?? action;
   const fingerprint = permissionFingerprint({
-    provider: 'antigravity',
+    provider: PROVIDER,
     requestId,
     action,
     input: tool.rawInput ?? tool.args,
@@ -154,7 +157,8 @@ export function mapAntigravityPermission(
       target,
       fingerprint,
       session_id: context.sessionId,
-      agent_type: 'antigravity',
+      agent_id: context.runId,
+      agent_type: PROVIDER,
       timestamp: context.timestamp,
       idempotency_token: requestId,
     },

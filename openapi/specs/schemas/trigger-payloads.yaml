@@ -2004,17 +2004,9 @@ StartRunPromptPayload:
         this persisted config after the Run is materialized; absent config or
         absent flags resolve at the consuming boundary.
     provider:
-      type: string
-      enum:
-        - claude
-        - codex
-        - opencode
-        - antigravity
+      $ref: "./common.yaml#/AgentProviderId"
       description: >
-        Agent provider the CLI should dispatch against. Value-set mirrors
-        the Agent Bridge runtime provider contract (the source of truth);
-        additions there require extending this enum in
-        lockstep.
+        Agent provider the CLI should dispatch against.
     skillSelection:
       $ref: "./run-payloads.yaml#/AgentSkillSelection"
       description: >-

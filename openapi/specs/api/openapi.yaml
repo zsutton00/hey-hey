@@ -26353,6 +26353,8 @@ components:
       description: Identifier for the staged content entity
 
   schemas:
+    AgentProviderId:
+      $ref: "../schemas/common.yaml#/AgentProviderId"
     ProvisionDemoSandboxDto:
       $ref: "../schemas/demo-sandboxes.yaml#/ProvisionDemoSandboxDto"
     DemoSandboxResponseDto:

@@ -13,7 +13,7 @@ import {
   MessageStatus,
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
-import { PermissionRequestAgentType } from '@hey-hey/contracts/api/models';
+import { AgentProviderId } from '@hey-hey/contracts/api/models';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { SystemMessageData } from '../../shared/api/index';
 import type { PermissionEvent, HandlerDeps, DiffEvent } from '../types';
@@ -32,7 +32,7 @@ const permissionPayloadSchema = z.object({
     permissionType: z.string(),
     sessionId: z.string(),
     agentId: z.string(),
-    agentType: z.nativeEnum(PermissionRequestAgentType),
+    agentType: z.nativeEnum(AgentProviderId),
     timestamp: z.string(),
     idempotencyToken: z.string(),
     reason: z.string().nullable().optional(),

@@ -2831,12 +2831,7 @@ ConversationControlPermissionDecision:
         Provider session identifier. Together with `agentType`, uniquely
         identifies the agent session holding the permission gate.
     agentType:
-      type: string
-      enum:
-        - claude
-        - codex
-        - opencode
-        - antigravity
+      $ref: "./common.yaml#/AgentProviderId"
       description: >-
         Agent provider that issued the permission request.
     reason:

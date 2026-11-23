@@ -1,6 +1,6 @@
 import type {
   AgentSessionReviewFileScopeRequest,
-  PermissionRequestAgentType,
+  AgentProviderId,
 } from '@hey-hey/contracts/api/models';
 import type { LocalCodeReviewPromptPayload } from '../../shared/agent-bridge-contract/runtime-types';
 import type { InternalRunPromptRequest } from '../../shared/agent-bridge-contract/contract';
@@ -14,7 +14,7 @@ export interface ReviewFileScopeRequestPresentation {
 export interface ReviewFileScopeDecisionInput {
   requestId: string;
   sessionId: string;
-  agentType: PermissionRequestAgentType;
+  agentType: AgentProviderId;
   decision: 'approve' | 'deny';
   reason: string | null;
   idempotencyToken: string;

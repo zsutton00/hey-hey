@@ -6522,11 +6522,6 @@ PlanGenerationFinalizePayload:
     firstStageId it needs to begin polling for stage execution once the user
     confirms via the Ready button.
 
-PermissionRequestAgentType:
-  type: string
-  enum: [claude, codex, opencode, antigravity]
-  description: Agent providers that can issue permission requests
-
 PermissionRequestSummary:
   type: object
   required:
@@ -6557,7 +6552,7 @@ PermissionRequestSummary:
       type: string
       description: Agent instance identifier that requested permission
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
@@ -6761,7 +6756,7 @@ AgentSessionServiceScopeRequest:
       minLength: 1
       description: Stable coding-agent handler identifier
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
@@ -6871,7 +6866,7 @@ AgentSessionReviewFileScopeRequest:
       type: string
       minLength: 1
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
