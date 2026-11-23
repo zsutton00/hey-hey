@@ -92,7 +92,13 @@ interface ActivePrompt {
   /** Chunks of the passage being streamed; flushed at a tool call or turn end. */
   passage: string[];
   skipPermissions: boolean;
+  phase?: 'thinking' | 'writing';
 }
+
+const PROMPT_PHASE_LABELS = {
+  thinking: 'Thinking...',
+  writing: 'Writing response...',
+};
 
 export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private readonly attachments = new RunAttachmentContentReader();
@@ -726,6 +732,37 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     });
   }
 
+  private observePromptActivity(
+    sessionId: string,
+    prompt: ActivePrompt,
+    hasAssistantText = false,
+  ): void {
+    if (prompt.phase === undefined) {
+      this.publishPromptPhase(sessionId, prompt, 'thinking');
+    }
+    if (hasAssistantText && prompt.phase !== 'writing') {
+      this.publishPromptPhase(sessionId, prompt, 'writing');
+    }
+  }
+
+  private publishPromptPhase(
+    sessionId: string,
+    prompt: ActivePrompt,
+    phase: keyof typeof PROMPT_PHASE_LABELS,
+  ): void {
+    prompt.phase = phase;
+    this.dependencies.agentOutputOwner.onAgentOutput({
+      event: {
+        source: 'local',
+        eventType: 'processing_status',
+        timestamp: new Date().toISOString(),
+        sessionId,
+        agentId: this.dependencies.agentOutputOwner.runId,
+        payload: { kind: 'loading.update', loadingText: PROMPT_PHASE_LABELS[phase], phase },
+      },
+    });
+  }
+
   /**
    * Emits the buffered passage as one assistant message. A tool call ends a
    * passage, which stays an interstitial entry; the passage left when the
@@ -779,15 +816,17 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       this.commands = new Set(update.availableCommands.map((command) => command.name));
     }
     this.executionCapture?.observe({ sessionId, update });
-    if (!this.activePrompt) {
+    const prompt = this.activePrompt;
+    if (!prompt) {
       return;
     }
     if (update.sessionUpdate === 'agent_message_chunk') {
-      this.activePrompt.passage.push(update.content.text);
+      this.observePromptActivity(sessionId, prompt, update.content.text.length > 0);
+      prompt.passage.push(update.content.text);
       return;
     }
     if (update.sessionUpdate === 'tool_call') {
-      this.flushPassage(sessionId, this.activePrompt, false);
+      this.flushPassage(sessionId, prompt, false);
     }
     const event = mapAntigravityUpdate(
       this.eventContext(sessionId),
@@ -795,6 +834,11 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       this.dependencies.logger,
     );
     if (event) {
+      // A mode report can come from session setup. Context usage can be the
+      // first update agy sends in response to a prompt.
+      if (update.sessionUpdate !== 'current_mode_update') {
+        this.observePromptActivity(sessionId, prompt);
+      }
       this.dependencies.agentOutputOwner.onAgentOutput({ event });
     }
   }
@@ -838,6 +882,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       this.client?.respondToPermission(id, undefined);
       return;
     }
+    this.observePromptActivity(params.sessionId, prompt);
     if (await this.refusesOutsideRoots(request)) {
       this.executionCapture?.denied(params.sessionId, params.toolCall.toolCallId);
       this.client?.respondToPermission(

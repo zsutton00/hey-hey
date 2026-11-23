@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
+import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
+import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 
 import { OAuthClient } from '../../../auth';
 import type { LocalAgentOutputEvent } from '../../../run/types';
@@ -15,12 +17,18 @@ import { handleDiff } from '../../../run/handlers/diff';
 import { makeDeps } from '../../../run/handlers/__test-utils';
 import { inboundCallSchema } from './acp-schemas';
 import { normalizeEvent } from '../../../run/normalize';
-import { createTestRun, createTestRunStore } from '../../../run/run.test-support';
+import {
+  createTestRun,
+  createTestRunEventPublisher,
+  createTestRunnerPicker,
+  createTestRunStore,
+} from '../../../run/run.test-support';
 import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { NOOP_LOGGER } from '../../../server/logger';
 import { ProjectMaturity } from '../../../shared/api/index';
 import { translatePermissionDecisionToDispatch } from '../../permission-response-routing';
 import { SubmissionToolRegistry } from '../../submission-tools/registry';
+import { nativeProviderSessionId } from '../runner-common';
 import { AntigravityAgentSessionRunner } from './session-runner-antigravity';
 import { SCENARIOS } from '../../../scripts/antigravity-capture-scenarios';
 import { mountReplayMcp } from './mcp-replay.test-support';
@@ -359,6 +367,10 @@ describe('Antigravity Run ownership', () => {
     let currentProcess = 0;
     let injectedMalformedReplies = false;
     const warn = vi.fn();
+    const broadcaster = createTestRunEventPublisher();
+    const currentState = vi.mocked(broadcaster.emitAgentSessionCurrentStateObservation);
+    const conversationPhase = vi.mocked(broadcaster.emitConversationPhaseObservation);
+    const statesBeforePromptReply: (AgentSessionCurrentState | undefined)[] = [];
     vi.mocked(spawn).mockImplementation(() => {
       const proc = processes[currentProcess++];
       const traffic = frames.filter((entry) => entry.proc === proc);
@@ -384,6 +396,9 @@ describe('Antigravity Run ownership', () => {
               child.stdout.write(JSON.stringify({ ...reply, result: undefined, error: {} }) + '\n');
               injectedMalformedReplies = true;
             }
+            if (scenario === 'follow-up' && reply?.result?.stopReason) {
+              statesBeforePromptReply.push(currentState.mock.lastCall?.[0].currentState);
+            }
             child.stdout.write(JSON.stringify(reply) + '\n');
           }
           if (traffic[0]?.frame.method === 'session/cancel') {
@@ -394,7 +409,24 @@ describe('Antigravity Run ownership', () => {
       return child as unknown as ReturnType<typeof spawn>;
     });
 
-    const run = createTestRun({ provider: 'antigravity' });
+    const runnerPicker = createTestRunnerPicker(({ run, resolvedPrompt }) => ({
+      run: async (signal) => {
+        const { launchServiceId: _launch, ...baseSession } = run.session;
+        const session = { ...baseSession, provider: 'antigravity' as const, services: [] };
+        const args = { session, prompt: resolvedPrompt, signal };
+        const providerSessionId = nativeProviderSessionId(run.providerSessionId);
+        if (providerSessionId) {
+          await runner.resumeSession({ ...args, providerSessionId });
+        } else {
+          await runner.runPrompt(args);
+        }
+      },
+    }));
+    const runStore = createTestRunStore();
+    const run = createTestRun(
+      { provider: 'antigravity', skipProjectAssistant: true },
+      { broadcaster, runnerPicker, runStore },
+    );
     const submissionToolRegistry = new SubmissionToolRegistry();
     const localAgentEndpoint = new LocalAgentEndpoint();
     const mcp =
@@ -402,10 +434,10 @@ describe('Antigravity Run ownership', () => {
     if (mcp) {
       localAgentEndpoint.set(mcp.baseUrl);
     }
-    const published = vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
+    const published = vi.spyOn(run, 'onAgentOutput');
     const runner = new AntigravityAgentSessionRunner({
       agentOutputOwner: run,
-      runStore: createTestRunStore(),
+      runStore,
       submissionToolRegistry,
       oauthClient: new OAuthClient(),
       localAgentEndpoint,
@@ -419,7 +451,7 @@ describe('Antigravity Run ownership', () => {
       },
     });
     const pendingDecisions: Promise<unknown>[] = [];
-    published.mockImplementation(({ event }) => {
+    const respondToPermission = ({ event }: Parameters<typeof run.onAgentOutput>[0]) => {
       const normalized = normalizeEvent(
         { runId: run.runId, ...event } satisfies LocalAgentOutputEvent,
         'antigravity',
@@ -449,19 +481,61 @@ describe('Antigravity Run ownership', () => {
           }),
         }),
       );
-    });
+    };
+    if (scenario !== 'follow-up') {
+      published.mockImplementation(respondToPermission);
+    }
     const expectedRequests = frames.filter(({ direction }) => direction === 'client->agent');
     const prompts = expectedRequests.filter(({ frame }) => frame.method === 'session/prompt');
     try {
+      if (scenario === 'follow-up') {
+        await runStore.initialize();
+        const session = await runStore.createRun({
+          entity: null,
+          agentic_session_id: run.runId,
+          services: [{ id: 'test-service-id', path: process.cwd() }],
+          launchServiceId: 'test-service-id',
+          provider: 'antigravity',
+          provider_session_id: `pending_${run.runId}`,
+          conversationId: run.conversationId,
+          contextMetadata: run.session.contextMetadata,
+        });
+        run.refreshSessionFields(session);
+      }
       let providerSessionId: string | null = null;
       for (const { frame } of prompts) {
-        const prompt = frame.params?.prompt?.[0]?.text;
+        const prompt = frame.params?.prompt?.[0]?.text ?? '';
+        if (scenario === 'follow-up') {
+          currentState.mockClear();
+          conversationPhase.mockClear();
+          await run.handleMessage({
+            promptType: LocalPromptType.CodingFreeform,
+            payload: { promptType: LocalPromptType.CodingFreeform, userMessage: prompt },
+            references: { resolved: [], unresolved: [] },
+            triggerContext: null,
+          });
+          await run.awaitIdle();
+          expect(run.providerSessionId).toBe(frame.params?.sessionId);
+          expect(currentState.mock.calls.map(([observation]) => observation.currentState)).toEqual([
+            'STARTING',
+            'THINKING',
+            'WRITING',
+            'IDLE',
+          ]);
+          expect(conversationPhase.mock.calls.map(([observation]) => observation.phase)).toEqual([
+            'starting',
+            'thinking',
+            'writing',
+            'idle',
+          ]);
+          continue;
+        }
         const { launchServiceId: _launch, ...baseSession } = run.session;
         const session = { ...baseSession, provider: 'antigravity' as const, services: [] };
         controller = new AbortController();
         const args = {
           session,
-          prompt: prompt ?? '',
+          prompt,
           signal: controller.signal,
           ...mcp?.mounts,
           ...(scenario === 'heyhey-planning' ? { mcpToolUseCase: 'planning' as const } : {}),
@@ -483,6 +557,9 @@ describe('Antigravity Run ownership', () => {
         }
       }
       await Promise.all(pendingDecisions);
+      if (scenario === 'follow-up') {
+        expect(statesBeforePromptReply).toEqual(['WRITING', 'WRITING']);
+      }
       if (scenario === 'malformed-reply-follow-up') {
         expect(currentProcess).toBe(1);
         expect(injectedMalformedReplies).toBe(true);
