@@ -143,6 +143,10 @@ import { FeatureRequirementAuthoringService } from './feature-requirement-author
 import { EMPTY_FEATURE_REQUIREMENTS_CONTENT } from './feature-requirements-reader';
 import { WorkItemTypeRegistryService } from './work-item-type-registry.service';
 import {
+  isFinishedMeaning,
+  isInProgressMeaning,
+} from './work-item-status-groups';
+import {
   formatWorkItemStatusNotAllowedMessage,
   isOrdinaryStatusAssignmentAllowed,
 } from './work-item-status-policy';
@@ -1644,9 +1648,9 @@ export class TaskService {
       counts.total += row._count._all;
 
       const meaning = this.findStatusDefinition(row)?.meaning;
-      if (meaning === 'FINISHED') {
+      if (isFinishedMeaning(meaning)) {
         counts.done += row._count._all;
-      } else if (meaning === 'IN_PROGRESS') {
+      } else if (isInProgressMeaning(meaning)) {
         counts.inProgress += row._count._all;
       } else {
         // Unknown statuses default to backlog bucket
@@ -2218,7 +2222,6 @@ export class TaskService {
         title: row.name,
         status: row.status,
         statusMeaning: status?.meaning,
-        completionBehavior: status?.completionBehavior,
         dueDate: row.dueDate ? row.dueDate.toISOString() : null,
       };
     });
@@ -2244,17 +2247,11 @@ export class TaskService {
     const nowMs = now.getTime();
     for (const row of rows) {
       const status = this.findStatusDefinition(row);
-      if (
-        status?.meaning === 'FINISHED' &&
-        status.completionBehavior !== 'CANCELLED'
-      ) {
+      if (status?.meaning.kind === 'COMPLETED') {
         summary.completedCount += 1;
         continue;
       }
-      if (
-        status?.meaning === 'FINISHED' &&
-        status.completionBehavior === 'CANCELLED'
-      ) {
+      if (status?.meaning.kind === 'CANCELLED') {
         summary.cancelledCount += 1;
         continue;
       }

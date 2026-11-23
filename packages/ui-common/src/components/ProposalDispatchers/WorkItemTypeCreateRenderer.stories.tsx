@@ -54,13 +54,14 @@ const fullDefinition: WorkItemTypeDefinitionDto = {
   requiredScalars: [WorkItemTypeScalarField.DueDate],
   forbiddenScalars: [WorkItemTypeScalarField.Tag],
   statuses: [
-    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
-    { name: WorkStatus.Active, label: "In progress", meaning: "IN_PROGRESS" },
+    {
+      name: WorkStatus.Backlog,
+      meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+    },
+    { name: WorkStatus.Active, meaning: { kind: "IN_PROGRESS" as const } },
     {
       name: WorkStatus.Completed,
-      label: "Completed",
-      meaning: "FINISHED",
-      completionBehavior: "COMPLETED",
+      meaning: { kind: "COMPLETED" as const },
     },
   ],
   agentSettableStatuses: [WorkStatus.Backlog, WorkStatus.Active],
@@ -91,7 +92,10 @@ const minimalDefinition: WorkItemTypeDefinitionDto = {
   name: "Minimal Type",
   sections: [],
   statuses: [
-    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+    {
+      name: WorkStatus.Backlog,
+      meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+    },
   ],
 };
 

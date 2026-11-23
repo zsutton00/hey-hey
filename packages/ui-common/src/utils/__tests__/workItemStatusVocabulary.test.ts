@@ -13,9 +13,9 @@ const recipe = {
   key: "RECIPE",
   name: "Recipe",
   statuses: [
-    { name: "Idea", meaning: "NOT_STARTED" },
-    { name: "Made", meaning: "FINISHED" },
-    { name: "Rejected", meaning: "FINISHED" },
+    { name: "Idea", meaning: { kind: "CUSTOM" as const, text: "Not started" } },
+    { name: "Made", meaning: { kind: "COMPLETED" as const } },
+    { name: "Rejected", meaning: { kind: "COMPLETED" as const } },
   ],
   capabilities: { supportsSupersession: false },
 } as WorkItemTypeDefinitionDto;
@@ -24,8 +24,8 @@ const task = {
   key: "STANDARD",
   name: "Task",
   statuses: [
-    { name: "BACKLOG", label: "Backlog", meaning: "NOT_STARTED" },
-    { name: "Made", meaning: "FINISHED" },
+    { name: "BACKLOG", meaning: { kind: "CUSTOM" as const, text: "Backlog" } },
+    { name: "Made", meaning: { kind: "COMPLETED" as const } },
   ],
   capabilities: { supportsSupersession: true },
 } as WorkItemTypeDefinitionDto;
@@ -46,8 +46,8 @@ describe("work item status vocabulary", () => {
     ]);
   });
 
-  it("shows the type's label, or the exact saved name when the type has none", () => {
-    expect(getWorkItemStatusLabel("BACKLOG", task)).toBe("Backlog");
+  it("shows a defined status exactly as named, never a label", () => {
+    expect(getWorkItemStatusLabel("BACKLOG", task)).toBe("BACKLOG");
     expect(getWorkItemStatusLabel("Testing", recipe)).toBe("Testing");
     expect(getWorkItemStatusLabel("ACTIVE", recipe)).toBe("ACTIVE");
   });
@@ -87,34 +87,29 @@ describe("work item status vocabulary", () => {
     ]);
   });
 
-  it("splits a name that types present differently into per-type choices that match by type", () => {
-    const legacyMade = {
-      ...task,
-      statuses: [{ name: "Made", label: "Shipped", meaning: "FINISHED" }],
-    } as WorkItemTypeDefinitionDto;
+  it("offers a name shared across types once, matching items of either type", () => {
     const options = buildWorkItemStatusFilterOptions({
-      definitions: [recipe, legacyMade],
+      definitions: [recipe, task],
       items: [
         { type: "RECIPE", status: "Made" },
         { type: "STANDARD", status: "Made" },
       ],
       scopeByType: true,
     });
-    const shipped = options.find((o) => o.label === "Shipped (Task)");
+    const made = options.filter((o) => o.label === "Made");
 
-    expect(shipped).toBeDefined();
-    expect(options.some((o) => o.label === "Made (Recipe)")).toBe(true);
+    expect(made).toHaveLength(1);
     expect(
       matchesWorkItemStatusFilter(
         { type: "STANDARD", status: "Made" },
-        shipped!.value,
+        made[0]!.value,
       ),
     ).toBe(true);
     expect(
       matchesWorkItemStatusFilter(
         { type: "RECIPE", status: "Made" },
-        shipped!.value,
+        made[0]!.value,
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 });

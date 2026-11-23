@@ -1,15 +1,13 @@
 import { z } from 'zod';
-import {
-  WorkItemStatusCompletionBehavior,
-  WorkItemStatusMeaning,
-} from '@hey-hey/contracts/api/models';
+
+export const statusMeaningSchema = z.object({
+  kind: z.enum(['COMPLETED', 'CANCELLED', 'IN_PROGRESS', 'CUSTOM']),
+  text: z.string().optional(),
+});
 
 const typeStatusSchema = z.object({
   name: z.string().min(1),
-  meaning: z.enum(Object.values(WorkItemStatusMeaning) as [string, ...string[]]),
-  completionBehavior: z
-    .enum(Object.values(WorkItemStatusCompletionBehavior) as [string, ...string[]])
-    .optional(),
+  meaning: statusMeaningSchema,
 });
 
 export const workItemTypeStatusesEnvelopeSchema = z
@@ -24,17 +22,12 @@ export const workItemTypeStatusesEnvelopeSchema = z
 
 export type TaskTypeStatus = z.infer<typeof typeStatusSchema>;
 
-/** A status counts as delivered when it means finished and is not a cancellation. */
+/** A status counts as delivered when its meaning is Completed; Cancelled is finished but not delivered. */
 export const isDeliveredStatus = (
   statuses: readonly TaskTypeStatus[],
   statusName: string,
 ): boolean =>
-  statuses.some(
-    ({ name, meaning, completionBehavior }) =>
-      name === statusName &&
-      meaning === WorkItemStatusMeaning.Finished &&
-      completionBehavior !== WorkItemStatusCompletionBehavior.Cancelled,
-  );
+  statuses.some(({ name, meaning }) => name === statusName && meaning.kind === 'COMPLETED');
 
 export type FinishedStatusResolution =
   | { readonly ok: true; readonly status: string }

@@ -7,7 +7,7 @@ import {
   AgentSessionCurrentState,
   EntityType,
   TaskSource,
-  WorkItemStatusMeaning,
+  type WorkItemStatusMeaning,
   WorkStatus,
   type AgentSessionDto,
   type TrackedEntitySnapshot,
@@ -32,13 +32,16 @@ const snapshot = (
   statusMeaning,
 });
 const tracked = [
-  snapshot("active", WorkStatus.Active, WorkItemStatusMeaning.InProgress),
-  snapshot("backlog", WorkStatus.Backlog, WorkItemStatusMeaning.NotStarted),
-  snapshot("idle", WorkStatus.Backlog, WorkItemStatusMeaning.NotStarted),
-  snapshot("finished", WorkStatus.Completed, WorkItemStatusMeaning.Finished),
-  snapshot("cancelled", WorkStatus.Cancelled, WorkItemStatusMeaning.Finished),
-  snapshot("testing", "Testing", WorkItemStatusMeaning.InProgress),
-  snapshot("delivered", "Delivered", WorkItemStatusMeaning.Finished),
+  snapshot("active", WorkStatus.Active, { kind: "IN_PROGRESS" }),
+  snapshot("backlog", WorkStatus.Backlog, {
+    kind: "CUSTOM",
+    text: "Not started",
+  }),
+  snapshot("idle", WorkStatus.Backlog, { kind: "CUSTOM", text: "Not started" }),
+  snapshot("finished", WorkStatus.Completed, { kind: "COMPLETED" }),
+  snapshot("cancelled", WorkStatus.Cancelled, { kind: "CANCELLED" }),
+  snapshot("testing", "Testing", { kind: "IN_PROGRESS" }),
+  snapshot("delivered", "Delivered", { kind: "COMPLETED" }),
   snapshot("removed-status", "Retired"),
 ];
 const ids = (work: TrackedEntitySnapshot[]) =>

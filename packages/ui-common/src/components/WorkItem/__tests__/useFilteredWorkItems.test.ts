@@ -46,8 +46,11 @@ describe("useFilteredWorkItems — per-type status order", () => {
       "RECIPE",
       {
         statuses: [
-          { name: "Idea", meaning: "NOT_STARTED" },
-          { name: "Made", meaning: "FINISHED" },
+          {
+            name: "Idea",
+            meaning: { kind: "CUSTOM" as const, text: "Not started" },
+          },
+          { name: "Made", meaning: { kind: "COMPLETED" as const } },
         ],
       },
     ],

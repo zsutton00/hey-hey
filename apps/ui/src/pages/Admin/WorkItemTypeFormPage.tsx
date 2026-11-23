@@ -43,6 +43,7 @@ import type {
   ProposalResponseDto,
   WorkItemIconKey,
   WorkItemColorKey,
+  WorkItemStatusMeaning,
   WorkItemTypeDefinitionDto,
   WorkItemTypeCascadeImpactDto,
   WorkItemTypeEdgeTarget,
@@ -108,6 +109,48 @@ import {
   serializeEdgeTargetSelection,
 } from "./workItemTypeFormPresentation";
 import type { EdgeTargetSelectionValue } from "./workItemTypeFormPresentation";
+
+const CUSTOM_MEANING_MAX_LENGTH = 50;
+
+type StatusMeaningChoice = "" | WorkItemStatusMeaning["kind"];
+
+/** One status row's meaning as edited: no choice yet, a built-in, or custom text. */
+interface StatusMeaningRow {
+  kind: StatusMeaningChoice;
+  text: string;
+}
+
+const NO_MEANING: StatusMeaningRow = { kind: "", text: "" };
+
+const statusMeaningRowOf = (
+  meaning: WorkItemStatusMeaning,
+): StatusMeaningRow => ({
+  kind: meaning.kind,
+  text: meaning.kind === "CUSTOM" ? meaning.text : "",
+});
+
+/** The meaning to save, or undefined while the row has none (or empty custom text). */
+const statusMeaningOf = (
+  row: StatusMeaningRow | undefined,
+): WorkItemStatusMeaning | undefined => {
+  if (!row || row.kind === "") {
+    return undefined;
+  }
+  if (row.kind !== "CUSTOM") {
+    return { kind: row.kind };
+  }
+  const text = row.text.trim();
+
+  return text ? { kind: "CUSTOM", text } : undefined;
+};
+
+const STATUS_MEANING_NOTE_KEYS: Partial<
+  Record<WorkItemStatusMeaning["kind"], string>
+> = {
+  COMPLETED: "workItemType.status.noteCompleted",
+  CANCELLED: "workItemType.status.noteCancelled",
+  IN_PROGRESS: "workItemType.status.noteInProgress",
+};
 
 interface SectionRow {
   key: string;
@@ -358,12 +401,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const { t } = useTranslation();
   const statusResolver = useResolveWorkItemTypeStatuses();
   const [statusName, setStatusName] = useState("");
-  const [needsFinishedSelection, setNeedsFinishedSelection] = useState(false);
-  const [finishedNames, setFinishedNames] = useState<string[]>([]);
-  const [noFinishedSelected, setNoFinishedSelected] = useState(false);
-  // Parallel to allowedStatuses: the persisted name each row started as, or
-  // null for rows added in this session. Lets a rename keep its meaning.
-  const [statusOrigins, setStatusOrigins] = useState<(string | null)[]>([]);
+  // Parallel to allowedStatuses: each row's one meaning. A rename keeps the
+  // row, so it keeps the meaning and nothing else.
+  const [statusMeanings, setStatusMeanings] = useState<StatusMeaningRow[]>([]);
   const renameStatus = (index: number, next: string) => {
     const previous = allowedStatuses[index]!;
     const renamed = allowedStatuses.map((name, i) =>
@@ -375,7 +415,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
         : names.map((name) => (name === previous ? next : name));
     setAllowedStatuses(renamed);
     setAgentSettableStatuses(swap(agentSettableStatuses));
-    setFinishedNames(swap(finishedNames));
   };
 
   const moveStatus = (from: number, to: number) => {
@@ -385,19 +424,18 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return next;
     };
     setAllowedStatuses(swapRows(allowedStatuses));
-    setStatusOrigins(swapRows(statusOrigins));
+    setStatusMeanings(swapRows(statusMeanings));
   };
 
   const removeStatus = (index: number) => {
     const removed = allowedStatuses[index]!;
     const remaining = allowedStatuses.filter((_, i) => i !== index);
     setAllowedStatuses(remaining);
-    setStatusOrigins(statusOrigins.filter((_, i) => i !== index));
+    setStatusMeanings(statusMeanings.filter((_, i) => i !== index));
     if (!remaining.includes(removed)) {
       setAgentSettableStatuses(
         agentSettableStatuses.filter((name) => name !== removed),
       );
-      setFinishedNames(finishedNames.filter((name) => name !== removed));
     }
   };
 
@@ -493,7 +531,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return membership;
     });
     setAllowedStatuses(definition.statuses.map((status) => status.name));
-    setStatusOrigins(definition.statuses.map((status) => status.name));
+    setStatusMeanings(
+      definition.statuses.map((status) => statusMeaningRowOf(status.meaning)),
+    );
     const sourceAllowedParentTypes = definition.allowedParentTypes ?? [];
     setAllowedParentTypes(sourceAllowedParentTypes);
     setEdgeTargets(
@@ -796,11 +836,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
       sections: sectionDtos,
       requiredScalars,
       forbiddenScalars,
-      statuses: allowedStatuses.map((name) => {
-        const status = workItemTypeSummary?.definition.statuses.find(
-          (entry) => entry.name === name,
-        );
-        return status ?? { name, meaning: "UNFINISHED" };
+      statuses: allowedStatuses.flatMap((name, index) => {
+        const meaning = statusMeaningOf(statusMeanings[index]);
+        return meaning ? [{ name, meaning }] : [];
       }),
       allowedParentTypes,
       edgeTargets: edgeTargetDtos,
@@ -904,6 +942,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     allowedParentEntityTypes,
     allowedParentTypes,
     allowedStatuses,
+    statusMeanings,
     agentSettableStatuses,
     anchorableReportTypes,
     capabilities,
@@ -1118,71 +1157,41 @@ export const WorkItemTypeFormPage: React.FC = () => {
       setError(t("workItemType.status.invalidNames"));
       return;
     }
-    if (
-      needsFinishedSelection &&
-      finishedNames.length === 0 &&
-      !noFinishedSelected
-    ) {
-      setError(t("workItemType.status.answerRequired"));
-      return;
-    }
-
-    const persistedStatuses = workItemTypeSummary?.definition.statuses ?? [];
-    const existingStatuses = persistedStatuses.flatMap((status) => {
-      const row = statusOrigins.indexOf(status.name);
-      return row === -1 ? [] : [{ ...status, name: allowedStatuses[row]! }];
-    });
-    const statusesUnchanged =
-      isEditMode &&
-      persistedStatuses.length > 0 &&
-      persistedStatuses.length === allowedStatuses.length &&
-      persistedStatuses.every(
-        (status, index) => status.name === allowedStatuses[index],
+    const unassigned = allowedStatuses.filter(
+      (_, index) => statusMeaningOf(statusMeanings[index]) === undefined,
+    );
+    if (unassigned.length > 0) {
+      setError(
+        t("workItemType.status.meaningRequired", {
+          names: unassigned.join(", "),
+        }),
       );
-    let resolved;
-    try {
-      resolved = statusesUnchanged
-        ? { state: "RESOLVED" as const, statuses: persistedStatuses }
-        : await statusResolver.mutate({
-            organizationId: currentOrgId,
-            projectId,
-            request: {
-              purpose: description || name,
-              ...(allowedStatuses.length > 0 ? { names: allowedStatuses } : {}),
-              existingStatuses,
-              ...(needsFinishedSelection ? { finishedNames } : {}),
-            },
-          });
-    } catch {
-      setError(t("workItemType.status.resolveError"));
-      return;
-    }
-    if (resolved.state === "CLARIFICATION") {
-      setNeedsFinishedSelection(true);
-      setFinishedNames(
-        (workItemTypeSummary?.definition.statuses ?? [])
-          .filter(
-            (status) =>
-              status.meaning === "FINISHED" &&
-              allowedStatuses.includes(status.name),
-          )
-          .map((status) => status.name),
-      );
-      setNoFinishedSelected(false);
       setActiveTab("Lifecycle");
       return;
     }
-    if (!resolved.statuses) {
-      setError(t("workItemType.status.resolveError"));
-      return;
+
+    let resolvedStatuses = draftDefinition.statuses;
+    if (allowedStatuses.length === 0) {
+      try {
+        resolvedStatuses = (
+          await statusResolver.mutate({
+            organizationId: currentOrgId,
+            projectId,
+            request: { purpose: description || name },
+          })
+        ).statuses;
+      } catch {
+        setError(t("workItemType.status.resolveError"));
+        return;
+      }
     }
     const definition = {
       ...draftDefinition,
-      statuses: resolved.statuses,
+      statuses: resolvedStatuses,
       ...(!isEditMode && allowedStatuses.length === 0
         ? {
             agentSettableStatuses: [
-              ...resolved.statuses.map((status) => status.name),
+              ...resolvedStatuses.map((status) => status.name),
               "ARCHIVED",
             ],
           }
@@ -2212,65 +2221,147 @@ export const WorkItemTypeFormPage: React.FC = () => {
               </Typography>
               <Stack spacing={2.5}>
                 <Stack spacing={1} data-testid="wit-form-statuses">
-                  {allowedStatuses.map((status, index) => (
-                    <Stack
-                      key={index}
-                      direction="row"
-                      alignItems="center"
-                      spacing={1}
-                    >
-                      <TextField
-                        size="small"
-                        value={status}
-                        sx={{ flex: 1 }}
-                        disabled={isPending || isReadOnly}
-                        inputProps={{
-                          "aria-label": t("workItemType.status.name", {
-                            position: index + 1,
-                          }),
+                  {allowedStatuses.map((status, index) => {
+                    const meaning = statusMeanings[index] ?? NO_MEANING;
+                    const noteKey =
+                      meaning.kind === ""
+                        ? undefined
+                        : STATUS_MEANING_NOTE_KEYS[meaning.kind];
+                    const position = index + 1;
+                    const setMeaning = (next: StatusMeaningRow) =>
+                      setStatusMeanings(
+                        statusMeanings.map((row, i) =>
+                          i === index ? next : row,
+                        ),
+                      );
+
+                    return (
+                      <Box
+                        key={index}
+                        data-testid="wit-status-row"
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "7rem minmax(8rem, 1fr) 11rem minmax(10rem, 1fr) auto auto auto",
+                          alignItems: "center",
+                          columnGap: 1,
                         }}
-                        onChange={(event) =>
-                          renameStatus(index, event.target.value)
-                        }
-                      />
-                      {index === 0 && (
+                      >
                         <Typography
                           variant="caption"
                           data-testid="wit-status-start"
                         >
-                          {t("workItemType.status.start")}
+                          {index === 0 ? t("workItemType.status.start") : ""}
                         </Typography>
-                      )}
-                      <Button
-                        type="button"
-                        disabled={index === 0 || isPending || isReadOnly}
-                        aria-label={t("workItemType.status.moveUp")}
-                        onClick={() => moveStatus(index, index - 1)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        type="button"
-                        disabled={
-                          index === allowedStatuses.length - 1 ||
-                          isPending ||
-                          isReadOnly
-                        }
-                        aria-label={t("workItemType.status.moveDown")}
-                        onClick={() => moveStatus(index, index + 1)}
-                      >
-                        ↓
-                      </Button>
-                      <Button
-                        type="button"
-                        disabled={isPending || isReadOnly}
-                        aria-label={t("workItemType.status.remove")}
-                        onClick={() => removeStatus(index)}
-                      >
-                        ×
-                      </Button>
-                    </Stack>
-                  ))}
+                        <TextField
+                          size="small"
+                          value={status}
+                          disabled={isPending || isReadOnly}
+                          inputProps={{
+                            "aria-label": t("workItemType.status.name", {
+                              position,
+                            }),
+                          }}
+                          onChange={(event) =>
+                            renameStatus(index, event.target.value)
+                          }
+                        />
+                        <Select
+                          size="small"
+                          displayEmpty
+                          value={meaning.kind}
+                          disabled={isPending || isReadOnly}
+                          data-testid="wit-status-meaning"
+                          inputProps={{
+                            "aria-label": t("workItemType.status.meaning", {
+                              position,
+                            }),
+                          }}
+                          onChange={(event) =>
+                            setMeaning({
+                              kind: event.target.value as StatusMeaningChoice,
+                              text:
+                                event.target.value === "CUSTOM"
+                                  ? meaning.text
+                                  : "",
+                            })
+                          }
+                        >
+                          <MenuItem value="" disabled>
+                            {t("workItemType.status.selectMeaning")}
+                          </MenuItem>
+                          <MenuItem value="COMPLETED">
+                            {t("workItemType.status.meaningCompleted")}
+                          </MenuItem>
+                          <MenuItem value="CANCELLED">
+                            {t("workItemType.status.meaningCancelled")}
+                          </MenuItem>
+                          <MenuItem value="IN_PROGRESS">
+                            {t("workItemType.status.meaningInProgress")}
+                          </MenuItem>
+                          <MenuItem value="CUSTOM">
+                            {t("workItemType.status.meaningCustom")}
+                          </MenuItem>
+                        </Select>
+                        {meaning.kind === "CUSTOM" ? (
+                          <TextField
+                            size="small"
+                            value={meaning.text}
+                            placeholder={t(
+                              "workItemType.status.customMeaningPlaceholder",
+                            )}
+                            disabled={isPending || isReadOnly}
+                            inputProps={{
+                              "aria-label": t(
+                                "workItemType.status.customMeaning",
+                                { position },
+                              ),
+                            }}
+                            onChange={(event) =>
+                              setMeaning({
+                                kind: "CUSTOM",
+                                text: Array.from(event.target.value)
+                                  .slice(0, CUSTOM_MEANING_MAX_LENGTH)
+                                  .join(""),
+                              })
+                            }
+                          />
+                        ) : (
+                          <Typography variant="caption">
+                            {noteKey ? t(noteKey) : ""}
+                          </Typography>
+                        )}
+                        <Button
+                          type="button"
+                          disabled={index === 0 || isPending || isReadOnly}
+                          aria-label={t("workItemType.status.moveUp")}
+                          onClick={() => moveStatus(index, index - 1)}
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={
+                            index === allowedStatuses.length - 1 ||
+                            isPending ||
+                            isReadOnly
+                          }
+                          aria-label={t("workItemType.status.moveDown")}
+                          onClick={() => moveStatus(index, index + 1)}
+                        >
+                          ↓
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={isPending || isReadOnly}
+                          aria-label={t("workItemType.status.remove")}
+                          onClick={() => removeStatus(index)}
+                        >
+                          ×
+                        </Button>
+                      </Box>
+                    );
+                  })}
                   <Stack direction="row" spacing={1}>
                     <TextField
                       size="small"
@@ -2292,7 +2383,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
                       onClick={() => {
                         const next = statusName.trim();
                         setAllowedStatuses([...allowedStatuses, next]);
-                        setStatusOrigins([...statusOrigins, null]);
+                        setStatusMeanings([...statusMeanings, NO_MEANING]);
                         setAgentSettableStatuses([
                           ...agentSettableStatuses,
                           ...(!isEditMode && allowedStatuses.length === 0
@@ -2320,14 +2411,15 @@ export const WorkItemTypeFormPage: React.FC = () => {
                             request: { purpose: description || name },
                           });
                           setAllowedStatuses(result.suggestions);
-                          setStatusOrigins(result.suggestions.map(() => null));
-                          setNeedsFinishedSelection(false);
+                          setStatusMeanings(
+                            result.statuses.map((status) =>
+                              statusMeaningRowOf(status.meaning),
+                            ),
+                          );
                           setAgentSettableStatuses([
                             ...result.suggestions,
                             "ARCHIVED",
                           ]);
-                          setFinishedNames([]);
-                          setNoFinishedSelected(false);
                         } catch {
                           setError(t("workItemType.status.resolveError"));
                         }
@@ -2336,54 +2428,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
                       {t("workItemType.status.suggest")}
                     </Button>
                   </Stack>
-                  {needsFinishedSelection && (
-                    <Box
-                      component="fieldset"
-                      data-testid="wit-status-clarification"
-                    >
-                      <Typography component="legend">
-                        {t("workItemType.status.finished")}
-                      </Typography>
-                      {allowedStatuses.map((status, index) => (
-                        <FormControlLabel
-                          key={index}
-                          label={status}
-                          control={
-                            <Checkbox
-                              checked={finishedNames.includes(status)}
-                              onChange={(event) => {
-                                setNoFinishedSelected(false);
-                                setFinishedNames(
-                                  event.target.checked
-                                    ? [...finishedNames, status]
-                                    : finishedNames.filter(
-                                        (name) => name !== status,
-                                      ),
-                                );
-                              }}
-                            />
-                          }
-                        />
-                      ))}
-                      <FormControlLabel
-                        label={t("workItemType.status.noneOfThese")}
-                        control={
-                          <Checkbox
-                            checked={noFinishedSelected}
-                            onChange={(event) => {
-                              setNoFinishedSelected(event.target.checked);
-                              if (event.target.checked) {
-                                setFinishedNames([]);
-                              }
-                            }}
-                          />
-                        }
-                      />
-                      <Typography variant="caption" display="block">
-                        {t("workItemType.status.none")}
-                      </Typography>
-                    </Box>
-                  )}
                   <Box data-testid="wit-status-reserved">
                     <Typography variant="subtitle2">
                       {t("workItemType.status.reserved")}

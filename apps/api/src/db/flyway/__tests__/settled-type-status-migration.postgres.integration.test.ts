@@ -2,7 +2,18 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { workItemTypeStatusesSchema } from '../../../services/tasks/work-item-type-status.schema';
+
+// The shape V2026.10.29.232600 wrote; the later one-meaning migration converts it.
+const workItemTypeStatusesSchema = z.array(
+  z
+    .object({
+      name: z.string(),
+      label: z.string(),
+      meaning: z.string(),
+      completionBehavior: z.string().optional(),
+    })
+    .strict(),
+);
 
 // Run through worktree:exec against its isolated local database.
 const databaseTests =

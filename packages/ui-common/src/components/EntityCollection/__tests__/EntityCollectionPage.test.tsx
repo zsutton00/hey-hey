@@ -165,9 +165,9 @@ describe("EntityCollectionPage", () => {
 
     const tabs = screen.getAllByRole("tab");
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      "In progress",
-      "Completed",
-      "Cancelled",
+      "ACTIVE",
+      "COMPLETED",
+      "CANCELLED",
       "Archived",
       "All",
     ]);
@@ -178,7 +178,7 @@ describe("EntityCollectionPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
     expect(lastReferenceInput().statuses).toBeUndefined();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Completed" }));
+    fireEvent.click(screen.getByRole("tab", { name: "COMPLETED" }));
 
     expect(lastReferenceInput()).toMatchObject({
       workItemType: "GOAL",

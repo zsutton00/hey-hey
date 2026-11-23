@@ -1,6 +1,9 @@
 import { workItemTypeStatusesSchema } from '../work-item-type-status.schema';
 
-const status = (name: string) => ({ name, meaning: 'IN_PROGRESS' as const });
+const status = (name: string) => ({
+  name,
+  meaning: { kind: 'IN_PROGRESS' as const } as const,
+});
 
 describe('workItemTypeStatusesSchema', () => {
   it('rejects names that differ only by surrounding spaces as duplicates', () => {

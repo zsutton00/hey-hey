@@ -137,12 +137,10 @@ describe('SearchToolsProvider', () => {
     );
     mockRegistry.getRulesForProject.mockReturnValue({
       statuses: [
-        { name: 'ACTIVE', label: 'Active', meaning: 'IN_PROGRESS' },
+        { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' as const } },
         {
           name: 'COMPLETED',
-          label: 'Completed',
-          meaning: 'FINISHED',
-          completionBehavior: 'COMPLETED',
+          meaning: { kind: 'COMPLETED' as const },
         },
       ],
     });
@@ -1712,18 +1710,17 @@ describe('SearchToolsProvider', () => {
     it('groups statuses by meaning, so a custom finished status matches DONE', async () => {
       mockRegistry.getRulesForProject.mockReturnValue({
         statuses: [
-          { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+          {
+            name: 'PLANNED',
+            meaning: { kind: 'CUSTOM' as const, text: 'Planned' },
+          },
           {
             name: 'DELIVERED',
-            label: 'Delivered',
-            meaning: 'FINISHED',
-            completionBehavior: 'COMPLETED',
+            meaning: { kind: 'COMPLETED' as const },
           },
           {
             name: 'DROPPED',
-            label: 'Dropped',
-            meaning: 'FINISHED',
-            completionBehavior: 'CANCELLED',
+            meaning: { kind: 'CANCELLED' as const },
           },
         ],
       });

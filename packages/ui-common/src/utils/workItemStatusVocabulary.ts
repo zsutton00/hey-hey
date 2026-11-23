@@ -18,10 +18,9 @@ export const isReservedWorkItemStatus = (status: string): boolean =>
   status === ARCHIVED_STATUS || status === SUPERSEDED_STATUS;
 
 /**
- * Display label for a saved status. A status the type defines shows the
- * type's label (migrated statuses keep the labels they always had) or its
- * exact name; any other status, including while the type is still loading,
- * shows exactly as saved. Only the platform-owned Archived and Superseded use
+ * Display label for a saved status. A status the type defines shows its exact
+ * name, never a label; any other status, including while the type is still
+ * loading, shows exactly as saved. Only the platform-owned Archived and Superseded use
  * platform labels.
  */
 export const getWorkItemStatusLabel = (
@@ -30,7 +29,7 @@ export const getWorkItemStatusLabel = (
 ): string => {
   const defined = vocabulary?.statuses.find(({ name }) => name === status);
   if (defined) {
-    return defined.label ?? defined.name;
+    return defined.name;
   }
 
   if (isReservedWorkItemStatus(status)) {

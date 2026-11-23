@@ -5035,8 +5035,11 @@ describe('ProposalValidationEngine', () => {
       it('accepts resolved custom status names structurally', async () => {
         const dto = makeCreateWorkItemTypeDto({
           statuses: [
-            { name: 'Idea', meaning: 'NOT_STARTED' },
-            { name: 'Testing', meaning: 'IN_PROGRESS' },
+            {
+              name: 'Idea',
+              meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+            },
+            { name: 'Testing', meaning: { kind: 'IN_PROGRESS' as const } },
           ],
         });
         const result = await engine.validate({
@@ -5707,8 +5710,11 @@ describe('ProposalValidationEngine', () => {
           proposals: [
             makeCreateWorkItemTypeDto({
               statuses: [
-                { name: 'Drafting', meaning: 'NOT_STARTED' },
-                { name: 'Published', meaning: 'FINISHED' },
+                {
+                  name: 'Drafting',
+                  meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+                },
+                { name: 'Published', meaning: { kind: 'COMPLETED' as const } },
               ],
               agentSettableStatuses: ['Draft', 'Published'],
             }),
@@ -5719,8 +5725,11 @@ describe('ProposalValidationEngine', () => {
           proposals: [
             makeCreateWorkItemTypeDto({
               statuses: [
-                { name: 'Drafting', meaning: 'NOT_STARTED' },
-                { name: 'Published', meaning: 'FINISHED' },
+                {
+                  name: 'Drafting',
+                  meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+                },
+                { name: 'Published', meaning: { kind: 'COMPLETED' as const } },
               ],
               agentSettableStatuses: ['Drafting', 'Published', 'ARCHIVED'],
             }),

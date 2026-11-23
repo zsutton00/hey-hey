@@ -222,11 +222,10 @@ describe('Task Monitor settled-Run evaluation', () => {
                       data: {
                         definition: {
                           statuses: [
-                            { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
+                            { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' as const } },
                             {
                               name: 'COMPLETED',
-                              meaning: 'FINISHED',
-                              completionBehavior: 'COMPLETED',
+                              meaning: { kind: 'COMPLETED' as const },
                             },
                           ],
                         },

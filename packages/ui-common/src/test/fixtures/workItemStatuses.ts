@@ -3,96 +3,49 @@ import type { WorkItemTypeStatus } from "../../api/api";
 const legacyStatusDefinitions = [
   {
     name: "GENERATED",
-    label: "Generated",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generated" },
   },
-  {
-    name: "BACKLOG",
-    label: "Backlog",
-    meaning: "NOT_STARTED",
-  },
-  {
-    name: "READY",
-    label: "Ready",
-    meaning: "NOT_STARTED",
-  },
-  {
-    name: "REFINING",
-    label: "Refining",
-    meaning: "NOT_STARTED",
-  },
-  {
-    name: "BLOCKED",
-    label: "Blocked",
-    meaning: "UNFINISHED",
-  },
+  { name: "BACKLOG", meaning: { kind: "CUSTOM" as const, text: "Backlog" } },
+  { name: "READY", meaning: { kind: "CUSTOM" as const, text: "Ready" } },
+  { name: "REFINING", meaning: { kind: "CUSTOM" as const, text: "Refining" } },
+  { name: "BLOCKED", meaning: { kind: "CUSTOM" as const, text: "Blocked" } },
   {
     name: "REFINING_DESCRIPTION",
-    label: "Needs review",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Needs review" },
   },
   {
     name: "REFINING_DETAILS",
-    label: "Refining details",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Refining details" },
   },
   {
     name: "REFINING_ACCEPTANCE_CRITERIA",
-    label: "Refining criteria",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Refining criteria" },
   },
   {
     name: "GENERATING_DESCRIPTION",
-    label: "Generating description",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generating description" },
   },
   {
     name: "GENERATING_DETAILS",
-    label: "Generating details",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generating details" },
   },
   {
     name: "GENERATING_DESCRIPTION_AND_DETAILS",
-    label: "Generating content",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generating content" },
   },
   {
     name: "GENERATING_ACCEPTANCE_CRITERIA",
-    label: "Generating criteria",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generating criteria" },
   },
   {
     name: "GENERATING_ALL",
-    label: "Generating all",
-    meaning: "NOT_STARTED",
+    meaning: { kind: "CUSTOM" as const, text: "Generating all" },
   },
-  {
-    name: "ACTIVE",
-    label: "In progress",
-    meaning: "IN_PROGRESS",
-  },
-  {
-    name: "ON_HOLD",
-    label: "On Hold",
-    meaning: "UNFINISHED",
-  },
-  {
-    name: "VERIFYING",
-    label: "Verifying",
-    meaning: "IN_PROGRESS",
-  },
-  {
-    name: "COMPLETED",
-    label: "Completed",
-    meaning: "FINISHED",
-    completionBehavior: "COMPLETED",
-  },
-  {
-    name: "CANCELLED",
-    label: "Cancelled",
-    meaning: "FINISHED",
-    completionBehavior: "CANCELLED",
-  },
+  { name: "ACTIVE", meaning: { kind: "IN_PROGRESS" as const } },
+  { name: "ON_HOLD", meaning: { kind: "CUSTOM" as const, text: "On Hold" } },
+  { name: "VERIFYING", meaning: { kind: "IN_PROGRESS" as const } },
+  { name: "COMPLETED", meaning: { kind: "COMPLETED" as const } },
+  { name: "CANCELLED", meaning: { kind: "CANCELLED" as const } },
 ] satisfies WorkItemTypeStatus[];
 
 export function legacyStatuses(names: readonly string[]): WorkItemTypeStatus[] {
@@ -103,7 +56,7 @@ export function legacyStatuses(names: readonly string[]): WorkItemTypeStatus[] {
         (status) => status.name === name,
       );
       if (!status) {
-        return { name, meaning: "UNFINISHED" };
+        return { name, meaning: { kind: "CUSTOM" as const, text: name } };
       }
       return status;
     });

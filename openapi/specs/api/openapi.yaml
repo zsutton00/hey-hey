@@ -31188,6 +31188,8 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceBatchDto"
     WorkItemTypeDefinitionDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    WorkItemStatusAuthoringInput:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringInput"
     WorkItemStatusAuthoringRequest:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringRequest"
     WorkItemStatusAuthoringResponse:
@@ -31250,8 +31252,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeStatus"
     WorkItemStatusMeaning:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaning"
-    WorkItemStatusCompletionBehavior:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
+    WorkItemStatusMeaningKind:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaningKind"
+    WorkItemStatusBuiltInMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusBuiltInMeaning"
+    WorkItemStatusCustomMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCustomMeaning"
     WorkItemTypeGraphCapability:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGraphCapability"
     WorkItemTypeGraphReadExpansion:

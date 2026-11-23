@@ -4831,13 +4831,38 @@ export const controllerActionRuntimeSchema = {
         statusMeaning: {
           description:
             'Effective ordinary status meaning; absent when the stored status is unresolved.',
-          type: 'string',
-          enum: ['NOT_STARTED', 'IN_PROGRESS', 'UNFINISHED', 'FINISHED'],
-        },
-        completionBehavior: {
-          description: 'Effective migrated compatibility behavior; never inferred from a name.',
-          type: 'string',
-          enum: ['COMPLETED', 'CANCELLED'],
+          oneOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              description: 'A built-in meaning the platform acts on. It carries no text.\n',
+              required: ['kind'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['COMPLETED', 'CANCELLED', 'IN_PROGRESS'],
+                },
+              },
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              description:
+                "A note in the user's own words that the platform never interprets. The text counts characters as people see them (Unicode code points), 1 to 50, and may not repeat a built-in meaning's name; choose the built-in instead.\n",
+              required: ['kind', 'text'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['CUSTOM'],
+                },
+                text: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 50,
+                },
+              },
+            },
+          ],
         },
         dueDate: {
           type: ['string', 'null'],

@@ -9,9 +9,9 @@ const recipe = {
   key: "RECIPE",
   name: "Recipe",
   statuses: [
-    { name: "Idea", meaning: "NOT_STARTED" },
-    { name: "Cooking", meaning: "IN_PROGRESS" },
-    { name: "Made", meaning: "FINISHED" },
+    { name: "Idea", meaning: { kind: "CUSTOM" as const, text: "Not started" } },
+    { name: "Cooking", meaning: { kind: "IN_PROGRESS" as const } },
+    { name: "Made", meaning: { kind: "COMPLETED" as const } },
   ],
 } as WorkItemTypeDefinitionDto;
 
@@ -33,9 +33,15 @@ describe("buildDefaultStatusTabs", () => {
     const tabs = buildDefaultStatusTabs({
       ...recipe,
       statuses: [
-        { name: "__all__", meaning: "NOT_STARTED" },
-        { name: "all", meaning: "IN_PROGRESS" },
-        { name: "Ready, pending sign-off", meaning: "FINISHED" },
+        {
+          name: "__all__",
+          meaning: { kind: "CUSTOM" as const, text: "Not started" },
+        },
+        { name: "all", meaning: { kind: "IN_PROGRESS" as const } },
+        {
+          name: "Ready, pending sign-off",
+          meaning: { kind: "COMPLETED" as const },
+        },
       ],
     } as WorkItemTypeDefinitionDto);
 

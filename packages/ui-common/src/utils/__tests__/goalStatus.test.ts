@@ -7,8 +7,6 @@ import {
 import {
   EntityType,
   WorkStatus,
-  WorkItemStatusMeaning,
-  WorkItemStatusCompletionBehavior,
   type GoalTrackedWorkSummary,
   type TrackedEntitySnapshot,
 } from "../../api";
@@ -27,15 +25,11 @@ const snapshot = (
   dueDate: overrides.dueDate,
   statusMeaning:
     overrides.statusMeaning ??
-    (overrides.status === WorkStatus.Completed ||
-    overrides.status === WorkStatus.Cancelled
-      ? WorkItemStatusMeaning.Finished
-      : undefined),
-  completionBehavior:
-    overrides.completionBehavior ??
-    (overrides.status === WorkStatus.Cancelled
-      ? WorkItemStatusCompletionBehavior.Cancelled
-      : undefined),
+    (overrides.status === WorkStatus.Completed
+      ? { kind: "COMPLETED" }
+      : overrides.status === WorkStatus.Cancelled
+        ? { kind: "CANCELLED" }
+        : undefined),
 });
 
 describe("deriveGoalStatus", () => {
@@ -293,8 +287,8 @@ describe("deriveGoalStatusFromSummary parity", () => {
 
 describe("effective tracked status meanings", () => {
   it.each([
-    ["Delivered", WorkItemStatusMeaning.Finished, GoalDerivedStatus.Done],
-    ["Ongoing", WorkItemStatusMeaning.Unfinished, GoalDerivedStatus.OnTrack],
+    ["Delivered", { kind: "COMPLETED" }, GoalDerivedStatus.Done],
+    ["Ongoing", { kind: "CUSTOM", text: "Waiting" }, GoalDerivedStatus.OnTrack],
     ["COMPLETED", undefined, GoalDerivedStatus.OnTrack],
   ])("derives %s from its meaning", (status, statusMeaning, expected) => {
     expect(

@@ -6405,9 +6405,6 @@
         "statusMeaning": {
           "$ref": "#/definitions/WorkItemStatusMeaning"
         },
-        "completionBehavior": {
-          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
-        },
         "dueDate": {
           "type": [
             "string",
@@ -6488,26 +6485,26 @@
     "WorkItemStatusMeaning": {
       "anyOf": [
         {
-          "type": "string",
-          "const": "NOT_STARTED"
+          "$ref": "#/definitions/WorkItemStatusBuiltInMeaning"
         },
         {
-          "type": "string",
-          "const": "IN_PROGRESS"
-        },
-        {
-          "type": "string",
-          "const": "UNFINISHED"
-        },
-        {
-          "type": "string",
-          "const": "FINISHED"
-        },
-        {}
-      ],
-      "description": "What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name."
+          "$ref": "#/definitions/WorkItemStatusCustomMeaning"
+        }
+      ]
     },
-    "WorkItemStatusCompletionBehavior": {
+    "WorkItemStatusBuiltInMeaning": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/WorkItemStatusBuiltInMeaningKindEnum"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "description": "A built-in meaning the platform acts on. It carries no text."
+    },
+    "WorkItemStatusBuiltInMeaningKindEnum": {
       "anyOf": [
         {
           "type": "string",
@@ -6517,9 +6514,37 @@
           "type": "string",
           "const": "CANCELLED"
         },
+        {
+          "type": "string",
+          "const": "IN_PROGRESS"
+        },
         {}
+      ]
+    },
+    "WorkItemStatusCustomMeaning": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/WorkItemStatusCustomMeaningKindEnum"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
       ],
-      "description": "Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior."
+      "description": "A note in the user\\'s own words that the platform never interprets. The text counts characters as people see them (Unicode code points), 1 to 50, and may not repeat a built-in meaning\\'s name; choose the built-in instead."
+    },
+    "WorkItemStatusCustomMeaningKindEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "CUSTOM"
+        },
+        {}
+      ]
     },
     "LocalEntityConversationInfluence": {
       "type": "object",
@@ -19116,6 +19141,13 @@
         },
         "expectedRevision": {
           "type": "number"
+        },
+        "reviewedRefinementProposalIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Pending refinements the reviewer saw and confirmed would be rejected by this cancellation. When present, cancellation is refused with a conflict if the future\\'s pending refinements differ at submission or approval, so a refinement that arrived later is never rejected unseen. Omit to cancel without a reviewed set."
         }
       },
       "required": [
@@ -21901,24 +21933,17 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "The status name, stored verbatim on items (e.g. \\\"BACKLOG\\\" for a migrated platform status, \\\"Testing\\\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED."
-        },
-        "label": {
-          "type": "string",
-          "description": "Display label when it differs from `name` (preserves the labels existing statuses have always shown, e.g. ACTIVE shows \\\"In progress\\\"). Absent means `name` is shown as written."
+          "description": "The status name, stored verbatim on items (e.g. \\\"BACKLOG\\\" for a platform status, \\\"Testing\\\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED."
         },
         "meaning": {
           "$ref": "#/definitions/WorkItemStatusMeaning"
-        },
-        "completionBehavior": {
-          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
         }
       },
       "required": [
         "name",
         "meaning"
       ],
-      "description": "One ordinary status of a work-item type. `name` is the exact value stored on items and is never rewritten by a type edit."
+      "description": "One ordinary status of a work-item type: the name the user typed plus exactly one meaning. `name` is the exact value stored on items, shown as written everywhere, and never rewritten by a type edit."
     },
     "WorkItemTypeEdgeTarget": {
       "type": "object",
@@ -24207,11 +24232,18 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "targetRunId": {
               "type": "string",
               "description": "Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority."
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ChangeWalkthroughPart"
+              },
+              "description": "Parts of the system the changes touch. Optional so reports saved before this field still validate."
             },
             "groups": {
               "type": "array",
@@ -24332,7 +24364,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24351,7 +24383,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24384,7 +24416,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24412,7 +24444,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24431,7 +24463,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "caseInputId": {
               "type": "string",
@@ -24578,7 +24610,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "score": {
               "type": "number"
@@ -24609,7 +24641,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "evalId": {
               "type": "string"
@@ -24734,7 +24766,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24774,7 +24806,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24807,7 +24839,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24832,7 +24864,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24857,7 +24889,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24875,7 +24907,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24901,7 +24933,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24950,7 +24982,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24979,7 +25011,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25010,7 +25042,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25063,7 +25095,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25139,7 +25171,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25157,7 +25189,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -25207,7 +25239,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25248,7 +25280,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25269,7 +25301,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "text": {
               "type": "string"
@@ -25290,7 +25322,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25313,7 +25345,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25322,6 +25354,47 @@
             "validationSteps"
           ]
         }
+      ]
+    },
+    "ChangeWalkthroughPart": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The part\\'s name as it appears in the code."
+        },
+        "role": {
+          "type": "string",
+          "description": "What the part does in the product."
+        },
+        "relations": {
+          "type": "string",
+          "description": "How the part relates to the other listed parts."
+        },
+        "diagramElementRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChangeWalkthroughDiagramElementRef"
+          },
+          "description": "Diagram Elements the part belongs to, set only when a recorded project link (the originating task, the part\\'s Service or Contracts, Contract participation, or FULFILLED_BY) leads to the element. Empty when no link exists; never guessed from names. Elements that no longer resolve are omitted when the report is shown."
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "relations"
+      ],
+      "description": "A part of the system the walkthrough\\'s changes touch, with its role and how it relates to other listed parts."
+    },
+    "ChangeWalkthroughDiagramElementRef": {
+      "type": "object",
+      "properties": {
+        "diagramElementId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "diagramElementId"
       ]
     },
     "ChangeWalkthroughGroup": {

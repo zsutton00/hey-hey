@@ -5,7 +5,10 @@ import {
   writtenAgentSettableStatuses,
 } from '../work-item-type-registry.service';
 import type { WorkItemTypeDefinitionDto } from '@hey-hey/contracts/api/models';
-import { resolveWorkItemStatusAuthoring } from '../work-item-status-inference';
+import {
+  resolveWorkItemStatusAuthoring,
+  statusAuthoringRequestSchema,
+} from '../work-item-status-inference';
 
 const recipe = {
   key: 'recipe',
@@ -13,10 +16,10 @@ const recipe = {
   role: 'project-info',
   sections: [],
   statuses: [
-    { name: 'Idea', meaning: 'NOT_STARTED' },
-    { name: 'Testing', meaning: 'IN_PROGRESS' },
-    { name: 'Made', meaning: 'FINISHED' },
-    { name: 'Rejected', meaning: 'FINISHED' },
+    { name: 'Idea', meaning: { kind: 'CUSTOM' as const, text: 'Not started' } },
+    { name: 'Testing', meaning: { kind: 'IN_PROGRESS' as const } },
+    { name: 'Made', meaning: { kind: 'COMPLETED' as const } },
+    { name: 'Rejected', meaning: { kind: 'COMPLETED' as const } },
   ],
 } satisfies WorkItemTypeDefinitionDto;
 
@@ -54,7 +57,9 @@ describe('effective custom status rules', () => {
   it('supports ongoing types without a finished status', () => {
     const ongoing = {
       ...recipe,
-      statuses: [{ name: 'Maintained', meaning: 'IN_PROGRESS' }],
+      statuses: [
+        { name: 'Maintained', meaning: { kind: 'IN_PROGRESS' as const } },
+      ],
     } satisfies WorkItemTypeDefinitionDto;
 
     expect(deriveRules(ongoing).statuses).toEqual(ongoing.statuses);
@@ -65,7 +70,12 @@ describe('agent-settable statuses', () => {
   it('derives rules without rejecting stale names; write paths own that check', () => {
     const renamed = {
       ...recipe,
-      statuses: [{ name: 'Drafting', meaning: 'NOT_STARTED' as const }],
+      statuses: [
+        {
+          name: 'Drafting',
+          meaning: { kind: 'CUSTOM' as const, text: 'Not started' } as const,
+        },
+      ],
     } satisfies WorkItemTypeDefinitionDto;
 
     expect(
@@ -82,50 +92,86 @@ describe('agent-settable statuses', () => {
 });
 
 describe('status definitions at the authoring boundary', () => {
-  it('rejects finishedNames that name a known status and leaves other new names unfinished', () => {
+  it('offers standard meanings only when statuses are omitted', () => {
+    const result = resolveWorkItemStatusAuthoring({ purpose: 'Work' });
+    expect(result.statuses).toContainEqual({
+      name: 'COMPLETED',
+      meaning: { kind: 'COMPLETED' },
+    });
+
     expect(() =>
       resolveWorkItemStatusAuthoring({
         purpose: 'Work',
-        names: ['Backlog', 'Shipped'],
-        finishedNames: ['Backlog'],
+        statuses: [{ name: 'completed' }],
       }),
-    ).toThrow(/Backlog/);
-
-    expect(
-      resolveWorkItemStatusAuthoring({
-        purpose: 'Work',
-        names: ['Backlog', 'Shipped', 'Parked'],
-        finishedNames: ['Shipped'],
-      }).statuses,
-    ).toEqual([
-      { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
-      { name: 'Shipped', meaning: 'FINISHED' },
-      { name: 'Parked', meaning: 'UNFINISHED' },
-    ]);
+    ).toThrow(/Statuses without one: completed/);
   });
 
-  it('matches standard status names regardless of case', () => {
+  it('keeps the meaning the author wrote, even on a standard name', () => {
     expect(
       resolveWorkItemStatusAuthoring({
         purpose: 'Work',
-        names: ['backlog', 'In Progress', 'on-hold', 'COMPLETED'],
+        statuses: [
+          { name: 'BACKLOG', meaning: { kind: 'COMPLETED' as const } },
+        ],
       }).statuses,
-    ).toEqual([
-      { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
-      { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' },
-      { name: 'ON_HOLD', label: 'On Hold', meaning: 'UNFINISHED' },
-      {
-        name: 'COMPLETED',
-        label: 'Completed',
-        meaning: 'FINISHED',
-        completionBehavior: 'COMPLETED',
-      },
-    ]);
+    ).toEqual([{ name: 'BACKLOG', meaning: { kind: 'COMPLETED' as const } }]);
+  });
+
+  it('rejects statuses without a meaning, naming each and the fix', () => {
+    const rejection = () =>
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        statuses: [
+          { name: 'Considering' },
+          { name: 'Applied', meaning: { kind: 'IN_PROGRESS' as const } },
+          { name: 'Rejected' },
+        ],
+      });
+
+    expect(rejection).toThrow(/Considering, Rejected/);
+    expect(rejection).toThrow(/Completed, Cancelled, In progress or Custom/);
+  });
+
+  it.each([
+    [
+      'a built-in name as custom text',
+      { kind: 'CUSTOM' as const, text: ' iN PrOgReSs ' },
+    ],
+    ['empty custom text', { kind: 'CUSTOM' as const, text: '' }],
+    ['missing custom text', { kind: 'CUSTOM' as const }],
+    [
+      'custom text over 50 characters',
+      { kind: 'CUSTOM' as const, text: '🚀'.repeat(51) },
+    ],
+    [
+      'text on a built-in meaning',
+      { kind: 'COMPLETED' as const, text: 'Done' },
+    ],
+  ])('rejects %s', (_name, meaning) => {
+    expect(
+      statusAuthoringRequestSchema.safeParse({
+        purpose: 'Work',
+        statuses: [{ name: 'Idea', meaning }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts custom text of exactly 50 characters', () => {
+    const text = '🚀'.repeat(50);
+
+    expect(
+      resolveWorkItemStatusAuthoring({
+        purpose: 'Work',
+        statuses: [
+          { name: 'Idea', meaning: { kind: 'CUSTOM' as const, text } },
+        ],
+      }).statuses,
+    ).toEqual([{ name: 'Idea', meaning: { kind: 'CUSTOM' as const, text } }]);
   });
 
   it('offers the same standard statuses regardless of purpose', () => {
     const result = resolveWorkItemStatusAuthoring({ purpose: 'Recipe' });
-    expect(result.state).toBe('RESOLVED');
     expect(result.suggestions).toEqual([
       'BACKLOG',
       'REFINING',
@@ -142,67 +188,22 @@ describe('status definitions at the authoring boundary', () => {
     ).toEqual(result.suggestions);
     expect(result.statuses).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          name: 'ACTIVE',
-          label: 'In progress',
-          meaning: 'IN_PROGRESS',
-        }),
-        expect.objectContaining({
-          name: 'CANCELLED',
-          meaning: 'FINISHED',
-          completionBehavior: 'CANCELLED',
-        }),
+        { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' as const } },
+        { name: 'CANCELLED', meaning: { kind: 'CANCELLED' as const } },
       ]),
     );
-  });
-
-  it('asks about non-standard names instead of guessing from words', () => {
-    const input = { purpose: 'Work', names: ['Backlog', 'Done', 'Made'] };
-    expect(resolveWorkItemStatusAuthoring(input).state).toBe('CLARIFICATION');
-    expect(
-      resolveWorkItemStatusAuthoring({ ...input, finishedNames: ['Made'] })
-        .statuses,
-    ).toEqual([
-      expect.objectContaining({ name: 'BACKLOG', meaning: 'NOT_STARTED' }),
-      { name: 'Done', meaning: 'UNFINISHED' },
-      { name: 'Made', meaning: 'FINISHED' },
-    ]);
-  });
-
-  it('keeps existing statuses when no names are passed', () => {
-    const existingStatuses = [
-      { name: 'Draft', meaning: 'NOT_STARTED' as const },
-      { name: 'Shipped', meaning: 'FINISHED' as const },
-    ];
-    expect(
-      resolveWorkItemStatusAuthoring({ purpose: 'Work', existingStatuses })
-        .statuses,
-    ).toEqual(existingStatuses);
-  });
-
-  it('preserves authored meanings and completion metadata when editing', () => {
-    const existingStatuses = [
-      { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' as const },
-      {
-        name: 'CANCELLED',
-        meaning: 'FINISHED' as const,
-        completionBehavior: 'CANCELLED' as const,
-      },
-      { name: 'BLOCKED', meaning: 'UNFINISHED' as const },
-    ];
-    expect(
-      resolveWorkItemStatusAuthoring({
-        purpose: 'Work',
-        names: existingStatuses.map((status) => status.name),
-        existingStatuses,
-      }).statuses,
-    ).toEqual(existingStatuses);
   });
 
   it('rejects whitespace, reserved names and duplicate names', () => {
     for (const names of [[' '], [' Archived '], ['Idea', ' idea ']]) {
       expect(() =>
-        resolveWorkItemStatusAuthoring({ purpose: 'Recipe', names }),
+        resolveWorkItemStatusAuthoring({
+          purpose: 'Recipe',
+          statuses: names.map((name) => ({
+            name,
+            meaning: { kind: 'IN_PROGRESS' as const },
+          })),
+        }),
       ).toThrow();
     }
   });
@@ -217,7 +218,9 @@ describe('status definitions at the authoring boundary', () => {
     'rejects reserved ordinary status %s',
     (name) => {
       expect(() =>
-        workItemTypeStatusesSchema.parse([{ name, meaning: 'UNFINISHED' }]),
+        workItemTypeStatusesSchema.parse([
+          { name, meaning: { kind: 'CUSTOM' as const, text: 'Unfinished' } },
+        ]),
       ).toThrow();
     },
   );

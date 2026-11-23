@@ -71,7 +71,9 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "typeStatuses": [
       {
         "name": "IN_PROGRESS",
-        "meaning": "IN_PROGRESS"
+        "meaning": {
+          "kind": "IN_PROGRESS"
+        }
       }
     ],
     "sections": [
@@ -265,7 +267,9 @@ The CLI loaded and boundary-validated this purpose-shaped projection immediately
     "typeStatuses": [
       {
         "name": "IN_PROGRESS",
-        "meaning": "IN_PROGRESS"
+        "meaning": {
+          "kind": "IN_PROGRESS"
+        }
       }
     ],
     "sections": [

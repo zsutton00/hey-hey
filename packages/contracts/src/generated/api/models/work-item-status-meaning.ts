@@ -14,26 +14,16 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemStatusBuiltInMeaning } from './work-item-status-built-in-meaning.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { WorkItemStatusCustomMeaning } from './work-item-status-custom-meaning.js';
 
 /**
- * What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name.
+ * @type WorkItemStatusMeaning
+ * The one meaning of an ordinary status: a built-in meaning (COMPLETED, CANCELLED, IN_PROGRESS) or a CUSTOM note. The platform acts only on the built-ins. Goal progress and active filters read this, never the status name.
  * @export
- * @enum {string}
  */
-
-export const WorkItemStatusMeaning = {
-    NotStarted: 'NOT_STARTED',
-    InProgress: 'IN_PROGRESS',
-    Unfinished: 'UNFINISHED',
-    Finished: 'FINISHED',
-    "NOT_STARTED": "NOT_STARTED",
-    "IN_PROGRESS": "IN_PROGRESS",
-    "UNFINISHED": "UNFINISHED",
-    "FINISHED": "FINISHED",
-} as const;
-Object.defineProperty(WorkItemStatusMeaning, "NOT_STARTED", { enumerable: false, value: WorkItemStatusMeaning["NotStarted"] });
-Object.defineProperty(WorkItemStatusMeaning, "IN_PROGRESS", { enumerable: false, value: WorkItemStatusMeaning["InProgress"] });
-Object.defineProperty(WorkItemStatusMeaning, "UNFINISHED", { enumerable: false, value: WorkItemStatusMeaning["Unfinished"] });
-Object.defineProperty(WorkItemStatusMeaning, "FINISHED", { enumerable: false, value: WorkItemStatusMeaning["Finished"] });
-
-export type WorkItemStatusMeaning = typeof WorkItemStatusMeaning[keyof typeof WorkItemStatusMeaning];
+export type WorkItemStatusMeaning = WorkItemStatusBuiltInMeaning | WorkItemStatusCustomMeaning;

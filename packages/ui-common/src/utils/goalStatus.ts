@@ -71,20 +71,13 @@ export const deriveGoalStatus = (
 
   if (
     tracked.length > 0 &&
-    tracked.every(
-      (entity) =>
-        entity.statusMeaning === "FINISHED" &&
-        entity.completionBehavior !== "CANCELLED",
-    )
+    tracked.every((entity) => entity.statusMeaning?.kind === "COMPLETED")
   ) {
     return GoalDerivedStatus.Done;
   }
 
   for (const entity of tracked) {
-    if (
-      entity.statusMeaning === "FINISHED" &&
-      entity.completionBehavior !== "CANCELLED"
-    ) {
+    if (entity.statusMeaning?.kind === "COMPLETED") {
       continue;
     }
 
@@ -95,8 +88,7 @@ export const deriveGoalStatus = (
 
     if (
       entity.targetEntityType === EntityType.Task &&
-      entity.statusMeaning === "FINISHED" &&
-      entity.completionBehavior === "CANCELLED"
+      entity.statusMeaning?.kind === "CANCELLED"
     ) {
       return GoalDerivedStatus.AtRisk;
     }

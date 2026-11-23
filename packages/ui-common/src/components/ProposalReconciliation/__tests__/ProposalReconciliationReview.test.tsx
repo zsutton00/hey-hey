@@ -57,8 +57,11 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           sections: [],
           capabilities: { supportsSupersession: true },
           statuses: [
-            { name: "BACKLOG", label: "Backlog", meaning: "NOT_STARTED" },
-            { name: "QA", label: "QA", meaning: "IN_PROGRESS" },
+            {
+              name: "BACKLOG",
+              meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+            },
+            { name: "QA", meaning: { kind: "IN_PROGRESS" as const } },
           ],
         },
       },
@@ -1086,7 +1089,7 @@ describe("same-page staged recovery", () => {
     const options = within(screen.getByRole("listbox"))
       .getAllByRole("option")
       .map((option) => option.textContent);
-    expect(options).toEqual(["Backlog", "QA", "Archived"]);
+    expect(options).toEqual(["BACKLOG", "QA", "Archived"]);
   });
   it("replaces the conflict review with the editor and restores it on Cancel", async () => {
     mount(conflict);

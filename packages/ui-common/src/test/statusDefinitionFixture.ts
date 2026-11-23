@@ -17,8 +17,7 @@ export const statusDefinition = (
       .filter((name) => name !== "ARCHIVED" && name !== "SUPERSEDED")
       .map((name) => ({
         name,
-        label: getStatusLabel(name),
-        meaning: "NOT_STARTED",
+        meaning: { kind: "CUSTOM" as const, text: getStatusLabel(name) },
       })),
     capabilities: { supportsSupersession: names.includes("SUPERSEDED") },
     ...overrides,

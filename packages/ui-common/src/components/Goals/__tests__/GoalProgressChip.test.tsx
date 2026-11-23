@@ -2,7 +2,7 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { GoalProgressChip } from "../GoalProgressChip";
-import { WorkItemStatusMeaning, WorkStatus } from "../../../api";
+import { WorkStatus } from "../../../api";
 
 const NOW = new Date("2026-10-08T12:00:00.000Z");
 
@@ -40,7 +40,7 @@ describe("GoalProgressChip", () => {
               targetEntityType: "TASK",
               title: "Done",
               status: WorkStatus.Completed,
-              statusMeaning: WorkItemStatusMeaning.Finished,
+              statusMeaning: { kind: "COMPLETED" },
             },
           ],
         }}

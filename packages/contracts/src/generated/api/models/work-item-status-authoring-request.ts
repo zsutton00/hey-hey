@@ -16,7 +16,7 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { WorkItemTypeStatus } from './work-item-type-status.js';
+import type { WorkItemStatusAuthoringInput } from './work-item-status-authoring-input.js';
 
 /**
  *
@@ -31,21 +31,9 @@ export interface WorkItemStatusAuthoringRequest {
      */
     'purpose': string;
     /**
-     * Ordered ordinary names. Omit to request suggestions.
-     * @type {Array<string>}
+     * Ordered statuses to validate; every one must carry its meaning. Omit the list to receive the standard statuses.
+     * @type {Array<WorkItemStatusAuthoringInput>}
      * @memberof WorkItemStatusAuthoringRequest
      */
-    'names'?: Array<string>;
-    /**
-     * Existing resolved statuses whose meanings and labels should be preserved.
-     * @type {Array<WorkItemTypeStatus>}
-     * @memberof WorkItemStatusAuthoringRequest
-     */
-    'existingStatuses'?: Array<WorkItemTypeStatus>;
-    /**
-     * Explicit selection of finished statuses; an empty array means none.
-     * @type {Array<string>}
-     * @memberof WorkItemStatusAuthoringRequest
-     */
-    'finishedNames'?: Array<string>;
+    'statuses'?: Array<WorkItemStatusAuthoringInput>;
 }

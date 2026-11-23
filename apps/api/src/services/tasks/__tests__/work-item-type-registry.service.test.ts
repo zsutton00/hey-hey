@@ -1529,8 +1529,11 @@ describe('WorkItemTypeRegistryService', () => {
       const stale = buildProjectOwnedRow(key, 'stale-project', {
         name: 'Renamed Statuses',
         statuses: [
-          { name: 'Drafting', label: 'Drafting', meaning: 'NOT_STARTED' },
-          { name: 'Published', label: 'Published', meaning: 'FINISHED' },
+          {
+            name: 'Drafting',
+            meaning: { kind: 'CUSTOM' as const, text: 'Drafting' },
+          },
+          { name: 'Published', meaning: { kind: 'COMPLETED' as const } },
         ] as unknown as WorkItemType['statuses'],
         agentSettableStatuses: [
           'Draft',
@@ -2844,8 +2847,11 @@ describe('WorkItemTypeRegistryService', () => {
         role: 'project-info',
         sections: [],
         statuses: [
-          { name: ' Idea', meaning: 'NOT_STARTED' },
-          { name: 'Testing  ', meaning: 'IN_PROGRESS' },
+          {
+            name: ' Idea',
+            meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+          },
+          { name: 'Testing  ', meaning: { kind: 'IN_PROGRESS' as const } },
         ],
       } satisfies WorkItemTypeDefinitionDto;
       const { registry } = buildRegistry([]);
@@ -2896,10 +2902,13 @@ describe('WorkItemTypeRegistryService', () => {
         role: 'project-info',
         sections: [],
         statuses: [
-          { name: 'Idea', meaning: 'NOT_STARTED' },
-          { name: 'Testing', meaning: 'IN_PROGRESS' },
-          { name: 'Made', meaning: 'FINISHED' },
-          { name: 'Rejected', meaning: 'FINISHED' },
+          {
+            name: 'Idea',
+            meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+          },
+          { name: 'Testing', meaning: { kind: 'IN_PROGRESS' as const } },
+          { name: 'Made', meaning: { kind: 'COMPLETED' as const } },
+          { name: 'Rejected', meaning: { kind: 'COMPLETED' as const } },
         ],
       } satisfies WorkItemTypeDefinitionDto;
       const { registry } = buildRegistry([]);
@@ -3270,7 +3279,12 @@ describe('WorkItemTypeRegistryService', () => {
         'MARKETING',
         {
           ...editedDefinition,
-          statuses: [{ name: 'Idea', meaning: 'NOT_STARTED' }],
+          statuses: [
+            {
+              name: 'Idea',
+              meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+            },
+          ],
         },
         PROJECT,
         ORG,
@@ -3278,7 +3292,12 @@ describe('WorkItemTypeRegistryService', () => {
       expect(updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            statuses: [{ name: 'Idea', meaning: 'NOT_STARTED' }],
+            statuses: [
+              {
+                name: 'Idea',
+                meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+              },
+            ],
           }),
         }),
       );
