@@ -150,7 +150,6 @@ export function TaskMonitorRuntimeGroup({
   return (
     <Stack
       spacing={1}
-      sx={{ px: 2, pb: 1 }}
       data-testid={testId}
       onClickCapture={() => {
         userTouchedRef.current = true;

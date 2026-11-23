@@ -90,7 +90,7 @@ const PROVIDER_VISUALS: Record<
   },
 };
 
-const EFFORT_LABELS: Record<
+export const EFFORT_LABELS: Record<
   ConversationStartRunRequestDtoReasoningEffortEnum,
   string
 > = {

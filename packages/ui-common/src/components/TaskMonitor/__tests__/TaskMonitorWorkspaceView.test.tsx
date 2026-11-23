@@ -1384,6 +1384,28 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     }),
     startedNode,
   ];
+  const withService = (
+    node: TaskMonitorProjectedNode,
+  ): TaskMonitorProjectedNode =>
+    node.task.kind === "loaded"
+      ? {
+          ...node,
+          task: {
+            kind: "loaded",
+            task: {
+              ...node.task.task,
+              serviceRelations: [
+                {
+                  id: `relation-${node.taskId}`,
+                  serviceId: "service-1",
+                  taskId: node.taskId,
+                  createdAt: "2026-11-01T00:00:00.000Z",
+                },
+              ],
+            },
+          },
+        }
+      : node;
 
   beforeEach(() => {
     setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
@@ -1628,9 +1650,9 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     });
 
     expect(screen.getByTestId("task-monitor-apply-unstarted")).toBeVisible();
-    // The monitor-wide setup stays read-only once started.
+    // Guidance is sent with Start, so it is gone once started.
     expect(
-      screen.queryByTestId("task-monitor-prestart-settings"),
+      screen.queryByTestId("task-monitor-start-message"),
     ).not.toBeInTheDocument();
     rerender(
       workspaceElement({
@@ -1645,24 +1667,12 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("saves Review mode and the worktree before Start, and blocks Start while a task has no Service", async () => {
+  it("saves Review mode before Start, and blocks both Starts while a task has no Service", async () => {
     const onSaveLaunchPolicy = vi.fn().mockResolvedValue(undefined);
-    const onChangeServices = vi.fn();
     renderWorkspace({
       monitorStatus: WorkStatus.Backlog,
-      nodes: mixedNodes,
+      nodes: [withService(mixedNodes[0]), mixedNodes[1], startedNode],
       onSaveLaunchPolicy,
-      taskServices: {
-        ...noMissingServices,
-        tasksMissingServices: [
-          {
-            taskId: mixedNodes[0]?.taskId ?? "",
-            label: "Task 1",
-            serviceIds: [],
-          },
-        ],
-        onChange: onChangeServices,
-      },
     });
     const user = userEvent.setup();
 
@@ -1671,12 +1681,66 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
       terminalSupervision: { mode: TaskMonitorReviewMode.RequireReview },
     });
 
+    const missing = screen.getAllByTestId("task-monitor-task-missing-service");
+    expect(missing.map((row) => row.dataset.taskId)).toEqual([
+      mixedNodes[1].taskId,
+    ]);
     expect(
-      screen.getByTestId("task-monitor-missing-services"),
-    ).toHaveTextContent("Task 1");
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toHaveTextContent("Not ready to start");
+    expect(
+      screen.getByTestId("task-monitor-start-blocked-reason"),
+    ).toHaveTextContent("2. Task 2");
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeDisabled();
+  });
+
+  it("blocks both Starts while a selected task's details failed to load", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [
+        withService(mixedNodes[0]),
+        {
+          ...mixedNodes[1],
+          task: { kind: "missing" },
+          visualStatus: "errored",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-start-blocked-reason"),
+    ).toHaveAttribute("data-reason", "unloaded");
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeDisabled();
+  });
+
+  it("keeps the Service block while the monitor has not started, even when Start is not otherwise ready", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      startPresentation: { status: "active" },
+      nodes: [mixedNodes[0]],
+    });
+
     expect(lifecycleButton("Start")).toBeDisabled();
     expect(
-      screen.getByTestId("task-monitor-start-message"),
-    ).toBeInTheDocument();
+      screen.getByTestId("task-monitor-task-missing-service"),
+    ).toBeVisible();
+  });
+
+  it("enables both Starts once every unstarted task has its own Service", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [withService(mixedNodes[0]), withService(mixedNodes[1])],
+    });
+
+    expect(
+      screen.queryByTestId("task-monitor-task-missing-service"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toHaveTextContent("Ready to start");
+    expect(lifecycleButton("Start")).toBeEnabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeEnabled();
   });
 });

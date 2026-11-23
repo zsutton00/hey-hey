@@ -60,12 +60,16 @@ describe("TaskMonitorStepsPane", () => {
         projectId="project-1"
         selectedTaskId={secondTaskId}
         onSelectTask={vi.fn()}
-      />
+        taskSetup={null}
+        header={null}
+      />,
     );
 
     expect(screen.getByLabelText("Step 1")).toHaveTextContent("1");
     expect(screen.getByLabelText("Step 2")).toHaveTextContent("2");
-    for (const stepNumber of screen.getAllByTestId("task-monitor-step-number")) {
+    for (const stepNumber of screen.getAllByTestId(
+      "task-monitor-step-number",
+    )) {
       expect(stepNumber).toHaveStyle({
         position: "absolute",
         top: "-10px",
@@ -90,7 +94,9 @@ describe("TaskMonitorStepsPane", () => {
         projectId="project-1"
         selectedTaskId={secondTaskId}
         onSelectTask={onSelectTask}
-      />
+        taskSetup={null}
+        header={null}
+      />,
     );
 
     await user.click(screen.getByText("Prepare release"));

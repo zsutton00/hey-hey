@@ -1,7 +1,7 @@
 import { MenuItem } from "@mui/material";
 import type { TaskMonitorLaunchMethod } from "../../api";
 
-const LAUNCH_METHOD_LABELS: Record<TaskMonitorLaunchMethod, string> = {
+export const LAUNCH_METHOD_LABELS: Record<TaskMonitorLaunchMethod, string> = {
   plan: "Plan",
   open: "Open",
   quick: "Quick",

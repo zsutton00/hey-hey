@@ -40,7 +40,7 @@ function disabledReason({
     return "Waiting for the monitor to confirm the command.";
   }
   if (controlsDisabled) {
-    return "Select a machine and add tasks before starting.";
+    return "Not ready to start. The Task Monitor pane says what is missing.";
   }
   if (!advertised) {
     return "The monitor is not offering this action right now.";
@@ -48,23 +48,51 @@ function disabledReason({
   return undefined;
 }
 
-function RegisteredLifecycleButton({
-  monitorId,
+export type TaskMonitorLifecycleButtonInput = Pick<
+  Props,
+  | "availability"
+  | "pendingLifecycleAction"
+  | "startPresentation"
+  | "binding"
+  | "controlsDisabled"
+>;
+
+/**
+ * Whether the lifecycle button shows Pause or Start and whether it can be
+ * pressed. Every Start button in the workspace reads this one answer, so they
+ * can never disagree.
+ */
+export function resolveTaskMonitorLifecycleButton({
   availability,
   pendingLifecycleAction,
   startPresentation,
   binding,
   controlsDisabled,
-  onStart,
-  onPause,
-}: Props) {
+}: TaskMonitorLifecycleButtonInput) {
   const pausing = availability.showsPause;
   const advertised = pausing ? availability.pause : availability.start;
   const pending =
     binding ||
     startPresentation.status === "starting" ||
     pendingLifecycleAction !== null;
-  const disabled = !advertised || controlsDisabled || pending;
+
+  return {
+    pausing,
+    advertised,
+    pending,
+    disabled: !advertised || controlsDisabled || pending,
+  };
+}
+
+function RegisteredLifecycleButton({
+  monitorId,
+  onStart,
+  onPause,
+  ...input
+}: Props) {
+  const { pausing, advertised, pending, disabled } =
+    resolveTaskMonitorLifecycleButton(input);
+  const { controlsDisabled } = input;
   const label = pausing ? "Pause" : "Start";
   const handleClick = useCallback(() => {
     if (pausing) {
