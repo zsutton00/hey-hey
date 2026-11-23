@@ -397,13 +397,38 @@ describe("TaskMonitorWorkspaceView", () => {
     }));
   });
 
-  it("shows Review mode read-only and offers no setup selection after Start", () => {
+  it("answers a judgment from the machine the monitor was started on, with none picked", async () => {
+    const submit = vi.fn();
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(() => ({
+      uiElements: [],
+      disabled: false,
+      isSubmitted: false,
+      submit,
+    }));
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      session: {
+        ...createSession(),
+        conversationId: "coordinator-conversation",
+        machineId: "bound-machine",
+      },
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ selectedMachineId: null });
+
+    expect(useTaskMonitorConversationFormResolverMock).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedMachineId: "bound-machine" }),
+    );
+  });
+
+  it("shows only the session in a started monitor, with no settings", () => {
     renderWorkspace();
 
-    const reviewMode = screen.getByTestId("task-monitor-review-mode");
-    for (const option of within(reviewMode).getAllByRole("radio")) {
-      expect(option).toBeDisabled();
-    }
+    expect(screen.queryByText("Task Monitor settings")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("task-monitor-review-mode"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("task-monitor-prestart-settings"),
     ).not.toBeInTheDocument();
@@ -991,6 +1016,31 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(screen.getByTestId("workspace-draft")).toBe(draft);
     expect(draft).toHaveValue("Preserve this discussion");
   });
+
+  it("opens a started monitor with a pending judgment on the conversation, not setup", () => {
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(() => ({
+      uiElements: [],
+      disabled: false,
+      isSubmitted: false,
+      submit: vi.fn(),
+    }));
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      session: {
+        ...createSession(),
+        conversationId: "coordinator-conversation",
+      },
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ executionState: retainedState("attention") });
+    clickPane("monitor");
+
+    const pane = screen.getByTestId("task-monitor-coordinator-pane");
+    expect(within(pane).queryByText("Task Monitor settings")).toBeNull();
+    expect(within(pane).getByTestId("workspace-draft")).toBeInTheDocument();
+    expect(captureFormResolver).toHaveBeenCalled();
+  });
   describe("pane control", () => {
     const unlinked = { ...selectedNode, session: { kind: "none" as const } };
     const gridColumns = () =>
@@ -1401,20 +1451,6 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     await waitFor(() => expect(onSaveReviewRuntime).toHaveBeenCalledWith(null));
   });
 
-  it("shows the saved Review runtime read-only after Start", () => {
-    renderWorkspace({
-      definition: reviewDefinition(savedRuntime),
-      monitorStatus: WorkStatus.Active,
-    });
-
-    expect(
-      screen.getByTestId("task-monitor-review-runtime-readonly"),
-    ).toHaveTextContent(savedRuntime.model);
-    expect(
-      screen.queryByTestId("task-monitor-review-runtime-clear"),
-    ).not.toBeInTheDocument();
-  });
-
   const chooseEffort = async (effort: string) => {
     const user = userEvent.setup();
     const group = screen.getByTestId("task-monitor-coordinator-runtime");
@@ -1522,27 +1558,6 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
       (row) => row.provider === "claude",
     )?.models[0];
     expect(input).toHaveValue(claudeModel?.label);
-  });
-
-  it("shows the saved choice read-only after Start", () => {
-    renderWorkspace({
-      definition: {
-        ...createTaskMonitorDefinition(),
-        coordinatorRuntime: savedRuntime,
-      },
-      monitorStatus: WorkStatus.Active,
-      startPresentation: { status: "active" },
-    });
-
-    const group = screen.getByTestId("task-monitor-coordinator-runtime");
-    expect(
-      within(group).getByTestId("task-monitor-coordinator-runtime-readonly"),
-    ).toHaveTextContent("claude · claude-sonnet-5-5 · medium");
-    expect(
-      within(group).queryByTestId(
-        "task-monitor-coordinator-runtime-runtime-model-input",
-      ),
-    ).not.toBeInTheDocument();
   });
 });
 

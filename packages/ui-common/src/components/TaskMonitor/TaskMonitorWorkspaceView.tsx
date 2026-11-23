@@ -156,7 +156,7 @@ export const TaskMonitorWorkspaceView = ({
   operationalErrorMessage,
   commandOutcome,
   machines,
-  selectedMachineId,
+  selectedMachineId: pickedMachineId,
   onSelectMachine,
   onStart,
   onPause,
@@ -325,6 +325,10 @@ export const TaskMonitorWorkspaceView = ({
     monitorId,
     sessionDate: monitorSessionDate,
   });
+  // A started monitor already runs on the machine its coordinator session was
+  // bound to; the picker only decides where a monitor that has not started goes.
+  const selectedMachineId =
+    monitorActivity.session?.machineId ?? pickedMachineId;
   const conversationFormResolver = useTaskMonitorConversationFormResolver({
     organizationId,
     projectId,
@@ -465,6 +469,148 @@ export const TaskMonitorWorkspaceView = ({
     worktreeBranch,
     worktreeBranchPending,
   });
+  const settingsContent = (
+    <>
+      <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
+        Task Monitor settings
+      </Typography>
+      <Stack spacing={1.5} sx={{ px: 2, py: 1 }}>
+        <TaskMonitorSettingsSection
+          title="Task Monitor"
+          explanation="The agent that supervises this run. It starts each task's session in order, decides when work needs review and when a task is done, and answers or raises questions from the sessions."
+          testId="task-monitor-agent-section"
+        >
+          <TaskMonitorRuntimeGroup
+            label="Runs on"
+            testId="task-monitor-coordinator-runtime"
+            value={definition.coordinatorRuntime ?? null}
+            catalogSource={catalogSource}
+            editable={isPreStart}
+            isSaving={isSavingLaunchConfiguration}
+            onSave={onSaveCoordinatorRuntime}
+            onBusyChange={setIsSavingCoordinatorRuntime}
+            defaultLabel="Default (provider default model and effort)"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Only the supervising agent. Each task&apos;s session is set on its
+            card.
+          </Typography>
+        </TaskMonitorSettingsSection>
+        <TaskMonitorSettingsSection
+          title="Machine"
+          explanation="Where the task sessions run."
+          testId="task-monitor-machine-section"
+        >
+          {machines.length > 0 ? (
+            <Stack spacing={0.5} data-testid="task-monitor-session-machine">
+              <Typography variant="overline" color="text.secondary">
+                Sessions run on
+              </Typography>
+              <MachinePicker
+                machines={machines}
+                selectedMachineId={selectedMachineId}
+                onSelect={onSelectMachine}
+              />
+            </Stack>
+          ) : (
+            <Alert
+              severity="warning"
+              data-testid="task-monitor-machine-unavailable"
+            >
+              No paired CLI machine is available. Begin pairing locally before
+              controlling the Task Monitor.
+            </Alert>
+          )}
+          {isPreStart ? (
+            <TaskMonitorWorktreeBranchSetting
+              worktreeBranch={worktreeBranch}
+              onChangeWorktreeBranch={(branch) => {
+                const { worktree: _previous, ...launchPolicy } =
+                  definition.launchPolicy;
+                saveLaunchPolicy(
+                  branch === null
+                    ? launchPolicy
+                    : {
+                        ...launchPolicy,
+                        worktree: { enabled: true, branch },
+                      },
+                );
+              }}
+              onWorktreeBranchPendingChange={setWorktreeBranchPending}
+            />
+          ) : null}
+        </TaskMonitorSettingsSection>
+        <TaskMonitorSettingsSection
+          title="Review"
+          optional
+          explanation="Require a review of each task's work before it counts as done. With Agent decides, the Task Monitor chooses when to ask for one."
+          testId="task-monitor-review"
+        >
+          <TaskMonitorReviewModeControl
+            value={definition.launchPolicy.terminalSupervision.mode}
+            disabled={!isPreStart || isSavingLaunchConfiguration}
+            onChange={(mode) => {
+              const { terminalSupervision } = definition.launchPolicy;
+              saveLaunchPolicy({
+                ...definition.launchPolicy,
+                // A Review runtime applies only to required Review, so leaving it drops the choice.
+                terminalSupervision:
+                  mode === TaskMonitorReviewMode.RequireReview
+                    ? { ...terminalSupervision, mode }
+                    : { mode },
+              });
+            }}
+          />
+          {definition.launchPolicy.terminalSupervision.mode ===
+          TaskMonitorReviewMode.RequireReview ? (
+            <>
+              <TaskMonitorRuntimeGroup
+                label="Reviewer runs on"
+                testId="task-monitor-review-runtime"
+                value={
+                  definition.launchPolicy.terminalSupervision.reviewRuntime ??
+                  null
+                }
+                catalogSource={catalogSource}
+                editable={isPreStart}
+                isSaving={isSavingLaunchConfiguration}
+                onSave={onSaveReviewRuntime}
+                onClear={() => onSaveReviewRuntime(null)}
+                onBusyChange={setIsSavingCoordinatorRuntime}
+                defaultLabel="Each task's session"
+              />
+              {isPreStart ? (
+                <Typography variant="caption" color="text.secondary">
+                  Optional. Defaults to each task&apos;s own session; the review
+                  runs inside that session.
+                </Typography>
+              ) : null}
+            </>
+          ) : null}
+        </TaskMonitorSettingsSection>
+        {isPreStart ? (
+          <TaskMonitorSettingsSection
+            title="Guidance"
+            explanation="Instructions the Task Monitor follows for the whole run."
+            testId="task-monitor-guidance-section"
+          >
+            <TaskMonitorGuidanceSetting
+              startMessage={startMessage}
+              onChangeStartMessage={onChangeStartMessage}
+            />
+          </TaskMonitorSettingsSection>
+        ) : null}
+        {launchPolicyError ? (
+          <Alert
+            severity="error"
+            data-testid="task-monitor-launch-policy-error"
+          >
+            {launchPolicyError}
+          </Alert>
+        ) : null}
+      </Stack>
+    </>
+  );
   const controlsDisabled =
     selectedMachineId === null ||
     (setup && nodes.length === 0) ||
@@ -691,147 +837,8 @@ export const TaskMonitorWorkspaceView = ({
               overflowY: "auto",
             }}
           >
-            <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
-              Task Monitor settings
-            </Typography>
-            <Stack spacing={1.5} sx={{ px: 2, py: 1 }}>
-              <TaskMonitorSettingsSection
-                title="Task Monitor"
-                explanation="The agent that supervises this run. It starts each task's session in order, decides when work needs review and when a task is done, and answers or raises questions from the sessions."
-                testId="task-monitor-agent-section"
-              >
-                <TaskMonitorRuntimeGroup
-                  label="Runs on"
-                  testId="task-monitor-coordinator-runtime"
-                  value={definition.coordinatorRuntime ?? null}
-                  catalogSource={catalogSource}
-                  editable={isPreStart}
-                  isSaving={isSavingLaunchConfiguration}
-                  onSave={onSaveCoordinatorRuntime}
-                  onBusyChange={setIsSavingCoordinatorRuntime}
-                  defaultLabel="Default (provider default model and effort)"
-                />
-                <Typography variant="caption" color="text.secondary">
-                  Only the supervising agent. Each task&apos;s session is set on
-                  its card.
-                </Typography>
-              </TaskMonitorSettingsSection>
-              <TaskMonitorSettingsSection
-                title="Machine"
-                explanation="Where the task sessions run."
-                testId="task-monitor-machine-section"
-              >
-                {machines.length > 0 ? (
-                  <Stack
-                    spacing={0.5}
-                    data-testid="task-monitor-session-machine"
-                  >
-                    <Typography variant="overline" color="text.secondary">
-                      Sessions run on
-                    </Typography>
-                    <MachinePicker
-                      machines={machines}
-                      selectedMachineId={selectedMachineId}
-                      onSelect={onSelectMachine}
-                    />
-                  </Stack>
-                ) : (
-                  <Alert
-                    severity="warning"
-                    data-testid="task-monitor-machine-unavailable"
-                  >
-                    No paired CLI machine is available. Begin pairing locally
-                    before controlling the Task Monitor.
-                  </Alert>
-                )}
-                {isPreStart ? (
-                  <TaskMonitorWorktreeBranchSetting
-                    worktreeBranch={worktreeBranch}
-                    onChangeWorktreeBranch={(branch) => {
-                      const { worktree: _previous, ...launchPolicy } =
-                        definition.launchPolicy;
-                      saveLaunchPolicy(
-                        branch === null
-                          ? launchPolicy
-                          : {
-                              ...launchPolicy,
-                              worktree: { enabled: true, branch },
-                            },
-                      );
-                    }}
-                    onWorktreeBranchPendingChange={setWorktreeBranchPending}
-                  />
-                ) : null}
-              </TaskMonitorSettingsSection>
-              <TaskMonitorSettingsSection
-                title="Review"
-                optional
-                explanation="Require a review of each task's work before it counts as done. With Agent decides, the Task Monitor chooses when to ask for one."
-                testId="task-monitor-review"
-              >
-                <TaskMonitorReviewModeControl
-                  value={definition.launchPolicy.terminalSupervision.mode}
-                  disabled={!isPreStart || isSavingLaunchConfiguration}
-                  onChange={(mode) => {
-                    const { terminalSupervision } = definition.launchPolicy;
-                    saveLaunchPolicy({
-                      ...definition.launchPolicy,
-                      // A Review runtime applies only to required Review, so leaving it drops the choice.
-                      terminalSupervision:
-                        mode === TaskMonitorReviewMode.RequireReview
-                          ? { ...terminalSupervision, mode }
-                          : { mode },
-                    });
-                  }}
-                />
-                {definition.launchPolicy.terminalSupervision.mode ===
-                TaskMonitorReviewMode.RequireReview ? (
-                  <>
-                    <TaskMonitorRuntimeGroup
-                      label="Reviewer runs on"
-                      testId="task-monitor-review-runtime"
-                      value={
-                        definition.launchPolicy.terminalSupervision
-                          .reviewRuntime ?? null
-                      }
-                      catalogSource={catalogSource}
-                      editable={isPreStart}
-                      isSaving={isSavingLaunchConfiguration}
-                      onSave={onSaveReviewRuntime}
-                      onClear={() => onSaveReviewRuntime(null)}
-                      onBusyChange={setIsSavingCoordinatorRuntime}
-                      defaultLabel="Each task's session"
-                    />
-                    {isPreStart ? (
-                      <Typography variant="caption" color="text.secondary">
-                        Optional. Defaults to each task&apos;s own session; the
-                        review runs inside that session.
-                      </Typography>
-                    ) : null}
-                  </>
-                ) : null}
-              </TaskMonitorSettingsSection>
-              {isPreStart ? (
-                <TaskMonitorSettingsSection
-                  title="Guidance"
-                  explanation="Instructions the Task Monitor follows for the whole run."
-                  testId="task-monitor-guidance-section"
-                >
-                  <TaskMonitorGuidanceSetting
-                    startMessage={startMessage}
-                    onChangeStartMessage={onChangeStartMessage}
-                  />
-                </TaskMonitorSettingsSection>
-              ) : null}
-              {launchPolicyError ? (
-                <Alert
-                  severity="error"
-                  data-testid="task-monitor-launch-policy-error"
-                >
-                  {launchPolicyError}
-                </Alert>
-              ) : null}
-            </Stack>
+            {/* Setup belongs to the Tasks pane flow before Start; a started monitor shows only its session. */}
+            {notStarted ? settingsContent : null}
             {monitorActivity.loading ? (
               <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
                 <CircularProgress />
