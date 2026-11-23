@@ -1,13 +1,25 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { CommitHandler } from '../agents/commit/commit.handler';
+import { makeCreateReportProxy } from '../agents/submission-tools/create-report-proxy.test-support';
+import { NOOP_LOGGER } from '../server/logger';
+import { LocalAgentEndpoint } from '../server/local-base-url';
+import { ChildAgentLauncher } from './child-agent-launcher';
+import { SubagentRunner } from './runners/subagent-runner';
 import { CommitGitError } from '../agents/commit/commit-git-error';
 import { describe, expect, it, vi } from 'vitest';
 import { SessionRole } from '@hey-hey/contracts/agent-bridge';
 import {
   createTestRunEventPublisher,
+  createTestRunChangedFilesReader,
   createTestMessagePoster,
   createTestRepoMappingStore,
   createTestRunOwnership,
   createTestRunStore,
   createTestRunnerPicker,
+  createRunTestOAuthClient,
 } from './run.test-support';
 
 import type { PromptTypeHandler, PromptTypeHandlerDeps } from '../agents/prompt-type-handler';
@@ -725,6 +737,157 @@ describe('Run terminal output attention', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(order).toEqual(['message', 'message', 'ready']);
   });
+
+  it.each([false, true])(
+    'attaches the landed commit report (partial failure: %s)',
+    async (partial) => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'commit-completion-'));
+      const repo = path.join(directory, 'first');
+      const second = path.join(directory, 'second');
+      const git = (...args: string[]) =>
+        execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+      try {
+        execFileSync('git', ['init', '-b', 'main', repo]);
+        if (partial) {
+          execFileSync('git', ['init', '-b', 'main', second]);
+          const gitSecond = (...args: string[]) => execFileSync('git', args, { cwd: second });
+          gitSecond('config', 'user.name', 'Hey Hey Tests');
+          gitSecond('config', 'user.email', 'tests@example.com');
+          await writeFile(path.join(second, 'a.ts'), 'export const value = 3;\n');
+          gitSecond('add', 'a.ts');
+          gitSecond('-c', 'core.hooksPath=/dev/null', 'commit', '-m', 'initial');
+          await writeFile(path.join(second, 'a.ts'), 'export const value = 4;\n');
+          gitSecond('config', 'core.hooksPath', path.join(second, '.git', 'hooks'));
+          await writeFile(path.join(second, '.git', 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n', {
+            mode: 0o755,
+          });
+        }
+        git('config', 'user.name', 'Hey Hey Tests');
+        git('config', 'user.email', 'tests@example.com');
+        git('config', 'core.hooksPath', '/dev/null');
+        const file = path.join(repo, 'a.ts');
+        await writeFile(file, 'export const value = 1;\n');
+        git('add', 'a.ts');
+        git('commit', '-m', 'initial');
+        await writeFile(file, 'export const value = 2;\n');
+
+        const poster = makePoster();
+        const proxy = makeCreateReportProxy();
+        const handler = new CommitHandler(proxy);
+        const ownership = createTestRunOwnership(() => handler);
+        const handlerDeps = createPromptTypeHandlerTestDeps();
+        const collaborators = makeCollaborators(
+          poster,
+          (ctx) => {
+            const childAgentLauncher = new ChildAgentLauncher({
+              handlerDeps,
+              promptTypeRegistry: ownership.promptTypeRegistry,
+              submissionToolRegistry: ownership.submissionToolRegistry,
+              repoStore: createTestRepoMappingStore(),
+              oauthClient: createRunTestOAuthClient({ success: true, data: 'token' }),
+              localAgentEndpoint: new LocalAgentEndpoint(),
+              logger: NOOP_LOGGER,
+            });
+            vi.spyOn(childAgentLauncher, 'launch').mockImplementation(async ({ onAgentOutput }) => {
+              const tool = handler.submissionTools[0];
+              if (tool?.kind !== 'pass_through') {
+                throw new Error('The commit message tool is missing');
+              }
+              await tool.execute({ runId: ctx.run.runId, args: { message: 'Update a.ts' } });
+              onAgentOutput?.(assistantCompleteMessage('Draft commit message'));
+              return { assistantCompleted: true, usage: {} };
+            });
+            return new SubagentRunner(ctx, handler.subagentConfig, {
+              childAgentLauncher,
+              logger: NOOP_LOGGER,
+              runChangedFilesReader: createTestRunChangedFilesReader(
+                vi
+                  .fn()
+                  .mockResolvedValue([
+                    { repoPath: repo, filePath: 'a.ts' },
+                    ...(partial ? [{ repoPath: second, filePath: 'a.ts' }] : []),
+                  ]),
+              ),
+            });
+          },
+          handlerDeps,
+          handler,
+        );
+        const session = makeSession({
+          services: [
+            { id: 'svc-1', path: repo },
+            ...(partial ? [{ id: 'svc-2', path: second }] : []),
+          ],
+          entity: { entityType: 'TASK', entityId: 'task-1' },
+          promptType: 'commit',
+        });
+        await collaborators.runStore.initialize();
+        await collaborators.runStore.createRun({
+          agentic_session_id: session.agentic_session_id,
+          entity: session.entity,
+          services: session.services,
+          launchServiceId: 'svc-1',
+          provider: 'claude',
+          provider_session_id: 'prov-1',
+          conversationId: session.conversationId,
+          contextMetadata: session.contextMetadata,
+        });
+        const run = new Run(makeRunArgs({ session }), collaborators);
+        vi.spyOn(run, 'getFileChangeProjection').mockReturnValue([
+          { serviceId: 'svc-1', repoRelativePath: 'a.ts' },
+          ...(partial ? [{ serviceId: 'svc-2', repoRelativePath: 'a.ts' }] : []),
+        ]);
+        vi.mocked(proxy.create).mockImplementation(async ({ args }) => {
+          expect(git('log', '-1', '--format=%s')).toBe('Update a.ts');
+          expect(args['payload']).toMatchObject({
+            hashes: [
+              { service: 'svc-1', branch: 'main', hash: git('rev-parse', '--short', 'HEAD') },
+            ],
+          });
+          expect(poster.createOutOfBand).not.toHaveBeenCalled();
+          return { content: [], reportId: 'commit-report' };
+        });
+
+        if (partial) {
+          vi.mocked(proxy.create).mockRejectedValueOnce(new Error('Report unavailable'));
+          const secondHead = () =>
+            execFileSync('git', ['rev-parse', 'HEAD'], { cwd: second, encoding: 'utf8' });
+          const initialSecondHead = secondHead();
+          await run.handleMessage(makeInput());
+          await run.awaitIdle();
+          expect(poster.postFailureMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+              cause: expect.stringContaining('Could not save the commit report'),
+            }),
+          );
+          const landedHead = git('rev-parse', 'HEAD');
+          await run.handleMessage(makeInput());
+          await run.awaitIdle();
+          expect(git('rev-parse', 'HEAD')).toBe(landedHead);
+          expect(secondHead()).toBe(initialSecondHead);
+        } else {
+          await run.handleMessage(makeInput());
+        }
+        await run.awaitIdle();
+
+        expect(proxy.create).toHaveBeenCalledTimes(partial ? 2 : 1);
+        expect(poster.createOutOfBand).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            dto: expect.objectContaining({
+              reportIds: ['commit-report'],
+              data: expect.objectContaining({
+                response: expect.stringContaining(
+                  partial ? 'Git failed for service svc-2' : 'Committed session changes',
+                ),
+              }),
+            }),
+          }),
+        );
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('publishes a commit Git diagnostic when the Turn fails', async () => {
     const poster = makePoster();

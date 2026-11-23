@@ -5,3 +5,20 @@ export class CommitGitError extends Error {
     this.name = 'CommitGitError';
   }
 }
+
+/** User-facing failure for a Git outcome retained for report retry. */
+export class CommitReportError extends Error {
+  constructor(cause: unknown) {
+    super('Could not save the commit report. Retry to report the saved Git outcome.', { cause });
+    this.name = 'CommitReportError';
+  }
+}
+
+export class PartialCommitError extends Error {
+  constructor(serviceId: string) {
+    super(
+      `Git failed for service ${serviceId}. Other changes were committed and are listed in the attached report.`,
+    );
+    this.name = 'PartialCommitError';
+  }
+}

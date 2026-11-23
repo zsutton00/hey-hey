@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { lstat } from 'node:fs/promises';
-import { CommitGitError } from './commit-git-error';
+import { CommitGitError, CommitReportError, PartialCommitError } from './commit-git-error';
 import { isEntityConversationRun } from './commit-traceability';
 import { randomUUID } from 'node:crypto';
 import { resolveCommitIntent, type CommitIntent } from './commit-intent';
@@ -401,8 +401,10 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
       ),
   );
   let commitFailure: unknown;
+  let currentServiceId = scopes[0]!.serviceId;
   try {
     for (const scope of scopes) {
+      currentServiceId = scope.serviceId;
       const trailers = buildCommitTrailers(traceability, scope.serviceId, planId);
       logger.info('local.commit_runtime.staging_started', {
         runId: run.runId,
@@ -495,12 +497,20 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
     }
   } catch (error) {
     commitFailure = error;
+    logger.error('local.commit_runtime.service_failed', {
+      runId: run.runId,
+      serviceId: currentServiceId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   const pending = run.reportProvenance.pending;
   if (!pending || run.session.commitIntent) {
     throw commitFailure;
   }
   const { hashes, files } = pending;
+  if (commitFailure) {
+    await run.reportProvenance.retain({ ...pending, failedServiceId: currentServiceId });
+  }
   try {
     await commitReportTool.execute({
       runId: run.runId,
@@ -515,10 +525,10 @@ const executeValidatedCommit = async (input: ExecuteCanonicalCommitInput): Promi
       summary: message,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw error;
+    throw new CommitReportError(error);
   }
   if (commitFailure) {
-    throw commitFailure;
+    throw new PartialCommitError(currentServiceId);
   }
   logger.info('local.commit_runtime.report_succeeded', {
     runId: run.runId,
@@ -536,11 +546,22 @@ export const executeCanonicalCommit = async (input: ExecuteCanonicalCommitInput)
     }
     const pending = input.run.reportProvenance.pending;
     if (pending) {
-      await input.commitReportTool.execute({
-        runId: input.run.runId,
-        run: input.run,
-        args: pending,
-      });
+      try {
+        await input.commitReportTool.execute({
+          runId: input.run.runId,
+          run: input.run,
+          args: pending,
+        });
+      } catch (error) {
+        input.logger.error('local.commit_runtime.report_retry_failed', {
+          runId: input.run.runId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw new CommitReportError(error);
+      }
+      if (pending.failedServiceId) {
+        throw new PartialCommitError(pending.failedServiceId);
+      }
       return;
     }
     await executeValidatedCommit(input);

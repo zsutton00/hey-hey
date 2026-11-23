@@ -18,7 +18,7 @@ import type { CanonicalFileChangeFact } from '../../../run/file-change-facts';
 import { CommitReportTool } from '../../submission-tools/create-commit-report-tool';
 import { makeCreateReportProxy } from '../../submission-tools/create-report-proxy.test-support';
 import { failureMessage } from '../../../run/failure-message';
-import { CommitGitError } from '../commit-git-error';
+import { CommitGitError, CommitReportError } from '../commit-git-error';
 import { executeCanonicalCommit } from '../commit-executor';
 
 const execFileAsync = promisify(execFile);
@@ -332,7 +332,7 @@ describe('executeCanonicalCommit', () => {
       commitReportTool: new CommitReportTool(proxy),
       logger: makeLogger() as never,
     };
-    await expect(executeCanonicalCommit(input)).rejects.toThrow('lost report response');
+    await expect(executeCanonicalCommit(input)).rejects.toThrow(CommitReportError);
     const head = await git(repo, ['rev-parse', 'HEAD']);
     expect(run.reportProvenance.pending?.hashes[0]?.hash).toBe(head.slice(0, 7));
     await executeCanonicalCommit(input);

@@ -1,5 +1,5 @@
 import type { AgentProviderId } from '../agents/providers/provider-config';
-import { CommitGitError } from '../agents/commit/commit-git-error';
+import { CommitGitError, CommitReportError } from '../agents/commit/commit-git-error';
 import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
@@ -4889,7 +4889,7 @@ export class Run {
     return fallback;
   }
 
-  private readonly terminalCommitFailures = new Map<string, CommitGitError>();
+  private readonly terminalCommitFailures = new Map<string, CommitGitError | CommitReportError>();
 
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
@@ -4907,7 +4907,7 @@ export class Run {
       reason,
       ...(reason === 'STARTUP_FAILED'
         ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
-        : error instanceof CommitGitError
+        : error instanceof CommitGitError || error instanceof CommitReportError
           ? { cause: error.message }
           : {}),
       inert: this.session.inert === true,
@@ -4962,7 +4962,7 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
-    if (error instanceof CommitGitError) {
+    if (error instanceof CommitGitError || error instanceof CommitReportError) {
       this.terminalCommitFailures.set(turn.turnId, error);
     }
     this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));

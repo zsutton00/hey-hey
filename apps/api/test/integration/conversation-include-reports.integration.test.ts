@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
@@ -164,6 +168,110 @@ describe('GET /conversations/:id — historical carrier associations', () => {
     expect(message.reports === undefined || message.reports.length === 0).toBe(
       true,
     );
+  });
+
+  it('reloads a single final message with its explicitly attached COMMIT report', async () => {
+    const server = app.getHttpServer();
+    const projectUrl = `/api/v1/organizations/${testOrganizationId}/projects/${testProjectId}`;
+    const authorization = `Bearer ${authToken}`;
+    const repo = await mkdtemp(join(tmpdir(), 'commit-reload-'));
+    const file = 'ApprovalControls.tsx';
+    let hash: string;
+    try {
+      const git = (...args: string[]) =>
+        execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+      git('init', '-b', 'dev');
+      await writeFile(
+        join(repo, file),
+        'export const approvalActions = ["Allow", "Deny"];\n',
+      );
+      git('add', file);
+      git(
+        '-c',
+        'user.name=Hey Hey Tests',
+        '-c',
+        'user.email=tests@example.com',
+        '-c',
+        'core.hooksPath=/dev/null',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-m',
+        'Update approval controls',
+      );
+      hash = git('rev-parse', '--short', 'HEAD');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+    const report = await request(server)
+      .post(`/api/v1/organizations/${testOrganizationId}/reports`)
+      .set('Authorization', authorization)
+      .send({
+        projectId: testProjectId,
+        reportType: 'COMMIT',
+        audience: 'PROJECT_VISIBLE',
+        payload: {
+          reportType: 'COMMIT',
+          summary: 'Update approval controls',
+          files: [file],
+          hashes: [{ service: testProjectId, hash, branch: 'dev' }],
+        },
+        entities: [
+          {
+            entityType: 'CONVERSATION',
+            entityId: testConversationId,
+            relation: 'CONTEXT',
+          },
+        ],
+      })
+      .expect(201);
+
+    const message = await request(server)
+      .post(`${projectUrl}/messages`)
+      .set('Authorization', authorization)
+      .send({
+        type: 'SYSTEM',
+        conversationId: testConversationId,
+        status: 'completed',
+        data: {
+          type: 'AGENT',
+          response: 'Committed session changes.',
+          actionHint: 'task_complete',
+          detectedIntent: 'agent_response',
+          intentConfidence: 1,
+        },
+        reportIds: [report.body.id],
+      })
+      .expect(201);
+
+    const reload = await request(server)
+      .get(`${projectUrl}/conversations/${testConversationId}`)
+      .set('Authorization', authorization)
+      .query({ includeMessages: 'true', includeReports: 'true' })
+      .expect(200);
+
+    // The fixture also contains a historical completion and a carrier report.
+    // Only the newly posted completion may present this commit report.
+    const completions = reload.body.messages.filter(
+      (entry: { id: string; data?: { actionHint?: string } }) =>
+        entry.id !== testCompletionMessageId &&
+        entry.data?.actionHint === 'task_complete',
+    );
+    expect(completions).toHaveLength(1);
+    expect(completions[0]).toMatchObject({
+      id: message.body.id,
+      type: 'SYSTEM',
+      data: { type: 'AGENT', actionHint: 'task_complete' },
+      reports: [
+        {
+          id: report.body.id,
+          reportType: 'COMMIT',
+          payload: {
+            hashes: [{ service: testProjectId, hash, branch: 'dev' }],
+          },
+        },
+      ],
+    });
   });
 
   async function setupTestData() {
