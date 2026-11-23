@@ -119,7 +119,7 @@ const toUserMessageDisplayText = (
  * @param props - Component props (significantly reduced due to context)
  * @returns JSX element displaying a single conversation message
  */
-/** Strips the agent bubble's chrome so a warning notice reads as plain text on the solid alert. */
+/** Keeps a warning notice as plain text on the solid alert. */
 const FLAT_ALERT_BODY_SX = {
   backgroundColor: "transparent",
   border: "none",

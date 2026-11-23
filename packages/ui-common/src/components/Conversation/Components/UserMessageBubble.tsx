@@ -7,6 +7,7 @@ import {
   useTheme,
   type Theme,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import React, { useState } from "react";
 import type {
   RunAttachmentReference,
@@ -58,9 +59,16 @@ export interface UserMessageBubbleProps {
   children?: React.ReactNode;
 }
 
+/**
+ * Neutral treatment for monitor-authored messages, so they never read as a
+ * person's (blue) message or as plain agent text. It is self-contained: the
+ * agent message it overrides has no bubble of its own.
+ */
 export const getMonitorVisualTreatmentSx = (theme: Theme) => ({
   backgroundColor: theme.palette.monitorMessage.soft,
-  borderColor: theme.palette.monitorMessage.border,
+  border: `1px solid ${theme.palette.monitorMessage.border}`,
+  borderRadius: 1,
+  p: { xs: 1.25, sm: 2 },
   boxShadow: "none",
   minHeight: "auto",
   color: theme.palette.text.primary,
@@ -253,12 +261,41 @@ export function UserMessageBubble({
   const isMonitor = getUserMessageAuthorship(provenance) === "monitor";
   const isPending = delivery.state !== "delivered";
   const hasAttachments = Boolean(attachments?.length);
+  const yourMessage = theme.palette.conversationCard.roles.yourMessage;
+  const humanBubbleSx = {
+    bgcolor: yourMessage.main,
+    color: yourMessage.contrastText,
+    border: `1px solid ${
+      delivery.state === "failed" ? theme.palette.error.main : yourMessage.main
+    }`,
+  };
+  // The Markdown renderer sets its own page-colored text, headings, links and
+  // fills, so the blue bubble's foreground has to be handed to it directly.
+  const humanMarkdownSx = {
+    color: yourMessage.contrastText,
+    "& h1, & h2, & h3, & h4, & h5, & h6, & blockquote, & a, & a:hover": {
+      color: yourMessage.contrastText,
+    },
+    "& h1, & h2, & h3": {
+      borderBottomColor: alpha(yourMessage.contrastText, 0.4),
+    },
+    "& blockquote": { borderLeftColor: yourMessage.contrastText },
+    "& code, & pre, & th": {
+      backgroundColor: alpha(yourMessage.contrastText, 0.18),
+    },
+    "& pre code": { backgroundColor: "transparent" },
+    "& th, & td": { borderColor: alpha(yourMessage.contrastText, 0.4) },
+  };
   return (
     <Box
       data-testid="user-message-presentation"
+      data-authorship={isMonitor ? "monitor" : "human"}
       sx={{
         display: "flow-root",
-        ...(hasAttachments
+        // Your messages sit on the right; monitor messages stay on the left
+        // so they are never mistaken for something you wrote.
+        ...(isMonitor ? {} : { ml: "auto" }),
+        ...(hasAttachments || !isMonitor
           ? { width: "fit-content", maxWidth: "min(100%, max(600px, 90%))" }
           : {}),
       }}
@@ -269,28 +306,28 @@ export function UserMessageBubble({
           aria-busy={isPending && delivery.state !== "failed"}
           data-user-message-provenance={provenance ?? undefined}
           sx={{
-            display: "inline-flex",
             opacity: isPending ? 0.7 : 1,
-            maxWidth: hasAttachments ? "100%" : "min(100%, max(600px, 90%))",
-            ...(hasAttachments ? { width: "100%" } : {}),
+            ...(isMonitor
+              ? {
+                  display: "inline-flex",
+                  maxWidth: hasAttachments
+                    ? "100%"
+                    : "min(100%, max(600px, 90%))",
+                  ...(hasAttachments ? { width: "100%" } : {}),
+                }
+              : {
+                  // Fits its text and sits at the right edge, above the
+                  // right-justified caption and chips.
+                  display: "flex",
+                  width: "fit-content",
+                  maxWidth: "100%",
+                  ml: "auto",
+                }),
             boxSizing: "border-box",
             p: { xs: 1.25, sm: 2 },
-            borderRadius: 1,
+            borderRadius: isMonitor ? 1 : 2,
             mb: 3,
-            bgcolor: isMonitor
-              ? undefined
-              : theme.palette.mode === "dark"
-                ? theme.palette.grey[800]
-                : theme.palette.grey[100],
-            border: `1px solid ${
-              delivery.state === "failed"
-                ? theme.palette.error.main
-                : isMonitor
-                  ? theme.palette.monitorMessage.border
-                  : theme.palette.divider
-            }`,
-            color: "text.primary",
-            ...(isMonitor ? getMonitorVisualTreatmentSx(theme) : {}),
+            ...(isMonitor ? getMonitorVisualTreatmentSx(theme) : humanBubbleSx),
           }}
         >
           <Typography
@@ -304,7 +341,9 @@ export function UserMessageBubble({
               wordBreak: "break-word",
             }}
           >
-            <MarkdownRenderer>{text}</MarkdownRenderer>
+            <MarkdownRenderer sx={isMonitor ? undefined : humanMarkdownSx}>
+              {text}
+            </MarkdownRenderer>
           </Typography>
         </Box>
       ) : null}
@@ -317,8 +356,16 @@ export function UserMessageBubble({
           flexWrap: "wrap",
           gap: 1,
           mb: 2,
+          // Human messages: chips first, caption at the bubble's right edge.
+          ...(isMonitor ? {} : { justifyContent: "flex-end" }),
         }}
       >
+        {isMonitor ? null : (
+          <SentAttachmentChips
+            attachments={attachments}
+            sx={{ maxWidth: "100%", flex: "0 1 auto" }}
+          />
+        )}
         <MessageAuthorCaption
           messageId={identity}
           createdAt={createdAt}
@@ -338,10 +385,12 @@ export function UserMessageBubble({
             maxWidth: "100%",
           }}
         />
-        <SentAttachmentChips
-          attachments={attachments}
-          sx={{ ml: "auto", maxWidth: "100%", flex: "0 1 auto" }}
-        />
+        {isMonitor ? (
+          <SentAttachmentChips
+            attachments={attachments}
+            sx={{ ml: "auto", maxWidth: "100%", flex: "0 1 auto" }}
+          />
+        ) : null}
       </Box>
     </Box>
   );

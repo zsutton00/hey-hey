@@ -1,6 +1,8 @@
 import { http, HttpResponse } from "msw";
 import { flattenFixtureMessages } from "../../../../test/conversationFixtures";
 import { createStore, Provider } from "jotai";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { resetConversationMessageHistoryStateForTests } from "../../../../data/collections/conversationMessageHistoryState";
 import { ApolloProvider } from "@apollo/client/react";
@@ -457,33 +459,35 @@ export const renderWithConversationProvider = async (
     defaultOptions: { queries: { retryDelay: 0 } },
   });
   const renderResult = render(
-    <QueryClientProvider client={queryClient}>
-      <ApolloProvider client={graphql.apollo}>
-        <Provider store={store}>
-          <AuthProvider>
-            <ConversationProvider
-              scrollPolicy={{ mode: "disabled" }}
-              conversation={conversation}
-              project={project}
-              animationType={animationType}
-              readOnly={readOnly}
-              agentSessionId={agentSessionId}
-              taskMonitorId={taskMonitorId}
-              conversationFormResolver={conversationFormResolver}
-              suggestionDecisions={{
-                getRoutingDecision: () => undefined,
-                upsertRoutingDecision: vi.fn(),
-                decisionsById: {},
-                getDecision: () => undefined,
-                upsertDecision: vi.fn(),
-              }}
-            >
-              {ui}
-            </ConversationProvider>
-          </AuthProvider>
-        </Provider>
-      </ApolloProvider>
-    </QueryClientProvider>,
+    <ThemeProvider theme={createHeyTheme("light")}>
+      <QueryClientProvider client={queryClient}>
+        <ApolloProvider client={graphql.apollo}>
+          <Provider store={store}>
+            <AuthProvider>
+              <ConversationProvider
+                scrollPolicy={{ mode: "disabled" }}
+                conversation={conversation}
+                project={project}
+                animationType={animationType}
+                readOnly={readOnly}
+                agentSessionId={agentSessionId}
+                taskMonitorId={taskMonitorId}
+                conversationFormResolver={conversationFormResolver}
+                suggestionDecisions={{
+                  getRoutingDecision: () => undefined,
+                  upsertRoutingDecision: vi.fn(),
+                  decisionsById: {},
+                  getDecision: () => undefined,
+                  upsertDecision: vi.fn(),
+                }}
+              >
+                {ui}
+              </ConversationProvider>
+            </AuthProvider>
+          </Provider>
+        </ApolloProvider>
+      </QueryClientProvider>
+    </ThemeProvider>,
   );
 
   return {

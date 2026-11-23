@@ -175,7 +175,7 @@ const SystemMessageAnchor = ({
         target="_blank"
         rel="noopener noreferrer"
         style={{
-          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.main})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -212,7 +212,7 @@ const SystemMessageAnchor = ({
         data-testid="system-message-source-link"
         data-source-path={sourceReference.path}
         style={{
-          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.contrastText})`,
+          color: `var(${SYSTEM_MESSAGE_LINK_COLOR_VAR}, ${theme.palette.primary.main})`,
           textDecoration: "underline",
           textUnderlineOffset: "2px",
           ...style,
@@ -378,7 +378,16 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
           {hasInlineReports && (
             <Stack spacing={2} sx={{ mt: displayText ? 2 : 0 }}>
               {resolvedInlineReports.map((report) => (
-                <Box key={report.id}>
+                <Box
+                  key={report.id}
+                  data-testid="system-message-inline-report"
+                  sx={{
+                    bgcolor: theme.palette.conversationSurface.report,
+                    color: "text.primary",
+                    borderRadius: 3,
+                    p: { xs: 1.5, sm: 2 },
+                  }}
+                >
                   <ReportViewer
                     report={report}
                     renderHeader={false}
@@ -485,45 +494,22 @@ function getStyles(
   return {
     base: {
       display: "inline-flex",
-      minWidth: "120px",
       maxWidth: SYSTEM_MESSAGE_MAX_WIDTH,
       boxSizing: "border-box",
       flexDirection: "column",
-      p: { xs: 1.25, sm: 2 },
-      minHeight: "80px", // Always maintain ThinkingIndicator height to prevent jarring transitions
-      backgroundColor: hasErrorStyle
-        ? theme.palette.mode === "dark"
-          ? "#3D3730" // Dark orangish gray
-          : "#F5F1ED" // Light orangish gray
-        : theme.palette.mode === "dark"
-          ? theme.palette.primary.dark
-          : theme.palette.primary.light,
-      borderRadius: 1,
       mb: renderTimestamp ? 0 : 3,
       opacity: isCompleted ? 0.7 : 1,
       transition: `opacity ${0.3 / animationConfig.speedMultiplier}s ease`,
-      border: hasErrorStyle
-        ? theme.palette.mode === "dark"
-          ? "2px solid #5D4E42" // Dark orangish gray border
-          : "2px solid #D4C4B0" // Light orangish gray border
-        : `2px solid ${
-            theme.palette.attention?.main ?? theme.palette.primary.main
-          }`,
-      boxShadow: hasErrorStyle
-        ? theme.palette.mode === "dark"
-          ? "0 4px 12px rgba(93, 78, 66, 0.4)" // Dark orangish gray shadow
-          : "0 4px 12px rgba(212, 196, 176, 0.3)" // Light orangish gray shadow
-        : `0 4px 12px ${
-            theme.palette.mode === "dark"
-              ? "rgba(8, 126, 139, 0.4)" // attention.main with opacity for dark mode shadow
-              : "rgba(8, 126, 139, 0.16)" // attention.main with opacity for light mode shadow
-          }`,
-      color: hasErrorStyle
-        ? theme.palette.mode === "dark"
-          ? "#E8DDD4" // Light orangish text for dark mode
-          : "#5D4E42" // Dark orangish text for light mode
-        : (theme.palette.attention?.contrastText ??
-          theme.palette.primary.contrastText),
+      ...(hasErrorStyle
+        ? getErrorShellStyle(theme)
+        : {
+            // Agent messages are plain text on the page: no bubble, so your
+            // blue messages and the conversation cards are what stand out.
+            backgroundColor: "transparent",
+            border: "none",
+            boxShadow: "none",
+            color: theme.palette.text.primary,
+          }),
     },
     inner: {
       width: "100%",
@@ -570,22 +556,14 @@ function getStyles(
           marginBottom: 2,
         },
         "& pre": {
-          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${
-            theme.palette.mode === "dark"
-              ? theme.palette.grey[900]
-              : theme.palette.grey[100]
-          })`,
+          backgroundColor: `var(${SYSTEM_MESSAGE_CODE_BLOCK_BG_VAR}, ${theme.palette.conversationSurface.report})`,
           borderRadius: 1,
           padding: 1,
           overflowX: "auto",
           whiteSpace: "pre-wrap",
         },
         "& code": {
-          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${
-            theme.palette.mode === "dark"
-              ? "rgba(255, 255, 255, 0.04)"
-              : "rgba(0, 0, 0, 0.04)"
-          })`,
+          backgroundColor: `var(${SYSTEM_MESSAGE_INLINE_CODE_BG_VAR}, ${theme.palette.conversationSurface.inlineCode})`,
           borderRadius: "4px",
           padding: "0 4px",
           fontSize: "0.95em",
@@ -612,6 +590,22 @@ function getStyles(
         },
       },
     },
+  };
+}
+
+function getErrorShellStyle(theme: Theme) {
+  const isDark = theme.palette.mode === "dark";
+  return {
+    minWidth: "120px",
+    p: { xs: 1.25, sm: 2 },
+    minHeight: "80px",
+    borderRadius: 1,
+    backgroundColor: isDark ? "#3D3730" : "#F5F1ED",
+    border: isDark ? "2px solid #5D4E42" : "2px solid #D4C4B0",
+    boxShadow: isDark
+      ? "0 4px 12px rgba(93, 78, 66, 0.4)"
+      : "0 4px 12px rgba(212, 196, 176, 0.3)",
+    color: isDark ? "#E8DDD4" : "#5D4E42",
   };
 }
 

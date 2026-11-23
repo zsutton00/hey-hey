@@ -1,10 +1,25 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SentAttachmentOpenProvider } from "../SentAttachmentOpenContext";
 import { UserMessageBubble } from "../UserMessageBubble";
 import { formatMessageTimestamp } from "../messageTimestamp";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
+
+// Messages read the app theme's conversation colors, as in production.
+const render = (ui: React.ReactElement) =>
+  rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+    ),
+  });
 
 const openRunAttachment = vi.hoisted(() => vi.fn());
 
@@ -125,7 +140,7 @@ describe("UserMessageBubble sent attachments", () => {
     }
   });
 
-  it("shares a wrapping footer with the author and right-aligns chips", () => {
+  it("shares a right-justified wrapping footer: chips first, caption at the bubble's right edge", () => {
     render_([{ attachmentId: "a1", fileName: "notes.md" }]);
     const section = screen.getByTestId("sent-attachments");
     const row = screen.getByTestId("sent-attachment-chip").parentElement;
@@ -138,13 +153,14 @@ describe("UserMessageBubble sent attachments", () => {
       display: "flex",
       flexWrap: "wrap",
       alignItems: "center",
+      justifyContent: "flex-end",
     });
-    expect(section).toHaveStyle({ marginLeft: "auto", maxWidth: "100%" });
+    expect(footer.lastElementChild).toBe(caption);
+    expect(section).toHaveStyle({ maxWidth: "100%" });
+    // The app theme expresses spacing as a CSS variable; any non-zero gap counts.
     expect(
-      parseFloat(
-        getComputedStyle(screen.getByTestId("message-bubble")).marginBottom,
-      ),
-    ).toBeGreaterThan(0);
+      getComputedStyle(screen.getByTestId("message-bubble")).marginBottom,
+    ).not.toMatch(/^(0px)?$/);
   });
 
   it("constrains long filenames and wraps multiple chips within the footer", () => {
@@ -183,6 +199,54 @@ describe("UserMessageBubble sent attachments", () => {
   it.each([undefined, []])("renders no chips for %j", (attachments) => {
     render_(attachments);
     expect(screen.queryByTestId("sent-attachments")).not.toBeInTheDocument();
+  });
+});
+
+describe("UserMessageBubble authorship look", () => {
+  const theme = createHeyTheme("light");
+  const bubble = (provenance: "task_monitor" | null) => (
+    <MemoryRouter>
+      <UserMessageBubble
+        identity="message-1"
+        data-testid="message-bubble"
+        projectId="project-1"
+        text="Keep going"
+        provenance={provenance}
+        author={{ name: "Alice Smith", id: "user-1" }}
+        createdAt={null}
+        renderTimestamp={false}
+        delivery={{ state: "delivered" }}
+      />
+    </MemoryRouter>
+  );
+
+  it("shows your own message as a blue bubble on the right", () => {
+    render(bubble(null));
+    const presentation = screen.getByTestId("user-message-presentation");
+    const yourMessage = theme.palette.conversationCard.roles.yourMessage;
+
+    expect(presentation).toHaveAttribute("data-authorship", "human");
+    expect(presentation).toHaveStyle({ marginLeft: "auto" });
+    expect(screen.getByTestId("message-bubble")).toHaveStyle({
+      backgroundColor: yourMessage.main,
+      color: yourMessage.contrastText,
+    });
+  });
+
+  it("keeps a Task Monitor message neutral and on the left", () => {
+    render(bubble("task_monitor"));
+    const presentation = screen.getByTestId("user-message-presentation");
+    const messageBubble = screen.getByTestId("message-bubble");
+
+    expect(presentation).toHaveAttribute("data-authorship", "monitor");
+    expect(presentation).not.toHaveStyle({ marginLeft: "auto" });
+    expect(messageBubble).toHaveStyle({
+      backgroundColor: theme.palette.monitorMessage.soft,
+    });
+    expect(messageBubble).not.toHaveStyle({
+      backgroundColor: theme.palette.conversationCard.roles.yourMessage.main,
+    });
+    expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
   });
 });
 

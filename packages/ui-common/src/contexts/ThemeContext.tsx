@@ -13,8 +13,12 @@ import {
   type DiagramGroupColorPalette,
 } from "../types/theme";
 
+/**
+ * `yourMessage` is the blue of "your voice": your own message bubbles and the
+ * Discuss control. Agent messages are plain text on the page.
+ */
 export type ConversationCardRole =
-  "projectSync" | "needsAnswer" | "agentMessage" | "informational";
+  "projectSync" | "needsAnswer" | "yourMessage" | "informational";
 
 /** Red is deliberately absent: it is reserved for error alerts. */
 export type ConversationCardSeverity = "high" | "medium" | "low";
@@ -41,6 +45,14 @@ export interface ConversationCardPalette {
 export interface ConversationAlertPalette {
   warning: ConversationAlertTone;
   error: ConversationAlertTone;
+}
+
+/** Surfaces inside plain agent text, which has no bubble of its own. */
+export interface ConversationSurfacePalette {
+  /** Gray card fill for reports shown inline in an agent message. */
+  report: string;
+  /** Subtle fill for inline code in agent text. */
+  inlineCode: string;
 }
 
 export interface MonitorMessageTone {
@@ -73,6 +85,7 @@ declare module "@mui/material/styles" {
     conversationCard: ConversationCardPalette;
     conversationAlert: ConversationAlertPalette;
     monitorMessage: MonitorMessageTone;
+    conversationSurface: ConversationSurfacePalette;
   }
 
   interface PaletteOptions {
@@ -97,6 +110,7 @@ declare module "@mui/material/styles" {
     conversationCard?: ConversationCardPalette;
     conversationAlert?: ConversationAlertPalette;
     monitorMessage?: MonitorMessageTone;
+    conversationSurface?: ConversationSurfacePalette;
   }
 }
 
@@ -183,7 +197,7 @@ const buildConversationPalette = (isDark: boolean) => {
     roles: {
       projectSync: tone("rgb(8, 126, 139)", "#ffffff"),
       needsAnswer: tone("#8e6fd8", "#1a1a1a"),
-      agentMessage: tone("rgb(60, 114, 160)", "#ffffff"),
+      yourMessage: tone("rgb(60, 114, 160)", "#ffffff"),
       informational: tone(neutralMain, isDark ? "#ffffff" : "#1a1a1a"),
     },
     severities: {
@@ -201,7 +215,17 @@ const buildConversationPalette = (isDark: boolean) => {
     border: isDark ? "rgba(176, 184, 196, 0.30)" : "rgba(97, 110, 128, 0.28)",
   };
 
-  return { conversationCard, conversationAlert, monitorMessage };
+  const conversationSurface: ConversationSurfacePalette = {
+    report: isDark ? "#2a2a2a" : "#f1f2f4",
+    inlineCode: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
+  };
+
+  return {
+    conversationCard,
+    conversationAlert,
+    monitorMessage,
+    conversationSurface,
+  };
 };
 
 export const createHeyTheme = (mode: ThemeMode) => {

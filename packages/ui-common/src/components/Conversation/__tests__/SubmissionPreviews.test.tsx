@@ -12,13 +12,23 @@ import {
 import {
   act,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MessageRecordDto } from "../../../api";
 import { SubmissionPreviews } from "../SubmissionPreviews";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
+
+// Messages read the app theme's conversation colors, as in production.
+const render = (ui: React.ReactElement) =>
+  rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
+    ),
+  });
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   cancel: vi.fn(),
