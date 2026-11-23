@@ -233,7 +233,7 @@ describe("UserMessageBubble authorship look", () => {
     });
   });
 
-  it("keeps a Task Monitor message neutral and on the left", () => {
+  it("shows a Task Monitor message in the purple monitor tone on the left", () => {
     render(bubble("task_monitor"));
     const presentation = screen.getByTestId("user-message-presentation");
     const messageBubble = screen.getByTestId("message-bubble");
@@ -248,6 +248,22 @@ describe("UserMessageBubble authorship look", () => {
     });
     expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
   });
+
+  it.each(["light", "dark"] as const)(
+    "uses a purple-dominant monitor tone in %s mode",
+    (mode) => {
+      const { soft, border } = createHeyTheme(mode).palette.monitorMessage;
+
+      for (const tone of [soft, border]) {
+        const [r, g, b] = tone
+          .match(/\d+(?=[,)])/g)!
+          .slice(0, 3)
+          .map(Number);
+        expect(b).toBeGreaterThan(g);
+        expect(r).toBeGreaterThan(g);
+      }
+    },
+  );
 });
 
 describe("UserMessageBubble sent attachments in one conversation", () => {

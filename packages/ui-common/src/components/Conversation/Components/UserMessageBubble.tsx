@@ -60,7 +60,7 @@ export interface UserMessageBubbleProps {
 }
 
 /**
- * Neutral treatment for monitor-authored messages, so they never read as a
+ * Purple treatment for monitor-authored messages, so they never read as a
  * person's (blue) message or as plain agent text. It is self-contained: the
  * agent message it overrides has no bubble of its own.
  */
@@ -84,6 +84,37 @@ export const getMonitorVisualTreatmentSx = (theme: Theme) => ({
   fontSize: "1.1rem",
   lineHeight: 1.6,
 });
+
+/** Blue "your message" bubble surface shared by every place a person's message is shown. */
+export const getHumanBubbleSx = (theme: Theme, failed = false) => {
+  const yourMessage = theme.palette.conversationCard.roles.yourMessage;
+
+  return {
+    bgcolor: yourMessage.main,
+    color: yourMessage.contrastText,
+    border: `1px solid ${failed ? theme.palette.error.main : yourMessage.main}`,
+  };
+};
+
+/**
+ * The Markdown renderer sets its own page-colored text, headings, links and
+ * fills, so the blue bubble's foreground has to be handed to it directly.
+ */
+export const getHumanMarkdownSx = (theme: Theme) => {
+  const { contrastText } = theme.palette.conversationCard.roles.yourMessage;
+
+  return {
+    color: contrastText,
+    "& h1, & h2, & h3, & h4, & h5, & h6, & blockquote, & a, & a:hover": {
+      color: contrastText,
+    },
+    "& h1, & h2, & h3": { borderBottomColor: alpha(contrastText, 0.4) },
+    "& blockquote": { borderLeftColor: contrastText },
+    "& code, & pre, & th": { backgroundColor: alpha(contrastText, 0.18) },
+    "& pre code": { backgroundColor: "transparent" },
+    "& th, & td": { borderColor: alpha(contrastText, 0.4) },
+  };
+};
 
 const DELIVERY_LABEL: Record<
   Exclude<UserMessageDelivery["state"], "delivered">,
@@ -261,31 +292,8 @@ export function UserMessageBubble({
   const isMonitor = getUserMessageAuthorship(provenance) === "monitor";
   const isPending = delivery.state !== "delivered";
   const hasAttachments = Boolean(attachments?.length);
-  const yourMessage = theme.palette.conversationCard.roles.yourMessage;
-  const humanBubbleSx = {
-    bgcolor: yourMessage.main,
-    color: yourMessage.contrastText,
-    border: `1px solid ${
-      delivery.state === "failed" ? theme.palette.error.main : yourMessage.main
-    }`,
-  };
-  // The Markdown renderer sets its own page-colored text, headings, links and
-  // fills, so the blue bubble's foreground has to be handed to it directly.
-  const humanMarkdownSx = {
-    color: yourMessage.contrastText,
-    "& h1, & h2, & h3, & h4, & h5, & h6, & blockquote, & a, & a:hover": {
-      color: yourMessage.contrastText,
-    },
-    "& h1, & h2, & h3": {
-      borderBottomColor: alpha(yourMessage.contrastText, 0.4),
-    },
-    "& blockquote": { borderLeftColor: yourMessage.contrastText },
-    "& code, & pre, & th": {
-      backgroundColor: alpha(yourMessage.contrastText, 0.18),
-    },
-    "& pre code": { backgroundColor: "transparent" },
-    "& th, & td": { borderColor: alpha(yourMessage.contrastText, 0.4) },
-  };
+  const humanBubbleSx = getHumanBubbleSx(theme, delivery.state === "failed");
+  const humanMarkdownSx = getHumanMarkdownSx(theme);
   return (
     <Box
       data-testid="user-message-presentation"

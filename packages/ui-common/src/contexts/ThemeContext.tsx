@@ -56,7 +56,7 @@ export interface ConversationSurfacePalette {
 }
 
 export interface MonitorMessageTone {
-  /** Neutral fill for monitor-authored messages. */
+  /** Purple fill for monitor-authored messages. */
   soft: string;
   border: string;
 }
@@ -211,8 +211,8 @@ const buildConversationPalette = (isDark: boolean) => {
     error: { main: "#c9443f", contrastText: "#ffffff" },
   };
   const monitorMessage: MonitorMessageTone = {
-    soft: isDark ? "rgba(176, 184, 196, 0.14)" : "rgba(97, 110, 128, 0.10)",
-    border: isDark ? "rgba(176, 184, 196, 0.30)" : "rgba(97, 110, 128, 0.28)",
+    soft: isDark ? "rgba(178, 140, 235, 0.16)" : "rgba(123, 77, 191, 0.09)",
+    border: isDark ? "rgba(178, 140, 235, 0.38)" : "rgba(123, 77, 191, 0.30)",
   };
 
   const conversationSurface: ConversationSurfacePalette = {
