@@ -18,37 +18,36 @@ const builtInMeaningNames = new Map([
   ['in_progress', 'In progress'],
 ]);
 
-export const workItemStatusMeaningSchema: z.ZodType<WorkItemStatusMeaning> =
-  z.discriminatedUnion('kind', [
-    z
-      .object({ kind: z.enum(['COMPLETED', 'CANCELLED', 'IN_PROGRESS']) })
-      .strict(),
-    z
-      .object({
-        kind: z.literal('CUSTOM'),
-        text: z
-          .string()
-          .trim()
-          .min(1)
-          .superRefine((text, context) => {
-            if (Array.from(text).length > CUSTOM_MEANING_MAX_LENGTH) {
-              context.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: `A Custom meaning is at most ${CUSTOM_MEANING_MAX_LENGTH} characters.`,
-              });
-            }
+export const workItemStatusMeaningSchema = z.discriminatedUnion('kind', [
+  z
+    .object({ kind: z.enum(['COMPLETED', 'CANCELLED', 'IN_PROGRESS']) })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('CUSTOM'),
+      text: z
+        .string()
+        .trim()
+        .min(1)
+        .superRefine((text, context) => {
+          if (Array.from(text).length > CUSTOM_MEANING_MAX_LENGTH) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `A Custom meaning is at most ${CUSTOM_MEANING_MAX_LENGTH} characters.`,
+            });
+          }
 
-            const builtIn = builtInMeaningNames.get(text.toLowerCase());
-            if (builtIn) {
-              context.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: `"${text}" is a built-in meaning: choose ${builtIn} instead of Custom.`,
-              });
-            }
-          }),
-      })
-      .strict(),
-  ]);
+          const builtIn = builtInMeaningNames.get(text.toLowerCase());
+          if (builtIn) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `"${text}" is a built-in meaning: choose ${builtIn} instead of Custom.`,
+            });
+          }
+        }),
+    })
+    .strict(),
+]) satisfies z.ZodType<WorkItemStatusMeaning>;
 
 export const workItemTypeStatusSchema = z
   .object({
@@ -57,7 +56,7 @@ export const workItemTypeStatusSchema = z
   })
   .strict();
 
-export const workItemTypeStatusesSchema: z.ZodType<WorkItemTypeStatus[]> = z
+export const workItemTypeStatusesSchema = z
   .array(workItemTypeStatusSchema)
   .min(1)
   .refine(
@@ -75,4 +74,4 @@ export const workItemTypeStatusesSchema: z.ZodType<WorkItemTypeStatus[]> = z
           ),
       ),
     'Archived and Superseded are reserved platform statuses.',
-  );
+  ) satisfies z.ZodType<WorkItemTypeStatus[]>;
