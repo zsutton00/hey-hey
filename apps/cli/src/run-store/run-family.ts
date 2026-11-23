@@ -1,3 +1,4 @@
+import { isAgentProviderId } from '../agents/providers/provider-config';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -190,9 +191,6 @@ const parseLegacyRunEvent = (value: unknown, runId: string): LegacyRunEvent => {
   return event;
 };
 
-const isSupportedProvider = (value: string | null): value is 'claude' | 'codex' | 'opencode' =>
-  value === 'claude' || value === 'codex' || value === 'opencode';
-
 const providerHintFromLegacyPayload = (
   payload: Record<string, unknown>,
   fallback: DurableProvider,
@@ -214,7 +212,7 @@ const legacyProviderInput = (
   const providerValue = readString(payload['provider']);
   const rawEvent = isRecord(payload['raw_event']) ? payload['raw_event'] : null;
   if (!rawEvent || !providerValue) return null;
-  if (!isSupportedProvider(providerValue)) {
+  if (!isAgentProviderId(providerValue) || providerValue === 'antigravity') {
     throw new Error(`Run ${runId} has an unsupported provider event source.`);
   }
   const sessionId =

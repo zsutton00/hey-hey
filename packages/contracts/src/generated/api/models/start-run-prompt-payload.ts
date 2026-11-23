@@ -207,13 +207,16 @@ export const StartRunPromptPayloadProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(StartRunPromptPayloadProviderEnum, "claude", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Claude"] });
 Object.defineProperty(StartRunPromptPayloadProviderEnum, "codex", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Codex"] });
 Object.defineProperty(StartRunPromptPayloadProviderEnum, "opencode", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Opencode"] });
+Object.defineProperty(StartRunPromptPayloadProviderEnum, "antigravity", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Antigravity"] });
 
 export type StartRunPromptPayloadProviderEnum = typeof StartRunPromptPayloadProviderEnum[keyof typeof StartRunPromptPayloadProviderEnum];
 

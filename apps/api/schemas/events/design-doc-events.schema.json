@@ -1959,6 +1959,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ],
       "description": "Agent provider selected for the implementation run."
@@ -2762,6 +2766,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -3132,6 +3140,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -3334,6 +3346,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -3519,6 +3535,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -9010,6 +9030,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -9199,6 +9223,10 @@
         {
           "type": "string",
           "const": "codex"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -9888,6 +9916,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -9924,6 +9956,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -14676,6 +14712,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -14884,6 +14924,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ],

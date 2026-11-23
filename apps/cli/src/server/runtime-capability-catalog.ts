@@ -4,6 +4,7 @@ import {
   type CapabilityCatalogModel,
   type CapabilityCatalogRow,
 } from '../shared/runtime/components/AgentSession/capabilityCatalog';
+import { AntigravityModelReader } from './model-catalog/antigravity-models';
 import { ClaudeModelReader } from './model-catalog/claude-models';
 import { CodexModelReader } from './model-catalog/codex-models';
 import { OpenCodeModelReader } from './model-catalog/opencode-models';
@@ -31,6 +32,7 @@ const defaultReaders = (): readonly ProviderModelReader[] => [
   new ClaudeModelReader(),
   new CodexModelReader(),
   new OpenCodeModelReader(),
+  new AntigravityModelReader(),
 ];
 
 /** What the rest of the CLI may ask of the catalog: wait for it, or retry providers that are not ready. */

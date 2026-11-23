@@ -1,6 +1,7 @@
 import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import type {
   AgentSessionConfig,
+  StartRunPromptPayloadProviderEnum,
   StartRunPromptPayloadReasoningEffortEnum,
   LocalAgentSearchEntityType,
   FeatureSyncDiscrepancy,
@@ -44,7 +45,7 @@ export interface LocalPendingRunContext {
   launchServiceId?: string;
   planId?: string;
   stepId?: string;
-  provider?: 'claude' | 'codex' | 'opencode';
+  provider?: StartRunPromptPayloadProviderEnum;
 }
 
 /**

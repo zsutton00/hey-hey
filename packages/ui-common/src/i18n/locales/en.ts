@@ -122,6 +122,7 @@ export const en = {
   "localSetup.pairing.agents.claude": "Claude Code",
   "localSetup.pairing.agents.codex": "Codex",
   "localSetup.pairing.agents.opencode": "OpenCode",
+  "localSetup.pairing.agents.antigravity": "Antigravity",
   "localSetup.pairing.agents.installed": "Installed",
   "localSetup.pairing.agents.notFound": "Not found",
   "localSetup.pairing.agents.checkFailed": "Couldn't check",

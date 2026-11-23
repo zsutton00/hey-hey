@@ -33,6 +33,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AntigravityIcon,
   ClaudeCodeIcon,
   CodexIcon,
   OpencodeIcon,
@@ -71,6 +72,10 @@ const PROVIDER_VISUALS: Record<
   ConversationStartRunRequestDtoProviderEnum,
   ProviderVisual
 > = {
+  [ConversationStartRunRequestDtoProviderEnum.Antigravity]: {
+    Icon: AntigravityIcon,
+    label: "Antigravity",
+  },
   [ConversationStartRunRequestDtoProviderEnum.Claude]: {
     Icon: ClaudeCodeIcon,
     label: "Claude Code",

@@ -2009,6 +2009,7 @@ StartRunPromptPayload:
         - claude
         - codex
         - opencode
+        - antigravity
       description: >
         Agent provider the CLI should dispatch against. Value-set mirrors
         the Agent Bridge runtime provider contract (the source of truth);

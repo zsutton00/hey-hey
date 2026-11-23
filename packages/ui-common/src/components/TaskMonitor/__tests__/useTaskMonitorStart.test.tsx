@@ -181,6 +181,42 @@ describe("useTaskMonitorStart", () => {
     expect(result.current.errorMessage).toBeNull();
   });
 
+  it("submits the saved Antigravity provider unchanged", async () => {
+    const model = "gemini-test-model";
+    catalogMocks.models = [{ id: model, label: "Gemini", efforts: ["high"] }];
+    const configuration = {
+      method: "quick",
+      provider: "antigravity",
+      model,
+      reasoningEffort: "high",
+    } as const;
+    const { result } = renderHook(() =>
+      useTaskMonitorStart({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+        machineId: "machine-1",
+        launchNode: { ...launchNode, launchConfiguration: configuration },
+        launchPolicy,
+        coordinatorRuntime: null,
+        reconcileProjection,
+      }),
+    );
+
+    await act(() => result.current.start());
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({
+          command: {
+            cause: "START",
+            launchConfig: { taskId: launchNode.taskId, ...configuration },
+          },
+        }),
+      }),
+    );
+  });
+
   it("does not submit START without an explicitly selected ready machine", async () => {
     // No machine means no catalog is requested, so Start reports the missing
     // machine rather than waiting on a catalog that will not load.

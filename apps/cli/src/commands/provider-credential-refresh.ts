@@ -8,8 +8,9 @@ import {
   buildCredentialRefreshCommand,
   resolveAgentAccountId,
   toProviderDisplayName,
-  type AgentProviderId,
 } from '../agents/providers/provider-config';
+
+import type { AgentType } from '../agent-runtime/credentials/types';
 
 type RefreshPrompter = Pick<CredentialPrompter, 'promptSecret'>;
 
@@ -23,7 +24,7 @@ interface CredentialRefreshDependencies {
 }
 
 interface RefreshIntent {
-  providerId: AgentProviderId;
+  providerId: AgentType;
   accountId?: string;
 }
 
@@ -42,7 +43,7 @@ refresh options:
   --account,  -a  Account id override (optional)
   --help,     -h  Show help`;
 
-const parseProviderId = (value: string): AgentProviderId | null => {
+const parseProviderId = (value: string): AgentType | null => {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'claude' || normalized === 'codex' || normalized === 'opencode') {
     return normalized;

@@ -50,13 +50,16 @@ export const CliReadRuntimeModelCatalogProviderProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "claude", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Claude"] });
 Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "codex", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Codex"] });
 Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "opencode", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Opencode"] });
+Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "antigravity", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Antigravity"] });
 
 export type CliReadRuntimeModelCatalogProviderProviderEnum = typeof CliReadRuntimeModelCatalogProviderProviderEnum[keyof typeof CliReadRuntimeModelCatalogProviderProviderEnum];
 

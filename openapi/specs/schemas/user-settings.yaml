@@ -44,6 +44,7 @@ UserSettingsProvider:
     - claude
     - codex
     - opencode
+    - antigravity
   description: Provider used for the Daily Session run.
 
 UserSettingsReasoningEffort:

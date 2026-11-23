@@ -68,11 +68,14 @@ export interface WorkTrackerImportConfiguration {
 export const WorkTrackerImportConfigurationProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(WorkTrackerImportConfigurationProviderEnum, "claude", { enumerable: false, value: WorkTrackerImportConfigurationProviderEnum["Claude"] });
 Object.defineProperty(WorkTrackerImportConfigurationProviderEnum, "codex", { enumerable: false, value: WorkTrackerImportConfigurationProviderEnum["Codex"] });
+Object.defineProperty(WorkTrackerImportConfigurationProviderEnum, "antigravity", { enumerable: false, value: WorkTrackerImportConfigurationProviderEnum["Antigravity"] });
 
 export type WorkTrackerImportConfigurationProviderEnum = typeof WorkTrackerImportConfigurationProviderEnum[keyof typeof WorkTrackerImportConfigurationProviderEnum];
 export const WorkTrackerImportConfigurationReasoningEffortEnum = {

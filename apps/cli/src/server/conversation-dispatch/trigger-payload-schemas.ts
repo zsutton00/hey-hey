@@ -792,7 +792,11 @@ const startRunPayloadSchema = z
         path: ['continuation'],
       });
     }
-    if (data.fastMode !== undefined && data.provider === LocalRunProvider.Opencode) {
+    if (
+      data.fastMode !== undefined &&
+      data.provider !== LocalRunProvider.Codex &&
+      data.provider !== LocalRunProvider.Claude
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'fastMode is supported only when provider is codex or claude',

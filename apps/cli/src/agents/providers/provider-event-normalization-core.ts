@@ -37,7 +37,7 @@ interface ProviderEventNormalizationDiagnostics {
 }
 
 export interface NormalizeProviderEventInput {
-  provider: 'codex' | 'claude' | 'opencode';
+  provider: 'codex' | 'claude' | 'opencode' | 'antigravity';
   runId: string;
   eventType: string;
   timestamp: string;

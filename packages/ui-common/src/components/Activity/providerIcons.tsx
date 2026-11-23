@@ -92,3 +92,19 @@ export const OpencodeIcon: React.FC<ProviderIconProps> = ({ size = "1em" }) => (
     <path d="M12 15h5" stroke="#FA5200" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
+
+export const AntigravityIcon: React.FC<ProviderIconProps> = ({
+  size = "1em",
+}) => (
+  <svg
+    aria-label="Antigravity"
+    role="img"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+  >
+    <path fill="#4285F4" d="M2 19 9 6a3.4 3.4 0 0 1 6 0l7 13h-5l-5-10-5 10Z" />
+    <path fill="#34A853" d="m12 9 5 10h5l-4-7Z" />
+    <path fill="#FBBC04" d="m2 19 4-7 3 3-2 4Z" />
+  </svg>
+);

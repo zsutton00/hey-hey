@@ -8,6 +8,11 @@ import type { EntityMention, SearchEntity } from "../types";
 
 export const FEATURE_TREE_PICKER = "feature-tree" as const;
 export const SKILL_PICKER = "skill-picker" as const;
+/** Providers whose installed Skills the `/skill` picker can browse. */
+export const SKILL_PROVIDERS: ReadonlySet<AgentSkillProvider> = new Set([
+  "codex",
+  "antigravity",
+]);
 
 interface CommandBase {
   id: string;

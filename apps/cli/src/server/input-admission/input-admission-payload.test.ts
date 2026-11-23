@@ -16,7 +16,7 @@ const followUp = (payload: Record<string, unknown>): AgentTrigger =>
 
 describe('toStoredTriggerFrame', () => {
   it('keeps the runtime a user picked for a Commit follow-up, so a restored input runs on it', () => {
-    const runtime = { provider: 'codex', model: 'gpt-5.5', reasoningEffort: 'low', fastMode: true };
+    const runtime = { provider: 'antigravity', model: 'gemini-3.5-flash', reasoningEffort: 'low' };
     const payload = { handlerPromptType: 'commit', userMessage: '', attachments: [], runtime };
 
     const stored = toStoredTriggerFrame(null, followUp(payload), payload);

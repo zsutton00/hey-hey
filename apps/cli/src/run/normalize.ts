@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import { checkTaskMonitorPermissionAdmission } from '../agents/task-monitor/state-machine/provider-event-adapter';
 /**
  * Normalize — the single normalization boundary.
@@ -388,7 +389,7 @@ const tryParseAgentQuestionFromSummary = (
 
 export const normalizeEvent = (
   event: LocalAgentOutputEvent,
-  provider: 'claude' | 'codex' | 'opencode',
+  provider: AgentProviderId,
 ): NormalizedEvent => {
   const payload = event.payload;
 

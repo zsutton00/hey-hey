@@ -31,8 +31,7 @@ export interface StoredModelSelectionFavoritesV1 {
 }
 
 export type FavoriteMutationResult =
-  | { ok: true }
-  | { ok: false; reason: "required-name" | "duplicate-name" };
+  { ok: true } | { ok: false; reason: "required-name" | "duplicate-name" };
 
 const EMPTY_FAVORITES: readonly ModelSelectionFavorite[] = [];
 let snapshot: readonly ModelSelectionFavorite[] | null = null;
@@ -41,12 +40,17 @@ const listeners = new Set<() => void>();
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isProvider = (value: unknown): value is ConversationStartRunRequestDtoProviderEnum =>
+const isProvider = (
+  value: unknown,
+): value is ConversationStartRunRequestDtoProviderEnum =>
   value === ConversationStartRunRequestDtoProviderEnum.Claude ||
   value === ConversationStartRunRequestDtoProviderEnum.Codex ||
-  value === ConversationStartRunRequestDtoProviderEnum.Opencode;
+  value === ConversationStartRunRequestDtoProviderEnum.Opencode ||
+  value === ConversationStartRunRequestDtoProviderEnum.Antigravity;
 
-const isEffort = (value: unknown): value is ConversationStartRunRequestDtoReasoningEffortEnum =>
+const isEffort = (
+  value: unknown,
+): value is ConversationStartRunRequestDtoReasoningEffortEnum =>
   value === "low" ||
   value === "medium" ||
   value === "high" ||
@@ -81,18 +85,22 @@ const parseFavorite = (value: unknown): ModelSelectionFavorite | null => {
 };
 
 const parseStoredFavorites = (
-  raw: string | null
+  raw: string | null,
 ): readonly ModelSelectionFavorite[] => {
   if (raw === null) return EMPTY_FAVORITES;
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.favorites)) {
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      !Array.isArray(value.favorites)
+    ) {
       return EMPTY_FAVORITES;
     }
     const parsed = value.favorites.map(parseFavorite);
     if (parsed.some((favorite) => favorite === null)) return EMPTY_FAVORITES;
     const favorites = parsed.filter(
-      (favorite): favorite is ModelSelectionFavorite => favorite !== null
+      (favorite): favorite is ModelSelectionFavorite => favorite !== null,
     );
     const names = favorites.map((favorite) => favorite.name.toLowerCase());
     const ids = favorites.map((favorite) => favorite.id);
@@ -119,7 +127,7 @@ const getStorage = (): Storage | null => {
 const readStorage = (): readonly ModelSelectionFavorite[] => {
   try {
     return parseStoredFavorites(
-      getStorage()?.getItem(MODEL_SELECTION_FAVORITES_STORAGE_KEY) ?? null
+      getStorage()?.getItem(MODEL_SELECTION_FAVORITES_STORAGE_KEY) ?? null,
     );
   } catch {
     return EMPTY_FAVORITES;
@@ -132,7 +140,7 @@ const emit = (): void => {
 
 const replaceSnapshot = (
   favorites: readonly ModelSelectionFavorite[],
-  persist: boolean
+  persist: boolean,
 ): void => {
   snapshot = favorites;
   if (persist) {
@@ -140,7 +148,7 @@ const replaceSnapshot = (
     try {
       getStorage()?.setItem(
         MODEL_SELECTION_FAVORITES_STORAGE_KEY,
-        JSON.stringify(stored)
+        JSON.stringify(stored),
       );
     } catch {
       // Browser storage is best effort; same-window subscribers still update.
@@ -149,10 +157,11 @@ const replaceSnapshot = (
   emit();
 };
 
-export const getModelSelectionFavoritesSnapshot = (): readonly ModelSelectionFavorite[] => {
-  snapshot ??= readStorage();
-  return snapshot;
-};
+export const getModelSelectionFavoritesSnapshot =
+  (): readonly ModelSelectionFavorite[] => {
+    snapshot ??= readStorage();
+    return snapshot;
+  };
 
 const handleStorage = (event: StorageEvent): void => {
   if (event.key !== MODEL_SELECTION_FAVORITES_STORAGE_KEY) return;
@@ -160,7 +169,7 @@ const handleStorage = (event: StorageEvent): void => {
 };
 
 export const subscribeModelSelectionFavorites = (
-  listener: () => void
+  listener: () => void,
 ): (() => void) => {
   listeners.add(listener);
   if (listeners.size === 1 && typeof window !== "undefined") {
@@ -178,14 +187,15 @@ const normalizedName = (name: string): string => name.trim().toLowerCase();
 
 const validateName = (
   name: string,
-  excludedId?: ModelSelectionFavoriteId
+  excludedId?: ModelSelectionFavoriteId,
 ): FavoriteMutationResult => {
   const normalized = normalizedName(name);
   if (!normalized) return { ok: false, reason: "required-name" };
   if (
     getModelSelectionFavoritesSnapshot().some(
       (favorite) =>
-        favorite.id !== excludedId && normalizedName(favorite.name) === normalized
+        favorite.id !== excludedId &&
+        normalizedName(favorite.name) === normalized,
     )
   ) {
     return { ok: false, reason: "duplicate-name" };
@@ -203,7 +213,7 @@ const createFavoriteId = (): ModelSelectionFavoriteId => {
 
 export const saveModelSelectionFavorite = (
   name: string,
-  configuration: ModelSelectionConfiguration
+  configuration: ModelSelectionConfiguration,
 ): FavoriteMutationResult => {
   const validation = validateName(name);
   if (!validation.ok) return validation;
@@ -212,37 +222,39 @@ export const saveModelSelectionFavorite = (
       ...getModelSelectionFavoritesSnapshot(),
       { id: createFavoriteId(), name: name.trim(), ...configuration },
     ],
-    true
+    true,
   );
   return { ok: true };
 };
 
 export const renameModelSelectionFavorite = (
   id: ModelSelectionFavoriteId,
-  name: string
+  name: string,
 ): FavoriteMutationResult => {
   const validation = validateName(name, id);
   if (!validation.ok) return validation;
   replaceSnapshot(
     getModelSelectionFavoritesSnapshot().map((favorite) =>
-      favorite.id === id ? { ...favorite, name: name.trim() } : favorite
+      favorite.id === id ? { ...favorite, name: name.trim() } : favorite,
     ),
-    true
+    true,
   );
   return { ok: true };
 };
 
 export const deleteModelSelectionFavorite = (
-  id: ModelSelectionFavoriteId
+  id: ModelSelectionFavoriteId,
 ): void => {
   replaceSnapshot(
-    getModelSelectionFavoritesSnapshot().filter((favorite) => favorite.id !== id),
-    true
+    getModelSelectionFavoritesSnapshot().filter(
+      (favorite) => favorite.id !== id,
+    ),
+    true,
   );
 };
 
 export const reconcileModelSelectionConfiguration = (
-  configuration: ModelSelectionConfiguration
+  configuration: ModelSelectionConfiguration,
 ): ModelSelectionConfiguration | null => {
   if (!listProviders().includes(configuration.provider)) return null;
   const selection = reconcileSurfaceSelection({
@@ -262,7 +274,7 @@ export const reconcileModelSelectionConfiguration = (
 
 export const modelSelectionConfigurationsEqual = (
   left: ModelSelectionConfiguration,
-  right: ModelSelectionConfiguration
+  right: ModelSelectionConfiguration,
 ): boolean =>
   left.provider === right.provider &&
   left.model === right.model &&

@@ -22,6 +22,7 @@ describe('platform-prompt-delivery', () => {
       claude: 'appended-system-slot',
       opencode: 'mint-turn-system-field',
       codex: 'initial-prefix',
+      antigravity: 'full-system-prompt',
     });
     expect(isPlatformPromptDeliveryMode('initial-prefix')).toBe(true);
     expect(isPlatformPromptDeliveryMode('provider-local-convention')).toBe(false);

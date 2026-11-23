@@ -115,13 +115,16 @@ export const ConversationControlPermissionDecision1AgentTypeEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "claude", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Claude"] });
 Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "codex", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Codex"] });
 Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "opencode", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Opencode"] });
+Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "antigravity", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Antigravity"] });
 
 export type ConversationControlPermissionDecision1AgentTypeEnum = typeof ConversationControlPermissionDecision1AgentTypeEnum[keyof typeof ConversationControlPermissionDecision1AgentTypeEnum];
 

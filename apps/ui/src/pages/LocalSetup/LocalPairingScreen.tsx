@@ -54,7 +54,7 @@ const DURATION_KEYS = {
     "localSetup.pairing.duration.UNTIL_REVOKED",
 } as const satisfies Record<(typeof DURATION_OPTIONS)[number], string>;
 
-const AGENT_KEYS = ["claude", "codex", "opencode"] as const;
+const AGENT_KEYS = ["claude", "codex", "opencode", "antigravity"] as const;
 
 const AVAILABILITY_KEYS = {
   [LocalCodingAgentAvailability.Installed]:
@@ -68,6 +68,7 @@ const AGENT_NAME_KEYS = {
   claude: "localSetup.pairing.agents.claude",
   codex: "localSetup.pairing.agents.codex",
   opencode: "localSetup.pairing.agents.opencode",
+  antigravity: "localSetup.pairing.agents.antigravity",
 } as const satisfies Record<(typeof AGENT_KEYS)[number], string>;
 
 /** The single first-time pairing screen: what the passkey is for, then one button. */
@@ -106,20 +107,27 @@ export function LocalPairingScreen({
           </p>
         ) : (
           <ul data-testid="local-pairing-agents">
-            {AGENT_KEYS.map((key) => (
-              <li key={key} data-testid={`local-pairing-agent-${key}`}>
-                {t(AGENT_NAME_KEYS[key])}
-                <span
-                  className={
-                    agents[key] === LocalCodingAgentAvailability.Installed
-                      ? "local-pairing__available"
-                      : "local-pairing__unavailable"
-                  }
-                >
-                  {t(AVAILABILITY_KEYS[agents[key]])}
-                </span>
-              </li>
-            ))}
+            {AGENT_KEYS.map((key) => {
+              const availability = agents[key];
+              if (availability === undefined) {
+                return null;
+              }
+
+              return (
+                <li key={key} data-testid={`local-pairing-agent-${key}`}>
+                  {t(AGENT_NAME_KEYS[key])}
+                  <span
+                    className={
+                      availability === LocalCodingAgentAvailability.Installed
+                        ? "local-pairing__available"
+                        : "local-pairing__unavailable"
+                    }
+                  >
+                    {t(AVAILABILITY_KEYS[availability])}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
         {noneFound ? (

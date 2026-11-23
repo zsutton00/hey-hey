@@ -174,6 +174,26 @@ describe('RunCompaction', () => {
       expect(h.emit).toHaveBeenCalledTimes(1);
     });
 
+    it('scales the threshold to the window the model reports', async () => {
+      const usage = (totalTokens: number) =>
+        ({
+          getContextUsage: () => Promise.resolve({ totalTokens, maxTokens: 1_000_000 }),
+        }) as never;
+      const below = makeHarness(
+        { autoCompact: { threshold: 150_000, windowFraction: 0.75 } },
+        usage(700_000),
+      );
+      await below.compaction.afterTurnEnd();
+      expect(below.compact).not.toHaveBeenCalled();
+
+      const above = makeHarness(
+        { autoCompact: { threshold: 150_000, windowFraction: 0.75 } },
+        usage(800_000),
+      );
+      await above.compaction.afterTurnEnd();
+      expect(above.compact).toHaveBeenCalledTimes(1);
+    });
+
     it('lets a deferred compact suppress the auto-compact check', async () => {
       const h = makeHarness({ autoCompact: { threshold: 500 } });
       h.state.processing = true;

@@ -1,4 +1,4 @@
-import { access, constants } from 'node:fs/promises';
+import { access, constants, stat } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 
 import type {
@@ -10,6 +10,7 @@ const EXECUTABLES = {
   claude: 'claude',
   codex: 'codex',
   opencode: 'opencode',
+  antigravity: 'agy',
 } as const satisfies Record<keyof LocalCodingAgentDetectionDto, string>;
 
 const DEFAULT_WINDOWS_EXTENSIONS = '.COM;.EXE;.BAT;.CMD';
@@ -27,13 +28,14 @@ export class CodingAgentDetector {
   ) {}
 
   public async detect(): Promise<LocalCodingAgentDetectionDto> {
-    const [claude, codex, opencode] = await Promise.all([
+    const [claude, codex, opencode, antigravity] = await Promise.all([
       this.availability(EXECUTABLES.claude),
       this.availability(EXECUTABLES.codex),
       this.availability(EXECUTABLES.opencode),
+      this.availability(EXECUTABLES.antigravity),
     ]);
 
-    return { claude, codex, opencode };
+    return { claude, codex, opencode, antigravity };
   }
 
   /** Windows launches `claude.cmd` or `codex.exe` from the bare name, using PATHEXT. */
@@ -59,7 +61,13 @@ export class CodingAgentDetector {
     for (const directory of directories) {
       for (const fileName of fileNames) {
         try {
-          await access(join(directory, fileName), constants.X_OK);
+          const candidate = join(directory, fileName);
+          const entry = await stat(candidate);
+          if (!entry.isFile()) {
+            continue;
+          }
+
+          await access(candidate, constants.X_OK);
           return 'installed';
         } catch (error) {
           if (!isMissing(error)) {

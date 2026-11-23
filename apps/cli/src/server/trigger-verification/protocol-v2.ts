@@ -451,7 +451,7 @@ const permissionDecisionControlV2Shape = {
   decision: z.enum(['approve', 'always_approve', 'deny', 'whitelist']),
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
-  agentType: z.enum(['claude', 'codex', 'opencode']),
+  agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   reason: z.string().nullable().optional(),
   servicePlaceChoices: servicePlaceChoicesSchema.optional(),
   idempotencyToken: z.string().min(1),
@@ -462,7 +462,7 @@ const questionAnswerControlV2Shape = {
   agentSessionId: uuid,
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
-  agentType: z.enum(['claude', 'codex', 'opencode']),
+  agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   answers: z.record(z.string(), z.string()),
   idempotencyToken: z.string().min(1),
 } satisfies OpenApiZodShape<ConversationControlQuestionAnswer>;
@@ -534,7 +534,7 @@ export const CLI_READ_OPERATION_SCHEMAS = {
       projectId: uuid,
       machineId: uuid,
       operation: z.literal('workspace.skills.list'),
-      provider: z.enum(['claude', 'codex', 'opencode']),
+      provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
       catalogContext: z.discriminatedUnion('policy', [
         z.object({ policy: z.literal('non_repository') }).strict(),
         z.object({ policy: z.literal('service_workspace'), serviceId: uuid }).strict(),

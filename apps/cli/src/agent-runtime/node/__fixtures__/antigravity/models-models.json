@@ -1,0 +1,22 @@
+{
+  "read": "models",
+  "label": "models",
+  "signedOut": false,
+  "signedOutIsolation": null,
+  "cwd": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli",
+  "capturedAt": "2026-11-20T03:29:52.468Z",
+  "argv": [
+    "agy",
+    "-p",
+    "/models",
+    "--output-format",
+    "json"
+  ],
+  "stdout": "{\"conversation_id\":\"95d5d52d-7c6d-4f4c-ba4f-1ada1372cae3\",\"status\":\"SUCCESS\",\"response\":\"Did you mean `/model` (singular)?\\n\\nIn Antigravity CLI, `/model` opens the interactive model selector to view and switch models. You can also run `/help` to see all available slash commands, or `agy models` from your shell to list available models.\\n\",\"duration_seconds\":19.719716,\"num_turns\":1,\"usage\":{\"input_tokens\":20523,\"output_tokens\":749,\"thinking_tokens\":560,\"cache_read_tokens\":36289,\"total_tokens\":21272}}\n",
+  "stderr": "",
+  "exitCode": 0,
+  "signal": null,
+  "durationMs": 21551,
+  "timedOut": false,
+  "spawnError": null
+}

@@ -39,7 +39,8 @@ const isLocalCodingAgentDetection = (
   "opencode" in value &&
   isAvailability(value.claude) &&
   isAvailability(value.codex) &&
-  isAvailability(value.opencode);
+  isAvailability(value.opencode) &&
+  (!("antigravity" in value) || isAvailability(value.antigravity));
 
 /** Validates the CLI's agent report once, where it enters the browser. */
 export const parseLocalCodingAgents = (
@@ -57,6 +58,9 @@ export const parseLocalCodingAgents = (
           claude: parsed.claude,
           codex: parsed.codex,
           opencode: parsed.opencode,
+          ...(parsed.antigravity !== undefined
+            ? { antigravity: parsed.antigravity }
+            : {}),
         }
       : null;
   } catch {

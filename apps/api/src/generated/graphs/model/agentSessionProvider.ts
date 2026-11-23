@@ -10,10 +10,15 @@
  * Do not edit the class manually.
  */
 
-export type AgentSessionProvider = 'claude' | 'codex' | 'opencode';
+export type AgentSessionProvider =
+  | 'claude'
+  | 'codex'
+  | 'opencode'
+  | 'antigravity';
 
 export const AgentSessionProvider = {
   Claude: 'claude' as AgentSessionProvider,
   Codex: 'codex' as AgentSessionProvider,
   Opencode: 'opencode' as AgentSessionProvider,
+  Antigravity: 'antigravity' as AgentSessionProvider,
 };

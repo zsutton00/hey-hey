@@ -553,6 +553,7 @@ AgentSessionDto:
         - claude
         - codex
         - opencode
+        - antigravity
     agentSessionId:
       type: string
     sessionDate:
@@ -949,6 +950,7 @@ CreateAgentSessionDto:
         - claude
         - codex
         - opencode
+        - antigravity
     agentSessionId:
       type: string
     status:
@@ -1089,6 +1091,7 @@ UpdateAgentSessionDto:
         - claude
         - codex
         - opencode
+        - antigravity
     agentSessionId:
       type: string
     status:
@@ -1428,6 +1431,7 @@ PermissionDecisionRequestDto:
         - claude
         - codex
         - opencode
+        - antigravity
       description: Agent provider that issued the permission request.
     reason:
       type: string
@@ -1480,6 +1484,7 @@ QuestionAnswerRequestDto:
         - claude
         - codex
         - opencode
+        - antigravity
     answers:
       type: object
       additionalProperties:

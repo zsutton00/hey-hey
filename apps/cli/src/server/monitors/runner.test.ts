@@ -9,6 +9,7 @@ import { SessionMonitorEvaluationStore } from '../../agents/session-monitor';
 import { createTestKeyPairStore } from '../../credentials/keypair.test-support';
 import { MessagePoster } from '../../run/message-poster';
 import { RunStore } from '../../run-store/run-store';
+import { createTestRunStore } from '../../run/run.test-support';
 import { NOOP_LOGGER } from '../logger';
 import { TaskMonitorManagedTurnRuntime } from '../task-monitor-managed-turn-runtime';
 import { type TaskMonitorPromptPayload } from '@hey-hey/contracts/agent-bridge';

@@ -109,6 +109,7 @@ const toTelemetryProvider = (
   provider: string,
 ): AgentInvocationData["provider"] => {
   if (provider === "claude") return "claude";
+  if (provider === "antigravity") return "antigravity";
   if (provider === "opencode") return "opencode";
   return "codex";
 };

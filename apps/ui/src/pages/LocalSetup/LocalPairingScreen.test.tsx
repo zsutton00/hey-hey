@@ -21,6 +21,7 @@ const renderScreen = (
         claude: "installed",
         codex: "not-found",
         opencode: "installed",
+        antigravity: "installed",
       }}
       technicalDetails={[{ label: "Key fingerprint", value: "SHA256:abc" }]}
       ready
@@ -70,6 +71,9 @@ describe("LocalPairingScreen", () => {
     expect(screen.getByTestId("local-pairing-agent-codex")).toHaveTextContent(
       "CodexNot found",
     );
+    expect(
+      screen.getByTestId("local-pairing-agent-antigravity"),
+    ).toHaveTextContent("AntigravityInstalled");
     expect(screen.queryByTestId("local-pairing-none-found")).toBeNull();
     expect(screen.getByTestId("local-pairing-computer")).toHaveTextContent(
       "Ada's MacBook",

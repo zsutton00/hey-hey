@@ -101,11 +101,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   claude: "Claude Code",
   codex: "Codex",
   opencode: "Opencode",
+  antigravity: "Antigravity",
 };
 
 export const getRepositoryGroundingProviderLabel = (
-  provider: string | null
-): string => (provider ? PROVIDER_LABELS[provider] ?? provider : "Not chosen");
+  provider: string | null,
+): string =>
+  provider ? (PROVIDER_LABELS[provider] ?? provider) : "Not chosen";
 
 const PHASES: readonly RepositoryGroundingPhase[] = [
   "prerequisites",
@@ -134,7 +136,7 @@ const readNullableString = (value: unknown): string | null =>
 
 const readFirstString = (
   record: Record<string, unknown>,
-  keys: readonly string[]
+  keys: readonly string[],
 ): string | null => {
   for (const key of keys) {
     const value = readString(record[key]);
@@ -146,21 +148,24 @@ const readFirstString = (
 const readRecordOrInitial = (
   record: Record<string, unknown>,
   key: keyof RepositoryGroundingValue,
-  initial: Partial<RepositoryGroundingValue>
+  initial: Partial<RepositoryGroundingValue>,
 ): unknown => (record[key] === undefined ? initial[key] : record[key]);
 
 const isProvider = (
-  value: unknown
+  value: unknown,
 ): value is ConversationStartRunRequestDtoProviderEnum =>
-  value === "claude" || value === "codex" || value === "opencode";
+  value === "claude" ||
+  value === "codex" ||
+  value === "opencode" ||
+  value === "antigravity";
 
 const readProvider = (
-  value: unknown
+  value: unknown,
 ): ConversationStartRunRequestDtoProviderEnum | null =>
   isProvider(value) ? value : null;
 
 const readReasoningEffort = (
-  value: unknown
+  value: unknown,
 ): ConversationStartRunRequestDtoReasoningEffortEnum | null =>
   value === "low" ||
   value === "medium" ||
@@ -227,7 +232,7 @@ const BOUND_KEYS = [
 const readBound = (
   record: Record<string, unknown>,
   key: (typeof BOUND_KEYS)[number],
-  minimum: number
+  minimum: number,
 ): number | null => {
   const value = record[key];
   return typeof value === "number" &&
@@ -238,7 +243,7 @@ const readBound = (
 };
 
 const readBounds = (
-  value: unknown
+  value: unknown,
 ): RepositoryGroundingDeterministicBounds | null => {
   if (!isRecord(value)) return null;
 
@@ -259,7 +264,7 @@ const readBounds = (
 };
 
 const readInitialValueFromRecord = (
-  candidate: Record<string, unknown>
+  candidate: Record<string, unknown>,
 ): Partial<RepositoryGroundingValue> => {
   const initial: Partial<RepositoryGroundingValue> = {};
   const entryMode = candidate.entryMode;
@@ -298,7 +303,7 @@ const readInitialValueFromRecord = (
   const model = readString(
     candidate.model ??
       candidate.frontierModel ??
-      candidate.resolvedFrontierModel
+      candidate.resolvedFrontierModel,
   );
   if (model !== null) initial.model = model;
 
@@ -315,7 +320,7 @@ const readInitialValueFromRecord = (
 };
 
 const readInitialValue = (
-  value: Record<string, unknown>
+  value: Record<string, unknown>,
 ): Partial<RepositoryGroundingValue> => {
   const candidates: Record<string, unknown>[] = [value];
   const analysis = isRecord(value.analysis) ? value.analysis : undefined;
@@ -348,12 +353,12 @@ const readInitialValue = (
       ...initial,
       ...readInitialValueFromRecord(candidate),
     }),
-    {}
+    {},
   );
 };
 
 export const readRepositoryGroundingPayload = (
-  payload: unknown
+  payload: unknown,
 ): RepositoryGroundingPayloadProjection => {
   if (!isRecord(payload)) {
     return {
@@ -370,8 +375,8 @@ export const readRepositoryGroundingPayload = (
   const state = isRecord(payload.state)
     ? payload.state
     : isRecord(payload.analysis)
-    ? payload.analysis
-    : payload;
+      ? payload.analysis
+      : payload;
   const analysisConfiguration = isRecord(payload.analysisConfiguration)
     ? payload.analysisConfiguration
     : undefined;
@@ -392,7 +397,7 @@ export const readRepositoryGroundingPayload = (
 };
 
 const readNextAction = (
-  value: unknown
+  value: unknown,
 ): RepositoryGroundingNextAction | undefined =>
   value === RepositoryGroundingNextAction.StartAnalysis ||
   value === RepositoryGroundingNextAction.RetryAnalysis ||
@@ -404,8 +409,8 @@ const readNextAction = (
 export const normalizeRepositoryGroundingValue = (
   value: unknown,
   payload: RepositoryGroundingPayloadProjection = readRepositoryGroundingPayload(
-    undefined
-  )
+    undefined,
+  ),
 ): RepositoryGroundingValue => {
   const record = isRecord(value) ? value : {};
   const initial = payload.initialValue;
@@ -429,7 +434,7 @@ export const normalizeRepositoryGroundingValue = (
     provider: readProvider(readRecordOrInitial(record, "provider", initial)),
     model: readString(readRecordOrInitial(record, "model", initial)) ?? null,
     reasoningEffort: readReasoningEffort(
-      readRecordOrInitial(record, "reasoningEffort", initial)
+      readRecordOrInitial(record, "reasoningEffort", initial),
     ),
     fastMode: readBoolean(readRecordOrInitial(record, "fastMode", initial)),
     bounds:
@@ -449,7 +454,7 @@ export const normalizeRepositoryGroundingValue = (
 };
 
 export const createRepositoryGroundingValue = (
-  initial?: Partial<RepositoryGroundingValue>
+  initial?: Partial<RepositoryGroundingValue>,
 ): RepositoryGroundingValue =>
   normalizeRepositoryGroundingValue(initial ?? {}, {
     initialValue: {},
@@ -467,7 +472,7 @@ export const prepareRepositoryGroundingInitialValue = ({
 }: RepositoryGroundingInitialValueContext): RepositoryGroundingValue =>
   normalizeRepositoryGroundingValue(
     baseValue === undefined ? undefined : baseValue,
-    readRepositoryGroundingPayload(uiElement.payload)
+    readRepositoryGroundingPayload(uiElement.payload),
   );
 
 export const getRepositoryGroundingValidation = ({
@@ -517,7 +522,7 @@ export const getRepositoryGroundingValidation = ({
       })
     ) {
       errors.push(
-        "Choose a complete runtime configuration supported by the runtime catalog."
+        "Choose a complete runtime configuration supported by the runtime catalog.",
       );
     }
   }
@@ -572,7 +577,7 @@ export const buildRepositoryGroundingSubmission = ({
 };
 
 export const getRepositoryGroundingPhaseLabel = (
-  phase: RepositoryGroundingPhase
+  phase: RepositoryGroundingPhase,
 ): string => {
   switch (phase) {
     case "queued":

@@ -71,7 +71,7 @@ export const CodingPlanVersionSchema = z
 
 const ImplementRuntimeSelectionSchema = z
   .object({
-    provider: z.enum(['claude', 'codex', 'opencode']),
+    provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     model: z.string().min(1),
     reasoningEffort: z
       .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'default'])
@@ -259,7 +259,7 @@ export const CodingPlanReviewAnswerPayloadSchema = z.intersection(
       stepFeedback: z.array(CodingPlanReviewStepFeedbackEntrySchema).optional(),
       questionAnswers: z.array(CodingPlanReviewQuestionAnswerEntrySchema).optional(),
       feedback: z.string().optional(),
-      provider: z.enum(['claude', 'codex', 'opencode']).optional(),
+      provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']).optional(),
       model: z.string().min(1).optional(),
       reasoningEffort: z
         .enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'default'])

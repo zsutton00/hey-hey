@@ -975,7 +975,8 @@ export const GoalPmRoutingEnactmentRequestSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "machineId": {
@@ -1517,7 +1518,8 @@ export const GoalPmRoutingAnswerSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "machineId": {

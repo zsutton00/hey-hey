@@ -314,7 +314,7 @@ export type FinalRecommendationStoredData = {
 export type AgentInvocationData = {
   sessionId: AgentSessionId;
   latencyMs: number;
-  provider: "claude" | "codex" | "opencode";
+  provider: "claude" | "codex" | "opencode" | "antigravity";
 } & (
   | (CliTelemetrySuccess & {
       invocationId: InvocationId;

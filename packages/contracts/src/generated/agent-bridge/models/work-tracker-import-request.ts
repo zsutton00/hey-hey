@@ -121,11 +121,14 @@ export type WorkTrackerImportRequestSourceEnum = typeof WorkTrackerImportRequest
 export const WorkTrackerImportRequestProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(WorkTrackerImportRequestProviderEnum, "claude", { enumerable: false, value: WorkTrackerImportRequestProviderEnum["Claude"] });
 Object.defineProperty(WorkTrackerImportRequestProviderEnum, "codex", { enumerable: false, value: WorkTrackerImportRequestProviderEnum["Codex"] });
+Object.defineProperty(WorkTrackerImportRequestProviderEnum, "antigravity", { enumerable: false, value: WorkTrackerImportRequestProviderEnum["Antigravity"] });
 
 export type WorkTrackerImportRequestProviderEnum = typeof WorkTrackerImportRequestProviderEnum[keyof typeof WorkTrackerImportRequestProviderEnum];
 export const WorkTrackerImportRequestReasoningEffortEnum = {

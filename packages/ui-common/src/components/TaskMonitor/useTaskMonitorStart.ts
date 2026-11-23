@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
-  TaskMonitorLaunchProvider,
   type SubmitTaskMonitorCommandResponseDto,
   type TaskMonitorExecutionNodeLaunchConfiguration,
   type TaskMonitorRuntimeSelection,
@@ -40,16 +39,6 @@ export interface UseTaskMonitorStartResult {
   commandOutcome: SubmitTaskMonitorCommandResponseDto | null;
   start: () => Promise<boolean>;
 }
-
-const resolveProvider = (value: string): TaskMonitorLaunchProvider => {
-  switch (value) {
-    case TaskMonitorLaunchProvider.Claude:
-    case TaskMonitorLaunchProvider.Codex:
-    case TaskMonitorLaunchProvider.Opencode:
-      return value;
-  }
-  throw new Error("The saved Task Monitor provider is not supported.");
-};
 
 const resolveWorktree = (
   launchPolicy: TaskMonitorLaunchPolicy,
@@ -153,7 +142,7 @@ const buildLaunchConfig = (
   return {
     taskId: launchNode.taskId,
     method: configuration.method,
-    provider: resolveProvider(configuration.provider),
+    provider: configuration.provider,
     model: configuration.model,
     reasoningEffort: configuration.reasoningEffort,
     ...(typeof configuration.fastMode === "boolean"

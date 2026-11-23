@@ -68,13 +68,16 @@ export const QuestionAnswerRequestDtoAgentTypeEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(QuestionAnswerRequestDtoAgentTypeEnum, "claude", { enumerable: false, value: QuestionAnswerRequestDtoAgentTypeEnum["Claude"] });
 Object.defineProperty(QuestionAnswerRequestDtoAgentTypeEnum, "codex", { enumerable: false, value: QuestionAnswerRequestDtoAgentTypeEnum["Codex"] });
 Object.defineProperty(QuestionAnswerRequestDtoAgentTypeEnum, "opencode", { enumerable: false, value: QuestionAnswerRequestDtoAgentTypeEnum["Opencode"] });
+Object.defineProperty(QuestionAnswerRequestDtoAgentTypeEnum, "antigravity", { enumerable: false, value: QuestionAnswerRequestDtoAgentTypeEnum["Antigravity"] });
 
 export type QuestionAnswerRequestDtoAgentTypeEnum = typeof QuestionAnswerRequestDtoAgentTypeEnum[keyof typeof QuestionAnswerRequestDtoAgentTypeEnum];
 

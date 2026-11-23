@@ -820,7 +820,7 @@ components:
           $ref: "#/components/schemas/LocalMachineId"
         providerId:
           type: string
-          enum: [claude, codex, opencode]
+          enum: [claude, codex, opencode, antigravity]
         providerSessionId:
           type: string
           description: External id; must match the strict id pattern and the Run's history.

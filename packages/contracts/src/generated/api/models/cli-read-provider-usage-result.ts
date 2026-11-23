@@ -25,7 +25,7 @@ import type { CliReadProviderUsage } from './cli-read-provider-usage.js';
  */
 export interface CliReadProviderUsageResult {
     /**
-     * Exactly one latest usage entry for Claude Code, Codex, and OpenCode.
+     * Exactly one latest usage entry for Claude Code, Codex, OpenCode, and Antigravity.
      * @type {Array<CliReadProviderUsage>}
      * @memberof CliReadProviderUsageResult
      */

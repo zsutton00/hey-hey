@@ -1,9 +1,6 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import {
-  resolveAgentProviderId,
-  type AgentProviderId,
-} from '../../agents/providers/provider-config';
+import { isAgentProviderId, type AgentProviderId } from '../../agents/providers/provider-config';
 import type { RunStore } from '../../run-store/run-store';
 import type { AgenticSession } from '../../session';
 import type {
@@ -202,9 +199,18 @@ export class ProjectSessionCostsService {
         run.contextMetadata.organizationId === organizationId &&
         run.contextMetadata.projectId === request.projectId,
     );
-    const scopedRuns = scopeRunHistory(runs, filters);
-    const batchInputs = scopedRuns.flatMap(({ run, history }) => {
-      const providerId = resolveAgentProviderId(run.provider);
+    const scopedRuns = scopeRunHistory(runs, filters).flatMap((scoped) => {
+      const providerId = scoped.run.provider;
+      if (!isAgentProviderId(providerId)) {
+        this.dependencies.logger.warn('cli-read.project_session_costs.unknown_provider', {
+          agentSessionId: scoped.run.agentic_session_id,
+          code: 'UNKNOWN_PROVIDER',
+        });
+        return [];
+      }
+      return [{ ...scoped, providerId }];
+    });
+    const batchInputs = scopedRuns.flatMap(({ providerId, history }) => {
       return history.map((member) => ({
         providerId,
         providerSessionId: member.providerSessionId,
@@ -221,8 +227,7 @@ export class ProjectSessionCostsService {
 
     const batch = await this.sessionCostAdapter.readBatch(batchInputs, this.dependencies.logger);
     let costIndex = 0;
-    const rows = scopedRuns.map<CliReadProjectSessionCostRow>(({ run, history }) => {
-      const providerId = resolveAgentProviderId(run.provider);
+    const rows = scopedRuns.map<CliReadProjectSessionCostRow>(({ run, providerId, history }) => {
       const providerSessions = history.map((member) => {
         const cost = batch.costs[costIndex];
         costIndex += 1;

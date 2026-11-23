@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import type {
   LocalReasoningEffort,
   LocalRunScope,
@@ -25,7 +26,7 @@ import type {
 } from '../agents/review-file-scope-request/review-file-scope-types';
 import type { CanonicalFileChangeFact } from '../run/file-change-facts';
 
-export type TaskSessionProviderPreference = 'claude' | 'codex' | 'opencode';
+export type TaskSessionProviderPreference = AgentProviderId;
 
 export type AgenticSessionStatus = 'idle' | 'running' | 'complete';
 type AgenticEventActor = 'app' | 'agent' | 'system';

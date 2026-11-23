@@ -139,13 +139,16 @@ export const RepositoryFirstWorkRequestProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(RepositoryFirstWorkRequestProviderEnum, "claude", { enumerable: false, value: RepositoryFirstWorkRequestProviderEnum["Claude"] });
 Object.defineProperty(RepositoryFirstWorkRequestProviderEnum, "codex", { enumerable: false, value: RepositoryFirstWorkRequestProviderEnum["Codex"] });
 Object.defineProperty(RepositoryFirstWorkRequestProviderEnum, "opencode", { enumerable: false, value: RepositoryFirstWorkRequestProviderEnum["Opencode"] });
+Object.defineProperty(RepositoryFirstWorkRequestProviderEnum, "antigravity", { enumerable: false, value: RepositoryFirstWorkRequestProviderEnum["Antigravity"] });
 
 export type RepositoryFirstWorkRequestProviderEnum = typeof RepositoryFirstWorkRequestProviderEnum[keyof typeof RepositoryFirstWorkRequestProviderEnum];
 export const RepositoryFirstWorkRequestReasoningEffortEnum = {

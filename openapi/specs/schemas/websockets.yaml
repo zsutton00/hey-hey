@@ -2064,6 +2064,7 @@ CliReadProjectSessionCostMember:
         - claude
         - codex
         - opencode
+        - antigravity
     providerSessionId:
       type: string
       minLength: 1
@@ -2835,6 +2836,7 @@ ConversationControlPermissionDecision:
         - claude
         - codex
         - opencode
+        - antigravity
       description: >-
         Agent provider that issued the permission request.
     reason:
@@ -2898,6 +2900,7 @@ ConversationControlQuestionAnswer:
         - claude
         - codex
         - opencode
+        - antigravity
     answers:
       type: object
       additionalProperties:

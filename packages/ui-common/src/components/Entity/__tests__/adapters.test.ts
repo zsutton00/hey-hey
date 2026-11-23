@@ -1041,6 +1041,19 @@ describe("Entity Adapters", () => {
       expect(result.tags).toContain("Codex");
     });
 
+    it("labels Antigravity in the session tag and provider metadata", () => {
+      const result = agentSessionAdapter.toEntityListItemProps(
+        { ...mockSession, provider: "antigravity" },
+        { projectId: "project-1" },
+      );
+
+      expect(result.tags).toContain("Antigravity");
+      expect(result.metadata).toContainEqual({
+        label: "Provider",
+        value: "Antigravity",
+      });
+    });
+
     it("should append the trimmed worktree branch for a coding session", () => {
       const sessionWithWorktree: AgentSessionDto = {
         ...mockSession,

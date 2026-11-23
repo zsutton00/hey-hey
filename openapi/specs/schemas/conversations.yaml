@@ -163,7 +163,7 @@ WorkTrackerImportReplyAnswers:
       $ref: "./common.yaml#/MachineId"
     work_tracker_provider:
       type: string
-      enum: [claude, codex]
+      enum: [claude, codex, antigravity]
     work_tracker_model:
       type: string
       minLength: 1
@@ -3299,7 +3299,7 @@ ConversationStartRunRequestDto:
             be revoked; an invalid value is rejected with 400 INVALID_MACHINE_ID
             before any trigger is emitted.
   # Keep this conditional outside allOf. openapi-generator otherwise folds the
-  # Codex-only branch into the shared provider enum for every generated client.
+  # Fast-mode provider subset into the shared provider enum for every generated client.
   not:
     allOf:
       - required:
@@ -3309,6 +3309,7 @@ ConversationStartRunRequestDto:
             not:
               enum:
                 - codex
+                - claude
   description: >-
     Existing inbound request body for `POST .../conversations/{conversationId}/start-run`.
     Shares `StartRunPromptPayload`'s fields (which ride on the resulting
@@ -5755,7 +5756,7 @@ GoalPmRoutingCreation:
       $ref: "./coding-sessions.yaml#/AgentSessionConfigEntityConversationV1"
     provider:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     machineId:
       type: string
       format: uuid
@@ -6500,7 +6501,7 @@ PlanGenerationFinalizePayload:
 
 PermissionRequestAgentType:
   type: string
-  enum: [claude, codex, opencode]
+  enum: [claude, codex, opencode, antigravity]
   description: Agent providers that can issue permission requests
 
 PermissionRequestSummary:
@@ -6681,7 +6682,7 @@ AgentQuestionPayload:
       minLength: 1
     agentType:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     idempotencyToken:
       type: string
       minLength: 1
@@ -7389,6 +7390,7 @@ CodingPlanReviewAnswerPayload:
             - claude
             - codex
             - opencode
+            - antigravity
           description: Agent provider selected for the implementation run.
         model:
           type: string

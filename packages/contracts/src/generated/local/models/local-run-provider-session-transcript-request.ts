@@ -47,13 +47,16 @@ export const LocalRunProviderSessionTranscriptRequestProviderIdEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(LocalRunProviderSessionTranscriptRequestProviderIdEnum, "claude", { enumerable: false, value: LocalRunProviderSessionTranscriptRequestProviderIdEnum["Claude"] });
 Object.defineProperty(LocalRunProviderSessionTranscriptRequestProviderIdEnum, "codex", { enumerable: false, value: LocalRunProviderSessionTranscriptRequestProviderIdEnum["Codex"] });
 Object.defineProperty(LocalRunProviderSessionTranscriptRequestProviderIdEnum, "opencode", { enumerable: false, value: LocalRunProviderSessionTranscriptRequestProviderIdEnum["Opencode"] });
+Object.defineProperty(LocalRunProviderSessionTranscriptRequestProviderIdEnum, "antigravity", { enumerable: false, value: LocalRunProviderSessionTranscriptRequestProviderIdEnum["Antigravity"] });
 
 export type LocalRunProviderSessionTranscriptRequestProviderIdEnum = typeof LocalRunProviderSessionTranscriptRequestProviderIdEnum[keyof typeof LocalRunProviderSessionTranscriptRequestProviderIdEnum];
 

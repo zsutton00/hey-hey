@@ -26,7 +26,7 @@ import { attributeTurnMeasurement, type TurnReading } from './eval-turn-evidence
 import { z } from 'zod';
 import { LocalReasoningEffort } from '../../shared/agent-bridge-contract/contract';
 
-const providerSchema = z.enum(['claude', 'codex', 'opencode']);
+const providerSchema = z.enum(['claude', 'codex', 'opencode', 'antigravity']);
 const effortSchema = z.nativeEnum(LocalReasoningEffort);
 
 /** Owns attempt Runs, including stopping while creation has not yet activated a Run. */

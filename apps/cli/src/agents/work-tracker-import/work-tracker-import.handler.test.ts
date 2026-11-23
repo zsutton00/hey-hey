@@ -96,6 +96,18 @@ describe('work tracker import', () => {
     },
   );
 
+  it.each(['jira', 'linear'] as const)(
+    'reports that %s connection setup is unavailable for Antigravity',
+    (source) => {
+      const instructions = buildWorkTrackerConnectionInstructions({
+        provider: 'antigravity',
+        source,
+      });
+      expect(instructions).toMatch(/Antigravity.*unavailable/i);
+      expect(instructions).not.toContain('codex mcp');
+    },
+  );
+
   it('snapshots complete connect and import prompts', () => {
     expect(workTrackerConnectHandler.buildPrompt(payload)).toMatchSnapshot();
     expect(workTrackerImportHandler.buildPrompt(payload)).toMatchSnapshot();

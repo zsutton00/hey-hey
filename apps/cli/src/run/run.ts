@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import { CommitGitError } from '../agents/commit/commit-git-error';
 import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
@@ -197,7 +198,11 @@ import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
 import type { AgentSessionCurrentStateObservation } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import { ConversationPhaseOwner } from './conversation-phase';
-import { RunCompaction } from './run-compaction';
+import {
+  DEFAULT_AUTO_COMPACT_THRESHOLD,
+  DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+  RunCompaction,
+} from './run-compaction';
 import { RunProposalTracker, type ProposalDecisionNotices } from './run-proposal-tracker';
 import { setAgentSessionOutputAttentionReady } from './agent-session-output-attention';
 import {
@@ -448,7 +453,7 @@ export interface RunArgs {
   organizationId: string;
   projectId: string;
   conversationId: string;
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
   /**
    * The AgenticSession this Run is bound to. Resolved once at Run activation
    * and held here for the Run's lifetime. Nothing below Run reads the
@@ -713,7 +718,7 @@ export class Run {
    * selection may switch it between Turns; the switch rotates the provider
    * session inside this Run and never creates another Run.
    */
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
 
   session: AgenticSession;
   hasProviderSession: boolean;
@@ -1015,7 +1020,15 @@ export class Run {
       broadcaster: this.broadcaster,
       autoCompact:
         args.autoCompact?.enabled === true
-          ? { threshold: args.autoCompact.threshold ?? 150_000 }
+          ? args.autoCompact.threshold !== undefined
+            ? { threshold: args.autoCompact.threshold }
+            : args.provider === 'antigravity'
+              ? // Gemini's window is several times larger, so the default follows the window the model reports.
+                {
+                  threshold: DEFAULT_AUTO_COMPACT_THRESHOLD,
+                  windowFraction: DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+                }
+              : { threshold: DEFAULT_AUTO_COMPACT_THRESHOLD }
           : null,
       runner: () => this.runner ?? undefined,
       isProcessing: () => this._processing,

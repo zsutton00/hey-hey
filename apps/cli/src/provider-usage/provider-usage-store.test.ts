@@ -81,5 +81,6 @@ it('reads every stored provider while isolating an unreadable snapshot and ignor
   expect(readings).toEqual([
     { status: 'reported', usage: reading() },
     { status: 'storage_failure', provider: 'opencode' },
+    { status: 'unreported', usage: unreportedUsage('antigravity') },
   ]);
 });

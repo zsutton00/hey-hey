@@ -26,6 +26,7 @@ logs/
 *.logs
 *.jsonl
 *.ndjson
+!apps/cli/src/agent-runtime/node/__fixtures__/antigravity/*.ndjson
 *.har
 *.har.json
 !**/__fixtures__/*.jsonl

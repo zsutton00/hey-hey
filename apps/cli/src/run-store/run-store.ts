@@ -1,3 +1,4 @@
+import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { commitIntentSchema, type CommitIntent } from '../agents/commit/commit-intent';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type { SubAgentResult } from '../run/subagent';
@@ -525,12 +526,6 @@ export type RunResult = Pick<SubAgentResult, 'assistantCompleted' | 'outputText'
 export class RunStore {
   private readonly unavailableUsageRuns = new Set<string>();
   private static readonly MAX_CHANGED_FILES_DIAGNOSTICS = 200;
-
-  private static readonly VALID_PROVIDER_PREFERENCES = new Set<string>([
-    'claude',
-    'codex',
-    'opencode',
-  ]);
 
   private readonly paths: RunStorePaths;
   private readonly now: () => Date;
@@ -2422,10 +2417,7 @@ export class RunStore {
       const text = await fs.readFile(this.paths.preferencesPath, 'utf8');
       const parsed = JSON.parse(text) as Record<string, unknown>;
       const provider = parsed['providerPreference'];
-      if (typeof provider === 'string' && RunStore.VALID_PROVIDER_PREFERENCES.has(provider)) {
-        return provider as TaskSessionProviderPreference;
-      }
-      return null;
+      return provider == null ? null : resolveAgentProviderId(provider);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw error;
@@ -2440,7 +2432,7 @@ export class RunStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
-    existing['providerPreference'] = provider;
+    existing['providerPreference'] = resolveAgentProviderId(provider);
     await fs.writeFile(this.paths.preferencesPath, JSON.stringify(existing, null, 2), 'utf8');
   }
 

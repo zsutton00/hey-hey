@@ -1,4 +1,5 @@
 import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
+import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import crypto from 'node:crypto';
 import { toServiceId, type RepoMappingStore } from '../repo/index';
 import type { RunStore } from '../run-store';
@@ -198,19 +199,11 @@ export interface TaskMonitorCodingSessionLaunchInput {
 
 export const toCreateProvider = (
   provider: TaskMonitorLaunchConfig['provider'],
-): CreateAgentSessionDtoProviderEnum => {
-  if (provider === 'claude') return CreateAgentSessionDtoProviderEnum.Claude;
-  if (provider === 'codex') return CreateAgentSessionDtoProviderEnum.Codex;
-  return CreateAgentSessionDtoProviderEnum.Opencode;
-};
+): CreateAgentSessionDtoProviderEnum => resolveAgentProviderId(provider);
 
 const toStartProvider = (
   provider: TaskMonitorLaunchConfig['provider'],
-): ConversationStartRunRequestDtoProviderEnum => {
-  if (provider === 'claude') return ConversationStartRunRequestDtoProviderEnum.Claude;
-  if (provider === 'codex') return ConversationStartRunRequestDtoProviderEnum.Codex;
-  return ConversationStartRunRequestDtoProviderEnum.Opencode;
-};
+): ConversationStartRunRequestDtoProviderEnum => resolveAgentProviderId(provider);
 
 export const toTaskMonitorSessionConfig = (
   input: TaskMonitorCodingSessionLaunchInput,

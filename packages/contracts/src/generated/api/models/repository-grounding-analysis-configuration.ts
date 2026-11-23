@@ -71,13 +71,16 @@ export const RepositoryGroundingAnalysisConfigurationProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(RepositoryGroundingAnalysisConfigurationProviderEnum, "claude", { enumerable: false, value: RepositoryGroundingAnalysisConfigurationProviderEnum["Claude"] });
 Object.defineProperty(RepositoryGroundingAnalysisConfigurationProviderEnum, "codex", { enumerable: false, value: RepositoryGroundingAnalysisConfigurationProviderEnum["Codex"] });
 Object.defineProperty(RepositoryGroundingAnalysisConfigurationProviderEnum, "opencode", { enumerable: false, value: RepositoryGroundingAnalysisConfigurationProviderEnum["Opencode"] });
+Object.defineProperty(RepositoryGroundingAnalysisConfigurationProviderEnum, "antigravity", { enumerable: false, value: RepositoryGroundingAnalysisConfigurationProviderEnum["Antigravity"] });
 
 export type RepositoryGroundingAnalysisConfigurationProviderEnum = typeof RepositoryGroundingAnalysisConfigurationProviderEnum[keyof typeof RepositoryGroundingAnalysisConfigurationProviderEnum];
 export const RepositoryGroundingAnalysisConfigurationReasoningEffortEnum = {

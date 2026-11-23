@@ -90,7 +90,7 @@ const conversationControlPermissionDecisionBodySchema = z
     decision: z.enum(['approve', 'always_approve', 'deny', 'whitelist']),
     requestId: z.string().min(1),
     sessionId: z.string().min(1),
-    agentType: z.enum(['claude', 'codex', 'opencode']),
+    agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     reason: z.string().nullable().optional(),
     servicePlaceChoices: servicePlaceChoicesSchema.optional(),
     idempotencyToken: z.string().min(1),
@@ -102,7 +102,7 @@ const conversationControlQuestionAnswerBodySchema = z
     kind: z.literal('question_answer'),
     requestId: z.string().min(1),
     sessionId: z.string().min(1),
-    agentType: z.enum(['claude', 'codex', 'opencode']),
+    agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     answers: z.record(z.string(), z.string()),
     idempotencyToken: z.string().min(1),
   })

@@ -86,13 +86,16 @@ export const CodingPlanReviewAnswerPayloadAllOfProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(CodingPlanReviewAnswerPayloadAllOfProviderEnum, "claude", { enumerable: false, value: CodingPlanReviewAnswerPayloadAllOfProviderEnum["Claude"] });
 Object.defineProperty(CodingPlanReviewAnswerPayloadAllOfProviderEnum, "codex", { enumerable: false, value: CodingPlanReviewAnswerPayloadAllOfProviderEnum["Codex"] });
 Object.defineProperty(CodingPlanReviewAnswerPayloadAllOfProviderEnum, "opencode", { enumerable: false, value: CodingPlanReviewAnswerPayloadAllOfProviderEnum["Opencode"] });
+Object.defineProperty(CodingPlanReviewAnswerPayloadAllOfProviderEnum, "antigravity", { enumerable: false, value: CodingPlanReviewAnswerPayloadAllOfProviderEnum["Antigravity"] });
 
 export type CodingPlanReviewAnswerPayloadAllOfProviderEnum = typeof CodingPlanReviewAnswerPayloadAllOfProviderEnum[keyof typeof CodingPlanReviewAnswerPayloadAllOfProviderEnum];
 export const CodingPlanReviewAnswerPayloadAllOfReasoningEffortEnum = {

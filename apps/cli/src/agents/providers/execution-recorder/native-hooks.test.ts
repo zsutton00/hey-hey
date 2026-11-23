@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,6 +14,26 @@ import { ExecutionRecorder } from './execution-recorder';
 import { CodexExecutionCaptureHooks } from '../codex/execution-capture-hooks';
 import { ClaudeExecutionCaptureHooks } from '../claude/execution-capture-hooks';
 import { NOOP_LOGGER } from '../../../server/logger';
+import { OAuthClient } from '../../../auth';
+import { createTestRun, createTestRunStore } from '../../../run/run.test-support';
+import type { Turn } from '../../../turn/turn';
+import { LocalAgentEndpoint } from '../../../server/local-base-url';
+import { ProjectMaturity } from '../../../shared/api/index';
+import { SubmissionToolRegistry } from '../../submission-tools/registry';
+import { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
+import { IsolatedProviderWorkingDirectory } from '../isolated-provider-working-directory';
+import { AntigravityAgentSessionRunner } from '../antigravity/session-runner-antigravity';
+
+// The platform prompt context is the only network read the Antigravity runner makes besides agy.
+vi.mock('../../prompts/session-start-context', () => ({
+  readSessionStartContext: async () => ({
+    workItemTypeDefinitions: [],
+    maturity: ProjectMaturity.Established,
+    intentFirst: false,
+    hintsEnabled: false,
+    productDevelopment: false,
+  }),
+}));
 
 const exec = promisify(execFile);
 
@@ -340,3 +360,147 @@ describe.each(['codex', 'claude'] as const)('installed %s native hook smoke', (p
     45000,
   );
 });
+
+/**
+ * agy has no local model endpoint, so this case spends the signed-in account's real model quota
+ * and runs only when HEY_HEY_NATIVE_AGY=1. It drives the shipped runner: the hook file in the
+ * isolated launch directory, `--include-default-customizations=false`, the anchored matcher, and
+ * the Run sandbox with its private HOME.
+ */
+describe.skipIf(process.env['HEY_HEY_NATIVE_AGY'] !== '1')(
+  'installed antigravity native hook',
+  () => {
+    const launch = async (directory: string, recorder: ExecutionRecorder | undefined) => {
+      const service = path.join(directory, 'repo');
+      await fs.mkdir(service, { recursive: true });
+      await exec('git', ['init', '-q', service]);
+      const workspace = {
+        ok: true as const,
+        runMode: 'default' as const,
+        repositoryPathForRunStarted: service,
+        cwd: service,
+        allowedRepositoryRoots: [service],
+        bindingRepositoryPath: service,
+        workspaceRoot: null,
+      };
+      const boundary = await RunWorkspaceWriteBoundary.create(workspace, {
+        runScopeId: `agy-native-${path.basename(directory)}`,
+        providerStateRoot: path.join(directory, 'state'),
+      });
+      const base = createTestRun({ provider: 'antigravity' });
+      const run = createTestRun({
+        provider: 'antigravity',
+        session: {
+          ...base.session,
+          provider: 'antigravity',
+          services: [{ id: 'native-service', path: service }],
+        },
+      });
+      run.activeTurn = { turnId: 'native-turn' } as Turn;
+      vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
+      const diagnostics: object[] = [];
+      const record = (event: string, fields?: object) => {
+        diagnostics.push({ event, fields });
+      };
+      const logger = {
+        trace: NOOP_LOGGER.trace.bind(NOOP_LOGGER),
+        info: NOOP_LOGGER.info.bind(NOOP_LOGGER),
+        error: record,
+        warn: record,
+        debug: record,
+        child: () => logger,
+      };
+      const runner = new AntigravityAgentSessionRunner({
+        agentOutputOwner: run,
+        runStore: createTestRunStore(),
+        submissionToolRegistry: new SubmissionToolRegistry(),
+        oauthClient: new OAuthClient(),
+        localAgentEndpoint: new LocalAgentEndpoint(),
+        logger,
+        ...(recorder ? { executionRecorder: recorder } : {}),
+      });
+      const created = vi.spyOn(IsolatedProviderWorkingDirectory, 'create');
+      const { launchServiceId: _launch, ...session } = run.session;
+      const target = path.join(service, 'native-probe.txt');
+      const writeProbe = () =>
+        prompt(
+          `Use your file writing tool once to create ${target} containing exactly: probe. Do nothing else.`,
+        );
+      const prompt = (text: string) =>
+        runner.runPrompt({
+          session: { ...session, workspaceBound: true },
+          prompt: text,
+          skipPermissions: true,
+          workspace,
+          workspaceWriteBoundary: boundary,
+        });
+      const launchDirectory = async () => (await created.mock.results[0]!.value).path as string;
+      const dispose = async () => {
+        created.mockRestore();
+        await runner.dispose();
+        await boundary.dispose();
+      };
+      return { target, writeProbe, launchDirectory, dispose, diagnostics };
+    };
+
+    it('captures a real write before and after, and gives agy no hook while tracking is off', async () => {
+      const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'hh-agy-')));
+      try {
+        // Tracking on: one real prompt that writes one file.
+        const recorder = new ExecutionRecorder(path.join(directory, 'evidence'), NOOP_LOGGER);
+        const tracked = await launch(path.join(directory, 'tracked'), recorder);
+        const { target } = tracked;
+        try {
+          await tracked.writeProbe();
+          const hookFile = path.join(await tracked.launchDirectory(), '.agents', 'hooks.json');
+          expect(JSON.parse(await fs.readFile(hookFile, 'utf8'))).toHaveProperty('hey-hey-capture');
+        } finally {
+          await tracked.dispose();
+        }
+        const evidence = JSON.stringify(tracked.diagnostics);
+        expect(await fs.readFile(target, 'utf8'), evidence).toBe('probe');
+        const observations = await recorder.store.read();
+        const write = observations.find(({ identity }) => identity.toolName === 'Write');
+        expect(write, evidence).toBeDefined();
+        expect(write!.identity.provider).toBe('antigravity');
+        expect(write!.outcome).toBe('success');
+        const before = write!.before!.entries.find((entry) => entry.path === 'native-probe.txt');
+        const after = write!.after!.entries.find((entry) => entry.path === 'native-probe.txt')!;
+        expect(before?.hash ?? null).toBeNull();
+        expect((await recorder.store.readBlob(after.hash!)).toString()).toBe('probe');
+        const coverage = await fs
+          .readdir(path.join(directory, 'evidence', 'coverage'))
+          .catch(() => []);
+        const reasons = await Promise.all(
+          coverage.map(async (name) => {
+            const text = await fs.readFile(
+              path.join(directory, 'evidence', 'coverage', name),
+              'utf8',
+            );
+            return (JSON.parse(text) as { payload: { reason: string } }).payload.reason;
+          }),
+        );
+        expect(reasons, evidence).not.toContain('hook_not_observed');
+        expect(reasons, evidence).not.toContain('identity_unresolved');
+
+        // Tracking off: the same write runs, but agy is given no hook and nothing is recorded.
+        const untracked = await launch(path.join(directory, 'untracked'), undefined);
+        try {
+          await untracked.writeProbe();
+          await expect(
+            fs.access(path.join(await untracked.launchDirectory(), '.agents', 'hooks.json')),
+          ).rejects.toMatchObject({ code: 'ENOENT' });
+        } finally {
+          await untracked.dispose();
+        }
+        expect(
+          await fs.readFile(untracked.target, 'utf8'),
+          JSON.stringify(untracked.diagnostics),
+        ).toBe('probe');
+        expect(await recorder.store.read()).toHaveLength(observations.length);
+      } finally {
+        await fs.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+      }
+    }, 180000);
+  },
+);

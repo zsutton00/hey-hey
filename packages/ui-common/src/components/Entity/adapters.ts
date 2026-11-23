@@ -17,6 +17,7 @@ import {
 import type { PlanWorkItem } from "../../data/plans/canonicalPlan";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { getPathService, type PathService } from "../../services";
+import { PROVIDER_LABELS } from "../../utils/providerLabels";
 import { formatStatus } from "../../utils/statusUtils";
 import {
   getWorkItemStatusLabel,
@@ -655,7 +656,7 @@ export const agentSessionAdapter: EntityListItemAdapter<AgentSessionDto> = {
 
     // Add provider
     if (session.provider) {
-      const provider = session.provider === "claude" ? "Claude" : "Codex";
+      const provider = PROVIDER_LABELS[session.provider];
       tags.push(provider);
       metadata.push({ label: "Provider", value: provider });
     }

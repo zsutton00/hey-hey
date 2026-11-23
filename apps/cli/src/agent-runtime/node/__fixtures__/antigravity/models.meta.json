@@ -1,0 +1,45 @@
+{
+  "label": "models",
+  "signedOut": false,
+  "signedOutIsolation": null,
+  "cwd": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli",
+  "agyVersion": {
+    "stdout": "1.5.13\n",
+    "stderr": "",
+    "exitCode": 0,
+    "spawnError": null
+  },
+  "argv": {
+    "models": [
+      "-p",
+      "/models",
+      "--output-format",
+      "json"
+    ],
+    "skills": [
+      "-p",
+      "/skills",
+      "--output-format",
+      "json"
+    ],
+    "quota": [
+      "-p",
+      "/quota",
+      "--output-format",
+      "json"
+    ]
+  },
+  "outcomes": {
+    "models": {
+      "file": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli/src/agent-runtime/node/__fixtures__/antigravity/models-models.json",
+      "exitCode": 0,
+      "error": null
+    },
+    "skills": {
+      "file": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli/src/agent-runtime/node/__fixtures__/antigravity/models-skills.json",
+      "exitCode": 0,
+      "error": null
+    }
+  },
+  "finishedAt": "2026-11-20T03:29:54.446Z"
+}

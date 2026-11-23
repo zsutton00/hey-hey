@@ -407,7 +407,12 @@ const projectSessionCostsListSuccessSchema = z
               providerSessions: z.array(
                 z
                   .object({
-                    providerId: z.enum(['claude', 'codex', 'opencode']),
+                    providerId: z.enum([
+                      'claude',
+                      'codex',
+                      'opencode',
+                      'antigravity',
+                    ]),
                     providerSessionId: z.string().min(1),
                     providerConversationId: z.string().nullable(),
                     providerSessionAgentId: z.string().nullable(),
@@ -479,7 +484,7 @@ const runtimeModelCatalogGetSuccessSchema = z
         providers: z.array(
           z
             .object({
-              provider: z.enum(['claude', 'codex', 'opencode']),
+              provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
               models: z.array(
                 z
                   .object({

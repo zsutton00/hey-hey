@@ -13,10 +13,12 @@ import type {
   CliReadProviderUsageLimitWindow,
   CliReadProviderUsageProviderEnum,
 } from "../../../api";
+import { PROVIDER_LABELS } from "../../../utils/providerLabels";
 import { formatActivityTimestamp } from "../activityFormatting";
 import {
   ClaudeCodeIcon,
   CodexIcon,
+  AntigravityIcon,
   OpencodeIcon,
   type ProviderIconProps,
 } from "../providerIcons";
@@ -32,8 +34,9 @@ const PROVIDERS: Record<
   { label: string; Icon: React.FC<ProviderIconProps> }
 > = {
   claude: { label: "Claude Code", Icon: ClaudeCodeIcon },
-  codex: { label: "Codex", Icon: CodexIcon },
-  opencode: { label: "OpenCode", Icon: OpencodeIcon },
+  codex: { label: PROVIDER_LABELS.codex, Icon: CodexIcon },
+  antigravity: { label: PROVIDER_LABELS.antigravity, Icon: AntigravityIcon },
+  opencode: { label: PROVIDER_LABELS.opencode, Icon: OpencodeIcon },
 };
 
 const LimitWindowRow = ({
@@ -105,7 +108,7 @@ export const ProviderUsageCard = ({ usage }: ProviderUsageCardProps) => {
   useEffect(() => {
     const intervalId = setInterval(
       () => setNow(Date.now()),
-      CLOCK_REFRESH_INTERVAL_MS
+      CLOCK_REFRESH_INTERVAL_MS,
     );
     return () => clearInterval(intervalId);
   }, []);

@@ -205,6 +205,25 @@ const resetState = (): void => {
   codexState.createdRunnerDependencies = [];
 };
 
+it('owns one Antigravity runner per Run and rejects repository-bound prompts and resumes', async () => {
+  resetState();
+  const facade = buildFacade();
+  const run = buildRun({ provider: 'antigravity' });
+  const runner = facade.forRun(run);
+  expect(facade.forRun(run)).toBe(runner);
+  expect(run.setRunner).toHaveBeenCalledExactlyOnceWith(runner);
+  const session = stubSession({
+    provider: 'antigravity',
+    services: [{ id: 'service-1', path: '/repo' }],
+  });
+  await expect(facade.runPrompt(run, buildRunArgs({ session }))).rejects.toMatchObject({
+    code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED',
+  });
+  await expect(facade.resumeSession(run, buildResumeArgs({ session }))).rejects.toMatchObject({
+    code: 'ANTIGRAVITY_CONTAINMENT_REQUIRED',
+  });
+});
+
 describe('SessionRunnerFacade — ToolRuleStore ownership', () => {
   it('sends no capture hooks while precise file change tracking is off', async () => {
     resetState();

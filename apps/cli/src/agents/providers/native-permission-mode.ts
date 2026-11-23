@@ -12,6 +12,7 @@ const PROVIDER_BINARY: Readonly<Record<AgentProviderId, string>> = {
   claude: 'claude',
   codex: 'codex',
   opencode: 'opencode',
+  antigravity: 'agy',
 };
 
 export type NativePermissionModeResolution =
