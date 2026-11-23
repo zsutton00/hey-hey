@@ -24,6 +24,7 @@ export * from './agent-operation-dispatch-rejected-acknowledgement.js';
 export * from './agent-operation-kind.js';
 export * from './agent-operation-snapshot.js';
 export * from './agent-operation-state.js';
+export * from './agent-provider-id.js';
 export * from './agent-session-config.js';
 export * from './agent-session-config-entity-conversation-v1.js';
 export * from './agent-session-config-entity-conversation-v1-verify-feature.js';

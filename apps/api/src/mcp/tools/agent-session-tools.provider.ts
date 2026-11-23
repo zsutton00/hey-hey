@@ -1,11 +1,16 @@
 import { ReadVisibilityService } from '../../read-restriction/read-visibility.service';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Tool, Context } from '@rekog/mcp-nest';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import type { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConversationId, OrganizationId } from '../../types';
+import { ConversationId, OrganizationId, UserId } from '../../types';
 import type {
   GetAgentSessionError,
   GetAgentSessionRequest,
@@ -219,6 +224,12 @@ export class AgentSessionToolsProvider {
         return { agentSession, messages: [] } satisfies GetAgentSessionResponse;
       }
 
+      await this.messageService.assertConversationMessagesReadable({
+        organizationId: auth.organizationId,
+        conversationId: agentSession.conversationId as ConversationId,
+        readerUserId: auth.user.userId as UserId,
+      });
+
       const page = await this.messageService.getAgentSessionHistoryPage({
         organizationId: auth.organizationId,
         projectId,
@@ -235,6 +246,12 @@ export class AgentSessionToolsProvider {
         return this.getAgentSessionError(
           GetAgentSessionErrorCode.AgentSessionNotFound,
           'Agent Session not found in the authorized project scope.',
+        );
+      }
+      if (error instanceof ForbiddenException) {
+        return this.getAgentSessionError(
+          GetAgentSessionErrorCode.ConversationRestricted,
+          'The Agent Session Conversation is restricted to its creator. Its reports remain readable.',
         );
       }
       if (error instanceof AgentSessionHistoryCursorError) {
@@ -319,8 +336,19 @@ export class AgentSessionToolsProvider {
       const conversationIds = paged
         .map((s) => s.conversationId)
         .filter((id): id is string => id !== null);
-      const { messagesByConversation, rawRowCount } =
-        await this.loadMessages(conversationIds);
+      // Restricted conversations of other users keep their session metadata but
+      // contribute no message content.
+      const readableConversationIds =
+        await this.messageService.filterReadableConversationIds({
+          organizationId,
+          conversationIds: conversationIds as ConversationId[],
+          readerUserId: auth.user.userId as UserId,
+        });
+      const { messagesByConversation, rawRowCount } = await this.loadMessages(
+        conversationIds.filter((id) =>
+          readableConversationIds.has(id as ConversationId),
+        ),
+      );
 
       const mapped: GetAgentSessionsOutput['sessions'] = paged.map(
         (session) => {

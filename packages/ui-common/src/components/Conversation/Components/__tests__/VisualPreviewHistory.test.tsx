@@ -325,6 +325,7 @@ const completion = (
   };
 };
 const conversation: ConversationResponseDto = {
+  restricted: true,
   id: "conversation",
   organizationId: "org",
   projectId: "project",

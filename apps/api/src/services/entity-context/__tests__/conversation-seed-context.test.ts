@@ -11,12 +11,24 @@ const organizationId = 'org-1' as OrganizationId;
 const projectId = 'project-1' as ProjectId;
 const conversationId = 'conversation-1';
 const messageId = 'message-1';
+const creatorId = 'user-creator';
+const teammateId = 'user-teammate';
 const conversationCreatedAt = new Date('2026-10-01T00:00:00Z');
 
-function makeDb(overrides: { message?: unknown; conversation?: unknown }) {
+function makeDb(overrides: {
+  message?: Record<string, unknown> | null;
+  conversation?: Record<string, unknown> | null;
+}) {
+  const { data, ...messageHeader } = overrides.message ?? {};
   return {
     message: {
-      findFirst: jest.fn().mockResolvedValue(overrides.message ?? null),
+      // The header read never selects body data; only the gated read does.
+      findFirst: jest.fn(async (args: { select: { data?: boolean } }) => {
+        if (!overrides.message) {
+          return null;
+        }
+        return args.select.data ? { data } : messageHeader;
+      }),
     },
     conversation: {
       findFirst: jest.fn().mockResolvedValue(
@@ -25,6 +37,8 @@ function makeDb(overrides: { message?: unknown; conversation?: unknown }) {
               id: conversationId,
               title: 'Fix get_context',
               createdAt: conversationCreatedAt,
+              restricted: true,
+              createdBy: creatorId,
               workflowAboutType: null,
               workflowAboutId: null,
             }
@@ -71,6 +85,7 @@ const load = (
   db: ReturnType<typeof makeDb>,
   kind: 'CONVERSATION' | 'MESSAGE',
   id: string,
+  readerUserId: string | null = creatorId,
 ) =>
   loadAuthorizedConversationSeed(
     db as unknown as ExtendedPrismaClient,
@@ -78,6 +93,7 @@ const load = (
     projectId,
     kind,
     id,
+    readerUserId,
   );
 
 describe('loadAuthorizedConversationSeed', () => {
@@ -171,5 +187,91 @@ describe('loadAuthorizedConversationSeed', () => {
     );
     expect(db.proposal.findMany).not.toHaveBeenCalled();
     expect(db.report.findMany).not.toHaveBeenCalled();
+  });
+
+  describe('transcript privacy', () => {
+    const shortMessage = {
+      id: messageId,
+      conversationId,
+      type: 'SYSTEM',
+      data: { response: 'private plan details' },
+      createdAt: new Date('2026-10-03T00:00:00Z'),
+    };
+    const conversationRow = (access: {
+      restricted: boolean;
+      createdBy: string | null;
+    }) => ({
+      id: conversationId,
+      title: 'Fix get_context',
+      createdAt: conversationCreatedAt,
+      workflowAboutType: null,
+      workflowAboutId: null,
+      ...access,
+    });
+
+    it('gives the recorded creator the full short excerpt', async () => {
+      const db = makeDb({ message: shortMessage });
+
+      const seed = await load(db, 'MESSAGE', messageId, creatorId);
+
+      expect(seed.conversationContext.message).toMatchObject({
+        excerpt: 'private plan details',
+        truncated: false,
+        length: 'private plan details'.length,
+      });
+    });
+
+    it('gives readers of an unrestricted conversation the excerpt', async () => {
+      const db = makeDb({
+        message: shortMessage,
+        conversation: conversationRow({
+          restricted: false,
+          createdBy: creatorId,
+        }),
+      });
+
+      const seed = await load(db, 'MESSAGE', messageId, teammateId);
+
+      expect(seed.conversationContext.message?.excerpt).toBe(
+        'private plan details',
+      );
+    });
+
+    it.each([
+      ['a non-creator', { restricted: true, createdBy: creatorId }, teammateId],
+      [
+        'a conversation with no recorded creator',
+        { restricted: true, createdBy: null },
+        teammateId,
+      ],
+      [
+        'an unidentified reader',
+        { restricted: true, createdBy: creatorId },
+        null,
+      ],
+    ])(
+      'withholds the message block from %s but keeps orientation',
+      async (_label, access, reader) => {
+        const db = makeDb({
+          message: shortMessage,
+          conversation: conversationRow(access),
+        });
+
+        const seed = await load(db, 'MESSAGE', messageId, reader);
+
+        expect(seed.conversationContext.message).toBeUndefined();
+        expect(JSON.stringify(seed)).not.toContain('private plan details');
+        expect(seed.conversationContext.conversationTitle).toBe(
+          'Fix get_context',
+        );
+        expect(seed.conversationContext.agentSessions).toHaveLength(1);
+        expect(seed.conversationContext.proposals).toHaveLength(1);
+        expect(seed.conversationContext.reports).toHaveLength(1);
+        // Body data is never read for a denied reader.
+        expect(
+          db.message.findFirst.mock.calls.some(([args]) => args.select.data),
+        ).toBe(false);
+      },
+    );
   });
 });

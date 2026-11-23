@@ -543,8 +543,7 @@ export const controllerActionRuntimeSchema = {
                         'Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the permission gate.',
                     },
                     agentType: {
-                      type: 'string',
-                      enum: ['claude', 'codex', 'opencode', 'antigravity'],
+                      $ref: '#/definitions/AgentProviderId',
                       description: 'Agent provider that issued the permission request.',
                     },
                     reason: {
@@ -1739,6 +1738,11 @@ export const controllerActionRuntimeSchema = {
       },
       additionalProperties: false,
     },
+    AgentProviderId: {
+      type: 'string',
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
+      description: 'Identifier for a supported agent provider.',
+    },
     ConversationControlPermissionDecision: {
       type: 'object',
       required: [
@@ -1786,8 +1790,7 @@ export const controllerActionRuntimeSchema = {
             'Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the permission gate.',
         },
         agentType: {
-          type: 'string',
-          enum: ['claude', 'codex', 'opencode', 'antigravity'],
+          $ref: '#/definitions/AgentProviderId',
           description: 'Agent provider that issued the permission request.',
         },
         reason: {
@@ -2922,10 +2925,8 @@ export const controllerActionRuntimeSchema = {
           ],
         },
         provider: {
-          type: 'string',
-          enum: ['claude', 'codex', 'opencode', 'antigravity'],
-          description:
-            'Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep.\n',
+          $ref: '#/definitions/AgentProviderId',
+          description: 'Agent provider the CLI should dispatch against.\n',
         },
         skillSelection: {
           $ref: '#/definitions/AgentSkillSelection',

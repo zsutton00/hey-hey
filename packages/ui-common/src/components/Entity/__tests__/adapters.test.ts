@@ -1458,6 +1458,7 @@ describe("Entity Adapters", () => {
 
   describe("remaining canonical kind labels", () => {
     const mockConversation: ConversationResponseDto = {
+      restricted: true,
       id: "conversation-1",
       projectId: "project-1",
       organizationId: "org-1",

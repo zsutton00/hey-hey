@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -14,6 +15,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ServicePlaceChoice } from './service-place-choice.js';
@@ -61,11 +65,11 @@ export interface ConversationControlPermissionDecision1 {
      */
     'sessionId': string;
     /**
-     * Agent provider that issued the permission request.
-     * @type {string}
+     *
+     * @type {AgentProviderId}
      * @memberof ConversationControlPermissionDecision1
      */
-    'agentType': ConversationControlPermissionDecision1AgentTypeEnum;
+    'agentType': AgentProviderId;
     /**
      * User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.
      * @type {string}
@@ -111,28 +115,12 @@ Object.defineProperty(ConversationControlPermissionDecision1DecisionEnum, "deny"
 Object.defineProperty(ConversationControlPermissionDecision1DecisionEnum, "whitelist", { enumerable: false, value: ConversationControlPermissionDecision1DecisionEnum["Whitelist"] });
 
 export type ConversationControlPermissionDecision1DecisionEnum = typeof ConversationControlPermissionDecision1DecisionEnum[keyof typeof ConversationControlPermissionDecision1DecisionEnum];
-export const ConversationControlPermissionDecision1AgentTypeEnum = {
-    Claude: 'claude',
-    Codex: 'codex',
-    Opencode: 'opencode',
-    Antigravity: 'antigravity',
-    "claude": "claude",
-    "codex": "codex",
-    "opencode": "opencode",
-    "antigravity": "antigravity",
-} as const;
-Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "claude", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Claude"] });
-Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "codex", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Codex"] });
-Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "opencode", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Opencode"] });
-Object.defineProperty(ConversationControlPermissionDecision1AgentTypeEnum, "antigravity", { enumerable: false, value: ConversationControlPermissionDecision1AgentTypeEnum["Antigravity"] });
-
-export type ConversationControlPermissionDecision1AgentTypeEnum = typeof ConversationControlPermissionDecision1AgentTypeEnum[keyof typeof ConversationControlPermissionDecision1AgentTypeEnum];
 
 export namespace ConversationControlPermissionDecision1 {
     export const KindEnum = ConversationControlPermissionDecision1KindEnum;
     export type KindEnum = ConversationControlPermissionDecision1KindEnum;
     export const DecisionEnum = ConversationControlPermissionDecision1DecisionEnum;
     export type DecisionEnum = ConversationControlPermissionDecision1DecisionEnum;
-    export const AgentTypeEnum = ConversationControlPermissionDecision1AgentTypeEnum;
-    export type AgentTypeEnum = ConversationControlPermissionDecision1AgentTypeEnum;
+    export const AgentTypeEnum = AgentProviderId;
+    export type AgentTypeEnum = AgentProviderId;
 }

@@ -1,3 +1,4 @@
+import { extractErrorCode } from "../../utils/errorUtils";
 import type { QueryState } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { DEFAULT_STALE_TIME_MS } from "../core/staleTime";
@@ -21,7 +22,7 @@ export function isClientErrorResponse(error: unknown): boolean {
 /** A 4xx is the server's answer for that key; only transient failures retry. */
 export function retryUnlessClientError(
   failureCount: number,
-  error: Error
+  error: Error,
 ): boolean {
   return !isClientErrorResponse(error) && failureCount < MAX_TRANSIENT_RETRIES;
 }
@@ -33,7 +34,7 @@ export function retryUnlessClientError(
  */
 export function shouldRetryOnMount(
   state: Pick<QueryState, "status" | "error" | "errorUpdatedAt"> | undefined,
-  staleTime: number = dataLayerQueryPolicy.staleTime
+  staleTime: number = dataLayerQueryPolicy.staleTime,
 ): boolean {
   if (state?.status !== "error" || !isClientErrorResponse(state.error)) {
     return true;
@@ -56,3 +57,9 @@ export const dataLayerQueryPolicy = {
   refetchOnWindowFocus: true,
   retry: retryUnlessClientError,
 } as const;
+
+export function isConversationReadDenied(error: unknown): boolean {
+  return (
+    getResponseStatus(error) === 403 || extractErrorCode(error) === "FORBIDDEN"
+  );
+}

@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { PlanShapingFeatureSyncItemDecision } from './plan-shaping-feature-sync-item-decision.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { PlanShapingFeatureSyncReportSelection } from './plan-shaping-feature-sync-report-selection.js';
 
 /**
  * User feedback and per-item choices for one bounded feature-sync revision pass.
@@ -36,4 +39,10 @@ export interface PlanShapingFeatureSyncReviewRefineAnswerPayload {
      * @memberof PlanShapingFeatureSyncReviewRefineAnswerPayload
      */
     'decisions'?: Array<PlanShapingFeatureSyncItemDecision>;
+    /**
+     * The choice the user picked for each question on the Feature Sync decision report, in report order.
+     * @type {Array<PlanShapingFeatureSyncReportSelection>}
+     * @memberof PlanShapingFeatureSyncReviewRefineAnswerPayload
+     */
+    'reportSelections'?: Array<PlanShapingFeatureSyncReportSelection>;
 }

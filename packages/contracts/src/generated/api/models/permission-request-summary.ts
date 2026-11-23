@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,7 +17,7 @@ import { PermissionRequestAgentType } from './permission-request-agent-type.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import type { AgentProviderId } from './agent-provider-id.js';
 
 /**
  * Normalized permission request details for UI rendering
@@ -57,10 +57,10 @@ export interface PermissionRequestSummary {
     'agentId': string;
     /**
      *
-     * @type {PermissionRequestAgentType}
+     * @type {AgentProviderId}
      * @memberof PermissionRequestSummary
      */
-    'agentType': PermissionRequestAgentType;
+    'agentType': AgentProviderId;
     /**
      * Request creation timestamp
      * @type {string}
@@ -100,6 +100,6 @@ export interface PermissionRequestSummary {
 }
 
 export namespace PermissionRequestSummary {
-    export const AgentTypeEnum = PermissionRequestAgentType;
-    export type AgentTypeEnum = PermissionRequestAgentType;
+    export const AgentTypeEnum = AgentProviderId;
+    export type AgentTypeEnum = AgentProviderId;
 }

@@ -311,10 +311,21 @@ const PlanShapingFeatureSyncItemDecisionSchema = z
   })
   .strict();
 
+const PlanShapingFeatureSyncReportSelectionSchema = z
+  .object({
+    groupId: z.string().min(1),
+    groupTitle: z.string(),
+    choiceId: z.string().min(1),
+    choiceLabel: z.string(),
+    isNoChange: z.boolean(),
+  })
+  .strict();
+
 export const PlanShapingFeatureSyncReviewRefineAnswerPayloadSchema = z
   .object({
     feedback: z.string(),
     decisions: z.array(PlanShapingFeatureSyncItemDecisionSchema).optional(),
+    reportSelections: z.array(PlanShapingFeatureSyncReportSelectionSchema).optional(),
   })
   .strict();
 

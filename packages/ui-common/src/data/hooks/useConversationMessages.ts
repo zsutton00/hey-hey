@@ -1,4 +1,9 @@
-import { useApolloClient, useQuery } from "@apollo/client/react";
+import { isConversationReadDenied } from "../query/queryPolicy";
+import {
+  useApolloClient,
+  useReactiveVar,
+  useQuery,
+} from "@apollo/client/react";
 import {
   useQuery as useTanStackQuery,
   useQueryClient,
@@ -36,7 +41,11 @@ import type {
   CollectionHookOptions,
   DataCollectionHookReturn,
 } from "../core/types";
-import { getProjectGraphQLClient } from "../graphql/client";
+import {
+  deniedConversations,
+  GraphQLRequestError,
+  getProjectGraphQLClient,
+} from "../graphql/client";
 import { toMessageResponse } from "../graphql/records";
 
 export type UseConversationMessagesOptions =
@@ -143,8 +152,8 @@ export function useConversationMessages(
     skip: !enabled,
   });
   const queuedOptions = useMemo(
-    () => queuedInputsQueryOptions(orgId, projId, convId),
-    [orgId, projId, convId],
+    () => queuedInputsQueryOptions(client, orgId, projId, convId),
+    [client, orgId, projId, convId],
   );
   const queued = useTanStackQuery({ ...queuedOptions, enabled });
 
@@ -166,6 +175,9 @@ export function useConversationMessages(
         error: toError(cause),
         hasSettled: true,
       });
+      if (isConversationReadDenied(cause)) {
+        return null;
+      }
     }
 
     return readLoadedMessages(client, convId);
@@ -224,12 +236,22 @@ export function useConversationMessages(
     ),
   );
 
-  const messages = thread.data?.conversation.messages;
+  const sharedDenial = useReactiveVar(deniedConversations(client.cache)).has(
+    convId,
+  );
+  const denial =
+    [refresh.error, queued.error, historySnapshot.error].find(
+      isConversationReadDenied,
+    ) ??
+    (sharedDenial
+      ? new GraphQLRequestError("Conversation is private", "FORBIDDEN")
+      : null);
+  const messages = denial ? undefined : thread.data?.conversation.messages;
   const loadedMessages = useMemo(
     () => messages?.nodes.map(toMessageResponse) ?? EMPTY_MESSAGES,
     [messages],
   );
-  const queuedInputs = queued.data ?? EMPTY_RECORDS;
+  const queuedInputs = denial ? EMPTY_RECORDS : (queued.data ?? EMPTY_RECORDS);
   // One rule: a message is in the timeline exactly when it has a createdAt.
   const records = useMemo(
     () =>
@@ -275,7 +297,7 @@ export function useConversationMessages(
     enabled &&
     (messages !== undefined || refresh.hasSettled) &&
     queued.status !== "pending";
-  const error = enabled ? (refresh.error ?? queued.error) : null;
+  const error = enabled ? (denial ?? refresh.error ?? queued.error) : null;
   const refetch = useCallback(async () => {
     await queryClient.invalidateQueries({
       queryKey: messageKeys.queuedInputs(orgId, projId, convId),

@@ -168,6 +168,7 @@ GetAgentSessionErrorCode:
     - project_scope_required
     - agent_session_not_found
     - invalid_cursor
+    - conversation_restricted
     - internal_error
 
 GetAgentSessionError:

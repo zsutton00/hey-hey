@@ -21,6 +21,7 @@ const mockProject: ProjectResponseDto = {
 };
 
 const mockConversation: ConversationResponseDto = {
+  restricted: true,
   id: "conv-1",
   projectId: "proj-1",
   workflowId: "workflow-1",

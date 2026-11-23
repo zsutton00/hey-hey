@@ -3916,8 +3916,7 @@
           "description": "Typed AgentSession launch config forwarded to the CLI. Project Assistant proactive behavior and plan-combination aggressiveness are read from this persisted config after the Run is materialized; absent config or absent flags resolve at the consuming boundary."
         },
         "provider": {
-          "$ref": "#/definitions/StartRunPromptPayloadProviderEnum",
-          "description": "Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep."
+          "$ref": "#/definitions/AgentProviderId"
         },
         "skillSelection": {
           "$ref": "#/definitions/AgentSkillSelection"
@@ -9902,7 +9901,7 @@
         {}
       ]
     },
-    "StartRunPromptPayloadProviderEnum": {
+    "AgentProviderId": {
       "anyOf": [
         {
           "type": "string",
@@ -9921,7 +9920,8 @@
           "const": "antigravity"
         },
         {}
-      ]
+      ],
+      "description": "Identifier for a supported agent provider."
     },
     "AgentSkillSelection": {
       "type": "object",
@@ -13183,6 +13183,9 @@
           "$ref": "#/definitions/SystemMessageDataNoticeSeverityEnum",
           "description": "Severity of an automated notice, independent of the notice classification. Only meaningful when presentation is \\\"notice\\\"; a notice without it renders as info."
         },
+        "compaction": {
+          "$ref": "#/definitions/CompactionNoticeMarker"
+        },
         "reasoning": {
           "type": "string",
           "description": "LLM\\'s reasoning for the intent detection"
@@ -13385,6 +13388,44 @@
         {
           "type": "string",
           "const": "warning"
+        },
+        {}
+      ]
+    },
+    "CompactionNoticeMarker": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "$ref": "#/definitions/CompactionNoticeMarkerPhaseEnum",
+          "description": "queued: deferred until the active Turn ends; started: compaction began; completed: the provider reported compaction done; failed: it did not complete (see code)."
+        },
+        "code": {
+          "type": "string",
+          "description": "Runner error code for a failed compaction, e.g. NOT_SUPPORTED, NO_ACTIVE_SESSION or FAILED. Only set when phase is failed."
+        }
+      },
+      "required": [
+        "phase"
+      ],
+      "description": "Typed lifecycle marker on a Run\\'s explicit compaction notice, so clients track compaction without parsing the notice text. Absent on other messages and on historical compaction notices."
+    },
+    "CompactionNoticeMarkerPhaseEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "queued"
+        },
+        {
+          "type": "string",
+          "const": "started"
+        },
+        {
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "type": "string",
+          "const": "failed"
         },
         {}
       ]
@@ -14859,7 +14900,7 @@
           "description": "Agent instance identifier that requested permission"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string",
@@ -14910,28 +14951,6 @@
         "referencedDiffs"
       ],
       "description": "Normalized permission request details for UI rendering"
-    },
-    "PermissionRequestAgentType": {
-      "anyOf": [
-        {
-          "type": "string",
-          "const": "claude"
-        },
-        {
-          "type": "string",
-          "const": "codex"
-        },
-        {
-          "type": "string",
-          "const": "opencode"
-        },
-        {
-          "type": "string",
-          "const": "antigravity"
-        },
-        {}
-      ],
-      "description": "Agent providers that can issue permission requests"
     },
     "AgentRequestPermissionPayloadDecisionEnum": {
       "anyOf": [
@@ -15067,7 +15086,7 @@
           "type": "string"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string"
@@ -15203,7 +15222,7 @@
           "description": "Stable coding-agent handler identifier"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string",

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,6 +18,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AdmissionEnvelopeAuthorization } from './admission-envelope-authorization.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ServicePlaceChoice } from './service-place-choice.js';
@@ -52,11 +56,11 @@ export interface PermissionDecisionRequestDto {
      */
     'sessionId': string;
     /**
-     * Agent provider that issued the permission request.
-     * @type {string}
+     *
+     * @type {AgentProviderId}
      * @memberof PermissionDecisionRequestDto
      */
-    'agentType': PermissionDecisionRequestDtoAgentTypeEnum;
+    'agentType': AgentProviderId;
     /**
      * User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.
      * @type {string}
@@ -101,26 +105,10 @@ Object.defineProperty(PermissionDecisionRequestDtoDecisionEnum, "deny", { enumer
 Object.defineProperty(PermissionDecisionRequestDtoDecisionEnum, "whitelist", { enumerable: false, value: PermissionDecisionRequestDtoDecisionEnum["Whitelist"] });
 
 export type PermissionDecisionRequestDtoDecisionEnum = typeof PermissionDecisionRequestDtoDecisionEnum[keyof typeof PermissionDecisionRequestDtoDecisionEnum];
-export const PermissionDecisionRequestDtoAgentTypeEnum = {
-    Claude: 'claude',
-    Codex: 'codex',
-    Opencode: 'opencode',
-    Antigravity: 'antigravity',
-    "claude": "claude",
-    "codex": "codex",
-    "opencode": "opencode",
-    "antigravity": "antigravity",
-} as const;
-Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "claude", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Claude"] });
-Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "codex", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Codex"] });
-Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "opencode", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Opencode"] });
-Object.defineProperty(PermissionDecisionRequestDtoAgentTypeEnum, "antigravity", { enumerable: false, value: PermissionDecisionRequestDtoAgentTypeEnum["Antigravity"] });
-
-export type PermissionDecisionRequestDtoAgentTypeEnum = typeof PermissionDecisionRequestDtoAgentTypeEnum[keyof typeof PermissionDecisionRequestDtoAgentTypeEnum];
 
 export namespace PermissionDecisionRequestDto {
     export const DecisionEnum = PermissionDecisionRequestDtoDecisionEnum;
     export type DecisionEnum = PermissionDecisionRequestDtoDecisionEnum;
-    export const AgentTypeEnum = PermissionDecisionRequestDtoAgentTypeEnum;
-    export type AgentTypeEnum = PermissionDecisionRequestDtoAgentTypeEnum;
+    export const AgentTypeEnum = AgentProviderId;
+    export type AgentTypeEnum = AgentProviderId;
 }

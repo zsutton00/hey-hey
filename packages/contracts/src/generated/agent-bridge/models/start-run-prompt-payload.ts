@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -14,6 +15,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentSessionConfig } from './agent-session-config.js';
@@ -115,11 +119,11 @@ export interface StartRunPromptPayload {
      */
     'config'?: AgentSessionConfig | null;
     /**
-     * Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep.
-     * @type {string}
+     *
+     * @type {AgentProviderId}
      * @memberof StartRunPromptPayload
      */
-    'provider': StartRunPromptPayloadProviderEnum;
+    'provider': AgentProviderId;
     /**
      *
      * @type {AgentSkillSelection}
@@ -203,26 +207,10 @@ Object.defineProperty(StartRunPromptPayloadReasoningEffortEnum, "ultra", { enume
 Object.defineProperty(StartRunPromptPayloadReasoningEffortEnum, "default", { enumerable: false, value: StartRunPromptPayloadReasoningEffortEnum["Default"] });
 
 export type StartRunPromptPayloadReasoningEffortEnum = typeof StartRunPromptPayloadReasoningEffortEnum[keyof typeof StartRunPromptPayloadReasoningEffortEnum];
-export const StartRunPromptPayloadProviderEnum = {
-    Claude: 'claude',
-    Codex: 'codex',
-    Opencode: 'opencode',
-    Antigravity: 'antigravity',
-    "claude": "claude",
-    "codex": "codex",
-    "opencode": "opencode",
-    "antigravity": "antigravity",
-} as const;
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "claude", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Claude"] });
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "codex", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Codex"] });
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "opencode", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Opencode"] });
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "antigravity", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Antigravity"] });
-
-export type StartRunPromptPayloadProviderEnum = typeof StartRunPromptPayloadProviderEnum[keyof typeof StartRunPromptPayloadProviderEnum];
 
 export namespace StartRunPromptPayload {
     export const ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
     export type ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
-    export const ProviderEnum = StartRunPromptPayloadProviderEnum;
-    export type ProviderEnum = StartRunPromptPayloadProviderEnum;
+    export const ProviderEnum = AgentProviderId;
+    export type ProviderEnum = AgentProviderId;
 }

@@ -22,6 +22,7 @@ import type { GraphQLResolveInfo } from 'graphql';
 import { ConversationService } from '../../services/conversation.service';
 import { MessageService } from '../../services/message.service';
 import type { GraphQLRequestContext } from '../graphql-request-context';
+import type { AuthenticatedUser } from '../../auth/strategies/jwt.strategy';
 import { runAsViewer } from '../run-as-viewer';
 import { selectedFieldNames } from '../selected-fields';
 import { UseRestErrorCodes } from '../use-rest-error-codes.decorator';
@@ -176,11 +177,18 @@ export class ConversationResolver {
       id,
       organizationId,
       selected.has('responses') || selected.has('parentMessage'),
+      projectId,
     );
     if (!message || message.projectId !== projectId) {
       throw new NotFoundException('Message not found');
     }
 
+    await this.messageService.assertConversationMessagesReadable({
+      organizationId,
+      projectId,
+      conversationId: message.conversationId as ConversationId,
+      readerUserId: (context.req.user as AuthenticatedUser).userId,
+    });
     return message;
   }
 
@@ -192,15 +200,12 @@ export class ConversationResolver {
   ): Promise<MessageNode | null> {
     const { organizationId, projectId } = authorizedScope(context);
 
-    const conversation =
-      await this.conversationService.getConversationFromAdapter(
-        projectId,
-        conversationId,
-        organizationId,
-      );
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found');
-    }
+    await this.messageService.assertConversationMessagesReadable({
+      organizationId,
+      projectId,
+      conversationId,
+      readerUserId: (context.req.user as AuthenticatedUser).userId,
+    });
 
     return this.messageService.getLatestMessage(conversationId, organizationId);
   }
@@ -263,6 +268,7 @@ export class ConversationResolver {
         },
         organizationId,
         projectId,
+        (context.req.user as AuthenticatedUser).userId,
         false,
         selected.has('proposals'),
         selected.has('reports'),

@@ -85,7 +85,7 @@ vi.mock(
       postMessage: vi.fn(),
     },
   }),
-  { virtual: true }
+  { virtual: true },
 );
 
 vi.mock(
@@ -95,7 +95,7 @@ vi.mock(
       postMessage: vi.fn(),
     },
   }),
-  { virtual: true }
+  { virtual: true },
 );
 
 vi.mock(
@@ -103,7 +103,7 @@ vi.mock(
   () => ({
     keyframes: () => ({ toString: () => "" }),
   }),
-  { virtual: true }
+  { virtual: true },
 );
 
 vi.mock("../Conversation/ConversationViewer", () => ({
@@ -201,10 +201,10 @@ describe("TaskGenerationAssistant", () => {
     });
 
     expect(
-      screen.getByTestId("workitem-generation-assistant-button")
+      screen.getByTestId("workitem-generation-assistant-button"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("workitem-generation-assistant-button")
+      screen.getByTestId("workitem-generation-assistant-button"),
     ).toHaveTextContent("tasks.assistant.button");
   });
 
@@ -233,6 +233,7 @@ describe("TaskGenerationAssistant", () => {
 
   it("should detect existing conversations and toggle button label", async () => {
     const existingConversation = {
+      restricted: true,
       id: "conversation-1",
       workflowName: "task-generation",
       messages: [],
@@ -259,7 +260,7 @@ describe("TaskGenerationAssistant", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId("workitem-generation-assistant-button")
+        screen.getByTestId("workitem-generation-assistant-button"),
       ).toHaveTextContent("Show Work Item Generation");
     });
   });

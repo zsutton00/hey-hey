@@ -879,7 +879,7 @@ PaginatedAgentSessionItemDto:
       allOf:
         - $ref: "#/AgentSessionLastMessageSummary"
       nullable: true
-      description: Latest message in the linked conversation, or null when the conversation has no messages.
+      description: Latest message in the linked conversation, or null when the conversation has no messages or its transcript is not readable by the caller. Session inclusion, ordering and pagination are unchanged by transcript access.
     parentEntity:
       allOf:
         - $ref: "#/AgentSessionParentEntitySummary"

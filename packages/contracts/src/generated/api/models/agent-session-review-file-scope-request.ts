@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,10 +17,10 @@ import { PermissionRequestAgentType } from './permission-request-agent-type.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { AgentSessionReviewFileScopeRequestFile } from './agent-session-review-file-scope-request-file.js';
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import type { AgentSessionReviewFileScopeRequestFile } from './agent-session-review-file-scope-request-file.js';
 
 /**
  * File-specific request to expand one Review repair beyond the canonical changed-file set
@@ -54,10 +54,10 @@ export interface AgentSessionReviewFileScopeRequest {
     'agentId': string;
     /**
      *
-     * @type {PermissionRequestAgentType}
+     * @type {AgentProviderId}
      * @memberof AgentSessionReviewFileScopeRequest
      */
-    'agentType': PermissionRequestAgentType;
+    'agentType': AgentProviderId;
     /**
      *
      * @type {string}
@@ -79,6 +79,6 @@ export interface AgentSessionReviewFileScopeRequest {
 }
 
 export namespace AgentSessionReviewFileScopeRequest {
-    export const AgentTypeEnum = PermissionRequestAgentType;
-    export type AgentTypeEnum = PermissionRequestAgentType;
+    export const AgentTypeEnum = AgentProviderId;
+    export type AgentTypeEnum = AgentProviderId;
 }

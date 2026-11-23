@@ -46,6 +46,7 @@ const sourceAgentSession = (): AgentSessionDto => ({
 
 const sourceConversation = (): ConversationResponseDto =>
   ({
+    restricted: true,
     id: CONVERSATION_ID,
     projectId: PROJECT_ID,
     organizationId: ORGANIZATION_ID,

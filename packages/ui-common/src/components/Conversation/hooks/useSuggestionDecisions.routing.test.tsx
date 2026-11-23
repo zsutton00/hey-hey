@@ -22,8 +22,9 @@ const decision: GoalPmRoutingDecisionResponseDto = {
 };
 const conversation = (
   id: string,
-  decisions: GoalPmRoutingDecisionResponseDto[] = []
+  decisions: GoalPmRoutingDecisionResponseDto[] = [],
 ): ConversationResponseDto => ({
+  restricted: true,
   id,
   projectId: "project",
   organizationId: "org",
@@ -38,30 +39,30 @@ const conversation = (
 describe("routing decision history", () => {
   it("hydrates exact message and field identities on fresh mount", () => {
     const { result } = renderHook(() =>
-      useSuggestionDecisions(conversation("first", [decision]))
+      useSuggestionDecisions(conversation("first", [decision])),
     );
     expect(result.current.getRoutingDecision("message", "field")).toEqual(
-      decision
+      decision,
     );
     expect(
-      result.current.getRoutingDecision("message", "other")
+      result.current.getRoutingDecision("message", "other"),
     ).toBeUndefined();
     expect(result.current.getRoutingDecision("other", "field")).toBeUndefined();
   });
   it("never leaks an in-flight result into another conversation", () => {
     const { result, rerender } = renderHook(
       ({ current }) => useSuggestionDecisions(current),
-      { initialProps: { current: conversation("first") } }
+      { initialProps: { current: conversation("first") } },
     );
     const complete = result.current.upsertRoutingDecision;
     rerender({ current: conversation("second") });
     act(() => complete(decision));
     expect(
-      result.current.getRoutingDecision("message", "field")
+      result.current.getRoutingDecision("message", "field"),
     ).toBeUndefined();
     rerender({ current: conversation("first") });
     expect(result.current.getRoutingDecision("message", "field")).toEqual(
-      decision
+      decision,
     );
   });
 });

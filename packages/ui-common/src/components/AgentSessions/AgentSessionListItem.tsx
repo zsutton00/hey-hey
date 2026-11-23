@@ -1,4 +1,9 @@
 import { Box, Typography, useTheme } from "@mui/material";
+import { useApolloClient, useReactiveVar } from "@apollo/client/react";
+import {
+  deniedConversations,
+  getProjectGraphQLClient,
+} from "../../data/graphql/client";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -291,6 +296,11 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
   variant,
 }) => {
   const { agentSession, lastMessage, reports, services } = item;
+  const client = getProjectGraphQLClient(useApolloClient(), {
+    organizationId: agentSession.organizationId,
+    projectId,
+  });
+  const denied = useReactiveVar(deniedConversations(client.cache));
   const sessionProps = agentSessionAdapter.toEntityListItemProps(agentSession, {
     projectId,
     showEntityKind: false,
@@ -394,7 +404,7 @@ export const AgentSessionListItem: React.FC<AgentSessionListItemProps> = ({
           }
         />
       </Box>
-      {lastMessage ? (
+      {lastMessage && !denied.has(lastMessage.conversationId) ? (
         <RenderErrorBoundary
           key={`${agentSession.id}:${lastMessage.id}:${lastMessage.status}:${reports.map((report) => `${report.id}:${report.version}`).join(",")}`}
           fallback={

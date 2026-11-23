@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { StartRunPromptPayloadProviderEnum, StartRunPromptPayloadReasoningEffortEnum } from './start-run-prompt-payload.js';
+import { StartRunPromptPayloadReasoningEffortEnum } from './start-run-prompt-payload.js';
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -15,6 +16,9 @@ import { StartRunPromptPayloadProviderEnum, StartRunPromptPayloadReasoningEffort
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentSessionConfig } from './agent-session-config.js';
@@ -59,6 +63,6 @@ export interface TaskMonitorRunEffectPayload extends StartRunPromptPayload, Task
 export namespace TaskMonitorRunEffectPayload {
     export const ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
     export type ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
-    export const ProviderEnum = StartRunPromptPayloadProviderEnum;
-    export type ProviderEnum = StartRunPromptPayloadProviderEnum;
+    export const ProviderEnum = AgentProviderId;
+    export type ProviderEnum = AgentProviderId;
 }

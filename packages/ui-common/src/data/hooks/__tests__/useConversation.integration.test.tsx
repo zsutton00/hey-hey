@@ -124,6 +124,7 @@ describe("useConversation with WebSocket Integration", () => {
 
   it("should update when WebSocket marks conversation stale", async () => {
     const mockConversation: ConversationResponseDto = {
+      restricted: true,
       id: "conv-1",
       projectId: "proj-1",
       organizationId: "org-1",
@@ -149,7 +150,7 @@ describe("useConversation with WebSocket Integration", () => {
     // Render the conversation hook
     const { result: conversationResult } = renderHook(
       () => useConversation("org-1", "proj-1", { conversationId: "conv-1" }),
-      { wrapper }
+      { wrapper },
     );
 
     // Render WebSocket service hook
@@ -162,7 +163,7 @@ describe("useConversation with WebSocket Integration", () => {
       () => {
         expect(conversationResult.current.isFetched).toBe(true);
       },
-      { timeout: 5000 }
+      { timeout: 5000 },
     );
 
     // Get the initial stale state
@@ -191,15 +192,16 @@ describe("useConversation with WebSocket Integration", () => {
         // Conversation should now be marked stale or refetched
         expect(
           conversationResult.current.isStale !== initialStale ||
-            conversationResult.current.isFetched
+            conversationResult.current.isFetched,
         ).toBe(true);
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
   });
 
   it("should maintain conversation state across WebSocket reconnections", async () => {
     const mockConversation: ConversationResponseDto = {
+      restricted: true,
       id: "conv-reconnect",
       projectId: "proj-1",
       organizationId: "org-1",
@@ -227,7 +229,7 @@ describe("useConversation with WebSocket Integration", () => {
         useConversation("org-1", "proj-1", {
           conversationId: "conv-reconnect",
         }),
-      { wrapper }
+      { wrapper },
     );
 
     const { result: wsResult } = renderHook(() => useWebSocketService(), {
@@ -239,7 +241,7 @@ describe("useConversation with WebSocket Integration", () => {
       () => {
         expect(conversationResult.current.data).toBeDefined();
       },
-      { timeout: 5000 }
+      { timeout: 5000 },
     );
 
     const initialData = conversationResult.current.data;
@@ -275,6 +277,7 @@ describe("useConversation with WebSocket Integration", () => {
     // Setup mock data for each conversation
     conversations.forEach((convId, index) => {
       const mockConversation: ConversationResponseDto = {
+        restricted: true,
         id: convId,
         projectId: "proj-1",
         organizationId: "org-1",
@@ -303,7 +306,7 @@ describe("useConversation with WebSocket Integration", () => {
               data: null,
             },
           } as any);
-        }
+        },
       );
     });
 
@@ -313,7 +316,7 @@ describe("useConversation with WebSocket Integration", () => {
     const conversationResults = conversations.map((convId) => {
       const { result } = renderHook(
         () => useConversation("org-1", "proj-1", { conversationId: convId }),
-        { wrapper }
+        { wrapper },
       );
       return result;
     });
@@ -329,7 +332,7 @@ describe("useConversation with WebSocket Integration", () => {
           expect(result.current.isFetched).toBe(true);
         });
       },
-      { timeout: 5000 }
+      { timeout: 5000 },
     );
 
     // Simulate WebSocket events for all conversations
@@ -358,7 +361,7 @@ describe("useConversation with WebSocket Integration", () => {
           expect(result.current.data).toBeDefined();
         });
       },
-      { timeout: 2000 }
+      { timeout: 2000 },
     );
   });
 });
