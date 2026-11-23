@@ -29,7 +29,10 @@ import {
 } from '../submission-tools';
 import { SubmissionToolCorrectableError } from '../../submission-tools/types';
 import { readinessClassificationFixtures } from './readiness-classification.fixtures';
-import { homePageBlockedFinding, legacyReadinessFinding } from '../../implementation-readiness/__tests__/readiness-finding.fixture';
+import {
+  homePageBlockedFinding,
+  legacyReadinessFinding,
+} from '../../implementation-readiness/__tests__/readiness-finding.fixture';
 
 const makePayload = (
   userMessage = '',
@@ -1085,6 +1088,21 @@ describe('featureSyncIterateHandler', () => {
     expect(prompt).toMatch(/reopen it for discussion/i);
     expect(prompt).toMatch(/derive a new obligation from it/i);
     expect(prompt).toMatch(/unless a separate decision group explicitly asks/i);
+  });
+
+  it('owns drafting required Contract edits in analyze and iterate prompts, omitted only on decline or recorded deferral', () => {
+    const prompts = [
+      featureSyncAnalyzeHandler.buildPrompt(makePayload()),
+      featureSyncIterateHandler.buildPrompt(makeIteratePayload()),
+    ];
+
+    for (const prompt of prompts) {
+      expect(prompt).toMatch(
+        /drafts the updates \(Contracts[^)]*\) that the task, research or review names as required/i,
+      );
+      expect(prompt).toMatch(/never leaving them to a later phase or applying them directly/i);
+      expect(prompt).toMatch(/only a user decline or a recorded deferral/i);
+    }
   });
 
   it('mirrors the analyze prompt scope rule for any user-triggered re-verification', () => {
