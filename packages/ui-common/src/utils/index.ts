@@ -44,6 +44,7 @@ export {
   getWorkItemIcon,
   resolveWorkItemIcon,
   resolveWorkItemIconPresentation,
+  getBuiltInWorkItemIconKey,
   ClaudeIcon,
   CodexIcon,
 } from "./entityIcons";

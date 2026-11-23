@@ -3,10 +3,10 @@ import {
   ModalWorkOwner,
 } from "@hey-hey/ui-common/components/Modals";
 import {
-  getBuiltInWorkItemIconKey,
   getWorkItemTypePluralDisplayName,
   WORK_ITEM_TYPE_KEYS,
 } from "../../types/workItemTypes";
+import { getBuiltInWorkItemIconKey } from "@hey-hey/ui-common/utils";
 import {
   ProjectStatus,
   WorkItemTypeLifecycleStatus,

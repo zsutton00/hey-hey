@@ -275,6 +275,50 @@ describe("triage manual application coordinator", () => {
       owner.outcome("reply", { ...remove, suggestionId: "independent" }).state,
     ).toBe("success");
   });
+  describe("applying the selected suggestions", () => {
+    const promote: OpenItemsTriageSuggestion = {
+      ...base,
+      suggestionId: "promote",
+      kind: "promoteGroupToGoal",
+      groupId: "existing",
+      groupName: "Existing",
+      goalName: "Ship",
+      affectedMembers: [],
+    };
+    const first = { ...remove, suggestionId: "first", items: [a] };
+    const second = { ...remove, suggestionId: "second", items: [b] };
+
+    it("asks for the promotion first, and cancelling it applies nothing", async () => {
+      const { owner, ports, targets } = setup();
+      vi.mocked(ports.promote).mockResolvedValue("cancelled");
+      await owner.applySelected("reply", [first, promote, second], []);
+      expect(ports.promote).toHaveBeenCalledOnce();
+      expect(ports.remove).not.toHaveBeenCalled();
+      expect(targets.get("a")?.open).toBe(true);
+      expect(owner.outcome("reply", first).state).toBe("idle");
+    });
+
+    it("applies only checked suggestions, each with its own outcome", async () => {
+      const { owner, ports } = setup();
+      const suggestions = [first, second];
+      expect([...owner.selected("reply", suggestions, [])]).toEqual([
+        "first",
+        "second",
+      ]);
+      owner.toggle("reply", "second");
+      vi.mocked(ports.remove).mockRejectedValueOnce(new Error("conflict"));
+      await owner.applySelected("reply", suggestions, []);
+      expect(ports.remove).toHaveBeenCalledOnce();
+      expect(owner.outcome("reply", first).state).toBe("failure");
+      expect(owner.outcome("reply", second).state).toBe("idle");
+
+      owner.selectAll("reply", suggestions, []);
+      await owner.applySelected("reply", suggestions, []);
+      // The failed one retries; the newly checked one applies on its own.
+      expect(owner.outcome("reply", first).state).toBe("success");
+      expect(owner.outcome("reply", second).state).toBe("success");
+    });
+  });
   it("rejects a missing promotion group before confirmation and keeps overlapping work current", async () => {
     const { owner, ports } = setup();
     const promote: OpenItemsTriageSuggestion = {

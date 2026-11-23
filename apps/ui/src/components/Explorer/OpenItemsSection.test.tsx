@@ -102,7 +102,8 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
   useCanHover: canHoverMock,
 }));
 
-vi.mock("@hey-hey/ui-common/components/Entity", () => ({
+// The shared Open Items icon draws its generic icons through EntityIcon.
+vi.mock("@hey-hey/ui-common/components/Entity/EntityIcon", () => ({
   EntityIcon: (props: {
     agentSessionType?: string;
     entityType: string;

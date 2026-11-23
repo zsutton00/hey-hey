@@ -22,7 +22,7 @@ import {
   type OpenItemSelectionIdentity,
 } from "@hey-hey/ui-common/utils";
 import { EntityHoverCard } from "@hey-hey/ui-common/components/shared";
-import { EntityIcon } from "@hey-hey/ui-common/components/Entity";
+import { OpenItemIcon } from "@hey-hey/ui-common/components/Entity/OpenItemIcon";
 import {
   OpenItemInteractionComponent,
   type OpenItemActiveOnlyAction,
@@ -63,11 +63,6 @@ import {
 } from "@hey-hey/ui-common/data";
 import { useCanHover } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
-import {
-  resolveWorkItemIcon,
-  resolveWorkItemIconPresentation,
-  type EntityColors,
-} from "@hey-hey/ui-common/utils";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
@@ -87,7 +82,6 @@ import {
   Popper,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -119,10 +113,7 @@ import {
   buildPlanStepPath,
 } from "../../pages/Plan/planSessionRoutes";
 import { buildTaskAgentSessionPath } from "../../pages/Task/taskSessionRoutes";
-import {
-  getBuiltInWorkItemIconKey,
-  indexWorkItemTypeDefinitions,
-} from "../../types/workItemTypes";
+import { indexWorkItemTypeDefinitions } from "../../types/workItemTypes";
 import {
   collapseProjectedOpenItems,
   expandableProjectedOpenItemKeys,
@@ -476,8 +467,6 @@ const OpenItemsGroupHeader: React.FC<{
   );
 };
 
-const iconTypeFor = (item: OpenItem): string => item.entityType;
-
 type OpenItemRowActions = Pick<
   ReturnType<typeof useOpenItems>,
   | "remove"
@@ -553,34 +542,6 @@ const renderAgentSessionRowSignals = (
   </>
 );
 
-const ResolvedWorkItemIcon: React.FC<{
-  IconComponent: NonNullable<ReturnType<typeof resolveWorkItemIcon>>;
-  taskType: string;
-  colors: EntityColors;
-}> = ({ IconComponent, taskType, colors }) => {
-  return (
-    <Tooltip title={taskType}>
-      <Box
-        data-testid={`open-item-registry-icon-${taskType}`}
-        data-entity-type={taskType}
-        sx={{
-          width: 24,
-          height: 24,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          bgcolor: colors.background,
-          borderRadius: "2px",
-          color: colors.color,
-          flex: "0 0 24px",
-        }}
-      >
-        <IconComponent sx={{ fontSize: 16 }} />
-      </Box>
-    </Tooltip>
-  );
-};
-
 const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   starred,
   selectedItems,
@@ -643,12 +604,6 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   const path = pathFor(item, projectId);
   const label = openItemTitle(item);
   const accessibleLabel = label;
-  const iconType = iconTypeFor(item);
-  const taskType =
-    item.presentation?.kind === "task" ? item.presentation.taskType : undefined;
-  const workItemTypeDefinition = taskType
-    ? workItemTypeDefinitions.get(taskType)
-    : undefined;
   // Shared lifecycle and user-scoped output attention render independently.
   // Canonical-page acknowledgment owns readiness mutation; route-local active
   // identity must not hide an outstanding readiness projection.
@@ -657,21 +612,6 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
     outputAttentionState === AgentSessionOutputAttentionState.MessageReady,
     conversationPhase,
   );
-  const builtInIconKey = taskType
-    ? getBuiltInWorkItemIconKey(taskType, workItemTypeDefinition)
-    : undefined;
-  const iconDefinition =
-    workItemTypeDefinition && builtInIconKey
-      ? { ...workItemTypeDefinition, iconKey: builtInIconKey }
-      : workItemTypeDefinition;
-  const resolvedPresentation = taskType
-    ? resolveWorkItemIconPresentation(
-        taskType,
-        iconDefinition,
-        workItemTypeSources.get(taskType),
-      )
-    : undefined;
-  const resolvedWorkItemIcon = resolvedPresentation?.Icon;
   const interactionEntityType = targetTypeFor(item);
   const entitySubtype =
     item.entityType === "goal"
@@ -1060,25 +1000,14 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
                   }}
                 />
               ) : null}
-              {item.entityType === "task" && taskType ? (
-                resolvedWorkItemIcon ? (
-                  <ResolvedWorkItemIcon
-                    IconComponent={resolvedWorkItemIcon}
-                    taskType={taskType}
-                    colors={resolvedPresentation!.colors}
-                  />
-                ) : null
-              ) : (
-                <EntityIcon
-                  entityType={iconType}
-                  agentSessionType={
-                    item.presentation?.kind === "agent_session"
-                      ? item.presentation.sessionType
-                      : undefined
-                  }
-                  size={24}
-                />
-              )}
+              <OpenItemIcon
+                entityType={item.entityType}
+                presentation={item.presentation}
+                registry={{
+                  definitions: workItemTypeDefinitions,
+                  sources: workItemTypeSources,
+                }}
+              />
             </Box>
             {renderAgentSessionRowSignals(rowSignals)}
             <Typography

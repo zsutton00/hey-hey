@@ -7,6 +7,7 @@ import type {
   OpenItemsTriageItem,
 } from "../../api";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
+import type { WorkItemIconRegistry } from "../Entity/OpenItemIcon";
 import { useConversation } from "../../data/hooks/useConversation";
 import { useConversationMessages } from "../../data/hooks/useConversationMessages";
 import { OpenItemsTriageReview } from "./OpenItemsTriageReview";
@@ -24,6 +25,8 @@ export interface OpenItemsTriageResultsProps {
   application: TriageApplicationCoordinator | undefined;
   /** The canonical Open Items collection the comparison is replayed against. */
   collection: OpenItemsCollection | undefined;
+  /** The project's work-item types, so preview rows show the sidebar's icons. */
+  workItemIcons: WorkItemIconRegistry;
   itemHref: (item: OpenItemsTriageItem) => string;
   pending: boolean;
   disabled: boolean;
@@ -46,6 +49,7 @@ export function OpenItemsTriageResults({
   conversationId,
   application,
   collection,
+  workItemIcons,
   itemHref,
   pending,
   disabled,
@@ -71,7 +75,11 @@ export function OpenItemsTriageResults({
     onResultPresenceChange?.(hasResult);
   }, [hasResult, onResultPresenceChange]);
   return (
-    <Stack spacing={2} data-testid="open-items-triage-results">
+    <Stack
+      spacing={2}
+      data-testid="open-items-triage-results"
+      sx={{ flex: 1, minHeight: 0 }}
+    >
       {(pending || messages.isLoading) && (
         <OpenItemsTriageThinkingConversation
           messages={messages.orderedData}
@@ -101,6 +109,7 @@ export function OpenItemsTriageResults({
           scope={result.scope}
           application={application}
           collection={collection}
+          workItemIcons={workItemIcons}
           itemHref={itemHref}
           disabled={disabled}
         />

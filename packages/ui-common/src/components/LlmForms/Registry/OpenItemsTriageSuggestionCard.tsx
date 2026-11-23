@@ -22,9 +22,7 @@ export interface OpenItemsTriageSuggestionCardProps {
   outcome: TriageOutcome;
   selected: boolean;
   disabled: boolean;
-  /** Dense rail presentation beside the before/after comparison. */
-  compact?: boolean;
-  /** Why this card cannot be accepted or applied right now. */
+  /** Why this card cannot be selected or applied right now. */
   unavailableReason?: string;
   onSelect: () => void;
   onApply: () => void;
@@ -71,7 +69,6 @@ export function OpenItemsTriageSuggestionCard({
   selected,
   disabled: disabledProp,
   unavailableReason,
-  compact = false,
   onSelect,
   onApply,
   itemHref,
@@ -82,20 +79,6 @@ export function OpenItemsTriageSuggestionCard({
       ? suggestion.affectedMembers
       : suggestion.items;
   const disabled = disabledProp || !!unavailableReason;
-  if (compact) {
-    return (
-      <CompactSuggestionCard
-        suggestion={suggestion}
-        outcome={outcome}
-        selected={selected}
-        disabled={disabled}
-        unavailableReason={unavailableReason}
-        onSelect={onSelect}
-        onApply={onApply}
-        itemHref={itemHref}
-      />
-    );
-  }
   const busy = outcome.state === "pending";
   return (
     <Paper
@@ -236,32 +219,55 @@ export function OpenItemsTriageSuggestionCard({
   );
 }
 
+export interface OpenItemsTriageRailCardProps {
+  suggestion: OpenItemsTriageSuggestion;
+  outcome: TriageOutcome;
+  selected: boolean;
+  disabled: boolean;
+  /** Why this card cannot be selected right now. */
+  unavailableReason: string | undefined;
+  /** The highlighted card's rows are outlined in the comparison. */
+  highlighted: boolean;
+  onSelect: () => void;
+  onHighlightChange: (highlighted: boolean) => void;
+  itemHref: (item: OpenItemsTriageItem) => string;
+}
+
 /**
- * Rail card beside the comparison: title, one-line rationale, then
- * Accepted/Accept, Evidence and Apply on one line. The comparison shows the
- * items, so the card does not repeat them.
+ * Rail card beside the comparison: one checkbox, the title, a one-line
+ * rationale and an Evidence link. Applying happens once, for every checked
+ * card, from the rail's own button.
  */
-function CompactSuggestionCard({
+export function OpenItemsTriageRailCard({
   suggestion,
   outcome,
   selected,
   disabled,
   unavailableReason,
+  highlighted,
   onSelect,
-  onApply,
+  onHighlightChange,
   itemHref,
-}: Omit<OpenItemsTriageSuggestionCardProps, "compact">) {
+}: OpenItemsTriageRailCardProps) {
   const { t } = useTranslation();
   const [showEvidence, setShowEvidence] = useState(false);
-  const busy = outcome.state === "pending";
-  const done = outcome.state === "success";
-  const locked = disabled || busy || done;
+  const locked =
+    disabled ||
+    !!unavailableReason ||
+    outcome.state === "pending" ||
+    outcome.state === "success";
 
   return (
     <Paper
       variant="outlined"
       data-testid="triage-suggestion"
       data-suggestion-id={suggestion.suggestionId}
+      data-selected={selected}
+      data-highlighted={highlighted}
+      onMouseEnter={() => onHighlightChange(true)}
+      onMouseLeave={() => onHighlightChange(false)}
+      onFocus={() => onHighlightChange(true)}
+      onBlur={() => onHighlightChange(false)}
       sx={{
         px: 1,
         py: 0.875,
@@ -271,9 +277,18 @@ function CompactSuggestionCard({
           bgcolor: (theme) => alpha(theme.palette.success.main, 0.06),
         }),
         ...(unavailableReason && { opacity: 0.6, borderStyle: "dashed" }),
+        ...(highlighted && {
+          outline: (theme) => `2px solid ${theme.palette.warning.main}`,
+          outlineOffset: "1px",
+        }),
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={0.75}>
+      <Stack
+        component="label"
+        direction="row"
+        alignItems="center"
+        spacing={0.75}
+      >
         <Checkbox
           size="small"
           sx={{ p: 0 }}
@@ -294,12 +309,25 @@ function CompactSuggestionCard({
           lineHeight: 1.3,
           mt: 0.375,
           mb: 0.5,
+          ml: 2.75,
         }}
       >
         {unavailableReason ?? suggestion.rationale}
       </Typography>
+      {!unavailableReason && (
+        <Link
+          component="button"
+          type="button"
+          data-testid="triage-evidence-toggle"
+          aria-expanded={showEvidence}
+          onClick={() => setShowEvidence((open) => !open)}
+          sx={{ fontSize: 11, ml: 2.75 }}
+        >
+          {t("triage.evidenceLink", "Evidence")}
+        </Link>
+      )}
       {showEvidence && (
-        <Box data-testid="triage-evidence" sx={{ mb: 0.5 }}>
+        <Box data-testid="triage-evidence" sx={{ mt: 0.5, ml: 2.75 }}>
           {suggestion.evidence.map((evidence, index) => (
             <Typography
               key={index}
@@ -320,55 +348,6 @@ function CompactSuggestionCard({
           ))}
         </Box>
       )}
-      <Stack direction="row" alignItems="center" spacing={1}>
-        {selected && !unavailableReason ? (
-          <Typography
-            data-testid="triage-accepted-label"
-            sx={{ fontSize: 11, fontWeight: 600, color: "success.main" }}
-          >
-            {t("triage.accepted", "Accepted")}
-          </Typography>
-        ) : (
-          <Button
-            data-testid="triage-accept"
-            variant="outlined"
-            size="small"
-            disabled={locked}
-            onClick={onSelect}
-            sx={compactButton}
-          >
-            {t("triage.accept", "Accept")}
-          </Button>
-        )}
-        {!unavailableReason && (
-          <Link
-            component="button"
-            type="button"
-            data-testid="triage-evidence-toggle"
-            aria-expanded={showEvidence}
-            onClick={() => setShowEvidence((open) => !open)}
-            sx={{ fontSize: 11 }}
-          >
-            {t("triage.evidenceLink", "Evidence")}
-          </Link>
-        )}
-        {!unavailableReason && (
-          <Button
-            data-testid="triage-apply"
-            variant="outlined"
-            size="small"
-            onClick={onApply}
-            disabled={locked}
-            sx={compactButton}
-          >
-            {outcome.state === "failure"
-              ? t("triage.retry", "Retry unfinished work")
-              : suggestion.kind === "promoteGroupToGoal"
-                ? t("triage.applyWithConfirmation", "Apply…")
-                : t("triage.apply", "Apply")}
-          </Button>
-        )}
-      </Stack>
       {outcome.state !== "idle" && (
         <Alert
           severity={
@@ -379,6 +358,7 @@ function CompactSuggestionCard({
                 : "info"
           }
           data-testid="triage-outcome"
+          data-outcome={outcome.state}
           sx={{ mt: 0.75, py: 0, fontSize: 11 }}
         >
           {t(`triage.state.${outcome.state}`, outcomeLabels[outcome.state])}
@@ -412,14 +392,6 @@ function CompactSuggestionCard({
     </Paper>
   );
 }
-
-const compactButton = {
-  minWidth: 0,
-  px: 0.875,
-  py: 0,
-  fontSize: 11,
-  lineHeight: "20px",
-};
 
 function suggestionItemsOf(suggestion: OpenItemsTriageSuggestion) {
   return suggestion.kind === "promoteGroupToGoal"

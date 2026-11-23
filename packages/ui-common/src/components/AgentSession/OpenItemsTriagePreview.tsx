@@ -1,6 +1,8 @@
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Box, Typography } from "@mui/material";
 import { alpha, useTheme, type Theme } from "@mui/material/styles";
 import { useTranslation } from "react-i18next";
+import { openItemIconSubject } from "../../data/openItemsMapping";
 import type {
   FlowTone,
   LayoutFlow,
@@ -8,17 +10,22 @@ import type {
   RowMarker,
   TriagePreview,
 } from "../../data/triage/replay";
+import {
+  OpenItemIcon,
+  type WorkItemIconRegistry,
+} from "../Entity/OpenItemIcon";
 
 /** Fixed row height so ribbons line up with the rows they connect. */
-export const PREVIEW_ROW_HEIGHT = 28;
+export const PREVIEW_ROW_HEIGHT = 32;
 const HEADER_HEIGHT = 32;
 const GUTTER = 56;
-const SCROLL_HEIGHT = 308;
-const CHILD_INDENT = 22;
-const NARROW = "@container triage-preview (max-width: 800px)";
-const WIDE = "@container triage-preview (min-width: 801px)";
+/** Matches the Open Items sidebar's per-level indent. */
+const CHILD_INDENT = 20;
+/** The review's own container: the modal's content width. */
+export const TRIAGE_REVIEW_CONTAINER = "triage-review";
+const NARROW = `@container ${TRIAGE_REVIEW_CONTAINER} (max-width: 800px)`;
 
-type Tone = "removed" | "moved" | "goal" | "new" | "same";
+type Tone = FlowTone;
 
 function toneColor(theme: Theme, tone: Tone) {
   switch (tone) {
@@ -50,18 +57,8 @@ function markerTone(marker: RowMarker): Tone {
     case "pinnedGoal":
     case "reopened":
       return "new";
-    case "pending":
-      return "same";
   }
 }
-
-const pendingVerbs = {
-  removeOpenItems: "✕ Remove",
-  reopenItems: "Reopen",
-  groupOpenItems: "➜ Group",
-  trackOnGoal: "⚑ Track",
-  promoteGroupToGoal: "◎ Promote",
-} as const;
 
 function markerLabel(
   t: ReturnType<typeof useTranslation>["t"],
@@ -89,64 +86,40 @@ function markerLabel(
       );
     case "pinnedGoal":
       return t("triage.preview.marker.pinnedGoal", "＋ Pinned Goal · preview");
-    case "pending":
-      return t(
-        "triage.preview.marker.pending",
-        `${t(`triage.preview.pendingVerb.${marker.verb}`, pendingVerbs[marker.verb])}? not accepted`,
-      );
   }
 }
 
-function typeGlyph(entityType: string) {
-  return entityType.charAt(0);
-}
-
-function rowSx(theme: Theme, row: Extract<LayoutRow, { kind: "item" }>) {
+function rowBackground(
+  theme: Theme,
+  row: Extract<LayoutRow, { kind: "item" }>,
+) {
   const tint = (tone: Tone) => alpha(toneColor(theme, tone), 0.12);
-  const isGoalRow = row.change === "goal";
-  const isNew = isGoalRow || (row.isGroup && row.marker?.kind === "newGroup");
-  const isGhost = row.change === "pending" && row.key.startsWith("ghost:");
-  const isPending = row.change === "pending" && !isGhost;
-
-  const background = isGhost
-    ? theme.palette.background.paper
-    : row.isGroup && !isGoalRow
-      ? row.change === "promoted"
-        ? tint("goal")
-        : theme.palette.action.selected
-      : isGoalRow
-        ? tint("goal")
-        : row.change === "removed"
-          ? tint("removed")
-          : row.change === "promoted" || row.change === "tracked"
-            ? tint("goal")
-            : row.change === "grouped" ||
-                row.change === "ungrouped" ||
-                row.change === "reopened"
-              ? tint("moved")
-              : "transparent";
-
-  return {
-    bgcolor: background,
-    borderRadius: row.isGroup ? 1.5 : 0,
-    ...(isNew && {
-      outline: `2px solid ${theme.palette.success.main}`,
-      outlineOffset: "-2px",
-    }),
-    ...(isGoalRow && {
-      borderLeft: `3px dotted ${theme.palette.secondary.main}`,
-    }),
-    ...(isPending && { border: `1px dashed ${theme.palette.text.disabled}` }),
-    ...(isGhost && { border: `1px dashed ${theme.palette.success.main}` }),
-  };
+  switch (row.change) {
+    case "removed":
+      return tint("removed");
+    case "promoted":
+    case "tracked":
+    case "goal":
+      return tint("goal");
+    case "grouped":
+    case "ungrouped":
+    case "reopened":
+      return row.isGroup ? theme.palette.action.hover : tint("moved");
+    case "unchanged":
+      return row.isGroup ? theme.palette.action.hover : "transparent";
+  }
 }
 
 function PreviewRowView({
   row,
   side,
+  highlighted,
+  registry,
 }: {
   row: LayoutRow;
   side: "before" | "after";
+  highlighted: boolean;
+  registry: WorkItemIconRegistry;
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -178,59 +151,76 @@ function PreviewRowView({
 
   const struck = row.change === "removed";
   const isGoalRow = row.change === "goal";
+  const isNew = isGoalRow || row.marker?.kind === "newGroup";
+  const iconSubject =
+    row.entityType === "GROUP"
+      ? null
+      : openItemIconSubject(row.entityType, row.presentation);
+
   return (
     <Box
       data-testid="triage-preview-row"
       data-side={side}
       data-row-key={row.key}
       data-change={row.change}
+      data-suggestion-id={row.suggestionId ?? undefined}
+      data-highlighted={highlighted}
       sx={{
         display: "flex",
         alignItems: "center",
-        gap: row.isGroup ? 1 : 0.875,
+        gap: 1,
         height: PREVIEW_ROW_HEIGHT,
         boxSizing: "border-box",
         px: 1,
         ml: `${row.depth * CHILD_INDENT}px`,
-        fontSize: 12,
         minWidth: 0,
-        ...rowSx(theme, row),
+        bgcolor: rowBackground(theme, row),
+        borderRadius: row.isGroup ? 1 : 0,
+        ...(isNew && {
+          outline: `2px solid ${theme.palette.success.main}`,
+          outlineOffset: "-2px",
+        }),
+        ...(isGoalRow && {
+          borderLeft: `3px dotted ${theme.palette.secondary.main}`,
+        }),
+        ...(highlighted && {
+          boxShadow: `inset 0 0 0 2px ${theme.palette.warning.main}`,
+        }),
       }}
     >
       {row.isGroup ? (
-        <Box
+        <ExpandMoreIcon
           aria-hidden
-          sx={{ width: 12, flexShrink: 0, color: "text.secondary" }}
-        >
-          ⌄
-        </Box>
+          fontSize="small"
+          sx={{ color: "text.secondary", flexShrink: 0 }}
+        />
       ) : (
         <Box
-          aria-hidden
+          data-testid="triage-preview-icon"
           sx={{
-            width: 16,
-            height: 16,
-            flexShrink: 0,
-            border: 1,
-            borderColor: "text.secondary",
-            borderRadius: 0.75,
-            bgcolor: "action.selected",
-            fontSize: 9,
+            width: 24,
+            height: 24,
+            flex: "0 0 24px",
             display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
           }}
         >
-          {isGoalRow ? "◎" : typeGlyph(row.entityType)}
+          {iconSubject && (
+            <OpenItemIcon
+              entityType={iconSubject.entityType}
+              presentation={iconSubject.presentation}
+              registry={registry}
+            />
+          )}
         </Box>
       )}
       <Typography
+        variant="body2"
         noWrap
         sx={{
           flex: 1,
           minWidth: 0,
-          fontSize: row.isGroup ? 13 : 12,
-          fontWeight: row.isGroup || isGoalRow ? 700 : 400,
+          fontSize: "0.875rem",
+          fontWeight: row.isGroup || isGoalRow ? 600 : 400,
           textDecoration: struck ? "line-through" : "none",
           color: struck ? "text.secondary" : "text.primary",
         }}
@@ -246,7 +236,6 @@ function Marker({ marker }: { marker: RowMarker }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const color = toneColor(theme, markerTone(marker));
-  const pending = marker.kind === "pending";
   return (
     <Box
       component="span"
@@ -259,8 +248,8 @@ function Marker({ marker }: { marker: RowMarker }) {
         borderRadius: 9,
         whiteSpace: "nowrap",
         flexShrink: 0,
-        border: `1px ${pending ? "dashed" : "solid"} ${pending ? theme.palette.text.secondary : color}`,
-        color: pending ? "text.secondary" : color,
+        border: `1px solid ${color}`,
+        color,
       }}
     >
       {markerLabel(t, marker)}
@@ -268,11 +257,15 @@ function Marker({ marker }: { marker: RowMarker }) {
   );
 }
 
-function flowColor(theme: Theme, tone: FlowTone) {
-  return toneColor(theme, tone === "pending" ? "same" : tone);
-}
-
-function Ribbons({ flows, rows }: { flows: LayoutFlow[]; rows: number }) {
+function Ribbons({
+  flows,
+  rows,
+  highlightedId,
+}: {
+  flows: LayoutFlow[];
+  rows: number;
+  highlightedId: string | null;
+}) {
   const theme = useTheme();
   const height = Math.max(rows, 1) * PREVIEW_ROW_HEIGHT;
   const mid = (index: number) => (index + 0.5) * PREVIEW_ROW_HEIGHT;
@@ -291,14 +284,16 @@ function Ribbons({ flows, rows }: { flows: LayoutFlow[]; rows: number }) {
         style={{ display: "block" }}
       >
         {flows.map((flow, index) => {
-          const color = flowColor(theme, flow.tone);
+          const color = toneColor(theme, flow.tone);
+          const highlighted =
+            highlightedId !== null && flow.suggestionId === highlightedId;
           const common = {
             fill: "none",
             stroke: color,
             strokeWidth: 12,
-            opacity: flow.tone === "same" ? 0.35 : 0.5,
-            strokeDasharray: flow.dashed ? "5 4" : undefined,
+            opacity: highlighted ? 0.85 : flow.tone === "same" ? 0.3 : 0.45,
             "data-flow": flow.tone,
+            "data-highlighted": highlighted,
           };
           if (flow.from !== null && flow.to === null) {
             const y = mid(flow.from);
@@ -377,30 +372,49 @@ function ColumnTitle({
   );
 }
 
+/** The hovered suggestion, and whether it is checked (only then does it
+ * reach the right column and the ribbons). */
+export interface TriagePreviewHighlight {
+  suggestionId: string;
+  selected: boolean;
+}
+
 export interface OpenItemsTriagePreviewProps {
   preview: TriagePreview;
   /** True while the collection the preview needs has not loaded. */
   loading: boolean;
+  highlight: TriagePreviewHighlight | null;
+  registry: WorkItemIconRegistry;
 }
 
-/** Render-only before/after comparison; every figure comes from the replay. */
+/**
+ * Render-only before/after comparison; every figure comes from the replay.
+ * It fills the height it is given: both columns and the ribbons share one
+ * scroll area below the column headers.
+ */
 export function OpenItemsTriagePreview({
   preview,
   loading,
+  highlight,
+  registry,
 }: OpenItemsTriagePreviewProps) {
   const { t } = useTranslation();
   const { layout, totals } = preview;
   const nowTitle = t("triage.preview.now", "Open Items now");
-  const afterTitle = t("triage.preview.after", "After accepted suggestions");
+  const afterTitle = t("triage.preview.after", "After selected suggestions");
   const rows = Math.max(layout.before.length, layout.after.length);
+  const beforeHighlight = highlight?.suggestionId ?? null;
+  const afterHighlight = highlight?.selected ? highlight.suggestionId : null;
 
   return (
     <Box
       data-testid="triage-preview"
       sx={{
-        containerType: "inline-size",
-        containerName: "triage-preview",
         minWidth: 0,
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        [NARROW]: { display: "block" },
       }}
     >
       {loading && (
@@ -417,7 +431,7 @@ export function OpenItemsTriagePreview({
           variant="body2"
           color="warning.main"
           data-testid="triage-preview-warning"
-          sx={{ mb: 0.5, fontSize: 12 }}
+          sx={{ mb: 0.5, fontSize: 12, flexShrink: 0 }}
         >
           ⚠ {warning.message}
         </Typography>
@@ -428,19 +442,23 @@ export function OpenItemsTriagePreview({
           variant="body2"
           color="text.secondary"
           data-testid="triage-preview-unverified"
-          sx={{ mb: 0.5, fontSize: 12 }}
+          sx={{ mb: 0.5, fontSize: 12, flexShrink: 0 }}
         >
           ? {note.message}
         </Typography>
       ))}
       <Box
         sx={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
           border: 1,
           borderColor: "divider",
           borderRadius: 1.5,
           bgcolor: "action.hover",
           minWidth: 0,
-          [NARROW]: { border: 0, bgcolor: "transparent" },
+          [NARROW]: { display: "block", border: 0, bgcolor: "transparent" },
         }}
       >
         <Box
@@ -448,6 +466,7 @@ export function OpenItemsTriagePreview({
             display: "grid",
             gridTemplateColumns: `1fr ${GUTTER}px 1fr`,
             height: HEADER_HEIGHT,
+            flexShrink: 0,
             alignItems: "center",
             borderBottom: 1,
             borderColor: "divider",
@@ -461,46 +480,54 @@ export function OpenItemsTriagePreview({
         <Box
           data-testid="triage-preview-scroll"
           sx={{
+            flex: 1,
+            minHeight: 0,
             display: "grid",
             gridTemplateColumns: `minmax(0, 1fr) ${GUTTER}px minmax(0, 1fr)`,
             alignItems: "start",
-            maxHeight: SCROLL_HEIGHT,
+            alignContent: "start",
             overflowY: "auto",
-            [NARROW]: { display: "block", maxHeight: "none" },
+            [NARROW]: { display: "block", overflowY: "visible" },
           }}
         >
           <Box data-testid="triage-preview-before" sx={{ minWidth: 0 }}>
             <ColumnTitle title={nowTitle} count={totals.before} narrowOnly />
             {layout.before.map((row) => (
-              <PreviewRowView key={row.key} row={row} side="before" />
+              <PreviewRowView
+                key={row.key}
+                row={row}
+                side="before"
+                registry={registry}
+                highlighted={
+                  row.kind === "item" &&
+                  beforeHighlight !== null &&
+                  row.suggestionId === beforeHighlight
+                }
+              />
             ))}
           </Box>
-          <Ribbons flows={layout.flows} rows={rows} />
+          <Ribbons
+            flows={layout.flows}
+            rows={rows}
+            highlightedId={afterHighlight}
+          />
           <Box data-testid="triage-preview-after" sx={{ minWidth: 0 }}>
             <ColumnTitle title={afterTitle} count={totals.after} narrowOnly />
             {layout.after.map((row) => (
-              <PreviewRowView key={row.key} row={row} side="after" />
+              <PreviewRowView
+                key={row.key}
+                row={row}
+                side="after"
+                registry={registry}
+                highlighted={
+                  row.kind === "item" &&
+                  afterHighlight !== null &&
+                  row.suggestionId === afterHighlight
+                }
+              />
             ))}
           </Box>
         </Box>
-        <Typography
-          sx={{
-            m: 0,
-            px: 1.25,
-            py: 0.75,
-            fontSize: 11,
-            color: "text.secondary",
-            borderTop: 1,
-            borderColor: "divider",
-            [NARROW]: { display: "none" },
-            [WIDE]: { display: "block" },
-          }}
-        >
-          {t(
-            "triage.preview.scrollNote",
-            "↕ Both columns and the ribbons scroll together. Every changed row is listed; each unchanged run is one row.",
-          )}
-        </Typography>
       </Box>
     </Box>
   );

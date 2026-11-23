@@ -1,6 +1,7 @@
 export * from "./EntityListItem";
 export * from "./EntityListItemExpandable";
 export * from "./EntityIcon";
+export * from "./OpenItemIcon";
 export * from "./EntityStarToggle";
 export * from "./EntityGrid";
 export * from "./EntityFilters";

@@ -28,6 +28,7 @@ export function OpenItemsTriageFollowUp({
     <Stack
       component="form"
       spacing={1}
+      sx={{ flexShrink: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -37,7 +38,7 @@ export function OpenItemsTriageFollowUp({
         label={t("triage.followUp", "Follow-up message")}
         placeholder={t(
           "triage.followUpPlaceholder",
-          "Ask a question or describe what you want to keep…"
+          "Ask a question or describe what you want to keep…",
         )}
         multiline
         minRows={2}

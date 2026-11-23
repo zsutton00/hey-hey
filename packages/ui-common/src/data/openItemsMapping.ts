@@ -108,7 +108,9 @@ export const openItemsLineage = (activation: EntityActivation) =>
     entityId: entry.entityId,
   }));
 
-function uiEntityType(item: OpenItem): EntityActivationType | null {
+function uiEntityType(
+  item: Pick<OpenItem, "entityType" | "presentation">,
+): EntityActivationType | null {
   switch (item.entityType) {
     case EntityType.Task: {
       const route = item.presentation.routeParams?.workItemRoute;
@@ -173,6 +175,41 @@ function uiPresentation(
     };
   }
   return { kind, label: presentation.label };
+}
+
+const presentationlessTypes: Partial<Record<EntityType, EntityActivationType>> =
+  {
+    [EntityType.Task]: "task",
+    [EntityType.Initiative]: "initiative",
+    [EntityType.Conversation]: "conversation",
+    [EntityType.DesignDoc]: "design_doc",
+    [EntityType.AgentSession]: "agent_session",
+    [EntityType.Proposal]: "proposal",
+  };
+
+/**
+ * What the Open Items sidebar draws an item's icon from. An item Open Items
+ * holds no snapshot for (for example one triage would reopen) carries only its
+ * entity type, so it gets the same generic icon the sidebar shows for an item
+ * without type details; its specific type is never guessed.
+ */
+export function openItemIconSubject(
+  entityType: EntityType,
+  presentation: OpenItemPresentation | null,
+): {
+  entityType: EntityActivationType;
+  presentation: EntityPresentationSnapshot | undefined;
+} | null {
+  if (!presentation) {
+    const kind = presentationlessTypes[entityType];
+    return kind ? { entityType: kind, presentation: undefined } : null;
+  }
+  const kind = uiEntityType({ entityType, presentation });
+  if (!kind) return null;
+  return {
+    entityType: kind,
+    presentation: uiPresentation(kind, presentation) ?? undefined,
+  };
 }
 
 function uiLineage(item: OpenItem): NavigationLineage {

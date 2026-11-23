@@ -1,4 +1,8 @@
-import type { OpenItemsTriageSuggestion } from "../../api";
+import type {
+  OpenItem,
+  OpenItemsTriageItem,
+  OpenItemsTriageSuggestion,
+} from "../../api";
 import type { TriageTarget } from "./application";
 
 /** The server's Open Items cap (MAX_OPEN_ITEMS in the API's open-items domain). */
@@ -79,3 +83,121 @@ export type ItemSuggestion = Exclude<
   OpenItemsTriageSuggestion,
   { kind: "promoteGroupToGoal" }
 >;
+
+export const itemKey = (item: { entityType: string; entityId: string }) =>
+  `${item.entityType}:${item.entityId}`;
+
+/** Every item a suggestion names, plus a promoted group's current members. */
+export function suggestionItems(
+  suggestion: OpenItemsTriageSuggestion,
+): OpenItemsTriageItem[] {
+  return suggestion.kind === "promoteGroupToGoal"
+    ? suggestion.affectedMembers
+    : suggestion.items;
+}
+
+/** Keys a selected suggestion occupies, including a promoted group's live members. */
+export function suggestionKeys(
+  suggestion: OpenItemsTriageSuggestion,
+  items: readonly OpenItem[],
+): Set<string> {
+  const keys = new Set(suggestionItems(suggestion).map(itemKey));
+  if (suggestion.kind === "promoteGroupToGoal") {
+    for (const row of items) {
+      if (row.groupId === suggestion.groupId) {
+        keys.add(itemKey(row));
+      }
+    }
+  }
+  return keys;
+}
+
+export interface SuggestionBlock {
+  /** The selected suggestion that holds the shared item. */
+  blockedBy: string;
+  itemTitle: string;
+}
+
+/**
+ * Which suggestions cannot be selected because an earlier selected suggestion
+ * already holds one of their items. An existing selection always wins, so a
+ * live membership change never evicts an earlier choice.
+ */
+export function resolveSelection(
+  suggestions: readonly OpenItemsTriageSuggestion[],
+  selected: ReadonlySet<string>,
+  items: readonly OpenItem[],
+): { selected: string[]; blocked: Map<string, SuggestionBlock> } {
+  const held = new Map<string, string>();
+  const effective: string[] = [];
+  const blocked = new Map<string, SuggestionBlock>();
+  const titles = new Map<string, string>();
+  for (const row of items) {
+    titles.set(itemKey(row), row.presentation.label);
+  }
+  for (const suggestion of suggestions) {
+    for (const item of suggestionItems(suggestion)) {
+      titles.set(itemKey(item), item.title);
+    }
+  }
+  const block = (suggestion: OpenItemsTriageSuggestion) => {
+    const conflict = [...suggestionKeys(suggestion, items)].find((key) =>
+      held.has(key),
+    );
+    if (conflict) {
+      blocked.set(suggestion.suggestionId, {
+        blockedBy: held.get(conflict)!,
+        itemTitle: titles.get(conflict) ?? conflict,
+      });
+    }
+    return !!conflict;
+  };
+  // Selected suggestions are processed first, in agent order, so an
+  // unselected card is judged against everything selected.
+  for (const suggestion of suggestions) {
+    if (!selected.has(suggestion.suggestionId) || block(suggestion)) {
+      continue;
+    }
+    effective.push(suggestion.suggestionId);
+    for (const key of suggestionKeys(suggestion, items)) {
+      held.set(key, suggestion.suggestionId);
+    }
+  }
+  for (const suggestion of suggestions) {
+    if (!selected.has(suggestion.suggestionId)) {
+      block(suggestion);
+    }
+  }
+  return { selected: effective, blocked };
+}
+
+/**
+ * Keeps what is already selected and adds every other suggestion that does
+ * not overlap it, in agent order. With nothing selected this is the default
+ * selection: an overlapping later suggestion is left out, not secretly kept.
+ */
+export function selectAvailable(
+  suggestions: readonly OpenItemsTriageSuggestion[],
+  selected: ReadonlySet<string>,
+  items: readonly OpenItem[],
+): Set<string> {
+  const next = new Set(resolveSelection(suggestions, selected, items).selected);
+  const held = new Set<string>();
+  for (const suggestion of suggestions) {
+    if (next.has(suggestion.suggestionId)) {
+      suggestionKeys(suggestion, items).forEach((key) => held.add(key));
+    }
+  }
+  for (const suggestion of suggestions) {
+    if (next.has(suggestion.suggestionId)) {
+      continue;
+    }
+    const keys = [...suggestionKeys(suggestion, items)];
+    if (keys.some((key) => held.has(key))) {
+      continue;
+    }
+    next.add(suggestion.suggestionId);
+    keys.forEach((key) => held.add(key));
+  }
+  return next;
+}
