@@ -1794,8 +1794,26 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
 
         // If the session promise rejects (process exit, abort, etc.),
         // ensure eventsDone also settles so it doesn't hang.
+        if (signal?.aborted) {
+          reject(new Error('Aborted'));
+          return;
+        }
         signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true });
       });
+      // Attach handling now: a stop during the awaited setup below rejects this
+      // before Promise.all awaits it, which would otherwise be unhandled.
+      void eventsDone.then(
+        () =>
+          requestContext.log(this.logger, 'debug', 'local.runner.claude.events_done.settled', {
+            runId,
+          }),
+        (err: unknown) =>
+          !signal?.aborted &&
+          requestContext.log(this.logger, 'warn', 'local.runner.claude.events_done.rejected', {
+            runId,
+            error: err,
+          }),
+      );
 
       this.inertExecution = session.inert === true;
       if (session.inert && (!platformMcpProxyMount || !this.localAgentEndpoint.get())) {
@@ -2228,20 +2246,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             error: err,
           }),
       );
-      const eventsSettled = eventsDone.then(
-        () =>
-          requestContext.log(this.logger, 'debug', 'local.runner.claude.events_done.settled', {
-            runId,
-          }),
-        (err: unknown) =>
-          !signal?.aborted &&
-          requestContext.log(this.logger, 'warn', 'local.runner.claude.events_done.rejected', {
-            runId,
-            error: err,
-          }),
-      );
       void sessionSettled;
-      void eventsSettled;
 
       const [turnResult] = await Promise.all([sessionPromise, eventsDone]);
       await awaitPendingPersists();

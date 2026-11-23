@@ -581,6 +581,74 @@ describe('session-runner-claude', () => {
     );
   });
 
+  it('ends a Run stopped during turn setup as failed without an unhandled rejection', async () => {
+    const controller = new AbortController();
+    const runStore = makeRunStore();
+    const appendEvent = runStore.appendEvent.bind(runStore);
+    vi.mocked(runStore.appendEvent).mockImplementationOnce(async (runId, input) => {
+      controller.abort();
+      // Let the abort rejection reach the microtask queue before setup resumes.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return appendEvent(runId, input);
+    });
+    startSessionMock.mockImplementation(async () => {
+      throw new Error('Aborted');
+    });
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const { logger } = makeLogger();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore,
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(vi.fn()),
+      logger,
+    });
+
+    try {
+      await expect(
+        runner.runPrompt({
+          session: makeSession(),
+          prompt: 'Stop the work.',
+          signal: controller.signal,
+        }),
+      ).rejects.toMatchObject({ code: 'RUN_FAILED' });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
+  it('settles promptly when the Run was stopped before the turn starts', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    // The provider finishes without a terminal event, so only the runner's own
+    // already-aborted check can settle event processing.
+    startSessionMock.mockResolvedValue(CLAUDE_TURN_SUCCESS);
+    const { logger } = makeLogger();
+    const runner = new ClaudeAgentSessionRunner({
+      localAgentEndpoint,
+      submissionToolRegistry,
+      toolRuleStore,
+      runStore: makeRunStore(),
+      repoStore: makeRepoStore(),
+      agentOutputOwner: createProviderTestAgentOutputOwner(vi.fn()),
+      logger,
+    });
+
+    await expect(
+      runner.runPrompt({
+        session: makeSession(),
+        prompt: 'Stop the work.',
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'RUN_FAILED', message: 'Aborted' });
+  }, 2000);
+
   it('keeps an SDK abort on a normally canceled Run on the failure path', async () => {
     const controller = new AbortController();
     const runStore = makeRunStore();
