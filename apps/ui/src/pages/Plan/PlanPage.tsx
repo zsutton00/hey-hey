@@ -59,7 +59,8 @@ import { PlanConversationTab } from "./PlanConversationTab";
 import {
   buildPlanTabPath,
   buildPlanTaskMonitorPath,
-  buildPlanTaskMonitorSetupPath,
+  buildPlanTaskMonitorCreatePath,
+  PLAN_TASK_MONITOR_CREATE_INTENT,
   type PlanTab,
 } from "./planSessionRoutes";
 
@@ -236,7 +237,9 @@ export const PlanPage = ({
     ? {}
     : {
         onAutomateStage: (id: string) =>
-          navigate(buildPlanTaskMonitorSetupPath(projectId, planId, id)),
+          navigate(buildPlanTaskMonitorCreatePath(projectId, planId, id), {
+            state: PLAN_TASK_MONITOR_CREATE_INTENT,
+          }),
         onViewAutomation: () =>
           navigate(buildPlanTabPath(projectId, planId, stageId, "automation")),
       };

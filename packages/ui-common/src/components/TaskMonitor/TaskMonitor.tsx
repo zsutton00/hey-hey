@@ -1,5 +1,5 @@
 import { Stack } from "@mui/material";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { WorkStatus } from "../../api";
 import { useWorkItemExecutionState } from "../../data/hooks/useWorkItemExecutionState";
 import { TrackingProvider } from "../../contexts";
@@ -15,9 +15,17 @@ import { useTaskMonitorPauseResume } from "./useTaskMonitorPauseResume";
 import {
   clearTaskMonitorStartMessage,
   readTaskMonitorStartMessage,
+  writeTaskMonitorStartMessage,
 } from "./taskMonitorStartMessage";
+import { defaultClient } from "../../clients";
+import { syncTaskServiceLinks } from "../Plans/planStageTaskServiceLinks";
+import {
+  taskServiceIds,
+  type TaskMonitorTaskServicesControl,
+} from "./taskMonitorStartReadiness";
 import { resolveTaskMonitorStartPresentation } from "./taskMonitorStartPresentation";
 import { useMachineResolution } from "../AgentSession/runtime/coding/useMachineResolution";
+import { getErrorMessage } from "../../utils/errorUtils";
 
 export interface TaskMonitorProps {
   organizationId: string;
@@ -53,6 +61,68 @@ export const TaskMonitor = ({
   });
   const { machines, selectedMachine, setSelectedMachineId } =
     useMachineResolution();
+  const [updatingServiceTaskIds, setUpdatingServiceTaskIds] = useState<
+    string[]
+  >([]);
+  const [serviceErrorsByTaskId, setServiceErrorsByTaskId] = useState<
+    Record<string, string>
+  >({});
+  const { refreshTasks } = projection;
+  const changeTaskServices = useCallback(
+    async (taskId: string, nextServiceIds: string[]): Promise<void> => {
+      const node = projection.nodes.find(
+        (candidate) => candidate.taskId === taskId,
+      );
+      if (!node || updatingServiceTaskIds.includes(taskId)) {
+        return;
+      }
+
+      setServiceErrorsByTaskId(({ [taskId]: _cleared, ...rest }) => rest);
+      setUpdatingServiceTaskIds((current) => [...current, taskId]);
+      try {
+        // Only a real link on the task counts; nothing is filled in for it.
+        await syncTaskServiceLinks({
+          client: defaultClient,
+          organizationId,
+          taskId,
+          currentServiceIds: taskServiceIds(node),
+          nextServiceIds,
+        });
+        await refreshTasks();
+      } catch (error) {
+        const message = getErrorMessage(
+          error,
+          "Unable to update the task's Services.",
+        );
+        console.error(
+          `Task Monitor ${monitorId}: saving Services for task ${taskId} failed: ${message}`,
+          error,
+        );
+        setServiceErrorsByTaskId((current) => ({
+          ...current,
+          [taskId]: message,
+        }));
+      } finally {
+        setUpdatingServiceTaskIds((current) =>
+          current.filter((candidate) => candidate !== taskId),
+        );
+      }
+    },
+    [
+      monitorId,
+      organizationId,
+      projection.nodes,
+      refreshTasks,
+      updatingServiceTaskIds,
+    ],
+  );
+  const taskServices: TaskMonitorTaskServicesControl = {
+    updatingTaskIds: updatingServiceTaskIds,
+    errorsByTaskId: serviceErrorsByTaskId,
+    onChange: (taskId, serviceIds) => {
+      void changeTaskServices(taskId, serviceIds);
+    },
+  };
   const launchNode = projection.definition
     ? (projection.definition.executionPlan[projection.definition.cursor] ??
       null)
@@ -187,6 +257,19 @@ export const TaskMonitor = ({
             onSaveLaunchConfiguration={projection.saveLaunchConfiguration}
             onSaveCoordinatorRuntime={projection.saveCoordinatorRuntime}
             onSaveReviewRuntime={projection.saveReviewRuntime}
+            onSaveLaunchPolicy={projection.saveLaunchPolicy}
+            onApplyToUnstartedTasks={projection.applyToUnstartedTasks}
+            startMessage={userMessage ?? ""}
+            onChangeStartMessage={(message) => {
+              writeTaskMonitorStartMessage(
+                organizationId,
+                projectId,
+                monitorId,
+                message,
+              );
+              setUserMessage(message);
+            }}
+            taskServices={taskServices}
             activePane={activePane}
             renderPaneNavigation={renderPaneNavigation}
           />

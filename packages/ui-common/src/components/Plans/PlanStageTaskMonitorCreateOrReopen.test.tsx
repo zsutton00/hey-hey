@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanStageTaskMonitorCreateOrReopen } from "./PlanStageTaskMonitorCreateOrReopen";
 
@@ -14,21 +14,18 @@ vi.mock("./usePlanStageTaskMonitorCreateOrReopen", () => ({
   usePlanStageTaskMonitorCreateOrReopen:
     mocks.usePlanStageTaskMonitorCreateOrReopen,
 }));
-vi.mock("./PlanStageTaskMonitorSetupReview/index.tsx", () => ({
-  PlanStageTaskMonitorSetupReview: ({
-    onConfirm,
-  }: {
-    onConfirm: (definition: object, userMessage: string) => void;
-  }) => (
-    <button
-      type="button"
-      data-testid="confirm-plan-monitor-setup"
-      onClick={() => onConfirm({}, "")}
-    >
-      Confirm
-    </button>
-  ),
-}));
+const draftDefinition = {
+  kind: "task",
+  cursor: 0,
+  executionPlan: [
+    { taskId: "66666666-6666-4666-8666-666666666666", dependsOnTaskIds: [] },
+    {
+      taskId: "77777777-7777-4777-8777-777777777777",
+      dependsOnTaskIds: ["66666666-6666-4666-8666-666666666666"],
+    },
+  ],
+  launchPolicy: { terminalSupervision: { mode: "AGENT_DECIDES" } },
+};
 
 const props = {
   organizationId: "org-1",
@@ -53,8 +50,9 @@ describe("PlanStageTaskMonitorCreateOrReopen", () => {
             stageId: props.stageId,
             planLabel: "Release plan",
             stageLabel: "Ship stage",
+            planWorktreeBranch: "release/ship",
           },
-          definition: {},
+          definition: draftDefinition,
         },
       },
       isLoading: false,
@@ -86,9 +84,9 @@ describe("PlanStageTaskMonitorCreateOrReopen", () => {
 
       expect(screen.getByTestId("data-state-boundary-loading")).toBeVisible();
       expect(
-        screen.queryByTestId("plan-stage-task-monitor-read-error")
+        screen.queryByTestId("plan-stage-task-monitor-read-error"),
       ).not.toBeInTheDocument();
-    }
+    },
   );
 
   it("shows a setup error after all setup reads settle", () => {
@@ -103,7 +101,7 @@ describe("PlanStageTaskMonitorCreateOrReopen", () => {
     render(<PlanStageTaskMonitorCreateOrReopen {...props} />);
 
     expect(
-      screen.getByTestId("plan-stage-task-monitor-read-error")
+      screen.getByTestId("plan-stage-task-monitor-read-error"),
     ).toHaveTextContent("Read failed");
   });
 
@@ -114,13 +112,37 @@ describe("PlanStageTaskMonitorCreateOrReopen", () => {
         state: definition
           ? { status: "created", monitorId: createdMonitorId }
           : { status: "idle" },
-      })
+      }),
     );
 
     render(<PlanStageTaskMonitorCreateOrReopen {...props} />);
-    fireEvent.click(screen.getByTestId("confirm-plan-monitor-setup"));
 
+    expect(props.onMonitorReady).toHaveBeenCalledTimes(1);
     expect(props.onMonitorReady).toHaveBeenCalledWith(createdMonitorId);
+  });
+
+  it("creates straight away with every eligible task on the Plan's worktree branch, without a review step", () => {
+    const { rerender } = render(
+      <PlanStageTaskMonitorCreateOrReopen {...props} />,
+    );
+    rerender(<PlanStageTaskMonitorCreateOrReopen {...props} />);
+
+    const definitions =
+      mocks.usePlanStageTaskMonitorCreateOrReopen.mock.calls.map(
+        ([options]) => (options as { definition: unknown }).definition,
+      );
+    expect(definitions[0]).toEqual({
+      ...draftDefinition,
+      launchPolicy: {
+        ...draftDefinition.launchPolicy,
+        worktree: { enabled: true, branch: "release/ship" },
+      },
+    });
+    // One definition per source, so re-renders cannot request a second monitor.
+    expect(new Set(definitions).size).toBe(1);
+    expect(
+      screen.getByTestId("plan-stage-task-monitor-create-pending"),
+    ).toBeInTheDocument();
   });
 
   it("passes the ready draft's Plan parent into fresh creation", () => {
@@ -129,7 +151,7 @@ describe("PlanStageTaskMonitorCreateOrReopen", () => {
     expect(mocks.usePlanStageTaskMonitorCreateOrReopen).toHaveBeenCalledWith(
       expect.objectContaining({
         planParentTaskId: "55555555-5555-4555-8555-555555555555",
-      })
+      }),
     );
   });
 });

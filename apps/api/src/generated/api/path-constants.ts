@@ -144,6 +144,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_EDGES_PATH = 
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_AGENT_EDGES_AGENTEDGEID_PATH = '/organizations/{organizationId}/projects/{projectId}/agent-edges/{agentEdgeId}';
 export const ORGANIZATIONS_ORGANIZATIONID_INITIATIVES_INITIATIVEID_EDIT_HISTORY_PATH = '/organizations/{organizationId}/initiatives/{initiativeId}/edit-history';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_MONITORID_MONITOR_COMMANDS_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/monitor-commands';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_MONITORID_UNSTARTED_LAUNCH_CONFIGURATION_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/unstarted-launch-configuration';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_EXECUTION_STATE_BATCH_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/execution-state:batch';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_WORK_ITEMS_REFERENCES_PATH = '/organizations/{organizationId}/projects/{projectId}/work-items/references';

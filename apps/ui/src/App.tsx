@@ -233,9 +233,13 @@ const PlanDetailPage = lazyNamed(
   () => import("./pages/Plan/PlanDetailPage"),
   "PlanDetailPage",
 );
-const PlanTaskMonitorSetupPage = lazyNamed(
-  () => import("./pages/Plan/PlanTaskMonitorSetupPage"),
-  "PlanTaskMonitorSetupPage",
+const PlanTaskMonitorCreatePage = lazyNamed(
+  () => import("./pages/Plan/PlanTaskMonitorCreatePage"),
+  "PlanTaskMonitorCreatePage",
+);
+const PlanTaskMonitorSetupRedirectPage = lazyNamed(
+  () => import("./pages/Plan/PlanTaskMonitorSetupRedirectPage"),
+  "PlanTaskMonitorSetupRedirectPage",
 );
 const PlanTaskMonitorPage = lazyNamed(
   () => import("./pages/Plan/PlanTaskMonitorPage"),
@@ -652,8 +656,12 @@ export const router = createBrowserRouter(
           element={withProtectedRoute(<PlanDetailPage />)}
         />
         <Route
+          path="projects/:projectId/plans/:planId/stages/:stageId/task-monitor/new"
+          element={withProtectedRoute(<PlanTaskMonitorCreatePage />)}
+        />
+        <Route
           path="projects/:projectId/plans/:planId/stages/:stageId/task-monitor/setup"
-          element={withProtectedRoute(<PlanTaskMonitorSetupPage />)}
+          element={withProtectedRoute(<PlanTaskMonitorSetupRedirectPage />)}
         />
         <Route
           path="projects/:projectId/plans/:planId/stages/:stageId/task-monitor/:monitorId"

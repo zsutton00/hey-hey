@@ -28,6 +28,8 @@ import {
   type MachineDto,
 } from "../../../api";
 import type { TaskMonitorProjectedNode } from "../useTaskMonitorProjection";
+import type { TaskMonitorTaskServicesControl } from "../taskMonitorStartReadiness";
+import { http, HttpResponse } from "msw";
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
 import { setCapabilityCatalogForTests } from "../../AgentSession/capabilityCatalog";
 import { TEST_CAPABILITY_CATALOG } from "../../../test/capabilityCatalogFixture";
@@ -241,6 +243,21 @@ const CapsuleScreenButtons = () => {
   ));
 };
 
+const noMissingServices: TaskMonitorTaskServicesControl = {
+  updatingTaskIds: [],
+  errorsByTaskId: {},
+  onChange: vi.fn(),
+};
+
+// Every task card reads the project's Services to name the task's own.
+beforeEach(() => {
+  globalThis.mswServer.use(
+    http.get("*/organizations/:organizationId/services", () =>
+      HttpResponse.json({ data: [] }),
+    ),
+  );
+});
+
 const workspaceElement = (
   overrides: Partial<
     React.ComponentProps<typeof TaskMonitorWorkspaceView>
@@ -263,6 +280,11 @@ const workspaceElement = (
       onSaveLaunchConfiguration={vi.fn()}
       onSaveCoordinatorRuntime={vi.fn()}
       onSaveReviewRuntime={vi.fn()}
+      onSaveLaunchPolicy={vi.fn().mockResolvedValue(undefined)}
+      onApplyToUnstartedTasks={vi.fn()}
+      startMessage=""
+      onChangeStartMessage={vi.fn()}
+      taskServices={noMissingServices}
       pendingLifecycleAction={null}
       errorMessage={null}
       operationalErrorMessage={null}
@@ -327,11 +349,18 @@ describe("TaskMonitorWorkspaceView", () => {
     vi.stubGlobal("crypto", { randomUUID: randomUUIDMock });
   });
 
-  it("does not offer setup selection after the launch choice is saved", () => {
+  it("shows Review mode read-only and offers no setup selection after Start", () => {
     renderWorkspace();
 
+    const reviewMode = screen.getByTestId("task-monitor-review-mode");
+    for (const option of within(reviewMode).getAllByRole("radio")) {
+      expect(option).toBeDisabled();
+    }
     expect(
-      screen.queryByTestId("task-monitor-review-mode"),
+      screen.queryByTestId("task-monitor-prestart-settings"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("task-monitor-launch-configuration"),
@@ -1312,5 +1341,337 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
         "task-monitor-coordinator-runtime-runtime-model-input",
       ),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("TaskMonitorWorkspaceView setup before Start", () => {
+  const sonnet = {
+    method: "quick" as const,
+    provider: "claude" as const,
+    model: "claude-sonnet-5-5",
+    reasoningEffort: "medium" as const,
+  };
+  const unstartedNode = (
+    taskId: string,
+    position: number,
+    launchConfiguration = sonnet,
+  ): TaskMonitorProjectedNode => ({
+    position,
+    taskId,
+    dependsOnTaskIds: [],
+    launchConfiguration,
+    isCursor: position === 0,
+    task: { kind: "loaded", task: createTask(taskId, `Task ${position + 1}`) },
+    session: { kind: "none" },
+    visualStatus: "idle",
+  });
+  const startedNode: TaskMonitorProjectedNode = {
+    ...unstartedNode("33333333-3333-4333-8333-333333333333", 2),
+    session: { kind: "loaded", session: createSession() },
+    visualStatus: "active",
+  };
+  const mixedNodes = [
+    unstartedNode("11111111-1111-4111-8111-111111111111", 0),
+    unstartedNode("22222222-2222-4222-8222-222222222222", 1, {
+      ...sonnet,
+      method: "plan",
+      reasoningEffort: "low",
+    }),
+    startedNode,
+  ];
+
+  beforeEach(() => {
+    setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
+    useReportsMock.mockReturnValue({
+      reports: [],
+      isLoading: false,
+      error: null,
+    });
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      conversation: null,
+      project: null,
+      session: null,
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(vi.fn());
+  });
+
+  const chooseEffort = async (effort: "high" | "max") => {
+    const user = userEvent.setup();
+    const group = screen.getByTestId("task-monitor-apply-unstarted");
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-apply-unstarted-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        `task-monitor-apply-unstarted-runtime-effort-option-${effort}`,
+      ),
+    );
+    return user;
+  };
+
+  it("tells the user how many unstarted tasks will be replaced and writes nothing until Apply", async () => {
+    const onApplyToUnstartedTasks = vi.fn().mockResolvedValue({
+      updatedTaskIds: [mixedNodes[0]?.taskId, mixedNodes[1]?.taskId],
+      skippedTaskIds: [startedNode.taskId],
+    });
+    const onSaveLaunchConfiguration = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+      onSaveLaunchConfiguration,
+    });
+
+    const user = await chooseEffort("high");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+    expect(
+      screen.getByTestId("task-monitor-apply-unstarted-confirm"),
+    ).toHaveTextContent(
+      "Replace session settings on 2 tasks that haven't started.",
+    );
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("task-monitor-apply-unstarted-result"),
+      ).toHaveTextContent(
+        "Updated 2 tasks. 1 task already had a session and was left unchanged.",
+      ),
+    );
+    expect(onApplyToUnstartedTasks).toHaveBeenCalledTimes(1);
+    expect(onApplyToUnstartedTasks).toHaveBeenCalledWith({
+      ...sonnet,
+      reasoningEffort: "high",
+    });
+    // The bulk draft never goes through any per-task save path.
+    expect(onSaveLaunchConfiguration).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when the confirmation is cancelled", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+
+    const user = await chooseEffort("max");
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-cancel"));
+
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted-confirm"),
+    ).not.toBeInTheDocument();
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("rejects a combination the machine's catalog no longer offers and sends nothing", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+
+    // The machine's catalog drops the chosen model as Apply is pressed,
+    // before the picker can reshape the draft.
+    act(() => {
+      setCapabilityCatalogForTests(
+        TEST_CAPABILITY_CATALOG.filter((row) => row.provider !== "claude"),
+      );
+      fireEvent.click(
+        screen.getByTestId("task-monitor-apply-unstarted-submit"),
+      );
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-apply-unstarted-error"),
+    ).toHaveTextContent("not available in the runtime catalog");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("rejects a confirmed Fast mode the model no longer offers instead of sending a setup without it", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    const opusFast = {
+      ...sonnet,
+      model: "claude-opus-5-5",
+      fastMode: true,
+    };
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [
+        unstartedNode("11111111-1111-4111-8111-111111111111", 0, opusFast),
+      ],
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+
+    // The machine stops offering Fast mode for the model as Apply is pressed.
+    act(() => {
+      setCapabilityCatalogForTests(
+        TEST_CAPABILITY_CATALOG.map((row) => ({
+          ...row,
+          models: row.models.map(({ serviceTiers: _tiers, ...model }) => model),
+        })),
+      );
+      fireEvent.click(
+        screen.getByTestId("task-monitor-apply-unstarted-submit"),
+      );
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-apply-unstarted-error"),
+    ).toHaveTextContent("Fast mode choice is not supported");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("keeps Start unavailable until an edited worktree branch is saved", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const definition = {
+        ...createTaskMonitorDefinition(),
+        launchPolicy: {
+          ...createTaskMonitorDefinition().launchPolicy,
+          worktree: { enabled: true, branch: "feature/old" },
+        },
+      };
+      let finishSave: () => void = () => undefined;
+      const onSaveLaunchPolicy = vi.fn(
+        () => new Promise<void>((resolve) => (finishSave = resolve)),
+      );
+      const { rerender } = renderWorkspace({
+        definition,
+        monitorStatus: WorkStatus.Backlog,
+        onSaveLaunchPolicy,
+      });
+      expect(lifecycleButton("Start")).toBeEnabled();
+
+      const branchInput = screen.getByTestId(
+        "task-monitor-worktree-branch-name",
+      );
+      fireEvent.change(branchInput, { target: { value: "feature/new" } });
+
+      // Waiting to save, then saving: Start would still read the old branch.
+      expect(lifecycleButton("Start")).toBeDisabled();
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      expect(onSaveLaunchPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worktree: { enabled: true, branch: "feature/new" },
+        }),
+      );
+      expect(lifecycleButton("Start")).toBeDisabled();
+
+      finishSave();
+      rerender(
+        workspaceElement({
+          definition: {
+            ...definition,
+            launchPolicy: {
+              ...definition.launchPolicy,
+              worktree: { enabled: true, branch: "feature/new" },
+            },
+          },
+          monitorStatus: WorkStatus.Backlog,
+          onSaveLaunchPolicy,
+        }),
+      );
+      await waitFor(() => expect(lifecycleButton("Start")).toBeEnabled());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the server's rejection and reports that no task changed", async () => {
+    const onApplyToUnstartedTasks = vi
+      .fn()
+      .mockRejectedValue(new Error("Task monitor uses a disallowed method"));
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("task-monitor-apply-unstarted-error"),
+      ).toHaveTextContent("Task monitor uses a disallowed method"),
+    );
+  });
+
+  it("is offered while paused for tasks that have not started, and hidden once none remain", () => {
+    const { rerender } = renderWorkspace({
+      monitorStatus: WorkStatus.Active,
+      executionState: retainedState("paused"),
+      nodes: mixedNodes,
+    });
+
+    expect(screen.getByTestId("task-monitor-apply-unstarted")).toBeVisible();
+    // The monitor-wide setup stays read-only once started.
+    expect(
+      screen.queryByTestId("task-monitor-prestart-settings"),
+    ).not.toBeInTheDocument();
+    rerender(
+      workspaceElement({
+        monitorStatus: WorkStatus.Active,
+        executionState: retainedState("paused"),
+        nodes: [startedNode],
+      }),
+    );
+
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves Review mode and the worktree before Start, and blocks Start while a task has no Service", async () => {
+    const onSaveLaunchPolicy = vi.fn().mockResolvedValue(undefined);
+    const onChangeServices = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onSaveLaunchPolicy,
+      taskServices: {
+        ...noMissingServices,
+        tasksMissingServices: [
+          {
+            taskId: mixedNodes[0]?.taskId ?? "",
+            label: "Task 1",
+            serviceIds: [],
+          },
+        ],
+        onChange: onChangeServices,
+      },
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("radio", { name: /Review required/ }));
+    expect(onSaveLaunchPolicy).toHaveBeenCalledWith({
+      terminalSupervision: { mode: TaskMonitorReviewMode.RequireReview },
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-missing-services"),
+    ).toHaveTextContent("Task 1");
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(
+      screen.getByTestId("task-monitor-start-message"),
+    ).toBeInTheDocument();
   });
 });

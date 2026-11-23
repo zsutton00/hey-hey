@@ -17,6 +17,7 @@ import {
   supportsFastMode,
 } from "../AgentSession/capabilityCatalog";
 import { useRuntimeModelCatalog } from "../AgentSession/useRuntimeModelCatalog";
+import { launchConfigurationCatalogIssue } from "./taskMonitorLaunchCatalog";
 
 export interface UseTaskMonitorStartOptions {
   organizationId: string;
@@ -109,34 +110,12 @@ const buildLaunchConfig = (
         : "The runtime model catalog must finish loading before Start.",
     );
   }
-  if (
-    !listModels(configuration.provider).some(
-      (model) => model.id === configuration.model,
-    )
-  ) {
-    throw new Error(
-      "The saved Task Monitor provider and model are not available in the runtime catalog.",
-    );
-  }
-  const efforts = listEfforts(configuration.provider, configuration.model);
-  if (!efforts.includes(configuration.reasoningEffort)) {
-    throw new Error(
-      "The saved Task Monitor reasoning effort is not available for the selected provider and model.",
-    );
-  }
-  const fastModeSupported = supportsFastMode(
-    configuration.provider,
-    configuration.model,
+  const catalogIssue = launchConfigurationCatalogIssue(
+    configuration,
+    "The saved Task Monitor",
   );
-  if (fastModeSupported && typeof configuration.fastMode !== "boolean") {
-    throw new Error(
-      "The saved Task Monitor Fast mode choice is missing for the selected provider and model.",
-    );
-  }
-  if (!fastModeSupported && configuration.fastMode !== undefined) {
-    throw new Error(
-      "The saved Task Monitor Fast mode choice is not supported for the selected provider and model.",
-    );
+  if (catalogIssue) {
+    throw new Error(catalogIssue);
   }
   const worktree = resolveWorktree(launchPolicy);
   return {

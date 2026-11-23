@@ -1,29 +1,15 @@
-import {
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Alert, Stack } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
-import type {
-  TaskMonitorExecutionNodeLaunchConfiguration,
-  TaskMonitorLaunchMethod,
-} from "../../api";
-import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
+import type { TaskMonitorExecutionNodeLaunchConfiguration } from "../../api";
 import { supportsFastMode } from "../AgentSession/capabilityCatalog";
 import {
   TASK_MONITOR_SETUP_SURFACE_ID,
   writeSurfaceSelection,
 } from "../AgentSession/surfaceSelectionMemory";
-import { taskMonitorLaunchMethodOptions } from "./TaskMonitorLaunchMethodOptions";
+import { TaskMonitorLaunchConfigurationFields } from "./TaskMonitorLaunchConfigurationFields";
 import { normalizeFastMode } from "./taskMonitorRuntimeSelection";
 import { useMonitorKind } from "./useMonitorKind";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
-function isLaunchMethod(value: string): value is TaskMonitorLaunchMethod {
-  return value === "plan" || value === "open" || value === "quick";
-}
 
 export function TaskMonitorLaunchConfigurationEditor({
   organizationId,
@@ -103,75 +89,22 @@ export function TaskMonitorLaunchConfigurationEditor({
 
   const configurationEditor =
     node.session.kind === "none" ? (
-      <Stack
-        spacing={1.5}
-        sx={{ p: 2 }}
-        data-testid="task-monitor-node-launch-configuration"
-      >
-        <Typography variant="h6">Session setup</Typography>
-        <FormControl
-          size="small"
-          fullWidth
-          disabled={isSavingLaunchConfiguration || isSavingLocally}
-        >
-          <InputLabel id={`task-monitor-inspector-method-${node.taskId}`}>
-            Method
-          </InputLabel>
-          <Select
-            labelId={`task-monitor-inspector-method-${node.taskId}`}
-            label="Method"
-            value={launchConfiguration.method}
-            onChange={(event) => {
-              const method = event.target.value;
-              if (isLaunchMethod(method)) {
-                void saveLaunchConfiguration({
-                  ...launchConfigurationRef.current,
-                  method,
-                });
-              }
-            }}
-          >
-            {taskMonitorLaunchMethodOptions(
-              monitorKind?.allowedLaunchMethods ?? [],
-              launchConfiguration.method,
-            )}
-          </Select>
-        </FormControl>
-        <RuntimeModelSelector
+      <Stack spacing={1.5} data-testid="task-monitor-node-launch-configuration">
+        <TaskMonitorLaunchConfigurationFields
+          idPrefix={`task-monitor-inspector-${node.taskId}`}
+          testIdPrefix="task-monitor-node-runtime"
+          value={launchConfiguration}
+          allowedLaunchMethods={monitorKind?.allowedLaunchMethods ?? []}
           catalogSource={
             machineId ? { organizationId, projectId, machineId } : null
           }
-          provider={launchConfiguration.provider}
-          model={launchConfiguration.model}
-          reasoningEffort={launchConfiguration.reasoningEffort}
-          fastMode={launchConfiguration.fastMode ?? false}
-          onProviderChange={(provider) =>
-            void saveLaunchConfiguration({
-              ...launchConfigurationRef.current,
-              provider,
-            })
-          }
-          onModelChange={(model) =>
-            void saveLaunchConfiguration({
-              ...launchConfigurationRef.current,
-              model,
-            })
-          }
-          onReasoningEffortChange={(reasoningEffort) => {
-            if (!reasoningEffort) return;
-            saveLaunchConfiguration({
-              ...launchConfigurationRef.current,
-              reasoningEffort,
-            });
-          }}
-          onFastModeChange={(fastMode) =>
-            void saveLaunchConfiguration({
-              ...launchConfigurationRef.current,
-              fastMode,
-            })
-          }
           disabled={isSavingLaunchConfiguration || isSavingLocally}
-          testIdPrefix="task-monitor-node-runtime"
+          onChange={(patch) =>
+            void saveLaunchConfiguration({
+              ...launchConfigurationRef.current,
+              ...patch,
+            })
+          }
         />
         {saveError ? <Alert severity="error">{saveError}</Alert> : null}
       </Stack>
