@@ -911,6 +911,7 @@ export {
   useApplyProposalFuture,
   type UseApplyProposalFutureReturn,
 } from "./useApplyProposalFuture";
+export { useCancelProposalFuture } from "./useCancelProposalFuture";
 
 export { useProjectApprovalPolicy } from "./useProjectApprovalPolicy";
 

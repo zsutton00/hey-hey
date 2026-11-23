@@ -2,6 +2,7 @@ import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { proposalKeys } from "../../data/collections/proposals";
 import {
   Alert,
   Button,
@@ -11,13 +12,16 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import type {
-  FutureApplyConfirmation,
-  FutureApplyResponse,
-  FutureRevisionResponse,
+import {
+  ProposalStatus,
+  type FutureApplyConfirmation,
+  type FutureApplyResponse,
+  type FutureRevisionResponse,
+  type ProposalResponseDto,
 } from "../../api";
 import { proposalsClient } from "../../clients/serviceClients";
 import { useApplyProposalFuture } from "../../data/hooks/useApplyProposalFuture";
+import { useCancelProposalFuture } from "../../data/hooks/useCancelProposalFuture";
 import { ProposalReconciliationContext } from "../ProposalReconciliation/ProposalReconciliationReview";
 import { FutureProposalLink } from "./FutureProposalLink";
 import { FutureRevisionSteps, FutureStepDone } from "./FutureRevisionSteps";
@@ -43,6 +47,20 @@ const blockerLabels = {
   REVISION_CHANGED:
     "The approved version changed. Review the current version before applying.",
 } as const;
+
+function reviewedRefinementsOf(updates: unknown): string[] | undefined {
+  return (updates as { reviewedRefinementProposalIds?: string[] } | undefined)
+    ?.reviewedRefinementProposalIds;
+}
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
+function isCancellationOf(updates: unknown, futureId: string): boolean {
+  const candidate = updates as { operation?: string; futureId?: string };
+  return candidate.operation === "CANCEL" && candidate.futureId === futureId;
+}
 
 export function FutureApplication({
   future,
@@ -72,6 +90,8 @@ export function FutureApplication({
     useState<FutureApplyConfirmation | null>(null);
   const [invalidated, setInvalidated] = useState<string[]>([]);
   const apply = useApplyProposalFuture();
+  const cancel = useCancelProposalFuture();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const applicability = useQuery({
     queryKey: [
       "proposal-future-applicability",
@@ -124,6 +144,65 @@ export function FutureApplication({
       await applicability.refetch();
     }
   };
+  // The cancellation is found by the future's own pending-proposal list, so it
+  // is current after another reviewer's decision and on reopening, however many
+  // other proposals the project has.
+  const outstandingIds = Array.from(future.outstandingRefinementProposalIds);
+  const pendingCancellation = useQuery({
+    queryKey: [
+      ...proposalKeys.project(organizationId, projectId),
+      "future-pending-cancellation",
+      futureId,
+      outstandingIds.join(","),
+    ],
+    queryFn: async (): Promise<{ proposal: ProposalResponseDto | null }> => {
+      const proposals = await Promise.all(
+        outstandingIds.map(async (proposalId) => {
+          const result = await proposalsClient.getProposal({
+            organizationId,
+            projectId,
+            proposalId,
+          });
+          return result.data.data;
+        }),
+      );
+      const proposal = proposals.find(
+        (candidate) =>
+          candidate?.status === ProposalStatus.Draft &&
+          isCancellationOf(candidate.updates, futureId),
+      );
+      return { proposal: proposal ?? null };
+    },
+    enabled: future.outcome === "STAGED",
+    staleTime: 0,
+  });
+  const pending = pendingCancellation.data?.proposal ?? null;
+  const pendingRefinements = outstandingIds.filter((id) => id !== pending?.id);
+  const reviewedByPending = reviewedRefinementsOf(pending?.updates);
+  const cancellationStale =
+    !!pending &&
+    !!reviewedByPending &&
+    !sameIds(reviewedByPending, pendingRefinements);
+  const cancelFuture = async () => {
+    setConfirmingCancel(false);
+    try {
+      await cancel.mutate({
+        future,
+        reviewedRefinementProposalIds: pendingRefinements,
+        ...(cancellationStale && pending
+          ? { replaceProposalId: pending.id }
+          : {}),
+      });
+    } catch {
+      // The mutation retains the error, which is shown to the reviewer.
+    } finally {
+      await onRefresh?.();
+      await Promise.all([
+        applicability.refetch(),
+        pendingCancellation.refetch(),
+      ]);
+    }
+  };
   const applied =
     response?.status === "APPLIED" || future.outcome === "APPLIED";
   const ready =
@@ -148,6 +227,25 @@ export function FutureApplication({
       {stepped && conditionCount > 0 ? "Refresh" : "Refresh linked work"}
     </Button>
   );
+  const cancelAwaitingApproval = !!pending && !cancellationStale;
+  const cancelLookupUnavailable = pendingCancellation.isError;
+  const cancelAction = future.outcome === "STAGED" && !applied && (
+    <Button
+      size="small"
+      color="inherit"
+      sx={{ flexShrink: 0, color: "text.secondary" }}
+      data-testid="future-cancel"
+      disabled={
+        cancel.isPending ||
+        pendingCancellation.isPending ||
+        cancelLookupUnavailable ||
+        cancelAwaitingApproval
+      }
+      onClick={() => setConfirmingCancel(true)}
+    >
+      {cancellationStale ? "Replace cancellation" : "Cancel future"}
+    </Button>
+  );
   const applyAction = applied ? (
     <FutureStepDone>Applied</FutureStepDone>
   ) : (
@@ -163,6 +261,7 @@ export function FutureApplication({
       >
         {apply.isPending ? "Applying…" : "Apply"}
       </Button>
+      {cancelAction}
       {reconciliation?.staged && (
         <Typography
           variant="body2"
@@ -239,6 +338,42 @@ export function FutureApplication({
           )}
         </>
       )}
+      {cancelLookupUnavailable && (
+        <Alert
+          severity="error"
+          data-testid="future-cancel-lookup-failed"
+          action={
+            <Button onClick={() => void pendingCancellation.refetch()}>
+              Retry
+            </Button>
+          }
+        >
+          Could not check whether a cancellation is already pending.
+        </Alert>
+      )}
+      {cancellationStale && (
+        <Alert severity="warning" data-testid="future-cancel-stale">
+          The pending revisions changed after this cancellation was requested,
+          so it can no longer be approved. Review the current list and replace
+          it.
+        </Alert>
+      )}
+      {cancelAwaitingApproval && (
+        <Alert severity="info" data-testid="future-cancel-pending">
+          Your approval was recorded, but this project needs more approvals
+          before the cancellation takes effect. The future stays approved and
+          can still be applied until then.
+        </Alert>
+      )}
+      {cancel.error && (
+        <Alert severity="error">
+          {
+            toProposalApprovalFailureError(cancel.error, "Cancellation failed")
+              .message
+          }{" "}
+          Refresh before trying again.
+        </Alert>
+      )}
       {response?.blocker && (
         <Alert severity="warning">{blockerLabels[response.blocker]}</Alert>
       )}
@@ -267,6 +402,50 @@ export function FutureApplication({
           ))}
         </Stack>
       )}
+      <Dialog
+        open={confirmingCancel}
+        onClose={() => setConfirmingCancel(false)}
+      >
+        <DialogTitle>Cancel this approved change?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1}>
+            <Typography>
+              Live content will not change, and this future can no longer be
+              applied. It leaves every Ready to apply list.
+            </Typography>
+            {pendingRefinements.length > 0 && (
+              <>
+                <Typography data-testid="future-cancel-refinements">
+                  Once the cancellation is approved, these pending revisions
+                  will be rejected:
+                </Typography>
+                {pendingRefinements.map((proposalId) => (
+                  <FutureProposalLink
+                    key={proposalId}
+                    {...{ organizationId, projectId, proposalId }}
+                  />
+                ))}
+              </>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            data-testid="future-cancel-decline"
+            onClick={() => setConfirmingCancel(false)}
+          >
+            Keep future
+          </Button>
+          <Button
+            color="error"
+            data-testid="future-cancel-confirm"
+            disabled={cancel.isPending}
+            onClick={() => void cancelFuture()}
+          >
+            Cancel future
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog
         open={confirmation !== null}
         onClose={() => setConfirmation(null)}

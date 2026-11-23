@@ -8,7 +8,12 @@ import {
 } from './future-graph';
 import { assertApprovedEvalCaseHandlers } from 'src/services/eval-runs/eval-case-handlers';
 import { assertProposalApplicationEligible } from './proposal-application-eligibility';
-import { readFutureRevision, stageFutureRevision } from './future-revision';
+import {
+  findOutstandingRefinementIds,
+  parseFutureRevisionMutation,
+  readFutureRevision,
+  stageFutureRevision,
+} from './future-revision';
 import {
   futureBaselineBlocker,
   futureTargetUpdates,
@@ -1522,6 +1527,7 @@ export class ProposalApprovalService {
 
         if (updated.action === 'VERSIONED_UPDATE') {
           await stageFutureRevision(tx, this.workItemTypeRegistry, updated);
+          await this.rejectRefinementsOfCancelledFuture(tx, updated, userId);
           await this.publishApprovedEvent(tx, updated, updated.targetEntityId);
           return {
             proposal: updated,
@@ -2913,6 +2919,11 @@ export class ProposalApprovalService {
 
     if (approved.action === 'VERSIONED_UPDATE') {
       await stageFutureRevision(tx, this.workItemTypeRegistry, approved);
+      await this.rejectRefinementsOfCancelledFuture(
+        tx,
+        approved,
+        approved.requestorId as UserId,
+      );
       await this.publishApprovedEvent(tx, approved, approved.targetEntityId);
       return {
         proposal: approved,
@@ -3381,6 +3392,64 @@ export class ProposalApprovalService {
     return {
       proposal: await this.toResponseDto(updated, projectPolicy),
     };
+  }
+
+  /**
+   * Approving a CANCEL ends the future, so its other outstanding refinements can
+   * never be reviewed against it. Reject them through the ordinary rejection
+   * record, in the same transaction as the cancellation.
+   */
+  private async rejectRefinementsOfCancelledFuture(
+    tx: AnyTransactionClient,
+    cancellation: Proposal,
+    actorId: UserId,
+  ): Promise<void> {
+    const mutation = parseFutureRevisionMutation(cancellation.updates);
+    if (mutation.operation !== 'CANCEL') {
+      return;
+    }
+
+    const refinementIds = await findOutstandingRefinementIds(
+      tx,
+      cancellation,
+      mutation.futureId,
+      cancellation.id,
+    );
+    if (refinementIds.length === 0) {
+      return;
+    }
+
+    const reason = `The future ${mutation.futureId} was cancelled by proposal ${cancellation.id}.`;
+    await tx.proposal.updateMany({
+      where: {
+        id: { in: refinementIds },
+        organizationId: cancellation.organizationId,
+        projectId: cancellation.projectId,
+        status: 'DRAFT',
+      },
+      data: { status: 'REJECTED' },
+    });
+    // An actor who already decided on a refinement keeps that record; the
+    // refinement is rejected either way and must not block the cancellation.
+    await tx.proposalApprovalRecord.createMany({
+      data: refinementIds.map((proposalId) => ({
+        proposalId,
+        userId: actorId,
+        type: ProposalApprovalType.REJECTION,
+        reason,
+      })),
+      skipDuplicates: true,
+    });
+    for (const id of refinementIds) {
+      await this.pendingEdgeService.cleanupForProposal(tx, id);
+    }
+    await this.proposalGroupDecisionService!.invalidateFutureRefinementsInTransaction(
+      tx,
+      cancellation.organizationId as OrganizationId,
+      cancellation.projectId as ProjectId,
+      refinementIds,
+      'Future cancelled; pending refinements rejected.',
+    );
   }
 
   private async recordRejectionInTx(

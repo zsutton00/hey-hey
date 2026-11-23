@@ -13,11 +13,19 @@ const api = vi.hoisted(() => ({
   apply: vi.fn(),
   readiness: vi.fn(),
   invalidate: vi.fn(),
+  createProposal: vi.fn(),
+  updateProposal: vi.fn(),
+  getProposal: vi.fn(),
+  rejectProposal: vi.fn(),
 }));
 vi.mock("../../../clients/serviceClients", () => ({
   proposalsClient: {
     applyProposalFuture: api.apply,
     getProposalFutureApplicability: api.readiness,
+    createProposal: api.createProposal,
+    updateProposal: api.updateProposal,
+    getProposal: api.getProposal,
+    rejectProposal: api.rejectProposal,
   },
 }));
 vi.mock("../../../data/hooks/useInvalidateProposalReview", () => ({
@@ -91,6 +99,15 @@ async function start() {
 beforeEach(() => {
   vi.clearAllMocks();
   api.readiness.mockResolvedValue({ data: { data: ready } });
+  api.getProposal.mockResolvedValue({
+    data: {
+      data: {
+        id: "pending",
+        status: "DRAFT",
+        updates: { operation: "REVISE" },
+      },
+    },
+  });
 });
 
 describe("manual future application", () => {
@@ -287,4 +304,162 @@ it("withholds Apply while a fix awaits review even when the last readiness read 
   view.rerender(tree(false));
   await waitFor(() => expect(screen.getByTestId("future-apply")).toBeEnabled());
   expect(api.apply).not.toHaveBeenCalled();
+});
+
+async function openCancel() {
+  await waitFor(() =>
+    expect(screen.getByTestId("future-cancel")).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByTestId("future-cancel"));
+}
+
+describe("cancelling an unapplied future", () => {
+  it("offers Cancel only while the future is approved and unapplied", async () => {
+    const { unmount } = mount();
+    await screen.findByTestId("future-cancel");
+    unmount();
+    mount({ ...future, outcome: "APPLIED" });
+    await screen.findByTestId("future-application");
+    expect(screen.getByText(/Applied/)).toBeTruthy();
+    expect(screen.queryByTestId("future-cancel")).toBeNull();
+  });
+
+  it("lists pending revisions and sends nothing when declined", async () => {
+    mount();
+    await openCancel();
+    expect(screen.getByTestId("future-cancel-refinements")).toBeTruthy();
+    expect(screen.getByText("Proposed refinement")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("future-cancel-decline"));
+    expect(api.createProposal).not.toHaveBeenCalled();
+  });
+
+  it("cancels on confirmation: submits the CANCEL for the reviewed revision and refinements and records the user's approval", async () => {
+    api.createProposal.mockResolvedValue({
+      data: { data: { id: "cancel", status: "DRAFT" } },
+    });
+    api.updateProposal.mockResolvedValue({
+      data: { data: { id: "cancel", status: "APPROVED" } },
+    });
+    mount();
+    await openCancel();
+    fireEvent.click(screen.getByTestId("future-cancel-confirm"));
+    await waitFor(() => expect(api.updateProposal).toHaveBeenCalled());
+    expect(api.createProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createProposalRequestDto: expect.objectContaining({
+          action: "VERSIONED_UPDATE",
+          targetEntityId: future.targetEntityId,
+          updates: {
+            operation: "CANCEL",
+            futureId: future.id,
+            expectedRevision: future.revision,
+            reviewedRefinementProposalIds: ["pending"],
+          },
+        }),
+      }),
+    );
+    expect(api.updateProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposalId: "cancel",
+        updateProposalDto: { status: "APPROVED" },
+      }),
+    );
+    expect(api.apply).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("future-cancel-pending")).toBeNull();
+  });
+
+  const pendingCancel = (reviewed?: string[]) => ({
+    data: {
+      data: {
+        id: "cancel",
+        status: "DRAFT",
+        updates: {
+          operation: "CANCEL",
+          futureId: future.id,
+          expectedRevision: 2,
+          ...(reviewed ? { reviewedRefinementProposalIds: reviewed } : {}),
+        },
+      },
+    },
+  });
+  const withOutstanding = (...ids: string[]): FutureRevisionResponse => ({
+    ...future,
+    outstandingRefinementProposalIds: new Set(ids) as never,
+  });
+
+  it("finds a pending cancellation from the future's own pending proposals and clears it when it is gone", async () => {
+    api.getProposal.mockResolvedValue(pendingCancel(["pending"]));
+    const first = mount(withOutstanding("pending", "cancel"));
+    await screen.findByTestId("future-cancel-pending");
+    expect(screen.getByTestId("future-cancel")).toBeDisabled();
+    first.unmount();
+
+    api.getProposal.mockResolvedValue({
+      data: { data: { id: "pending", status: "DRAFT", updates: {} } },
+    });
+    mount();
+    await waitFor(() =>
+      expect(screen.getByTestId("future-cancel")).toBeEnabled(),
+    );
+    expect(screen.queryByTestId("future-cancel-pending")).toBeNull();
+  });
+
+  it("reports a failed lookup separately and does not offer Cancel", async () => {
+    api.getProposal.mockRejectedValue(new Error("lookup failed"));
+    mount();
+    await screen.findByTestId("future-cancel-lookup-failed");
+    expect(screen.getByTestId("future-cancel")).toBeDisabled();
+    expect(screen.queryByTestId("future-cancel-pending")).toBeNull();
+  });
+
+  it("shows the server's re-review message when approval conflicts, and replaces a stale request after re-review", async () => {
+    api.createProposal.mockResolvedValue({
+      data: { data: { id: "stale", status: "DRAFT" } },
+    });
+    api.updateProposal.mockRejectedValue({
+      response: {
+        status: 409,
+        data: { message: "Pending revisions changed; review them again." },
+      },
+      message: "Pending revisions changed; review them again.",
+    });
+    const view = mount();
+    await openCancel();
+    fireEvent.click(screen.getByTestId("future-cancel-confirm"));
+    await screen.findByText(/review them again/);
+    view.unmount();
+
+    api.getProposal.mockResolvedValue({
+      data: {
+        data: {
+          id: "stale",
+          status: "DRAFT",
+          updates: {
+            operation: "CANCEL",
+            futureId: future.id,
+            expectedRevision: 2,
+            reviewedRefinementProposalIds: ["pending"],
+          },
+        },
+      },
+    });
+    api.rejectProposal.mockResolvedValue({ data: { data: {} } });
+    api.createProposal.mockClear();
+    api.createProposal.mockResolvedValue({
+      data: { data: { id: "fresh", status: "APPROVED" } },
+    });
+    api.updateProposal.mockReset();
+    mount(withOutstanding("pending", "newer", "stale"));
+    await screen.findByTestId("future-cancel-stale");
+    await openCancel();
+    fireEvent.click(screen.getByTestId("future-cancel-confirm"));
+    await waitFor(() => expect(api.createProposal).toHaveBeenCalledTimes(1));
+    expect(api.rejectProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ proposalId: "stale" }),
+    );
+    expect(
+      api.createProposal.mock.calls[0]![0].createProposalRequestDto.updates
+        .reviewedRefinementProposalIds,
+    ).toEqual(["pending", "newer"]);
+  });
 });

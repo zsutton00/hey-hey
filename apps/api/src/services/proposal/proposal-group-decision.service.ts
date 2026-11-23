@@ -79,6 +79,7 @@ export class ProposalGroupDecisionService {
     organizationId: OrganizationId,
     projectId: ProjectId,
     proposalIds: string[],
+    terminalReason?: string,
   ): Promise<void> {
     const coordinator = this.moduleRef.get(ProposalGroupCoordinatorService, {
       strict: false,
@@ -88,6 +89,7 @@ export class ProposalGroupDecisionService {
       organizationId,
       projectId,
       proposalIds,
+      terminalReason,
     );
   }
 

@@ -1,9 +1,12 @@
 import { Alert, Button, Stack, Typography } from "@mui/material";
 import { useContext, type ReactNode } from "react";
-import type {
-  FutureDependencyPresentation,
-  ProposalResponseDto,
+import {
+  ProposalApprovalType,
+  type FutureDependencyPresentation,
+  type FutureRevisionResponse,
+  type ProposalResponseDto,
 } from "../../api";
+import { useUsers } from "../../data/hooks/useUsers";
 import { useProposal } from "../../data/hooks/useProposal";
 import { MentionCopyBoundary } from "../shared/MentionCopyBoundary";
 import { invalidateProposalReconciliation } from "../ProposalReconciliation/reconciliationInvalidation";
@@ -14,6 +17,57 @@ import {
   FutureRevisionSteps,
   FutureStepDone,
 } from "../ProposalDetail/FutureRevisionSteps";
+
+/** Names who cancelled and when, from the proposal that cancelled the future. */
+function CancelledFuture({
+  organizationId,
+  projectId,
+  future,
+}: {
+  organizationId: string;
+  projectId: string;
+  future: FutureRevisionResponse;
+}) {
+  const { proposal: cancellation } = useProposal(
+    organizationId,
+    projectId,
+    future.latestProposalId,
+  );
+  const { data: members } = useUsers(organizationId);
+  const nameOf = (userId: string | undefined): string | null => {
+    if (!userId) {
+      return null;
+    }
+    return (
+      members.find((member) => member.userId === userId)?.user?.name?.trim() ||
+      "a former member"
+    );
+  };
+  // The person whose approval made the cancellation take effect is the last
+  // approval on the proposal; the requester may be someone else.
+  const decisiveApproval = [...(cancellation?.approvals ?? [])]
+    .filter((approval) => approval.type === ProposalApprovalType.Approval)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .at(-1);
+  const cancelledBy = nameOf(
+    decisiveApproval?.userId ?? cancellation?.requestorId,
+  );
+  const requestedBy =
+    cancellation && cancellation.requestorId !== decisiveApproval?.userId
+      ? nameOf(cancellation.requestorId)
+      : null;
+  const cancelledAt = future.cancelledAt
+    ? new Date(future.cancelledAt).toLocaleString()
+    : null;
+  return (
+    <Alert severity="info" data-testid="future-cancelled">
+      This approved change was cancelled
+      {cancelledBy ? ` by ${cancelledBy}` : ""}
+      {cancelledAt ? ` on ${cancelledAt}` : ""}
+      {requestedBy && decisiveApproval ? ` (requested by ${requestedBy})` : ""}.
+    </Alert>
+  );
+}
 
 /** Linked work stays on one line; each mention truncates, never scrolls. */
 function LinkedWork({
@@ -172,7 +226,13 @@ function FutureApplyFooterContent({
       </Typography>
     );
   if (future.outcome === "CANCELLED")
-    return <Alert severity="info">This approved change was cancelled.</Alert>;
+    return (
+      <CancelledFuture
+        organizationId={organizationId}
+        projectId={projectId}
+        future={future}
+      />
+    );
 
   // Required response data can be absent when the running API violates its
   // contract. Keep that failure local; absence never means no dependencies.

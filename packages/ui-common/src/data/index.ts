@@ -3,6 +3,7 @@ export {
   useApplyProposalFuture,
   type UseApplyProposalFutureReturn,
 } from "./hooks/useApplyProposalFuture";
+export { useCancelProposalFuture } from "./hooks/useCancelProposalFuture";
 export * from "./hooks/useAccountDefaultOrganization";
 export { isInitiative, isTask } from "./collections/workItems";
 export type { WorkItemResponseDto } from "./collections/workItems";
