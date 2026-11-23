@@ -717,9 +717,8 @@ function buildWorkItemGuidanceBody(
       'related to the change and of the Contracts, Diagrams and design docs',
       'directly connected to it. Moving a relationship does not prove that a',
       'Contract is still fulfilled or that a document is still true: propose',
-      'the needed content edits as separate proposals that mention the',
-      'affected artifact, and surface any changed promise for the user to',
-      'decide. Do not traverse the whole project, and leave structural',
+      'document content edits as separate proposals that mention the',
+      'affected artifact; Contract edits follow Contract role guidance. Do not traverse the whole project, and leave structural',
       'Feature-to-Task parentage alone unless the request changes it. An empty',
       'or omitted array means no relationship was declared for change.',
     ];
