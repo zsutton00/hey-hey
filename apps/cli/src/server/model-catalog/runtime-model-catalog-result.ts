@@ -4,7 +4,7 @@ import {
 } from '../../shared/runtime/components/AgentSession/capabilityCatalog';
 import {
   CliReadRuntimeModelCatalogModelEffortsEnum,
-  CliReadRuntimeModelCatalogProviderProviderEnum,
+  AgentProviderId,
   type CliReadRuntimeModelCatalogProvider,
   type CliReadRuntimeModelCatalogResult,
 } from '@hey-hey/contracts/agent-bridge';
@@ -12,13 +12,13 @@ import type { ServerLogger } from '../logger';
 
 const EFFORT_IDS: readonly string[] = Object.values(CliReadRuntimeModelCatalogModelEffortsEnum);
 const PROVIDER_IDS: readonly string[] = Object.values(
-  CliReadRuntimeModelCatalogProviderProviderEnum,
+  AgentProviderId,
 );
 
 const isEffort = (value: string): value is CliReadRuntimeModelCatalogModelEffortsEnum =>
   EFFORT_IDS.includes(value);
 
-const isProvider = (value: string): value is CliReadRuntimeModelCatalogProviderProviderEnum =>
+const isProvider = (value: string): value is AgentProviderId =>
   PROVIDER_IDS.includes(value);
 
 const toProvider = (
