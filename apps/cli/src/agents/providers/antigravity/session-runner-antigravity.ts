@@ -19,6 +19,7 @@ import type { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { IsolatedProviderWorkingDirectory } from '../isolated-provider-working-directory';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
+import type { ToolRuleStore } from '../../../session/tool-rules';
 import { nativeProviderSessionId, recordPermissionDecisionSubmitted } from '../runner-common';
 import {
   AgentSessionRunnerError,
@@ -40,6 +41,7 @@ import { AntigravityNotReadyError } from './antigravity-readiness';
 import { listAntigravitySkills } from './antigravity-skill-catalog';
 import { AntigravityExecutionCaptureHooks } from './execution-capture-hooks';
 import {
+  antigravityRuleKey,
   mapAntigravityPermission,
   mapAntigravityUpdate,
   normalizeAntigravityEvent,
@@ -79,6 +81,7 @@ const describeCause = (error: unknown): string => {
 
 interface Dependencies {
   runStore: RunStore;
+  toolRuleStore: ToolRuleStore;
   oauthClient: OAuthClient;
   submissionToolRegistry: SubmissionToolRegistry;
   localAgentEndpoint: LocalAgentEndpoint;
@@ -103,6 +106,8 @@ const PROMPT_PHASE_LABELS = {
 export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private readonly attachments = new RunAttachmentContentReader();
   private readonly permissions = new Map<string, PermissionRequest>();
+  /** Rule keys approved without a card: stored rules plus this session's Always Approve choices. */
+  private readonly allowedRuleKeys = new Set<string>();
   private directory: IsolatedProviderWorkingDirectory | undefined;
   /** Set for repository-bound sessions: the Run roots agy is sandboxed to. */
   private boundary: RunWorkspaceWriteBoundary | undefined;
@@ -357,6 +362,16 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return { delivered: false, outcome: 'stale', reason: 'request_not_found' };
     }
     const kind = dispatch.callbackPayload.kind;
+    const ruleKey = antigravityRuleKey(request.params.toolCall.name);
+    const remembers = dispatch.decision === 'always_approve' || dispatch.decision === 'whitelist';
+    if (remembers && !ruleKey) {
+      return {
+        delivered: false,
+        outcome: 'refused',
+        reason:
+          'Antigravity did not name this tool, so it cannot be remembered. Approve it once or deny it.',
+      };
+    }
     const option = request.params.options.find((entry) => entry.kind === kind);
     if (!option) {
       this.dependencies.logger.warn('antigravity.permission.option_missing', {
@@ -371,6 +386,22 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         reason: `Antigravity does not offer "${dispatch.decision.replaceAll('_', ' ')}" for this request. Choose an available decision on the permission card.`,
       };
     }
+    if (dispatch.decision === 'whitelist' && ruleKey) {
+      try {
+        await this.dependencies.toolRuleStore.save(ruleKey);
+      } catch (error) {
+        this.dependencies.logger.warn('antigravity.permission.rule_save_failed', {
+          requestId: dispatch.routing.requestId,
+          ruleKey,
+          error: describeCause(error),
+        });
+        return {
+          delivered: false,
+          outcome: 'refused',
+          reason: `Couldn't save the whitelist rule for ${request.params.toolCall.name}: ${describeCause(error)}. The request is still waiting; choose again.`,
+        };
+      }
+    }
     try {
       await this.client.respondToPermission(request.id, option);
     } catch (error) {
@@ -382,9 +413,11 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return {
         delivered: false,
         outcome: 'refused',
-        reason:
-          'The connection to Antigravity closed before this decision could be sent. Resend your prompt to request approval again.',
+        reason: `The connection to Antigravity closed before this decision could be sent. Resend your prompt to request approval again.${dispatch.decision === 'whitelist' ? ' The whitelist rule was already saved.' : ''}`,
       };
+    }
+    if (remembers && ruleKey) {
+      this.allowedRuleKeys.add(ruleKey);
     }
     this.permissions.delete(dispatch.routing.requestId);
     if (option.kind === 'reject_once') {
@@ -418,6 +451,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     this.mountIdentity = undefined;
     this.agentName = undefined;
     this.boundary = undefined;
+    this.allowedRuleKeys.clear();
     await this.executionCapture?.close();
     const directory = this.directory;
     this.directory = undefined;
@@ -496,6 +530,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         }
         await this.executionCapture?.install(launchDirectory, hookLaunch);
         this.boundary = boundary;
+        for (const rule of this.dependencies.toolRuleStore.load()) {
+          this.allowedRuleKeys.add(rule);
+        }
         const config = { cwd: boundary?.cwd ?? launchDirectory, mcpServers };
         const containment = boundary?.antigravityContainment(readOnlyFilesystem);
         logger.debug('antigravity.run.launching', {
@@ -934,6 +971,17 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         id,
         params.options.find((option) => option.kind === kind),
       );
+      return;
+    }
+    const ruleKey = antigravityRuleKey(params.toolCall.name);
+    const allowOnce = params.options.find((option) => option.kind === 'allow_once');
+    if (ruleKey && allowOnce && this.allowedRuleKeys.has(ruleKey)) {
+      this.dependencies.logger.debug('antigravity.permission.remembered', {
+        id,
+        ruleKey,
+        sessionId: params.sessionId,
+      });
+      await this.client?.respondToPermission(id, allowOnce);
       return;
     }
     const requestId = randomUUID();

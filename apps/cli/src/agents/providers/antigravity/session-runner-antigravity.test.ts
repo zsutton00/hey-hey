@@ -10,6 +10,7 @@ import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OAuthClient } from '../../../auth';
+import { ToolRuleStore } from '../../../session/tool-rules';
 import { createTestRun, createTestRunStore } from '../../../run/run.test-support';
 import { LocalAgentEndpoint } from '../../../server/local-base-url';
 import { NOOP_LOGGER } from '../../../server/logger';
@@ -81,7 +82,12 @@ const COMPACT_USAGE = { inputTokens: 900, outputTokens: 100, totalTokens: 1000 }
 
 const PERMISSION_ID_BASE = 1000;
 interface PermissionAsk {
-  toolCall: { toolCallId: string; kind?: string; rawInput?: Record<string, unknown> };
+  toolCall: {
+    toolCallId: string;
+    name?: string;
+    kind?: string;
+    rawInput?: Record<string, unknown>;
+  };
   options: { optionId: string; kind: string; name: string }[];
 }
 interface PermissionResponse {
@@ -202,7 +208,9 @@ const startFakeAgy = (
   return Object.assign(requests, { permissionResponses });
 };
 
-const makeRunner = () => {
+const makeRunner = (
+  toolRuleStore = new ToolRuleStore(path.join(os.tmpdir(), 'antigravity-unused-rules.json')),
+) => {
   const run = createTestRun({ provider: 'antigravity' });
   const runStore = createTestRunStore();
   const recordTokens = vi
@@ -213,6 +221,7 @@ const makeRunner = () => {
     agentOutputOwner: run,
     runStore,
     submissionToolRegistry: new SubmissionToolRegistry(),
+    toolRuleStore,
     oauthClient: new OAuthClient(),
     localAgentEndpoint: new LocalAgentEndpoint(),
     logger: {
@@ -585,7 +594,10 @@ describe('Antigravity repository-bound sessions', () => {
     });
 
     /** Runs one skip-permissions prompt in which agy asks about each write; returns agy's answers. */
-    const answersTo = async (asks: (service: string, base: string) => PermissionAsk[]) => {
+    const answersTo = async (
+      asks: (service: string, base: string) => PermissionAsk[],
+      { skipPermissions = true, rules = [] }: { skipPermissions?: boolean; rules?: string[] } = {},
+    ) => {
       const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agy-permission-')));
       const service = path.join(base, 'service');
       await fs.mkdir(path.join(service, '.git'), { recursive: true });
@@ -602,12 +614,14 @@ describe('Antigravity repository-bound sessions', () => {
         { runScopeId: 'agy-permission', providerStateRoot: path.join(base, 'state') },
       );
       const requests = startFakeAgy({ permissionRequests: asks(service, base) });
-      const { runner, session } = makeRunner();
+      const rulesPath = path.join(base, 'tool-rules.json');
+      await fs.writeFile(rulesPath, JSON.stringify(rules));
+      const { runner, session } = makeRunner(new ToolRuleStore(rulesPath));
       try {
         await runner.runPrompt({
           session: { ...session, workspaceBound: true },
           prompt: 'hello',
-          skipPermissions: true,
+          skipPermissions,
           workspaceWriteBoundary: boundary,
         });
         return requests.permissionResponses
@@ -634,6 +648,97 @@ describe('Antigravity repository-bound sessions', () => {
       ]);
 
       expect(answers).toEqual(['reject-once', 'reject-once']);
+    });
+
+    const named = (name: string, target: string): PermissionAsk => ({
+      ...edit(target),
+      toolCall: { toolCallId: target, name, kind: 'edit', rawInput: { path: target } },
+    });
+
+    it('never lets a stored rule approve a write outside the Run roots', async () => {
+      const answers = await answersTo(
+        (service, base) => [
+          named('write_to_file', path.join(base, 'elsewhere.txt')),
+          named('write_to_file', path.join(service, 'inside.txt')),
+        ],
+        { skipPermissions: false, rules: ['antigravity:write_to_file'] },
+      );
+
+      expect(answers).toEqual(['reject-once', 'allow-once']);
+    });
+
+    it('answers a whitelisted tool with the one-time allow even when agy offers allow-always', async () => {
+      const answers = await answersTo(
+        (service) => [named('write_to_file', path.join(service, 'a.txt'))],
+        { skipPermissions: false, rules: ['antigravity:write_to_file'] },
+      );
+
+      expect(answers).toEqual(['allow-once']);
+    });
+
+    it('still asks about a tool whose name only matches another provider or tool', async () => {
+      const requests = startFakeAgy({ permissionRequests: [named('write_to_file', 'a.txt')] });
+      const rulesPath = path.join(os.tmpdir(), `antigravity-scope-${process.pid}.json`);
+      await fs.writeFile(rulesPath, JSON.stringify(['write_to_file', 'antigravity:replace_file']));
+      const { runner, session, agentOutput } = makeRunner(new ToolRuleStore(rulesPath));
+      const prompt = Promise.allSettled([runner.runPrompt({ session, prompt: 'Edit' })]);
+
+      try {
+        await vi.waitFor(() => {
+          const cards = agentOutput.mock.calls.filter(
+            ([output]) => output.event.eventType === 'permission_request_detected',
+          );
+          expect(cards).toHaveLength(1);
+        });
+        expect(requests.permissionResponses).toEqual([]);
+      } finally {
+        await runner.dispose();
+        await prompt;
+        await fs.rm(rulesPath, { force: true });
+      }
+    });
+
+    it('names the save step and keeps the request open when a whitelist rule cannot be saved', async () => {
+      const requests = startFakeAgy({ permissionRequests: [named('write_to_file', 'a.txt')] });
+      const unwritable = new ToolRuleStore(
+        path.join(os.tmpdir(), 'antigravity-missing-dir', 'rules.json'),
+      );
+      const { runner, session, agentOutput } = makeRunner(unwritable);
+      const prompt = Promise.allSettled([runner.runPrompt({ session, prompt: 'Edit' })]);
+
+      try {
+        const card = await vi.waitFor(() => {
+          const event = agentOutput.mock.calls
+            .map(([output]) => output.event)
+            .find((candidate) => candidate.eventType === 'permission_request_detected');
+          expect(event).toBeDefined();
+          return tryParsePermissionRequestResponse(JSON.stringify(event?.payload));
+        });
+        if (!card) {
+          throw new Error('Expected an actionable Antigravity permission request');
+        }
+        const dispatch = translatePermissionDecisionToDispatch({
+          runId: session.agentic_session_id,
+          sessionId: card.permissionRequest.sessionId,
+          requestId: card.permissionRequest.id,
+          agentType: card.permissionRequest.agentType,
+          idempotencyToken: card.permissionRequest.idempotencyToken,
+          decision: 'whitelist',
+          reason: null,
+        });
+
+        await expect(runner.submitPermissionDecision({ session, dispatch })).resolves.toMatchObject(
+          {
+            delivered: false,
+            outcome: 'refused',
+            reason: expect.stringContaining("Couldn't save the whitelist rule"),
+          },
+        );
+        expect(requests.permissionResponses).toEqual([]);
+      } finally {
+        await runner.dispose();
+        await prompt;
+      }
     });
 
     it('lets a write inside the Run roots through the pre-check', async () => {

@@ -14,6 +14,7 @@ import { ExecutionRecorder } from './execution-recorder';
 import { CodexExecutionCaptureHooks } from '../codex/execution-capture-hooks';
 import { ClaudeExecutionCaptureHooks } from '../claude/execution-capture-hooks';
 import { NOOP_LOGGER } from '../../../server/logger';
+import { ToolRuleStore } from '../../../session/tool-rules';
 import { OAuthClient } from '../../../auth';
 import { createTestRun, createTestRunStore } from '../../../run/run.test-support';
 import type { Turn } from '../../../turn/turn';
@@ -414,6 +415,7 @@ describe.skipIf(process.env['HEY_HEY_NATIVE_AGY'] !== '1')(
         agentOutputOwner: run,
         runStore: createTestRunStore(),
         submissionToolRegistry: new SubmissionToolRegistry(),
+        toolRuleStore: new ToolRuleStore(path.join(os.tmpdir(), 'native-hooks-unused-rules.json')),
         oauthClient: new OAuthClient(),
         localAgentEndpoint: new LocalAgentEndpoint(),
         logger,

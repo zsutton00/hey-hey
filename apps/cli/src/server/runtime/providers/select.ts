@@ -170,6 +170,7 @@ export class SessionRunnerFacade {
       runner = new AntigravityAgentSessionRunner({
         ...common,
         ...(executionRecorder ? { executionRecorder } : {}),
+        toolRuleStore: this.dependencies.toolRuleStore,
         logger: this.dependencies.logger.child({ component: 'runner.antigravity' }),
       });
     } else if (providerId === 'codex') {

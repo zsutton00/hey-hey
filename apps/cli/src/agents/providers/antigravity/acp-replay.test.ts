@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,6 +12,7 @@ import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
 import type { AgentSessionCurrentState } from '@hey-hey/contracts/api/models';
 
 import { OAuthClient } from '../../../auth';
+import { ToolRuleStore } from '../../../session/tool-rules';
 import type { LocalAgentOutputEvent } from '../../../run/types';
 import { handleDiff } from '../../../run/handlers/diff';
 import { RunRegistry } from '../../../run/run-registry';
@@ -369,14 +370,36 @@ describe('Antigravity Run ownership', () => {
     'permission-allow-once',
     'permission-offers-always',
     'permission-reply-pipe-error',
+    'permission-always-approve',
+    'permission-whitelist',
+    'permission-stored-rule',
     'permission-reject',
     'heyhey-planning',
     'mcp-tools',
   ])('drives the runner with the recorded %s exchange', async (scenario) => {
     const offersAlways = scenario === 'permission-offers-always';
     const failsPermissionWrite = scenario === 'permission-reply-pipe-error';
+    const remembers =
+      offersAlways || ['permission-always-approve', 'permission-whitelist'].includes(scenario);
+    const storedRule = scenario === 'permission-stored-rule';
     const verifyPermission =
-      offersAlways || failsPermissionWrite || scenario === 'permission-allow-once';
+      offersAlways ||
+      failsPermissionWrite ||
+      remembers ||
+      storedRule ||
+      scenario === 'permission-allow-once';
+    const firstDecision: PermissionDecision =
+      scenario === 'permission-always-approve' || offersAlways
+        ? 'always_approve'
+        : scenario === 'permission-whitelist' || failsPermissionWrite
+          ? 'whitelist'
+          : 'approve';
+    const rulesDirectory = mkdtempSync(path.join(tmpdir(), 'antigravity-rules-'));
+    const rulesPath = path.join(rulesDirectory, 'tool-rules.json');
+    const toolRuleStore = new ToolRuleStore(rulesPath);
+    if (storedRule) {
+      writeFileSync(rulesPath, JSON.stringify(['antigravity:run_command']));
+    }
     const frames = capture(
       scenario === 'heyhey-planning' || verifyPermission
         ? 'permission-allow-once'
@@ -394,9 +417,6 @@ describe('Antigravity Run ownership', () => {
             kind: 'allow_always',
             name: 'Always allow',
           });
-        }
-        if (direction === 'client->agent' && frame.result?.outcome?.outcome === 'selected') {
-          frame.result.outcome.optionId = 'always-for-this-tool';
         }
       }
     }
@@ -529,6 +549,7 @@ describe('Antigravity Run ownership', () => {
       agentOutputOwner: run,
       runStore,
       submissionToolRegistry,
+      toolRuleStore,
       oauthClient: new OAuthClient(),
       localAgentEndpoint,
       logger: {
@@ -575,7 +596,7 @@ describe('Antigravity Run ownership', () => {
     const prompts = expectedRequests.filter(({ frame }) => frame.method === 'session/prompt');
     try {
       let providerSessionId: string | null = null;
-      for (const { frame } of prompts) {
+      for (const [promptIndex, { frame }] of prompts.entries()) {
         const prompt = frame.params?.prompt?.[0]?.text ?? '';
         if (scenario === 'follow-up' || verifyPermission) {
           currentState.mockClear();
@@ -588,7 +609,8 @@ describe('Antigravity Run ownership', () => {
             references: { resolved: [], unresolved: [] },
             triggerContext: null,
           });
-          if (verifyPermission) {
+          const showsCard = !storedRule && (promptIndex === 0 || !remembers);
+          if (verifyPermission && showsCard) {
             const card = await vi.waitFor(() => {
               const marker = vi
                 .mocked(poster.createOutOfBand)
@@ -601,9 +623,12 @@ describe('Antigravity Run ownership', () => {
               return marker?.payload as unknown as AgentRequestPermissionPayload;
             });
             const request = card.permissionRequest;
-            expect(request.availableDecisions).toEqual(
-              offersAlways ? ['approve', 'always_approve', 'deny'] : ['approve', 'deny'],
-            );
+            expect(request.availableDecisions).toEqual([
+              'approve',
+              'always_approve',
+              'deny',
+              'whitelist',
+            ]);
             expect(card.enrichmentMetadata?.['command']).toContain("printf 'attempt");
             expect(request.reason).toContain('probe file');
             const submit = (decision: PermissionDecision) =>
@@ -617,18 +642,7 @@ describe('Antigravity Run ownership', () => {
                 reason: null,
                 deciderUserId: 'test-user',
               });
-            if (!offersAlways) {
-              const outboundCount = outgoing.length;
-              await expect(submit('always_approve')).resolves.toMatchObject({ outcome: 'failed' });
-              expect(outgoing).toHaveLength(outboundCount);
-              expect(poster.complete).not.toHaveBeenCalled();
-              expect(currentState.mock.lastCall?.[0].currentState).toBe('AWAITING_APPROVAL');
-              expect(vi.mocked(poster.createOutOfBand).mock.lastCall?.[0].dto.data).toMatchObject({
-                presentation: 'notice',
-                noticeSeverity: 'warning',
-              });
-            }
-            const decision = offersAlways ? 'always_approve' : 'approve';
+            const decision = promptIndex === 0 ? firstDecision : 'approve';
             const delivery = submit(decision);
             await expect(submit(decision)).resolves.toMatchObject({ outcome: 'dropped' });
             if (failsPermissionWrite) {
@@ -636,6 +650,10 @@ describe('Antigravity Run ownership', () => {
                 outcome: 'failed',
                 reason: expect.stringContaining('Resend your prompt'),
               });
+              // The rule was saved before the reply failed, and the session allowance was not added.
+              expect(JSON.parse(readFileSync(rulesPath, 'utf8'))).toEqual([
+                'antigravity:run_command',
+              ]);
               await run.awaitIdle();
               expect(poster.complete).not.toHaveBeenCalled();
               expect(outgoing.some(({ result }) => result?.outcome?.outcome === 'selected')).toBe(
@@ -669,6 +687,12 @@ describe('Antigravity Run ownership', () => {
           }
           await run.awaitIdle();
           expect(run.providerSessionId).toBe(frame.params?.sessionId);
+          if (verifyPermission && !showsCard) {
+            const states = currentState.mock.calls.map(([observation]) => observation.currentState);
+            expect(states).not.toContain('AWAITING_APPROVAL');
+            expect(states.at(-1)).toBe('IDLE');
+            continue;
+          }
           if (verifyPermission) {
             const states = currentState.mock.calls.map(([observation]) => observation.currentState);
             const awaitingApproval = states.indexOf('AWAITING_APPROVAL');
@@ -718,6 +742,13 @@ describe('Antigravity Run ownership', () => {
         }
       }
       await Promise.all(pendingDecisions);
+      if (scenario === 'permission-whitelist') {
+        expect(JSON.parse(readFileSync(rulesPath, 'utf8'))).toEqual(['antigravity:run_command']);
+      }
+      if (scenario === 'permission-always-approve') {
+        // Always Approve is remembered for the session only; nothing is stored.
+        expect(existsSync(rulesPath)).toBe(false);
+      }
       if (scenario === 'follow-up') {
         expect(statesBeforePromptReply).toEqual(['WRITING', 'WRITING']);
       }
@@ -759,6 +790,7 @@ describe('Antigravity Run ownership', () => {
     } finally {
       await runner.dispose();
       await mcp?.dispose();
+      rmSync(rulesDirectory, { recursive: true, force: true });
     }
   });
 });

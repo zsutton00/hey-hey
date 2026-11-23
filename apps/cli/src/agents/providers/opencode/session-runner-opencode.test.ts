@@ -111,7 +111,7 @@ vi.mock('../../../shared/runtime/components/AgentSession/capabilityCatalog', () 
 
 const toolRuleStoreDirectory = mkdtempSync(join(tmpdir(), 'hey-hey-opencode-tool-rules-'));
 const toolRuleStore = new ToolRuleStore(join(toolRuleStoreDirectory, 'tool-rules.json'));
-const saveToolRuleMock = vi.spyOn(toolRuleStore, 'save').mockImplementation(() => undefined);
+const saveToolRuleMock = vi.spyOn(toolRuleStore, 'save').mockResolvedValue(undefined);
 const loadToolRulesMock = vi.spyOn(toolRuleStore, 'load').mockReturnValue([]);
 
 afterAll(() => {

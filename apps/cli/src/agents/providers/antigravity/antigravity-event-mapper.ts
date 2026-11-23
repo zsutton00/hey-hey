@@ -2,7 +2,7 @@ import type { ServerLogger } from '../../../server/logger';
 import { PermissionDecisionRequestDtoDecisionEnum } from '@hey-hey/contracts/api/models';
 import { z } from 'zod';
 import { toDurableJsonValue } from '../../../run-store/durable-events';
-import { antigravityPermissionKinds } from '../../permission-response-routing';
+import { ToolRuleStore } from '../../../session/tool-rules';
 import {
   buildNormalizedProviderFacts,
   permissionFingerprint,
@@ -143,6 +143,19 @@ export function mapAntigravityUpdate(
   }
 }
 
+/**
+ * The stored-rule identity of an Antigravity tool: the provider-prefixed tool name,
+ * so a rule never matches another provider's tool of the same name. A request with
+ * no usable tool name has no rule key and can only be approved once.
+ */
+export function antigravityRuleKey(toolName: string | undefined): string | undefined {
+  if (!toolName) {
+    return undefined;
+  }
+  const key = `${PROVIDER}:${toolName}`;
+  return ToolRuleStore.isValidRuleName(key) ? key : undefined;
+}
+
 export function mapAntigravityPermission(
   context: EventContext,
   requestId: string,
@@ -157,11 +170,21 @@ export function mapAntigravityPermission(
       : undefined;
   const command = commandInput?.CommandLine;
   const reason = commandInput?.toolSummary;
-  // Whitelist is a legacy alias for allow_always, which gets one control.
+  const offers = (kind: string) => params.options.some((option) => option.kind === kind);
+  const canApprove = offers('allow_once');
+  const canRemember = canApprove && antigravityRuleKey(tool.name) !== undefined;
   const availableDecisions = Object.values(PermissionDecisionRequestDtoDecisionEnum).filter(
-    (decision) =>
-      decision !== 'whitelist' &&
-      params.options.some((option) => option.kind === antigravityPermissionKinds[decision]),
+    (decision) => {
+      switch (decision) {
+        case 'approve':
+          return canApprove;
+        case 'always_approve':
+        case 'whitelist':
+          return canRemember;
+        case 'deny':
+          return offers('reject_once');
+      }
+    },
   );
   const fingerprint = permissionFingerprint({
     provider: PROVIDER,

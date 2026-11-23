@@ -104,10 +104,15 @@ export type AgentPermissionDecisionDispatch =
 const toDenyReason = (reason: string | null): string =>
   reason && reason.trim().length > 0 ? reason : 'Denied by user.';
 
+/**
+ * Hey Hey owns remembered approvals, so every approval answers the pending call
+ * with the one-time allow. Sending allow_always would make agy stop asking, which
+ * would bypass the per-request Run-root check and ignore removed whitelist rules.
+ */
 export const antigravityPermissionKinds = {
   approve: 'allow_once',
-  always_approve: 'allow_always',
-  whitelist: 'allow_always',
+  always_approve: 'allow_once',
+  whitelist: 'allow_once',
   deny: 'reject_once',
 } as const satisfies Record<PermissionDecision, string>;
 

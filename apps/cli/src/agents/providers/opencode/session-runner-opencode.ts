@@ -2194,7 +2194,12 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       }
       if (dispatch.decision === 'whitelist') {
         this.alwaysAllowedTools.add(baseToolName);
-        this.toolRuleStore.save(baseToolName);
+        void this.toolRuleStore.save(baseToolName).catch((error: unknown) => {
+          this.logger.warn('opencode.permission.rule_save_failed', {
+            tool: baseToolName,
+            error: String(error),
+          });
+        });
       }
     } else {
       reply = 'reject';

@@ -2652,7 +2652,12 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       }
       if (dispatch.decision === 'whitelist') {
         this.alwaysAllowedTools.add(baseToolName);
-        this.toolRuleStore.save(baseToolName);
+        void this.toolRuleStore.save(baseToolName).catch((error: unknown) => {
+          this.logger.warn('claude.permission.rule_save_failed', {
+            tool: baseToolName,
+            error: String(error),
+          });
+        });
       }
       for (const req of coalescedRequests) {
         req.resolve({
