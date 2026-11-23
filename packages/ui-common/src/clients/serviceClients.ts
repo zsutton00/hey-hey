@@ -678,6 +678,12 @@ export class UnifiedApiClient {
     );
   }
 
+  compactAgentSessionRun(
+    ...args: Parameters<AgentSessionsApi["compactAgentSessionRun"]>
+  ) {
+    return this.clients.agentSessions.compactAgentSessionRun(...args);
+  }
+
   submitAgentSessionQuestionAnswer(
     ...args: Parameters<AgentSessionsApi["submitAgentSessionQuestionAnswer"]>
   ) {

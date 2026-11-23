@@ -119,6 +119,7 @@ export { useResolveWorkItemCoordinator } from "./useResolveWorkItemCoordinator";
 export { useSubmitTaskMonitorCommand } from "./useSubmitTaskMonitorCommand";
 export { useControllerAuthorizedAction } from "./useControllerAuthorizedAction";
 export { useSubmitControllerAuthorizedPermissionDecision } from "./useSubmitControllerAuthorizedPermissionDecision";
+export { useCompactRun } from "./useCompactRun";
 export type { BrowserPermissionDecisionRequest } from "./useSubmitControllerAuthorizedPermissionDecision";
 export { useSubmitControllerAuthorizedQuestionAnswer } from "./useSubmitControllerAuthorizedQuestionAnswer";
 export type { BrowserQuestionAnswerRequest } from "./useSubmitControllerAuthorizedQuestionAnswer";

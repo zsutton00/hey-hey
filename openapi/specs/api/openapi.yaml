@@ -29974,6 +29974,8 @@ components:
       $ref: "../schemas/interaction-flows.yaml#/SystemMessageResponseType"
     SystemMessageData:
       $ref: "../schemas/conversations.yaml#/SystemMessageData"
+    CompactionNoticeMarker:
+      $ref: "../schemas/conversations.yaml#/CompactionNoticeMarker"
     UserMessageData:
       $ref: "../schemas/conversations.yaml#/UserMessageData"
     ExternalAgentCompletionPayload:
@@ -30020,6 +30022,8 @@ components:
       $ref: "../schemas/conversations.yaml#/PlanShapingFeatureSyncReviewDismissedAnswerPayload"
     PlanShapingFeatureSyncItemDecision:
       $ref: "../schemas/conversations.yaml#/PlanShapingFeatureSyncItemDecision"
+    DecisionReportSelection:
+      $ref: "../schemas/conversations.yaml#/DecisionReportSelection"
     PlanShapingFeatureSyncReviewRefineAnswerPayload:
       $ref: "../schemas/conversations.yaml#/PlanShapingFeatureSyncReviewRefineAnswerPayload"
     PlanShapingFeatureSyncReviewDismissedWorkflowAnswer:
