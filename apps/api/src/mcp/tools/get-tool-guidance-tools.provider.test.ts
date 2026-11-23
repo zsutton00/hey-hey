@@ -782,15 +782,66 @@ describe('GetToolGuidanceToolsProvider', () => {
     );
   });
 
-  it('rejects typed guidance until the shared root guidance has been read', async () => {
-    const result = await provider.getToolGuidance(
-      { toolName: 'create_work_item', workItemType: 'STANDARD' },
-      {} as any,
-      { headers: { 'x-project-id': PROJECT_ID } } as any,
+  describe('typed guidance without a matching root proof', () => {
+    const request = { headers: { 'x-project-id': PROJECT_ID } } as any;
+
+    it.each([
+      ['missing', 'create_work_item', undefined],
+      ['blank', 'create_work_item', '  '],
+      ['mismatched', 'edit_work_item', 'wrong-proof'],
+    ] as const)(
+      'answers a %s root proof with root guidance, both proofs and the type guidance',
+      async (_label, toolName, authoringRootProof) => {
+        const result = await provider.getToolGuidance(
+          { toolName, workItemType: 'STANDARD', authoringRootProof },
+          {} as any,
+          request,
+        );
+        const text = getText(result);
+
+        expect((result as { isError?: boolean }).isError).toBeUndefined();
+        expect(text).toContain(TOPOLOGY_AUTHORING_GUIDANCE);
+        expect(text).toContain(AUTHORING_ROOT_PROOF);
+        expect(text).toContain(guidanceTokenForType('STANDARD', PROJECT_ID));
+        expect(text).toContain(STANDARD_WRITING_GUIDANCE);
+        expect(text.indexOf(TOPOLOGY_AUTHORING_GUIDANCE)).toBeLessThan(
+          text.indexOf(STANDARD_WRITING_GUIDANCE),
+        );
+      },
     );
 
-    expect((result as { isError?: boolean }).isError).toBe(true);
-    expect(getText(result)).toContain('get_authoring_guidance()');
+    it('does not repeat the root guidance when the correct root proof is carried', async () => {
+      const result = await provider.getToolGuidance(
+        {
+          toolName: 'create_work_item',
+          workItemType: 'STANDARD',
+          authoringRootProof: AUTHORING_ROOT_PROOF,
+        },
+        {} as any,
+        request,
+      );
+      const text = getText(result);
+
+      expect(text).not.toContain(TOPOLOGY_AUTHORING_GUIDANCE);
+      expect(text).toContain(guidanceTokenForType('STANDARD', PROJECT_ID));
+    });
+
+    it('adds no root guidance to the type overview or to a failed read', async () => {
+      const overview = await provider.getToolGuidance(
+        { toolName: 'create_work_item' },
+        {} as any,
+        request,
+      );
+      expect(getText(overview)).not.toContain(TOPOLOGY_AUTHORING_GUIDANCE);
+
+      const invalid = await provider.getToolGuidance(
+        { toolName: 'create_work_item', workItemType: 'NOT_A_TYPE' },
+        {} as any,
+        request,
+      );
+      expect((invalid as { isError?: boolean }).isError).toBe(true);
+      expect(getText(invalid)).not.toContain(TOPOLOGY_AUTHORING_GUIDANCE);
+    });
   });
 
   it('rejects an unknown toolName through the zod input parser', () => {

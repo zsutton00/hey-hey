@@ -15,7 +15,6 @@ import {
   AUTHORING_ROOT_PROOF,
   TOPOLOGY_AUTHORING_GUIDANCE,
   authoringGuidanceOutputSchema,
-  validateAuthoringRootProof,
 } from './authoring-guidance';
 import { AUTHORING_GUIDANCE_TOOL_NAME } from './proposal-tool-names';
 
@@ -72,8 +71,9 @@ const getToolGuidanceParameters = z.object({
     .string()
     .optional()
     .describe(
-      'Reusable proof returned by get_authoring_guidance(). Required when ' +
-        'reading topology-sensitive work-item authoring guidance.',
+      'Reusable proof returned by get_authoring_guidance(). Optional when ' +
+        'reading topology-sensitive work-item authoring guidance: a missing or ' +
+        'wrong value returns the root guidance and proof in the same response.',
     ),
 });
 
@@ -109,6 +109,24 @@ function appendGuidanceToken(
     'only need to read this once per type in that project:',
     '',
     `\`${token}\``,
+  ].join('\n');
+}
+
+/**
+ * Put the shared root topology guidance and root proof ahead of a typed
+ * guidance body, so a read without the root proof is answered in one call.
+ */
+function prependRootGuidance(typedBody: string): string {
+  return [
+    '## Root authoring guidance',
+    '',
+    TOPOLOGY_AUTHORING_GUIDANCE,
+    '',
+    `Pass \`${AUTHORING_ROOT_PROOF_FIELD}: ${AUTHORING_ROOT_PROOF}\` on later guidance reads and topology-authoring calls.`,
+    '',
+    '---',
+    '',
+    typedBody,
   ].join('\n');
 }
 
@@ -156,17 +174,12 @@ export class GetToolGuidanceToolsProvider {
       rootProofProvided: Boolean(authoringRootProof),
     });
 
-    if (
+    // A topology-sensitive typed read without a matching root proof is answered
+    // with the root guidance and proof ahead of the typed body, not rejected.
+    const needsRootGuidance =
       ROOT_PROOF_GUIDANCE_TOOL_NAMES.has(toolName) &&
-      workItemType !== undefined
-    ) {
-      const rootError = validateAuthoringRootProof({
-        toolName: 'get_tool_guidance',
-        token: authoringRootProof,
-        required: true,
-      });
-      if (rootError) return mcpError(rootError);
-    }
+      workItemType !== undefined &&
+      authoringRootProof?.trim() !== AUTHORING_ROOT_PROOF;
 
     const entry = TOOL_GUIDANCE[toolName as ToolGuidanceKey];
     if (!entry) {
@@ -225,7 +238,12 @@ export class GetToolGuidanceToolsProvider {
     }
 
     return {
-      content: [{ type: 'text', text }],
+      content: [
+        {
+          type: 'text',
+          text: needsRootGuidance ? prependRootGuidance(text) : text,
+        },
+      ],
     };
   }
 }
