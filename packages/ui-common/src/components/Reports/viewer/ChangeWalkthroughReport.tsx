@@ -24,6 +24,33 @@ export const ChangeWalkthroughReport: ReportRenderer<
       label="Summary"
       value={<WalkthroughMarkdown text={payload.summary} />}
     />
+    {payload.parts?.length ? (
+      <Stack spacing={1.5} data-testid="walkthrough-parts">
+        <Typography component="h2" variant="subtitle2" sx={{ fontWeight: 650 }}>
+          Parts of the system
+        </Typography>
+        {payload.parts.map((part, partIndex) => (
+          <ReportItemCard
+            key={partIndex}
+            title={
+              <Typography
+                component="h3"
+                variant="subtitle1"
+                sx={{ fontWeight: 650 }}
+              >
+                {part.name}
+              </Typography>
+            }
+            testId="walkthrough-part"
+          >
+            <Stack spacing={1}>
+              <WalkthroughMarkdown text={part.role} />
+              <WalkthroughMarkdown text={part.relations} />
+            </Stack>
+          </ReportItemCard>
+        ))}
+      </Stack>
+    ) : null}
     {payload.groups.map((group, groupIndex) => (
       <ReportItemCard
         key={groupIndex}

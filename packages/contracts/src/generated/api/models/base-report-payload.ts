@@ -16,13 +16,13 @@
 
 
 /**
- * Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.
+ * Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. A variant whose own `summary` description gives different instructions (for example CHANGE_WALKTHROUGH, a one-sentence aim) overrides this default. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.
  * @export
  * @interface BaseReportPayload
  */
 export interface BaseReportPayload {
     /**
-     * 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.
+     * Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\'s own `summary` description takes precedence over this default.
      * @type {string}
      * @memberof BaseReportPayload
      */

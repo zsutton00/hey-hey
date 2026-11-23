@@ -17,6 +17,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ChangeWalkthroughGroup } from './change-walkthrough-group.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ChangeWalkthroughPart } from './change-walkthrough-part.js';
 
 /**
  *
@@ -31,7 +34,7 @@ export interface ChangeWalkthroughReportPayloadAllOf {
      */
     'reportType': ChangeWalkthroughReportPayloadAllOfReportTypeEnum;
     /**
-     *
+     * One sentence on what the Run set out to do. Takes precedence over the shared 50-100 word handoff guidance; do not put outcomes, decisions or the parts list here.
      * @type {string}
      * @memberof ChangeWalkthroughReportPayloadAllOf
      */
@@ -42,6 +45,12 @@ export interface ChangeWalkthroughReportPayloadAllOf {
      * @memberof ChangeWalkthroughReportPayloadAllOf
      */
     'targetRunId': string;
+    /**
+     * Parts of the system the changes touch. Optional so reports saved before this field still validate.
+     * @type {Array<ChangeWalkthroughPart>}
+     * @memberof ChangeWalkthroughReportPayloadAllOf
+     */
+    'parts'?: Array<ChangeWalkthroughPart>;
     /**
      *
      * @type {Array<ChangeWalkthroughGroup>}

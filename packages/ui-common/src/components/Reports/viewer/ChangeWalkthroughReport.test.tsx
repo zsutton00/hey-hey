@@ -40,4 +40,40 @@ describe("ChangeWalkthroughReport", () => {
     expect(rendered).toContain("Called by **the launcher**.");
     expect(rendered).toContain("Sessions start with metadata.");
   });
+
+  it("shows a headed parts section before the change groups", () => {
+    render(
+      <ChangeWalkthroughReport
+        payload={{
+          ...payload,
+          parts: [
+            {
+              name: "transition-service",
+              role: "Moves a message between delivery states.",
+              relations: "Called by the mail delivery service.",
+            },
+          ],
+        }}
+      />,
+    );
+
+    const parts = screen.getByTestId("walkthrough-parts");
+    const group = screen.getByTestId("walkthrough-group");
+    expect(parts).toHaveTextContent("Parts of the system");
+    expect(screen.getByTestId("walkthrough-part")).toHaveTextContent(
+      "transition-service",
+    );
+    expect(parts).toHaveTextContent("Moves a message between delivery states.");
+    expect(parts).toHaveTextContent("Called by the mail delivery service.");
+    expect(
+      parts.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("renders older reports saved without parts and shows no parts section", () => {
+    render(<ChangeWalkthroughReport payload={payload} />);
+
+    expect(screen.getByTestId("walkthrough-group")).toBeInTheDocument();
+    expect(screen.queryByTestId("walkthrough-parts")).not.toBeInTheDocument();
+  });
 });
