@@ -435,12 +435,14 @@ describe("TaskMonitorWorkspaceView", () => {
     },
   );
 
-  it("shows Start in the Action Capsule, not in the workspace body", () => {
+  it("offers Start in the Action Capsule and on the Ready card, enabled together", () => {
     renderWorkspace({ monitorStatus: WorkStatus.Backlog });
 
     const start = lifecycleButton("Start");
+    const readyStart = screen.getByTestId("task-monitor-ready-start");
 
     expect(start).toBeEnabled();
+    expect(readyStart).toBeEnabled();
     expect(start).toHaveAttribute(
       "data-screen-key",
       expect.stringMatching(/^task-monitor-lifecycle:/),
@@ -448,6 +450,9 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(screen.getByTestId("task-monitor-workspace")).not.toContainElement(
       start,
     );
+    expect(
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toContainElement(readyStart);
     expect(screen.getByTestId("machine-picker")).toBeVisible();
   });
 
@@ -504,31 +509,26 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it("explains how to start the coordinator before its conversation exists", () => {
-    renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+  it("submits the same Start from the Ready card as from the Action Capsule", async () => {
+    const onStart = vi.fn();
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      conversation: null,
+      project: null,
+      session: createSession(),
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ monitorStatus: WorkStatus.Backlog, onStart });
 
-    const prestartGuide = screen.getByTestId(
-      "task-monitor-coordinator-prestart",
-    );
-    expect(prestartGuide).toHaveTextContent("Ready to start");
-    expect(prestartGuide).toHaveTextContent("How it works");
-    expect(prestartGuide).toHaveTextContent(
-      "Choose a paired CLI machine, and press Start.",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "The coordinator works through the steps you've selected in order",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "Follow its live updates and reply to guide it when needed.",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "Active Session shows the session for the current step.",
-    );
-    expect(
-      screen.queryByText(
-        "The coordinator conversation could not be loaded after the monitor started.",
+    fireEvent.click(screen.getByTestId("task-monitor-ready-start"));
+
+    await waitFor(() =>
+      expect(bindGraphConversationAgentSessionMachineMock).toHaveBeenCalledWith(
+        expect.objectContaining({ machineId: "machine-1" }),
       ),
-    ).not.toBeInTheDocument();
+    );
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
   });
 
   it("keeps the selected session conversation in its owned scroll container", () => {
@@ -1090,7 +1090,11 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     });
 
     const group = screen.getByTestId("task-monitor-coordinator-runtime");
-    expect(group).toHaveTextContent("Monitor runs on");
+    // The supervising agent's model sits in its own section, apart from Review's.
+    expect(screen.getByTestId("task-monitor-agent-section")).toContainElement(
+      group,
+    );
+    expect(group).toHaveTextContent("Runs on");
     expect(
       within(group).getByTestId(
         "task-monitor-coordinator-runtime-runtime-model-input",
@@ -1151,7 +1155,7 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     };
   };
 
-  it("offers Review runs on only when Review is required", () => {
+  it("offers Reviewer runs on only when Review is required", () => {
     renderWorkspace({ monitorStatus: WorkStatus.Backlog });
     expect(
       screen.queryByTestId("task-monitor-review-runtime"),
@@ -1167,7 +1171,8 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     });
 
     const group = screen.getByTestId("task-monitor-review-runtime");
-    expect(group).toHaveTextContent("Review runs on");
+    expect(screen.getByTestId("task-monitor-review")).toContainElement(group);
+    expect(group).toHaveTextContent("Reviewer runs on");
     expect(
       within(group).getByTestId(
         "task-monitor-review-runtime-runtime-model-input",
@@ -1661,7 +1666,7 @@ describe("TaskMonitorWorkspaceView setup before Start", () => {
     });
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("radio", { name: /Review required/ }));
+    await user.click(screen.getByRole("radio", { name: /Require review/ }));
     expect(onSaveLaunchPolicy).toHaveBeenCalledWith({
       terminalSupervision: { mode: TaskMonitorReviewMode.RequireReview },
     });
