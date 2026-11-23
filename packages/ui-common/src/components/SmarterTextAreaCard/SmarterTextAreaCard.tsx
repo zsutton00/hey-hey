@@ -253,7 +253,11 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
           : {
               bgcolor: transparent ? "transparent" : "background.paper",
               position: "relative",
-              border: `1px solid ${theme.palette.divider}`,
+              border: `1px solid ${
+                theme.palette.mode === "light"
+                  ? "rgb(0 0 0 / 38%)"
+                  : theme.palette.divider
+              }`,
               ...(headerText
                 ? {
                     borderTop: "none",
