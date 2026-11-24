@@ -142,8 +142,22 @@ export async function mountReplayMcp(run: Run, registry: SubmissionToolRegistry)
         if (name === 'heyhey-platform') {
           expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
             'get_entity_identities',
+            'describe_platform_tool',
           ]);
-          expect(await call('get_entity_identities')).toMatchObject({
+          expect(
+            await request('tools/call', {
+              name: 'describe_platform_tool',
+              arguments: { name: 'get_entity_identities' },
+            }),
+          ).toMatchObject({
+            result: { content: [{ text: expect.stringContaining('inputSchema') }] },
+          });
+          expect(
+            await request('tools/call', {
+              name: 'get_entity_identities',
+              arguments: { argumentsJson: '{}' },
+            }),
+          ).toMatchObject({
             result: { content: [{ text: 'Platform call reached the upstream boundary' }] },
           });
           const previousCalls = forwarded.mock.calls.length;
