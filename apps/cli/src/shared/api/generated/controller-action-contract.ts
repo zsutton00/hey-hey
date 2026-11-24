@@ -7411,6 +7411,17 @@ export const controllerActionRuntimeSchema = {
                 type: 'string',
               },
             },
+            alreadyMatches: {
+              type: 'boolean',
+              description:
+                'The authoritative live content already matches the complete future result.',
+            },
+            mergedResult: {
+              type: 'object',
+              additionalProperties: true,
+              description:
+                'Present only for a future revision whose changes and the changes applied since it was written touch different content and combine without a conflict. The complete content Apply will write if the reviewed basis is still current. Further changes require a fresh review before applying. Compare it with the first current basis.',
+            },
             candidateRevisionId: {
               type: 'string',
               format: 'uuid',

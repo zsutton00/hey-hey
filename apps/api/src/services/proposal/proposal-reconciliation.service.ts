@@ -70,9 +70,15 @@ export type ReconciliationGroupMember = {
 };
 
 export type ReconciliationDecision = {
-  kind: 'NOT_REQUIRED' | 'REQUIRED' | 'BLOCKED';
+  /**
+   * MERGEABLE: a future's content changed since its baseline, but its own changes
+   * and the live changes touch different content, so Apply merges them in its write.
+   */
+  kind: 'NOT_REQUIRED' | 'MERGEABLE' | 'REQUIRED' | 'BLOCKED';
   differences: BasisMismatch[];
   differingPaths: string[];
+  alreadyMatches?: boolean;
+  liveBasisVersion?: string;
 };
 
 type ReconciliationInput =
@@ -80,7 +86,6 @@ type ReconciliationInput =
       kind: 'bases';
       reviewed: readonly ProposalReconciliationBasis[] | null;
       current: readonly ProposalReconciliationBasis[];
-      delivered?: readonly ProposalReconciliationBasis[];
     }
   | {
       kind: 'graph';
@@ -100,6 +105,7 @@ type FutureDecisionInput = {
   baseline: FutureRevisionBaseline;
   result?: FutureRevisionContent;
   proposalId?: string;
+  currentBasis?: ProposalReconciliationBasis;
 };
 
 type InterveningRow = {
@@ -142,6 +148,7 @@ export class ProposalReconciliationService {
         input.baseline,
         input.result,
         input.proposalId,
+        input.currentBasis,
       );
     }
     if (input.kind === 'graph') {
@@ -159,12 +166,6 @@ export class ProposalReconciliationService {
       return { kind: 'BLOCKED', differences: [], differingPaths: [''] };
     }
     const differences = basisMismatches(input.reviewed, input.current);
-    if (
-      input.delivered &&
-      basisMismatches(input.delivered, input.current).length === 0
-    ) {
-      return { kind: 'NOT_REQUIRED', differences: [], differingPaths: [] };
-    }
     return {
       kind: differences.length ? 'REQUIRED' : 'NOT_REQUIRED',
       differences,
@@ -372,6 +373,7 @@ export class ProposalReconciliationService {
     baseline: FutureRevisionBaseline,
     reviewedResult?: FutureRevisionContent,
     proposalId?: string,
+    currentBasis?: ProposalReconciliationBasis,
   ): Promise<ReconciliationDecision> {
     if (
       proposalId &&
@@ -448,14 +450,15 @@ export class ProposalReconciliationService {
         ? { ...reviewedResult, graph: resultGraph }
         : reviewedResult;
     const current =
-      target.targetEntityType === 'TASK'
+      currentBasis ??
+      (target.targetEntityType === 'TASK'
         ? await this.adapter.task(tx, target, target.targetEntityId, false)
         : await this.adapter.designDoc(
             tx,
             target,
             target.targetEntityId,
             false,
-          );
+          ));
     if (current.version === 'absent' || current.content.archivedAt) {
       return this.decision({
         kind: 'bases',
@@ -490,22 +493,94 @@ export class ProposalReconciliationService {
       target.projectId,
       baseline,
     );
-    return this.decision({
-      kind: 'bases',
-      reviewed: [reviewed],
-      current: [actual],
-      delivered:
-        reviewedResult && futureGraph(reviewedResult)
-          ? [
-              this.futureBasis(
-                target.targetEntityType,
-                target.targetEntityId,
-                target.projectId,
-                { ...baseline, content: reviewedResult },
-              ),
-            ]
-          : undefined,
-    });
+    const delivered = reviewedResult
+      ? this.futureBasis(
+          target.targetEntityType,
+          target.targetEntityId,
+          target.projectId,
+          {
+            ...baseline,
+            content: reviewedResult,
+          },
+        )
+      : undefined;
+    const differingPaths = differingContentKeys(
+      graph ? reviewedContent(reviewed) : reviewed.content,
+      graph ? reviewedContent(actual) : actual.content,
+    );
+    const decision: ReconciliationDecision = {
+      kind: differingPaths.length ? 'REQUIRED' : 'NOT_REQUIRED',
+      differingPaths,
+      differences: differingPaths.length
+        ? [
+            {
+              entityType: current.entityType,
+              entityId: current.entityId,
+              kind: 'content',
+              differingKeys: differingPaths,
+            },
+          ]
+        : [],
+    };
+    const liveBasisVersion = graph ? undefined : current.version;
+    if (
+      delivered &&
+      differingPaths.length &&
+      sameReviewedContent(delivered.content, actual.content)
+    ) {
+      return {
+        kind: 'NOT_REQUIRED',
+        differences: [],
+        differingPaths: [],
+        alreadyMatches: true,
+        liveBasisVersion,
+      };
+    }
+    if (decision.kind !== 'REQUIRED' || !reviewedResult || graph) {
+      return { ...decision, liveBasisVersion };
+    }
+    return this.mergesCleanly(
+      target.targetEntityType,
+      target.projectId,
+      baseline.content,
+      reviewedResult,
+      current,
+    )
+      ? { ...decision, kind: 'MERGEABLE', liveBasisVersion }
+      : decision;
+  }
+
+  /** Changes to different requirements, sections or fields combine without a person. */
+  private mergesCleanly(
+    targetEntityType: 'TASK' | 'DESIGN_DOC',
+    projectId: string,
+    baseline: FutureRevisionContent,
+    result: FutureRevisionContent,
+    current: ProposalReconciliationBasis,
+  ): boolean {
+    try {
+      return (
+        this.mergeFutureContent(
+          targetEntityType,
+          projectId,
+          baseline,
+          result,
+          current,
+        ).kind === 'MERGED'
+      );
+    } catch (error) {
+      // Content the merge cannot read stays on the reviewed reconciliation path.
+      this.logger.warn(
+        'Future clean-merge check failed; reconciliation required',
+        {
+          targetEntityType,
+          targetEntityId: current.entityId,
+          projectId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return false;
+    }
   }
 
   private futureBasis(
@@ -1265,6 +1340,7 @@ export class ProposalReconciliationService {
             },
             baseline: mutation.baseline,
             result: mutation.result,
+            currentBasis: currentBases[0],
           })
         : this.decision({
             kind: 'bases',
@@ -1305,7 +1381,11 @@ export class ProposalReconciliationService {
       });
       if (!group || group.status === 'BUILDING') replacement = null;
     }
+    const mergeable =
+      decision.kind === 'MERGEABLE' &&
+      (status === 'CURRENT' || status === 'READY_FOR_REVIEW');
     const outOfDate =
+      mergeable ||
       status === 'RECONCILIATION_REQUIRED' ||
       status === 'AGENT_FIX_REQUIRED' ||
       status === 'READY_FOR_REVIEW';
@@ -1349,16 +1429,35 @@ export class ProposalReconciliationService {
       entry.overlappingPaths = overlaps
         .filter((overlap) => overlap.interveningProposalId === entry.proposalId)
         .map((overlap) => overlap.path);
+    const mergedResult =
+      mergeable &&
+      (proposal.targetEntityType === 'TASK' ||
+        proposal.targetEntityType === 'DESIGN_DOC')
+        ? this.mergedFutureResult(
+            proposal,
+            reviewState,
+            await this.currentFutureContent({
+              ...proposal,
+              targetEntityType: proposal.targetEntityType,
+            }),
+          )
+        : undefined;
     return {
       status,
       currentBases,
       revisions,
-      conflictingPaths: [
-        ...new Set([
-          ...decision.differingPaths,
-          ...overlaps.map((overlap) => overlap.path),
-        ]),
-      ],
+      conflictingPaths: mergeable
+        ? []
+        : [
+            ...new Set([
+              ...decision.differingPaths,
+              ...overlaps.map((overlap) => overlap.path),
+            ]),
+          ],
+      ...(mergedResult ? { mergedResult } : {}),
+      ...(decision.alreadyMatches && status !== 'NOT_APPLICABLE'
+        ? { alreadyMatches: true }
+        : {}),
       ...(outOfDate ? { writtenAt: origin.createdAt.toISOString() } : {}),
       interveningProposals: intervening,
       overlaps,
@@ -1545,32 +1644,7 @@ export class ProposalReconciliationService {
             target.targetEntityId,
             false,
           );
-    const decision = this.decision({
-      kind: 'bases',
-      reviewed: [
-        this.futureBasis(
-          target.targetEntityType,
-          target.targetEntityId,
-          target.projectId,
-          baseline,
-        ),
-      ],
-      current: [
-        {
-          ...basis,
-          content: this.adapter.currentFutureBasisContent(
-            target.targetEntityType,
-            basis,
-          ),
-        },
-      ],
-    });
-    if (decision.kind !== 'NOT_REQUIRED') {
-      return {
-        kind: 'AGENT_FIX_REQUIRED' as const,
-        conflictingPaths: decision.differingPaths,
-      };
-    }
+    // The caller has verified the live basis under the target lock.
     const merged = this.mergeFutureContent(
       target.targetEntityType,
       target.projectId,
@@ -1624,11 +1698,17 @@ export class ProposalReconciliationService {
         'These changes require manual reconciliation or Agent fix.',
       );
     }
-    const { sectionOrder: _sectionOrder, ...candidate } =
+    const { sectionOrder, ...candidate } =
       merged.candidate as Prisma.JsonObject;
-    const sections = Object.entries(
-      candidate.sections as Prisma.JsonObject,
-    ).map(([key, content], order) => ({ key, content, order }));
+    const contentBySection = candidate.sections as Prisma.JsonObject;
+    const orderBySection = sectionOrder as Record<string, number>;
+    const sections = Object.keys(contentBySection)
+      .map((key) => ({
+        key,
+        content: contentBySection[key],
+        order: orderBySection[key],
+      }))
+      .sort((left, right) => left.order - right.order);
     const rendered =
       'type' in live
         ? this.adapter.renderFutureTaskSections(
@@ -1800,6 +1880,17 @@ export class ProposalReconciliationService {
       (proposal.targetEntityType === 'TASK' ||
         proposal.targetEntityType === 'DESIGN_DOC')
     ) {
+      const decision = await this.decision({
+        kind: 'future',
+        tx,
+        proposalId: proposal.id,
+        target: { ...proposal, targetEntityType: proposal.targetEntityType },
+        baseline: mutation.baseline,
+        result: mutation.result,
+      });
+      if (decision.kind === 'MERGEABLE' || decision.alreadyMatches) {
+        return;
+      }
       this.assertFutureReviewedBasisCurrent(
         reviewed,
         current,

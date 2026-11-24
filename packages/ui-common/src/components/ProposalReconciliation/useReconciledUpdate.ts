@@ -22,10 +22,25 @@ export function useReconciledUpdate<
   const futureReview = review?.future ? review : null;
   const activeReview = review?.standaloneUpdate ? review : null;
   const state = (activeReview ?? futureReview)?.state;
-  const revision =
-    state?.status === "READY_FOR_REVIEW"
-      ? state.revisions.find((entry) => entry.id === state.candidateRevisionId)
+  if (futureReview && state?.alreadyMatches) {
+    return {
+      proposal,
+      existing,
+      staged: false,
+      reviewedServiceIds: undefined,
+      hideDiff: true,
+    };
+  }
+  // A future that merges cleanly is shown as the merged result against live content.
+  const merged =
+    futureReview && state?.mergedResult
+      ? { bases: state.currentBases, proposedResult: state.mergedResult }
       : undefined;
+  const revision =
+    merged ??
+    (state?.status === "READY_FOR_REVIEW"
+      ? state.revisions.find((entry) => entry.id === state.candidateRevisionId)
+      : undefined);
   const basis = revision?.bases.find(
     (entry) => entry.entityId === proposal.targetEntityId,
   );

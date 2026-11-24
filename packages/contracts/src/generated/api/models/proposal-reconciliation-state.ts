@@ -91,6 +91,18 @@ export interface ProposalReconciliationState {
      */
     'conflictingPaths': Array<string>;
     /**
+     * The authoritative live content already matches the complete future result.
+     * @type {boolean}
+     * @memberof ProposalReconciliationState
+     */
+    'alreadyMatches'?: boolean;
+    /**
+     * Present only for a future revision whose changes and the changes applied since it was written touch different content and combine without a conflict. The complete content Apply will write if the reviewed basis is still current. Further changes require a fresh review before applying. Compare it with the first current basis.
+     * @type {{ [key: string]: any; }}
+     * @memberof ProposalReconciliationState
+     */
+    'mergedResult'?: { [key: string]: any; };
+    /**
      *
      * @type {string}
      * @memberof ProposalReconciliationState
