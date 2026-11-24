@@ -44,7 +44,7 @@ export const buildPlanTabPath = (
 };
 
 /**
- * Where an Automate click creates a stage's Task Monitor. Only a navigation
+ * Where an Automate click creates a stage's Task Monitor. Only a new push
  * carrying {@link PLAN_TASK_MONITOR_CREATE_INTENT} creates one; a refresh,
  * bookmark or Back to this address opens the Automation tab instead.
  */

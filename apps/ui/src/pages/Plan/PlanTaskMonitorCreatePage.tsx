@@ -1,11 +1,13 @@
 import { Alert, Box } from "@mui/material";
 import { PlanStageTaskMonitorCreateOrReopen } from "@hey-hey/ui-common/components";
 import { useUserIdentity } from "@hey-hey/ui-common/hooks";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import {
   Navigate,
+  NavigationType,
   useLocation,
   useNavigate,
+  useNavigationType,
   useParams,
 } from "react-router-dom";
 import { PlanPage } from "./PlanPage";
@@ -17,17 +19,17 @@ import {
 
 /**
  * Creates a stage's Task Monitor for one Automate click and opens its
- * workspace. The click's intent lives in history state and is cleared as soon
- * as it is read, so refreshing, bookmarking or going Back never creates a
- * second monitor; without it this address opens the Automation tab.
+ * workspace. Only a new push carrying the click's intent starts creation.
+ * Reloads and history traversal can retain the state but arrive as POPs.
  */
 export const PlanTaskMonitorCreatePage = () => {
   const identity = useUserIdentity();
   const navigate = useNavigate();
   const location = useLocation();
-  const [createRequested] = useState(() =>
-    hasPlanTaskMonitorCreateIntent(location.state),
-  );
+  const navigationType = useNavigationType();
+  const createRequested =
+    navigationType === NavigationType.Push &&
+    hasPlanTaskMonitorCreateIntent(location.state);
   const { projectId, planId, stageId } = useParams<{
     projectId?: string;
     planId?: string;
@@ -45,15 +47,6 @@ export const PlanTaskMonitorCreatePage = () => {
     resolvedPlanId &&
     resolvedStageId,
   );
-
-  useEffect(() => {
-    if (createRequested && hasPlanTaskMonitorCreateIntent(location.state)) {
-      navigate(`${location.pathname}${location.search}`, {
-        replace: true,
-        state: null,
-      });
-    }
-  }, [createRequested, location, navigate]);
 
   const handleMonitorReady = useCallback(
     (monitorId: string) => {

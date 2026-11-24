@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanTaskMonitorCreatePage } from "./PlanTaskMonitorCreatePage";
 import { PLAN_TASK_MONITOR_CREATE_INTENT } from "./planSessionRoutes";
@@ -9,6 +15,7 @@ import { PLAN_TASK_MONITOR_CREATE_INTENT } from "./planSessionRoutes";
 const mocks = vi.hoisted(() => ({
   identity: vi.fn(),
   createStep: vi.fn(),
+  finishCreate: vi.fn<() => string>(),
 }));
 
 vi.mock("./PlanPage", () => ({
@@ -34,7 +41,7 @@ vi.mock("@hey-hey/ui-common/components", () => ({
       <button
         type="button"
         data-testid="plan-stage-task-monitor-create-step"
-        onClick={() => props.onMonitorReady("monitor-1")}
+        onClick={() => props.onMonitorReady(mocks.finishCreate())}
       />
     );
   },
@@ -42,27 +49,40 @@ vi.mock("@hey-hey/ui-common/components", () => ({
 
 const CREATE_PATH =
   "/projects/project-1/plans/plan-1/stages/stage-1/task-monitor/new";
+const STAGE_PATH = "/projects/project-1/plans/plan-1/stages/stage-1";
 
-const LocationProbe = () => {
+const PlanRoutes = () => {
   const location = useLocation();
-  return (
-    <div data-testid="location" data-state={JSON.stringify(location.state)}>
-      {`${location.pathname}${location.search}`}
-    </div>
-  );
-};
+  const navigate = useNavigate();
 
-const renderAt = (state: unknown) =>
-  render(
-    <MemoryRouter initialEntries={[{ pathname: CREATE_PATH, state }]}>
-      <Routes>
+  return (
+    <>
+      <div data-testid="location">{`${location.pathname}${location.search}`}</div>
+      <button
+        onClick={() =>
+          navigate(CREATE_PATH, { state: PLAN_TASK_MONITOR_CREATE_INTENT })
+        }
+      >
+        Launch automation
+      </button>
+      <button onClick={() => navigate(-1)}>Back</button>
+      <button onClick={() => navigate(1)}>Forward</button>
+      {/* Match the app layout, which remounts the page on location key changes. */}
+      <Routes key={location.key}>
         <Route
           path="/projects/:projectId/plans/:planId/stages/:stageId/task-monitor/new"
           element={<PlanTaskMonitorCreatePage />}
         />
         <Route path="*" element={null} />
       </Routes>
-      <LocationProbe />
+    </>
+  );
+};
+
+const renderAt = (pathname: string, state?: unknown) =>
+  render(
+    <MemoryRouter initialEntries={[{ pathname, state }]}>
+      <PlanRoutes />
     </MemoryRouter>,
   );
 
@@ -72,8 +92,14 @@ describe("PlanTaskMonitorCreatePage", () => {
     mocks.identity.mockReturnValue({ currentOrgId: "org-1", userId: "user-1" });
   });
 
-  it("creates for an Automate click inside the Plan chrome and lands on the workspace", async () => {
-    renderAt(PLAN_TASK_MONITOR_CREATE_INTENT);
+  it("opens each fresh launch from the same stage in its returned workspace", async () => {
+    renderAt(STAGE_PATH);
+    const user = userEvent.setup();
+    mocks.finishCreate
+      .mockReturnValueOnce("monitor-1")
+      .mockReturnValueOnce("monitor-2");
+
+    await user.click(screen.getByRole("button", { name: "Launch automation" }));
 
     expect(screen.getByTestId("plan-shell")).toBeInTheDocument();
     expect(mocks.createStep).toHaveBeenCalledWith(
@@ -84,34 +110,58 @@ describe("PlanTaskMonitorCreatePage", () => {
         stageId: "stage-1",
       }),
     );
-    // The click's intent is consumed, so a refresh of this entry cannot create again.
-    expect(screen.getByTestId("location")).toHaveAttribute(
-      "data-state",
-      "null",
-    );
-
-    await userEvent.click(
-      screen.getByTestId("plan-stage-task-monitor-create-step"),
-    );
-
+    await user.click(screen.getByTestId("plan-stage-task-monitor-create-step"));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project-1/plans/plan-1/stages/stage-1/task-monitor/monitor-1",
+      `${STAGE_PATH}/task-monitor/monitor-1`,
     );
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Launch automation" }));
+    await user.click(screen.getByTestId("plan-stage-task-monitor-create-step"));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      `${STAGE_PATH}/task-monitor/monitor-2`,
+    );
+    expect(mocks.createStep).toHaveBeenCalledTimes(2);
   });
 
-  it("opens the Automation tab without creating when reached by refresh, bookmark or Back", () => {
-    renderAt(null);
+  it.each([null, PLAN_TASK_MONITOR_CREATE_INTENT])(
+    "opens the Automation tab when the create address is loaded directly with state %j",
+    (state) => {
+      renderAt(CREATE_PATH, state);
+
+      expect(mocks.createStep).not.toHaveBeenCalled();
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        `${STAGE_PATH}?tab=automation`,
+      );
+    },
+  );
+
+  it("opens the Automation tab when history revisits an unfinished launch", async () => {
+    renderAt(STAGE_PATH);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Launch automation" }));
+    expect(
+      screen.getByTestId("plan-stage-task-monitor-create-step"),
+    ).toBeInTheDocument();
+    mocks.createStep.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Forward" }));
 
     expect(mocks.createStep).not.toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project-1/plans/plan-1/stages/stage-1?tab=automation",
+      `${STAGE_PATH}?tab=automation`,
     );
   });
 
-  it("fails before mounting the create step when identity context is missing", () => {
+  it("fails before mounting the create step when identity context is missing", async () => {
     mocks.identity.mockReturnValue({ currentOrgId: "", userId: "user-1" });
 
-    renderAt(PLAN_TASK_MONITOR_CREATE_INTENT);
+    renderAt(STAGE_PATH);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Launch automation" }),
+    );
 
     expect(
       screen.getByTestId("plan-task-monitor-missing-context"),
