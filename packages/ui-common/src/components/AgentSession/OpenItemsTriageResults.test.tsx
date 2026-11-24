@@ -1,4 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -24,6 +31,19 @@ import {
 } from "../Entity/OpenItemIcon";
 import { OpenItemsTriageResults } from "./OpenItemsTriageResults";
 import { latestOpenItemsTriageResult } from "./openItemsTriageResult";
+
+const peek = vi.hoisted(() => ({ canHover: true }));
+vi.mock("../../hooks/useCanHover", () => ({
+  useCanHover: () => peek.canHover,
+}));
+vi.mock("../shared/EntityHoverCard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../shared/EntityHoverCard")>()),
+  EntityHoverCard: (props: { entityId: string; entityType: string }) => (
+    <div data-testid="entity-hover-card">
+      {props.entityType}:{props.entityId}
+    </div>
+  ),
+}));
 
 const mocks = vi.hoisted(() => ({
   messages: [] as MessageResponseDto[],
@@ -490,6 +510,65 @@ describe("feature-owned triage results", () => {
     expect(ribbons.querySelectorAll('[data-highlighted="true"]')).toHaveLength(
       0,
     );
+  });
+
+  it("shows the sidebar's Peek on a rested preview row in either column, and never on touch", async () => {
+    const { props } = setup();
+    mocks.messages = [
+      reply("output", {
+        summary: "Clean up",
+        suggestions: [removeOf("remove", ["a"]), removeOf("keep", ["b"])],
+      }),
+    ];
+    const noted = { ...openItem("b"), note: "Waiting on review" };
+    const collection = collectionOf([openItem("a"), noted]);
+    const hoverRow = async (side: "before" | "after", key: string) =>
+      act(async () => {
+        fireEvent.mouseEnter(rowOf(side, key)!);
+      });
+    const view = render(
+      <OpenItemsTriageResults {...props} collection={collection} />,
+    );
+    // An unchecked suggestion's item stays a plain row in both columns.
+    await userEvent.click(checkboxOf("keep"));
+    await userEvent.unhover(card("keep"));
+
+    // Crossing rows quickly shows nothing, and never changes the highlight.
+    await hoverRow("before", "TASK:a");
+    fireEvent.mouseLeave(rowOf("before", "TASK:a")!);
+    await hoverRow("before", "TASK:b");
+    expect(screen.queryByTestId("entity-hover-card")).not.toBeInTheDocument();
+    expect(highlightedKeys("before")).toEqual([]);
+
+    // Resting past 400 ms shows the entity card, without any highlight.
+    fireEvent.mouseLeave(rowOf("before", "TASK:b")!);
+    await hoverRow("before", "TASK:a");
+    expect(screen.queryByTestId("entity-hover-card")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("entity-hover-card")).toHaveTextContent(
+      "TASK:a",
+    );
+    expect(highlightedKeys("before")).toEqual([]);
+
+    // A saved note replaces the card, as in the sidebar; the right column too.
+    fireEvent.mouseLeave(rowOf("before", "TASK:a")!);
+    await waitFor(() =>
+      expect(screen.queryByTestId("entity-hover-card")).not.toBeInTheDocument(),
+    );
+    await hoverRow("after", "TASK:b");
+    expect(
+      await screen.findByTestId("triage-preview-peek-note"),
+    ).toHaveTextContent("Waiting on review");
+
+    // Touch devices never open one.
+    fireEvent.mouseLeave(rowOf("after", "TASK:b")!);
+    peek.canHover = false;
+    view.rerender(
+      <OpenItemsTriageResults {...props} collection={collection} />,
+    );
+    await hoverRow("before", "TASK:a");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(screen.queryByTestId("entity-hover-card")).not.toBeInTheDocument();
+    peek.canHover = true;
   });
 
   it("draws each row with the Open Items icon, never a letter glyph", () => {

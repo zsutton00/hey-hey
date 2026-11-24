@@ -14,6 +14,11 @@ import {
   OpenItemIcon,
   type WorkItemIconRegistry,
 } from "../Entity/OpenItemIcon";
+import {
+  useTriageRowPeek,
+  type RowPeekHandlers,
+  type TriagePeekScope,
+} from "./useTriageRowPeek";
 
 /** Fixed row height so ribbons line up with the rows they connect. */
 export const PREVIEW_ROW_HEIGHT = 32;
@@ -115,11 +120,13 @@ function PreviewRowView({
   side,
   highlighted,
   registry,
+  peekHandlers,
 }: {
   row: LayoutRow;
   side: "before" | "after";
   highlighted: boolean;
   registry: WorkItemIconRegistry;
+  peekHandlers?: RowPeekHandlers;
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -165,6 +172,7 @@ function PreviewRowView({
       data-change={row.change}
       data-suggestion-id={row.suggestionId ?? undefined}
       data-highlighted={highlighted}
+      {...peekHandlers}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -385,6 +393,8 @@ export interface OpenItemsTriagePreviewProps {
   loading: boolean;
   highlight: TriagePreviewHighlight | null;
   registry: WorkItemIconRegistry;
+  /** Where the rows' hover Peek reads entities from. */
+  peekScope: TriagePeekScope;
 }
 
 /**
@@ -397,8 +407,10 @@ export function OpenItemsTriagePreview({
   loading,
   highlight,
   registry,
+  peekScope,
 }: OpenItemsTriagePreviewProps) {
   const { t } = useTranslation();
+  const { peekHandlers, peekNode } = useTriageRowPeek(peekScope);
   const { layout, totals } = preview;
   const nowTitle = t("triage.preview.now", "Open Items now");
   const afterTitle = t("triage.preview.after", "After selected suggestions");
@@ -498,6 +510,9 @@ export function OpenItemsTriagePreview({
                 row={row}
                 side="before"
                 registry={registry}
+                peekHandlers={
+                  row.kind === "item" ? peekHandlers(row.peek) : undefined
+                }
                 highlighted={
                   row.kind === "item" &&
                   beforeHighlight !== null &&
@@ -519,6 +534,9 @@ export function OpenItemsTriagePreview({
                 row={row}
                 side="after"
                 registry={registry}
+                peekHandlers={
+                  row.kind === "item" ? peekHandlers(row.peek) : undefined
+                }
                 highlighted={
                   row.kind === "item" &&
                   afterHighlight !== null &&
@@ -529,6 +547,7 @@ export function OpenItemsTriagePreview({
           </Box>
         </Box>
       </Box>
+      {peekNode}
     </Box>
   );
 }

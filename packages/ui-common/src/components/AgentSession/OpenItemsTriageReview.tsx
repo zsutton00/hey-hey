@@ -19,6 +19,7 @@ import {
   OpenItemsTriagePreview,
   TRIAGE_REVIEW_CONTAINER,
 } from "./OpenItemsTriagePreview";
+import type { TriagePeekScope } from "./useTriageRowPeek";
 
 const noSubscription = () => () => {};
 const idleSnapshot = () => 0;
@@ -34,6 +35,8 @@ export interface OpenItemsTriageReviewProps {
   collection: OpenItemsCollection | undefined;
   /** The project's work-item types, so rows show the sidebar's icons. */
   workItemIcons: WorkItemIconRegistry;
+  /** Where the preview rows' hover Peek reads entities from. */
+  peekScope: TriagePeekScope;
   itemHref: (item: OpenItemsTriageItem) => string;
   disabled: boolean;
 }
@@ -50,6 +53,7 @@ export function OpenItemsTriageReview({
   application,
   collection,
   workItemIcons,
+  peekScope,
   itemHref,
   disabled,
 }: OpenItemsTriageReviewProps) {
@@ -378,6 +382,7 @@ export function OpenItemsTriageReview({
           loading={!present}
           highlight={highlight}
           registry={workItemIcons}
+          peekScope={peekScope}
         />
       </Box>
     </Stack>

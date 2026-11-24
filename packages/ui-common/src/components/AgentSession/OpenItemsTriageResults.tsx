@@ -110,6 +110,7 @@ export function OpenItemsTriageResults({
           application={application}
           collection={collection}
           workItemIcons={workItemIcons}
+          peekScope={{ organizationId, projectId }}
           itemHref={itemHref}
           disabled={disabled}
         />
