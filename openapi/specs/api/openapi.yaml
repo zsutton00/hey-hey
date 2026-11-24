@@ -4070,6 +4070,12 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: placeKey
+          in: query
+          required: false
+          description: A key from listProjectChangePlaces. Matches records with an edit in that place; the not-recorded key matches records with no recorded place. An unknown key returns an empty page.
+          schema:
+            type: string
         - name: limit
           in: query
           schema:
@@ -4098,6 +4104,73 @@ paths:
                         $ref: "../schemas/reports.yaml#/ProjectChangesPage"
         "400":
           description: Invalid filters or pagination.
+        "401":
+          description: Authentication required.
+        "403":
+          description: Project access denied.
+
+  /organizations/{organizationId}/projects/{projectId}/reports/changes/places:
+    get:
+      operationId: listProjectChangePlaces
+      summary: List the branches and worktrees that have change records
+      description: Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+      tags: [Reports]
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentSessionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: featureId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: committed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: The places that would return results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/reports.yaml#/ProjectChangePlaces"
+        "400":
+          description: Invalid filters.
         "401":
           description: Authentication required.
         "403":

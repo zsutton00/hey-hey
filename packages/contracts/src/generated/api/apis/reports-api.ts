@@ -41,6 +41,8 @@ import type { GetProjectReportUsageTrends200Response } from '../models.js';
 // @ts-ignore
 import type { LaunchEvalRun201Response } from '../models.js';
 // @ts-ignore
+import type { ListProjectChangePlaces200Response } from '../models.js';
+// @ts-ignore
 import type { ListProjectChanges200Response } from '../models.js';
 // @ts-ignore
 import type { ListProjectReports200Response } from '../models.js';
@@ -294,6 +296,73 @@ export const ReportsApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+         * @summary List the branches and worktrees that have change records
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} [agentSessionId]
+         * @param {string} [serviceId]
+         * @param {string} [taskId]
+         * @param {string} [featureId]
+         * @param {boolean} [committed]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectChangePlaces: async (organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('listProjectChangePlaces', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('listProjectChangePlaces', 'projectId', projectId)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/reports/changes/places`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (agentSessionId !== undefined) {
+                localVarQueryParameter['agentSessionId'] = agentSessionId;
+            }
+
+            if (serviceId !== undefined) {
+                localVarQueryParameter['serviceId'] = serviceId;
+            }
+
+            if (taskId !== undefined) {
+                localVarQueryParameter['taskId'] = taskId;
+            }
+
+            if (featureId !== undefined) {
+                localVarQueryParameter['featureId'] = featureId;
+            }
+
+            if (committed !== undefined) {
+                localVarQueryParameter['committed'] = committed;
+            }
+
+
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
          * @summary List historical agent changes across project sessions
          * @param {string} organizationId
@@ -303,12 +372,13 @@ export const ReportsApiAxiosParamCreator = function (configuration?: Configurati
          * @param {string} [taskId]
          * @param {string} [featureId]
          * @param {boolean} [committed]
+         * @param {string} [placeKey] A key from listProjectChangePlaces. Matches records with an edit in that place; the not-recorded key matches records with no recorded place. An unknown key returns an empty page.
          * @param {number} [limit]
          * @param {number} [offset]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listProjectChanges: async (organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listProjectChanges: async (organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, placeKey?: string, limit?: number, offset?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'organizationId' is not null or undefined
             assertParamExists('listProjectChanges', 'organizationId', organizationId)
             // verify required parameter 'projectId' is not null or undefined
@@ -349,6 +419,10 @@ export const ReportsApiAxiosParamCreator = function (configuration?: Configurati
 
             if (committed !== undefined) {
                 localVarQueryParameter['committed'] = committed;
+            }
+
+            if (placeKey !== undefined) {
+                localVarQueryParameter['placeKey'] = placeKey;
             }
 
             if (limit !== undefined) {
@@ -977,6 +1051,25 @@ export const ReportsApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+         * @summary List the branches and worktrees that have change records
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} [agentSessionId]
+         * @param {string} [serviceId]
+         * @param {string} [taskId]
+         * @param {string} [featureId]
+         * @param {boolean} [committed]
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async listProjectChangePlaces(organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectChangePlaces200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectChangePlaces(organizationId, projectId, agentSessionId, serviceId, taskId, featureId, committed, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['ReportsApi.listProjectChangePlaces']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
          * @summary List historical agent changes across project sessions
          * @param {string} organizationId
@@ -986,13 +1079,14 @@ export const ReportsApiFp = function(configuration?: Configuration) {
          * @param {string} [taskId]
          * @param {string} [featureId]
          * @param {boolean} [committed]
+         * @param {string} [placeKey] A key from listProjectChangePlaces. Matches records with an edit in that place; the not-recorded key matches records with no recorded place. An unknown key returns an empty page.
          * @param {number} [limit]
          * @param {number} [offset]
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listProjectChanges(organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectChanges200Response>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectChanges(organizationId, projectId, agentSessionId, serviceId, taskId, featureId, committed, limit, offset, options);
+        async listProjectChanges(organizationId: string, projectId: string, agentSessionId?: string, serviceId?: string, taskId?: string, featureId?: string, committed?: boolean, placeKey?: string, limit?: number, offset?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ListProjectChanges200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listProjectChanges(organizationId, projectId, agentSessionId, serviceId, taskId, featureId, committed, placeKey, limit, offset, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['ReportsApi.listProjectChanges']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -1197,6 +1291,16 @@ export const ReportsApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.getReport(requestParameters.organizationId, requestParameters.reportId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+         * @summary List the branches and worktrees that have change records
+         * @param {ReportsApiListProjectChangePlacesRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        listProjectChangePlaces(requestParameters: ReportsApiListProjectChangePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectChangePlaces200Response> {
+            return localVarFp.listProjectChangePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, options).then((request) => request(axios, basePath));
+        },
+        /**
          * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
          * @summary List historical agent changes across project sessions
          * @param {ReportsApiListProjectChangesRequest} requestParameters Request parameters.
@@ -1204,7 +1308,7 @@ export const ReportsApiFactory = function (configuration?: Configuration, basePa
          * @throws {RequiredError}
          */
         listProjectChanges(requestParameters: ReportsApiListProjectChangesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectChanges200Response> {
-            return localVarFp.listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
+            return localVarFp.listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.placeKey, requestParameters.limit, requestParameters.offset, options).then((request) => request(axios, basePath));
         },
         /**
          * List reports scoped to a single project, optionally filtered by one or more report types. Sorted by createdAt DESC by default; limit defaults to 50 (max 200), offset defaults to 0.
@@ -1334,6 +1438,16 @@ export interface ReportsApiInterface {
      * @memberof ReportsApiInterface
      */
     getReport(requestParameters: ReportsApiGetReportRequest, options?: RawAxiosRequestConfig): AxiosPromise<LaunchEvalRun201Response>;
+
+    /**
+     * Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+     * @summary List the branches and worktrees that have change records
+     * @param {ReportsApiListProjectChangePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApiInterface
+     */
+    listProjectChangePlaces(requestParameters: ReportsApiListProjectChangePlacesRequest, options?: RawAxiosRequestConfig): AxiosPromise<ListProjectChangePlaces200Response>;
 
     /**
      * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
@@ -1561,6 +1675,62 @@ export interface ReportsApiGetReportRequest {
 }
 
 /**
+ * Request parameters for listProjectChangePlaces operation in ReportsApi.
+ * @export
+ * @interface ReportsApiListProjectChangePlacesRequest
+ */
+export interface ReportsApiListProjectChangePlacesRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly agentSessionId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly serviceId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly taskId?: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly featureId?: string
+
+    /**
+     *
+     * @type {boolean}
+     * @memberof ReportsApiListProjectChangePlaces
+     */
+    readonly committed?: boolean
+}
+
+/**
  * Request parameters for listProjectChanges operation in ReportsApi.
  * @export
  * @interface ReportsApiListProjectChangesRequest
@@ -1614,6 +1784,13 @@ export interface ReportsApiListProjectChangesRequest {
      * @memberof ReportsApiListProjectChanges
      */
     readonly committed?: boolean
+
+    /**
+     * A key from listProjectChangePlaces. Matches records with an edit in that place; the not-recorded key matches records with no recorded place. An unknown key returns an empty page.
+     * @type {string}
+     * @memberof ReportsApiListProjectChanges
+     */
+    readonly placeKey?: string
 
     /**
      *
@@ -2113,6 +2290,18 @@ export class ReportsApi extends BaseAPI implements ReportsApiInterface {
     }
 
     /**
+     * Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+     * @summary List the branches and worktrees that have change records
+     * @param {ReportsApiListProjectChangePlacesRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof ReportsApi
+     */
+    public listProjectChangePlaces(requestParameters: ReportsApiListProjectChangePlacesRequest, options?: RawAxiosRequestConfig) {
+        return ReportsApiFp(this.configuration).listProjectChangePlaces(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * IMPLEMENT records ordered by creation time and ID descending. Filters combine with AND; featureId includes its descendant work items. Commit status derives solely from COMMIT links.
      * @summary List historical agent changes across project sessions
      * @param {ReportsApiListProjectChangesRequest} requestParameters Request parameters.
@@ -2121,7 +2310,7 @@ export class ReportsApi extends BaseAPI implements ReportsApiInterface {
      * @memberof ReportsApi
      */
     public listProjectChanges(requestParameters: ReportsApiListProjectChangesRequest, options?: RawAxiosRequestConfig) {
-        return ReportsApiFp(this.configuration).listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
+        return ReportsApiFp(this.configuration).listProjectChanges(requestParameters.organizationId, requestParameters.projectId, requestParameters.agentSessionId, requestParameters.serviceId, requestParameters.taskId, requestParameters.featureId, requestParameters.committed, requestParameters.placeKey, requestParameters.limit, requestParameters.offset, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

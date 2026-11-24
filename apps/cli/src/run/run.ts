@@ -2393,6 +2393,15 @@ export class Run {
         });
         throw new ReportedFileChangeFailure('git_read_failed', evidenceCapture.gitDiffError);
       }
+      if (evidenceCapture.placeError) {
+        this.logger.warn('local.run.file_change.place_read_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          serviceId: resolved.serviceId,
+          repositoryRoot: resolved.repositoryRoot,
+          gitFailure: evidenceCapture.placeError,
+        });
+      }
       this.logger.debug('local.run.file_change.evidence_captured', {
         runId: this.runId,
         turnId: turn.turnId,
@@ -2419,6 +2428,7 @@ export class Run {
         repoRelativePath: resolved.repoRelativePath,
         occurredAt: candidate.occurredAt,
         evidence: evidenceCapture.evidence,
+        place: evidenceCapture.place,
       });
     }
     if (facts.length === 0) {

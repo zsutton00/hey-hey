@@ -73,6 +73,7 @@ import {
   FileTouchTaskHistoryEvidenceDto,
   FileTouchWorkHistoryDto,
   ImplementReportPayload,
+  ProjectChangePlaces,
   ProjectChangesPage,
   LinkedReportEntityRef,
   OtherReportPayload,
@@ -679,21 +680,15 @@ export class ReportService {
     return aggregateUsageTrends(rows, query);
   }
 
-  async listProjectChanges(
+  /** Shared scope and filter conditions for the Changes list and its place menu. */
+  private projectChangeConditions(
     organizationId: OrganizationId,
     projectId: string,
-    filters: Omit<
+    filters: Pick<
       ReportsApiListProjectChangesRequest,
-      'organizationId' | 'projectId' | 'limit' | 'offset'
-    > & { limit: number; offset: number },
-  ): Promise<ProjectChangesPage> {
-    if (
-      ReadPolicyContext.current().excludedReportTypes.includes(
-        PrismaReportType.IMPLEMENT,
-      )
-    ) {
-      return { records: [], hasMore: false };
-    }
+      'agentSessionId' | 'serviceId' | 'taskId' | 'featureId' | 'committed'
+    >,
+  ): Prisma.Sql[] {
     const relation = (entityType: string, entityId: string) => Prisma.sql`
       EXISTS (SELECT 1 FROM report_entities e WHERE e.report_id = reports.id
         AND e.entity_type::text = ${entityType} AND e.entity_id = ${entityId})`;
@@ -734,6 +729,120 @@ export class ReportService {
           filters.committed,
         ),
       );
+    }
+    return conditions;
+  }
+
+  /** One edit's place as an opaque key; JSON null for a detached branch or no worktree. */
+  private static readonly EDIT_PLACE_KEY = Prisma.sql`jsonb_build_array(
+    edit.value->'place'->'kind', edit.value->'place'->'branch',
+    edit.value->'place'->'worktreePath')::text`;
+  private static readonly NOT_RECORDED_KEY = 'NOT_RECORDED';
+
+  /** Edits of a report, tolerating reports written before `edits` existed. */
+  private static readonly REPORT_EDITS = Prisma.sql`jsonb_array_elements(
+    CASE WHEN jsonb_typeof(reports.payload->'edits') = 'array'
+      THEN reports.payload->'edits' ELSE '[]'::jsonb END) AS edit(value)`;
+
+  private static readonly EDIT_HAS_PLACE = Prisma.sql`jsonb_typeof(edit.value->'place') = 'object'`;
+
+  /** Matches a record with an edit in the place, or with no recorded place at all. */
+  private implementPlacePredicate(placeKey: string): Prisma.Sql {
+    if (placeKey === ReportService.NOT_RECORDED_KEY) {
+      return Prisma.sql`NOT EXISTS (
+        SELECT 1 FROM ${ReportService.REPORT_EDITS}
+        WHERE ${ReportService.EDIT_HAS_PLACE})`;
+    }
+    return Prisma.sql`EXISTS (
+      SELECT 1 FROM ${ReportService.REPORT_EDITS}
+      WHERE ${ReportService.EDIT_HAS_PLACE}
+        AND ${ReportService.EDIT_PLACE_KEY} = ${placeKey})`;
+  }
+
+  async listProjectChangePlaces(
+    organizationId: OrganizationId,
+    projectId: string,
+    filters: Pick<
+      ReportsApiListProjectChangesRequest,
+      'agentSessionId' | 'serviceId' | 'taskId' | 'featureId' | 'committed'
+    >,
+  ): Promise<ProjectChangePlaces> {
+    if (
+      ReadPolicyContext.current().excludedReportTypes.includes(
+        PrismaReportType.IMPLEMENT,
+      )
+    ) {
+      return { places: [] };
+    }
+    const conditions = this.projectChangeConditions(
+      organizationId,
+      projectId,
+      filters,
+    );
+    const where = Prisma.join(conditions, ' AND ');
+    const rows = await this.prisma.db.$queryRaw<
+      Array<{
+        key: string;
+        kind: 'MAIN_FOLDER' | 'WORKTREE';
+        branch: string | null;
+        worktreePath: string | null;
+        recordCount: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT ${ReportService.EDIT_PLACE_KEY} AS key,
+        edit.value->'place'->>'kind' AS kind,
+        edit.value->'place'->>'branch' AS branch,
+        edit.value->'place'->>'worktreePath' AS "worktreePath",
+        COUNT(DISTINCT reports.id) AS "recordCount"
+      FROM reports, ${ReportService.REPORT_EDITS}
+      WHERE ${where} AND ${ReportService.EDIT_HAS_PLACE}
+      GROUP BY 1, 2, 3, 4
+    `);
+    const [unrecorded] = await this.prisma.db.$queryRaw<
+      Array<{ recordCount: bigint }>
+    >(Prisma.sql`
+      SELECT COUNT(*) AS "recordCount" FROM reports
+      WHERE ${where} AND ${this.implementPlacePredicate(ReportService.NOT_RECORDED_KEY)}
+    `);
+    const places: ProjectChangePlaces['places'] = rows.map((row) => ({
+      key: row.key,
+      kind: row.kind,
+      branch: row.branch,
+      ...(row.worktreePath === null ? {} : { worktreePath: row.worktreePath }),
+      recordCount: Number(row.recordCount),
+    }));
+    if (unrecorded && unrecorded.recordCount > 0n) {
+      places.push({
+        key: ReportService.NOT_RECORDED_KEY,
+        notRecorded: true,
+        recordCount: Number(unrecorded.recordCount),
+      });
+    }
+    return { places };
+  }
+
+  async listProjectChanges(
+    organizationId: OrganizationId,
+    projectId: string,
+    filters: Omit<
+      ReportsApiListProjectChangesRequest,
+      'organizationId' | 'projectId' | 'limit' | 'offset'
+    > & { limit: number; offset: number },
+  ): Promise<ProjectChangesPage> {
+    if (
+      ReadPolicyContext.current().excludedReportTypes.includes(
+        PrismaReportType.IMPLEMENT,
+      )
+    ) {
+      return { records: [], hasMore: false };
+    }
+    const conditions = this.projectChangeConditions(
+      organizationId,
+      projectId,
+      filters,
+    );
+    if (filters.placeKey !== undefined) {
+      conditions.push(this.implementPlacePredicate(filters.placeKey));
     }
     const ids = await this.prisma.db.$queryRaw<
       Array<{ id: string }>

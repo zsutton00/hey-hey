@@ -1121,6 +1121,12 @@ export class UnifiedApiClient {
     return this.clients.reports.listProjectChanges(...args);
   }
 
+  listProjectChangePlaces(
+    ...args: Parameters<ReportsApi["listProjectChangePlaces"]>
+  ) {
+    return this.clients.reports.listProjectChangePlaces(...args);
+  }
+
   listProjectReports(...args: Parameters<ReportsApi["listProjectReports"]>) {
     return this.clients.reports.listProjectReports(...args);
   }

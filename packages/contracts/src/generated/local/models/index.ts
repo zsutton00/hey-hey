@@ -1,4 +1,5 @@
 // @ts-nocheck
+export * from './agent-session-service-place-kind.js';
 export * from './change-walkthrough-excerpt.js';
 export * from './change-walkthrough-git-source.js';
 export * from './change-walkthrough-source-verification.js';
@@ -31,6 +32,7 @@ export * from './cli-read-tool-calls-latest-turn-available.js';
 export * from './cli-read-tool-calls-latest-turn-disabled.js';
 export * from './cli-read-tool-calls-latest-turn-result.js';
 export * from './implement-report-edit.js';
+export * from './implement-report-edit-place.js';
 export * from './implement-report-line-range.js';
 export * from './local-list-repo-bindings-response.js';
 export * from './local-pick-repo-directory-cancelled-response.js';

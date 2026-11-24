@@ -197,4 +197,5 @@ export * from "./hooks/useProviderSessionTranscript";
 
 export { evalRunStatusLabel } from "./evalRunStatusLabel";
 export * from "./hooks/useProjectChanges";
+export * from "./hooks/useProjectChangePlaces";
 export * from "./hooks/useRecordedEdit";

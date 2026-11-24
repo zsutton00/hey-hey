@@ -116,6 +116,7 @@ export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_FEATURES_SKELETON_P
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_GOALS_ACTIVE_PATH = '/organizations/{organizationId}/projects/{projectId}/goals/active';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_CHANGES_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/changes';
+export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_CHANGES_PLACES_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/changes/places';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_USAGE_TRENDS_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/usage-trends';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_FILE_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-file';
 export const ORGANIZATIONS_ORGANIZATIONID_PROJECTS_PROJECTID_REPORTS_FILE_TOUCHES_BY_WORK_PATH = '/organizations/{organizationId}/projects/{projectId}/reports/file-touches/by-work';
