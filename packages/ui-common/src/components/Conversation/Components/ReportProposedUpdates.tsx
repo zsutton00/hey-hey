@@ -123,8 +123,8 @@ const ProposedUpdateCards: React.FC<ProposedUpdateCardsProps> = ({
   focalNode,
 }) => {
   const keys = useMemo(
-    () => buildProposedUpdateKeys(context.messageId, updates),
-    [context.messageId, updates],
+    () => buildProposedUpdateKeys(context.messageId, report.id, updates),
+    [context.messageId, report.id, updates],
   );
 
   return (

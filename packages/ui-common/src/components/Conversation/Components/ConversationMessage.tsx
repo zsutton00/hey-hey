@@ -398,6 +398,12 @@ export const ConversationMessage: React.FC<ConversationMessageProps> = memo(
                               : undefined
                       }
                       inlineReports={inlineReports}
+                      proposedUpdateCards={{
+                        messageId: conversationMessage.message.id,
+                        conversationId: activeConversation.id,
+                        organizationId: project.organizationId,
+                        projectId: project.id,
+                      }}
                     />
                   );
 

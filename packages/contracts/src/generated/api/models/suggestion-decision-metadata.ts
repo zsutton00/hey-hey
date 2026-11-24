@@ -22,6 +22,9 @@ import type { CreateSuggestedDesignDocDecisionMetadata } from './create-suggeste
 import type { CreateSuggestedTaskDecisionMetadata } from './create-suggested-task-decision-metadata.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ProjectAssistantUpdateDecisionMetadata } from './project-assistant-update-decision-metadata.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ProposedInitiativeDecisionMetadata } from './proposed-initiative-decision-metadata.js';
 // May contain unused imports in some cases
 // @ts-ignore
@@ -31,6 +34,6 @@ import type { VerifyFeatureDecisionMetadata } from './verify-feature-decision-me
  * @type SuggestionDecisionMetadata
  * @export
  */
-export type SuggestionDecisionMetadata = { kind: 'CREATE_SUGGESTED_DESIGN_DOC' } & CreateSuggestedDesignDocDecisionMetadata | { kind: 'CREATE_SUGGESTED_TASK' } & CreateSuggestedTaskDecisionMetadata | { kind: 'PROPOSED_INITIATIVE' } & ProposedInitiativeDecisionMetadata | { kind: 'VERIFY_FEATURE' } & VerifyFeatureDecisionMetadata;
+export type SuggestionDecisionMetadata = { kind: 'CREATE_SUGGESTED_DESIGN_DOC' } & CreateSuggestedDesignDocDecisionMetadata | { kind: 'CREATE_SUGGESTED_TASK' } & CreateSuggestedTaskDecisionMetadata | { kind: 'PROJECT_ASSISTANT_UPDATE' } & ProjectAssistantUpdateDecisionMetadata | { kind: 'PROPOSED_INITIATIVE' } & ProposedInitiativeDecisionMetadata | { kind: 'VERIFY_FEATURE' } & VerifyFeatureDecisionMetadata;
 
-export const SuggestionDecisionMetadataDiscriminatorValues = ["CREATE_SUGGESTED_TASK","CREATE_SUGGESTED_DESIGN_DOC","PROPOSED_INITIATIVE","VERIFY_FEATURE"] as const;
+export const SuggestionDecisionMetadataDiscriminatorValues = ["CREATE_SUGGESTED_TASK","CREATE_SUGGESTED_DESIGN_DOC","PROPOSED_INITIATIVE","VERIFY_FEATURE","PROJECT_ASSISTANT_UPDATE"] as const;
