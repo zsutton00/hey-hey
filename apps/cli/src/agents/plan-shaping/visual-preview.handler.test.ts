@@ -107,14 +107,13 @@ describe('plan-shaping visual-preview handler', () => {
         'including an APPROVED proposal from another conversation in the same project',
       );
       expect(guidance).toContain(
-        'call `include_existing_proposals_in_current_message` with it in `proposalIds` before submission',
+        'Attach a reused visual to your reply only while it still needs a decision',
       );
+      expect(guidance).toContain('Never attach an APPROVED reused visual');
       expect(guidance).toContain(
         'Reuse creates no duplicate proposal and preserves proposal identity, original Conversation and Message ownership, any Proposal Group home, and approval status',
       );
-      expect(guidance).toContain(
-        'A reused visual that is still DRAFT is reviewed at its place in the order',
-      );
+      expect(guidance).toContain('so the user can decide it on its card at its place in the order');
       expect(guidance).toContain('READY never supplies that confirmation');
     },
   );

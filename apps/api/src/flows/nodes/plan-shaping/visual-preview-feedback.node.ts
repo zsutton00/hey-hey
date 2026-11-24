@@ -210,20 +210,18 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
     const reviewingVisuals = position.kind === 'visual';
     const reviewingSeveral = reviewingVisuals && position.review.length > 1;
     const reviewFieldId = uuidv4();
-    // The preview element requires at least one visual, so an empty complete
-    // set is confirmed without it.
+    // Visuals under review are decided on their proposal cards; the ordered
+    // stepper appears only when the complete set is confirmed. The preview
+    // element requires at least one visual, so an empty complete set is
+    // confirmed without it.
     const previewElements: UIElement[] =
-      position.presented.length === 0
+      reviewingVisuals || position.presented.length === 0
         ? []
         : [
             {
               id: uuidv4(),
               type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-              label: reviewingSeveral
-                ? 'Visuals under review'
-                : reviewingVisuals
-                  ? 'Visual under review'
-                  : 'Complete visual plan',
+              label: 'Complete visual plan',
               required: false,
               influences: [],
               payload: {
