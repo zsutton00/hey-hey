@@ -913,10 +913,14 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             pl: `${8 + depth * 20}px`,
             borderRadius: 1,
             outline: selected ? "1px solid" : "none",
-            outlineColor: "primary.main",
+            outlineColor: "warning.main",
+            boxShadow: (theme) =>
+              selected && active
+                ? `inset 3px 0 0 ${theme.palette.primary.main}`
+                : "none",
             bgcolor: (theme) =>
               selected
-                ? alpha(theme.palette.primary.main, active ? 0.25 : 0.2)
+                ? alpha(theme.palette.warning.main, 0.22)
                 : active
                   ? alpha(theme.palette.primary.main, 0.25)
                   : "transparent",
@@ -924,7 +928,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             "&:hover": {
               bgcolor: (theme) =>
                 selected
-                  ? alpha(theme.palette.primary.main, active ? 0.29 : 0.25)
+                  ? alpha(theme.palette.warning.main, 0.3)
                   : active
                     ? alpha(theme.palette.primary.main, 0.3)
                     : "action.hover",
