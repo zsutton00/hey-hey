@@ -1191,11 +1191,15 @@ describe('visual proposal reuse across conversations', () => {
       ReturnType<PlanShapingVisualPreviewFeedbackNode['execute']>
     >,
   ) => ({
+    // Empty when no stepper is shown: only the confirmation step has one.
     presented: (
-      result.uiElements?.find(
-        ({ type }) => type === ExtendedUIFieldType.PlanGenerationVisualPreview,
-      )?.payload as { entries: typeof entries }
-    ).entries.map(({ proposalId }) => proposalId),
+      (
+        result.uiElements?.find(
+          ({ type }) =>
+            type === ExtendedUIFieldType.PlanGenerationVisualPreview,
+        )?.payload as { entries: typeof entries } | undefined
+      )?.entries ?? []
+    ).map(({ proposalId }) => proposalId),
     labels: (
       result.data as { secondaryActions: SecondaryActionConfig[] }
     ).secondaryActions.map(({ label }) => label),
@@ -1277,7 +1281,7 @@ describe('visual proposal reuse across conversations', () => {
       await ready({ setComplete: true });
 
       expect(gateView(await feedback.execute(tracker))).toEqual({
-        presented: [entries[0]!.proposalId],
+        presented: [],
         labels: ['Continue Revising', 'Next Visual'],
       });
 
@@ -1292,9 +1296,7 @@ describe('visual proposal reuse across conversations', () => {
       ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
       const stillReviewing = await feedback.execute(tracker);
       expect(stillReviewing.message).toContain('Approve this visual');
-      expect(gateView(stillReviewing).presented).toEqual([
-        entries[0]!.proposalId,
-      ]);
+      expect(gateView(stillReviewing).presented).toEqual([]);
       expect(rows[0]!.status).toBe('DRAFT');
 
       // The user approves the card; the answer moves on to the complete set.
@@ -1334,7 +1336,7 @@ describe('visual proposal reuse across conversations', () => {
     const { rows, preview, feedback, tracker, ready } = setup(['DRAFT']);
     await ready({ setComplete: false });
     expect(gateView(await feedback.execute(tracker))).toEqual({
-      presented: [entries[0]!.proposalId],
+      presented: [],
       labels: ['Continue Revising', 'Next Visual'],
     });
 
@@ -1366,7 +1368,7 @@ describe('visual proposal reuse across conversations', () => {
       }),
     );
     expect(gateView(await feedback.execute(tracker))).toEqual({
-      presented: entries.map(({ proposalId }) => proposalId),
+      presented: [],
       labels: ['Continue Revising', 'Next Visual'],
     });
 
@@ -1431,7 +1433,7 @@ describe('visual proposal reuse across conversations', () => {
     ).toBe(PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK);
     const gate = await feedback.execute(tracker);
     expect(gate.message).toContain('This visual was rejected');
-    expect(gateView(gate).presented).toEqual([entries[0]!.proposalId]);
+    expect(gateView(gate).presented).toEqual([]);
 
     const revise = answer(PLAN_SHAPING_ACTIONS.REFINE, 'Show the empty state');
     await feedback.processUserResponse(tracker, revise);
@@ -1455,14 +1457,14 @@ describe('visual proposal reuse across conversations', () => {
 
     const gate = await feedback.execute(tracker);
     expect(gateView(gate)).toEqual({
-      presented: entries.map(({ proposalId }) => proposalId),
+      presented: [],
       labels: ['Continue Revising', 'Next Visual'],
     });
     expect(
-      gate.uiElements?.find(
+      gate.uiElements?.some(
         ({ type }) => type === ExtendedUIFieldType.PlanGenerationVisualPreview,
-      )?.label,
-    ).toBe('Visuals under review');
+      ),
+    ).toBe(false);
 
     rows[0]!.status = 'APPROVED';
     const early = answer(PLAN_SHAPING_ACTIONS.APPROVED);
@@ -1504,7 +1506,7 @@ describe('visual proposal reuse across conversations', () => {
       await harness.ready({ setComplete: false });
       expect(gateView(await harness.feedback.execute(harness.tracker))).toEqual(
         {
-          presented: entries.map(({ proposalId }) => proposalId),
+          presented: [],
           labels: ['Continue Revising', 'Next Visual'],
         },
       );
@@ -1584,9 +1586,7 @@ describe('visual proposal reuse across conversations', () => {
 
       await submit([newDirection]);
       expect(tracker.getContext().visualPreviewEntries).toEqual([newDirection]);
-      expect(gateView(await feedback.execute(tracker)).presented).toEqual([
-        newDirection.proposalId,
-      ]);
+      expect(gateView(await feedback.execute(tracker)).presented).toEqual([]);
       expect(await gateMessage()).toContain(
         'Removed from the set after you approved it: "Review surface".',
       );
@@ -1686,7 +1686,7 @@ describe('visual proposal reuse across conversations', () => {
       tracker.getContext().visualPreviewAcceptedProposalIds,
     ).toBeUndefined();
     expect(gateView(await feedback.execute(tracker))).toEqual({
-      presented: entries.map(({ proposalId }) => proposalId),
+      presented: [],
       labels: ['Continue Revising', 'Next Visual'],
     });
     expect(tracker.getContext().visualPreviewReviewProposalId).toBe(
@@ -1875,7 +1875,7 @@ describe('visual proposal reuse across conversations', () => {
 });
 
 describe('PlanShapingVisualPreviewFeedbackNode', () => {
-  it('renders feedback with the authoritative current visual set', async () => {
+  it('renders only the feedback box for a visual under review', async () => {
     const proposalId = '44444444-4444-4444-8444-444444444444';
     const node = new PlanShapingVisualPreviewFeedbackNode({
       db: {
@@ -1899,17 +1899,11 @@ describe('PlanShapingVisualPreviewFeedbackNode', () => {
     );
 
     const result = await node.execute(tracker);
-    const element = result.uiElements?.[1];
+    const element = result.uiElements?.[0];
 
     expect(result.type).toBe(NodeType.QUESTIONS);
-    expect(result.uiElements).toHaveLength(2);
-    expect(result.uiElements?.[0]).toMatchObject({
-      type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-      payload: {
-        responseType: 'plan_generation_visual_preview_v1',
-        entries: tracker.getContext().visualPreviewEntries,
-      },
-    });
+    // A visual under review is decided on its card, so no stepper is shown.
+    expect(result.uiElements).toHaveLength(1);
     expect(element).toMatchObject({
       type: ExtendedUIFieldType.Textarea,
       label: 'Feedback on this visual',

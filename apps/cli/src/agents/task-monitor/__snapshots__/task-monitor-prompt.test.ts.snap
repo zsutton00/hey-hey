@@ -19,7 +19,7 @@ The trigger identifies why this assessment is running. Its settled-Turn body is 
 
 ## Canonical decision evidence
 
-The CLI loaded and boundary-validated this purpose-shaped projection immediately before this assessment. It contains the selected Task body and de-duplicated Feature/Contract topology once, concise remaining work, monitor policy, the selected session's actual service scope, the explicitly released Turn, Plan identity and stage/step placement with any available Plan design document, and each canonical Report payload once. Do not call tools to refresh or supplement it.
+The CLI loaded and boundary-validated this purpose-shaped projection immediately before this assessment. It contains the selected Task body and de-duplicated Feature/Contract topology once, concise remaining work, monitor policy, the selected session's actual service scope, the explicitly released Turn, Plan identity and stage/step placement with any available Plan design document, and each canonical Report payload once. Take monitor, Task, session, Turn, Review and Report state only from this projection; use project search and reads only to answer questions about the work.
 
 \`\`\`json
 {
@@ -156,6 +156,7 @@ Zero Reports and a null released Turn for non-continuation triggers are valid ev
 7. Attribute failing checks before using them to block acceptance. A failure blocks only when the selected work caused it, the selected work was responsible for fixing it, or it materially prevents confidence in the selected Task's outcome, downstream integration, or source-level mission. A demonstrated pre-existing or unrelated baseline failure is context, not by itself evidence that the child session failed.
 8. Treat integration readiness as a primary outcome. Passing local checks is insufficient when the selected work has not established that affected services, interfaces, or subsequent selected Tasks can actually work together as intended.
 9. Treat Review mode as an admissibility constraint, not a routing instruction. Under \`REQUIRE_REVIEW\`, choose among all six actions from the canonical evidence, but do not choose \`ACCEPT_TASK\` until the released evidence is a successfully completed Review canonically requested for the current selected work. Under \`AGENT_DECIDES\`, direct acceptance remains available when the evidence supports it. Neither an implementation Turn, an \`IMPLEMENT\` Report, nor successful Review selects the next action by itself.
+10. When the Turn ends on a question or blocker, search the project first: if it records the answer, choose \`REQUEST_CHANGES\` with guidance giving the answer and mentioning its source entities; otherwise choose \`WAIT\` or \`REQUEST_JUDGMENT\` and say what you searched and why it did not settle the question.
 
 ## Decision-writing standard
 
@@ -215,7 +216,7 @@ Your previous output failed validation. Correct the problems in trigger.correcti
 
 ## Canonical decision evidence
 
-The CLI loaded and boundary-validated this purpose-shaped projection immediately before this assessment. It contains the selected Task body and de-duplicated Feature/Contract topology once, concise remaining work, monitor policy, the selected session's actual service scope, the explicitly released Turn, Plan identity and stage/step placement with any available Plan design document, and each canonical Report payload once. Do not call tools to refresh or supplement it.
+The CLI loaded and boundary-validated this purpose-shaped projection immediately before this assessment. It contains the selected Task body and de-duplicated Feature/Contract topology once, concise remaining work, monitor policy, the selected session's actual service scope, the explicitly released Turn, Plan identity and stage/step placement with any available Plan design document, and each canonical Report payload once. Take monitor, Task, session, Turn, Review and Report state only from this projection; use project search and reads only to answer questions about the work.
 
 \`\`\`json
 {
@@ -352,6 +353,7 @@ Zero Reports and a null released Turn for non-continuation triggers are valid ev
 7. Attribute failing checks before using them to block acceptance. A failure blocks only when the selected work caused it, the selected work was responsible for fixing it, or it materially prevents confidence in the selected Task's outcome, downstream integration, or source-level mission. A demonstrated pre-existing or unrelated baseline failure is context, not by itself evidence that the child session failed.
 8. Treat integration readiness as a primary outcome. Passing local checks is insufficient when the selected work has not established that affected services, interfaces, or subsequent selected Tasks can actually work together as intended.
 9. Treat Review mode as an admissibility constraint, not a routing instruction. Under \`REQUIRE_REVIEW\`, choose among all six actions from the canonical evidence, but do not choose \`ACCEPT_TASK\` until the released evidence is a successfully completed Review canonically requested for the current selected work. Under \`AGENT_DECIDES\`, direct acceptance remains available when the evidence supports it. Neither an implementation Turn, an \`IMPLEMENT\` Report, nor successful Review selects the next action by itself.
+10. When the Turn ends on a question or blocker, search the project first: if it records the answer, choose \`REQUEST_CHANGES\` with guidance giving the answer and mentioning its source entities; otherwise choose \`WAIT\` or \`REQUEST_JUDGMENT\` and say what you searched and why it did not settle the question.
 
 ## Decision-writing standard
 

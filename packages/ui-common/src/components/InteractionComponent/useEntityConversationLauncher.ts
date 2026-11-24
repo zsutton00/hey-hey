@@ -57,6 +57,11 @@ export interface EntityConversationLaunchError {
 
 export interface EntityConversationLaunchInput extends GraphConversationLaunchInput {
   context: LineageContext;
+  /**
+   * Called with the created Agent Session id once the start succeeded, before
+   * navigation. A failed or cancelled start never calls it.
+   */
+  onLaunched?: (agentSessionId: string) => void;
 }
 
 export const useEntityConversationLauncher = ({
@@ -101,6 +106,7 @@ export const useEntityConversationLauncher = ({
       fastMode,
       projectAssistant,
       disableCodexSystemPrompt,
+      onLaunched,
     }: EntityConversationLaunchInput): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
@@ -254,6 +260,8 @@ export const useEntityConversationLauncher = ({
           });
           return false;
         }
+
+        onLaunched?.(session.id);
 
         navigate(
           pathService.entityConversation({

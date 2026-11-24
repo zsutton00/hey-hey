@@ -149,3 +149,29 @@ describe("current visual preview after a retried review", () => {
     ).toBe(false);
   });
 });
+
+describe("per-visual review screens without a stepper", () => {
+  it("leaves the current unanswered review editable and an earlier answered one to the answered-question rule", () => {
+    const current = system(
+      "current",
+      [{ id: "feedback", type: "textarea", label: "Feedback" }],
+      [],
+      [
+        {
+          id: "next",
+          type: "field_action",
+          label: "Next Visual",
+          handler: SecondaryActionHandler.PlanGenerationVisualPreviewApprove,
+          fieldId: "feedback",
+        },
+      ],
+    );
+    const timeline = presentedTimeline([
+      answeredFeedback("earlier", [current]),
+    ]);
+
+    expect(
+      timeline.find(({ message }) => message.id === "current")?.canEdit,
+    ).toBe(true);
+  });
+});

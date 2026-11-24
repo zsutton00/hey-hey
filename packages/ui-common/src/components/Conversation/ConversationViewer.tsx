@@ -568,7 +568,13 @@ const ConversationViewerContent: React.FC<{
             sm: isHorizontal ? "column" : "row",
             md: isHorizontal ? "column" : "row",
           },
-          alignItems: "flex-start",
+          // A column stacks navigation above the content: stretch so the content
+          // fills the width instead of shrinking to its text (a lone right-aligned
+          // user message would otherwise render at the left edge).
+          alignItems: {
+            xs: "stretch",
+            sm: isHorizontal ? "stretch" : "flex-start",
+          },
           gap: { xs: 2, sm: 3 },
         }}
         data-testid="conversation-viewer-cont"

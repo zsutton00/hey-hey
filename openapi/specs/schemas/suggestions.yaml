@@ -18,6 +18,7 @@ SuggestionType:
     - related_entities
     - generated_initiative
     - verify_feature
+    - project_assistant_update
 
 CreateSuggestedTaskRequestDto:
   type: object
@@ -112,6 +113,7 @@ SuggestionDecisionMetadata:
     - $ref: "#/CreateSuggestedDesignDocDecisionMetadata"
     - $ref: "#/ProposedInitiativeDecisionMetadata"
     - $ref: "#/VerifyFeatureDecisionMetadata"
+    - $ref: "#/ProjectAssistantUpdateDecisionMetadata"
   discriminator:
     propertyName: kind
     mapping:
@@ -119,6 +121,7 @@ SuggestionDecisionMetadata:
       CREATE_SUGGESTED_DESIGN_DOC: "#/CreateSuggestedDesignDocDecisionMetadata"
       PROPOSED_INITIATIVE: "#/ProposedInitiativeDecisionMetadata"
       VERIFY_FEATURE: "#/VerifyFeatureDecisionMetadata"
+      PROJECT_ASSISTANT_UPDATE: "#/ProjectAssistantUpdateDecisionMetadata"
 
 CreateSuggestedTaskDecisionMetadata:
   type: object
@@ -159,6 +162,18 @@ VerifyFeatureDecisionMetadata:
     kind:
       type: string
       enum: [VERIFY_FEATURE]
+    agentSessionId:
+      $ref: "./common.yaml#/AgentSessionId"
+
+ProjectAssistantUpdateDecisionMetadata:
+  type: object
+  required:
+    - kind
+    - agentSessionId
+  properties:
+    kind:
+      type: string
+      enum: [PROJECT_ASSISTANT_UPDATE]
     agentSessionId:
       $ref: "./common.yaml#/AgentSessionId"
 

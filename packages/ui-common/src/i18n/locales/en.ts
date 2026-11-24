@@ -341,6 +341,9 @@ export const en = {
   "workItemType.status.noteInProgress": "Counts as active work",
   "workItemType.status.name": "Status {{position}}",
   "workItemType.status.start": "New items start here",
+  "workItemType.status.columnName": "Name",
+  "workItemType.status.columnMeaning": "Meaning",
+  "workItemType.status.columnCustomMeaning": "Custom meaning",
   "workItemType.status.reserved": "Reserved by the platform",
   "workItemType.status.reservedArchived": "Archived is always available.",
   "workItemType.status.reservedSuperseded":

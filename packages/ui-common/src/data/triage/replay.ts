@@ -78,6 +78,13 @@ export type LayoutRow =
       /** The Open Items row's own presentation; null for rows Open Items has
        * no snapshot of yet (reopened items, new groups, provisional Goals). */
       presentation: OpenItemPresentation | null;
+      /** The real item behind the row, for the Peek; null for groups and
+       * provisional Goals, which do not exist yet. */
+      peek: {
+        entityId: string;
+        entityType: EntityType;
+        note: string | null;
+      } | null;
       depth: 0 | 1;
       change: RowChange;
       marker: RowMarker | null;
@@ -133,6 +140,7 @@ interface ScratchRow {
   entityId: string;
   title: string;
   presentation: OpenItemPresentation | null;
+  note?: string | null;
   groupId: string | null;
   pinned: boolean;
   lineage: Set<string>;
@@ -193,6 +201,7 @@ export function replayTriage(input: ReplayInput): TriagePreview {
       entityId: row.entityId,
       title: row.presentation.label,
       presentation: row.presentation,
+      note: row.note ?? null,
       groupId: row.groupId,
       pinned: row.pinned,
       lineage: new Set(row.lineage.map(itemKey)),
@@ -647,6 +656,7 @@ function buildLayout(args: {
       title: goal.title,
       entityType: goal.entityType,
       presentation: goalPresentation(goal.title),
+      peek: null,
       depth: 0,
       change: "goal",
       marker: { kind: "pinnedGoal" },
@@ -732,6 +742,13 @@ function buildLayout(args: {
     title: row.title,
     entityType: row.entityType,
     presentation: row.presentation,
+    peek: row.goal
+      ? null
+      : {
+          entityId: row.entityId,
+          entityType: row.entityType,
+          note: row.note?.trim() || null,
+        },
     depth,
     change,
     marker,
@@ -756,6 +773,7 @@ function buildLayout(args: {
       title: args.groupNames.get(groupId) ?? "",
       entityType: "GROUP",
       presentation: null,
+      peek: null,
       depth: 0,
       change: isNew ? "grouped" : "unchanged",
       marker: isNew ? { kind: "newGroup", count } : null,
@@ -838,6 +856,7 @@ function buildLayout(args: {
         title: args.originalGroupName.get(unit.groupId) ?? "",
         entityType: "GROUP",
         presentation: null,
+        peek: null,
         depth: 0,
         change: promoted ? "promoted" : "unchanged",
         marker: promoted ? { kind: "promoteGroup" } : null,

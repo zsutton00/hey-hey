@@ -17,7 +17,8 @@ export type SuggestionDecisionMetadata =
   | CreateSuggestedTaskDecisionMetadata
   | CreateSuggestedDesignDocDecisionMetadata
   | ProposedInitiativeDecisionMetadata
-  | VerifyFeatureDecisionMetadata;
+  | VerifyFeatureDecisionMetadata
+  | ProjectAssistantUpdateDecisionMetadata;
 
 export interface CreateSuggestedTaskDecisionMetadata {
   kind: 'CREATE_SUGGESTED_TASK';
@@ -38,6 +39,11 @@ export interface ProposedInitiativeDecisionMetadata {
 
 export interface VerifyFeatureDecisionMetadata {
   kind: 'VERIFY_FEATURE';
+  agentSessionId: string;
+}
+
+export interface ProjectAssistantUpdateDecisionMetadata {
+  kind: 'PROJECT_ASSISTANT_UPDATE';
   agentSessionId: string;
 }
 

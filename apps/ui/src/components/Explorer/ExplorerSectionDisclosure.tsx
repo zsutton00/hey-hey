@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Collapse, IconButton } from "@mui/material";
-import { ChevronRight, ExpandMore } from "@mui/icons-material";
+import ChevronRight from "@mui/icons-material/ChevronRight";
+import ExpandMore from "@mui/icons-material/ExpandMore";
 import { useGuidableTarget } from "@hey-hey/ui-common/components/GuidedWalkthrough/useGuidableTarget";
 import { useGuidedWalkthroughRuntime } from "@hey-hey/ui-common/components/GuidedWalkthrough/guidedWalkthroughRuntime";
 
@@ -30,12 +31,12 @@ export function ExplorerSectionDisclosure({
   const [entered, setEntered] = useState(expanded);
   useGuidableTarget(
     { name: "explorer-section-toggle", sectionKey },
-    () => toggleRef.current
+    () => toggleRef.current,
   );
   useEffect(
     () =>
       runtime?.explorerSections.publish(sectionKey, token.current, expanded),
-    [runtime, sectionKey, expanded]
+    [runtime, sectionKey, expanded],
   );
 
   return (

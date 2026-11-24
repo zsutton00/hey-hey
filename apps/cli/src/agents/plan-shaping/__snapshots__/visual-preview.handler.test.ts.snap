@@ -79,16 +79,21 @@ exists and is not APPROVED, so delete that proposal first.
 
 An unchanged reused visual keeps its canonical Proposal ID, including an
 APPROVED proposal from another conversation in the same project: retain it in
-the submitted entries and call \`include_existing_proposals_in_current_message\`
-with it in \`proposalIds\` before submission so the current final Message
-attaches it. A prose statement that a visual is reused is insufficient. Reuse
-creates no duplicate proposal and preserves proposal identity, original
-Conversation and Message ownership, any Proposal Group home, and approval
-status. Dropping a reused visual only leaves it out of the set; its proposal
-stays in its original conversation. A reused visual that is still DRAFT is
-reviewed at its place in the order. An APPROVED reused visual is shown as its Mockup or Diagram
-content (an entry's \`materializedEntity\` names that work item) and needs no
-renewed decision.
+the submitted entries every turn. Reuse creates no duplicate proposal and
+preserves proposal identity, original Conversation and Message ownership, any
+Proposal Group home, and approval status. A prose statement that a visual is
+reused is insufficient; it must be in the submitted entries. Dropping a reused
+visual only leaves it out of the set; its proposal stays in its original
+conversation.
+
+Attach a reused visual to your reply only while it still needs a decision: when
+its proposal is not APPROVED (for example a reused DRAFT), call
+\`include_existing_proposals_in_current_message\` with it in \`proposalIds\`
+before submission so the user can decide it on its card at its place in the
+order. Never attach an APPROVED reused visual; it needs no renewed decision, and
+the complete set shown for confirmation presents it as its Mockup or Diagram
+content (an entry's \`materializedEntity\` names that work item) built from the
+submitted entries.
 
 After every visual is approved and the set is complete, the user sees the
 complete ordered set and explicitly confirms it before plan stages or tasks
@@ -201,16 +206,21 @@ exists and is not APPROVED, so delete that proposal first.
 
 An unchanged reused visual keeps its canonical Proposal ID, including an
 APPROVED proposal from another conversation in the same project: retain it in
-the submitted entries and call \`include_existing_proposals_in_current_message\`
-with it in \`proposalIds\` before submission so the current final Message
-attaches it. A prose statement that a visual is reused is insufficient. Reuse
-creates no duplicate proposal and preserves proposal identity, original
-Conversation and Message ownership, any Proposal Group home, and approval
-status. Dropping a reused visual only leaves it out of the set; its proposal
-stays in its original conversation. A reused visual that is still DRAFT is
-reviewed at its place in the order. An APPROVED reused visual is shown as its Mockup or Diagram
-content (an entry's \`materializedEntity\` names that work item) and needs no
-renewed decision.
+the submitted entries every turn. Reuse creates no duplicate proposal and
+preserves proposal identity, original Conversation and Message ownership, any
+Proposal Group home, and approval status. A prose statement that a visual is
+reused is insufficient; it must be in the submitted entries. Dropping a reused
+visual only leaves it out of the set; its proposal stays in its original
+conversation.
+
+Attach a reused visual to your reply only while it still needs a decision: when
+its proposal is not APPROVED (for example a reused DRAFT), call
+\`include_existing_proposals_in_current_message\` with it in \`proposalIds\`
+before submission so the user can decide it on its card at its place in the
+order. Never attach an APPROVED reused visual; it needs no renewed decision, and
+the complete set shown for confirmation presents it as its Mockup or Diagram
+content (an entry's \`materializedEntity\` names that work item) built from the
+submitted entries.
 
 After every visual is approved and the set is complete, the user sees the
 complete ordered set and explicitly confirms it before plan stages or tasks
@@ -323,16 +333,21 @@ exists and is not APPROVED, so delete that proposal first.
 
 An unchanged reused visual keeps its canonical Proposal ID, including an
 APPROVED proposal from another conversation in the same project: retain it in
-the submitted entries and call \`include_existing_proposals_in_current_message\`
-with it in \`proposalIds\` before submission so the current final Message
-attaches it. A prose statement that a visual is reused is insufficient. Reuse
-creates no duplicate proposal and preserves proposal identity, original
-Conversation and Message ownership, any Proposal Group home, and approval
-status. Dropping a reused visual only leaves it out of the set; its proposal
-stays in its original conversation. A reused visual that is still DRAFT is
-reviewed at its place in the order. An APPROVED reused visual is shown as its Mockup or Diagram
-content (an entry's \`materializedEntity\` names that work item) and needs no
-renewed decision.
+the submitted entries every turn. Reuse creates no duplicate proposal and
+preserves proposal identity, original Conversation and Message ownership, any
+Proposal Group home, and approval status. A prose statement that a visual is
+reused is insufficient; it must be in the submitted entries. Dropping a reused
+visual only leaves it out of the set; its proposal stays in its original
+conversation.
+
+Attach a reused visual to your reply only while it still needs a decision: when
+its proposal is not APPROVED (for example a reused DRAFT), call
+\`include_existing_proposals_in_current_message\` with it in \`proposalIds\`
+before submission so the user can decide it on its card at its place in the
+order. Never attach an APPROVED reused visual; it needs no renewed decision, and
+the complete set shown for confirmation presents it as its Mockup or Diagram
+content (an entry's \`materializedEntity\` names that work item) built from the
+submitted entries.
 
 After every visual is approved and the set is complete, the user sees the
 complete ordered set and explicitly confirms it before plan stages or tasks

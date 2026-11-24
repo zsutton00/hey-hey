@@ -1555,6 +1555,57 @@ describe("InteractionComponent — Preview and Open actions", () => {
       screen.queryByTestId("interaction-menu-remove-all-open"),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    {
+      label: "task",
+      entityType: TargetEntityType.Task,
+      entitySubtype: "STANDARD",
+      expectedPreviewType: "task",
+    },
+    {
+      label: "goal",
+      entityType: "GOAL",
+      entitySubtype: "GOAL",
+      expectedPreviewType: "goal",
+    },
+    {
+      label: "plan",
+      entityType: TargetEntityType.Task,
+      entitySubtype: "PLAN",
+      expectedPreviewType: "plan",
+    },
+  ])(
+    "opens the matching Preview Modal from the context menu for $label rows",
+    async ({ entityType, entitySubtype, expectedPreviewType }) => {
+      const openPreview = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <PreviewHostProvider host={{ openPreview }}>
+          <OpenItemInteractionComponent
+            selection={{ selectedIdentities: [], onRemoveSelected: vi.fn() }}
+            {...buildProps({
+              entityType,
+              entitySubtype,
+              hasProposalSupport: false,
+            })}
+            openItemActions={buildOpenItemActions()}
+          />
+        </PreviewHostProvider>,
+      );
+
+      fireEvent.contextMenu(screen.getByTestId("interaction-component"));
+      const previewItem = screen.getByTestId("interaction-menu-preview");
+      expect(previewItem).toHaveTextContent("Preview");
+      await user.click(previewItem);
+
+      expect(openPreview).toHaveBeenCalledOnce();
+      expect(openPreview).toHaveBeenCalledWith({
+        entityId: ENTITY_ID,
+        entityType: expectedPreviewType,
+      });
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import { ResolutionTextEditor } from "./ResolutionTextEditor";
-import { CheckOutlined, EditOutlined } from "@mui/icons-material";
+import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
 import { useState } from "react";
 import {
   Box,

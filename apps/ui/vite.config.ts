@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react-swc";
 import { visualizer } from "rollup-plugin-visualizer";
 import viteCompression from "vite-plugin-compression";
 import path from "path";
+import https from "node:https";
 import { createUiCommonPuckIntegration } from "./vite-linked-dependencies";
 
 const uiCommonPackageRoot = path.resolve(__dirname, "../../packages/ui-common");
@@ -96,6 +97,10 @@ const uiCommonSourceAliases = [
     ),
   },
 ];
+
+// The dev proxy's default is a new connection per request. Against a remote
+// API (dev:staging) that repeats DNS, TCP and TLS setup for every call.
+const apiProxyAgent = new https.Agent({ keepAlive: true, maxSockets: 32 });
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -257,6 +262,18 @@ export default defineConfig(({ mode }) => {
       noExternal: true,
     },
     server: {
+      watch: {
+        // Build output, test reports and docs never feed the dev server.
+        // Every watched path adds a listener that runs on every file event.
+        ignored: [
+          "**/dist/**",
+          "**/coverage/**",
+          "**/playwright-report/**",
+          "**/test-results/**",
+          "**/docs/**",
+          "**/*.tgz",
+        ],
+      },
       fs: {
         allow: [__dirname, uiCommonPackageRoot],
       },
@@ -268,6 +285,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
           ws: true,
+          agent: apiProxyTarget.startsWith("https:")
+            ? apiProxyAgent
+            : undefined,
           configure: (proxy) => {
             if (keepBrowserOrigin) {
               return;

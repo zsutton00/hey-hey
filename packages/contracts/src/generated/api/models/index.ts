@@ -2550,6 +2550,7 @@ export * from './project-approval-policy-validation-issue.js';
 export * from './project-artifact-summary-dto.js';
 export * from './project-artifact-summary-dto-summary.js';
 export * from './project-assistant-config.js';
+export * from './project-assistant-update-decision-metadata.js';
 export * from './project-change-place.js';
 export * from './project-change-places.js';
 export * from './project-change-record.js';

@@ -1915,7 +1915,11 @@ export const OpenItemInteractionComponent: React.FC<
     resolvedConfig?.lineageFieldMapping.entityType.toUpperCase() ??
     surfaceProps.entityType;
   const starEntityType = toGeneratedEntityType(canonicalEntityType);
-  const previewCapability = resolvedConfig?.previewCapability;
+  const previewCapability =
+    surfaceProps.entityType.toUpperCase() === TargetEntityType.Task &&
+    surfaceProps.entitySubtype?.toUpperCase() === "PLAN"
+      ? resolveEntityTypeConfig("PLAN")?.previewCapability
+      : resolvedConfig?.previewCapability;
   const previewHost = usePreviewHost();
   const navigate = useNavigate();
   const pathService = usePathService();

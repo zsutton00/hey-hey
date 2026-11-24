@@ -2,7 +2,7 @@ import { useModalState } from "../../Modals/useModalState";
 import { ModalWorkOwner } from "../../Modals/ModalWorkOwner";
 import { useEffect, useState } from "react";
 import { Button, Stack, Typography } from "@mui/material";
-import { OpenInNew } from "@mui/icons-material";
+import OpenInNew from "@mui/icons-material/OpenInNew";
 import type { ChangeWalkthroughExcerpt } from "../../../api";
 import {
   createDirectoryBindingApi,

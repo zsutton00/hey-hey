@@ -18,6 +18,10 @@ import type { ReportDto } from "../../../api";
 import type { MessageRetryState } from "../../../types/conversation";
 import { ReportViewer } from "../../Reports";
 import { ReportOpenQuestions } from "../../Reports/ReportViewer";
+import {
+  ReportProposedUpdates,
+  type ProposedUpdateCardContext,
+} from "./ReportProposedUpdates";
 import { SystemMessageError } from "../../SystemMessageError";
 import { ThinkingIndicator } from "../../ThinkingIndicator";
 import { ThinkingText } from "./ThinkingText";
@@ -84,6 +88,11 @@ interface SystemMessageProps {
   renderTimestamp?: boolean;
   /** Inline reports to render inside the SystemMessage */
   inlineReports?: ReportDto[];
+  /**
+   * Conversation-only. When present, a report's proposed updates render as
+   * cards after the message instead of inside the report body.
+   */
+  proposedUpdateCards?: ProposedUpdateCardContext;
 }
 
 const MERMAID_LANGUAGE_CLASS_PATTERN = /(?:^|\s)language-mermaid(?:\s|$)/;
@@ -250,6 +259,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
     type,
     errorMessage = "Something went wrong. Please try again.",
     inlineReports,
+    proposedUpdateCards,
   } = props;
   const theme = useTheme();
 
@@ -392,6 +402,7 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
                     report={report}
                     renderHeader={false}
                     renderOpenQuestions={false}
+                    renderUpdates={proposedUpdateCards === undefined}
                   />
                 </Box>
               ))}
@@ -399,6 +410,19 @@ export const SystemMessage: React.FC<SystemMessageProps> = (props) => {
           )}
         </Box>
       )}
+      {proposedUpdateCards
+        ? resolvedInlineReports.map((report) => (
+            <Box
+              key={`updates-${report.id}`}
+              sx={{ maxWidth: SYSTEM_MESSAGE_MAX_WIDTH, mt: 1.5 }}
+            >
+              <ReportProposedUpdates
+                context={proposedUpdateCards}
+                report={report}
+              />
+            </Box>
+          ))
+        : null}
       {resolvedInlineReports.map((report) => (
         <Box
           key={report.id}

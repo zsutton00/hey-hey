@@ -94,6 +94,8 @@ export interface ReportViewerProps {
    */
   evaluationOutput?: boolean;
   renderOpenQuestions?: boolean;
+  /** Render proposed updates inside the report body. Conversations show them as cards after the message instead. */
+  renderUpdates?: boolean;
 }
 
 export const ReportViewer: React.FC<ReportViewerProps> = ({
@@ -108,6 +110,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
   featureSyncDecisionRecordedResponse,
   evaluationOutput = false,
   renderOpenQuestions = true,
+  renderUpdates = true,
 }) => {
   const testId = `${testIdPrefix}-${report.id}`;
   const afterFrameContent = renderOpenQuestions ? (
@@ -152,6 +155,7 @@ export const ReportViewer: React.FC<ReportViewerProps> = ({
         evaluationOutput ? undefined : featureSyncDecisionInteraction,
         evaluationOutput,
         featureSyncDecisionRecordedResponse,
+        renderUpdates,
       )}
     </ReportViewerFrame>
   );
@@ -201,6 +205,7 @@ const renderReportBody = (
   featureSyncDecisionInteraction?: FeatureSyncDecisionReportInteractionContext,
   evaluationOutput = false,
   featureSyncDecisionRecordedResponse?: string,
+  renderUpdates = true,
 ): React.ReactElement => {
   if (report.reportType === ReportType.ProjectReport) {
     const projectReportPayload = narrowProjectReportPayload(report);
@@ -330,6 +335,7 @@ const renderReportBody = (
           reportTestId={reportTestId}
           evaluationOutput={evaluationOutput}
           renderOpenQuestions={false}
+          renderUpdates={renderUpdates}
         />
       );
     case ReportType.FeatureSyncHandoff:

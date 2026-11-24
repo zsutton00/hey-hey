@@ -3,7 +3,7 @@ import React, { useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Box, Button, Paper, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { AutoFixHigh } from "@mui/icons-material";
+import AutoFixHigh from "@mui/icons-material/AutoFixHigh";
 import {
   CALLOUT_WIDTH,
   computeCalloutPosition,

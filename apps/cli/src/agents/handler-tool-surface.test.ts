@@ -48,9 +48,9 @@ const sharedPromptReadTools = (): string[] => {
   return toolsNamedIn(choices);
 };
 
-// Every use case that has a platform graph surface. Monitors, repository
-// grounding and work-tracker import are tool-free by contract, so the shared
-// read advice does not apply to them.
+// Every use case that has a platform graph surface. The session monitor,
+// repository grounding and work-tracker import are tool-free by contract, so
+// the shared read advice does not apply to them.
 const USE_CASES_WITH_GRAPH_READS: Array<McpToolUseCase | undefined> = [
   undefined,
   'coding',
@@ -61,6 +61,7 @@ const USE_CASES_WITH_GRAPH_READS: Array<McpToolUseCase | undefined> = [
   'project_report',
   'release_notes',
   'repository_placement',
+  'task_monitor',
 ];
 
 const CHILD_SURFACES: Array<{ name: string; tools: readonly string[] }> = [
