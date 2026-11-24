@@ -3,6 +3,7 @@ import { unifiedApiClient as workItemRestClient } from "../../../clients/service
 import { workItemHandlersFromClient } from "../../../test/workItemGraphQLHandlers";
 import React from "react";
 import {
+  fireEvent,
   render as testingRender,
   screen,
   waitFor,
@@ -394,4 +395,81 @@ beforeEachWorkItemRead(() => {
       workItemRestClient as unknown as Record<string, unknown>,
     ),
   );
+});
+
+describe("FeaturePicker inline view", () => {
+  async function renderInline(onChange = vi.fn()) {
+    const user = userEvent.setup();
+    render(
+      <FeaturePicker
+        inline
+        organizationId={ORG_ID}
+        projectId={PROJ_ID}
+        value={null}
+        onChange={onChange}
+        getFeatureHref={(id) => `/features/${id}`}
+      />,
+    );
+    await waitFor(() =>
+      expect(mockedUnified.listWorkItemReferences).toHaveBeenCalled(),
+    );
+    return { user, onChange };
+  }
+
+  it("shows the search field and top-level tree without opening a dropdown", async () => {
+    await renderInline();
+
+    expect(
+      screen.getByRole("combobox", { name: "Search feature titles" }),
+    ).toBeInTheDocument();
+    const listbox = await screen.findByRole("listbox");
+    expect(await within(listbox).findByText("Alpha")).toBeInTheDocument();
+    expect(within(listbox).queryByText("Alpha One")).toBeNull();
+  });
+
+  it("opens children in place, filters by title, and returns to the tree when cleared", async () => {
+    const { user } = await renderInline();
+
+    await user.click(
+      await screen.findByRole("button", { name: /Drill into Alpha/i }),
+    );
+    expect(await screen.findByText("Alpha One")).toBeInTheDocument();
+
+    const field = screen.getByRole("combobox", {
+      name: "Search feature titles",
+    });
+    await user.type(field, "one deep");
+    expect(await screen.findByText("Alpha One Deep")).toBeInTheDocument();
+    expect(screen.queryByText("Bravo")).toBeNull();
+
+    await user.clear(field);
+    expect(await screen.findByText("Bravo")).toBeInTheDocument();
+  });
+
+  it("expands a row's chevron without following the row's link", async () => {
+    await renderInline();
+
+    const chevron = await screen.findByRole("button", {
+      name: /Drill into Alpha/i,
+    });
+    // fireEvent returns false when the default action (link navigation) was prevented.
+    expect(fireEvent.click(chevron)).toBe(false);
+    expect(await screen.findByText("Alpha One")).toBeInTheDocument();
+  });
+
+  it("renders rows as real links and selects on a plain click", async () => {
+    const { user, onChange } = await renderInline();
+
+    const listbox = await screen.findByRole("listbox");
+    const alpha = (await within(listbox).findAllByRole("option")).find((o) =>
+      o.textContent?.includes("Alpha"),
+    )!;
+    expect(alpha).toHaveAttribute("href", "/features/root-a");
+
+    await user.click(alpha);
+    expect(onChange).toHaveBeenCalledWith(
+      "root-a",
+      expect.objectContaining({ id: "root-a" }),
+    );
+  });
 });

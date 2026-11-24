@@ -471,27 +471,10 @@ describe("AdvancedSearch", () => {
     expect(screen.getByDisplayValue("foo")).toBeInTheDocument();
   });
 
-  it('shows "(show advanced)" toggle when hideFilters is false', () => {
+  it("has no advanced filter toggle", () => {
     renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
-
-    expect(screen.getByText("(show advanced)")).toBeInTheDocument();
-  });
-
-  it("hides the advanced filter toggle when hideFilters is true", () => {
-    renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} hideFilters />);
 
     expect(screen.queryByText("(show advanced)")).not.toBeInTheDocument();
-  });
-
-  it("toggles advanced filters visibility on button click", () => {
-    renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
-
-    const toggle = screen.getByText("(show advanced)");
-    fireEvent.click(toggle);
-    expect(screen.getByText("(hide advanced)")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("(hide advanced)"));
-    expect(screen.getByText("(show advanced)")).toBeInTheDocument();
   });
 
   it("displays an error message when search returns an error", () => {
@@ -717,13 +700,6 @@ describe("AdvancedSearch", () => {
       expect(screen.getByTestId("past-search-item")).toHaveTextContent(
         "find recent design docs",
       );
-    });
-
-    it("hides the (show advanced) toggle in agent mode", () => {
-      renderWithProviders(<AdvancedSearch {...DEFAULT_PROPS} />);
-      expect(screen.getByText("(show advanced)")).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId("set-agent-mode"));
-      expect(screen.queryByText("(show advanced)")).not.toBeInTheDocument();
     });
 
     it("opens the existing session chat when a past search is selected (no new session created)", () => {

@@ -46,6 +46,8 @@ export interface AdvancedSearchModalConfig {
   defaultStatuses?: string[];
   allowMultiSelect?: boolean;
   maxResults?: number;
+  /** Show the Explorer-section browsing tabs next to Search. */
+  browseTabs?: boolean;
   onSelect: (entities: SearchEntity[]) => void;
   onClose?: () => void;
 }
@@ -72,14 +74,12 @@ interface CreateDocumentModalBaseConfig {
   onError?: (error: string) => void;
 }
 
-export interface CreateDocumentBlankModalConfig
-  extends CreateDocumentModalBaseConfig {
+export interface CreateDocumentBlankModalConfig extends CreateDocumentModalBaseConfig {
   mode: "blank_doc";
   onSuccess?: (doc: DesignDocResponseDto) => void;
 }
 
-export interface CreateDocumentSuggestedModalConfig
-  extends CreateDocumentModalBaseConfig {
+export interface CreateDocumentSuggestedModalConfig extends CreateDocumentModalBaseConfig {
   mode: "suggested_doc";
   sourceConversationId: string;
   sourceMessageId: string;
@@ -89,8 +89,7 @@ export interface CreateDocumentSuggestedModalConfig
 }
 
 export type CreateDocumentModalConfig =
-  | CreateDocumentBlankModalConfig
-  | CreateDocumentSuggestedModalConfig;
+  CreateDocumentBlankModalConfig | CreateDocumentSuggestedModalConfig;
 
 export interface CreateImplementationHintModalConfig {
   type: ModalType.CREATE_IMPLEMENTATION_HINT;
