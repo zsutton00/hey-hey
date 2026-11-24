@@ -10,6 +10,7 @@ import { TemplateSubstitutionNode } from "./TemplateSubstitutionNode";
 import { TemplateSourcePlugin } from "./TemplateSourcePlugin";
 import { $loadTemplateSource } from "./templateSerialization";
 import type { EntityPromptTemplateEditorProps } from "./types";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 
 export function EntityPromptTemplateEditor({
   source,
@@ -41,9 +42,9 @@ export function EntityPromptTemplateEditor({
         }}
       >
         <Box
-          sx={{
-            border: 1,
-            borderColor: "divider",
+          sx={(theme) => ({
+            border: `1px solid ${theme.palette.divider}`,
+            ...getInputBorderSx(theme, { disabled: readOnly }),
             borderRadius: 1,
             p: 2,
             typography: "body2",
@@ -59,7 +60,7 @@ export function EntityPromptTemplateEditor({
               color: "primary.main",
               borderRadius: 0.5,
             },
-          }}
+          })}
         >
           <PlainTextPlugin
             contentEditable={

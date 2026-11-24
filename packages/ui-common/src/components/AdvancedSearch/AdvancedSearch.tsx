@@ -5,18 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Collapse,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  OutlinedInput,
-  Select,
-  Typography,
-} from "@mui/material";
+import { Alert, Box, Button, Typography } from "@mui/material";
 import type {
   AdvancedSearchProps,
   SearchFilterState,
@@ -38,7 +27,6 @@ import {
 import { useCreateAgentSession } from "../../data/hooks/useCreateAgentSession";
 import { toOpenApiProjectId } from "../../clients/contractIdentifierAdapters";
 import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
-import { buildWorkItemStatusFilterOptions } from "../../utils/workItemStatusVocabulary";
 import { EntitySearchChat } from "../AgentSession/EntitySearchChat";
 import { RuntimeModelSelector } from "../AgentSession/RuntimeModelSelector";
 import { resolveAgentBridgeRecoveryState } from "../AgentSession/agentBridgeRecoveryState";
@@ -98,26 +86,6 @@ function decomposeFilterValues(values: string[]): {
   };
 }
 
-const formatMultiSelectSummary = (
-  selected: string[],
-  options: ReadonlyArray<{ value: string; label: string }>,
-): string => {
-  if (selected.length === 0) {
-    return "";
-  }
-
-  const labelByValue = new Map(
-    options.map((option) => [option.value, option.label]),
-  );
-  const firstLabel = labelByValue.get(selected[0]) ?? selected[0];
-
-  if (selected.length === 1) {
-    return firstLabel;
-  }
-
-  return `${firstLabel} +${selected.length - 1}`;
-};
-
 /**
  * Advanced search component
  *
@@ -138,7 +106,6 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   defaultStatuses = [],
   maxResults = 50,
   defaultQuery,
-  hideFilters = false,
   entityId,
   entityType,
   onHasContent,
@@ -156,7 +123,6 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
   // Content (semantic) query: a non-empty value flips the embeddings queryMode
   // to Default (true vector search) inside useSemanticSearch.
   const [contentQuery, setContentQuery] = useState("");
-  const [isAdvancedVisible, setIsAdvancedVisible] = useState(false);
   const [scopedEntity, setScopedEntity] =
     useState<AdvancedSearchEntityScope | null>(
       entityId && entityType ? { entityId, entityType } : null,
@@ -204,14 +170,6 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     projectId,
     status: WorkItemTypeLifecycleStatus.Active,
   });
-
-  const statusOptions = useMemo(
-    () =>
-      buildWorkItemStatusFilterOptions({
-        definitions: workItemTypes.map(({ definition }) => definition),
-      }),
-    [workItemTypes],
-  );
 
   const activeTaskFilterValues = useMemo(
     () =>
@@ -367,7 +325,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
     [updateAgentSelection],
   );
 
-  const [filters, setFilters] = useState<SearchFilterState>({
+  const [filters] = useState<SearchFilterState>({
     statuses: defaultStatuses,
     initiativeId: undefined,
     parentTaskId: undefined,
@@ -724,65 +682,6 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
               New search
             </Button>
           </Box>
-        )}
-
-        {searchMode === "title" && !hideFilters && (
-          <Box sx={{ px: 2, pt: 0, pb: 0.5 }}>
-            <Button
-              variant="text"
-              size="small"
-              onClick={() => setIsAdvancedVisible((previous) => !previous)}
-              sx={{
-                p: 0,
-                minWidth: "auto",
-                textTransform: "none",
-              }}
-            >
-              {isAdvancedVisible ? "(hide advanced)" : "(show advanced)"}
-            </Button>
-          </Box>
-        )}
-
-        {searchMode === "title" && !hideFilters && (
-          <Collapse in={isAdvancedVisible} unmountOnExit>
-            <Box
-              sx={{
-                borderBottom: 1,
-                borderColor: "divider",
-                px: 2,
-                pb: 1.5,
-                pt: 0.25,
-              }}
-            >
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select<string[]>
-                  multiple
-                  value={filters.statuses}
-                  onChange={(event) => {
-                    const value =
-                      typeof event.target.value === "string"
-                        ? event.target.value.split(",")
-                        : event.target.value;
-                    setFilters((previous) => ({
-                      ...previous,
-                      statuses: value,
-                    }));
-                  }}
-                  input={<OutlinedInput label="Status" />}
-                  renderValue={(selected: string[]) =>
-                    formatMultiSelectSummary(selected, statusOptions)
-                  }
-                >
-                  {statusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-          </Collapse>
         )}
 
         {/* Results / agent chat */}

@@ -670,7 +670,12 @@ export class TaskMonitorCoordinationEffectHandler implements EffectHandler<
       auth,
       evidence.selectedTask.id,
       conversationId,
-      evidence.monitor.reviewMode,
+      {
+        mode: evidence.monitor.reviewMode,
+        ...(evidence.monitor.reviewRuntime
+          ? { reviewRuntime: evidence.monitor.reviewRuntime }
+          : {}),
+      },
       selectedSession !== null,
     );
   }

@@ -16,6 +16,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ImplementReportEditPlace } from './implement-report-edit-place.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ImplementReportLineRange } from './implement-report-line-range.js';
 
 /**
@@ -78,4 +81,10 @@ export interface ImplementReportEdit {
      * @memberof ImplementReportEdit
      */
     'versionsRecorded': boolean;
+    /**
+     *
+     * @type {ImplementReportEditPlace}
+     * @memberof ImplementReportEdit
+     */
+    'place'?: ImplementReportEditPlace;
 }

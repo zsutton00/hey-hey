@@ -446,7 +446,6 @@ export class GoalTracksService {
         title: task.name,
         status: task.status,
         statusMeaning: status?.meaning,
-        completionBehavior: status?.completionBehavior,
         dueDate: task.dueDate ? task.dueDate.toISOString() : null,
       };
     }

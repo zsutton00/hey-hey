@@ -29,6 +29,7 @@ export const useSearchAction = (): CapsuleActionRegistration => {
 
     modalService.showAdvancedSearch({
       ...(projectId ? { projectId } : {}),
+      browseTabs: true,
       onSelect: handleSelect,
     });
   }, [handleSelect, modalService, projectId]);

@@ -1,3 +1,4 @@
+import { assertLaunchServicePlaceChoices } from '../services/service-place-choices.validator';
 import { startControllerInputs } from '../generated/controller-action-contract';
 import { ProjectAccessGuard } from '../auth/guards/project-access.guard';
 import {
@@ -1104,6 +1105,7 @@ export class ConversationController implements IConversationControllerSpec {
       launchServiceId: requestDto.launchServiceId,
       worktreeEnabled: requestDto.worktree?.enabled ?? false,
       worktreeBranch: requestDto.worktree?.branch,
+      servicePlaceChoiceCount: requestDto.servicePlaceChoices?.length ?? 0,
       agentSessionId: requestDto.agentSessionId,
     });
 
@@ -1266,6 +1268,44 @@ export class ConversationController implements IConversationControllerSpec {
           config: requestDto.config,
         });
       const startRunConfig = resolvedStartRunConfig ?? requestDto.config;
+
+      // A launch belongs to a Plan either through its Task Monitor (persisted
+      // worktree) or through the Plan it was launched from (the Plan's own
+      // configuration). That branch is the Plan's lock.
+      const launchPlanId = requestDto.contextMetadata.launchPlanId;
+      const monitorLockedBranch = requestDto.contextMetadata.taskMonitorId
+        ? resolvedStartRunConfig?.worktree
+        : undefined;
+      const planLockedBranch =
+        monitorLockedBranch ??
+        (requestDto.servicePlaceChoices && launchPlanId
+          ? ((await this.agentSessionService.resolvePlanLockedBranch({
+              organizationId,
+              projectId,
+              planId: launchPlanId,
+            })) ?? undefined)
+          : undefined);
+      try {
+        assertLaunchServicePlaceChoices(requestDto.servicePlaceChoices, {
+          serviceIds: requestDto.serviceIds ?? [],
+          worktree: requestDto.worktree,
+          planLockedBranch,
+        });
+      } catch (error) {
+        this.logger.warn(
+          '[ConversationController] startConversationRun rejected service place choices',
+          {
+            conversationId,
+            agentSessionId: requestDto.agentSessionId,
+            serviceIds: requestDto.serviceIds,
+            choices: requestDto.servicePlaceChoices,
+            worktreeBranch: requestDto.worktree?.branch,
+            planLockedBranch,
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        );
+        throw error;
+      }
 
       launchClaimed = await this.agentSessionService.claimStartRunLaunch(
         organizationId,

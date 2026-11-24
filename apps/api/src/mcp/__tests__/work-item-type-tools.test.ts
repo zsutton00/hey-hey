@@ -103,7 +103,7 @@ function createProvider(
 }
 
 describe('get_work_item_type', () => {
-  it('returns the same status clarification and resolved definition through API and MCP', async () => {
+  it('validates a status list the same way through API and MCP', async () => {
     const project = {
       findOne: jest.fn().mockResolvedValue({ id: PROJECT_ID }),
     } as unknown as ProjectService;
@@ -115,7 +115,16 @@ describe('get_work_item_type', () => {
       project,
     );
     const provider = new WorkItemTypeToolsProvider(registry, project);
-    const request = { purpose: 'Résumé', names: ['Draft', 'Maintained'] };
+    const request = {
+      purpose: 'Résumé',
+      statuses: [
+        {
+          name: 'Draft',
+          meaning: { kind: 'CUSTOM' as const, text: 'Writing' },
+        },
+        { name: 'Maintained', meaning: { kind: 'IN_PROGRESS' as const } },
+      ],
+    };
     const api = await controller.resolveStatuses(
       ORG_ID as OrganizationId,
       PROJECT_ID as ProjectId,
@@ -127,24 +136,39 @@ describe('get_work_item_type', () => {
       makeRequest(),
     );
     expect(api).toEqual(mcp);
-    expect(api.state).toBe('CLARIFICATION');
-    const resolvedRequest = { ...request, finishedNames: [] };
-    const apiResolved = await controller.resolveStatuses(
-      ORG_ID as OrganizationId,
-      PROJECT_ID as ProjectId,
-      resolvedRequest,
+    expect(api.statuses).toEqual(request.statuses);
+  });
+
+  it('rejects a status without a meaning through API and MCP, naming it', async () => {
+    const project = {
+      findOne: jest.fn().mockResolvedValue({ id: PROJECT_ID }),
+    } as unknown as ProjectService;
+    const registry = {} as WorkItemTypeRegistryService;
+    const controller = new WorkItemTypeController(
+      registry,
+      {} as ProposalService,
+      {} as WorkItemTypeImpactService,
+      project,
     );
-    const mcpResolved = await provider.resolveStatuses(
-      resolvedRequest,
+    const provider = new WorkItemTypeToolsProvider(registry, project);
+    const request = { purpose: 'Jobs', statuses: [{ name: 'Considering' }] };
+
+    await expect(
+      controller.resolveStatuses(
+        ORG_ID as OrganizationId,
+        PROJECT_ID as ProjectId,
+        request,
+      ),
+    ).rejects.toThrow(/Considering/);
+    const mcp = await provider.resolveStatuses(
+      request,
       {} as any,
       makeRequest(),
     );
-    expect(apiResolved).toEqual(mcpResolved);
-    expect(apiResolved.statuses).toEqual([
-      { name: 'Draft', meaning: 'UNFINISHED' },
-      { name: 'Maintained', meaning: 'UNFINISHED' },
-    ]);
+    expect(mcp).toMatchObject({ isError: true });
+    expect(JSON.stringify(mcp)).toContain('Considering');
   });
+
   it('exposes a strict type-key input and the complete generated summary output', () => {
     expect(getWorkItemTypeParameters.parse({ typeKey: 'MARKETING' })).toEqual({
       typeKey: 'MARKETING',

@@ -4,9 +4,10 @@
  * the tools as `mcp__heyhey-submission-tools__<tool-name>`.
  */
 
+import { HEY_HEY_SUBMISSION_SERVER, qualifyHeyHeyToolName } from '../hey-hey-tool-pre-approval';
 import type { SubmissionToolDeclaration } from './types';
 
-const SUBMISSION_TOOLS_MCP_NAME = 'heyhey-submission-tools';
+const SUBMISSION_TOOLS_MCP_NAME = HEY_HEY_SUBMISSION_SERVER;
 
 export interface SubmissionToolsMcpConfig {
   serverName: string;
@@ -32,7 +33,9 @@ export const buildSubmissionToolsMcpConfig = (
   return {
     serverName: SUBMISSION_TOOLS_MCP_NAME,
     serverEntry: { type: 'http', url },
-    allowedTools: input.tools.map((tool) => `mcp__${SUBMISSION_TOOLS_MCP_NAME}__${tool.name}`),
+    allowedTools: input.tools.map((tool) =>
+      qualifyHeyHeyToolName(HEY_HEY_SUBMISSION_SERVER, tool.name),
+    ),
   };
 };
 

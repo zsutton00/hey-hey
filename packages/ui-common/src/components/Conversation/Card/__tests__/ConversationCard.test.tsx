@@ -19,7 +19,7 @@ import { SolidAlert } from "../SolidAlert";
 const ROLES: ConversationCardRole[] = [
   "projectSync",
   "needsAnswer",
-  "agentMessage",
+  "yourMessage",
   "informational",
 ];
 const SEVERITIES: ConversationCardSeverity[] = ["high", "medium", "low"];

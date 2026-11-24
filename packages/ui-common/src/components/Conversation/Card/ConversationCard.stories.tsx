@@ -17,7 +17,7 @@ type Story = StoryObj<typeof ConversationCard>;
 const TONES = [
   { role: "projectSync" },
   { role: "needsAnswer" },
-  { role: "agentMessage" },
+  { role: "yourMessage" },
   { role: "informational" },
   { severity: "high" },
   { severity: "medium" },

@@ -142,14 +142,14 @@ export const reportErrorSchemas = {
       {
         type: 'object',
         description:
-          'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
+          'Common base shape every ReportPayload variant inherits via `allOf`. Defines the `summary` field that every report carries: a 50-100 word phase handoff capturing what the next agent needs to know to pick up — not a transcript of what happened this turn. A variant whose own `summary` description gives different instructions (for example CHANGE_WALKTHROUGH, a one-sentence aim) overrides this default. Variants compose this base with their own type-specific shape and contribute their own discriminator + required fields; the `summary` requirement flows in from this base.\n',
         required: ['summary'],
         properties: {
           summary: {
             type: 'string',
             minLength: 1,
             description:
-              '50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run.\n',
+              "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant's own `summary` description takes precedence over this default.\n",
           },
         },
       },
@@ -163,12 +163,54 @@ export const reportErrorSchemas = {
           },
           summary: {
             type: 'string',
+            description:
+              'One sentence on what the Run set out to do. Takes precedence over the shared 50-100 word handoff guidance; do not put outcomes, decisions or the parts list here.',
           },
           targetRunId: {
             type: 'string',
             format: 'uuid',
             description:
               'Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority.',
+          },
+          parts: {
+            type: 'array',
+            description:
+              'Parts of the system the changes touch. Optional so reports saved before this field still validate.',
+            items: {
+              description:
+                "A part of the system the walkthrough's changes touch, with its role and how it relates to other listed parts.",
+              type: 'object',
+              required: ['name', 'role', 'relations'],
+              properties: {
+                name: {
+                  type: 'string',
+                  description: "The part's name as it appears in the code.",
+                },
+                role: {
+                  type: 'string',
+                  description: 'What the part does in the product.',
+                },
+                relations: {
+                  type: 'string',
+                  description: 'How the part relates to the other listed parts.',
+                },
+                diagramElementRefs: {
+                  type: 'array',
+                  description:
+                    "Diagram Elements the part belongs to, set only when a recorded project link (the originating task, the part's Service or Contracts, Contract participation, or FULFILLED_BY) leads to the element. Empty when no link exists; never guessed from names. Elements that no longer resolve are omitted when the report is shown.",
+                  items: {
+                    type: 'object',
+                    required: ['diagramElementId'],
+                    properties: {
+                      diagramElementId: {
+                        type: 'string',
+                        format: 'uuid',
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           groups: {
             type: 'array',

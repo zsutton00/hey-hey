@@ -60,6 +60,7 @@ import {
   resolveMessageAgentCommand,
   type MessageAgentCommandIntent,
 } from "../SmarterTextAreaCard/slashCommands/messageAgentCommand";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 
 interface ExternalReplyComposerProps {
   attachmentTarget: RunAttachmentTarget | null;
@@ -589,6 +590,7 @@ export const ExternalReplyComposer = ({
                     borderColor: theme.palette.primary.main,
                     boxShadow: `inset 0 0 0 1px ${theme.palette.primary.main}`,
                   },
+                  ...getInputBorderSx(theme, { disabled: isDisabled }),
                 },
                 contentEditableTestId: "run-stream-external-reply-input",
                 contentEditableStyle: {

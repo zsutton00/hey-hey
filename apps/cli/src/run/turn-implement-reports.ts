@@ -121,6 +121,7 @@ class ServiceEditBuilder {
       path: fact.repoRelativePath,
       occurredAt: fact.occurredAt,
       turnId: fact.turnId,
+      ...(fact.place ? { place: fact.place } : {}),
     };
     const unrecorded: ImplementReportEdit = {
       ...base,

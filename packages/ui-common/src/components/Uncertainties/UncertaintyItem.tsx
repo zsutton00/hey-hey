@@ -3,6 +3,7 @@ import type { Theme } from "@mui/material/styles";
 import React from "react";
 import type { AgentUncertaintySystemMessageData } from "../../api";
 import { ConversationCard } from "../Conversation/Card";
+import { renderInlineMentions } from "../SmarterTextAreaCard/renderInlineMentions";
 import { NEEDS_YOUR_ANSWER_LABEL } from "./QuestionFrame";
 import { UncertaintyDiscussControl } from "./UncertaintyDiscussControl";
 
@@ -17,12 +18,17 @@ export const UNCERTAINTY_CATEGORY_LABELS: Record<
   question: "Question",
 };
 
+// Sizes are px strings: in MUI `sx`, a bare `1` means 100%, which would make
+// this label as large as the conversation and give the page a second scroller.
 const visuallyHidden = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  overflow: "hidden",
+  border: 0,
   clip: "rect(0 0 0 0)",
+  height: "1px",
+  width: "1px",
+  margin: "-1px",
+  overflow: "hidden",
+  padding: 0,
+  position: "absolute",
   whiteSpace: "nowrap",
 } as const;
 
@@ -123,7 +129,7 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
             ) : null}
           </>
         }
-        lead={statement}
+        lead={renderInlineMentions(statement)}
       >
         {children}
       </ConversationCard>
@@ -151,7 +157,7 @@ export const UncertaintyItem: React.FC<UncertaintyItemProps> = ({
       }
       lead={
         <>
-          {statement}
+          {renderInlineMentions(statement)}
           {onDiscuss ? (
             <UncertaintyDiscussControl onDiscuss={onDiscuss} />
           ) : null}

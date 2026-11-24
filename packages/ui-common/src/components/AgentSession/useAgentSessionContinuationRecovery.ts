@@ -92,8 +92,11 @@ export function useAgentSessionContinuationRecovery(input: {
   );
 
   const attempt = status.data?.attempt ?? null;
+  // An outcome describes where the session went; once the binding has moved
+  // on to another computer it is history, not the current state.
   const startedName =
-    attempt?.state === AgentSessionContinuationState.Succeeded
+    attempt?.state === AgentSessionContinuationState.Succeeded &&
+    serverBoundMachineId === attempt.destinationMachineId
       ? machineNames.get(attempt.destinationMachineId)
       : undefined;
 

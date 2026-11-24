@@ -8,9 +8,9 @@ const recipe = {
   key: "RECIPE",
   name: "Recipe",
   statuses: [
-    { name: "Idea", meaning: "NOT_STARTED" },
-    { name: "Made", meaning: "FINISHED" },
-    { name: "Rejected", meaning: "FINISHED" },
+    { name: "Idea", meaning: { kind: "CUSTOM" as const, text: "Not started" } },
+    { name: "Made", meaning: { kind: "COMPLETED" as const } },
+    { name: "Rejected", meaning: { kind: "COMPLETED" as const } },
   ],
   capabilities: { supportsSupersession: true },
 } as WorkItemTypeDefinitionDto;

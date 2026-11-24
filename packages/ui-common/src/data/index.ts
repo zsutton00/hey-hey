@@ -3,6 +3,7 @@ export {
   useApplyProposalFuture,
   type UseApplyProposalFutureReturn,
 } from "./hooks/useApplyProposalFuture";
+export { useCancelProposalFuture } from "./hooks/useCancelProposalFuture";
 export * from "./hooks/useAccountDefaultOrganization";
 export { isInitiative, isTask } from "./collections/workItems";
 export type { WorkItemResponseDto } from "./collections/workItems";
@@ -196,4 +197,5 @@ export * from "./hooks/useProviderSessionTranscript";
 
 export { evalRunStatusLabel } from "./evalRunStatusLabel";
 export * from "./hooks/useProjectChanges";
+export * from "./hooks/useProjectChangePlaces";
 export * from "./hooks/useRecordedEdit";

@@ -48,6 +48,12 @@ export interface AgentRequestServiceScopePayload {
      * @memberof AgentRequestServiceScopePayload
      */
     'decidedAt'?: string | null;
+    /**
+     * Why an approved request could not be applied. Set when the decision was recorded but nothing was granted.
+     * @type {string}
+     * @memberof AgentRequestServiceScopePayload
+     */
+    'failureReason'?: string | null;
 }
 
 

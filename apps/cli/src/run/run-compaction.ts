@@ -7,8 +7,15 @@ import type { RunEventPublisher } from '../server/run-event-publisher';
 import type { AgenticSession } from '../session/types';
 import type { LocalContextData } from '../shared/agent-bridge-contract/runtime-types';
 import type { SubAgentContextReading } from './subagent';
-import type { SystemMessageDataNoticeSeverityEnum as NoticeSeverity } from '../shared/api/index';
+import type {
+  CompactionNoticeMarker,
+  SystemMessageDataNoticeSeverityEnum as NoticeSeverity,
+} from '../shared/api/index';
 import type { Turn } from '../turn/turn';
+
+export const DEFAULT_AUTO_COMPACT_THRESHOLD = 150_000;
+/** 150k of a 200k window: the same point, scaled to whatever window the model reports. */
+export const DEFAULT_AUTO_COMPACT_WINDOW_FRACTION = 0.75;
 
 /** The only way `RunCompaction` sees the Run that owns it. */
 export interface RunCompactionDeps {
@@ -17,9 +24,13 @@ export interface RunCompactionDeps {
   logger: ServerLogger;
   broadcaster: RunEventPublisher;
   /** Resolved auto-compact policy. Null when disabled or absent. */
-  autoCompact: { threshold: number } | null;
+  autoCompact: { threshold: number; windowFraction?: number } | null;
   runner(): AgentSessionRunner | undefined;
   isProcessing(): boolean;
+  /** Mark the Run busy so incoming messages queue instead of starting a Turn. */
+  holdRun(): void;
+  /** Release a hold: drain queued messages in order, or go idle when none. */
+  releaseRun(): void;
   session(): AgenticSession;
   activeTurn(): Pick<Turn, 'turnId' | 'subagentProviderSessionId'> | null;
   contextProviderSessionId(): string | null;
@@ -27,6 +38,7 @@ export interface RunCompactionDeps {
     response: string,
     severity: NoticeSeverity,
     session: AgenticSession,
+    compaction?: CompactionNoticeMarker,
   ): Promise<void>;
 }
 
@@ -45,44 +57,116 @@ export class RunCompaction {
 
   constructor(private readonly deps: RunCompactionDeps) {}
 
+  /** The compaction currently executing; concurrent requests join it. */
+  private inFlight: Promise<void> | null = null;
+
   /**
-   * Compact the provider context. While a Turn is processing the request is
-   * deferred to `afterTurnEnd`; concurrent callers coalesce onto one deferred
-   * compact that posts notes unless every caller was silent.
+   * Compact the provider context. A compaction occupies the Run like a Turn:
+   * from acceptance until settlement messages queue and no Turn starts. While
+   * a Turn is processing the request is deferred to `afterTurnEnd`;
+   * concurrent callers coalesce onto one compact that posts notes unless
+   * every caller was silent.
    */
   async compact(options?: { silent?: boolean }): Promise<void> {
-    if (this.deps.isProcessing()) {
-      return new Promise<void>((resolve, reject) => {
-        if (this.pendingCompact === null) {
-          this.pendingCompact = {
-            silent: options?.silent ?? false,
-            resolvers: [{ resolve, reject }],
-          };
-        } else {
-          // AND the silent flags: once any non-silent caller joins the deferred
-          // run posts notes.
-          this.pendingCompact.silent = this.pendingCompact.silent && (options?.silent ?? false);
-          this.pendingCompact.resolvers.push({ resolve, reject });
-        }
+    const silent = options?.silent ?? false;
+    if (this.inFlight !== null) return this.inFlight;
+    if (this.deps.isProcessing()) return this.defer(silent);
+
+    this.deps.holdRun();
+    this.deps.logger.info('local.run.compaction.run_held', { runId: this.deps.runId, silent });
+    let outcome = 'completed';
+    try {
+      await this.runExclusive(silent);
+    } catch (error) {
+      outcome = compactErrorCode(error);
+      throw error;
+    } finally {
+      if (outcome === 'completed' && !silent) await this.publishContextSize();
+      this.deps.logger.info('local.run.compaction.run_released', {
+        runId: this.deps.runId,
+        silent,
+        outcome,
       });
+      this.deps.releaseRun();
     }
+  }
+
+  private defer(silent: boolean): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const wasSilent = this.pendingCompact?.silent ?? true;
+      if (this.pendingCompact === null) {
+        this.pendingCompact = { silent, resolvers: [{ resolve, reject }] };
+      } else {
+        // AND the silent flags: once any non-silent caller joins the deferred
+        // run posts notes.
+        this.pendingCompact.silent = this.pendingCompact.silent && silent;
+        this.pendingCompact.resolvers.push({ resolve, reject });
+      }
+      // One queued notice per deferred compact, posted when it first becomes
+      // non-silent.
+      if (wasSilent && !silent) {
+        void this.deps
+          .postRuntimeNotice(
+            'Compact queued until the current turn finishes',
+            'info',
+            this.deps.session(),
+            { phase: 'queued' },
+          )
+          .catch((error: unknown) => {
+            this.deps.logger.warn('local.run.compaction.queued_notice_failed', {
+              runId: this.deps.runId,
+              error,
+            });
+          });
+      }
+    });
+  }
+
+  private runExclusive(silent: boolean): Promise<void> {
+    const execution = this.execute(silent).finally(() => {
+      this.inFlight = null;
+    });
+    this.inFlight = execution;
+    return execution;
+  }
+
+  private async execute(silent: boolean): Promise<void> {
+    const session = this.deps.session();
     const runner = this.deps.runner();
     if (!runner?.compact) {
-      throw new AgentSessionRunnerError('NOT_SUPPORTED', 'No active runner supports compaction.');
+      const error = new AgentSessionRunnerError(
+        'NOT_SUPPORTED',
+        'No active runner supports compaction.',
+      );
+      if (!silent) {
+        await this.deps.postRuntimeNotice(`Compact failed: ${error.message}`, 'warning', session, {
+          phase: 'failed',
+          code: error.code,
+        });
+      }
+      throw error;
     }
-    const session = this.deps.session();
 
-    if (!options?.silent) await this.deps.postRuntimeNotice('Starting compact…', 'info', session);
+    if (!silent) {
+      await this.deps.postRuntimeNotice('Starting compact…', 'info', session, { phase: 'started' });
+    }
     try {
       await runner.compact();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      if (!options?.silent) {
-        await this.deps.postRuntimeNotice(`Compact failed: ${reason}`, 'warning', session);
+      if (!silent) {
+        await this.deps.postRuntimeNotice(`Compact failed: ${reason}`, 'warning', session, {
+          phase: 'failed',
+          code: compactErrorCode(error),
+        });
       }
       throw error;
     }
-    if (!options?.silent) await this.deps.postRuntimeNotice('Finished compact…', 'info', session);
+    if (!silent) {
+      await this.deps.postRuntimeNotice('Finished compact…', 'info', session, {
+        phase: 'completed',
+      });
+    }
   }
 
   /**
@@ -116,8 +200,10 @@ export class RunCompaction {
       const pending = this.pendingCompact;
       this.pendingCompact = null;
       deferredCompactFired = true;
+      // The Run stays held from Turn end until `drainQueue()`, so this
+      // runs directly; `onTurnEnded` drains the queue afterwards.
       try {
-        await this.compact({ silent: pending.silent });
+        await this.runExclusive(pending.silent);
         for (const { resolve } of pending.resolvers) resolve();
       } catch (error) {
         for (const { reject } of pending.resolvers) reject(error);
@@ -142,7 +228,7 @@ export class RunCompaction {
   private async maybeAutoCompact(): Promise<void> {
     if (this.pendingCompact !== null) return; // defense-in-depth: coalescing guard
     if (this.deps.autoCompact === null) return;
-    const { threshold } = this.deps.autoCompact;
+    const { threshold: fixedThreshold, windowFraction } = this.deps.autoCompact;
     let usage: LocalContextData | undefined;
     try {
       usage = await this.deps.runner()?.getContextUsage();
@@ -153,9 +239,14 @@ export class RunCompaction {
       });
       return;
     }
-    if (!usage || usage.totalTokens <= threshold) return;
+    if (!usage) return;
+    const threshold =
+      windowFraction !== undefined && usage.maxTokens > 0
+        ? Math.floor(usage.maxTokens * windowFraction)
+        : fixedThreshold;
+    if (usage.totalTokens <= threshold) return;
     try {
-      await this.compact({ silent: true });
+      await this.runExclusive(true);
     } catch (error) {
       if (error instanceof AgentSessionRunnerError && error.code === 'NOT_SUPPORTED') {
         return;
@@ -215,4 +306,8 @@ export class RunCompaction {
       });
     }
   }
+}
+
+function compactErrorCode(error: unknown): string {
+  return error instanceof AgentSessionRunnerError ? error.code : 'FAILED';
 }

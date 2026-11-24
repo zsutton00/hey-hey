@@ -1,4 +1,5 @@
 import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorReviewRuntime } from './context';
 
 import type {
   TaskMonitorExecutionNode,
@@ -285,6 +286,7 @@ export interface DeliverTaskMonitorReviewEffect {
   readonly requestId: string;
   readonly coordinatorRunId: string;
   readonly rationale: string;
+  readonly reviewRuntime?: TaskMonitorReviewRuntime | undefined;
 }
 
 export interface ProjectTaskMonitorInterventionEffect {
@@ -999,6 +1001,7 @@ export const deliverTaskMonitorReviewEffect = (
     requestId: event.requestId,
     coordinatorRunId: event.coordinatorRunId,
     rationale: event.rationale,
+    ...(event.reviewRuntime ? { reviewRuntime: event.reviewRuntime } : {}),
   };
 };
 

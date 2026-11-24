@@ -126,8 +126,9 @@ export const GENERAL_MCP_TOOLS: readonly string[] = MCP_TOOL_LIST.filter((t) =>
  * The read tools the shared platform prompt tells every agent to choose between
  * ("Choosing the Smallest Read"). Every surface with a graph read surface must
  * admit all of them, so no session is advised to call a tool it cannot reach.
- * Surfaces that are structurally tool-free (monitors, repository grounding, work
- * tracker import, eval judging) stay empty by contract and are the only exception.
+ * Surfaces that are structurally tool-free (the session monitor, repository
+ * grounding, work tracker import, eval judging) stay empty by contract and are
+ * the only exception.
  */
 export const SHARED_READ_MCP_TOOLS: readonly string[] = [
   'get_entity_identities',
@@ -251,12 +252,17 @@ const AUTHORING_GUIDANCE_GATED_MUTATION_MCP_TOOLS = new Set([
 export const SESSION_MONITOR_MCP_TOOLS: readonly string[] = ['get_report_body'];
 
 /**
- * Task Monitor supervision receives one preloaded, boundary-validated
- * canonical evidence package. No platform tool is exposed: a resumed provider
- * session may retain reasoning continuity, but cannot substitute ad hoc reads
- * for the package loaded immediately before this decision.
+ * Task Monitor supervision takes monitor, Task, session, Turn, Review and Report
+ * state only from the boundary-validated evidence package loaded before each
+ * decision. These read-only tools are for project knowledge, so the monitor can
+ * answer a coding session's question from the graph instead of asking the user.
+ * The coordinator's single provider session serves every Turn, so permission
+ * and conversation Turns see the same reads; none of them can mutate anything.
  */
-export const TASK_MONITOR_MCP_TOOLS: readonly string[] = [];
+export const TASK_MONITOR_MCP_TOOLS: readonly string[] = [
+  ...SHARED_READ_MCP_TOOLS,
+  'search_design_docs',
+];
 
 /**
  * Project report evidence comes from the host's request-bound reader plus

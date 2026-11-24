@@ -35,6 +35,7 @@ describe("NewGoalModal", () => {
       name: "Ship the thing",
       dueDate: new Date(2026, 11, 31).toISOString(),
     });
+    expect(payload).not.toHaveProperty("status");
     expect(payload).not.toHaveProperty("parentTaskId");
     expect(payload).not.toHaveProperty("type");
     expect(sourceEntityRefs).toEqual([]);

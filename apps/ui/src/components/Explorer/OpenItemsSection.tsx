@@ -22,7 +22,7 @@ import {
   type OpenItemSelectionIdentity,
 } from "@hey-hey/ui-common/utils";
 import { EntityHoverCard } from "@hey-hey/ui-common/components/shared";
-import { EntityIcon } from "@hey-hey/ui-common/components/Entity";
+import { OpenItemIcon } from "@hey-hey/ui-common/components/Entity/OpenItemIcon";
 import {
   OpenItemInteractionComponent,
   type OpenItemActiveOnlyAction,
@@ -47,11 +47,13 @@ import {
   getAgentSessionRowSignalPresentation,
   type AgentSessionRowLifecycleSignal,
   type AgentSessionRowSignalPresentation,
+  TASK_MONITOR_ROW_LABELS,
+  useTaskMonitorRowSignals,
+  type TaskMonitorRowSignal,
 } from "@hey-hey/ui-common/components";
 import {
   useCurrentCanonicalPage,
   useDndContextSafe,
-  usePreviewHost,
   useTheme,
 } from "@hey-hey/ui-common/context";
 import {
@@ -63,16 +65,11 @@ import {
 } from "@hey-hey/ui-common/data";
 import { useCanHover } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
-import {
-  resolveWorkItemIcon,
-  resolveWorkItemIconPresentation,
-  type EntityColors,
-} from "@hey-hey/ui-common/utils";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import StarIcon from "@mui/icons-material/Star";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   Box,
   Button,
@@ -87,7 +84,6 @@ import {
   Popper,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
@@ -119,10 +115,7 @@ import {
   buildPlanStepPath,
 } from "../../pages/Plan/planSessionRoutes";
 import { buildTaskAgentSessionPath } from "../../pages/Task/taskSessionRoutes";
-import {
-  getBuiltInWorkItemIconKey,
-  indexWorkItemTypeDefinitions,
-} from "../../types/workItemTypes";
+import { indexWorkItemTypeDefinitions } from "../../types/workItemTypes";
 import {
   collapseProjectedOpenItems,
   expandableProjectedOpenItemKeys,
@@ -476,8 +469,6 @@ const OpenItemsGroupHeader: React.FC<{
   );
 };
 
-const iconTypeFor = (item: OpenItem): string => item.entityType;
-
 type OpenItemRowActions = Pick<
   ReturnType<typeof useOpenItems>,
   | "remove"
@@ -513,11 +504,13 @@ type OpenItemRowProps = {
   projectId: string;
   evalStatusLabel?: string;
   currentState?: AgentSessionCurrentState;
+  monitorSignal?: TaskMonitorRowSignal;
   outputAttentionState?: AgentSessionOutputAttentionState;
   conversationPhase?: Parameters<typeof ConversationPhaseIndicator>[0]["phase"];
   workItemTypeDefinitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>;
   workItemTypeSources: ReadonlyMap<string, WorkItemTypeEffectiveSource>;
   onToggleChildren: (itemKey: string) => void;
+  allowClose?: boolean;
 };
 
 const renderAgentSessionLifecycleSignal = (
@@ -553,34 +546,6 @@ const renderAgentSessionRowSignals = (
   </>
 );
 
-const ResolvedWorkItemIcon: React.FC<{
-  IconComponent: NonNullable<ReturnType<typeof resolveWorkItemIcon>>;
-  taskType: string;
-  colors: EntityColors;
-}> = ({ IconComponent, taskType, colors }) => {
-  return (
-    <Tooltip title={taskType}>
-      <Box
-        data-testid={`open-item-registry-icon-${taskType}`}
-        data-entity-type={taskType}
-        sx={{
-          width: 24,
-          height: 24,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          bgcolor: colors.background,
-          borderRadius: "2px",
-          color: colors.color,
-          flex: "0 0 24px",
-        }}
-      >
-        <IconComponent sx={{ fontSize: 16 }} />
-      </Box>
-    </Tooltip>
-  );
-};
-
 const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   starred,
   selectedItems,
@@ -601,18 +566,19 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   organizationId,
   projectId,
   currentState,
+  monitorSignal,
   evalStatusLabel,
   outputAttentionState,
   conversationPhase,
   workItemTypeDefinitions,
   workItemTypeSources,
   onToggleChildren,
+  allowClose = true,
 }) => {
   const selected = selectedItems.some((entry) =>
     matchesOpenItemIdentity(entry, item),
   );
   const canHover = useCanHover();
-  const previewHost = usePreviewHost();
   const {
     remove,
     removeOthers,
@@ -643,12 +609,6 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   const path = pathFor(item, projectId);
   const label = openItemTitle(item);
   const accessibleLabel = label;
-  const iconType = iconTypeFor(item);
-  const taskType =
-    item.presentation?.kind === "task" ? item.presentation.taskType : undefined;
-  const workItemTypeDefinition = taskType
-    ? workItemTypeDefinitions.get(taskType)
-    : undefined;
   // Shared lifecycle and user-scoped output attention render independently.
   // Canonical-page acknowledgment owns readiness mutation; route-local active
   // identity must not hide an outstanding readiness projection.
@@ -657,21 +617,6 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
     outputAttentionState === AgentSessionOutputAttentionState.MessageReady,
     conversationPhase,
   );
-  const builtInIconKey = taskType
-    ? getBuiltInWorkItemIconKey(taskType, workItemTypeDefinition)
-    : undefined;
-  const iconDefinition =
-    workItemTypeDefinition && builtInIconKey
-      ? { ...workItemTypeDefinition, iconKey: builtInIconKey }
-      : workItemTypeDefinition;
-  const resolvedPresentation = taskType
-    ? resolveWorkItemIconPresentation(
-        taskType,
-        iconDefinition,
-        workItemTypeSources.get(taskType),
-      )
-    : undefined;
-  const resolvedWorkItemIcon = resolvedPresentation?.Icon;
   const interactionEntityType = targetTypeFor(item);
   const entitySubtype =
     item.entityType === "goal"
@@ -710,21 +655,18 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
     }
   }, [item.entityId, item.entityType, noteDraft, setWhyOpen]);
 
-  const handlePreview = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      previewHost.openPreview({
-        entityId: item.entityId,
-        entityType: item.entityType,
-      });
-    },
-    [item.entityId, item.entityType, previewHost],
-  );
-
   const removeOpenItem = useCallback(() => {
     remove(item.entityId, item.entityType);
   }, [item.entityId, item.entityType, remove]);
+
+  const handleClose = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeOpenItem();
+    },
+    [removeOpenItem],
+  );
 
   const handleRemoveFromOpen = useCallback(() => {
     removeOpenItem();
@@ -968,10 +910,14 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             pl: `${8 + depth * 20}px`,
             borderRadius: 1,
             outline: selected ? "1px solid" : "none",
-            outlineColor: "primary.main",
+            outlineColor: "warning.main",
+            boxShadow: (theme) =>
+              selected && active
+                ? `inset 3px 0 0 ${theme.palette.primary.main}`
+                : "none",
             bgcolor: (theme) =>
               selected
-                ? alpha(theme.palette.primary.main, active ? 0.25 : 0.2)
+                ? alpha(theme.palette.warning.main, 0.22)
                 : active
                   ? alpha(theme.palette.primary.main, 0.25)
                   : "transparent",
@@ -979,7 +925,7 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             "&:hover": {
               bgcolor: (theme) =>
                 selected
-                  ? alpha(theme.palette.primary.main, active ? 0.29 : 0.25)
+                  ? alpha(theme.palette.warning.main, 0.3)
                   : active
                     ? alpha(theme.palette.primary.main, 0.3)
                     : "action.hover",
@@ -1060,25 +1006,14 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
                   }}
                 />
               ) : null}
-              {item.entityType === "task" && taskType ? (
-                resolvedWorkItemIcon ? (
-                  <ResolvedWorkItemIcon
-                    IconComponent={resolvedWorkItemIcon}
-                    taskType={taskType}
-                    colors={resolvedPresentation!.colors}
-                  />
-                ) : null
-              ) : (
-                <EntityIcon
-                  entityType={iconType}
-                  agentSessionType={
-                    item.presentation?.kind === "agent_session"
-                      ? item.presentation.sessionType
-                      : undefined
-                  }
-                  size={24}
-                />
-              )}
+              <OpenItemIcon
+                entityType={item.entityType}
+                presentation={item.presentation}
+                registry={{
+                  definitions: workItemTypeDefinitions,
+                  sources: workItemTypeSources,
+                }}
+              />
             </Box>
             {renderAgentSessionRowSignals(rowSignals)}
             <Typography
@@ -1091,6 +1026,25 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
             >
               {label}
             </Typography>
+            {monitorSignal?.kind === "status" ? (
+              <Typography
+                variant="caption"
+                color={
+                  monitorSignal.status === "needs_feedback" ||
+                  monitorSignal.status === "awaiting_approval" ||
+                  monitorSignal.status === "failed"
+                    ? "warning.main"
+                    : "text.secondary"
+                }
+                noWrap
+                data-testid="open-item-monitor-status"
+                data-stale={monitorSignal.stale}
+                sx={{ opacity: monitorSignal.stale ? 0.6 : 1 }}
+              >
+                {monitorSignal.stale ? "Last known: " : ""}
+                {TASK_MONITOR_ROW_LABELS[monitorSignal.status]}
+              </Typography>
+            ) : null}
             {evalStatusLabel ? (
               <Typography
                 variant="caption"
@@ -1111,21 +1065,32 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
               />
             ) : null}
           </Box>
-          <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0, pr: 0.5 }}>
-            <IconButton
-              aria-label={`Preview ${accessibleLabel}`}
-              data-testid={`open-item-preview-${item.entityType}-${item.entityId}`}
-              onClick={handlePreview}
-              size="small"
-              sx={{
-                color: "text.secondary",
-                height: 28,
-                width: 28,
-              }}
+          {allowClose ? (
+            <Stack
+              direction="row"
+              spacing={0.25}
+              sx={{ flexShrink: 0, pr: 0.5 }}
             >
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Stack>
+              <IconButton
+                aria-label={`Remove ${accessibleLabel} from Open`}
+                data-testid={`open-item-close-${item.entityType}-${item.entityId}`}
+                onClick={handleClose}
+                size="small"
+                sx={{
+                  color: "text.secondary",
+                  height: 24,
+                  width: 24,
+                  p: 0.25,
+                  "&:hover": {
+                    color: "text.primary",
+                    bgcolor: "action.hover",
+                  },
+                }}
+              >
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Stack>
+          ) : null}
         </Box>
       </OpenItemInteractionComponent>
       <Dialog
@@ -1392,6 +1357,23 @@ export const OpenItemsSection: React.FC<{
       ),
     [visibleProjectedItems],
   );
+  const visibleMonitorIds = useMemo<string[]>(
+    () =>
+      visibleProjectedItems
+        .filter(
+          ({ item }) =>
+            item.entityType === "task" &&
+            item.presentation?.kind === "task" &&
+            item.presentation.taskType === "TASK_MONITOR",
+        )
+        .map(({ item }) => item.entityId),
+    [visibleProjectedItems],
+  );
+  const monitorSignalById = useTaskMonitorRowSignals(
+    organizationId,
+    projectId,
+    visibleMonitorIds,
+  );
   const visibleConversationIds = useMemo<string[]>(
     () =>
       Array.from(
@@ -1611,9 +1593,15 @@ export const OpenItemsSection: React.FC<{
     if (!renameTarget || !renameDraft.trim()) return;
     if (await renameGroup(renameTarget.id, renameDraft)) setRenameTarget(null);
   }, [renameDraft, renameGroup, renameTarget]);
-  const renderRow = (item: OpenItem, depth: number, sourceIndex: number) => (
+  const renderRow = (
+    item: OpenItem,
+    depth: number,
+    sourceIndex: number,
+    options?: { allowClose?: boolean },
+  ) => (
     <React.Fragment key={`${item.entityType}:${item.entityId}`}>
       <OpenItemRow
+        allowClose={options?.allowClose ?? true}
         starred={isStarred(
           item.entityType === "goal"
             ? EntityType.Task
@@ -1654,6 +1642,7 @@ export const OpenItemsSection: React.FC<{
             ? currentStateById[item.entityId]?.currentState
             : undefined
         }
+        monitorSignal={monitorSignalById[item.entityId]}
         outputAttentionState={
           item.entityType === "agent_session"
             ? outputAttentionById[item.entityId]?.state
@@ -1685,7 +1674,7 @@ export const OpenItemsSection: React.FC<{
           }
           depth={depth}
           renderItem={(child, childDepth) =>
-            renderRow(child, childDepth, sourceIndex)
+            renderRow(child, childDepth, sourceIndex, { allowClose: false })
           }
         />
       )}

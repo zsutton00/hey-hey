@@ -64,6 +64,8 @@ export interface WorkItemDetailVariant {
   includeServiceRelations?: boolean;
   includeEdges?: boolean;
   edgeTypes?: AgentEdgeType[];
+  /** Defaults to true, as the list read does; a goal's tracked work needs it. */
+  includeTrackedEntities?: boolean;
 }
 
 export interface WorkItemHierarchyVariant {
@@ -165,6 +167,7 @@ function detailVariables(
     withEdges: variant.includeEdges === true,
     edgeTypes: edgeTypeNames(variant.edgeTypes),
     withServiceRelations: variant.includeServiceRelations === true,
+    withTrackedEntities: variant.includeTrackedEntities ?? true,
   };
 }
 

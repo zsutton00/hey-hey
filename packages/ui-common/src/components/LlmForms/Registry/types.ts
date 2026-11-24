@@ -163,8 +163,6 @@ export type FieldComponentContext = {
   /** Focuses the shared conversation composer without submitting a message. */
   onFocusComposer?: () => void;
   interaction: MessageInteractionContext;
-  /** Proposal IDs of the conversation's current visual-preview round, if any. */
-  currentVisualPreviewProposalIds?: string[];
   onGoalPmAction?: (
     selection: GoalPmRoutingSelectionPayload,
     sourceConversationId: string,

@@ -19,12 +19,15 @@ import {
   ListItemIcon,
   ListItemText,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useActiveProjectId } from "../hooks";
 import { CreateServiceModal } from "./CreateServiceModal";
 import { SearchInputsSurface } from "./SearchInputsSurface";
+import { SearchModalTabs } from "./SearchModalTabs";
 
 type RelatedEntityItem = {
   entityId: string;
@@ -71,6 +74,8 @@ export function HeyHeyModalInstance({
   const { currentOrgId } = useUserIdentity() || {};
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
   const [previewEntity, setPreviewEntity] =
     React.useState<EntityListItem | null>(null);
   const [searchHasContent, setSearchHasContent] = React.useState(false);
@@ -95,34 +100,49 @@ export function HeyHeyModalInstance({
 
   const renderModal = (): React.ReactElement | null => {
     switch (currentModal.type) {
-      case ModalType.ADVANCED_SEARCH:
+      case ModalType.ADVANCED_SEARCH: {
+        const { type: _type, browseTabs, ...searchConfig } = currentModal;
         return (
           <Dialog
             workTitle="Search"
             open
             onClose={closeModal}
+            fullScreen={isPhone}
             maxWidth={searchHasContent ? "lg" : "md"}
             fullWidth
             slotProps={{
               paper: {
                 sx: {
-                  height: searchHasContent ? "80vh" : undefined,
+                  height: isPhone
+                    ? undefined
+                    : searchHasContent
+                      ? "80vh"
+                      : undefined,
                   transition: "all 0.2s ease",
                 },
               },
             }}
           >
             <SearchInputsSurface sx={{ height: "100%" }}>
-              <AdvancedSearch
-                {...currentModal}
-                defaultQuery={currentModal.defaultQuery}
-                projectId={projectId}
-                onClose={closeModal}
-                onHasContent={setSearchHasContent}
-              />
+              {browseTabs ? (
+                <SearchModalTabs
+                  config={searchConfig}
+                  projectId={projectId}
+                  onClose={closeModal}
+                  onHasContent={setSearchHasContent}
+                />
+              ) : (
+                <AdvancedSearch
+                  {...searchConfig}
+                  projectId={projectId}
+                  onClose={closeModal}
+                  onHasContent={setSearchHasContent}
+                />
+              )}
             </SearchInputsSurface>
           </Dialog>
         );
+      }
 
       case ModalType.SUGGESTED_ACTION_TASK:
         return (

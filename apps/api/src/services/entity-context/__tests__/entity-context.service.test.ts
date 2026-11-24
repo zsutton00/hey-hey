@@ -6372,12 +6372,13 @@ describe('EntityContextService', () => {
         .spyOn((service as any).workItemTypeRegistry, 'getRulesForProject')
         .mockReturnValue({
           statuses: [
-            { name: 'PLANNED', label: 'Planned', meaning: 'NOT_STARTED' },
+            {
+              name: 'PLANNED',
+              meaning: { kind: 'CUSTOM' as const, text: 'Planned' },
+            },
             {
               name: 'DELIVERED',
-              label: 'Delivered',
-              meaning: 'FINISHED',
-              completionBehavior: 'COMPLETED',
+              meaning: { kind: 'COMPLETED' as const },
             },
           ],
         });

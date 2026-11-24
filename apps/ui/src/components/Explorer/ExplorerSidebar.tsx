@@ -2,14 +2,10 @@ import {
   useModalState,
   ModalWorkOwner,
 } from "@hey-hey/ui-common/components/Modals";
-import {
-  getBuiltInWorkItemIconKey,
-  getWorkItemTypePluralDisplayName,
-  WORK_ITEM_TYPE_KEYS,
-} from "../../types/workItemTypes";
+import { WORK_ITEM_TYPE_KEYS } from "../../types/workItemTypes";
+import { getBuiltInWorkItemIconKey } from "@hey-hey/ui-common/utils";
 import {
   ProjectStatus,
-  WorkItemTypeLifecycleStatus,
   type ProjectResponseDto,
   type ServiceDto,
   type TaskResponseDto,
@@ -20,7 +16,6 @@ import {
   hasDemoSandboxSession,
   useProjects,
   useServices,
-  useWorkItemTypes,
   usePlatformAdminAccess,
 } from "@hey-hey/ui-common/data";
 import { useAuth, useOrganization, useTheme } from "@hey-hey/ui-common/context";
@@ -53,6 +48,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DemoLogoutDialog } from "./DemoLogoutDialog";
+import { useExplorerSections } from "../../hooks/useExplorerSections";
 import { ExplorerMinimal } from "./ExplorerMinimal";
 import { ExplorerSearch } from "./ExplorerSearch";
 import { ExplorerTree } from "./ExplorerTree";
@@ -281,14 +277,10 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   const isSearching = !!urlSearchTerm.trim();
 
   const {
-    workItemTypes,
+    workItemSections,
     isLoading: isLoadingWorkItemTypes,
     isReady: isWorkItemTypesReady,
-  } = useWorkItemTypes(organizationId, {
-    projectId,
-    status: WorkItemTypeLifecycleStatus.Active,
-    enabled: hasProjectContext,
-  });
+  } = useExplorerSections(organizationId, projectId, hasProjectContext);
 
   const {
     services,
@@ -301,15 +293,8 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
   });
 
   const explorerWorkItemDefinitions = useMemo(
-    () =>
-      isWorkItemTypesReady
-        ? workItemTypes.filter(
-            (summary) =>
-              summary.status === WorkItemTypeLifecycleStatus.Active &&
-              summary.definition.capabilities?.showsInExplorerSidebar === true,
-          )
-        : [],
-    [isWorkItemTypesReady, workItemTypes],
+    () => workItemSections.map(({ summary }) => summary),
+    [workItemSections],
   );
 
   const [workItemQueryStates, setWorkItemQueryStates] = useState<
@@ -368,6 +353,11 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
     return nodesByType;
   }, [explorerWorkItemDefinitions, workItemQueryStates]);
 
+  const sectionLabelByKey = useMemo(
+    () => new Map(workItemSections.map(({ key, label }) => [key, label])),
+    [workItemSections],
+  );
+
   const rawSections = useMemo<ExplorerSection[]>(() => {
     const configuredSections = explorerWorkItemDefinitions.map((summary) => {
       const key = `work-item:${summary.definition.key}`;
@@ -379,7 +369,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
       return {
         key,
         label:
-          getWorkItemTypePluralDisplayName(summary.definition) ??
+          sectionLabelByKey.get(summary.definition.key) ??
           summary.definition.name,
         path: getWorkItemSectionPath(summary.definition.key, resolvedProjectId),
         previewCollection:
@@ -416,6 +406,7 @@ export const ExplorerSidebar: React.FC<ExplorerSidebarProps> = ({
     ];
   }, [
     explorerWorkItemDefinitions,
+    sectionLabelByKey,
     isLoadingServices,
     isServicesFetched,
     isWorkItemTypesReady,

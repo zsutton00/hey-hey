@@ -12,6 +12,7 @@ import type {
   ReportDto,
 } from "../../../api";
 import { MessageStatus } from "../../../api";
+import type { ProposedUpdateCardContext } from "./ReportProposedUpdates";
 import type { ConversationMessage } from "../../../types/conversation";
 
 interface SystemMessageWithRetryProps {
@@ -28,6 +29,8 @@ interface SystemMessageWithRetryProps {
   sx?: SxProps<Theme>;
   /** Inline reports to render inside the SystemMessage */
   inlineReports?: ReportDto[];
+  /** Conversation-only: render proposed updates as cards after the message. */
+  proposedUpdateCards?: ProposedUpdateCardContext;
 }
 
 /**
@@ -49,6 +52,7 @@ export const SystemMessageWithRetry: React.FC<SystemMessageWithRetryProps> = ({
   renderTimestamp,
   sx,
   inlineReports,
+  proposedUpdateCards,
 }) => {
   const { t } = useTranslation();
   const isFailed = state === "error";
@@ -87,6 +91,7 @@ export const SystemMessageWithRetry: React.FC<SystemMessageWithRetryProps> = ({
       renderTimestamp={renderTimestamp}
       sx={sx}
       inlineReports={inlineReports}
+      proposedUpdateCards={proposedUpdateCards}
     />
   );
 };

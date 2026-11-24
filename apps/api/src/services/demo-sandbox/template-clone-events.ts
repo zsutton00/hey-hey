@@ -158,6 +158,7 @@ export async function publishCloneCreatedEvents(
       entityId: session.entityId ?? undefined,
       entityType: session.entityType as AgentSessionDto['entityType'],
       serviceIds: session.serviceId ? [session.serviceId] : [],
+      servicePlaces: [],
       sessionDate: session.sessionDate.toISOString(),
       hasUnsyncedChanges: session.hasUnsyncedChanges,
       monitoringEnabled: session.monitoringEnabled,

@@ -36,9 +36,11 @@ export const GET_HINTS_BY_SESSION_TOOL_NAME = 'get_hints_by_session';
 const INITIAL_CONNECTION_STRENGTH = 1;
 
 const HINT_PURPOSE =
-  'A hint is a small, cheap note that matters to future work but is not ' +
-  'worth a requirement: direction the user gave, a correction they do not ' +
-  'want to repeat, or a gotcha found while building.';
+  'A hint is a small, cheap note for what a work item cannot hold: a gotcha ' +
+  'found while building, or a correction to how agents should work in this ' +
+  'project. A decision about how the product behaves or how the work is ' +
+  'done is a requirement, never a hint: propose it on the item it governs, ' +
+  'or as a new task when none fits.';
 
 const connectionTargetSchema = z.object({
   itemId: z.string().uuid().describe('ID of the item the hint concerns'),

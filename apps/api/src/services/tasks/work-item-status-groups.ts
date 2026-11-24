@@ -1,4 +1,7 @@
-import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemStatusMeaning,
+  WorkItemTypeStatus,
+} from '@hey-hey/contracts/api/models';
 
 export const MCP_STATUS_GROUPS = [
   'BACKLOG',
@@ -11,28 +14,43 @@ export const MCP_STATUS_GROUPS = [
 export type McpStatusGroup = (typeof MCP_STATUS_GROUPS)[number];
 
 // Deliberate name check, not meaning-based: the status model has no review
-// meaning (Verifying is IN_PROGRESS), yet standard types must keep Verifying
+// meaning (Verifying is In progress), yet standard types must keep Verifying
 // in IN_REVIEW. Extending the status model is out of scope for this task.
 const REVIEW_STATUS_NAME = 'VERIFYING';
 
 /**
  * The simplified agent-facing group a status belongs to, derived from its
- * meaning and completion behavior. Never from the status label.
+ * meaning. Never from the status label.
  */
 export function statusGroupOf(status: WorkItemTypeStatus): McpStatusGroup {
   if (status.name === REVIEW_STATUS_NAME) {
     return 'IN_REVIEW';
   }
 
-  switch (status.meaning) {
-    case 'FINISHED':
-      return status.completionBehavior === 'CANCELLED' ? 'CANCELLED' : 'DONE';
+  switch (status.meaning.kind) {
+    case 'COMPLETED':
+      return 'DONE';
+    case 'CANCELLED':
+      return 'CANCELLED';
     case 'IN_PROGRESS':
       return 'IN_PROGRESS';
-    case 'NOT_STARTED':
-    case 'UNFINISHED':
+    case 'CUSTOM':
       return 'BACKLOG';
   }
+}
+
+/** Finished means Completed or Cancelled; every other meaning is not finished. */
+export function isFinishedMeaning(
+  meaning: WorkItemStatusMeaning | undefined,
+): boolean {
+  return meaning?.kind === 'COMPLETED' || meaning?.kind === 'CANCELLED';
+}
+
+/** Work is underway only for the built-in In progress meaning. */
+export function isInProgressMeaning(
+  meaning: WorkItemStatusMeaning | undefined,
+): boolean {
+  return meaning?.kind === 'IN_PROGRESS';
 }
 
 /**

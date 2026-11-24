@@ -126,18 +126,12 @@ export const InterstitialThought: React.FC<InterstitialThoughtProps> = ({
             display: "block",
             width: "100%",
             maxWidth: "none",
-            minHeight: "auto",
             mb: timestamp ? 0.25 : 1,
-            px: { xs: 1.5, sm: 2 },
             py: 1.25,
-            color: "text.primary",
-            backgroundColor: alpha(theme.palette.background.paper, 0.38),
-            border: `1px solid ${alpha(theme.palette.divider, 0.55)}`,
-            borderRadius: 1.5,
-            boxShadow: "none",
+            // Plain muted text, lighter than the agent's final reply.
+            color: "text.secondary",
             opacity: isLast ? 1 : 0.78,
-            backdropFilter: "blur(8px)",
-            transition: theme.transitions.create(["opacity", "border-color"]),
+            transition: theme.transitions.create("opacity"),
             "& .system-message-markdown": {
               fontSize: { xs: "0.95rem", sm: "1rem" },
               lineHeight: 1.55,
@@ -151,7 +145,6 @@ export const InterstitialThought: React.FC<InterstitialThoughtProps> = ({
             data-testid="interstitial-thought-timestamp"
             sx={{
               display: "block",
-              px: { xs: 1.5, sm: 2 },
               mb: 1,
             }}
           >

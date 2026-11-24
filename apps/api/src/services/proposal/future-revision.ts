@@ -46,7 +46,7 @@ export function parseFutureRevisionMutation(
 type FutureProposal = Pick<
   CreateProposalDto,
   'targetEntityId' | 'targetEntityType' | 'updates' | 'edges' | 'tracks'
->;
+> & { id?: string };
 
 /** Serialize refinement admission/approval with explicit application of its future. */
 export async function lockFutureForMutation(
@@ -136,7 +136,16 @@ export async function validateFutureRevision(
       'Future target, reviewed revision or outcome changed; submit a newly reviewed refinement.',
     );
   }
-  if (mutation.operation === 'CANCEL') return mutation;
+  if (mutation.operation === 'CANCEL') {
+    await assertReviewedRefinements(
+      tx,
+      proposal,
+      mutation,
+      organizationId,
+      projectId,
+    );
+    return mutation;
+  }
 
   for (const content of [mutation.baseline.content, mutation.result]) {
     if (
@@ -382,6 +391,77 @@ export async function stageFutureRevision(
       })),
     });
   }
+}
+
+/**
+ * A cancellation that names the refinements its reviewer confirmed must still
+ * match the future's pending refinements, at submission and again at approval,
+ * so a refinement that arrived afterwards is never rejected unseen.
+ */
+async function assertReviewedRefinements(
+  tx: AnyTransactionClient,
+  proposal: FutureProposal,
+  mutation: Extract<FutureRevisionMutation, { operation: 'CANCEL' }>,
+  organizationId: string,
+  projectId: string,
+): Promise<void> {
+  const reviewed = mutation.reviewedRefinementProposalIds;
+  if (!reviewed) {
+    return;
+  }
+
+  const current = await findOutstandingRefinementIds(
+    tx,
+    {
+      organizationId,
+      projectId,
+      targetEntityId: proposal.targetEntityId,
+      targetEntityType:
+        proposal.targetEntityType as Proposal['targetEntityType'],
+    },
+    mutation.futureId,
+    proposal.id ?? NO_PROPOSAL_ID,
+  );
+  const unchanged =
+    current.length === reviewed.length &&
+    current.every((id) => reviewed.includes(id));
+  if (!unchanged) {
+    throw new ConflictException(
+      'Pending revisions of this future changed since you reviewed them; review them again before cancelling.',
+    );
+  }
+}
+
+const NO_PROPOSAL_ID = '00000000-0000-0000-0000-000000000000';
+
+/** DRAFT refinements of a future other than `exceptProposalId`, in ordinary visibility. */
+export async function findOutstandingRefinementIds(
+  tx: AnyTransactionClient,
+  proposal: {
+    organizationId: string;
+    projectId: string;
+    targetEntityId: string;
+    targetEntityType: Proposal['targetEntityType'];
+  },
+  futureId: string,
+  exceptProposalId: string,
+): Promise<string[]> {
+  const outstanding = await (tx as Prisma.TransactionClient).proposal.findMany({
+    where: {
+      organizationId: proposal.organizationId,
+      projectId: proposal.projectId,
+      targetEntityId: proposal.targetEntityId,
+      targetEntityType: proposal.targetEntityType,
+      action: 'VERSIONED_UPDATE',
+      status: 'DRAFT',
+      id: { not: exceptProposalId },
+      legacyReconciliationSuggestion: null,
+      updates: { path: ['futureId'], equals: futureId },
+      ...ORDINARY_PROPOSAL_VISIBILITY_WHERE,
+    },
+    select: { id: true },
+  });
+  return outstanding.map((entry) => entry.id);
 }
 
 export type FutureRevisionReference = {

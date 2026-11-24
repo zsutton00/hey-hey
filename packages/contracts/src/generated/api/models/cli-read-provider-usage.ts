@@ -62,13 +62,16 @@ export const CliReadProviderUsageProviderEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(CliReadProviderUsageProviderEnum, "claude", { enumerable: false, value: CliReadProviderUsageProviderEnum["Claude"] });
 Object.defineProperty(CliReadProviderUsageProviderEnum, "codex", { enumerable: false, value: CliReadProviderUsageProviderEnum["Codex"] });
 Object.defineProperty(CliReadProviderUsageProviderEnum, "opencode", { enumerable: false, value: CliReadProviderUsageProviderEnum["Opencode"] });
+Object.defineProperty(CliReadProviderUsageProviderEnum, "antigravity", { enumerable: false, value: CliReadProviderUsageProviderEnum["Antigravity"] });
 
 export type CliReadProviderUsageProviderEnum = typeof CliReadProviderUsageProviderEnum[keyof typeof CliReadProviderUsageProviderEnum];
 export const CliReadProviderUsageStatusEnum = {

@@ -613,6 +613,12 @@ export class SubAgent {
       : await buildMcpServerConfig(oauthClient, mcpContext);
 
     const providerId = resolveAgentProviderId(session.provider);
+    if (providerId !== 'claude' && providerId !== 'codex') {
+      throw new Error(
+        `Subagent provider "${providerId}" is not supported for promptType "${handler.promptType}".`,
+      );
+    }
+
     const platformSystemPrompt = buildPlatformSystemPrompt(
       sessionStartContext.workItemTypeDefinitions,
       {
@@ -735,7 +741,7 @@ export class SubAgent {
       handler.runnerKind === 'subagent' && handler.providerSessionCountsForContext;
     const delivery = composeFreshPlatformPromptDelivery({
       mode: resolveProviderPlatformPromptDeliveryMode(
-        providerId === 'codex' ? 'codex' : 'claude',
+        providerId,
         handler.replaceProviderSystemPrompt,
       ),
       assembledPlatformPrompt: platformSystemPrompt,
@@ -805,12 +811,6 @@ export class SubAgent {
         emitNormalizedEvents,
         countsForContext,
       });
-    }
-
-    if (providerId !== 'claude') {
-      throw new Error(
-        `Subagent provider "${providerId}" is not supported for promptType "${handler.promptType}".`,
-      );
     }
 
     const client = new ClaudeCodeSdkClient();

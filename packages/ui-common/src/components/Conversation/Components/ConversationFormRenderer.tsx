@@ -73,7 +73,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
         onFocusComposer,
         onGoalPmAction,
         proposalInteraction,
-        currentVisualPreviewProposalIds,
         latestTurnToolCalls,
       } = useConversationContext();
 
@@ -195,7 +194,6 @@ export const ConversationFormRenderer: React.FC<ConversationFormRendererProps> =
           : undefined,
         isFinalStep(messageIndex, totalMessages),
         proposalInteraction,
-        currentVisualPreviewProposalIds,
         latestTurnToolCalls,
         onFocusComposer,
       );

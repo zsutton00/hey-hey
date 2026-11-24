@@ -1033,10 +1033,11 @@ describe('Codex permission and elicitation requests', () => {
 
     expect(outcome.failure).toBeNull();
     expect(sdkSubmitClientResponseMock).toHaveBeenCalledTimes(1);
+    // Hey Hey's own tools are approved for the turn and never saved as a Codex rule.
     expect(sdkSubmitClientResponseMock).toHaveBeenCalledWith(13, {
       action: 'accept',
       content: null,
-      _meta: { persist: 'always' },
+      _meta: null,
     });
     expect(outcome.liveEvents.map((event) => event.eventType)).not.toContain(
       'permission_request_detected',

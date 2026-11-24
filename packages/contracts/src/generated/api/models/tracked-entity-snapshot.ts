@@ -1,7 +1,5 @@
 // @ts-nocheck
 import { EntityType } from './entity-type.js';
-import { WorkItemStatusMeaning } from './work-item-status-meaning.js';
-import { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -20,9 +18,6 @@ import { WorkItemStatusCompletionBehavior } from './work-item-status-completion-
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EntityType } from './entity-type.js';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { WorkItemStatusMeaning } from './work-item-status-meaning.js';
@@ -64,12 +59,6 @@ export interface TrackedEntitySnapshot {
      */
     'statusMeaning'?: WorkItemStatusMeaning;
     /**
-     *
-     * @type {WorkItemStatusCompletionBehavior}
-     * @memberof TrackedEntitySnapshot
-     */
-    'completionBehavior'?: WorkItemStatusCompletionBehavior;
-    /**
      * Target completion date, when the target type carries one.
      * @type {string}
      * @memberof TrackedEntitySnapshot
@@ -80,8 +69,4 @@ export interface TrackedEntitySnapshot {
 export namespace TrackedEntitySnapshot {
     export const TargetEntityTypeEnum = EntityType;
     export type TargetEntityTypeEnum = EntityType;
-    export const StatusMeaningEnum = WorkItemStatusMeaning;
-    export type StatusMeaningEnum = WorkItemStatusMeaning;
-    export const CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
-    export type CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
 }

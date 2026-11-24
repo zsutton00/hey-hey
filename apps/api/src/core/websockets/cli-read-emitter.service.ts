@@ -12,6 +12,7 @@ import {
   CliReadProviderUsageGetSuccessResponseDto,
   CliReadRequestDto,
   CliReadRuntimeModelCatalogGetSuccessResponseDto,
+  CliReadWorkspaceServicePlacesListSuccessResponseDto,
   CliReadRunToolCallsLatestTurnSuccessResponseDto,
   CliReadRunToolCallsLatestTurnRequest,
   CliReadRunChangedFilesCountRequest,
@@ -406,7 +407,12 @@ const projectSessionCostsListSuccessSchema = z
               providerSessions: z.array(
                 z
                   .object({
-                    providerId: z.enum(['claude', 'codex', 'opencode']),
+                    providerId: z.enum([
+                      'claude',
+                      'codex',
+                      'opencode',
+                      'antigravity',
+                    ]),
                     providerSessionId: z.string().min(1),
                     providerConversationId: z.string().nullable(),
                     providerSessionAgentId: z.string().nullable(),
@@ -478,7 +484,7 @@ const runtimeModelCatalogGetSuccessSchema = z
         providers: z.array(
           z
             .object({
-              provider: z.enum(['claude', 'codex', 'opencode']),
+              provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
               models: z.array(
                 z
                   .object({
@@ -610,6 +616,50 @@ const workspaceSkillsListSuccessSchema = runSkillsListSuccessSchema.extend({
 const workspaceSkillsListErrorSchema = errorSchema.extend({
   operation: z.literal('workspace.skills.list'),
 });
+const servicePlacesOkEntrySchema = z
+  .object({
+    serviceId: z.string().uuid(),
+    status: z.literal('ok'),
+    mainFolder: z
+      .object({ path: z.string(), branch: z.string().nullable() })
+      .strict(),
+    worktrees: z.array(
+      z
+        .object({ branch: z.string().nullable(), worktreePath: z.string() })
+        .strict(),
+    ),
+    branchMatches: z.array(z.string()).max(20),
+    branchMatchesTruncated: z.boolean(),
+  })
+  .strict();
+const servicePlacesErrorEntrySchema = z
+  .object({
+    serviceId: z.string().uuid(),
+    status: z.literal('error'),
+    code: z.enum(['NO_REPOSITORY_PATH', 'NOT_A_GIT_REPOSITORY', 'READ_FAILED']),
+    message: z.string(),
+  })
+  .strict();
+const workspaceServicePlacesListSuccessSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    operation: z.literal('workspace.service_places.list'),
+    status: z.literal('success'),
+    result: z
+      .object({
+        services: z.array(
+          z.discriminatedUnion('status', [
+            servicePlacesOkEntrySchema,
+            servicePlacesErrorEntrySchema,
+          ]),
+        ),
+      })
+      .strict(),
+  })
+  .strict() satisfies z.ZodType<CliReadWorkspaceServicePlacesListSuccessResponseDto>;
+const workspaceServicePlacesListErrorSchema = errorSchema.extend({
+  operation: z.literal('workspace.service_places.list'),
+});
 const continuationInspectSuccessSchema = z
   .object({
     requestId: z.string().uuid(),
@@ -633,6 +683,8 @@ const responseSchema = z.union([
   continuationInspectErrorSchema,
   workspaceSkillsListSuccessSchema,
   workspaceSkillsListErrorSchema,
+  workspaceServicePlacesListSuccessSchema,
+  workspaceServicePlacesListErrorSchema,
   runChangedFilesCountSuccessSchema,
   runChangedFilesCountErrorSchema,
   runChangedFilesInventorySuccessSchema,
@@ -728,6 +780,38 @@ export class CliReadEmitter {
       body,
       agentSessionId: null,
       timeoutMs: 30_000,
+      target: {
+        kind: HostActionTargetKind.CliRead,
+        id: params.machineId,
+        revision: null,
+      },
+    });
+  }
+
+  async readServicePlaces(params: {
+    organizationId: OrganizationId;
+    projectId: ProjectId;
+    machineId: MachineId;
+    userId: UserId;
+    serviceIds: string[];
+    branchQuery?: string;
+    authorizationRequestId: string;
+    admission: AdmittedCliReadAuthorization;
+  }): Promise<CliReadResponseDto> {
+    const body: CliReadEnvelopeBody = {
+      requestId: randomUUID(),
+      operation: 'workspace.service_places.list',
+      serviceIds: params.serviceIds,
+      branchQuery: params.branchQuery,
+      organizationId: params.organizationId,
+      projectId: params.projectId,
+      machineId: params.machineId,
+      authorizationRequestId: params.authorizationRequestId,
+    };
+    return this.readBody({
+      ...params,
+      body,
+      agentSessionId: null,
       target: {
         kind: HostActionTargetKind.CliRead,
         id: params.machineId,

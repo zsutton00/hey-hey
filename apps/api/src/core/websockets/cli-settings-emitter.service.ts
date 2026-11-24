@@ -44,7 +44,7 @@ const resourceSchema = z
     value: z
       .object({
         enabled: z.boolean(),
-        provider: z.enum(['claude', 'codex', 'opencode']),
+        provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
         model: z.string().min(1),
         reasoningEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']),
         countThreshold: z.number().int().positive(),

@@ -356,9 +356,46 @@ describe('RunWorkspaceWriteBoundary', () => {
     try {
       const runtimeDirectory = path.dirname(boundary.processContainment().env['TMPDIR']!);
       const providerState = path.join(runtimeDirectory, 'provider-state');
-      expect((await fs.readdir(providerState)).sort()).toEqual(['cache', 'data', 'state']);
+      expect((await fs.readdir(providerState)).sort()).toEqual(['cache', 'data', 'home', 'state']);
       const listing = await fs.readdir(runtimeDirectory, { recursive: true });
       expect(listing.some((entry) => String(entry).includes('.credentials.json'))).toBe(false);
+    } finally {
+      await boundary.dispose();
+    }
+  });
+
+  it("leaves Antigravity's private sign-in storage unread and copies nothing into its private data directory", async () => {
+    const base = await makeDirectory();
+    const home = path.join(base, 'user-home');
+    const antigravityFiles = [
+      path.join('Library', 'Application Support', 'antigravity', 'credential-user-scope'),
+      path.join('.gemini', 'config', 'config.json'),
+      path.join('.gemini', 'antigravity-cli', 'settings.json'),
+      path.join('.gemini', 'antigravity-cli', 'installation_id'),
+    ];
+    for (const relative of antigravityFiles) {
+      const file = path.join(home, relative);
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, `private ${relative}`);
+      // Any read of these files during workspace creation fails the creation.
+      await fs.chmod(file, 0o000);
+    }
+    vi.spyOn(os, 'homedir').mockReturnValue(home);
+    const workspace = path.join(base, 'workspace');
+    await fs.mkdir(workspace);
+
+    const boundary = await RunWorkspaceWriteBoundary.create(makeWorkspace(workspace, [workspace]), {
+      runScopeId: 'antigravity-credentials',
+      providerStateRoot: path.join(base, 'state'),
+    });
+    try {
+      const privateHome = path.resolve(home, boundary.antigravityContainment().geminiDirectory);
+      expect(await fs.readdir(privateHome, { recursive: true })).toEqual([]);
+      for (const relative of antigravityFiles) {
+        const file = path.join(home, relative);
+        await fs.chmod(file, 0o600);
+        expect(await fs.readFile(file, 'utf8')).toBe(`private ${relative}`);
+      }
     } finally {
       await boundary.dispose();
     }

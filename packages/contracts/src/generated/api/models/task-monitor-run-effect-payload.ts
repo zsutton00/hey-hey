@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { StartRunPromptPayloadProviderEnum, StartRunPromptPayloadReasoningEffortEnum } from './start-run-prompt-payload.js';
+import { StartRunPromptPayloadReasoningEffortEnum } from './start-run-prompt-payload.js';
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -15,6 +16,9 @@ import { StartRunPromptPayloadProviderEnum, StartRunPromptPayloadReasoningEffort
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentSessionConfig } from './agent-session-config.js';
@@ -33,6 +37,9 @@ import type { RunContextMetadata } from './run-context-metadata.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { RunCreatePayload } from './run-create-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { StagedBrowserTabReference } from './staged-browser-tab-reference.js';
@@ -56,6 +63,6 @@ export interface TaskMonitorRunEffectPayload extends StartRunPromptPayload, Task
 export namespace TaskMonitorRunEffectPayload {
     export const ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
     export type ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
-    export const ProviderEnum = StartRunPromptPayloadProviderEnum;
-    export type ProviderEnum = StartRunPromptPayloadProviderEnum;
+    export const ProviderEnum = AgentProviderId;
+    export type ProviderEnum = AgentProviderId;
 }

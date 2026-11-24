@@ -18,6 +18,7 @@ import {
 import { memo, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
+import { distinctPlaces, placeIdentity, placeLabel } from "./changePlaces";
 
 const SHORT_HASH_LENGTH = 8;
 const FILE_LIST_MAX_HEIGHT = 360;
@@ -66,6 +67,7 @@ export const ChangeRecordRow = memo(function ChangeRecordRow({
   const fileCount = edits.length
     ? new Set(edits.map((edit) => edit.path)).size
     : payload.filesChanged.length;
+  const places = distinctPlaces(edits);
   const filesLabel = t("changes.fileCount", { count: fileCount });
   const summaryLabel = edits.length
     ? t("changes.fileEditSummary", {
@@ -114,6 +116,29 @@ export const ChangeRecordRow = memo(function ChangeRecordRow({
                 label={service.displayName ?? t("changes.contextUnavailable")}
                 data-testid="change-service"
               />
+            )}
+            {places.length === 0 ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={t("changes.placeNotRecorded")}
+                data-testid="change-place-not-recorded"
+                sx={{ color: "text.secondary" }}
+              />
+            ) : (
+              places.map((place) => (
+                <Tooltip
+                  key={placeIdentity(place)}
+                  title={place.worktreePath ?? ""}
+                >
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={placeLabel(place, t("changes.placeDetached"))}
+                    data-testid="change-place"
+                  />
+                </Tooltip>
+              ))
             )}
             {commits.map((commit) => (
               <Tooltip

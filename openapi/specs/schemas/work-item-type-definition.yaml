@@ -1666,36 +1666,71 @@ WorkItemTypeWritingStandards:
       type: string
       description: Authoring prose read before editing an item of this type.
 
-WorkItemStatusMeaning:
-  type: string
-  enum:
-    - NOT_STARTED
-    - IN_PROGRESS
-    - UNFINISHED
-    - FINISHED
-  description: >
-    What an ordinary status means for progress: NOT_STARTED work has not begun,
-    IN_PROGRESS work is underway, FINISHED work needs no further effort.
-    UNFINISHED preserves an unfinished state whose start state is unspecified
-    (for example legacy Blocked and On Hold). Goal progress and active filters
-    read this, never the status name.
-
-WorkItemStatusCompletionBehavior:
+WorkItemStatusMeaningKind:
   type: string
   enum:
     - COMPLETED
     - CANCELLED
+    - IN_PROGRESS
+    - CUSTOM
   description: >
-    Legacy completion semantics a FINISHED status carries: COMPLETED counts
-    toward Goal completion and emits completion events; CANCELLED ends work
-    without counting as done. Absent for statuses with neither behavior.
+    The meaning a status carries. COMPLETED and CANCELLED both mean the work is
+    finished; COMPLETED counts toward Goal completion and CANCELLED ends work
+    without counting as done. IN_PROGRESS means work is underway. CUSTOM is a
+    note in the user's own words that the platform never interprets.
+
+WorkItemStatusBuiltInMeaning:
+  type: object
+  additionalProperties: false
+  description: >
+    A built-in meaning the platform acts on. It carries no text.
+  required:
+    - kind
+  properties:
+    kind:
+      type: string
+      enum:
+        - COMPLETED
+        - CANCELLED
+        - IN_PROGRESS
+
+WorkItemStatusCustomMeaning:
+  type: object
+  additionalProperties: false
+  description: >
+    A note in the user's own words that the platform never interprets. The
+    text counts characters as people see them (Unicode code points), 1 to 50,
+    and may not repeat a built-in meaning's name; choose the built-in instead.
+  required:
+    - kind
+    - text
+  properties:
+    kind:
+      type: string
+      enum:
+        - CUSTOM
+    text:
+      type: string
+      minLength: 1
+      maxLength: 50
+
+WorkItemStatusMeaning:
+  description: >
+    The one meaning of an ordinary status: a built-in meaning (COMPLETED,
+    CANCELLED, IN_PROGRESS) or a CUSTOM note. The platform acts only on the
+    built-ins. Goal progress and active filters read this, never the status
+    name.
+  oneOf:
+    - $ref: "#/WorkItemStatusBuiltInMeaning"
+    - $ref: "#/WorkItemStatusCustomMeaning"
 
 WorkItemTypeStatus:
   type: object
   additionalProperties: false
   description: >
-    One ordinary status of a work-item type. `name` is the exact value stored
-    on items and is never rewritten by a type edit.
+    One ordinary status of a work-item type: the name the user typed plus
+    exactly one meaning. `name` is the exact value stored on items, shown as
+    written everywhere, and never rewritten by a type edit.
   required:
     - name
     - meaning
@@ -1705,19 +1740,25 @@ WorkItemTypeStatus:
       minLength: 1
       description: >
         The status name, stored verbatim on items (e.g. "BACKLOG" for a
-        migrated platform status, "Testing" for a custom one). Unique within
-        the type, and never ARCHIVED or SUPERSEDED.
-    label:
-      type: string
-      minLength: 1
-      description: >
-        Display label when it differs from `name` (preserves the labels
-        existing statuses have always shown, e.g. ACTIVE shows "In progress").
-        Absent means `name` is shown as written.
+        platform status, "Testing" for a custom one). Unique within the type,
+        and never ARCHIVED or SUPERSEDED.
     meaning:
       $ref: "#/WorkItemStatusMeaning"
-    completionBehavior:
-      $ref: "#/WorkItemStatusCompletionBehavior"
+
+WorkItemStatusAuthoringInput:
+  type: object
+  additionalProperties: false
+  description: >
+    One status as written by the author. The meaning is optional only so a
+    missing one is rejected with the status named; it is never defaulted.
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+    meaning:
+      $ref: "#/WorkItemStatusMeaning"
 
 WorkItemStatusAuthoringRequest:
   type: object
@@ -1727,44 +1768,29 @@ WorkItemStatusAuthoringRequest:
     purpose:
       type: string
       description: Purpose of the work-item type, used to suggest statuses.
-    names:
+    statuses:
       type: array
       minItems: 1
       items:
-        type: string
-        minLength: 1
-      description: Ordered ordinary names. Omit to request suggestions.
-    existingStatuses:
-      type: array
-      items:
-        $ref: "#/WorkItemTypeStatus"
-      description: Existing resolved statuses whose meanings and labels should be preserved.
-    finishedNames:
-      type: array
-      items:
-        type: string
-      description: Explicit selection of finished statuses; an empty array means none.
+        $ref: "#/WorkItemStatusAuthoringInput"
+      description: >
+        Ordered statuses to validate; every one must carry its meaning. Omit
+        the list to receive the standard statuses.
 
 WorkItemStatusAuthoringResponse:
   type: object
   additionalProperties: false
-  required: [suggestions, state]
+  required: [suggestions, statuses]
   properties:
     suggestions:
       type: array
       items:
         type: string
-    state:
-      type: string
-      enum: [RESOLVED, CLARIFICATION]
     statuses:
       type: array
       items:
         $ref: "#/WorkItemTypeStatus"
-      description: Fully resolved definition, present only when state is RESOLVED.
-    question:
-      type: string
-      description: Question to ask when finished statuses are unclear.
+      description: Fully resolved, validated definition.
 
 WorkItemTypeCapabilities:
   type: object

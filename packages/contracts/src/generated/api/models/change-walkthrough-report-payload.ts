@@ -23,6 +23,9 @@ import type { BaseReportPayload } from './base-report-payload.js';
 import type { ChangeWalkthroughGroup } from './change-walkthrough-group.js';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { ChangeWalkthroughPart } from './change-walkthrough-part.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { ChangeWalkthroughReportPayloadAllOf } from './change-walkthrough-report-payload-all-of.js';
 
 /**

@@ -68,13 +68,16 @@ export const CliReadProjectSessionCostMemberProviderIdEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(CliReadProjectSessionCostMemberProviderIdEnum, "claude", { enumerable: false, value: CliReadProjectSessionCostMemberProviderIdEnum["Claude"] });
 Object.defineProperty(CliReadProjectSessionCostMemberProviderIdEnum, "codex", { enumerable: false, value: CliReadProjectSessionCostMemberProviderIdEnum["Codex"] });
 Object.defineProperty(CliReadProjectSessionCostMemberProviderIdEnum, "opencode", { enumerable: false, value: CliReadProjectSessionCostMemberProviderIdEnum["Opencode"] });
+Object.defineProperty(CliReadProjectSessionCostMemberProviderIdEnum, "antigravity", { enumerable: false, value: CliReadProjectSessionCostMemberProviderIdEnum["Antigravity"] });
 
 export type CliReadProjectSessionCostMemberProviderIdEnum = typeof CliReadProjectSessionCostMemberProviderIdEnum[keyof typeof CliReadProjectSessionCostMemberProviderIdEnum];
 

@@ -393,29 +393,18 @@ export class TaskMonitorStartRuntime {
     monitorId: string;
   }): Promise<TaskMonitorStartMonitor> {
     this.dependencies.logger.debug('task_monitor.start.monitor.read.started', input);
-    const monitor = await this.readWorkItem(input.organizationId, input.projectId, input.monitorId);
-    if (monitor.type !== 'TASK_MONITOR') throw new Error('Command target is not a Task Monitor.');
-    if (monitor.status === undefined) {
-      throw new Error('Task Monitor is missing its canonical status.');
-    }
-    const parsedDefinition = definitionFromMonitor(monitor, this.dependencies.logger);
-    let result: TaskMonitorStartMonitor = {
-      id: monitor.id,
-      name: monitor.name,
-      organizationId: monitor.organizationId,
-      projectId: monitor.projectId,
-      status: monitor.status,
-      definition: parsedDefinition.definition,
-    };
-    if (parsedDefinition.migratedLegacyReviewMode) {
+    const snapshot = await this.readMonitorSnapshot(input);
+    let result = snapshot.monitor;
+    if (snapshot.migratedLegacyReviewMode) {
       this.dependencies.logger.info('task_monitor.start.monitor.review_mode.migration.started', {
         monitorId: result.id,
         from: 'SKIP_REVIEW',
         to: 'AGENT_DECIDES',
       });
+      // The fresh read inside persistDefinition applies the same migration.
       result = await this.persistDefinition(
         result,
-        result.definition,
+        (current) => current,
         'Migrate legacy Task Monitor Review mode to Agent decides before continuing.',
       );
       this.dependencies.logger.info('task_monitor.start.monitor.review_mode.migration.completed', {
@@ -430,6 +419,30 @@ export class TaskMonitorStartRuntime {
       executionPlanLength: result.definition.executionPlan.length,
     });
     return result;
+  }
+
+  private async readMonitorSnapshot(input: {
+    organizationId: string;
+    projectId: string;
+    monitorId: string;
+  }): Promise<{ monitor: TaskMonitorStartMonitor; migratedLegacyReviewMode: boolean }> {
+    const monitor = await this.readWorkItem(input.organizationId, input.projectId, input.monitorId);
+    if (monitor.type !== 'TASK_MONITOR') throw new Error('Command target is not a Task Monitor.');
+    if (monitor.status === undefined) {
+      throw new Error('Task Monitor is missing its canonical status.');
+    }
+    const parsedDefinition = definitionFromMonitor(monitor, this.dependencies.logger);
+    return {
+      monitor: {
+        id: monitor.id,
+        name: monitor.name,
+        organizationId: monitor.organizationId,
+        projectId: monitor.projectId,
+        status: monitor.status,
+        definition: parsedDefinition.definition,
+      },
+      migratedLegacyReviewMode: parsedDefinition.migratedLegacyReviewMode,
+    };
   }
 
   public async readNodeItem(input: {
@@ -480,23 +493,23 @@ export class TaskMonitorStartRuntime {
     agentSessionId: string;
     evidence: TaskMonitorOperationEvidence | null;
   }): Promise<void> {
-    const monitor = await this.readMonitor(input);
-    const entry = monitor.definition.executionPlan[monitor.definition.cursor];
-    if (entry?.taskId !== input.nodeId || entry.agentSessionId !== input.agentSessionId) {
-      throw new Error('Operation result no longer matches the canonical cursor and session.');
-    }
     await this.persistDefinition(
-      monitor,
-      {
-        ...monitor.definition,
-        executionPlan: monitor.definition.executionPlan.map((node, index) =>
-          index === monitor.definition.cursor
-            ? (() => {
-                const { operationEvidence: _prior, ...current } = node;
-                return input.evidence ? { ...current, operationEvidence: input.evidence } : current;
-              })()
-            : node,
-        ),
+      { id: input.monitorId, organizationId: input.organizationId, projectId: input.projectId },
+      (current) => {
+        const entry = current.executionPlan[current.cursor];
+        if (entry?.taskId !== input.nodeId || entry.agentSessionId !== input.agentSessionId) {
+          throw new Error('Operation result no longer matches the canonical cursor and session.');
+        }
+        return {
+          ...current,
+          executionPlan: current.executionPlan.map((node, index) => {
+            if (index !== current.cursor) {
+              return node;
+            }
+            const { operationEvidence: _prior, ...rest } = node;
+            return input.evidence ? { ...rest, operationEvidence: input.evidence } : rest;
+          }),
+        };
       },
       'Record scoped Task Monitor operation evidence and coordinator admission.',
     );
@@ -581,11 +594,24 @@ export class TaskMonitorStartRuntime {
     return { ...monitor, status };
   }
 
+  /**
+   * Every writer saves the whole execution definition and the server keeps the
+   * last one, so a copy read earlier would put back other writers' changes
+   * (for example an "Apply to tasks that haven't started" from the UI). Reading
+   * again immediately before the PATCH and applying only this writer's change
+   * narrows that window to one round trip; it does not close it.
+   */
   private async persistDefinition(
-    monitor: TaskMonitorStartMonitor,
-    definition: TaskMonitorExecutionDefinition,
+    target: Pick<TaskMonitorStartMonitor, 'id' | 'organizationId' | 'projectId'>,
+    change: (current: TaskMonitorExecutionDefinition) => TaskMonitorExecutionDefinition,
     reason: string,
   ): Promise<TaskMonitorStartMonitor> {
+    const { monitor } = await this.readMonitorSnapshot({
+      organizationId: target.organizationId,
+      projectId: target.projectId,
+      monitorId: target.id,
+    });
+    const definition = change(monitor.definition);
     if (!validateDefinition(definition)) {
       throw new Error('Refusing to persist an invalid Task Monitor execution definition.');
     }
@@ -623,13 +649,9 @@ export class TaskMonitorStartRuntime {
     monitor: TaskMonitorStartMonitor;
     cursor: number;
   }): Promise<TaskMonitorStartMonitor> {
-    const definition: TaskMonitorExecutionDefinition = {
-      ...monitor.definition,
-      cursor,
-    };
     const persisted = await this.persistDefinition(
       monitor,
-      definition,
+      (current) => ({ ...current, cursor }),
       'Advance Task Monitor cursor past a satisfied operation.',
     );
     this.dependencies.logger.info('task_monitor.start.cursor.advance.completed', {
@@ -648,19 +670,29 @@ export class TaskMonitorStartRuntime {
     planIndex: number;
     agentSessionId: string;
   }): Promise<TaskMonitorStartMonitor> {
-    const executionPlan = monitor.definition.executionPlan.map((entry, index) =>
-      index === planIndex
-        ? (() => {
-            const { operationEvidence: _prior, ...fresh } = entry;
-            return { ...fresh, agentSessionId };
-          })()
-        : entry,
-    );
+    const expectedTaskId = monitor.definition.executionPlan[planIndex]?.taskId;
     return this.persistDefinition(
       monitor,
-      {
-        ...monitor.definition,
-        executionPlan,
+      (current) => {
+        const entry = current.executionPlan[planIndex];
+        if (!entry || entry.taskId !== expectedTaskId) {
+          throw new Error('Task Monitor launch persistence target no longer matches.');
+        }
+        if (entry.agentSessionId && entry.agentSessionId !== agentSessionId) {
+          throw new Error(
+            'Task Monitor launch persistence conflicts with an existing Agent Session.',
+          );
+        }
+        return {
+          ...current,
+          executionPlan: current.executionPlan.map((entry, index) => {
+            if (index !== planIndex) {
+              return entry;
+            }
+            const { operationEvidence: _prior, ...rest } = entry;
+            return { ...rest, agentSessionId };
+          }),
+        };
       },
       'Record the Coding Agent Session launched for the current Task Monitor entry.',
     );

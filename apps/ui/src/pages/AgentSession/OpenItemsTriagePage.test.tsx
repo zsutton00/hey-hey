@@ -64,6 +64,9 @@ vi.mock("@hey-hey/ui-common/data", async (original) => ({
   ...(await original<typeof import("@hey-hey/ui-common/data")>()),
   useAgentSessionCurrentState: () => ({ currentState: mocks.currentState }),
   useMessage: () => ({ data: undefined }),
+  // Spreading the original module here resolves this hook circularly as
+  // undefined; the page only needs the registry for preview row icons.
+  useWorkItemTypes: () => ({ workItemTypes: [] }),
   useOpenItems: () => ({
     collection: { state: "PRESENT", revision: 1, items: [], groups: [] },
     adapter: {
@@ -185,6 +188,7 @@ const binding = (
   onFreshPassSubmitted: vi.fn(),
   onFollowUpSubmitted: vi.fn(),
   onActivity: vi.fn(),
+  onResultPresence: vi.fn(),
   onRunAgain: vi.fn(),
   onLaunchFailed: vi.fn(),
   registerStop: vi.fn(),

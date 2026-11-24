@@ -1,6 +1,7 @@
 import { Box, Paper, useTheme } from "@mui/material";
 import React from "react";
 import { MarkdownLexicalEditor } from "../LexicalEditor/MarkdownLexicalEditor";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 import type {
   MarkdownLexicalEditorEntitySlashConfig,
   MarkdownLexicalEditorMentionConfig,
@@ -44,6 +45,7 @@ export const DesignDocSingleSectionEditorContent: React.FC<
         elevation={0}
         sx={{
           border: `1px solid ${theme.palette.divider}`,
+          ...getInputBorderSx(theme, { disabled }),
           borderRadius: 1,
           backgroundColor: theme.palette.background.paper,
           overflow: "hidden",

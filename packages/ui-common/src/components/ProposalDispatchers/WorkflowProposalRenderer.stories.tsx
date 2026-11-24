@@ -97,7 +97,10 @@ const workflowTypeDefinition: WorkItemTypeDefinitionDto = {
   name: "Workflow",
   sections: [],
   statuses: [
-    { name: WorkStatus.Backlog, label: "Backlog", meaning: "NOT_STARTED" },
+    {
+      name: WorkStatus.Backlog,
+      meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+    },
   ],
 };
 

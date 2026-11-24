@@ -19,7 +19,7 @@
 import type { PlanShapingReadyActionSchemasREADY } from './plan-shaping-ready-action-schemas-ready.js';
 
 /**
- * Action declared by the plan-shaping visual-preview node. The completion payload carries the complete ordered proposal set for the current round.
+ * Action declared by the plan-shaping visual-preview node. The completion payload carries the ordered proposal set so far and whether it is complete.
  * @export
  * @interface PlanShapingVisualPreviewActionSchemas
  */

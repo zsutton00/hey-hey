@@ -2,7 +2,7 @@ import { ResolutionTextEditor } from "../ProposalReconciliation/ResolutionTextEd
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { Edit as EditIcon } from "@mui/icons-material";
+import EditIcon from "@mui/icons-material/Edit";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import {
   Alert,

@@ -367,6 +367,70 @@ describe('SubagentRunner', () => {
     await expect(runner.run(new AbortController().signal)).rejects.toBe(failure);
   });
 
+  it.each([false, true])(
+    'publishes commit completion only after reporting succeeds (failure=%s)',
+    async (fails) => {
+      const run = new Run(makeRunArgs(), makeCollaborators());
+      const ingress = vi.spyOn(run, 'onActiveTurnAgentOutput').mockImplementation(() => undefined);
+      const deps = makeRunnerDeps(['/repo/a.ts']);
+      vi.spyOn(deps.childAgentLauncher, 'launch').mockImplementation(async ({ onAgentOutput }) => {
+        onAgentOutput?.({
+          event: {
+            source: 'provider',
+            eventType: 'agent_output',
+            timestamp: '2026-04-26T00:00:01.000Z',
+            sessionId: 'ephemeral-session',
+            agentId: 'claude',
+            payload: { messageType: 'assistant', taskComplete: true, summary: 'Draft' },
+          },
+        });
+        return { assistantCompleted: true, usage: {} };
+      });
+      const handler = {
+        ...makeSubagentHandler(),
+        promptType: 'commit' as const,
+        onSubagentComplete: async () => {
+          expect(ingress).not.toHaveBeenCalled();
+          if (fails) {
+            throw new Error('Report unavailable');
+          }
+          run.appendReportChainEntry({
+            createdAt: '2026-04-26T00:00:02.000Z',
+            phase: 'commit',
+            reportId: 'commit-report',
+            reportType: 'COMMIT',
+            sourceRunId: run.runId,
+            summary: 'Update a.ts',
+            audience: 'EXTERNAL',
+          });
+        },
+      };
+      const runner = new SubagentRunner(
+        { ...makeCtx(run, makeInput()), handler },
+        makeConfig(),
+        deps,
+      );
+
+      if (fails) {
+        await expect(runner.run(new AbortController().signal)).rejects.toThrow(
+          'Report unavailable',
+        );
+        expect(ingress).not.toHaveBeenCalled();
+        return;
+      }
+      await runner.run(new AbortController().signal);
+      expect(run.readReportChain().map(({ reportId }) => reportId)).toEqual(['commit-report']);
+      expect(ingress).toHaveBeenCalledExactlyOnceWith('turn-1', {
+        event: expect.objectContaining({
+          payload: expect.objectContaining({
+            taskComplete: true,
+            summary: expect.stringContaining('Update a.ts'),
+          }),
+        }),
+      });
+    },
+  );
+
   it('invokes feature-owned post-processing after the subagent result', async () => {
     const run = new Run(makeRunArgs(), makeCollaborators());
     const result = { assistantCompleted: true };
@@ -374,21 +438,21 @@ describe('SubagentRunner', () => {
     const onSubagentComplete = vi.fn().mockResolvedValue(undefined);
     const handler = {
       ...makeSubagentHandler(),
-      promptType: 'commit' as const,
+      promptType: 'implement' as const,
       onSubagentComplete,
     };
 
     const runner = new SubagentRunner(
       { ...makeCtx(run, makeInput()), handler },
       makeConfig(),
-      makeRunnerDeps(['/repo/a.ts']),
+      makeRunnerDeps(),
     );
     await runner.run(new AbortController().signal);
 
     expect(onSubagentComplete).toHaveBeenCalledWith(
       expect.objectContaining({
         run,
-        touchedFiles: ['/repo/a.ts'],
+        touchedFiles: [],
         result,
       }),
     );

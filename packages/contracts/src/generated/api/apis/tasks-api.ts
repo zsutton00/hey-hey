@@ -29,6 +29,8 @@ import type { AgentEdgeType } from '../models.js';
 // @ts-ignore
 import type { ApiErrorResponse } from '../models.js';
 // @ts-ignore
+import type { ApplyTaskMonitorUnstartedLaunchConfiguration200Response } from '../models.js';
+// @ts-ignore
 import type { AttachToGoal200Response } from '../models.js';
 // @ts-ignore
 import type { AttachToGoalDto } from '../models.js';
@@ -69,6 +71,8 @@ import type { SubmitTaskMonitorCommandRequestDto } from '../models.js';
 // @ts-ignore
 import type { SupersedeTaskDto } from '../models.js';
 // @ts-ignore
+import type { TaskMonitorExecutionNodeLaunchConfiguration } from '../models.js';
+// @ts-ignore
 import type { TaskSortBy } from '../models.js';
 // @ts-ignore
 import type { TaskSortDir } from '../models.js';
@@ -86,6 +90,58 @@ import type { WorkItemGraphParticipationType } from '../models.js';
  */
 export const TasksApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * Replaces method, provider, model, reasoning effort and Fast mode on every execution-plan task whose Agent Session does not exist yet, including values chosen individually. The server decides which tasks are unstarted at write time and writes all of them or none. Tasks that already have an Agent Session are left unchanged and reported as skipped. Only node launch configuration is written; cursor, session references and monitor-level settings are untouched.
+         * @summary Apply one launch configuration to every unstarted Task Monitor task
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} monitorId
+         * @param {TaskMonitorExecutionNodeLaunchConfiguration} taskMonitorExecutionNodeLaunchConfiguration
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        applyTaskMonitorUnstartedLaunchConfiguration: async (organizationId: string, projectId: string, monitorId: string, taskMonitorExecutionNodeLaunchConfiguration: TaskMonitorExecutionNodeLaunchConfiguration, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'organizationId' is not null or undefined
+            assertParamExists('applyTaskMonitorUnstartedLaunchConfiguration', 'organizationId', organizationId)
+            // verify required parameter 'projectId' is not null or undefined
+            assertParamExists('applyTaskMonitorUnstartedLaunchConfiguration', 'projectId', projectId)
+            // verify required parameter 'monitorId' is not null or undefined
+            assertParamExists('applyTaskMonitorUnstartedLaunchConfiguration', 'monitorId', monitorId)
+            // verify required parameter 'taskMonitorExecutionNodeLaunchConfiguration' is not null or undefined
+            assertParamExists('applyTaskMonitorUnstartedLaunchConfiguration', 'taskMonitorExecutionNodeLaunchConfiguration', taskMonitorExecutionNodeLaunchConfiguration)
+            const localVarPath = `/organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/unstarted-launch-configuration`
+                .replace(`{${"organizationId"}}`, encodeURIComponent(String(organizationId)))
+                .replace(`{${"projectId"}}`, encodeURIComponent(String(projectId)))
+                .replace(`{${"monitorId"}}`, encodeURIComponent(String(monitorId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(taskMonitorExecutionNodeLaunchConfiguration, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Attach a target entity to a GOAL-typed task by creating a `TRACKS` edge from the goal to the target. The boundary handler enforces: - source task must be type GOAL; - target must be a FEATURE / STANDARD / BUG task or a PLAN; - DESIGN_DOC and other GOAL targets are rejected with a 400.  Idempotent: re-attaching the same target is a no-op and returns the existing edge with `created: false`.
          * @summary Attach an entity to a goal
@@ -1239,6 +1295,22 @@ export const TasksApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = TasksApiAxiosParamCreator(configuration)
     return {
         /**
+         * Replaces method, provider, model, reasoning effort and Fast mode on every execution-plan task whose Agent Session does not exist yet, including values chosen individually. The server decides which tasks are unstarted at write time and writes all of them or none. Tasks that already have an Agent Session are left unchanged and reported as skipped. Only node launch configuration is written; cursor, session references and monitor-level settings are untouched.
+         * @summary Apply one launch configuration to every unstarted Task Monitor task
+         * @param {string} organizationId
+         * @param {string} projectId
+         * @param {string} monitorId
+         * @param {TaskMonitorExecutionNodeLaunchConfiguration} taskMonitorExecutionNodeLaunchConfiguration
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async applyTaskMonitorUnstartedLaunchConfiguration(organizationId: string, projectId: string, monitorId: string, taskMonitorExecutionNodeLaunchConfiguration: TaskMonitorExecutionNodeLaunchConfiguration, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ApplyTaskMonitorUnstartedLaunchConfiguration200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.applyTaskMonitorUnstartedLaunchConfiguration(organizationId, projectId, monitorId, taskMonitorExecutionNodeLaunchConfiguration, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['TasksApi.applyTaskMonitorUnstartedLaunchConfiguration']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Attach a target entity to a GOAL-typed task by creating a `TRACKS` edge from the goal to the target. The boundary handler enforces: - source task must be type GOAL; - target must be a FEATURE / STANDARD / BUG task or a PLAN; - DESIGN_DOC and other GOAL targets are rejected with a 400.  Idempotent: re-attaching the same target is a no-op and returns the existing edge with `created: false`.
          * @summary Attach an entity to a goal
          * @param {string} organizationId The ID of the organization that owns the goal.
@@ -1584,6 +1656,16 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
     const localVarFp = TasksApiFp(configuration)
     return {
         /**
+         * Replaces method, provider, model, reasoning effort and Fast mode on every execution-plan task whose Agent Session does not exist yet, including values chosen individually. The server decides which tasks are unstarted at write time and writes all of them or none. Tasks that already have an Agent Session are left unchanged and reported as skipped. Only node launch configuration is written; cursor, session references and monitor-level settings are untouched.
+         * @summary Apply one launch configuration to every unstarted Task Monitor task
+         * @param {TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        applyTaskMonitorUnstartedLaunchConfiguration(requestParameters: TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest, options?: RawAxiosRequestConfig): AxiosPromise<ApplyTaskMonitorUnstartedLaunchConfiguration200Response> {
+            return localVarFp.applyTaskMonitorUnstartedLaunchConfiguration(requestParameters.organizationId, requestParameters.projectId, requestParameters.monitorId, requestParameters.taskMonitorExecutionNodeLaunchConfiguration, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Attach a target entity to a GOAL-typed task by creating a `TRACKS` edge from the goal to the target. The boundary handler enforces: - source task must be type GOAL; - target must be a FEATURE / STANDARD / BUG task or a PLAN; - DESIGN_DOC and other GOAL targets are rejected with a 400.  Idempotent: re-attaching the same target is a no-op and returns the existing edge with `created: false`.
          * @summary Attach an entity to a goal
          * @param {TasksApiAttachToGoalRequest} requestParameters Request parameters.
@@ -1783,6 +1865,16 @@ export const TasksApiFactory = function (configuration?: Configuration, basePath
  */
 export interface TasksApiInterface {
     /**
+     * Replaces method, provider, model, reasoning effort and Fast mode on every execution-plan task whose Agent Session does not exist yet, including values chosen individually. The server decides which tasks are unstarted at write time and writes all of them or none. Tasks that already have an Agent Session are left unchanged and reported as skipped. Only node launch configuration is written; cursor, session references and monitor-level settings are untouched.
+     * @summary Apply one launch configuration to every unstarted Task Monitor task
+     * @param {TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApiInterface
+     */
+    applyTaskMonitorUnstartedLaunchConfiguration(requestParameters: TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest, options?: RawAxiosRequestConfig): AxiosPromise<ApplyTaskMonitorUnstartedLaunchConfiguration200Response>;
+
+    /**
      * Attach a target entity to a GOAL-typed task by creating a `TRACKS` edge from the goal to the target. The boundary handler enforces: - source task must be type GOAL; - target must be a FEATURE / STANDARD / BUG task or a PLAN; - DESIGN_DOC and other GOAL targets are rejected with a 400.  Idempotent: re-attaching the same target is a no-op and returns the existing edge with `created: false`.
      * @summary Attach an entity to a goal
      * @param {TasksApiAttachToGoalRequest} requestParameters Request parameters.
@@ -1972,6 +2064,41 @@ export interface TasksApiInterface {
      */
     supersedeTask(requestParameters: TasksApiSupersedeTaskRequest, options?: RawAxiosRequestConfig): AxiosPromise<OrganizationsOrganizationIdProjectsProjectIdTasksTaskIdPatch200Response>;
 
+}
+
+/**
+ * Request parameters for applyTaskMonitorUnstartedLaunchConfiguration operation in TasksApi.
+ * @export
+ * @interface TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest
+ */
+export interface TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest {
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiApplyTaskMonitorUnstartedLaunchConfiguration
+     */
+    readonly organizationId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiApplyTaskMonitorUnstartedLaunchConfiguration
+     */
+    readonly projectId: string
+
+    /**
+     *
+     * @type {string}
+     * @memberof TasksApiApplyTaskMonitorUnstartedLaunchConfiguration
+     */
+    readonly monitorId: string
+
+    /**
+     *
+     * @type {TaskMonitorExecutionNodeLaunchConfiguration}
+     * @memberof TasksApiApplyTaskMonitorUnstartedLaunchConfiguration
+     */
+    readonly taskMonitorExecutionNodeLaunchConfiguration: TaskMonitorExecutionNodeLaunchConfiguration
 }
 
 /**
@@ -2863,6 +2990,18 @@ export interface TasksApiSupersedeTaskRequest {
  * @extends {BaseAPI}
  */
 export class TasksApi extends BaseAPI implements TasksApiInterface {
+    /**
+     * Replaces method, provider, model, reasoning effort and Fast mode on every execution-plan task whose Agent Session does not exist yet, including values chosen individually. The server decides which tasks are unstarted at write time and writes all of them or none. Tasks that already have an Agent Session are left unchanged and reported as skipped. Only node launch configuration is written; cursor, session references and monitor-level settings are untouched.
+     * @summary Apply one launch configuration to every unstarted Task Monitor task
+     * @param {TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof TasksApi
+     */
+    public applyTaskMonitorUnstartedLaunchConfiguration(requestParameters: TasksApiApplyTaskMonitorUnstartedLaunchConfigurationRequest, options?: RawAxiosRequestConfig) {
+        return TasksApiFp(this.configuration).applyTaskMonitorUnstartedLaunchConfiguration(requestParameters.organizationId, requestParameters.projectId, requestParameters.monitorId, requestParameters.taskMonitorExecutionNodeLaunchConfiguration, options).then((request) => request(this.axios, this.basePath));
+    }
+
     /**
      * Attach a target entity to a GOAL-typed task by creating a `TRACKS` edge from the goal to the target. The boundary handler enforces: - source task must be type GOAL; - target must be a FEATURE / STANDARD / BUG task or a PLAN; - DESIGN_DOC and other GOAL targets are rejected with a 400.  Idempotent: re-attaching the same target is a no-op and returns the existing edge with `created: false`.
      * @summary Attach an entity to a goal

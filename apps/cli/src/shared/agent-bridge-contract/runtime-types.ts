@@ -1,5 +1,7 @@
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
 import type {
   AgentSessionConfig,
+  AgentProviderId,
   StartRunPromptPayloadReasoningEffortEnum,
   LocalAgentSearchEntityType,
   FeatureSyncDiscrepancy,
@@ -43,7 +45,7 @@ export interface LocalPendingRunContext {
   launchServiceId?: string;
   planId?: string;
   stepId?: string;
-  provider?: 'claude' | 'codex' | 'opencode';
+  provider?: AgentProviderId;
 }
 
 /**
@@ -64,6 +66,8 @@ export interface LocalCreateRunRequest {
   scope?: LocalRunScope;
   conversationId: string;
   worktree?: LocalWorktreeConfig;
+  /** Where each Service works, when the launch chose per Service. Absent follows `worktree`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   payload?: RunCreatePayload;
   triggersAgent?: boolean;
   attachments: RunAttachmentReference[];

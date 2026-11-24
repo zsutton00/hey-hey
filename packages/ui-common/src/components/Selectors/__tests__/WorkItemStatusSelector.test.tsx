@@ -26,10 +26,10 @@ const mockAllowedStatuses = (statuses: TaskResponseDto["status"][]): void => {
   } as never);
 };
 
-/** The labels the built-in Feature and Plan definitions carry for their statuses. */
+/** The statuses the built-in Feature and Plan definitions declare. */
 const mockLabelledStatuses = (
   key: string,
-  statuses: { name: string; label: string; meaning: string }[],
+  statuses: { name: string; meaning: { kind: string; text?: string } }[],
 ): void => {
   mockedUseWorkItemTypeByKey.mockReturnValue({
     isLoading: false,
@@ -64,9 +64,9 @@ describe("WorkItemStatusSelector", () => {
 
     await userEvent.click(screen.getByRole("combobox"));
 
-    expect(screen.getByText("In progress")).toBeInTheDocument();
-    expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+    expect(screen.getByText("CANCELLED")).toBeInTheDocument();
     expect(screen.getByText("Superseded")).toBeInTheDocument();
   });
 
@@ -90,7 +90,7 @@ describe("WorkItemStatusSelector", () => {
 
     await userEvent.click(screen.getByRole("combobox"));
 
-    expect(screen.getByText("In progress")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
     expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Generating description"),
@@ -110,7 +110,7 @@ describe("WorkItemStatusSelector", () => {
     );
 
     await userEvent.click(screen.getByRole("combobox"));
-    await userEvent.click(screen.getByText("Completed"));
+    await userEvent.click(screen.getByText("COMPLETED"));
 
     expect(onChange).toHaveBeenCalledWith(WorkStatus.Completed);
   });
@@ -147,12 +147,12 @@ describe("WorkItemStatusSelector", () => {
     await userEvent.click(screen.getByRole("combobox"));
 
     expect(screen.queryByText("Superseded")).not.toBeInTheDocument();
-    expect(screen.getByText("In progress")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
   });
 
-  it("displays Active as 'Ready' for feature tasks", () => {
+  it("shows a feature's ACTIVE status as named, not as 'Ready'", () => {
     mockLabelledStatuses("FEATURE", [
-      { name: WorkStatus.Active, label: "Ready", meaning: "IN_PROGRESS" },
+      { name: WorkStatus.Active, meaning: { kind: "IN_PROGRESS" as const } },
     ]);
     render(
       <WorkItemStatusSelector
@@ -164,14 +164,21 @@ describe("WorkItemStatusSelector", () => {
       />,
     );
 
-    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.queryByText("Ready")).not.toBeInTheDocument();
   });
 });
 
-it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async () => {
+it("shows Plan BACKLOG as named and submits the same value", async () => {
   mockLabelledStatuses("PLAN", [
-    { name: WorkStatus.Backlog, label: "Draft", meaning: "NOT_STARTED" },
-    { name: WorkStatus.Ready, label: "Ready", meaning: "NOT_STARTED" },
+    {
+      name: WorkStatus.Backlog,
+      meaning: { kind: "CUSTOM" as const, text: "Drafting" },
+    },
+    {
+      name: WorkStatus.Ready,
+      meaning: { kind: "CUSTOM" as const, text: "Ready to build" },
+    },
   ]);
   const onChange = vi.fn();
   render(
@@ -184,10 +191,10 @@ it("labels Plan BACKLOG as Draft but submits the canonical BACKLOG value", async
     />,
   );
   await userEvent.click(screen.getByRole("combobox"));
-  await userEvent.click(screen.getByRole("option", { name: "Draft" }));
+  await userEvent.click(screen.getByRole("option", { name: "BACKLOG" }));
   expect(onChange).toHaveBeenCalledWith(WorkStatus.Backlog);
 });
-it("keeps ordinary task BACKLOG labeled Backlog", () => {
+it("shows ordinary task BACKLOG exactly as named", () => {
   mockAllowedStatuses(STANDARD_ALLOWED);
   render(
     <WorkItemStatusSelector
@@ -198,7 +205,7 @@ it("keeps ordinary task BACKLOG labeled Backlog", () => {
       taskType="STANDARD"
     />,
   );
-  expect(screen.getByText("Backlog")).toBeInTheDocument();
+  expect(screen.getByText("BACKLOG")).toBeInTheDocument();
   expect(screen.queryByText("Draft")).not.toBeInTheDocument();
 });
 
@@ -210,9 +217,12 @@ describe("WorkItemStatusSelector — custom type vocabulary", () => {
         key: "RECIPE",
         name: "Recipe",
         statuses: [
-          { name: "Idea", meaning: "NOT_STARTED" },
-          { name: "Made", meaning: "FINISHED" },
-          { name: "Rejected", meaning: "FINISHED" },
+          {
+            name: "Idea",
+            meaning: { kind: "CUSTOM" as const, text: "Not started" },
+          },
+          { name: "Made", meaning: { kind: "COMPLETED" as const } },
+          { name: "Rejected", meaning: { kind: "COMPLETED" as const } },
         ],
         capabilities: { supportsSupersession: true },
       },

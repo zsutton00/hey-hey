@@ -2,7 +2,7 @@ import { OpenItemsTriageSessionContent } from "./OpenItemsTriageSessionContent";
 import { TriageError } from "./TriageError";
 import { TriageLoading } from "./TriageLoading";
 import { TriageModalState } from "./TriageModalState";
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { IconButton } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { useTranslation } from "react-i18next";
@@ -27,6 +27,9 @@ import {
 const TRIAGE_START_DIALOG_WIDTH = 440;
 /** Sessions and results use most of the window so the before/after comparison fits. */
 const TRIAGE_SESSION_DIALOG_WIDTH = "80vw";
+/** Once results show, the dialog takes the full available height so the
+ * suggestion rail and the comparison can fill it. */
+const TRIAGE_RESULTS_DIALOG_HEIGHT = "90vh";
 
 /**
  * Owns one transient triage review for a single modal opening. Every close
@@ -53,6 +56,17 @@ export function OpenItemsTriageReview({
   const sessionId = phase.kind === "session" ? phase.agentSessionId : null;
   const currentSessionId = useRef(sessionId);
   currentSessionId.current = closed ? null : sessionId;
+  // The dialog takes the full height only once a result is on screen, and a
+  // follow-up run keeps it rather than shrinking back under the old results.
+  const [resultsShownFor, setResultsShownFor] = useState<string | null>(null);
+  const handleResultPresence = useCallback(
+    (present: boolean) => {
+      if (present && sessionId) setResultsShownFor(sessionId);
+    },
+    [sessionId],
+  );
+  const fillHeight =
+    !!sessionId && resultsShownFor === sessionId && gate.kind === "none";
 
   useEffect(() => {
     if (closed) onClosed();
@@ -155,6 +169,7 @@ export function OpenItemsTriageReview({
     onFreshPassSubmitted: handleFreshPassSubmitted,
     onFollowUpSubmitted: handleFollowUpSubmitted,
     onActivity: handleActivity,
+    onResultPresence: handleResultPresence,
     onRunAgain: () => void handleRerun(),
     onLaunchFailed: handleSessionFailed,
     registerStop: handleRegisterStop,
@@ -182,6 +197,7 @@ export function OpenItemsTriageReview({
           ? TRIAGE_START_DIALOG_WIDTH
           : TRIAGE_SESSION_DIALOG_WIDTH
       }
+      dialogHeight={fillHeight ? TRIAGE_RESULTS_DIALOG_HEIGHT : undefined}
       labelledBy={TRIAGE_TITLE_ID}
       describedBy={
         phase.kind === "help" ? TRIAGE_HELP_DESCRIPTION_ID : undefined

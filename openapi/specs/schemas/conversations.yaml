@@ -163,7 +163,7 @@ WorkTrackerImportReplyAnswers:
       $ref: "./common.yaml#/MachineId"
     work_tracker_provider:
       type: string
-      enum: [claude, codex]
+      enum: [claude, codex, antigravity]
     work_tracker_model:
       type: string
       minLength: 1
@@ -3299,7 +3299,7 @@ ConversationStartRunRequestDto:
             be revoked; an invalid value is rejected with 400 INVALID_MACHINE_ID
             before any trigger is emitted.
   # Keep this conditional outside allOf. openapi-generator otherwise folds the
-  # Codex-only branch into the shared provider enum for every generated client.
+  # Fast-mode provider subset into the shared provider enum for every generated client.
   not:
     allOf:
       - required:
@@ -3309,6 +3309,7 @@ ConversationStartRunRequestDto:
             not:
               enum:
                 - codex
+                - claude
   description: >-
     Existing inbound request body for `POST .../conversations/{conversationId}/start-run`.
     Shares `StartRunPromptPayload`'s fields (which ride on the resulting
@@ -4509,6 +4510,8 @@ SystemMessageData:
         Severity of an automated notice, independent of the notice
         classification. Only meaningful when presentation is "notice"; a
         notice without it renders as info.
+    compaction:
+      $ref: "#/CompactionNoticeMarker"
     reasoning:
       type: string
       description: LLM's reasoning for the intent detection
@@ -4661,6 +4664,27 @@ UIHint:
       example: true
   description: Hint about expected UI elements for loading skeleton
 
+CompactionNoticeMarker:
+  type: object
+  description: >-
+    Typed lifecycle marker on a Run's explicit compaction notice, so clients
+    track compaction without parsing the notice text. Absent on other
+    messages and on historical compaction notices.
+  required:
+    - phase
+  properties:
+    phase:
+      type: string
+      enum: [queued, started, completed, failed]
+      description: >-
+        queued: deferred until the active Turn ends; started: compaction
+        began; completed: the provider reported compaction done; failed: it
+        did not complete (see code).
+    code:
+      type: string
+      description: >-
+        Runner error code for a failed compaction, e.g. NOT_SUPPORTED,
+        NO_ACTIVE_SESSION or FAILED. Only set when phase is failed.
 UIHints:
   type: object
   required:
@@ -5755,7 +5779,7 @@ GoalPmRoutingCreation:
       $ref: "./coding-sessions.yaml#/AgentSessionConfigEntityConversationV1"
     provider:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     machineId:
       type: string
       format: uuid
@@ -6498,11 +6522,6 @@ PlanGenerationFinalizePayload:
     firstStageId it needs to begin polling for stage execution once the user
     confirms via the Ready button.
 
-PermissionRequestAgentType:
-  type: string
-  enum: [claude, codex, opencode]
-  description: Agent providers that can issue permission requests
-
 PermissionRequestSummary:
   type: object
   required:
@@ -6533,7 +6552,7 @@ PermissionRequestSummary:
       type: string
       description: Agent instance identifier that requested permission
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
@@ -6559,6 +6578,12 @@ PermissionRequestSummary:
       items:
         type: string
       description: Diffs referenced by the permission request
+    availableDecisions:
+      type: array
+      items:
+        type: string
+        enum: [approve, always_approve, whitelist, deny]
+      description: Decisions the provider and Run policy permit for this request, when known
   description: Normalized permission request details for UI rendering
 
 AgentRequestPermissionPayload:
@@ -6681,7 +6706,7 @@ AgentQuestionPayload:
       minLength: 1
     agentType:
       type: string
-      enum: [claude, codex, opencode]
+      enum: [claude, codex, opencode, antigravity]
     idempotencyToken:
       type: string
       minLength: 1
@@ -6737,7 +6762,7 @@ AgentSessionServiceScopeRequest:
       minLength: 1
       description: Stable coding-agent handler identifier
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
@@ -6760,6 +6785,11 @@ AgentSessionServiceScopeRequest:
         type: string
         minLength: 1
       description: Complete proposed Service scope after approval
+    proposedPlaces:
+      type: array
+      items:
+        $ref: "./coding-sessions.yaml#/ServicePlaceChoice"
+      description: Proposed place for each newly requested Service. Absent on requests from older CLIs.
     reason:
       type: string
       minLength: 1
@@ -6789,6 +6819,10 @@ AgentRequestServiceScopePayload:
       format: date-time
       nullable: true
       description: ISO timestamp of the recorded decision
+    failureReason:
+      type: string
+      nullable: true
+      description: Why an approved request could not be applied. Set when the decision was recorded but nothing was granted.
   description: Structured payload for coding-session Service-scope review UI elements
 
 AgentSessionReviewFileScopeRequestFile:
@@ -6838,7 +6872,7 @@ AgentSessionReviewFileScopeRequest:
       type: string
       minLength: 1
     agentType:
-      $ref: "#/PermissionRequestAgentType"
+      $ref: "./common.yaml#/AgentProviderId"
     timestamp:
       type: string
       format: date-time
@@ -7380,6 +7414,7 @@ CodingPlanReviewAnswerPayload:
             - claude
             - codex
             - opencode
+            - antigravity
           description: Agent provider selected for the implementation run.
         model:
           type: string
@@ -7481,6 +7516,34 @@ PlanShapingFeatureSyncItemDecision:
     note:
       type: string
 
+PlanShapingFeatureSyncReportSelection:
+  type: object
+  additionalProperties: false
+  required:
+    - groupId
+    - groupTitle
+    - choiceId
+    - choiceLabel
+    - isNoChange
+  description: >
+    The choice the user picked for one question on the Feature Sync
+    decision report. Directs the next revision pass only; it never
+    approves a proposal.
+  properties:
+    groupId:
+      type: string
+      minLength: 1
+    groupTitle:
+      type: string
+    choiceId:
+      type: string
+      minLength: 1
+    choiceLabel:
+      type: string
+    isNoChange:
+      type: boolean
+      description: True when the picked choice is the question's "no change" option.
+
 PlanShapingFeatureSyncReviewRefineAnswerPayload:
   type: object
   additionalProperties: false
@@ -7492,6 +7555,13 @@ PlanShapingFeatureSyncReviewRefineAnswerPayload:
       type: array
       items:
         $ref: "#/PlanShapingFeatureSyncItemDecision"
+    reportSelections:
+      type: array
+      items:
+        $ref: "#/PlanShapingFeatureSyncReportSelection"
+      description: >
+        The choice the user picked for each question on the Feature Sync
+        decision report, in report order.
   description: User feedback and per-item choices for one bounded feature-sync revision pass.
 
 PlanShapingFeatureSyncReviewDismissedWorkflowAnswer:
@@ -9070,7 +9140,7 @@ PlanShapingVisualPreviewActionSchemas:
               enum: [false]
   description: >
     Action declared by the plan-shaping visual-preview node. The completion
-    payload carries the complete ordered proposal set for the current round.
+    payload carries the ordered proposal set so far and whether it is complete.
 
 PlanShapingPhaseBreakdownActionSchemas:
   type: object
@@ -10062,7 +10132,10 @@ PlanGenerationVisualPreviewApprovePayload:
     - $ref: "#/SecondaryActionPayload"
     - type: object
       properties: {}
-  description: Payload for approving the complete visual-preview proposal set.
+  description: >-
+    Payload for moving past the visual under review once it is approved, or
+    for confirming the complete visual set once every visual is approved.
+    It never approves visuals itself.
   x-discriminator-value: plan_generation_visual_preview_approve
 
 PlanGenerationVisualPreviewContinueRevisingPayload:
@@ -10070,7 +10143,9 @@ PlanGenerationVisualPreviewContinueRevisingPayload:
     - $ref: "#/SecondaryActionPayload"
     - type: object
       properties: {}
-  description: Payload for revising the visual-preview proposal set.
+  description: >-
+    Payload for asking the agent to redraft the visual under review, or to
+    change the complete visual set.
   x-discriminator-value: plan_generation_visual_preview_continue_revising
 
 PlanGenerationJourneyMapApprovePayload:
@@ -10416,7 +10491,8 @@ PlanShapingVisualPreviewFeedbackRefineSubmission:
   description: |
     User-submission shape for the plan-shaping visual-preview-feedback gate's
     `REFINE` action. Routes back to visual-preview generation with the user's
-    feedback while preserving the carried-forward proposal set.
+    feedback: the agent redrafts the visual under review, or, on the complete
+    set, replaces the visuals the user asks to change.
 
 PlanShapingVisualPreviewFeedbackApprovedSubmission:
   type: object
@@ -10432,8 +10508,10 @@ PlanShapingVisualPreviewFeedbackApprovedSubmission:
       $ref: "#/QuestionsApprovedPayload"
   description: |
     User-submission shape for the plan-shaping visual-preview-feedback gate's
-    `APPROVED` action. Accepts the complete ordered visual proposal set before
-    stage selection begins.
+    `APPROVED` action. While a visual is under review it moves on only when
+    that visual's live proposal status is APPROVED. On the complete set,
+    where every visual is already approved, it confirms the set and starts
+    stage selection. It never approves visuals itself.
 
 # ----- refine-stage / validation-choice -----
 

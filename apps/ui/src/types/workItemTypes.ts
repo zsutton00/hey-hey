@@ -1,6 +1,5 @@
 import {
   WorkItemTypeRole,
-  type WorkItemIconKey,
   type WorkItemTypeCapabilities,
   type WorkItemTypeDefinitionDto,
   type WorkItemTypeSummaryDto,
@@ -35,39 +34,6 @@ export const WORK_ITEM_TYPE_KEYS = {
 
 export type KnownWorkItemType =
   (typeof WORK_ITEM_TYPE_KEYS)[keyof typeof WORK_ITEM_TYPE_KEYS];
-
-const BUILT_IN_WORK_ITEM_ICON_KEYS: Partial<
-  Record<KnownWorkItemType, WorkItemIconKey>
-> = {
-  [WORK_ITEM_TYPE_KEYS.Standard]: "task",
-  [WORK_ITEM_TYPE_KEYS.Bug]: "bug",
-  [WORK_ITEM_TYPE_KEYS.Feature]: "feature",
-  [WORK_ITEM_TYPE_KEYS.Goal]: "goal",
-  [WORK_ITEM_TYPE_KEYS.Contract]: "contract",
-  [WORK_ITEM_TYPE_KEYS.Diagram]: "workflow",
-  [WORK_ITEM_TYPE_KEYS.Workflow]: "workflow",
-  [WORK_ITEM_TYPE_KEYS.TaskMonitor]: "task",
-};
-
-/**
- * Compatibility for built-in registry rows created before iconKey was
- * persisted. A definition must still be present and keyed exactly; unknown
- * or unresolved work-item types remain fail-closed.
- */
-export const getBuiltInWorkItemIconKey = (
-  typeKey: string,
-  definition: WorkItemTypeDefinitionDto | undefined,
-): WorkItemIconKey | undefined => {
-  if (
-    !definition ||
-    definition.key !== typeKey ||
-    definition.iconKey !== undefined
-  ) {
-    return undefined;
-  }
-
-  return BUILT_IN_WORK_ITEM_ICON_KEYS[typeKey as KnownWorkItemType];
-};
 
 const WORK_ITEM_TYPE_LABELS: Record<KnownWorkItemType, string> = {
   [WORK_ITEM_TYPE_KEYS.Standard]: "Task",

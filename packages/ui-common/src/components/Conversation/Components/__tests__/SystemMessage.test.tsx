@@ -7,7 +7,8 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import type { Components } from "react-markdown";
 import {
   SystemMessage,
@@ -34,16 +35,7 @@ interface SystemMessageCodeProps extends React.ComponentProps<"code"> {
   children?: React.ReactNode;
 }
 
-const theme = (() => {
-  const nextTheme = createTheme();
-  (nextTheme.palette as Record<string, unknown>).attention = {
-    main: "#1976d2",
-    light: "#63a4ff",
-    dark: "#004ba0",
-    contrastText: "#ffffff",
-  };
-  return nextTheme;
-})();
+const theme = createHeyTheme("light");
 
 const wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <ThemeProvider theme={theme}>{children}</ThemeProvider>
@@ -72,11 +64,11 @@ describe("SystemMessage", () => {
         <CodeComponent className="language-mermaid">
           {"graph TD;\nA-->B;"}
         </CodeComponent>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(
-      await screen.findByTestId("markdown-mermaid-block")
+      await screen.findByTestId("markdown-mermaid-block"),
     ).toBeInTheDocument();
   });
 
@@ -92,7 +84,7 @@ describe("SystemMessage", () => {
             response: "Sketching out the stages...",
           }}
         />
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByText("Sketching out the stages...")).toBeInTheDocument();
@@ -106,11 +98,11 @@ describe("SystemMessage", () => {
     const { container } = render(
       <ThemeProvider theme={theme}>
         <CodeComponent className="language-ts">const value = 1;</CodeComponent>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(
-      screen.queryByTestId("markdown-mermaid-block")
+      screen.queryByTestId("markdown-mermaid-block"),
     ).not.toBeInTheDocument();
     const codeElement = container.querySelector("code");
     expect(codeElement).not.toBeNull();
@@ -126,18 +118,18 @@ describe("SystemMessage", () => {
     render(
       <ThemeProvider theme={theme}>
         <Anchor href="/Users/zac/project/file.ts:42">source</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     fireEvent.click(screen.getByTestId("system-message-source-link"));
     expect(
-      screen.getByTestId("external-editor-setup-dialog")
+      screen.getByTestId("external-editor-setup-dialog"),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("external-editor-cancel"));
 
     expect(open).not.toHaveBeenCalled();
     await waitForElementToBeRemoved(() =>
-      screen.queryByTestId("external-editor-setup-dialog")
+      screen.queryByTestId("external-editor-setup-dialog"),
     );
   });
 
@@ -150,19 +142,19 @@ describe("SystemMessage", () => {
     render(
       <ThemeProvider theme={theme}>
         <Anchor href="/Users/zac/My%20Project/file.ts:42:7">source</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     fireEvent.click(screen.getByTestId("system-message-source-link"));
     fireEvent.click(screen.getByTestId("external-editor-save"));
 
     expect(localStorage.getItem(EXTERNAL_EDITOR_PREFERENCE_STORAGE_KEY)).toBe(
-      JSON.stringify({ kind: "preset", editor: "vscode" })
+      JSON.stringify({ kind: "preset", editor: "vscode" }),
     );
     expect(open).toHaveBeenCalledWith(
       "vscode://file/Users/zac/My%20Project/file.ts:42:7",
       "_self",
-      "noopener,noreferrer"
+      "noopener,noreferrer",
     );
   });
 
@@ -172,7 +164,7 @@ describe("SystemMessage", () => {
       JSON.stringify({
         kind: "custom",
         urlTemplate: "cursor://file/{path}:{line}:{column}",
-      })
+      }),
     );
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     const components = getSystemMessageMarkdownComponents();
@@ -182,7 +174,7 @@ describe("SystemMessage", () => {
     render(
       <ThemeProvider theme={theme}>
         <Anchor href="/tmp/file.ts:8">source</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     fireEvent.click(screen.getByTestId("system-message-source-link"));
@@ -190,10 +182,10 @@ describe("SystemMessage", () => {
     expect(open).toHaveBeenCalledWith(
       "cursor://file//tmp/file.ts:8:1",
       "_self",
-      "noopener,noreferrer"
+      "noopener,noreferrer",
     );
     expect(
-      screen.queryByTestId("external-editor-setup-dialog")
+      screen.queryByTestId("external-editor-setup-dialog"),
     ).not.toBeInTheDocument();
   });
 
@@ -206,13 +198,13 @@ describe("SystemMessage", () => {
     render(
       <ThemeProvider theme={theme}>
         <Anchor href="/tmp/file.ts:8">source</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     fireEvent.click(screen.getByTestId("system-message-source-link"));
 
     expect(
-      screen.getByTestId("external-editor-setup-dialog")
+      screen.getByTestId("external-editor-setup-dialog"),
     ).toBeInTheDocument();
   });
 
@@ -224,25 +216,25 @@ describe("SystemMessage", () => {
     const { rerender } = render(
       <ThemeProvider theme={theme}>
         <Anchor href="https://localhost:5173/file.ts:42">external</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByRole("link", { name: "external" })).toHaveAttribute(
       "target",
-      "_blank"
+      "_blank",
     );
     expect(
-      screen.queryByTestId("system-message-source-link")
+      screen.queryByTestId("system-message-source-link"),
     ).not.toBeInTheDocument();
 
     rerender(
       <ThemeProvider theme={theme}>
         <Anchor href="/Users/zac/project/file.ts">path</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
     expect(screen.getByTestId("system-message-source-link")).toHaveAttribute(
       "href",
-      "#"
+      "#",
     );
   });
 
@@ -256,14 +248,14 @@ describe("SystemMessage", () => {
         <Anchor href={`${window.location.origin}/Users/zac/project/file.ts`}>
           source
         </Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     const sourceLink = screen.getByTestId("system-message-source-link");
     expect(sourceLink).toHaveAttribute("href", "#");
     fireEvent.click(sourceLink);
     expect(
-      screen.getByTestId("external-editor-setup-dialog")
+      screen.getByTestId("external-editor-setup-dialog"),
     ).toBeInTheDocument();
   });
 
@@ -277,15 +269,15 @@ describe("SystemMessage", () => {
         <Anchor href="https://example.com/Users/zac/project/file.ts">
           external
         </Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     expect(screen.getByRole("link", { name: "external" })).toHaveAttribute(
       "href",
-      "https://example.com/Users/zac/project/file.ts"
+      "https://example.com/Users/zac/project/file.ts",
     );
     expect(
-      screen.queryByTestId("system-message-source-link")
+      screen.queryByTestId("system-message-source-link"),
     ).not.toBeInTheDocument();
   });
 
@@ -297,13 +289,13 @@ describe("SystemMessage", () => {
     render(
       <ThemeProvider theme={theme}>
         <Anchor href="/Users/zac/project/file.ts">source</Anchor>
-      </ThemeProvider>
+      </ThemeProvider>,
     );
 
     fireEvent.click(screen.getByTestId("system-message-source-link"));
 
     expect(
-      screen.getByTestId("external-editor-setup-dialog")
+      screen.getByTestId("external-editor-setup-dialog"),
     ).toBeInTheDocument();
   });
 });

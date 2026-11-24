@@ -28,7 +28,7 @@ type DurableEventKind =
   | 'input_turn_settled'
   | 'changed_file_reporting';
 
-export type DurableProvider = 'claude' | 'codex' | 'opencode' | (string & {});
+export type DurableProvider = 'claude' | 'codex' | 'opencode' | 'antigravity' | (string & {});
 
 interface DurableRunEventEnvelope {
   schema_version: typeof DURABLE_RUN_EVENT_SCHEMA_VERSION;

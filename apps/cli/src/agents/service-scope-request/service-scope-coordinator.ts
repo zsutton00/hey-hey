@@ -8,6 +8,7 @@ import {
   SystemMessageDataTypeEnum,
   type AgentRequestServiceScopePayload,
   type AgentSessionServiceScopeRequest,
+  type ServicePlaceChoice,
   type SystemMessageData,
   type GrantAgentSessionServicesDto,
 } from '@hey-hey/contracts/api/models';
@@ -23,7 +24,10 @@ import {
   type ResolvedRunWorkspace,
 } from '../run-scope';
 import type { AgenticSession } from '../../session/types';
-import type { ResolvedServiceBinding } from '../../shared/agent-bridge-contract/contract';
+import type {
+  LocalWorktreeState,
+  ResolvedServiceBinding,
+} from '../../shared/agent-bridge-contract/contract';
 import type { RunServiceScope, ServiceScopeRequestEntry } from '../../run/run-service-scope';
 import type {
   RequestAgentSessionServiceScopeArgs,
@@ -64,7 +68,10 @@ interface ServiceScopeCoordinatorDependencies {
     services: ResolvedServiceBinding[];
     launchServiceId: string;
     workspace: ResolvedRunWorkspace;
+    servicePlaceChoices: ServicePlaceChoice[];
   }): Promise<void>;
+  /** Keeps a worktree opened for an approved Service on the Run before the grant. */
+  recordResolvedServiceWorktree(serviceId: string, worktree: LocalWorktreeState): Promise<void>;
 }
 const uniqueInOrder = (values: readonly string[]): string[] => {
   const seen = new Set<string>();
@@ -144,6 +151,10 @@ export class AgentSessionServiceScopeCoordinator {
       });
       return { status: 'already_requested', request: existing };
     }
+    const additionalServiceIds = requestedServiceIds.filter(
+      (serviceId) => !currentServiceIds.includes(serviceId),
+    );
+    const proposedPlaces = this.proposePlaces(additionalServiceIds);
     const request: AgentSessionServiceScopeRequest = {
       id: randomUUID(),
       runId: deps.runId,
@@ -155,10 +166,13 @@ export class AgentSessionServiceScopeCoordinator {
       currentServiceIds,
       requestedServiceIds,
       reason: args.reason,
+      proposedPlaces,
     };
-    const additionalServiceIds = requestedServiceIds.filter(
-      (serviceId) => !currentServiceIds.includes(serviceId),
-    );
+    this.dependencies.logger.debug('local.service_scope.request.places_proposed', {
+      runId: deps.runId,
+      requestId: request.id,
+      proposedPlaces,
+    });
     const additionalServiceNames = await this.serviceNameResolver.resolve({
       runId: deps.runId,
       organizationId: deps.organizationId,
@@ -422,6 +436,17 @@ export class AgentSessionServiceScopeCoordinator {
 
       return { outcome: 'failed', reason };
     }
+    const placeProblem = this.findPlaceChoiceProblem(pending.request, input);
+    if (placeProblem) {
+      this.dependencies.logger.warn('local.service_scope.decision.place_choice_rejected', {
+        runId: deps.runId,
+        requestId: input.requestId,
+        decision: input.decision,
+        serviceId: placeProblem.serviceId,
+        reason: placeProblem.reason,
+      });
+      return { outcome: 'dropped', reason: 'service_scope_decision_place_choice_rejected' };
+    }
     if (input.decision === 'deny') {
       await this.settle(pending, input.decision, decider);
       try {
@@ -479,16 +504,52 @@ export class AgentSessionServiceScopeCoordinator {
       await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason: bindings.message };
     }
-    const workspace = await resolveRunWorkspace({
-      session: { ...deps.session(), services: bindings.services, launchServiceId },
-      repoStore: this.dependencies.repoStore,
-      logger: this.dependencies.logger,
-    });
+    const { choices: servicePlaceChoices, unresolvedServiceIds } = this.mergePlaceChoices(
+      pending.request,
+      input,
+    );
+    if (unresolvedServiceIds.length > 0) {
+      const reason = `No place was chosen or proposed for ${unresolvedServiceIds.join(', ')}: its launch worktree branch is unknown, so choose where it should work.`;
+      this.dependencies.logger.warn('local.service_scope.approval.place_unresolved', {
+        runId: deps.runId,
+        requestId: input.requestId,
+        unresolvedServiceIds,
+      });
+      await this.settleFailedApproval(pending, input, decider, reason);
+      return { outcome: 'failed', reason };
+    }
+    let workspace: Awaited<ReturnType<typeof resolveRunWorkspace>>;
+    try {
+      workspace = await resolveRunWorkspace({
+        session: {
+          ...deps.session(),
+          services: bindings.services,
+          launchServiceId,
+          ...(servicePlaceChoices.length > 0 ? { servicePlaceChoices } : {}),
+        },
+        repoStore: this.dependencies.repoStore,
+        worktreeRecorder: this.dependencies,
+        logger: this.dependencies.logger,
+      });
+    } catch (error) {
+      // Opening a chosen worktree throws (missing branch, collision, git failure):
+      // the approval fails with that reason and nothing is granted.
+      const reason = error instanceof Error ? error.message : String(error);
+      this.dependencies.logger.warn('local.service_scope.approval.place_open_failed', {
+        runId: deps.runId,
+        requestId: input.requestId,
+        servicePlaceChoices,
+        error,
+      });
+      await this.settleFailedApproval(pending, input, decider, reason);
+      return { outcome: 'failed', reason };
+    }
     if (!workspace.ok) {
       this.dependencies.logger.warn('local.service_scope.approval.workspace_resolution_failed', {
         runId: deps.runId,
         requestId: input.requestId,
         reason: workspace.message,
+        servicePlaceChoices,
       });
       await this.settleFailedApproval(pending, input, decider);
       return { outcome: 'failed', reason: workspace.message };
@@ -511,7 +572,7 @@ export class AgentSessionServiceScopeCoordinator {
         runId: deps.runId,
         requestId: input.requestId,
       });
-      await this.settleFailedApproval(pending, input, decider);
+      await this.settleFailedApproval(pending, input, decider, reason);
       return { outcome: 'failed', reason };
     }
     const existingServiceIds = new Set(deps.session().services.map((service) => service.id));
@@ -531,8 +592,10 @@ export class AgentSessionServiceScopeCoordinator {
         services: bindings.services,
         launchServiceId,
         workspace,
+        servicePlaceChoices,
       });
     } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
       if (!platformGrantPersisted) {
         await this.settleFailedApproval(pending, input, decider);
       } else {
@@ -547,7 +610,7 @@ export class AgentSessionServiceScopeCoordinator {
         );
         scope.handAutomaticRequestToHuman(pending.request.id);
       }
-      return { outcome: 'failed', reason: error instanceof Error ? error.message : String(error) };
+      return { outcome: 'failed', reason };
     }
     await this.settle(pending, input.decision, decider);
     try {
@@ -564,18 +627,149 @@ export class AgentSessionServiceScopeCoordinator {
       requestId: input.requestId,
       serviceIds,
       launchServiceId,
+      servicePlaceChoices,
     });
     return { outcome: 'delivered', callbackType: 'service_scope_decision' };
+  }
+  /**
+   * Where a newly requested Service would work, matching how the session launched.
+   * A session that did not launch in a worktree proposes the main folder. A worktree
+   * session proposes a worktree branch, never the main folder: a Service whose branch
+   * cannot be determined is left out, and approving it without a choice fails.
+   */
+  private proposePlaces(serviceIds: readonly string[]): ServicePlaceChoice[] {
+    const session = this.dependencies.session();
+    if (!this.launchedInWorktree()) {
+      return serviceIds.map((serviceId) => ({ serviceId, kind: 'MAIN_FOLDER' }));
+    }
+    const places: ServicePlaceChoice[] = [];
+    for (const serviceId of serviceIds) {
+      const branch = this.launchBranchFor(serviceId);
+      if (branch) {
+        places.push({ serviceId, kind: 'WORKTREE', branch, newBranch: false });
+        continue;
+      }
+      this.dependencies.logger.debug('local.service_scope.request.place_not_proposed', {
+        runId: this.dependencies.runId,
+        serviceId,
+        reason: 'worktree-launched session has no single known launch branch for this Service',
+        launchChoices: session.servicePlaceChoices ?? null,
+      });
+    }
+    return places;
+  }
+
+  private launchedInWorktree(): boolean {
+    const session = this.dependencies.session();
+    const choices = session.servicePlaceChoices ?? [];
+    if (choices.length > 0) {
+      return choices.some((choice) => choice.kind === 'WORKTREE');
+    }
+    return session.worktree?.enabled === true;
+  }
+
+  /** The Service's own launch branch if known, else the one branch every launch choice shares. */
+  private launchBranchFor(serviceId: string): string | null {
+    const session = this.dependencies.session();
+    const choices = session.servicePlaceChoices ?? [];
+    const own = choices.find((choice) => choice.serviceId === serviceId);
+    if (own?.kind === 'WORKTREE') {
+      return own.branch;
+    }
+    const ownState = session.worktreeState?.[serviceId]?.branch;
+    if (ownState) {
+      return ownState;
+    }
+    if (choices.length > 0) {
+      const branches = new Set(
+        choices.map((choice) => (choice.kind === 'WORKTREE' ? choice.branch : null)),
+      );
+      const [only] = [...branches];
+      return branches.size === 1 && only ? only : null;
+    }
+    const launchState = session.launchServiceId
+      ? session.worktreeState?.[session.launchServiceId]
+      : undefined;
+    return launchState?.branch ?? session.worktree?.branch ?? null;
+  }
+
+  /**
+   * The places to open for the Services this approval adds: the approver's choice, or the
+   * proposed place when none was sent (older UI, Task Monitor). Prior choices are kept.
+   */
+  private mergePlaceChoices(
+    request: AgentSessionServiceScopeRequest,
+    input: ServiceScopeDecisionInput,
+  ): { choices: ServicePlaceChoice[]; unresolvedServiceIds: string[] } {
+    const logger = this.dependencies.logger;
+    const added = request.requestedServiceIds.filter(
+      (serviceId) => !request.currentServiceIds.includes(serviceId),
+    );
+    const chosen = input.servicePlaceChoices ?? [];
+    logger.debug('local.service_scope.approval.place_choices_received', {
+      runId: this.dependencies.runId,
+      requestId: request.id,
+      chosen,
+      proposed: request.proposedPlaces ?? [],
+    });
+    const unresolvedServiceIds: string[] = [];
+    const effective = added.flatMap((serviceId) => {
+      const choice = chosen.find((entry) => entry.serviceId === serviceId);
+      if (choice) {
+        return [choice];
+      }
+      const proposed = request.proposedPlaces?.find((entry) => entry.serviceId === serviceId);
+      if (proposed) {
+        logger.debug('local.service_scope.approval.place_fallback_to_proposed', {
+          runId: this.dependencies.runId,
+          requestId: request.id,
+          serviceId,
+        });
+        return [proposed];
+      }
+      // A request that carries a proposal list but omits this Service deliberately left it
+      // unproposed (unknown launch branch). A request with no list predates proposals.
+      if (request.proposedPlaces) {
+        unresolvedServiceIds.push(serviceId);
+      }
+      return [];
+    });
+    const prior = (this.dependencies.session().servicePlaceChoices ?? []).filter(
+      (choice) => !added.includes(choice.serviceId),
+    );
+    return { choices: [...prior, ...effective], unresolvedServiceIds };
+  }
+
+  /** Place choices belong only to an approval, and only to Services the request adds. */
+  private findPlaceChoiceProblem(
+    request: AgentSessionServiceScopeRequest,
+    input: ServiceScopeDecisionInput,
+  ): { serviceId: string; reason: string } | null {
+    const choices = input.servicePlaceChoices;
+    if (!choices || choices.length === 0) return null;
+    if (input.decision !== 'approve') {
+      return { serviceId: choices[0]!.serviceId, reason: 'choices sent with a deny' };
+    }
+    const added = new Set(
+      request.requestedServiceIds.filter(
+        (serviceId) => !request.currentServiceIds.includes(serviceId),
+      ),
+    );
+    const stray = choices.find((choice) => !added.has(choice.serviceId));
+    return stray
+      ? { serviceId: stray.serviceId, reason: 'Service is not part of the pending request' }
+      : null;
   }
   private async settleFailedApproval(
     pending: ServiceScopeRequestEntry,
     input: ServiceScopeDecisionInput,
     decider: ServiceScopeDecider,
+    failureReason?: string,
   ): Promise<void> {
     const deps = this.dependencies;
     const scope = deps.serviceScope;
     await scope.clearServiceScopeContinuation();
-    await this.settle(pending, input.decision, decider);
+    await this.settle(pending, input.decision, decider, failureReason);
     try {
       await this.dependencies.runStore.persistIdempotencyToken(
         deps.runId,
@@ -618,6 +812,7 @@ export class AgentSessionServiceScopeCoordinator {
     entry: ServiceScopeRequestEntry,
     decision: 'approve' | 'deny',
     decider: ServiceScopeDecider,
+    failureReason?: string,
   ): Promise<void> {
     const { request, messageId, data } = entry;
     const deps = this.dependencies;
@@ -626,6 +821,7 @@ export class AgentSessionServiceScopeCoordinator {
       data ?? serviceScopeMessageData(request, ['the requested Services']),
       decision,
       decidedAt,
+      failureReason,
     );
     await this.dependencies.poster.complete(
       deps.organizationId,
@@ -642,6 +838,7 @@ export class AgentSessionServiceScopeCoordinator {
     data: SystemMessageData,
     decision: 'approve' | 'deny',
     decidedAt: string,
+    failureReason?: string,
   ): SystemMessageData {
     const uiElements = data.uiElements?.map((element) => {
       if (
@@ -659,6 +856,7 @@ export class AgentSessionServiceScopeCoordinator {
             ? AgentRequestServiceScopePayloadDecisionEnum.Approve
             : AgentRequestServiceScopePayloadDecisionEnum.Deny,
         decidedAt,
+        ...(failureReason ? { failureReason } : {}),
       };
       return { ...element, payload };
     });

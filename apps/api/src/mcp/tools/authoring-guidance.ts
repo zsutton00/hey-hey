@@ -35,7 +35,7 @@ export const TOPOLOGY_AUTHORING_GUIDANCE = [
   '',
   'Use structured edge and Diagram graph fields for topology mutations; keep ordinary mentions and feature-reference prose separate from typed relationships. Preserve the existing supersede approval path, reference validation, graph ownership checks, and all other semantic validators.',
   '',
-  'Specific guidance returns its existing scoped proof in addition to the shared root proof handshake. Missing or mismatched root or scoped proofs must name the exact guidance call to retry.',
+  'Specific guidance returns its existing scoped proof in addition to the shared root proof handshake. A specific guidance read without the root proof returns this root guidance and the root proof in the same response. Topology mutation calls with a missing or mismatched root or scoped proof are still rejected with an error naming the exact guidance call to retry.',
 ].join('\n');
 
 export function validateAuthoringRootProof(args: {

@@ -13,12 +13,13 @@ import {
   MessageStatus,
   SystemMessageDataTypeEnum,
 } from '../../shared/api/index';
-import { PermissionRequestAgentType } from '@hey-hey/contracts/api/models';
+import { AgentProviderId } from '@hey-hey/contracts/api/models';
 import { toOpenApiProjectId } from '../../shared/api/identifierAdapters';
 import type { SystemMessageData } from '../../shared/api/index';
 import type { PermissionEvent, HandlerDeps, DiffEvent } from '../types';
 import type { Run } from '../run';
 import {
+  availablePermissionDecisionsSchema,
   tryParsePermissionRequestResponse,
   toPermissionRequestUiMarker,
   toPermissionRequestSummaryText,
@@ -32,13 +33,14 @@ const permissionPayloadSchema = z.object({
     permissionType: z.string(),
     sessionId: z.string(),
     agentId: z.string(),
-    agentType: z.nativeEnum(PermissionRequestAgentType),
+    agentType: z.nativeEnum(AgentProviderId),
     timestamp: z.string(),
     idempotencyToken: z.string(),
     reason: z.string().nullable().optional(),
     agentIntent: z.string().nullable().optional(),
     referencedFiles: z.array(z.string()),
     referencedDiffs: z.array(z.string()),
+    availableDecisions: availablePermissionDecisionsSchema.optional(),
   }),
   rawEvent: z.record(z.unknown()).nullable().optional(),
   enrichmentMetadata: z.record(z.unknown()).nullable().optional(),

@@ -58,13 +58,17 @@ def main():
     try:
         if ENVIRONMENT != 'staging':
             raise OSError('Production has no dedicated resource slice')
-        group = subprocess.check_output(['systemctl', 'show', 'hey-hey-staging.slice',
-                                         '--property=ControlGroup', '--value']).decode().strip()
-        if not group or not group.endswith('/hey-hey-staging.slice'):
-            raise OSError('Staging slice not resolved')
-        result['slice'] = snapshot(Path('/sys/fs/cgroup' + group))
-    except OSError:
-        result['gaps'].append('parent slice counters unavailable')
+        slice_paths = {
+            parent
+            for container in result['containers'].values()
+            for parent in Path(container['identity']).parents
+            if parent.name == 'hey-hey-staging.slice'
+        }
+        if len(slice_paths) != 1:
+            raise OSError(f'Expected one staging slice in container ancestry, found {len(slice_paths)}')
+        result['slice'] = snapshot(slice_paths.pop())
+    except OSError as error:
+        result['gaps'].append(f'parent slice counters unavailable: {error}')
     result['capturedAtNs'] = str(time.time_ns())
     print(json.dumps(result))
 

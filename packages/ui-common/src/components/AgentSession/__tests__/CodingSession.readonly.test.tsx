@@ -93,7 +93,9 @@ vi.mock("../AgentConversationView", () => ({
       data-has-actions-slot={actionsSlot ? "true" : "false"}
       data-session-model={agentSessionMetadata?.model}
       data-session-effort={agentSessionMetadata?.effort}
-      data-session-services={agentSessionMetadata?.serviceNames?.join(",")}
+      data-session-services={agentSessionMetadata?.servicePlaces
+        ?.map((entry) => entry.serviceName)
+        .join(",")}
     >
       {hideComposer ? null : (
         <button data-testid="external-reply-composer-send">Send</button>

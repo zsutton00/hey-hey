@@ -76,7 +76,7 @@ export function ReconciliationValue({
         pane="new"
       />
     ) : (
-      <MarkdownRenderer>{value}</MarkdownRenderer>
+      <MarkdownRenderer sx={{ fontSize: "inherit" }}>{value}</MarkdownRenderer>
     );
   if (typeof value === "number" || typeof value === "boolean")
     return <Typography>{String(value)}</Typography>;

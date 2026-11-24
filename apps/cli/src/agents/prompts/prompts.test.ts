@@ -341,6 +341,25 @@ describe('buildPlatformSystemPrompt', () => {
     expect(promptFor('none', true)).not.toContain(rule);
   });
 
+  it('sends decisions about the work to work items, never to hints, in every environment', () => {
+    const decisionRoute = 'propose the change on the item it governs';
+    const newItemRoute = 'If no item fits, propose a new task. Write no hint for it';
+
+    for (const productDevelopment of [false, true]) {
+      const prompt = buildPlatformSystemPrompt(sampleDefs, undefined, {
+        intentFirst: false,
+        maturity: ProjectMaturity.Established,
+        hints: 'write',
+        productDevelopment,
+      });
+      expect(prompt).toContain('is a requirement, never a hint');
+      expect(prompt).toContain(decisionRoute);
+      expect(prompt).toContain(newItemRoute);
+      expect(prompt).not.toContain('Project direction goes in a hint');
+      expect(prompt).not.toContain('not requirement-worthy');
+    }
+  });
+
   it('words hint writing neutrally and records the direction, not the mood', () => {
     expect(hintWritingGuidance).toContain('emphatic about a correction or repeats it');
     expect(hintWritingGuidance).toContain('never how it was said');

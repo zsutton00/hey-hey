@@ -150,7 +150,9 @@ describe('RunReadRestoreCoordinator', () => {
         commitReportTool: new CommitReportTool(proxy),
         logger: NOOP_LOGGER,
       };
-      await expect(executeCanonicalCommit(input)).rejects.toThrow('network unavailable');
+      await expect(executeCanonicalCommit(input)).rejects.toThrow(
+        'Could not save the commit report. Retry to report the saved Git outcome.',
+      );
       expect(restarted.reportProvenance.pending?.hashes[0]?.hash).toBe('abc1234');
       await executeCanonicalCommit(input);
       expect(restarted.reportProvenance.pending).toBeUndefined();

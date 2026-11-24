@@ -1,4 +1,5 @@
-import { CommitGitError } from '../agents/commit/commit-git-error';
+import type { AgentProviderId } from '../agents/providers/provider-config';
+import { CommitGitError, CommitReportError } from '../agents/commit/commit-git-error';
 import { ReportProvenance } from './report-provenance';
 import { reportUsageExecutions } from '../provider-usage/report-usage-executions';
 import { readRestrictionFor } from '../shared/api/read-restriction';
@@ -63,7 +64,10 @@ import {
   RunWorktreeCollisionError,
   type ResolvedRunWorkspace,
 } from '../agents/run-scope';
-import type { UserMessageAdmittedServiceScope } from '@hey-hey/contracts/api/models';
+import type {
+  ServicePlaceChoice,
+  UserMessageAdmittedServiceScope,
+} from '@hey-hey/contracts/api/models';
 import {
   AgentSessionRunnerError,
   type AgentSessionRunner,
@@ -133,6 +137,7 @@ import {
   MessageType,
   MessageStatus,
   SystemMessageDataPresentationEnum,
+  type CompactionNoticeMarker,
   SystemMessageDataTypeEnum,
 } from '../shared/api/index';
 import type {
@@ -144,6 +149,7 @@ import type {
   InternalRunPromptRequest,
   LocalAnyPromptPayload,
   LocalRunScope,
+  LocalWorktreeState,
   ResolvedServiceBinding,
   SendMessageOptions,
 } from '../shared/agent-bridge-contract/contract';
@@ -193,7 +199,11 @@ import { AgentSessionCurrentStateOwner } from './agent-session-current-state';
 import type { AgentSessionCurrentStateObservation } from '@hey-hey/contracts/api/models';
 import type { LoadedEntityPromptContext } from '../agents/entity-context/types';
 import { ConversationPhaseOwner } from './conversation-phase';
-import { RunCompaction } from './run-compaction';
+import {
+  DEFAULT_AUTO_COMPACT_THRESHOLD,
+  DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+  RunCompaction,
+} from './run-compaction';
 import { RunProposalTracker, type ProposalDecisionNotices } from './run-proposal-tracker';
 import { setAgentSessionOutputAttentionReady } from './agent-session-output-attention';
 import {
@@ -207,6 +217,7 @@ import {
   type HeldAdmission,
   type InputSettlementEvidence,
 } from './run-service-scope';
+import { ServicePlaceReporter } from './service-place-reporter';
 import { ReviewFileScopeCoordinator } from '../agents/review-file-scope-request/review-file-scope-coordinator';
 import type { ReviewFileScopeDecisionInput } from '../agents/review-file-scope-request/review-file-scope-types';
 import {
@@ -443,7 +454,7 @@ export interface RunArgs {
   organizationId: string;
   projectId: string;
   conversationId: string;
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
   /**
    * The AgenticSession this Run is bound to. Resolved once at Run activation
    * and held here for the Run's lifetime. Nothing below Run reads the
@@ -695,6 +706,12 @@ const readTriggerParentMessageId = (input: InternalRunPromptRequest): string | n
   return stamped === undefined ? null : stamped;
 };
 
+class MissingSubmissionError extends Error {
+  constructor(readonly reason: FailureReason) {
+    super(reason);
+  }
+}
+
 export class Run {
   private readonly attachmentContentReader = new RunAttachmentContentReader();
   private readonly machineOptionsStore = new MachineOptionsStore();
@@ -708,7 +725,7 @@ export class Run {
    * selection may switch it between Turns; the switch rotates the provider
    * session inside this Run and never creates another Run.
    */
-  provider: 'claude' | 'codex' | 'opencode';
+  provider: AgentProviderId;
 
   session: AgenticSession;
   hasProviderSession: boolean;
@@ -736,6 +753,7 @@ export class Run {
   >();
   readonly serviceScope: RunServiceScope;
   readonly serviceScopeCoordinator: AgentSessionServiceScopeCoordinator;
+  private readonly servicePlaceReporter: ServicePlaceReporter;
   private readonly reviewFileScopeCoordinator: ReviewFileScopeCoordinator;
   private activeTurnInput: InternalRunPromptRequest | null = null;
   triggerContext: { externalAgentNodeId: string; triggerMessageId: string } | null = null;
@@ -1009,15 +1027,33 @@ export class Run {
       broadcaster: this.broadcaster,
       autoCompact:
         args.autoCompact?.enabled === true
-          ? { threshold: args.autoCompact.threshold ?? 150_000 }
+          ? args.autoCompact.threshold !== undefined
+            ? { threshold: args.autoCompact.threshold }
+            : args.provider === 'antigravity'
+              ? // Gemini's window is several times larger, so the default follows the window the model reports.
+                {
+                  threshold: DEFAULT_AUTO_COMPACT_THRESHOLD,
+                  windowFraction: DEFAULT_AUTO_COMPACT_WINDOW_FRACTION,
+                }
+              : { threshold: DEFAULT_AUTO_COMPACT_THRESHOLD }
           : null,
       runner: () => this.runner ?? undefined,
       isProcessing: () => this._processing,
+      holdRun: () => {
+        this._processing = true;
+      },
+      releaseRun: () => {
+        void this.drainQueue()
+          .catch((error: unknown) => {
+            this.logger.error('local.run.compaction.drain_failed', { runId: this.runId, error });
+          })
+          .finally(() => this.armInactivityTimerIfIdle());
+      },
       session: () => this.session,
       activeTurn: () => this.activeTurn,
       contextProviderSessionId: () => this.contextProviderSessionId(),
-      postRuntimeNotice: (response, severity, session) =>
-        this.postAgentSystemMessage(response, session, severity),
+      postRuntimeNotice: (response, severity, session, compaction) =>
+        this.postAgentSystemMessage(response, session, severity, compaction),
     });
     this.proposalTracker = new RunProposalTracker({
       runId: this.runId,
@@ -1162,6 +1198,21 @@ export class Run {
       agentSessionId: () => this.agentSessionId,
       taskMonitorAdmission: () => collaborators.taskMonitorServiceScopeAdmission?.() ?? null,
       applyApprovedServiceScope: (input) => this.applyApprovedServiceScope(input),
+      recordResolvedServiceWorktree: (serviceId, worktree) =>
+        this.recordResolvedServiceWorktree(serviceId, worktree),
+    });
+    this.servicePlaceReporter = new ServicePlaceReporter({
+      runId: this.runId,
+      organizationId: this.organizationId,
+      projectId: this.projectId,
+      apiBaseUrl: this.handlerDeps.apiBaseUrl,
+      auth: this.handlerDeps.auth,
+      fetchImpl: this.handlerDeps.fetchImpl,
+      keyPairStore: collaborators.keyPairStore ?? new KeyPairStore(),
+      runStore: this.runStore,
+      logger: this.logger,
+      session: () => this.session,
+      patchSession: (patch) => this.refreshSessionFields(patch),
     });
     // Seed Run-lifetime state from values a prior process stamped on the
     // store. The Run is constructed once per agentic session; each seed runs
@@ -1387,6 +1438,31 @@ export class Run {
    * identity, and message.service calls it after activation refreshes the
    * session snapshot on a subsequent sendMessage.
    */
+  /**
+   * Keeps a Service's newly opened worktree on this Run as soon as it
+   * resolves, in memory and on disk, so a launch that fails on a later Service
+   * retries by reusing it. A failed write is logged and the live Run keeps it.
+   */
+  public async recordResolvedServiceWorktree(
+    serviceId: string,
+    worktree: LocalWorktreeState,
+  ): Promise<void> {
+    this.refreshSessionFields({
+      worktreeState: { ...this.session.worktreeState, [serviceId]: worktree },
+    });
+    try {
+      await this.runStore.recordRunServiceWorktree(this.runId, serviceId, worktree);
+    } catch (error) {
+      this.logger.error('local.run.service_worktree_record_failed', {
+        runId: this.runId,
+        serviceId,
+        worktreePath: worktree.worktreePath,
+        branch: worktree.branch,
+        error,
+      });
+    }
+  }
+
   refreshSessionFields(patch: Partial<AgenticSession>): void {
     if (
       'provider_session_id' in patch &&
@@ -1639,6 +1715,7 @@ export class Run {
     const workspace = await resolveRunWorkspace({
       session: reconciledSession,
       repoStore: this.repoStore,
+      worktreeRecorder: this,
       logger: this.logger,
     });
     if (!workspace.ok) {
@@ -1685,6 +1762,7 @@ export class Run {
       launchServiceId,
       worktreeServiceIds: workspace.worktree ? Object.keys(workspace.worktree) : [],
     });
+    await this.servicePlaceReporter.report(workspace);
     return { services: resolution.services, launchServiceId, workspaceBoundaryChanged };
   }
 
@@ -1726,6 +1804,19 @@ export class Run {
 
   setRunner(runner: AgentSessionRunner): void {
     this.runner = runner;
+  }
+
+  async notePermissionDecisionRefused(requestId: string, reason: string): Promise<void> {
+    try {
+      await this.postAgentSystemMessage(reason, this.session, 'warning');
+    } catch (error) {
+      this.logger.error('local.run.permission_decision.refusal_notice_failed', {
+        runId: this.runId,
+        requestId,
+        reason,
+        error,
+      });
+    }
   }
 
   /** Set only for a Run whose provider hooks are sent; null means every edit stays approximate. */
@@ -2308,6 +2399,15 @@ export class Run {
         });
         throw new ReportedFileChangeFailure('git_read_failed', evidenceCapture.gitDiffError);
       }
+      if (evidenceCapture.placeError) {
+        this.logger.warn('local.run.file_change.place_read_failed', {
+          runId: this.runId,
+          turnId: turn.turnId,
+          serviceId: resolved.serviceId,
+          repositoryRoot: resolved.repositoryRoot,
+          gitFailure: evidenceCapture.placeError,
+        });
+      }
       this.logger.debug('local.run.file_change.evidence_captured', {
         runId: this.runId,
         turnId: turn.turnId,
@@ -2334,6 +2434,7 @@ export class Run {
         repoRelativePath: resolved.repoRelativePath,
         occurredAt: candidate.occurredAt,
         evidence: evidenceCapture.evidence,
+        place: evidenceCapture.place,
       });
     }
     if (facts.length === 0) {
@@ -2803,8 +2904,12 @@ export class Run {
     services: ResolvedServiceBinding[];
     launchServiceId: string;
     workspace: ResolvedRunWorkspace;
+    /** Places chosen for the Services this approval adds; absent when none were chosen. */
+    servicePlaceChoices?: ServicePlaceChoice[];
   }): Promise<void> {
+    const approvedChoices = input.servicePlaceChoices ?? [];
     const priorServices = this.session.services;
+    const priorChoices = this.session.servicePlaceChoices;
     const priorScope = this.session.scope;
     const priorWorktree = this.session.worktreeState;
     const expandedScope: LocalRunScope | null = priorScope
@@ -2829,7 +2934,11 @@ export class Run {
       if (input.workspace.worktree) {
         await this.runStore.updateRunWorktreeState(this.runId, input.workspace.worktree);
       }
+      if (approvedChoices.length > 0) {
+        await this.runStore.updateRunServicePlaceChoices(this.runId, approvedChoices);
+      }
     } catch (error) {
+      await this.runStore.updateRunServicePlaceChoices(this.runId, priorChoices ?? []);
       if (expandedScope && priorScope) {
         await this.runStore.updateRunScope(this.runId, priorScope);
       }
@@ -2845,6 +2954,7 @@ export class Run {
       launchServiceId: input.launchServiceId,
       ...(expandedScope ? { scope: expandedScope } : {}),
       ...(input.workspace.worktree ? { worktreeState: input.workspace.worktree } : {}),
+      ...(approvedChoices.length > 0 ? { servicePlaceChoices: approvedChoices } : {}),
     });
     // The boundary was built from the prior roots; the next Turn must rebuild
     // it from the approved workspace or resolution rejects the root mismatch.
@@ -2854,6 +2964,7 @@ export class Run {
     ) {
       await this.resetWorkspaceWriteBoundaryForScopeChange();
     }
+    await this.servicePlaceReporter.report(input.workspace);
   }
 
   private async reconcileAdmittedServiceScope(
@@ -2897,6 +3008,7 @@ export class Run {
     const workspace = await resolveRunWorkspace({
       session: candidate,
       repoStore: this.repoStore,
+      worktreeRecorder: this,
       logger: this.logger,
     });
     if (!workspace.ok) {
@@ -4701,6 +4813,7 @@ export class Run {
    */
   async completeCompletionCorrection(turn: Turn): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
+    await this.recoverRequiredSubmission(turn);
     const correction = turn.completionCorrection;
     if (!correction.hasPendingRejection) return;
     let prompt =
@@ -4731,6 +4844,44 @@ export class Run {
       attempts: correction.attemptCount,
     });
     await this.dispatcher.dispatch(event, this, Symbol('exhausted_completion'));
+  }
+
+  private async recoverRequiredSubmission(turn: Turn): Promise<void> {
+    const requirement = turn.handler.requiredSubmission;
+    if (!requirement) {
+      return;
+    }
+
+    const needsSubmission = () =>
+      this.activeTurn === turn &&
+      !turn.abortSignal.aborted &&
+      !turn.completionPublicationFailed &&
+      !this._submittedTurnIds.has(turn.turnId);
+
+    if (!needsSubmission()) {
+      return;
+    }
+
+    const context = {
+      reason: requirement.failureReason,
+      runId: this.runId,
+      turnId: turn.turnId,
+      externalAgentNodeId: turn.externalAgentNodeId,
+      triggerMessageId: turn.triggerMessageId,
+    };
+    this.logger.warn('local.run.required_submission.missing', context);
+    try {
+      await turn.runner.continueTurn?.(requirement.retryPrompt, turn.abortSignal, {
+        reportingRepair: false,
+      });
+    } catch (error) {
+      this.logger.warn('local.run.required_submission.retry_failed', { ...context, error });
+    }
+    await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
+    if (needsSubmission()) {
+      this.logger.error('local.run.required_submission.still_missing', context);
+      throw new MissingSubmissionError(requirement.failureReason);
+    }
   }
 
   async completeChangedFileReporting(turn: Turn): Promise<void> {
@@ -4783,6 +4934,9 @@ export class Run {
   }
 
   private failureReasonFor(error: unknown, fallback: FailureReason): FailureReason {
+    if (error instanceof MissingSubmissionError) {
+      return error.reason;
+    }
     if (error instanceof RunAttachmentNotFoundError) {
       return 'ATTACHMENT_NOT_FOUND';
     }
@@ -4806,7 +4960,7 @@ export class Run {
     return fallback;
   }
 
-  private readonly terminalCommitFailures = new Map<string, CommitGitError>();
+  private readonly terminalCommitFailures = new Map<string, CommitGitError | CommitReportError>();
 
   private readonly terminalFailureReasons = new Map<string, FailureReason>();
 
@@ -4824,7 +4978,7 @@ export class Run {
       reason,
       ...(reason === 'STARTUP_FAILED'
         ? { cause: startupFailureCause(error), reference: `run ${this.runId}` }
-        : error instanceof CommitGitError
+        : error instanceof CommitGitError || error instanceof CommitReportError
           ? { cause: error.message }
           : {}),
       inert: this.session.inert === true,
@@ -4879,7 +5033,7 @@ export class Run {
   }
 
   async onTurnRunnerFailed(turn: Turn, error: unknown): Promise<void> {
-    if (error instanceof CommitGitError) {
+    if (error instanceof CommitGitError || error instanceof CommitReportError) {
       this.terminalCommitFailures.set(turn.turnId, error);
     }
     this.terminalFailureReasons.set(turn.turnId, this.failureReasonFor(error, 'EXECUTION_FAILED'));
@@ -5147,7 +5301,10 @@ export class Run {
     this.agentSessionCurrentState.settleTurn(this.serviceScope.isWaitingForApproval());
     this.conversationPhase.settleTurn(this.serviceScope.isWaitingForApproval());
 
-    this._processing = false;
+    // The Run stays held through the rest of turn-end cleanup; only
+    // `drainQueue()` below releases it. A message or compact request arriving
+    // meanwhile queues or defers into `afterTurnEnd`, so no compaction can
+    // start here that this cleanup would then release mid-compaction.
     this.resetAbort();
 
     // Flush the turn's EXTERNAL_AGENT completion as its terminal write only
@@ -6316,6 +6473,7 @@ export class Run {
       workspace = await resolveRunWorkspace({
         session,
         repoStore: this.repoStore,
+        worktreeRecorder: this,
         logger: this.logger,
       });
     } catch (error) {
@@ -6362,6 +6520,8 @@ export class Run {
         });
       }
     }
+
+    await this.servicePlaceReporter.report(workspace);
 
     this.logger.debug('local.run.turn_workspace.selected', {
       runId: this.runId,
@@ -6727,6 +6887,7 @@ export class Run {
     response: string,
     session: AgenticSession = this.session,
     noticeSeverity?: NoticeSeverity,
+    compaction?: CompactionNoticeMarker,
   ): Promise<void> {
     const agentData: AgentSystemMessageData = {
       type: SystemMessageDataTypeEnum.Agent,
@@ -6736,6 +6897,7 @@ export class Run {
       ...(noticeSeverity
         ? { presentation: SystemMessageDataPresentationEnum.Notice, noticeSeverity }
         : {}),
+      ...(compaction ? { compaction } : {}),
     };
     const dto = {
       type: MessageType.System,

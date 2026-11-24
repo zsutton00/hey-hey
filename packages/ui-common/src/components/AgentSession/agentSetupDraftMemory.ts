@@ -3,12 +3,13 @@ import {
   ConversationStartRunRequestDtoReasoningEffortEnum,
   ProjectModeSelectionSchemaVersionEnum,
   type ProjectModeSelection,
+  type ServicePlaceChoice,
 } from "../../api";
 import { SESSION_METHOD_REGISTRY } from "../../agents/coordination/sessionMethodRegistry";
 import type { AgentSessionMethod } from "../../agents/prompts.js";
 import type { AgentProvider, ReasoningEffort } from "./runtime/types";
 
-const AGENT_SETUP_DRAFTS_VERSION = 2 as const;
+const AGENT_SETUP_DRAFTS_VERSION = 3 as const;
 export const AGENT_SETUP_DRAFT_LIMIT = 5 as const;
 
 export interface AgentSetupDraft {
@@ -18,7 +19,10 @@ export interface AgentSetupDraft {
   projectModeSelection: ProjectModeSelection | null;
   serviceIds: string[];
   launchServiceId: string | null;
-  worktreeBranch: string | null;
+  /** The one Work in choice for every Service; null is the default. */
+  sessionPlaceChoice: ServicePlaceChoice | null;
+  /** Per-Service choices; null while "Choose per Service" is off. */
+  perServicePlaceChoices: ServicePlaceChoice[] | null;
   provider: AgentProvider;
   model: string;
   reasoningEffort: ReasoningEffort | null;
@@ -88,6 +92,21 @@ const isProjectModeSelection = (
   );
 };
 
+const isServicePlaceChoice = (value: unknown): value is ServicePlaceChoice => {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.serviceId !== "string") return false;
+  if (candidate.kind === "MAIN_FOLDER") return true;
+
+  return (
+    candidate.kind === "WORKTREE" &&
+    typeof candidate.branch === "string" &&
+    candidate.branch.length > 0 &&
+    (candidate.newBranch === undefined ||
+      typeof candidate.newBranch === "boolean")
+  );
+};
+
 const isDraft = (value: unknown): value is AgentSetupDraft => {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -100,8 +119,11 @@ const isDraft = (value: unknown): value is AgentSetupDraft => {
     candidate.serviceIds.every((id) => typeof id === "string") &&
     (candidate.launchServiceId === null ||
       typeof candidate.launchServiceId === "string") &&
-    (candidate.worktreeBranch === null ||
-      typeof candidate.worktreeBranch === "string") &&
+    (candidate.sessionPlaceChoice === null ||
+      isServicePlaceChoice(candidate.sessionPlaceChoice)) &&
+    (candidate.perServicePlaceChoices === null ||
+      (Array.isArray(candidate.perServicePlaceChoices) &&
+        candidate.perServicePlaceChoices.every(isServicePlaceChoice))) &&
     isAgentProvider(candidate.provider) &&
     typeof candidate.model === "string" &&
     (candidate.reasoningEffort === null ||

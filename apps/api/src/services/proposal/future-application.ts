@@ -111,6 +111,7 @@ export async function futureBaselineBlocker(
   > &
     Partial<Pick<FutureRevisionResponse, 'result' | 'latestProposalId'>>,
   reconciliation: ProposalReconciliationService,
+  application?: FutureApplyRequest,
 ): Promise<FutureApplyResponse['blocker'] | undefined> {
   const decision = await reconciliation.decision({
     kind: 'future',
@@ -120,7 +121,17 @@ export async function futureBaselineBlocker(
     baseline: future.baseline,
     result: future.result,
   });
-  return decision.kind === 'NOT_REQUIRED'
+  if (
+    application &&
+    (decision.kind === 'MERGEABLE' ||
+      (decision.kind === 'NOT_REQUIRED' &&
+        decision.liveBasisVersion !== undefined &&
+        application.reviewedBasisVersion !== undefined)) &&
+    application.reviewedBasisVersion !== decision.liveBasisVersion
+  ) {
+    return 'REVIEW_CHANGED';
+  }
+  return decision.kind === 'NOT_REQUIRED' || decision.kind === 'MERGEABLE'
     ? undefined
     : decision.kind === 'BLOCKED'
       ? 'BASELINE_UNAVAILABLE'

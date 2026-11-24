@@ -63,7 +63,8 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
                 "enum": [
                   "claude",
                   "codex",
-                  "opencode"
+                  "opencode",
+                  "antigravity"
                 ]
               },
               "model": {
@@ -166,6 +167,49 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
                 "AGENT_DECIDES",
                 "REQUIRE_REVIEW"
               ]
+            },
+            "reviewRuntime": {
+              "description": "Optional runtime the Review sub-agent runs on for every Review this monitor requests. Applies only with REQUIRE_REVIEW. Monitor-owned selected-run intent; it holds no session or Review evidence and never changes the task Agent Session's runtime. Absent means Review runs on the task Agent Session's runtime.\n",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "model"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "claude",
+                    "codex",
+                    "opencode",
+                    "antigravity"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reasoningEffort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "minimal",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "ultra",
+                    "default"
+                  ],
+                  "description": "Omitted for models whose catalog entry offers no effort choices."
+                },
+                "fastMode": {
+                  "type": "boolean",
+                  "description": "Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections."
+                }
+              }
             }
           }
         }
@@ -185,7 +229,8 @@ export const taskMonitorExecutionDefinitionJsonSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "model": {

@@ -678,6 +678,12 @@ export class UnifiedApiClient {
     );
   }
 
+  compactAgentSessionRun(
+    ...args: Parameters<AgentSessionsApi["compactAgentSessionRun"]>
+  ) {
+    return this.clients.agentSessions.compactAgentSessionRun(...args);
+  }
+
   submitAgentSessionQuestionAnswer(
     ...args: Parameters<AgentSessionsApi["submitAgentSessionQuestionAnswer"]>
   ) {
@@ -1113,6 +1119,12 @@ export class UnifiedApiClient {
 
   listProjectChanges(...args: Parameters<ReportsApi["listProjectChanges"]>) {
     return this.clients.reports.listProjectChanges(...args);
+  }
+
+  listProjectChangePlaces(
+    ...args: Parameters<ReportsApi["listProjectChangePlaces"]>
+  ) {
+    return this.clients.reports.listProjectChangePlaces(...args);
   }
 
   listProjectReports(...args: Parameters<ReportsApi["listProjectReports"]>) {

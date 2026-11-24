@@ -25,12 +25,15 @@ export const ProjectReportProvider = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(ProjectReportProvider, "claude", { enumerable: false, value: ProjectReportProvider["Claude"] });
 Object.defineProperty(ProjectReportProvider, "codex", { enumerable: false, value: ProjectReportProvider["Codex"] });
 Object.defineProperty(ProjectReportProvider, "opencode", { enumerable: false, value: ProjectReportProvider["Opencode"] });
+Object.defineProperty(ProjectReportProvider, "antigravity", { enumerable: false, value: ProjectReportProvider["Antigravity"] });
 
 export type ProjectReportProvider = typeof ProjectReportProvider[keyof typeof ProjectReportProvider];

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { TaskMonitorResponsePresentationContext } from "./TaskMonitorResponsePresentationContext";
 import { useTaskMonitorComposing } from "./useTaskMonitorComposing";
 import { useTaskMonitorDockMotion } from "./useTaskMonitorDockMotion";
@@ -6,21 +5,24 @@ import type { TaskResponseDto } from "../../api/api";
 import {
   Alert,
   Box,
-  Button,
-  ButtonGroup,
   CircularProgress,
   Paper,
   Stack,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useCallback, useRef, useState } from "react";
 import {
   MessageType,
+  TaskMonitorReviewMode,
   WorkStatus,
   type MachineDto,
+  type ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto,
   type SubmitTaskMonitorCommandResponseDto,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorExecutionNodeLaunchConfiguration,
+  type TaskMonitorLaunchPolicy,
   type TaskMonitorRuntimeSelection,
   type UserMessageDataTaskMonitor,
 } from "../../api";
@@ -30,6 +32,7 @@ import {
   toOpenApiProjectId,
 } from "../../clients/contractIdentifierAdapters";
 import { AgentConversationView } from "../AgentSession";
+import { PaneToggle, type PaneToggleSegment } from "../PaneToggle";
 import {
   buildAgentInput,
   buildUserMessageData,
@@ -39,12 +42,28 @@ import { submitStopRunViaPlatform } from "../AgentSession/runtime/hooks/submitSt
 import { MachinePicker } from "../AgentSession/MachinePicker";
 import { TaskMonitorCommandOutcomeAlert } from "./TaskMonitorCommandOutcomeAlert";
 import { TaskMonitorRuntimeGroup } from "./TaskMonitorRuntimeGroup";
-import { TaskMonitorLaunchConfigurationEditor } from "./TaskMonitorLaunchConfigurationEditor";
+import { TaskMonitorApplyToUnstartedTasks } from "./TaskMonitorApplyToUnstartedTasks";
+import {
+  TaskMonitorGuidanceSetting,
+  TaskMonitorSettingsSection,
+  TaskMonitorWorktreeBranchSetting,
+} from "./TaskMonitorPreStartSettings";
+import { TaskMonitorReadyToStart } from "./TaskMonitorReadyToStart";
+import {
+  resolveTaskMonitorStartReadiness,
+  type TaskMonitorTaskServicesControl,
+} from "./taskMonitorStartReadiness";
+import { TaskMonitorReviewModeControl } from "./TaskMonitorReviewModeControl";
+import { useMonitorKind } from "./useMonitorKind";
 import { TaskMonitorCapsuleButton } from "./TaskMonitorCapsuleButton";
-import { TaskMonitorLifecycleCapsuleButton } from "./TaskMonitorLifecycleCapsuleButton";
+import {
+  resolveTaskMonitorLifecycleButton,
+  TaskMonitorLifecycleCapsuleButton,
+} from "./TaskMonitorLifecycleCapsuleButton";
 import {
   monitorPhase,
   useTaskMonitorPresentation,
+  type MonitorPane,
 } from "./useTaskMonitorPresentation";
 import type { WorkItemExecutionStateResult } from "../../data/hooks/useWorkItemExecutionState";
 import { TaskMonitorInspectorView } from "./TaskMonitorInspectorView";
@@ -56,7 +75,24 @@ import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 import { useTaskMonitorCoordinatorConversation } from "./useTaskMonitorSessionReports";
 import { useTaskMonitorConversationFormResolver } from "./useTaskMonitorConversationFormResolver";
 
-export type TaskMonitorPane = "steps" | "monitor" | "session";
+export type TaskMonitorPane = MonitorPane;
+
+/** Side-by-side panes need this width; below it one pane shows at a time. */
+const SIDE_BY_SIDE_BREAKPOINT = "lg";
+
+const PANE_SEGMENTS: readonly PaneToggleSegment<TaskMonitorPane>[] = [
+  { value: "steps", label: "Tasks" },
+  { value: "monitor", label: "Task Monitor" },
+  { value: "session", label: "Active Session" },
+];
+
+const FINISHED_MONITOR_STATUSES: ReadonlySet<TaskResponseDto["status"]> =
+  new Set([
+    WorkStatus.Completed,
+    WorkStatus.Cancelled,
+    WorkStatus.Superseded,
+    WorkStatus.Archived,
+  ]);
 
 export interface TaskMonitorWorkspaceViewProps {
   organizationId: string;
@@ -86,12 +122,20 @@ export interface TaskMonitorWorkspaceViewProps {
   onSaveCoordinatorRuntime: (
     runtime: TaskMonitorRuntimeSelection,
   ) => Promise<void>;
-  activePane: TaskMonitorPane;
-  renderPaneNavigation?: (navigation: {
-    activePane: TaskMonitorPane;
-    availablePanes: readonly TaskMonitorPane[];
-    onSelectPane: (pane: TaskMonitorPane) => void;
-  }) => ReactNode;
+  /** Saves the runtime Review runs on; null clears it back to each task's session. */
+  onSaveReviewRuntime: (
+    runtime: TaskMonitorRuntimeSelection | null,
+  ) => Promise<void>;
+  /** Saves Review mode and the shared worktree; editable only before Start. */
+  onSaveLaunchPolicy: (launchPolicy: TaskMonitorLaunchPolicy) => Promise<void>;
+  /** Replaces the session setup on every task whose session does not exist yet. */
+  onApplyToUnstartedTasks: (
+    configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+  ) => Promise<ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto>;
+  /** The optional guidance sent with Start; a browser draft, never stored on the monitor. */
+  startMessage: string;
+  onChangeStartMessage: (message: string) => void;
+  taskServices: TaskMonitorTaskServicesControl;
   executionState?: WorkItemExecutionStateResult;
   isStartCatalogLoading?: boolean;
 }
@@ -112,15 +156,19 @@ export const TaskMonitorWorkspaceView = ({
   operationalErrorMessage,
   commandOutcome,
   machines,
-  selectedMachineId,
+  selectedMachineId: pickedMachineId,
   onSelectMachine,
   onStart,
   onPause,
   isSavingLaunchConfiguration,
   onSaveLaunchConfiguration,
   onSaveCoordinatorRuntime,
-  activePane,
-  renderPaneNavigation,
+  onSaveReviewRuntime,
+  onSaveLaunchPolicy,
+  onApplyToUnstartedTasks,
+  startMessage,
+  onChangeStartMessage,
+  taskServices,
   executionState,
   isStartCatalogLoading = false,
 }: TaskMonitorWorkspaceViewProps) => {
@@ -135,14 +183,25 @@ export const TaskMonitorWorkspaceView = ({
       ? executionState.state.projection
       : null;
   const phase = monitorPhase(snapshot, monitorStatus === WorkStatus.Backlog);
-  const presentation = useTaskMonitorPresentation(phase, composing, activePane);
-  const { compactPane, openPane, closePane } = presentation;
+  const theme = useTheme();
+  const compactLayout = useMediaQuery(
+    theme.breakpoints.down(SIDE_BY_SIDE_BREAKPOINT),
+  );
+  // Active Session is offered once a selected task has a linked session,
+  // whether or not that session's record has been read yet.
+  const sessionAvailable = nodes.some((node) => node.session.kind !== "none");
+  const presentation = useTaskMonitorPresentation({
+    phase,
+    composing,
+    sessionAvailable,
+  });
+  const { compactPane, openMonitor, dockMonitor } = presentation;
   const handleOpenMonitor = useCallback(() => {
-    openPane("monitor");
+    openMonitor();
     requestAnimationFrame(() => monitorRef.current?.focus());
-  }, [openPane]);
+  }, [openMonitor]);
   const handleCloseMonitor = useCallback(() => {
-    closePane("monitor");
+    dockMonitor();
     requestAnimationFrame(() => {
       const button = Array.from(
         document.querySelectorAll<HTMLButtonElement>("[data-screen-key]"),
@@ -156,7 +215,7 @@ export const TaskMonitorWorkspaceView = ({
         );
       target?.focus();
     });
-  }, [closePane, monitorId]);
+  }, [dockMonitor, monitorId]);
   const handleGuidanceAnswered = useCallback(
     (targetMonitorId: string) => {
       if (targetMonitorId !== monitorId) {
@@ -173,7 +232,17 @@ export const TaskMonitorWorkspaceView = ({
     identity: selectionIdentity,
     node: rawSelection,
   });
-  if (!composing || retainedSelection.current.identity === selectionIdentity) {
+  const retainedNode = retainedSelection.current.node;
+  // A session still being read for the same task may fill in while composing.
+  const fillsInSession =
+    retainedNode !== null &&
+    retainedNode.taskId === rawSelection?.taskId &&
+    retainedNode.session.kind !== "loaded";
+  if (
+    !composing ||
+    fillsInSession ||
+    retainedSelection.current.identity === selectionIdentity
+  ) {
     retainedSelection.current = {
       identity: selectionIdentity,
       node: rawSelection,
@@ -212,7 +281,9 @@ export const TaskMonitorWorkspaceView = ({
         (action) => action.command === "START" || action.command === "RESUME",
       ),
   };
-  const panes = presentation.panes;
+  const stepsOpen = presentation.visible.includes("steps");
+  const monitorOpen = presentation.monitorOpen;
+  const sessionOpen = presentation.visible.includes("session");
   const freshness =
     executionState?.status === "retained" &&
     (executionState.delivery !== "LIVE" ||
@@ -225,7 +296,7 @@ export const TaskMonitorWorkspaceView = ({
     hasCommittedExecution:
       snapshot !== null && snapshot.execution.lifecycle !== "ABSENT",
     composing,
-    monitorOpen: panes.monitor,
+    monitorOpen,
     monitorRef,
     startIntent,
   });
@@ -239,12 +310,25 @@ export const TaskMonitorWorkspaceView = ({
     string | null
   >(null);
   const [isBindingCoordinator, setIsBindingCoordinator] = useState(false);
+  const [launchPolicyError, setLaunchPolicyError] = useState<string | null>(
+    null,
+  );
+  const [worktreeBranchPending, setWorktreeBranchPending] = useState(false);
+  const monitorKind = useMonitorKind(
+    organizationId,
+    projectId,
+    definition?.kind ?? "",
+  );
   const monitorActivity = useTaskMonitorCoordinatorConversation({
     organizationId,
     projectId,
     monitorId,
     sessionDate: monitorSessionDate,
   });
+  // A started monitor already runs on the machine its coordinator session was
+  // bound to; the picker only decides where a monitor that has not started goes.
+  const selectedMachineId =
+    monitorActivity.session?.machineId ?? pickedMachineId;
   const conversationFormResolver = useTaskMonitorConversationFormResolver({
     organizationId,
     projectId,
@@ -368,6 +452,196 @@ export const TaskMonitorWorkspaceView = ({
   const isPreStart =
     monitorStatus === WorkStatus.Backlog &&
     startPresentation.status === "ready";
+  const catalogSource = selectedMachineId
+    ? { organizationId, projectId, machineId: selectedMachineId }
+    : null;
+  // Session existence, not monitor status, decides whether a task's setup can
+  // still change; a finished monitor runs nothing further.
+  const unstartedNodes = nodes.filter((node) => node.session.kind === "none");
+  const monitorFinished = FINISHED_MONITOR_STATUSES.has(monitorStatus);
+  const worktreeBranch = definition.launchPolicy.worktree?.branch ?? null;
+  // The block holds for as long as the monitor has not started, whatever the
+  // Start presentation says, so a task that cannot launch never gets started.
+  const notStarted = monitorStatus === WorkStatus.Backlog;
+  const startReadiness = resolveTaskMonitorStartReadiness({
+    nodes,
+    updatingServiceTaskIds: taskServices.updatingTaskIds,
+    worktreeBranch,
+    worktreeBranchPending,
+  });
+  const settingsContent = (
+    <>
+      <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
+        Task Monitor settings
+      </Typography>
+      <Stack spacing={1.5} sx={{ px: 2, py: 1 }}>
+        <TaskMonitorSettingsSection
+          title="Task Monitor"
+          explanation="The agent that supervises this run. It starts each task's session in order, decides when work needs review and when a task is done, and answers or raises questions from the sessions."
+          testId="task-monitor-agent-section"
+        >
+          <TaskMonitorRuntimeGroup
+            label="Runs on"
+            testId="task-monitor-coordinator-runtime"
+            value={definition.coordinatorRuntime ?? null}
+            catalogSource={catalogSource}
+            editable={isPreStart}
+            isSaving={isSavingLaunchConfiguration}
+            onSave={onSaveCoordinatorRuntime}
+            onBusyChange={setIsSavingCoordinatorRuntime}
+            defaultLabel="Default (provider default model and effort)"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Only the supervising agent. Each task&apos;s session is set on its
+            card.
+          </Typography>
+        </TaskMonitorSettingsSection>
+        <TaskMonitorSettingsSection
+          title="Machine"
+          explanation="Where the task sessions run."
+          testId="task-monitor-machine-section"
+        >
+          {machines.length > 0 ? (
+            <Stack spacing={0.5} data-testid="task-monitor-session-machine">
+              <Typography variant="overline" color="text.secondary">
+                Sessions run on
+              </Typography>
+              <MachinePicker
+                machines={machines}
+                selectedMachineId={selectedMachineId}
+                onSelect={onSelectMachine}
+              />
+            </Stack>
+          ) : (
+            <Alert
+              severity="warning"
+              data-testid="task-monitor-machine-unavailable"
+            >
+              No paired CLI machine is available. Begin pairing locally before
+              controlling the Task Monitor.
+            </Alert>
+          )}
+          {isPreStart ? (
+            <TaskMonitorWorktreeBranchSetting
+              worktreeBranch={worktreeBranch}
+              onChangeWorktreeBranch={(branch) => {
+                const { worktree: _previous, ...launchPolicy } =
+                  definition.launchPolicy;
+                saveLaunchPolicy(
+                  branch === null
+                    ? launchPolicy
+                    : {
+                        ...launchPolicy,
+                        worktree: { enabled: true, branch },
+                      },
+                );
+              }}
+              onWorktreeBranchPendingChange={setWorktreeBranchPending}
+            />
+          ) : null}
+        </TaskMonitorSettingsSection>
+        <TaskMonitorSettingsSection
+          title="Review"
+          optional
+          explanation="Require a review of each task's work before it counts as done. With Agent decides, the Task Monitor chooses when to ask for one."
+          testId="task-monitor-review"
+        >
+          <TaskMonitorReviewModeControl
+            value={definition.launchPolicy.terminalSupervision.mode}
+            disabled={!isPreStart || isSavingLaunchConfiguration}
+            onChange={(mode) => {
+              const { terminalSupervision } = definition.launchPolicy;
+              saveLaunchPolicy({
+                ...definition.launchPolicy,
+                // A Review runtime applies only to required Review, so leaving it drops the choice.
+                terminalSupervision:
+                  mode === TaskMonitorReviewMode.RequireReview
+                    ? { ...terminalSupervision, mode }
+                    : { mode },
+              });
+            }}
+          />
+          {definition.launchPolicy.terminalSupervision.mode ===
+          TaskMonitorReviewMode.RequireReview ? (
+            <>
+              <TaskMonitorRuntimeGroup
+                label="Reviewer runs on"
+                testId="task-monitor-review-runtime"
+                value={
+                  definition.launchPolicy.terminalSupervision.reviewRuntime ??
+                  null
+                }
+                catalogSource={catalogSource}
+                editable={isPreStart}
+                isSaving={isSavingLaunchConfiguration}
+                onSave={onSaveReviewRuntime}
+                onClear={() => onSaveReviewRuntime(null)}
+                onBusyChange={setIsSavingCoordinatorRuntime}
+                defaultLabel="Each task's session"
+              />
+              {isPreStart ? (
+                <Typography variant="caption" color="text.secondary">
+                  Optional. Defaults to each task&apos;s own session; the review
+                  runs inside that session.
+                </Typography>
+              ) : null}
+            </>
+          ) : null}
+        </TaskMonitorSettingsSection>
+        {isPreStart ? (
+          <TaskMonitorSettingsSection
+            title="Guidance"
+            explanation="Instructions the Task Monitor follows for the whole run."
+            testId="task-monitor-guidance-section"
+          >
+            <TaskMonitorGuidanceSetting
+              startMessage={startMessage}
+              onChangeStartMessage={onChangeStartMessage}
+            />
+          </TaskMonitorSettingsSection>
+        ) : null}
+        {launchPolicyError ? (
+          <Alert
+            severity="error"
+            data-testid="task-monitor-launch-policy-error"
+          >
+            {launchPolicyError}
+          </Alert>
+        ) : null}
+      </Stack>
+    </>
+  );
+  const controlsDisabled =
+    selectedMachineId === null ||
+    (setup && nodes.length === 0) ||
+    isSavingCoordinatorRuntime ||
+    (notStarted && startReadiness.blocked);
+  const lifecycleButton = resolveTaskMonitorLifecycleButton({
+    availability,
+    pendingLifecycleAction,
+    startPresentation,
+    binding: isBindingCoordinator,
+    controlsDisabled,
+  });
+  const taskSetup = {
+    organizationId,
+    machineId: selectedMachineId,
+    monitorKindKey: definition.kind,
+    editable: !monitorFinished,
+    isSavingLaunchConfiguration,
+    onSaveLaunchConfiguration,
+    services: taskServices,
+  };
+  const saveLaunchPolicy = (launchPolicy: TaskMonitorLaunchPolicy): void => {
+    setLaunchPolicyError(null);
+    void onSaveLaunchPolicy(launchPolicy).catch((error: unknown) => {
+      setLaunchPolicyError(
+        error instanceof Error
+          ? error.message
+          : "The Task Monitor setting could not be saved.",
+      );
+    });
+  };
 
   return (
     <TaskMonitorResponsePresentationContext.Provider
@@ -387,11 +661,7 @@ export const TaskMonitorWorkspaceView = ({
           pendingLifecycleAction={pendingLifecycleAction}
           startPresentation={startPresentation}
           binding={isBindingCoordinator}
-          controlsDisabled={
-            selectedMachineId === null ||
-            (setup && nodes.length === 0) ||
-            isSavingCoordinatorRuntime
-          }
+          controlsDisabled={controlsDisabled}
           onStart={startCoordinator}
           onPause={onPause}
         />
@@ -405,53 +675,23 @@ export const TaskMonitorWorkspaceView = ({
             onOpen={handleOpenMonitor}
           />
         ) : null}
-        {renderPaneNavigation?.({
-          activePane: compactPane,
-          availablePanes: setup
-            ? ["steps", "monitor"]
-            : ["steps", "monitor", "session"],
-          onSelectPane: openPane,
-        })}
-        <ButtonGroup
-          size="small"
-          aria-label="Workspace panes"
-          data-testid="task-monitor-pane-navigation"
-          sx={{
-            flexWrap: "wrap",
-            display: {
-              xs: renderPaneNavigation ? "none" : "inline-flex",
-              lg: "inline-flex",
-            },
-          }}
-        >
-          <Button
-            data-testid="task-monitor-open-steps"
-            aria-pressed={panes.steps}
-            onClick={() => {
-              presentation.openPane("steps");
+        <Box data-testid="task-monitor-pane-control" sx={{ flexShrink: 0 }}>
+          <PaneToggle
+            ariaLabel="Workspace panes"
+            compactBelow={SIDE_BY_SIDE_BREAKPOINT}
+            segments={PANE_SEGMENTS.filter((segment) =>
+              presentation.offered.includes(segment.value),
+            )}
+            visibleValues={compactLayout ? [compactPane] : presentation.visible}
+            onChange={(visible) => {
+              if (compactLayout) {
+                presentation.showCompactPane(visible[0]);
+                return;
+              }
+              presentation.showWidePanes(visible);
             }}
-          >
-            Tasks
-          </Button>
-          <Button
-            data-testid="task-monitor-open-monitor"
-            aria-pressed={panes.monitor}
-            onClick={handleOpenMonitor}
-          >
-            Task Monitor
-          </Button>
-          {!setup ? (
-            <Button
-              data-testid="task-monitor-open-session"
-              aria-pressed={panes.session}
-              onClick={() => {
-                presentation.openPane("session");
-              }}
-            >
-              Active Session
-            </Button>
-          ) : null}
-        </ButtonGroup>
+          />
+        </Box>
         {freshness ? (
           <Alert severity="warning" data-testid="task-monitor-state-stale">
             {freshness}
@@ -485,12 +725,12 @@ export const TaskMonitorWorkspaceView = ({
           sx={{
             display: { xs: "block", lg: "grid" },
             gridTemplateColumns: {
-              lg: `${panes.steps ? (!panes.session && !panes.monitor ? "minmax(0, 1fr)" : setup ? "minmax(0, 1fr)" : "minmax(0, 28%)") : "44px"} ${panes.monitor ? "minmax(0, 1fr)" : "0px"} ${panes.session && !setup ? "minmax(0, 1fr)" : "0px"}`,
+              lg: `${stepsOpen ? (!sessionOpen && !monitorOpen ? "minmax(0, 1fr)" : setup ? "minmax(0, 1fr)" : "minmax(0, 28%)") : "44px"} ${monitorOpen ? "minmax(0, 1fr)" : "0px"} ${sessionOpen ? "minmax(0, 1fr)" : "0px"}`,
             },
             flex: 1,
             height: "100%",
             minHeight: 0,
-            columnGap: panes.monitor && panes.session ? 1.5 : 0,
+            columnGap: monitorOpen && sessionOpen ? 1.5 : 0,
           }}
         >
           <Paper
@@ -510,22 +750,34 @@ export const TaskMonitorWorkspaceView = ({
               pb: 0,
             }}
           >
-            <Button
-              data-testid="task-monitor-toggle-steps"
-              onClick={() =>
-                panes.steps
-                  ? presentation.closePane("steps")
-                  : presentation.openPane("steps")
-              }
-              aria-label={
-                panes.steps ? "Collapse task list" : "Expand task list"
-              }
+            <Typography
+              variant="h6"
+              data-testid="task-monitor-steps-heading"
+              sx={{
+                display: { xs: "block", lg: stepsOpen ? "block" : "none" },
+                px: 2,
+                pt: 1,
+              }}
             >
-              {panes.steps ? (results ? "Results" : "Tasks") : "☰"}
-            </Button>
+              {results ? "Results" : "Tasks"}
+            </Typography>
+            <Typography
+              variant="overline"
+              aria-hidden
+              data-testid="task-monitor-steps-rail"
+              sx={{
+                display: { xs: "none", lg: stepsOpen ? "none" : "block" },
+                writingMode: "vertical-rl",
+                alignSelf: "center",
+                color: "text.secondary",
+                pt: 1.5,
+              }}
+            >
+              {results ? "Results" : "Tasks"}
+            </Typography>
             <Box
               sx={{
-                display: panes.steps ? "flex" : "none",
+                display: { xs: "flex", lg: stepsOpen ? "flex" : "none" },
                 flex: 1,
                 minHeight: 0,
                 flexDirection: "column",
@@ -540,9 +792,28 @@ export const TaskMonitorWorkspaceView = ({
                 onSelectTask={(taskId) => {
                   setExplicitTaskId(taskId);
                   if (!setup) {
-                    presentation.openPane("session");
+                    presentation.revealSession();
                   }
                 }}
+                taskSetup={taskSetup}
+                header={
+                  unstartedNodes[0] && !monitorFinished ? (
+                    <TaskMonitorApplyToUnstartedTasks
+                      seed={
+                        (
+                          unstartedNodes.find((node) => node.isCursor) ??
+                          unstartedNodes[0]
+                        ).launchConfiguration
+                      }
+                      unstartedTaskCount={unstartedNodes.length}
+                      allowedLaunchMethods={
+                        monitorKind?.allowedLaunchMethods ?? []
+                      }
+                      catalogSource={catalogSource}
+                      onApply={onApplyToUnstartedTasks}
+                    />
+                  ) : null
+                }
               />
             </Box>
           </Paper>
@@ -552,13 +823,13 @@ export const TaskMonitorWorkspaceView = ({
             tabIndex={-1}
             variant="outlined"
             data-testid="task-monitor-coordinator-pane"
-            inert={!panes.monitor && compactPane !== "monitor"}
+            inert={compactLayout ? compactPane !== "monitor" : !monitorOpen}
             sx={{
               display: {
                 xs: compactPane === "monitor" ? "flex" : "none",
                 lg: "flex",
               },
-              visibility: { lg: panes.monitor ? "visible" : "hidden" },
+              visibility: { lg: monitorOpen ? "visible" : "hidden" },
               flexDirection: "column",
               minWidth: 0,
               minHeight: 0,
@@ -566,74 +837,8 @@ export const TaskMonitorWorkspaceView = ({
               overflowY: "auto",
             }}
           >
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ px: 2, pt: 1 }}
-            >
-              <Typography variant="h6">Task Monitor</Typography>
-              <Button
-                data-testid="task-monitor-close-monitor"
-                onClick={handleCloseMonitor}
-              >
-                Dock
-              </Button>
-            </Stack>
-            <TaskMonitorRuntimeGroup
-              label="Monitor runs on"
-              testId="task-monitor-coordinator-runtime"
-              value={definition.coordinatorRuntime ?? null}
-              catalogSource={
-                selectedMachineId
-                  ? { organizationId, projectId, machineId: selectedMachineId }
-                  : null
-              }
-              editable={isPreStart}
-              isSaving={isSavingLaunchConfiguration}
-              onSave={onSaveCoordinatorRuntime}
-              onBusyChange={setIsSavingCoordinatorRuntime}
-            />
-            <Box sx={{ px: 1, py: 1 }}>
-              <Stack spacing={1} alignItems="center">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  data-testid="task-monitor-automation-note"
-                >
-                  Automation uses the coding provider&apos;s auto mode when
-                  available.
-                </Typography>
-                <Box sx={{ width: "100%" }}>
-                  {machines.length > 0 ? (
-                    <MachinePicker
-                      machines={machines}
-                      selectedMachineId={selectedMachineId}
-                      onSelect={onSelectMachine}
-                    />
-                  ) : (
-                    <Alert
-                      severity="warning"
-                      data-testid="task-monitor-machine-unavailable"
-                    >
-                      No paired CLI machine is available. Begin pairing locally
-                      before controlling the Task Monitor.
-                    </Alert>
-                  )}
-                </Box>
-              </Stack>
-            </Box>
-            {selectedNode && selectedNode.session.kind === "none" ? (
-              <TaskMonitorLaunchConfigurationEditor
-                organizationId={organizationId}
-                projectId={projectId}
-                machineId={selectedMachineId}
-                monitorKindKey={definition.kind}
-                node={selectedNode}
-                isSavingLaunchConfiguration={isSavingLaunchConfiguration}
-                onSaveLaunchConfiguration={onSaveLaunchConfiguration}
-              />
-            ) : null}
+            {/* Setup belongs to the Tasks pane flow before Start; a started monitor shows only its session. */}
+            {notStarted ? settingsContent : null}
             {monitorActivity.loading ? (
               <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
                 <CircularProgress />
@@ -685,47 +890,18 @@ export const TaskMonitorWorkspaceView = ({
                   scrollable
                 />
               </>
-            ) : isPreStart ? (
-              <Stack
-                spacing={1.5}
-                data-testid="task-monitor-coordinator-prestart"
-                sx={{
-                  m: 2,
-                  p: 2,
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  bgcolor: "action.hover",
-                }}
-              >
-                <Typography variant="subtitle1" fontWeight={600}>
-                  Ready to start
-                </Typography>
-                <Typography color="text.secondary">
-                  Choose a paired CLI machine, and press Start.
-                </Typography>
-                <Typography variant="subtitle2">How it works</Typography>
-                <Box
-                  component="ol"
-                  sx={{
-                    m: 0,
-                    pl: 2.5,
-                    color: "text.secondary",
-                    "& li + li": { mt: 0.75 },
-                  }}
-                >
-                  <li>
-                    The coordinator works through the steps you&apos;ve selected
-                    in order
-                  </li>
-                  <li>
-                    Follow its live updates and reply to guide it when needed.
-                  </li>
-                  <li>
-                    Active Session shows the session for the current step.
-                  </li>
-                </Box>
-              </Stack>
+            ) : notStarted && startPresentation.status !== "starting" ? (
+              <Box sx={{ px: 2, pb: 2 }}>
+                <TaskMonitorReadyToStart
+                  readiness={startReadiness}
+                  machineSelected={selectedMachineId !== null}
+                  hasTasks={nodes.length > 0}
+                  startDisabled={
+                    lifecycleButton.pausing || lifecycleButton.disabled
+                  }
+                  onStart={startCoordinator}
+                />
+              </Box>
             ) : startPresentation.status === "starting" ? (
               <Alert severity="info" sx={{ m: 2 }}>
                 Starting the Task Monitor. The coordinator conversation will
@@ -744,11 +920,11 @@ export const TaskMonitorWorkspaceView = ({
             data-testid="task-monitor-inspector-pane"
             sx={{
               display: {
-                xs: !setup && compactPane === "session" ? "flex" : "none",
+                xs: compactPane === "session" ? "flex" : "none",
                 lg: "flex",
               },
               visibility: {
-                lg: panes.session && !setup ? "visible" : "hidden",
+                lg: sessionOpen ? "visible" : "hidden",
               },
               flexDirection: "column",
               minWidth: 0,
@@ -757,28 +933,9 @@ export const TaskMonitorWorkspaceView = ({
               overflow: "hidden",
             }}
           >
-            <Stack
-              direction="row"
-              justifyContent="space-between"
-              sx={{ px: 2, pt: 1 }}
-            >
-              <Typography variant="h6">Active Session</Typography>
-              <Button
-                data-testid="task-monitor-close-session"
-                onClick={() => {
-                  presentation.closePane("session");
-                  requestAnimationFrame(() =>
-                    rootRef.current
-                      ?.querySelector<HTMLButtonElement>(
-                        '[data-testid="task-monitor-open-session"]',
-                      )
-                      ?.focus(),
-                  );
-                }}
-              >
-                Close
-              </Button>
-            </Stack>
+            <Typography variant="h6" sx={{ px: 2, pt: 1 }}>
+              Active Session
+            </Typography>
             {selectedNode ? (
               <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
                 <TaskMonitorInspectorView

@@ -258,6 +258,9 @@ describe('GoalPmRoutingEnactmentService', () => {
       state: 'COMPLETED',
       outcome: { entityType: 'PROPOSAL', entityId: pending.answer.operationId },
     });
+    const proposedUpdates = createProposal.mock.calls[0]![3].updates;
+    expect(proposedUpdates).toMatchObject({ type: 'STANDARD' });
+    expect(proposedUpdates).not.toHaveProperty('status');
     expect(createProposal.mock.calls.map((call) => call[4])).toEqual([
       pending.answer.operationId,
       pending.answer.operationId,

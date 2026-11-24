@@ -29,7 +29,7 @@ import type {
   PickerReplacementRange,
   SurfaceContext,
 } from "./types";
-import { FEATURE_TREE_PICKER } from "./types";
+import { FEATURE_TREE_PICKER, SKILL_PROVIDERS } from "./types";
 import { getWorkItemSectionContent } from "../../../utils/workItemSections";
 import { setExplicitCommandInteractionActive } from "../explicitCommandActivity";
 import { WorkItemReferencePickerDialog } from "./WorkItemReferencePickerDialog";
@@ -278,7 +278,8 @@ export const RichSlashCommandPlugin: React.FC<RichSlashCommandPluginProps> = ({
           }
           return;
         case "openSkillPicker":
-          if (!agentContext || agentContext.provider !== "codex") return;
+          if (!agentContext || !SKILL_PROVIDERS.has(agentContext.provider))
+            return;
           editor.update(() => {
             $replaceRangeWithText(emit.replacementRange, "");
           });

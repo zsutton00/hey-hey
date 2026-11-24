@@ -238,7 +238,7 @@ describe("StatusActionCompact", () => {
     await user.click(screen.getByTestId("status-action-compact-status"));
 
     const menu = await screen.findByRole("menu");
-    const activeOption = within(menu).getByText("In progress");
+    const activeOption = within(menu).getByText("ACTIVE");
     await user.click(activeOption);
 
     expect(onStatusChange).toHaveBeenCalledWith(WorkStatus.Active);
@@ -261,7 +261,7 @@ describe("StatusActionCompact", () => {
     await user.click(screen.getByTestId("status-action-compact-status"));
 
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByText("In progress")).toBeInTheDocument();
+    expect(within(menu).getByText("ACTIVE")).toBeInTheDocument();
     expect(
       within(menu).queryByText("Refining details"),
     ).not.toBeInTheDocument();

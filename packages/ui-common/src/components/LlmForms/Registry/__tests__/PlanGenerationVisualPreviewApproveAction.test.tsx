@@ -9,22 +9,12 @@ import {
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ProposalStatus,
   SecondaryActionHandler,
   type SecondaryActionConfig,
   type UIElement,
-  type MessageResponseDto,
 } from "../../../../api";
-import {
-  applyVisualPreviewPresentationState,
-  resolveCurrentVisualPreviewProposalIds,
-} from "../../../Conversation/utils/visualPreviewPresentation";
 import { useConversationEvents } from "../../../Conversation/hooks/useConversationEvents";
 import { getButtonSecondActions } from "../../../Conversation/utils/conversationFormHelpers";
-import {
-  __resetForTests,
-  setLifecycle,
-} from "../../../ProposalDispatchers/proposalSelectedStateCache";
 import type { SecondaryActionContext } from "../types";
 import { DynamicFormButtons } from "../../DynamicFormButtons";
 
@@ -52,18 +42,13 @@ const feedbackElement: UIElement = {
 const approveAction: SecondaryActionConfig = {
   id: "visual-preview-approve-action",
   type: "field_action",
-  label: "Approve Visual Set",
+  label: "Next Visual",
   handler: SecondaryActionHandler.PlanGenerationVisualPreviewApprove,
   presentation: "BUTTON",
   fieldId: feedbackElement.id,
 };
 
-let statuses: Record<string, ProposalStatus>;
-
-const createApproveAction = (
-  currentVisualPreviewProposalIds: string[] | undefined,
-  handleNext: ReturnType<typeof vi.fn>
-) => {
+const createApproveAction = (handleNext: ReturnType<typeof vi.fn>) => {
   const context: SecondaryActionContext = {
     conversationId: "conversation",
     organizationId: "org",
@@ -75,7 +60,6 @@ const createApproveAction = (
       secondaryActions: [approveAction],
     },
     interaction: { proposals: [] },
-    currentVisualPreviewProposalIds,
   };
   const [action] = getButtonSecondActions(
     { secondaryActions: [approveAction] },
@@ -83,24 +67,21 @@ const createApproveAction = (
     "feedback-message",
     vi.fn(),
     handleNext,
-    context
+    context,
   );
   return action;
 };
 
-const mount = (currentVisualPreviewProposalIds: string[] | undefined) => {
+const mount = () => {
   const handleNext = vi.fn();
-  const action = createApproveAction(
-    currentVisualPreviewProposalIds,
-    handleNext
-  );
+  const action = createApproveAction(handleNext);
   render(
     <>
       {action.render?.(
         { [feedbackElement.id]: "" },
-        { isSubmissionLocked: false }
+        { isSubmissionLocked: false },
       )}
-    </>
+    </>,
   );
   return { handleNext };
 };
@@ -109,10 +90,10 @@ const mountInFormButtons = (
   state: Pick<
     React.ComponentProps<typeof DynamicFormButtons>,
     "isSubmitting" | "hasSecondaryActionInFlight"
-  >
+  >,
 ) => {
   const handleNext = vi.fn();
-  const action = createApproveAction(["a", "b"], handleNext);
+  const action = createApproveAction(handleNext);
   const props = {
     uiElements: [feedbackElement],
     secondActions: [action],
@@ -129,7 +110,7 @@ const mountInFormButtons = (
       next: Pick<
         React.ComponentProps<typeof DynamicFormButtons>,
         "isSubmitting" | "hasSecondaryActionInFlight"
-      >
+      >,
     ) => view.rerender(<DynamicFormButtons {...props} {...next} />),
   };
 };
@@ -145,169 +126,34 @@ const approvedAnswer = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  __resetForTests();
-  statuses = { a: ProposalStatus.Approved, b: ProposalStatus.Draft };
-  mocks.getProposal.mockImplementation(
-    ({ proposalId }: { proposalId: string }) =>
-      Promise.resolve({
-        data: { data: { id: proposalId, status: statuses[proposalId] } },
-      })
-  );
 });
 
 describe("PlanGenerationVisualPreviewApproveAction", () => {
-  it("continues the current retry gate after manual approval and reload without checking historical proposals", async () => {
-    statuses = {
-      a: ProposalStatus.Approved,
-      b: ProposalStatus.Approved,
-      old: ProposalStatus.Draft,
-    };
-    const message = (id: string, ids: string[]): MessageResponseDto => ({
-      id,
-      type: "SYSTEM",
-      status: "completed",
-      conversationId: "conversation",
-      projectId: "project",
-      createdAt: "2026-01-01T00:00:00Z",
-      awaitingResponse: true,
-      data: {
-        type: "QUESTIONS",
-        response: "Approval failed. Retry the current set.",
-        detectedIntent: "",
-        intentConfidence: 1,
-        secondaryActions: [approveAction],
-        uiElements: [
-          feedbackElement,
-          {
-            id: "visuals",
-            type: "plan_generation_visual_preview",
-            label: "Visuals",
-            payload: {
-              responseType: "plan_generation_visual_preview_v1",
-              entries: ids.map((proposalId, presentationOrder) => ({
-                proposalId,
-                presentationOrder,
-                artifactFamily: "mockup",
-              })),
-            },
-          },
-        ],
-      },
-    });
-    const retry = message("retry", ["a", "b"]);
-    const old = message("old", ["old"]);
-    old.responses = [
-      {
-        ...message("answer", []),
-        type: "USER",
-        data: { action: "APPROVED", payload: {} },
-        responses: [retry],
-      },
-    ];
-    const timeline = applyVisualPreviewPresentationState(
-      [old, retry].map((message) => ({
-        message,
-        state: "completed",
-        canEdit: true,
-      })),
-      structuredClone([old])
-    );
+  it("submits the typed answer exactly once and never decides a visual itself", async () => {
     const user = userEvent.setup();
-    const { handleNext } = mount(
-      resolveCurrentVisualPreviewProposalIds(timeline)
-    );
-    expect(handleNext).not.toHaveBeenCalled();
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-    await waitFor(() =>
-      expect(handleNext).toHaveBeenCalledWith(...approvedAnswer)
-    );
-    expect(
-      mocks.getProposal.mock.calls.map(([{ proposalId }]) => proposalId)
-    ).toEqual(["a", "b"]);
-    expect(mocks.approveProposal).not.toHaveBeenCalled();
-  });
+    const { handleNext } = mount();
+    const button = screen.getByTestId("plan-generation-visual-preview-approve");
 
-  it("asks for confirmation when a current visual is still DRAFT", async () => {
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-
-    expect(
-      await screen.findByText(
-        "Continuing automatically approves the remaining visual proposals before stage selection."
-      )
-    ).toBeVisible();
-    expect(
-      screen.getByText("1 visual in this set is still awaiting review.")
-    ).toBeVisible();
-    expect(mocks.getProposal).toHaveBeenCalledTimes(2);
-    expect(handleNext).not.toHaveBeenCalled();
-  });
-
-  it("cancelling submits nothing and changes no proposal", async () => {
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-    await user.click(
-      await screen.findByTestId("plan-generation-visual-preview-approve-cancel")
-    );
-
-    await waitFor(() =>
-      expect(
-        screen.queryByTestId("plan-generation-visual-preview-approve-confirm")
-      ).not.toBeInTheDocument()
-    );
-    expect(handleNext).not.toHaveBeenCalled();
-    expect(mocks.approveProposal).not.toHaveBeenCalled();
-    expect(mocks.rejectProposal).not.toHaveBeenCalled();
-    expect(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    ).toBeEnabled();
-  });
-
-  it("confirming submits the typed Approve Visual Set answer exactly once", async () => {
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-    const confirm = await screen.findByTestId(
-      "plan-generation-visual-preview-approve-continue"
-    );
-    await user.click(confirm);
-    await user.click(confirm).catch(() => undefined);
+    await user.click(button);
+    await user.click(button).catch(() => undefined);
 
     expect(handleNext).toHaveBeenCalledTimes(1);
     expect(handleNext).toHaveBeenCalledWith(...approvedAnswer);
-    expect(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    ).toBeDisabled();
+    expect(button).toBeDisabled();
+    expect(mocks.getProposal).not.toHaveBeenCalled();
     expect(mocks.approveProposal).not.toHaveBeenCalled();
     expect(mocks.rejectProposal).not.toHaveBeenCalled();
   });
 
-  it("re-enables Approve Visual Set after a failed submission", async () => {
-    statuses = { a: ProposalStatus.Approved, b: ProposalStatus.Rejected };
+  it("re-enables after a failed submission", async () => {
     const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
+    const { handleNext } = mount();
     const { result } = renderHook(() => useConversationEvents("conversation"));
 
     await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
+      screen.getByTestId("plan-generation-visual-preview-approve"),
     );
     await waitFor(() => expect(handleNext).toHaveBeenCalledTimes(1));
-    expect(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    ).toBeDisabled();
 
     act(() =>
       result.current.emit({
@@ -317,80 +163,16 @@ describe("PlanGenerationVisualPreviewApproveAction", () => {
           data: {},
           parentMessageId: "feedback-message",
         },
-      })
+      }),
     );
 
     expect(
-      screen.getByTestId("plan-generation-visual-preview-approve")
+      screen.getByTestId("plan-generation-visual-preview-approve"),
     ).toBeEnabled();
     await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
+      screen.getByTestId("plan-generation-visual-preview-approve"),
     );
     await waitFor(() => expect(handleNext).toHaveBeenCalledTimes(2));
-  });
-
-  it("submits without confirmation when every current visual is decided", async () => {
-    statuses = { a: ProposalStatus.Approved, b: ProposalStatus.Rejected };
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-
-    await waitFor(() => expect(handleNext).toHaveBeenCalledTimes(1));
-    expect(handleNext).toHaveBeenCalledWith(...approvedAnswer);
-    expect(
-      screen.queryByTestId("plan-generation-visual-preview-approve-confirm")
-    ).not.toBeInTheDocument();
-  });
-
-  it("treats a proposal decided this session as decided while the server still reads DRAFT", async () => {
-    setLifecycle("b", "applied");
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-
-    await waitFor(() => expect(handleNext).toHaveBeenCalledTimes(1));
-    expect(
-      screen.queryByTestId("plan-generation-visual-preview-approve-confirm")
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows a load failure and submits nothing", async () => {
-    mocks.getProposal.mockRejectedValueOnce(new Error("Proposal unavailable"));
-    const user = userEvent.setup();
-    const { handleNext } = mount(["a", "b"]);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-
-    expect(
-      await screen.findByTestId("plan-generation-visual-preview-approve-error")
-    ).toHaveTextContent("Proposal unavailable");
-    expect(handleNext).not.toHaveBeenCalled();
-    expect(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    ).toBeEnabled();
-  });
-
-  it("submits nothing when no current visual set is presented", async () => {
-    const user = userEvent.setup();
-    const { handleNext } = mount(undefined);
-
-    await user.click(
-      screen.getByTestId("plan-generation-visual-preview-approve")
-    );
-
-    expect(
-      await screen.findByTestId("plan-generation-visual-preview-approve-error")
-    ).toHaveTextContent("The current visual set could not be found.");
-    expect(handleNext).not.toHaveBeenCalled();
-    expect(mocks.getProposal).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -402,18 +184,17 @@ describe("PlanGenerationVisualPreviewApproveAction", () => {
       const user = userEvent.setup();
       const { handleNext, rerender } = mountInFormButtons(lockedState);
       const button = screen.getByTestId(
-        "plan-generation-visual-preview-approve"
+        "plan-generation-visual-preview-approve",
       );
 
       expect(button).toBeDisabled();
       await user.click(button).catch(() => undefined);
-      expect(mocks.getProposal).not.toHaveBeenCalled();
       expect(handleNext).not.toHaveBeenCalled();
 
       rerender({ isSubmitting: false, hasSecondaryActionInFlight: false });
       expect(
-        screen.getByTestId("plan-generation-visual-preview-approve")
+        screen.getByTestId("plan-generation-visual-preview-approve"),
       ).toBeEnabled();
-    }
+    },
   );
 });

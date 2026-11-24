@@ -277,4 +277,71 @@ describe('SuggestionDecisionService', () => {
       });
     });
   });
+  describe('Project Assistant update decisions', () => {
+    const updateRow = (digest: string, agentSessionId: string) => ({
+      organizationId: testIds.organization,
+      suggestionId: `${testIds.message}:update:${digest}`,
+      type: 'project_assistant_update',
+      accepted: true,
+      decidedBy: testIds.user,
+      sourceConversationId: testIds.conversation,
+      sourceMessageId: testIds.message,
+      metadata: { kind: 'PROJECT_ASSISTANT_UPDATE', agentSessionId },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    it('keeps one decision per update on a message, with the latest session for a repeat', async () => {
+      const upsert = prisma.db.suggestionDecision.upsert as jest.Mock;
+      upsert
+        .mockResolvedValueOnce(updateRow('aaaa1111', 'session-a1'))
+        .mockResolvedValueOnce(updateRow('bbbb2222', 'session-b'))
+        .mockResolvedValueOnce(updateRow('aaaa1111', 'session-a2'));
+      const input = (digest: string, agentSessionId: string) => ({
+        organizationId: testIds.organization,
+        type: 'project_assistant_update' as const,
+        suggestionId: `${testIds.message}:update:${digest}`,
+        accepted: true,
+        sourceConversationId: testIds.conversation,
+        sourceMessageId: testIds.message,
+        metadata: {
+          kind: 'PROJECT_ASSISTANT_UPDATE' as const,
+          agentSessionId,
+        },
+      });
+
+      await service.recordDecision(input('aaaa1111', 'session-a1'));
+      await service.recordDecision(input('bbbb2222', 'session-b'));
+      const repeated = await service.recordDecision(
+        input('aaaa1111', 'session-a2'),
+      );
+
+      const [first, , third] = upsert.mock.calls.map(([args]) => args);
+      expect(third.where).toEqual(first.where);
+      expect(third.update.metadata).toEqual({
+        kind: 'PROJECT_ASSISTANT_UPDATE',
+        agentSessionId: 'session-a2',
+      });
+      expect(repeated.metadata).toEqual({
+        kind: 'PROJECT_ASSISTANT_UPDATE',
+        agentSessionId: 'session-a2',
+      });
+
+      (
+        prisma.db.suggestionDecision.findMany as jest.Mock
+      ).mockResolvedValueOnce([
+        updateRow('aaaa1111', 'session-a2'),
+        updateRow('bbbb2222', 'session-b'),
+      ]);
+      const listed = await service.listDecisions({
+        organizationId: testIds.organization,
+        sourceMessageId: testIds.message,
+      });
+
+      expect(listed.map((decision) => decision.metadata)).toEqual([
+        { kind: 'PROJECT_ASSISTANT_UPDATE', agentSessionId: 'session-a2' },
+        { kind: 'PROJECT_ASSISTANT_UPDATE', agentSessionId: 'session-b' },
+      ]);
+    });
+  });
 });

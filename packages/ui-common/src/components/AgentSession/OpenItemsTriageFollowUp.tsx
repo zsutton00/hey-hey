@@ -27,7 +27,10 @@ export function OpenItemsTriageFollowUp({
   return (
     <Stack
       component="form"
+      direction="row"
       spacing={1}
+      alignItems="flex-start"
+      sx={{ flexShrink: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -37,10 +40,13 @@ export function OpenItemsTriageFollowUp({
         label={t("triage.followUp", "Follow-up message")}
         placeholder={t(
           "triage.followUpPlaceholder",
-          "Ask a question or describe what you want to keep…"
+          "Ask a question or describe what you want to keep…",
         )}
         multiline
-        minRows={2}
+        size="small"
+        fullWidth
+        minRows={1}
+        maxRows={4}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         disabled={disabled || pending}
@@ -50,7 +56,7 @@ export function OpenItemsTriageFollowUp({
         type="submit"
         data-testid="triage-send"
         disabled={disabled || pending || !draft.trim()}
-        sx={{ alignSelf: "flex-end" }}
+        sx={{ mt: 0.25 }}
       >
         {t("common.send", "Send")}
       </Button>

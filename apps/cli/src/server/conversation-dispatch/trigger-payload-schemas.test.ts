@@ -906,6 +906,30 @@ describe('validateTriggerPayload', () => {
       ).not.toThrow();
     });
 
+    it('keeps per-Service place choices through parsing and rejects malformed ones', () => {
+      const envelope = buildEnvelope(LocalPromptType.AgentSearch, {
+        promptType: LocalPromptType.AgentSearch,
+      });
+      const servicePlaceChoices = [
+        { serviceId: '00000000-0000-4000-8000-0000000000a1', kind: 'MAIN_FOLDER' as const },
+        {
+          serviceId: '00000000-0000-4000-8000-0000000000a2',
+          kind: 'WORKTREE' as const,
+          branch: 'feature/x',
+        },
+      ];
+
+      expect(
+        validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, { ...envelope, servicePlaceChoices }),
+      ).toMatchObject({ servicePlaceChoices });
+      expect(() =>
+        validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, {
+          ...envelope,
+          servicePlaceChoices: [{ serviceId: servicePlaceChoices[0]!.serviceId, kind: 'WORKTREE' }],
+        }),
+      ).toThrow();
+    });
+
     it('accepts handler launches without attachment references and validates each reference', () => {
       const envelope = buildEnvelope(LocalPromptType.AgentSearch, {
         promptType: LocalPromptType.AgentSearch,
@@ -1318,13 +1342,18 @@ describe('validateTriggerPayload', () => {
       expect(validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, envelope)).toEqual(envelope);
     });
 
-    it('rejects fastMode for an OpenCode provider', () => {
+    it.each([
+      [LocalRunProvider.Opencode, true],
+      [LocalRunProvider.Opencode, false],
+      [LocalRunProvider.Antigravity, true],
+      [LocalRunProvider.Antigravity, false],
+    ])('rejects %s fastMode=%s', (provider, fastMode) => {
       const envelope = buildEnvelope(LocalPromptType.DailySession, {
         promptType: LocalPromptType.DailySession,
         payloadVersion: 1,
       });
-      envelope['provider'] = LocalRunProvider.Opencode;
-      envelope['fastMode'] = false;
+      envelope['provider'] = provider;
+      envelope['fastMode'] = fastMode;
 
       expect(() => validateTriggerPayload(START_RUN_TRIGGER_SENTINEL, envelope)).toThrow(
         /fastMode is supported only when provider is codex or claude/,

@@ -529,6 +529,47 @@ describe('reviewed future persistence', () => {
     ).rejects.toThrow('outcome changed');
   });
 
+  it('refuses a cancellation whose reviewed refinements no longer match the pending ones', async () => {
+    await stageFutureRevision(tx, registry, proposal(mutation()));
+    const reviewed = randomUUID();
+    const cancel = (ids: string[]) =>
+      proposal({
+        operation: 'CANCEL',
+        futureId,
+        expectedRevision: 1,
+        reviewedRefinementProposalIds: ids,
+      });
+
+    tx.proposal.findMany.mockResolvedValue([{ id: reviewed }]);
+    await expect(
+      validateFutureRevision(
+        tx,
+        registry,
+        cancel([reviewed]),
+        organizationId,
+        projectId,
+      ),
+    ).resolves.toMatchObject({ operation: 'CANCEL' });
+
+    tx.proposal.findMany.mockResolvedValue([
+      { id: reviewed },
+      { id: randomUUID() },
+    ]);
+    await expect(
+      validateFutureRevision(
+        tx,
+        registry,
+        cancel([reviewed]),
+        organizationId,
+        projectId,
+      ),
+    ).rejects.toThrow('review them again');
+    await expect(
+      stageFutureRevision(tx, registry, cancel([reviewed])),
+    ).rejects.toThrow('review them again');
+    expect(futures.get(futureId).outcome).toBe('STAGED');
+  });
+
   it('keeps independent futures separate and selects exact reviewed parent content', async () => {
     await stageFutureRevision(tx, registry, proposal(mutation()));
     const childId = randomUUID();

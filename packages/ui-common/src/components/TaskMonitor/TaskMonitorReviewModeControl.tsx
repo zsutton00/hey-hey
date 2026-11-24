@@ -28,7 +28,7 @@ export const TaskMonitorReviewModeControl = ({
     disabled={disabled}
     data-testid="task-monitor-review-mode"
   >
-    <FormLabel component="legend">Review completed coding sessions</FormLabel>
+    <FormLabel component="legend">Mode</FormLabel>
     <RadioGroup
       value={value}
       onChange={(event) =>
@@ -40,7 +40,7 @@ export const TaskMonitorReviewModeControl = ({
         control={<Radio />}
         label={
           <Stack>
-            <Typography>Review required</Typography>
+            <Typography>Require review</Typography>
             <Typography variant="body2" color="text.secondary">
               Session Monitor starts the existing Review flow before Task
               Monitor supervision continues.

@@ -16,7 +16,7 @@
 
 
 /**
- * User-submission shape for the plan-shaping visual-preview-feedback gate\'s `APPROVED` action. Accepts the complete ordered visual proposal set before stage selection begins.
+ * User-submission shape for the plan-shaping visual-preview-feedback gate\'s `APPROVED` action. While a visual is under review it moves on only when that visual\'s live proposal status is APPROVED. On the complete set, where every visual is already approved, it confirms the set and starts stage selection. It never approves visuals itself.
  * @export
  * @interface PlanShapingVisualPreviewFeedbackApprovedSubmission
  */

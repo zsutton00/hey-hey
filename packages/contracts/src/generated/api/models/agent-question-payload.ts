@@ -87,13 +87,16 @@ export const AgentQuestionPayloadAgentTypeEnum = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(AgentQuestionPayloadAgentTypeEnum, "claude", { enumerable: false, value: AgentQuestionPayloadAgentTypeEnum["Claude"] });
 Object.defineProperty(AgentQuestionPayloadAgentTypeEnum, "codex", { enumerable: false, value: AgentQuestionPayloadAgentTypeEnum["Codex"] });
 Object.defineProperty(AgentQuestionPayloadAgentTypeEnum, "opencode", { enumerable: false, value: AgentQuestionPayloadAgentTypeEnum["Opencode"] });
+Object.defineProperty(AgentQuestionPayloadAgentTypeEnum, "antigravity", { enumerable: false, value: AgentQuestionPayloadAgentTypeEnum["Antigravity"] });
 
 export type AgentQuestionPayloadAgentTypeEnum = typeof AgentQuestionPayloadAgentTypeEnum[keyof typeof AgentQuestionPayloadAgentTypeEnum];
 

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Priority, WorkStatus } from "../../../api";
+import { Priority } from "../../../api";
 import { NewTaskModal } from "../NewTaskModal";
 
 vi.mock("react-i18next", () => ({
@@ -37,10 +37,10 @@ describe("NewTaskModal", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(
-      within(dialog).getByTestId("smarter-textarea-card")
+      within(dialog).getByTestId("smarter-textarea-card"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByTestId("smarter-textarea-input")
+      within(dialog).getByTestId("smarter-textarea-input"),
     ).toBeInTheDocument();
   });
 
@@ -48,10 +48,10 @@ describe("NewTaskModal", () => {
     render(<NewTaskModal open onClose={vi.fn()} onSubmit={vi.fn()} />);
 
     expect(
-      screen.queryByTestId("smarter-textarea-save-without-feedback")
+      screen.queryByTestId("smarter-textarea-save-without-feedback"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("smarter-textarea-save-with-feedback")
+      screen.queryByTestId("smarter-textarea-save-with-feedback"),
     ).not.toBeInTheDocument();
   });
 
@@ -74,8 +74,8 @@ describe("NewTaskModal", () => {
     expect(payload).toMatchObject({
       name: "Draft task",
       priority: Priority.Medium,
-      status: WorkStatus.RefiningDescription,
     });
+    expect(payload).not.toHaveProperty("status");
     expect(payload.sections).toBeUndefined();
   });
 });

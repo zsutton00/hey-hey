@@ -20,6 +20,7 @@ import {
   UnifiedWorkItemEditorSection,
   type WorkItemRequirementsEditorConfig,
 } from "./UnifiedWorkItemEditorSection";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 type SaveMode = "silent" | "feedback" | null;
 
 export interface UnifiedWorkItemEditorProps {
@@ -128,6 +129,9 @@ export const UnifiedWorkItemEditor: React.FC<UnifiedWorkItemEditorProps> = ({
           elevation={0}
           sx={{
             border: `1px solid ${theme.palette.divider}`,
+            ...getInputBorderSx(theme, {
+              disabled: disabled || isEditorProcessing,
+            }),
             borderRadius: 1,
             backgroundColor: theme.palette.background.paper,
             overflow: "hidden",

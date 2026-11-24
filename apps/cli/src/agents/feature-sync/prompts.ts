@@ -148,11 +148,13 @@ Topical overlap alone is not something to flag. Entity ids must be confirmed aga
 
 **Exception — source-of-truth contracts.** If the user has explicitly directed you to verify the entity against a source-of-truth contract (an OpenAPI spec, a typed schema, a design doc the user has named as authoritative, or another document the user has told you to check against), then real drift between that contract and the entity **is** flaggable, even when the entity's wording is general. The carve-out covers naming breadth, not contract drift.`;
 
+const REQUIRED_UPDATES_OWNERSHIP = `Feature Sync drafts the updates (Contracts, design docs, Mockups, Diagrams, modes) that the task, research or review names as required work, as proposals for review, never leaving them to a later phase or applying them directly; only a user decline or a recorded deferral is a reason to omit one.`;
+
 const ANALYZE_CONTRACT_RECONCILIATION = `## Contract candidates during reconciliation
 
 While evaluating a gap or observation, check whether the operational change depends on a durable agreement across feature ownership boundaries and whether an existing Contract already records it. Missing agreements about behavior, payload shape, timing, semantics, availability, or review and acknowledgement responsibility are Contract candidates; ordinary topical overlap and loose graph relationships are not.
 
-Surface every well-evidenced missing-Contract candidate in the reconciliation material. When a candidate accompanies an operational correction, make the reconciliation option describe the two changes as one remedy. After the user chooses that option, draft the operational \`edit_work_item\` proposal and the companion \`create_work_item\` proposal with \`type: "CONTRACT"\` in the same agent turn so they render as one coherent review group. Never split the Contract into detached cleanup. If no operational entity needs correction, the Contract may be its own reconciliation option.
+Surface every well-evidenced missing-Contract candidate in the reconciliation material. ${REQUIRED_UPDATES_OWNERSHIP} When a candidate accompanies an operational correction, make the reconciliation option describe the two changes as one remedy. After the user chooses that option, draft the operational \`edit_work_item\` proposal and the companion \`create_work_item\` proposal with \`type: "CONTRACT"\` in the same agent turn so they render as one coherent review group. Never split the Contract into detached cleanup. If no operational entity needs correction, the Contract may be its own reconciliation option.
 
 The first flagged turn still only persists the decision report and asks the user; do not draft either proposal before they choose. If Contract proposal tooling is not available on this surface, carry the candidate into the internal handoff report with the boundary, agreement, and evidence instead of silently dropping it.`;
 
@@ -404,6 +406,8 @@ Read the user's reply and judge what they want — "the user has acted" is your 
 - **Not yet → keep talking.** If the reply is a question or needs more back-and-forth before you can resolve or revise, answer it in plain language and wait — do not force a terminal.
 
 When revising an outstanding remediation that pairs an operational correction with a missing Contract, preserve them as one coupled remedy in the full revised list. Do not split the Contract into a detached follow-up item.
+
+${REQUIRED_UPDATES_OWNERSHIP}
 
 If — and only if — the user's request explicitly requires re-verification of a specific entity, call \`get_full_entity\` with a single-element \`entities\` batch for that entity (or \`get_context\` for proposals and edges). Do not perform a full tree walk.
 

@@ -84,6 +84,8 @@ paths:
           description: Invalid machine-local authority
 components:
   schemas:
+    AgentProviderId:
+      $ref: "../schemas/common.yaml#/AgentProviderId"
     LocalStartupBrowserEvent:
       type: string
       description: Closed vocabulary; no arbitrary messages, user content or secret values.
@@ -3599,6 +3601,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
         - $ref: "#/components/schemas/CliReadWorkspaceSkillsListEnvelopeBody"
+        - $ref: "#/components/schemas/CliReadWorkspaceServicePlacesListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
         - $ref: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
@@ -3614,6 +3617,7 @@ components:
           run.skills.list: "#/components/schemas/CliReadRunSkillsListEnvelopeBody"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnEnvelopeBody"
           workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListEnvelopeBody"
+          workspace.service_places.list: "#/components/schemas/CliReadWorkspaceServicePlacesListEnvelopeBody"
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListEnvelopeBody"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetEnvelopeBody"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetEnvelopeBody"
@@ -3635,6 +3639,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadWorkspaceSkillsListSuccessResponseDto"
+        - $ref: "#/components/schemas/CliReadWorkspaceServicePlacesListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
@@ -3650,6 +3655,7 @@ components:
           run.skills.list: "#/components/schemas/CliReadRunSkillsListSuccessResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnSuccessResponseDto"
           workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListSuccessResponseDto"
+          workspace.service_places.list: "#/components/schemas/CliReadWorkspaceServicePlacesListSuccessResponseDto"
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListSuccessResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetSuccessResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetSuccessResponseDto"
@@ -3664,6 +3670,7 @@ components:
         - $ref: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
         - $ref: "#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
+        - $ref: "#/components/schemas/CliReadWorkspaceServicePlacesListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
         - $ref: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
         - $ref: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
@@ -3679,6 +3686,7 @@ components:
           run.skills.list: "#/components/schemas/CliReadRunSkillsListErrorResponseDto"
           run.tool_calls.latest_turn: "#/components/schemas/CliReadRunToolCallsLatestTurnErrorResponseDto"
           workspace.skills.list: "#/components/schemas/CliReadWorkspaceSkillsListErrorResponseDto"
+          workspace.service_places.list: "#/components/schemas/CliReadWorkspaceServicePlacesListErrorResponseDto"
           project.session_costs.list: "#/components/schemas/CliReadProjectSessionCostsListErrorResponseDto"
           provider.usage.get: "#/components/schemas/CliReadProviderUsageGetErrorResponseDto"
           runtime.model_catalog.get: "#/components/schemas/CliReadRuntimeModelCatalogGetErrorResponseDto"
@@ -3839,16 +3847,17 @@ components:
             Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the
             permission gate.
         agentType:
-          type: string
-          enum:
-            - claude
-            - codex
-            - opencode
+          $ref: "#/components/schemas/AgentProviderId"
           description: Agent provider that issued the permission request.
         reason:
           type: string
           nullable: true
           description: User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.
+        servicePlaceChoices:
+          type: array
+          items:
+            $ref: "../schemas/coding-sessions.yaml#/ServicePlaceChoice"
+          description: Where each newly requested Service works. Present only with `approve`.
         idempotencyToken:
           type: string
           minLength: 1
@@ -5484,7 +5493,7 @@ components:
           type: array
           minItems: 3
           maxItems: 3
-          description: Exactly one latest usage entry for Claude Code, Codex, and OpenCode.
+          description: Exactly one latest usage entry for Claude Code, Codex, OpenCode, and Antigravity.
           items:
             $ref: "#/components/schemas/CliReadProviderUsage"
       additionalProperties: false
@@ -5503,6 +5512,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
         status:
           type: string
           enum:
@@ -5717,11 +5727,7 @@ components:
         - models
       properties:
         provider:
-          type: string
-          enum:
-            - claude
-            - codex
-            - opencode
+          $ref: "#/components/schemas/AgentProviderId"
         models:
           type: array
           items:
@@ -5861,6 +5867,7 @@ components:
             - claude
             - codex
             - opencode
+            - antigravity
         providerSessionId:
           type: string
           minLength: 1
@@ -6181,6 +6188,227 @@ components:
         - MISSING_JUDGMENT
         - ROUTE_REJECTED
         - INTERNAL_ERROR
+
+    CliReadWorkspaceServicePlacesListRequest:
+      type: object
+      required:
+        - operation
+        - authorization
+        - serviceIds
+      properties:
+        operation:
+          type: string
+          enum:
+            - workspace.service_places.list
+        authorization:
+          $ref: ../schemas/controller-authorization.yaml#/AdmissionEnvelopeAuthorization
+        serviceIds:
+          $ref: "#/components/schemas/CliReadServicePlacesServiceIds"
+        branchQuery:
+          $ref: "#/components/schemas/CliReadServicePlacesBranchQuery"
+      additionalProperties: false
+
+    CliReadServicePlacesServiceIds:
+      type: array
+      minItems: 1
+      maxItems: 20
+      uniqueItems: true
+      items:
+        type: string
+        format: uuid
+      description: Project Services whose places on the selected machine are read.
+
+    CliReadServicePlacesBranchQuery:
+      type: string
+      maxLength: 100
+      description: Case-insensitive text matched against local branch names.
+
+    CliReadWorkspaceServicePlacesListEnvelopeBody:
+      type: object
+      required:
+        - requestId
+        - operation
+        - serviceIds
+        - organizationId
+        - projectId
+        - machineId
+        - authorizationRequestId
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          description: Correlation identity minted by the platform for this read.
+        operation:
+          type: string
+          enum:
+            - workspace.service_places.list
+        serviceIds:
+          $ref: "#/components/schemas/CliReadServicePlacesServiceIds"
+        branchQuery:
+          $ref: "#/components/schemas/CliReadServicePlacesBranchQuery"
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        machineId:
+          type: string
+          format: uuid
+        authorizationRequestId:
+          type: string
+          format: uuid
+      additionalProperties: false
+
+    CliReadWorkspaceServicePlacesListSuccessResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - result
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - workspace.service_places.list
+        status:
+          type: string
+          enum:
+            - success
+        result:
+          $ref: "#/components/schemas/CliReadServicePlacesResult"
+      additionalProperties: false
+
+    CliReadWorkspaceServicePlacesListErrorResponseDto:
+      type: object
+      required:
+        - requestId
+        - operation
+        - status
+        - error
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          enum:
+            - workspace.service_places.list
+        status:
+          type: string
+          enum:
+            - error
+        error:
+          $ref: "#/components/schemas/CliReadError"
+      additionalProperties: false
+
+    CliReadServicePlacesResult:
+      type: object
+      required:
+        - services
+      properties:
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/CliReadServicePlacesEntry"
+          description: One entry per requested Service, in request order.
+      additionalProperties: false
+
+    CliReadServicePlacesEntry:
+      oneOf:
+        - $ref: "#/components/schemas/CliReadServicePlacesOkEntry"
+        - $ref: "#/components/schemas/CliReadServicePlacesErrorEntry"
+      discriminator:
+        propertyName: status
+        mapping:
+          ok: "#/components/schemas/CliReadServicePlacesOkEntry"
+          error: "#/components/schemas/CliReadServicePlacesErrorEntry"
+
+    CliReadServicePlacesOkEntry:
+      type: object
+      required:
+        - serviceId
+        - status
+        - mainFolder
+        - worktrees
+        - branchMatches
+        - branchMatchesTruncated
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - ok
+        mainFolder:
+          type: object
+          required:
+            - path
+            - branch
+          properties:
+            path:
+              type: string
+            branch:
+              type: string
+              nullable: true
+              description: Branch checked out in the main folder. Null means detached.
+          additionalProperties: false
+        worktrees:
+          type: array
+          items:
+            type: object
+            required:
+              - branch
+              - worktreePath
+            properties:
+              branch:
+                type: string
+                nullable: true
+                description: Branch checked out in the worktree. Null means detached.
+              worktreePath:
+                type: string
+            additionalProperties: false
+          description: Registered worktrees, excluding the main folder.
+        branchMatches:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+          description: Local branches matching the query, most recently committed first. Without a query, the most recent branches.
+        branchMatchesTruncated:
+          type: boolean
+          description: True when more matching branches exist than were returned.
+      additionalProperties: false
+
+    CliReadServicePlacesErrorEntry:
+      type: object
+      required:
+        - serviceId
+        - status
+        - code
+        - message
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - error
+        code:
+          type: string
+          enum:
+            - NO_REPOSITORY_PATH
+            - NOT_A_GIT_REPOSITORY
+            - READ_FAILED
+        message:
+          type: string
+      additionalProperties: false
 
     CliReadWorkspaceSkillsListRequest:
       type: object

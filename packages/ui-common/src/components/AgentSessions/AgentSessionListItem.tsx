@@ -1,9 +1,9 @@
+import { Box, Typography, useTheme } from "@mui/material";
 import { useApolloClient, useReactiveVar } from "@apollo/client/react";
 import {
   deniedConversations,
   getProjectGraphQLClient,
 } from "../../data/graphql/client";
-import { Box, Typography } from "@mui/material";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
@@ -11,11 +11,18 @@ import {
   MessageType,
   type PaginatedAgentSessionItemDto,
   type SystemMessageData,
+  type UserMessageAgentInputProvenance,
   type UserMessageData,
 } from "../../api";
 import { AgentSessionCurrentStateIndicator } from "../AgentSession/AgentSessionCurrentStateIndicator";
 import { getAgentSessionCurrentStatePresentation } from "../AgentSession/agentSessionCurrentStatePresentation";
+import { getUserMessageAuthorship } from "../Conversation/Components/MessageAuthorCaption";
 import { SystemMessage } from "../Conversation/Components/SystemMessage";
+import {
+  getHumanBubbleSx,
+  getHumanMarkdownSx,
+  getMonitorVisualTreatmentSx,
+} from "../Conversation/Components/UserMessageBubble";
 import { EntityListItem } from "../Entity/EntityListItem";
 import { agentSessionAdapter } from "../Entity/adapters";
 import {
@@ -48,6 +55,7 @@ type SessionMessagePresentation =
   | {
       kind: "user";
       text: string;
+      provenance: UserMessageAgentInputProvenance | null | undefined;
     };
 
 const PERMISSION_REQUEST_DECISION_LABELS: Record<string, string> = {
@@ -106,6 +114,36 @@ const getSessionMetadata = (
 ): readonly MetadataDisclosureRow[] | undefined =>
   metadata && metadata.length > 0 ? metadata : undefined;
 
+/** A session's latest user message, shown as it is in the conversation: blue and right-aligned for a person, neutral and left for a monitor. */
+const SessionUserMessage: React.FC<{
+  text: string;
+  provenance: UserMessageAgentInputProvenance | null | undefined;
+}> = ({ text, provenance }) => {
+  const theme = useTheme();
+  const isMonitor = getUserMessageAuthorship(provenance) === "monitor";
+
+  return (
+    <Box
+      data-testid="session-user-message"
+      data-authorship={isMonitor ? "monitor" : "human"}
+      sx={{
+        boxSizing: "border-box",
+        width: "fit-content",
+        maxWidth: "100%",
+        p: { xs: 1.25, sm: 2 },
+        borderRadius: isMonitor ? 1 : 2,
+        ...(isMonitor
+          ? getMonitorVisualTreatmentSx(theme)
+          : { ...getHumanBubbleSx(theme), ml: "auto" }),
+      }}
+    >
+      <MarkdownRenderer sx={isMonitor ? undefined : getHumanMarkdownSx(theme)}>
+        {text}
+      </MarkdownRenderer>
+    </Box>
+  );
+};
+
 const SessionLatestMessage: React.FC<{
   item: PaginatedAgentSessionItemDto;
   isCoding: boolean;
@@ -120,7 +158,12 @@ const SessionLatestMessage: React.FC<{
     lastMessage?.type === MessageType.System
       ? getSessionMessagePresentation(lastMessage.data as SystemMessageData)
       : typeof userMessageText === "string" && userMessageText.trim()
-        ? { kind: "user", text: userMessageText }
+        ? {
+            kind: "user",
+            text: userMessageText,
+            provenance: (lastMessage?.data as UserMessageData).agentInput
+              ?.provenance,
+          }
         : null;
   const messagePreviewRef = useRef<HTMLDivElement | null>(null);
   const messagePreviewContentRef = useRef<HTMLDivElement | null>(null);
@@ -187,7 +230,10 @@ const SessionLatestMessage: React.FC<{
             ref={messagePreviewContentRef}
           >
             {messagePresentation.kind === "user" ? (
-              <MarkdownRenderer>{messagePresentation.text}</MarkdownRenderer>
+              <SessionUserMessage
+                provenance={messagePresentation.provenance}
+                text={messagePresentation.text}
+              />
             ) : messagePresentation.kind === "interstitial" ? (
               <InterstitialThought
                 inlineReports={reports}

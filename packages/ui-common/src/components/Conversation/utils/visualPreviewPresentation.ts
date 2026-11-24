@@ -8,15 +8,14 @@ import {
   type MessageResponseDto,
 } from "../../../api";
 import type { ConversationMessage } from "../../../types/conversation";
-import { isPlanGenerationVisualPreviewPayload } from "../../LlmForms/Registry/planGenerationVisualPreviewUtils";
 
 const isVisualPreviewMessage = (message: MessageResponseDto): boolean =>
   message.type === MessageType.System &&
   Boolean(
     message.data.uiElements?.some(
       (element) =>
-        element.type === ExtendedUIFieldType.PlanGenerationVisualPreview
-    )
+        element.type === ExtendedUIFieldType.PlanGenerationVisualPreview,
+    ),
   );
 
 const isVisualReviewMessage = (message: MessageResponseDto): boolean =>
@@ -28,14 +27,14 @@ const isVisualReviewMessage = (message: MessageResponseDto): boolean =>
         action.handler ===
           SecondaryActionHandler.PlanGenerationVisualPreviewApprove ||
         action.handler ===
-          SecondaryActionHandler.PlanGenerationVisualPreviewContinueRevising
-    )
+          SecondaryActionHandler.PlanGenerationVisualPreviewContinueRevising,
+    ),
   );
 
 const isSubmittedVisualReview = (message: MessageResponseDto): boolean =>
   isVisualReviewMessage(message) &&
   Boolean(
-    message.responses?.some((response) => response.type === MessageType.User)
+    message.responses?.some((response) => response.type === MessageType.User),
   );
 
 /** Follow persisted response links, never proposal ownership or timestamps. */
@@ -58,7 +57,7 @@ const hasSubmittedReview = (message: MessageResponseDto): boolean =>
 /** Hidden completions can be roots; their explicit trigger reference joins the round. */
 export const applyVisualPreviewPresentationState = (
   timeline: ConversationMessage[],
-  messages: MessageResponseDto[]
+  messages: MessageResponseDto[],
 ): ConversationMessage[] => {
   const submittedTriggers = new Set<string>();
   const previewTriggers = new Map<string, string>();
@@ -98,31 +97,4 @@ export const applyVisualPreviewPresentationState = (
       (triggerId !== undefined && submittedTriggers.has(triggerId));
     return historical ? { ...entry, canEdit: false } : entry;
   });
-};
-
-/**
- * Proposal IDs of the current visual-preview round, read from the presented
- * timeline so "current" follows the same rule that makes history read-only.
- */
-export const resolveCurrentVisualPreviewProposalIds = (
-  timeline: ConversationMessage[]
-): string[] | undefined => {
-  const proposalIds = new Set<string>();
-  let hasCurrentPreview = false;
-  for (const entry of timeline) {
-    if (!entry.canEdit || !isVisualPreviewMessage(entry.message)) continue;
-    for (const element of entry.message.data.uiElements ?? []) {
-      if (
-        element.type !== ExtendedUIFieldType.PlanGenerationVisualPreview ||
-        !isPlanGenerationVisualPreviewPayload(element.payload)
-      ) {
-        continue;
-      }
-      hasCurrentPreview = true;
-      for (const { proposalId } of element.payload.entries) {
-        proposalIds.add(proposalId);
-      }
-    }
-  }
-  return hasCurrentPreview ? [...proposalIds] : undefined;
 };

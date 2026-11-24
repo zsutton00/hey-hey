@@ -733,6 +733,7 @@ TaskMonitorLaunchProvider:
     - claude
     - codex
     - opencode
+    - antigravity
 
 TaskMonitorLaunchModel:
   type: string
@@ -772,6 +773,13 @@ TaskMonitorTerminalSupervisionPolicy:
   properties:
     mode:
       $ref: "#/TaskMonitorReviewMode"
+    reviewRuntime:
+      $ref: "#/TaskMonitorRuntimeSelection"
+      description: >
+        Optional runtime the Review sub-agent runs on for every Review this monitor
+        requests. Applies only with REQUIRE_REVIEW. Monitor-owned selected-run intent;
+        it holds no session or Review evidence and never changes the task Agent
+        Session's runtime. Absent means Review runs on the task Agent Session's runtime.
 
 TaskMonitorExecutionNodeLaunchConfiguration:
   type: object
@@ -814,6 +822,30 @@ TaskMonitorRuntimeSelection:
     fastMode:
       type: boolean
       description: Explicit Fast mode intent for catalog-supported provider/model selections; omit for unsupported selections.
+
+ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto:
+  type: object
+  additionalProperties: false
+  description: >
+    Result of replacing the launch configuration on every Task Monitor task
+    whose Agent Session does not exist yet. The server decides at write time
+    which tasks are unstarted.
+  required:
+    - updatedTaskIds
+    - skippedTaskIds
+  properties:
+    updatedTaskIds:
+      type: array
+      description: Tasks whose launch configuration was replaced, in execution-plan order.
+      items:
+        type: string
+        format: uuid
+    skippedTaskIds:
+      type: array
+      description: Tasks left unchanged because their Agent Session already exists.
+      items:
+        type: string
+        format: uuid
 
 TaskMonitorExecutionPlanNode:
   type: object

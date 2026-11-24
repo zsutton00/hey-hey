@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import { PermissionDecisionRequestDtoDecisionEnum } from '@hey-hey/contracts/api/models';
+import { isAgentProviderId } from './providers/provider-config';
 import {
   AgentRequestPermissionPayloadResponseTypeEnum,
   ExtendedUIFieldType,
@@ -9,7 +12,7 @@ import {
   type CodingPromptMergedFinalAssessmentPayload,
   type CreateSystemMessage,
   type CreateUserMessage,
-  type PermissionRequestAgentType,
+  type AgentProviderId,
   type QuestionsSystemMessageData,
   type SystemMessageData,
   type SystemMessageDataActionHintEnum,
@@ -192,12 +195,9 @@ const isPermissionRequestResponseType = (value: unknown): boolean =>
   value === 'agent_request_permission' ||
   value === 'agent-request-permission';
 
-const toPermissionRequestAgentType = (value: string | null): PermissionRequestAgentType | null => {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === 'claude' || normalized === 'codex' || normalized === 'opencode')
-    return normalized;
-  return null;
+const toAgentProviderId = (value: string | null): AgentProviderId | null => {
+  const normalized = value?.trim().toLowerCase();
+  return isAgentProviderId(normalized) ? normalized : null;
 };
 
 const readPermissionRequestRecord = (
@@ -250,6 +250,10 @@ const readRawEventRecord = (
   return null;
 };
 
+export const availablePermissionDecisionsSchema = z.array(
+  z.nativeEnum(PermissionDecisionRequestDtoDecisionEnum),
+);
+
 export const tryParsePermissionRequestResponse = (
   text: string,
 ): AgentRequestPermissionPayload | null => {
@@ -276,7 +280,7 @@ export const tryParsePermissionRequestResponse = (
   ]);
   const sessionId = readStringByKeys(permissionRequestRecord, ['session_id', 'sessionId']);
   const agentId = readStringByKeys(permissionRequestRecord, ['agent_id', 'agentId']);
-  const agentType = toPermissionRequestAgentType(
+  const agentType = toAgentProviderId(
     readStringByKeys(permissionRequestRecord, ['agent_type', 'agentType']),
   );
   const runId = readStringByKeys(permissionRequestRecord, ['run_id', 'runId']);
@@ -318,6 +322,9 @@ export const tryParsePermissionRequestResponse = (
     referencedFiles.push(...changedFiles);
   }
   const rawEvent = readRawEventRecord(parsed, permissionRoot, permissionRequestRecord);
+  const availableDecisions = availablePermissionDecisionsSchema.safeParse(
+    permissionRequestRecord['availableDecisions'],
+  );
 
   return {
     responseType: AgentRequestPermissionPayloadResponseTypeEnum.AgentRequestPermissionV1,
@@ -334,6 +341,7 @@ export const tryParsePermissionRequestResponse = (
       agentIntent,
       referencedFiles,
       referencedDiffs,
+      ...(availableDecisions.success ? { availableDecisions: availableDecisions.data } : {}),
     },
     rawEvent,
     enrichmentMetadata: enrichment,

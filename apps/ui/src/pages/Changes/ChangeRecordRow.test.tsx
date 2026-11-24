@@ -10,13 +10,15 @@ import type { ProjectChangeRecord } from "@hey-hey/ui-common/api";
 import { ChangeRecordRow } from "./ChangeRecordRow";
 import { RecordedEditModal } from "./RecordedEditModal";
 
-const { read, changes } = vi.hoisted(() => ({
+const { read, changes, placesHook } = vi.hoisted(() => ({
   read: vi.fn(),
   changes: vi.fn(),
+  placesHook: vi.fn(() => ({ places: [] as unknown[] })),
 }));
 vi.mock("@hey-hey/ui-common/data", () => ({
   useRecordedEdit: read,
   useProjectChanges: changes,
+  useProjectChangePlaces: placesHook,
   useAgentSession: () => ({
     agentSession: { id: "session", title: "History session" },
   }),
@@ -122,6 +124,114 @@ const record = {
     },
   ],
 } satisfies ProjectChangeRecord;
+
+describe("change record places", () => {
+  const withPlaces = (...places: Array<object | undefined>) =>
+    ({
+      ...record,
+      report: {
+        ...record.report,
+        payload: {
+          ...record.report.payload,
+          edits: places.map((place, index) => ({
+            ...edit,
+            path: `src/f${index}.ts`,
+            ...(place ? { place } : {}),
+          })),
+        },
+      },
+    }) as unknown as ProjectChangeRecord;
+  const renderRow = (r: ProjectChangeRecord) =>
+    render(
+      <MemoryRouter>
+        <ChangeRecordRow projectId="project" record={r} onSelect={() => {}} />
+      </MemoryRouter>,
+    );
+
+  it("shows main folder, worktree, detached and not-recorded places, one chip per distinct place", () => {
+    renderRow(
+      withPlaces(
+        { kind: "MAIN_FOLDER", branch: "main" },
+        { kind: "MAIN_FOLDER", branch: "main" },
+        {
+          kind: "WORKTREE",
+          branch: "feature/x",
+          worktreePath: "/w/change-place",
+        },
+        { kind: "MAIN_FOLDER", branch: null },
+      ),
+    );
+    const chips = screen
+      .getAllByTestId("change-place")
+      .map((c) => c.textContent);
+    expect(chips).toEqual([
+      "⎇ main",
+      "▣ change-place · feature/x",
+      "⎇ changes.placeDetached",
+    ]);
+  });
+
+  it("shows a not-recorded chip for records without a place", () => {
+    renderRow(withPlaces(undefined));
+    expect(screen.queryByTestId("change-place")).not.toBeInTheDocument();
+    expect(screen.getByTestId("change-place-not-recorded")).toHaveTextContent(
+      "changes.placeNotRecorded",
+    );
+  });
+
+  it("groups the loaded page by place, with a spanning record under both and not recorded last", () => {
+    const spanning = withPlaces(
+      { kind: "MAIN_FOLDER", branch: "main" },
+      { kind: "WORKTREE", branch: "feature/x", worktreePath: "/w/wt" },
+    );
+    const old = withPlaces(undefined);
+    changes.mockReturnValue({
+      page: {
+        records: [
+          { ...spanning, report: { ...spanning.report, id: "spanning" } },
+          { ...old, report: { ...old.report, id: "old" } },
+        ],
+        hasMore: false,
+      },
+      isLoading: false,
+    });
+    render(
+      <NuqsTestingAdapter searchParams="?groupBy=place">
+        <MemoryRouter>
+          <ChangesView organizationId="org" projectId="project" />
+        </MemoryRouter>
+      </NuqsTestingAdapter>,
+    );
+    const headings = screen
+      .getAllByTestId("change-group-heading")
+      .map((h) => h.textContent);
+    expect(headings).toEqual([
+      "⎇ main · changes.groupRecordCount",
+      "▣ wt · feature/x · changes.groupRecordCount",
+      "changes.placeGroupNotRecorded · changes.groupRecordCount",
+    ]);
+    expect(
+      document.querySelectorAll('[data-report-id="spanning"]'),
+    ).toHaveLength(2);
+  });
+
+  it("sends the chosen place to the list query", () => {
+    changes.mockReturnValue({
+      page: { records: [], hasMore: false },
+      isLoading: false,
+    });
+    render(
+      <NuqsTestingAdapter searchParams="?placeKey=%5B%22MAIN_FOLDER%22%5D">
+        <MemoryRouter>
+          <ChangesView organizationId="org" projectId="project" />
+        </MemoryRouter>
+      </NuqsTestingAdapter>,
+    );
+    expect(changes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ placeKey: '["MAIN_FOLDER"]' }),
+    );
+  });
+});
 
 describe("change records", () => {
   it("carries combined URL filters and pagination into the project query", () => {

@@ -3,6 +3,7 @@ import { ModalRestoreControls } from "../Modals/ModalRestoreControls";
 import type { AgentComposerContext } from "../SmarterTextAreaCard/slashCommands/types";
 import React from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -111,10 +112,20 @@ vi.mock("@lexical/react/LexicalComposer", () => ({
   },
 }));
 
+const editorCommands = vi.hoisted(() => ({
+  enter: null as null | ((event: unknown) => boolean),
+}));
+
 vi.mock("@lexical/react/LexicalComposerContext", () => ({
   useLexicalComposerContext: () => [
     {
-      registerCommand: () => () => {},
+      registerCommand: (
+        _command: unknown,
+        handler: (e: unknown) => boolean,
+      ) => {
+        editorCommands.enter = handler;
+        return () => {};
+      },
       setEditable: () => {},
       update: () => {},
       focus: () => {},
@@ -288,6 +299,49 @@ vi.mock("../../data/hooks/useUserPairedMachines", () => ({
   }),
 }));
 
+vi.mock("../AgentSession/ServicesWorkIn", () => ({
+  ServicesWorkIn: ({
+    services,
+    onChange,
+    onUnavailableChange,
+  }: {
+    services: { serviceId: string }[];
+    onChange: (choice: unknown) => void;
+    onUnavailableChange: (unavailable: boolean) => void;
+  }) => {
+    React.useEffect(
+      () => () => onUnavailableChange(false),
+      [onUnavailableChange],
+    );
+
+    return (
+      <>
+        <button
+          type="button"
+          data-testid="mock-work-in-fail"
+          onClick={() => onUnavailableChange(true)}
+        >
+          Fail lookup
+        </button>
+        <button
+          type="button"
+          data-testid="mock-work-in"
+          onClick={() =>
+            onChange({
+              serviceId: services[0]?.serviceId,
+              kind: "WORKTREE",
+              branch: "feat/x",
+              newBranch: false,
+            })
+          }
+        >
+          Work in
+        </button>
+      </>
+    );
+  },
+}));
+
 vi.mock("../Selectors/ServiceSelector", () => ({
   ServiceSelector: ({
     value,
@@ -300,6 +354,14 @@ vi.mock("../Selectors/ServiceSelector", () => ({
   }) => (
     <div data-testid="mock-service-selector">
       <span data-testid="mock-service-selection">{value ?? "None"}</span>
+      <button
+        type="button"
+        data-testid="mock-select-service-none"
+        onClick={() => onChange(null)}
+        disabled={disabled}
+      >
+        None
+      </button>
       {serviceState.services.map((service) => (
         <button
           key={service.id}
@@ -893,8 +955,71 @@ describe("DiscussModal submit and close behavior", () => {
       machineId: "machine-1",
       fastMode: true,
       serviceId: "service-1",
+      servicePlaceChoices: [{ serviceId: "service-1", kind: "MAIN_FOLDER" }],
       projectAssistant: { enabled: false },
     });
+  });
+
+  it("shows no Work in choice without a Service and sends none", async () => {
+    const { props } = renderModal();
+
+    expect(screen.queryByTestId("mock-work-in")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "no service" },
+    });
+    await userEvent.click(screen.getByTestId("discuss-modal-ask"));
+
+    const sent = props.onSubmit.mock.calls[0][0];
+    expect(sent).not.toHaveProperty("servicePlaceChoices");
+  });
+
+  it("launches a selected Service with the main folder by default and its chosen place otherwise", async () => {
+    const { props } = renderModal();
+
+    fireEvent.click(screen.getByTestId("mock-select-service-1"));
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "default place" },
+    });
+    await userEvent.click(screen.getByTestId("discuss-modal-ask"));
+    expect(props.onSubmit.mock.calls[0][0].servicePlaceChoices).toEqual([
+      { serviceId: "service-1", kind: "MAIN_FOLDER" },
+    ]);
+
+    fireEvent.click(screen.getByTestId("mock-work-in"));
+    await userEvent.click(screen.getByTestId("discuss-modal-ask"));
+    expect(props.onSubmit.mock.calls[1][0].servicePlaceChoices).toEqual([
+      {
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "feat/x",
+        newBranch: false,
+      },
+    ]);
+  });
+
+  it("blocks every launch path while where the Service works could not be read, but not a Service-free launch", async () => {
+    const { props } = renderModal();
+    fireEvent.change(screen.getByTestId("mock-editor-input"), {
+      target: { value: "needs a place" },
+    });
+    fireEvent.click(screen.getByTestId("mock-select-service-1"));
+    fireEvent.click(screen.getByTestId("mock-work-in-fail"));
+
+    expect(screen.getByTestId("discuss-modal-ask")).toBeDisabled();
+    expect(screen.getByTestId("discuss-modal-submit")).toBeDisabled();
+    act(() => {
+      editorCommands.enter?.({
+        metaKey: true,
+        isComposing: false,
+        preventDefault: () => {},
+      });
+    });
+    expect(props.onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("mock-select-service-none"));
+    await userEvent.click(screen.getByTestId("discuss-modal-ask"));
+    expect(props.onSubmit).toHaveBeenCalledTimes(1);
+    expect(props.onSubmit.mock.calls[0][0]).not.toHaveProperty("serviceId");
   });
 
   it("shows the pending spinner in Quick Question and restores both labels after failure", async () => {

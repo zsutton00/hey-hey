@@ -111,6 +111,10 @@ vi.mock("../../../surfaceSelectionMemory", async (importOriginal) => ({
     writeSurfaceSelectionMock(surfaceId, value),
 }));
 
+vi.mock("../../hooks/useServicePlaces", () => ({
+  useServicePlaces: () => ({ status: "idle" }),
+}));
+
 import { resetCapabilityCatalogForTests } from "../../../capabilityCatalog";
 import { useAgentSetup } from "../useAgentSetup";
 
@@ -155,7 +159,6 @@ interface RenderSetupOptions {
   boundServiceId?: string | null;
   taskServiceIds?: string[];
   boundProvider?: "claude" | "codex" | "opencode" | null;
-  taskName?: string | null;
   lockedWorktreeBranch?: string | null;
   skipServiceSelection?: boolean;
   selectedMachine?: MachineDto | null;
@@ -178,7 +181,6 @@ const renderSetup = (options: RenderSetupOptions = {}) =>
       taskServiceIds: options.taskServiceIds ?? ["service-1"],
       boundProvider:
         options.boundProvider === undefined ? "claude" : options.boundProvider,
-      taskName: options.taskName ?? null,
       lockedWorktreeBranch: options.lockedWorktreeBranch ?? null,
       skipServiceSelection: options.skipServiceSelection,
       selectedMachine:
@@ -486,6 +488,7 @@ describe("useAgentSetup start() conversation creation", () => {
       method: "plan",
       model: "claude-opus-4-7",
       effort: "high",
+      servicePlaceChoices: [{ serviceId: "service-1", kind: "MAIN_FOLDER" }],
     });
     expect(payload?.config).not.toHaveProperty("worktree");
   });
@@ -528,6 +531,7 @@ describe("useAgentSetup start() conversation creation", () => {
       model: "claude-opus-5-5",
       fastMode: false,
       effort: "medium",
+      servicePlaceChoices: [{ serviceId: "service-1", kind: "MAIN_FOLDER" }],
     });
     expect(config).not.toHaveProperty("method");
     expect(config).not.toHaveProperty("projectModeSnapshot");
@@ -559,85 +563,215 @@ describe("useAgentSetup start() conversation creation", () => {
       method: "open",
       model: "claude-opus-5-5",
       fastMode: false,
+      servicePlaceChoices: [{ serviceId: "service-1", kind: "MAIN_FOLDER" }],
     });
     const config = payload?.config as Record<string, unknown>;
     expect(config).not.toHaveProperty("effort");
     expect(config).not.toHaveProperty("worktree");
   });
 
-  it("persists the selected worktree branch in the V2 config when worktree is enabled", async () => {
+  const launchConfig = (): Record<string, unknown> => {
+    const firstCall = updateAgentSessionRecordMock.mock.calls[0] as
+      [Record<string, unknown>] | undefined;
+
+    return firstCall?.[0].config as Record<string, unknown>;
+  };
+
+  const worktreeChoice = (
+    serviceId: string,
+    branch: string,
+    newBranch: boolean,
+  ) => ({ serviceId, kind: "WORKTREE", branch, newBranch });
+
+  const twoServices = () => {
+    servicesForTest = ["service-1", "service-2"].map((id) => ({
+      id,
+      name: id,
+      projectId: "proj-1",
+      status: "ACTIVE",
+    }));
+  };
+
+  it.each([
+    ["an existing worktree", false],
+    ["a new worktree", true],
+  ])(
+    "sends %s as the session-wide choice and the legacy worktree",
+    async (_label, newBranch) => {
+      updateAgentSessionRecordMock.mockResolvedValue({
+        ok: true,
+        session: sessionWithConversation,
+      });
+      const { result } = renderSetup();
+
+      act(() => {
+        result.current.setSessionPlaceChoice(
+          worktreeChoice("service-1", "feature/x", newBranch) as never,
+        );
+      });
+      await act(async () => {
+        await result.current.start();
+      });
+
+      const config = launchConfig();
+      expect(config.servicePlaceChoices).toEqual([
+        worktreeChoice("service-1", "feature/x", newBranch),
+      ]);
+      expect(config.worktree).toBe("feature/x");
+    },
+  );
+
+  it("applies the session-wide choice to every selected Service", async () => {
+    twoServices();
     updateAgentSessionRecordMock.mockResolvedValue({
       ok: true,
       session: sessionWithConversation,
     });
-
-    const { result } = renderSetup({ taskName: "Fix the Launch Flow" });
-
-    act(() => {
-      result.current.setWorktreeBranch("");
-      result.current.setWorktreeBranch("custom-branch");
+    const { result } = renderSetup({
+      boundServiceId: null,
+      taskServiceIds: ["service-1", "service-2"],
     });
 
+    act(() => {
+      result.current.setSessionPlaceChoice(
+        worktreeChoice("service-1", "feature/x", false) as never,
+      );
+    });
     await act(async () => {
       await result.current.start();
     });
 
-    const firstCall = updateAgentSessionRecordMock.mock.calls[0] as
-      [Record<string, unknown>] | undefined;
-    const payload = firstCall?.[0];
-    const config = payload?.config as Record<string, unknown>;
-    expect(config.worktree).toBe("custom-branch");
+    const config = launchConfig();
+    expect(config.servicePlaceChoices).toEqual([
+      worktreeChoice("service-1", "feature/x", false),
+      worktreeChoice("service-2", "feature/x", false),
+    ]);
+    expect(config.worktree).toBe("feature/x");
   });
 
-  it("persists the inherited Plan branch even when setup attempts to change it", async () => {
+  it("sends mixed per-Service choices without a session-wide worktree", async () => {
+    twoServices();
+    updateAgentSessionRecordMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithConversation,
+    });
+    const { result } = renderSetup({
+      boundServiceId: null,
+      taskServiceIds: ["service-1", "service-2"],
+    });
+
+    act(() => {
+      result.current.setPerServicePlaceChoicesEnabled(true);
+    });
+    act(() => {
+      result.current.setServicePlaceChoice(
+        worktreeChoice("service-2", "feature/y", true) as never,
+      );
+    });
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const config = launchConfig();
+    expect(config.servicePlaceChoices).toEqual([
+      { serviceId: "service-1", kind: "MAIN_FOLDER" },
+      worktreeChoice("service-2", "feature/y", true),
+    ]);
+    expect(config).not.toHaveProperty("worktree");
+  });
+
+  const renderTwoServices = () => {
+    twoServices();
     updateAgentSessionRecordMock.mockResolvedValue({
       ok: true,
       session: sessionWithConversation,
     });
 
-    const { result, rerender } = renderSetup({
+    return renderSetup({
+      boundServiceId: null,
+      taskServiceIds: ["service-1", "service-2"],
+    });
+  };
+
+  it("gives a Service added after Choose per Service the session-wide choice", async () => {
+    const { result } = renderTwoServices();
+
+    act(() => {
+      result.current.toggleService("service-2");
+    });
+    act(() => {
+      result.current.setSessionPlaceChoice(
+        worktreeChoice("service-1", "feature/x", false) as never,
+      );
+    });
+    act(() => {
+      result.current.setPerServicePlaceChoicesEnabled(true);
+    });
+    act(() => {
+      result.current.toggleService("service-2");
+    });
+    await act(async () => {
+      await result.current.start();
+    });
+
+    const config = launchConfig();
+    expect(config.servicePlaceChoices).toEqual([
+      worktreeChoice("service-1", "feature/x", false),
+      worktreeChoice("service-2", "feature/x", false),
+    ]);
+    expect(config.worktree).toBe("feature/x");
+  });
+
+  it("keeps a changed choice when a Service is removed and re-added", async () => {
+    const { result } = renderTwoServices();
+
+    act(() => {
+      result.current.setPerServicePlaceChoicesEnabled(true);
+    });
+    act(() => {
+      result.current.setServicePlaceChoice(
+        worktreeChoice("service-2", "feature/y", false) as never,
+      );
+    });
+    act(() => {
+      result.current.toggleService("service-2");
+    });
+    act(() => {
+      result.current.toggleService("service-2");
+    });
+    await act(async () => {
+      await result.current.start();
+    });
+
+    expect(launchConfig().servicePlaceChoices).toEqual([
+      { serviceId: "service-1", kind: "MAIN_FOLDER" },
+      worktreeChoice("service-2", "feature/y", false),
+    ]);
+  });
+
+  it("locks every choice to the inherited Plan branch", async () => {
+    updateAgentSessionRecordMock.mockResolvedValue({
+      ok: true,
+      session: sessionWithConversation,
+    });
+    const { result } = renderSetup({
       lockedWorktreeBranch: "plan/shared-branch",
-      taskName: "Fix the Launch Flow",
     });
 
     act(() => {
-      result.current.setWorktreeBranch("task/override");
+      result.current.setSessionPlaceChoice(
+        worktreeChoice("service-1", "task/override", false) as never,
+      );
+      result.current.setPerServicePlaceChoicesEnabled(true);
     });
-    rerender();
-
-    expect(result.current.worktreeBranch).toBe("plan/shared-branch");
-
     await act(async () => {
       await result.current.start();
     });
 
-    const firstCall = updateAgentSessionRecordMock.mock.calls[0] as
-      [Record<string, unknown>] | undefined;
-    const payload = firstCall?.[0];
-    const config = payload?.config as Record<string, unknown>;
+    expect(result.current.perServicePlaceChoices).toBeNull();
+    const config = launchConfig();
     expect(config.worktree).toBe("plan/shared-branch");
-  });
-
-  it("returns an error and skips the PATCH when worktree is enabled without a branch", async () => {
-    const { result } = renderSetup({ taskName: null });
-
-    act(() => {
-      result.current.setWorktreeBranch("");
-    });
-
-    let startResult: { ok: boolean; error?: string } | undefined;
-    await act(async () => {
-      startResult = await result.current.start();
-    });
-
-    expect(startResult?.ok).toBe(false);
-    expect(startResult?.error).toBe(
-      "Worktree branch must be entered before starting.",
-    );
-    expect(result.current.error).toBe(
-      "Worktree branch must be entered before starting.",
-    );
-    expect(updateAgentSessionRecordMock).not.toHaveBeenCalled();
+    expect(config).not.toHaveProperty("servicePlaceChoices");
   });
 
   it("returns an error and skips the PATCH while no model is selected because the CLI's catalog has not loaded", async () => {
@@ -833,7 +967,13 @@ describe("useAgentSetup start() conversation creation", () => {
         sessionMethod: "open",
         serviceIds: ["service-1"],
         launchServiceId: "service-1",
-        worktreeBranch: "feature/recover-setup",
+        sessionPlaceChoice: {
+          serviceId: "service-1",
+          kind: "WORKTREE",
+          branch: "feature/recover-setup",
+          newBranch: false,
+        },
+        perServicePlaceChoices: null,
         provider: "codex",
         model: "gpt-5.4",
         reasoningEffort: "high",
@@ -849,7 +989,12 @@ describe("useAgentSetup start() conversation creation", () => {
     expect(result.current.sessionMethodSelection.method).toBe("open");
     expect(result.current.selectedServiceIds).toEqual(["service-1"]);
     expect(result.current.launchServiceId).toBe("service-1");
-    expect(result.current.worktreeBranch).toBe("feature/recover-setup");
+    expect(result.current.sessionPlaceChoice).toEqual({
+      serviceId: "service-1",
+      kind: "WORKTREE",
+      branch: "feature/recover-setup",
+      newBranch: false,
+    });
     expect(result.current.selectedProvider).toBe("codex");
     expect(result.current.selectedModel).toBe("gpt-5.4");
     expect(result.current.selectedReasoningEffort).toBe("high");
@@ -871,7 +1016,8 @@ describe("useAgentSetup start() conversation creation", () => {
       projectModeSelection,
       serviceIds: ["service-1"],
       launchServiceId: "service-1",
-      worktreeBranch: null,
+      sessionPlaceChoice: null,
+      perServicePlaceChoices: null,
       provider: "claude",
       model: "claude-opus-4-8",
       reasoningEffort: "medium",
@@ -910,7 +1056,8 @@ describe("useAgentSetup start() conversation creation", () => {
       projectModeSelection,
       serviceIds: ["service-1"],
       launchServiceId: "service-1",
-      worktreeBranch: null,
+      sessionPlaceChoice: null,
+      perServicePlaceChoices: null,
       provider: "claude",
       model: "claude-opus-4-8",
       reasoningEffort: "medium",
@@ -946,7 +1093,8 @@ describe("useAgentSetup start() conversation creation", () => {
       sessionMethod: "plan",
       serviceIds: ["service-2", "stale-service"],
       launchServiceId: "service-2",
-      worktreeBranch: null,
+      sessionPlaceChoice: null,
+      perServicePlaceChoices: null,
       provider: "codex",
       model: "gpt-5.4",
       reasoningEffort: "high",
@@ -974,7 +1122,12 @@ describe("useAgentSetup start() conversation creation", () => {
       result.current.selectProvider("codex");
       result.current.selectModel("gpt-5.4");
       result.current.selectReasoningEffort("high");
-      result.current.setWorktreeBranch("feature/draft");
+      result.current.setSessionPlaceChoice({
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "feature/draft",
+        newBranch: false,
+      });
       result.current.setPromptDraft("initial prompt must stay transient");
     });
 
@@ -986,13 +1139,18 @@ describe("useAgentSetup start() conversation creation", () => {
       sessionMethod: "open",
       serviceIds: ["service-1"],
       launchServiceId: "service-1",
-      worktreeBranch: "feature/draft",
+      sessionPlaceChoice: {
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "feature/draft",
+        newBranch: false,
+      },
       provider: "codex",
       model: "gpt-5.4",
       reasoningEffort: "high",
     });
     expect(
-      localStorage.getItem("hey-hey:agent-setup-drafts:v2:user-1"),
+      localStorage.getItem("hey-hey:agent-setup-drafts:v3:user-1"),
     ).not.toContain("initial prompt must stay transient");
     expect(updateAgentSessionRecordMock).not.toHaveBeenCalled();
     expect(createAgentSessionConversationMock).not.toHaveBeenCalled();
@@ -1108,106 +1266,38 @@ describe("useAgentSetup start() conversation creation", () => {
   });
 });
 
-describe("useAgentSetup worktree state", () => {
-  beforeEach(() => {
-    createAgentSessionConversationMock.mockReset();
-    updateAgentSessionRecordMock.mockReset();
-    readSurfaceSelectionMock.mockReset();
-    readSurfaceSelectionMock.mockReturnValue(null);
-    writeSurfaceSelectionMock.mockReset();
-    updateAgentSessionRecordMock.mockResolvedValue({
-      ok: true,
-      session: sessionWithConversation,
-    });
+describe("useAgentSetup Work in state", () => {
+  it("defaults to the main folder with no per-Service choices", () => {
+    const { result } = renderSetup();
+
+    expect(result.current.lockedWorktreeBranch).toBeNull();
+    expect(result.current.sessionPlaceChoice).toBeNull();
+    expect(result.current.perServicePlaceChoices).toBeNull();
   });
 
-  it("defaults worktree off with a null branch when no task name is linked", () => {
-    const { result } = renderSetup({ taskName: null });
-
-    expect(result.current.worktreeLocked).toBe(false);
-    expect(result.current.worktreeBranch).toBeNull();
-  });
-
-  it("seeds a slugified task name when worktree is enabled and keeps the branch editable", () => {
-    const { result } = renderSetup({ taskName: "Fix the Launch Flow!" });
+  it("starts per-Service choices from the session-wide choice", () => {
+    const { result } = renderSetup();
 
     act(() => {
-      result.current.setWorktreeBranch("");
+      result.current.setSessionPlaceChoice({
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "feature/x",
+        newBranch: false,
+      });
     });
-
-    expect(result.current.worktreeBranch).toBe("fix-the-launch-flow");
-
     act(() => {
-      result.current.setWorktreeBranch("custom-branch");
+      result.current.setPerServicePlaceChoicesEnabled(true);
     });
 
-    expect(result.current.worktreeBranch).toBe("custom-branch");
-  });
-
-  it("leaves the branch empty when worktree is enabled without a task name", () => {
-    const { result } = renderSetup({ taskName: null });
-
-    act(() => {
-      result.current.setWorktreeBranch("");
+    expect(result.current.perServicePlaceChoices).toEqual({
+      "service-1": {
+        serviceId: "service-1",
+        kind: "WORKTREE",
+        branch: "feature/x",
+        newBranch: false,
+      },
     });
-
-    expect(result.current.worktreeBranch).toBe("");
-  });
-
-  it("seeds and locks worktree state from a locked branch", () => {
-    const { result } = renderSetup({
-      lockedWorktreeBranch: "plan/shared-branch",
-      taskName: "Fix the Launch Flow!",
-    });
-
-    expect(result.current.worktreeLocked).toBe(true);
-    expect(result.current.worktreeBranch).toBe("plan/shared-branch");
-
-    act(() => {
-      result.current.setWorktreeBranch("custom-branch");
-    });
-
-    expect(result.current.worktreeBranch).toBe("plan/shared-branch");
-
-    act(() => {
-      result.current.setWorktreeBranch(null);
-    });
-
-    expect(result.current.worktreeBranch).toBe("plan/shared-branch");
-  });
-
-  it("re-pins worktree state when the locked branch changes", () => {
-    const { result, rerender } = renderHook(
-      ({ lockedWorktreeBranch }: { lockedWorktreeBranch: string | null }) =>
-        useAgentSetup({
-          api,
-          runtimeReady: true,
-          organizationId: "org-1",
-          projectId: "proj-1",
-          agentSessionId: "session-1",
-          userId: "user-1",
-          boundServiceId: "service-1",
-          taskServiceIds: ["service-1"],
-          boundProvider: "claude",
-          taskName: "Fix the Launch Flow!",
-          lockedWorktreeBranch,
-          selectedMachine: null,
-          projectModeCatalog: [],
-        }),
-      { initialProps: { lockedWorktreeBranch: "plan/first-branch" } },
-    );
-
-    expect(result.current.worktreeBranch).toBe("plan/first-branch");
-
-    rerender({ lockedWorktreeBranch: "plan/second-branch" });
-
-    expect(result.current.worktreeLocked).toBe(true);
-    expect(result.current.worktreeBranch).toBe("plan/second-branch");
-
-    rerender({ lockedWorktreeBranch: null });
-
-    expect(result.current.worktreeLocked).toBe(false);
-    expect(result.current.worktreeBranch).toBeNull();
   });
 });
 

@@ -42,7 +42,7 @@ const submissionToolRegistry = new SubmissionToolRegistry();
 const toolRuleStoreDirectory = mkdtempSync(join(tmpdir(), 'hey-hey-claude-outcome-rules-'));
 const toolRuleStore = new ToolRuleStore(join(toolRuleStoreDirectory, 'tool-rules.json'));
 vi.spyOn(toolRuleStore, 'load').mockReturnValue([]);
-vi.spyOn(toolRuleStore, 'save').mockImplementation(() => undefined);
+vi.spyOn(toolRuleStore, 'save').mockResolvedValue(undefined);
 
 afterAll(() => {
   rmSync(toolRuleStoreDirectory, { recursive: true, force: true });

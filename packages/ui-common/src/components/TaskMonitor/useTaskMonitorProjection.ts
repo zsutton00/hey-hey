@@ -1,15 +1,18 @@
 import type { TaskResponseDto } from "../../api/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AgentSessionStatus,
   WorkStatus,
   type AgentSessionDto,
+  type ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto,
+  type TaskMonitorLaunchPolicy,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorExecutionNodeLaunchConfiguration,
   type TaskMonitorRuntimeSelection,
 } from "../../api";
-import { unifiedApiClient } from "../../clients/serviceClients";
+import { tasksClient, unifiedApiClient } from "../../clients/serviceClients";
+import { getErrorMessage } from "../../utils/errorUtils";
 import { agentSessionListQueryOptions } from "../../data/collections/agentSessions";
 import type { WorkItemResponseDto } from "../../data/collections/workItems";
 import { useAgentSessions, useWorkItem, useWorkItems } from "../../data/hooks";
@@ -21,9 +24,15 @@ const EXECUTION_DEFINITION_SECTION = "executionDefinition";
 export type TaskMonitorProjectedTask =
   { kind: "loaded"; task: WorkItemResponseDto } | { kind: "missing" };
 
+/**
+ * A linked session's read is scoped to that session: "loading" and "failed"
+ * never hold up the rest of the workspace once it has loaded.
+ */
 export type TaskMonitorProjectedSession =
   | { kind: "none" }
+  | { kind: "loading" }
   | { kind: "loaded"; session: AgentSessionDto }
+  | { kind: "failed" }
   | { kind: "missing" };
 
 export type TaskMonitorNodeVisualStatus =
@@ -54,6 +63,9 @@ export interface UseTaskMonitorProjectionResult {
   isFetched: boolean;
   errorMessage: string | null;
   isSavingLaunchConfiguration: boolean;
+  /** True while the selected tasks (and their Services) are read again. */
+  isRefreshingTasks: boolean;
+  refreshTasks: () => Promise<unknown>;
   reconcileAfterCommand: () => Promise<void>;
   saveLaunchConfiguration: (
     taskId: string,
@@ -62,6 +74,18 @@ export interface UseTaskMonitorProjectionResult {
   saveCoordinatorRuntime: (
     runtime: TaskMonitorRuntimeSelection,
   ) => Promise<void>;
+  saveReviewRuntime: (
+    runtime: TaskMonitorRuntimeSelection | null,
+  ) => Promise<void>;
+  /** Saves monitor-wide launch policy (Review mode, shared worktree) before Start. */
+  saveLaunchPolicy: (launchPolicy: TaskMonitorLaunchPolicy) => Promise<void>;
+  /**
+   * Replaces the launch configuration on every task without a session. The
+   * server decides which tasks are unstarted and changes all of them or none.
+   */
+  applyToUnstartedTasks: (
+    configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+  ) => Promise<ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto>;
 }
 
 const unique = (values: readonly string[]): string[] => [...new Set(values)];
@@ -147,7 +171,13 @@ const visualStatusFor = (
   task: TaskMonitorProjectedTask,
   session: TaskMonitorProjectedSession,
 ): TaskMonitorNodeVisualStatus => {
-  if (task.kind === "missing" || session.kind === "missing") return "errored";
+  if (
+    task.kind === "missing" ||
+    session.kind === "missing" ||
+    session.kind === "failed"
+  ) {
+    return "errored";
+  }
   if (session.kind === "loaded") {
     return sessionStatusToVisualStatus(session.session.status);
   }
@@ -203,6 +233,7 @@ export const useTaskMonitorProjection = ({
     undefined,
     {
       taskIds,
+      includeServiceRelations: true,
       enabled: enabled && taskIds.length > 0 && !parsed.errorMessage,
     },
   );
@@ -211,12 +242,32 @@ export const useTaskMonitorProjection = ({
     enabled: enabled && sessionIds.length > 0 && !parsed.errorMessage,
   });
 
+  // A newly linked session changes the read, so the previous sessions are
+  // kept until it answers instead of disappearing while it loads.
+  const retainedSessions = useRef(new Map<string, AgentSessionDto>());
+  const sessionsById = useMemo(() => {
+    const current = new Map(
+      sessionsQuery.agentSessions.map((session) => [session.id, session]),
+    );
+    const merged = sessionsQuery.isFetched
+      ? current
+      : new Map([...retainedSessions.current, ...current]);
+    retainedSessions.current = merged;
+    return merged;
+  }, [sessionsQuery.agentSessions, sessionsQuery.isFetched]);
+  const sessionsRead = sessionsQuery.error
+    ? "failed"
+    : sessionsQuery.isFetched
+      ? "settled"
+      : "loading";
+  const sessionsReadOnce = useRef(false);
+  if (sessionsQuery.isFetched) {
+    sessionsReadOnce.current = true;
+  }
+
   const nodes = useMemo<readonly TaskMonitorProjectedNode[]>(() => {
     const tasksById = new Map(
       tasksQuery.workItems.map((task) => [task.id, task]),
-    );
-    const sessionsById = new Map(
-      sessionsQuery.agentSessions.map((session) => [session.id, session]),
     );
     return (parsed.definition?.executionPlan ?? []).map((node, position) => {
       const canonicalTask = tasksById.get(node.taskId);
@@ -230,7 +281,9 @@ export const useTaskMonitorProjection = ({
         ? { kind: "none" }
         : canonicalSession
           ? { kind: "loaded", session: canonicalSession }
-          : { kind: "missing" };
+          : sessionsRead === "settled"
+            ? { kind: "missing" }
+            : { kind: sessionsRead };
       return {
         position,
         taskId: node.taskId,
@@ -242,12 +295,23 @@ export const useTaskMonitorProjection = ({
         launchConfiguration: node.launchConfiguration,
       };
     });
-  }, [parsed.definition, sessionsQuery.agentSessions, tasksQuery.workItems]);
+  }, [parsed.definition, sessionsById, sessionsRead, tasksQuery.workItems]);
 
   const tasksRequired = Boolean(parsed.definition && taskIds.length > 0);
-  const sessionsRequired = Boolean(parsed.definition && sessionIds.length > 0);
-  const loadError =
-    monitorQuery.error ?? tasksQuery.error ?? sessionsQuery.error;
+  // Only the first session read holds the workspace; later reads, and any
+  // read failure, show in the linked session's own pane.
+  const sessionsHoldWorkspace = Boolean(
+    parsed.definition && sessionIds.length > 0 && !sessionsReadOnce.current,
+  );
+  const loadError = monitorQuery.error ?? tasksQuery.error;
+  useEffect(() => {
+    if (sessionsQuery.error) {
+      console.error(
+        `Task Monitor ${monitorId}: reading linked sessions failed: ${getErrorMessage(sessionsQuery.error, "unknown error")}`,
+        sessionsQuery.error,
+      );
+    }
+  }, [monitorId, sessionsQuery.error]);
   const reconcileAfterCommand = useCallback(async (): Promise<void> => {
     const refreshedMonitor = await monitorQuery.refetch();
     if (!refreshedMonitor) {
@@ -266,36 +330,36 @@ export const useTaskMonitorProjection = ({
       staleTime: 0,
     });
   }, [monitorQuery, organizationId, projectId, queryClient]);
-  const saveLaunchConfiguration = useCallback(
+  /**
+   * Every writer saves the whole execution definition and the server keeps the
+   * last one, so saving from the cached copy would put back changes made since
+   * it was read (a launch the monitor runner recorded, or an apply to unstarted
+   * tasks). Reading again right before the save and applying only this
+   * change narrows that window to one round trip; it does not close it.
+   */
+  const saveDefinition = useCallback(
     async (
-      taskId: string,
-      configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+      change: (
+        current: TaskMonitorExecutionDefinition,
+      ) => TaskMonitorExecutionDefinition,
     ): Promise<void> => {
       if (!parsed.definition || isSavingLaunchConfiguration) {
-        throw new Error(
-          "The Task Monitor launch configuration is unavailable.",
-        );
+        throw new Error("The Task Monitor setup is unavailable.");
       }
       setIsSavingLaunchConfiguration(true);
       try {
+        const latestMonitor = await monitorQuery.refetch();
+        if (!latestMonitor) {
+          throw new Error("The Task Monitor could not be read before saving.");
+        }
+        const content = change(parseMonitorDefinition(latestMonitor));
+
         await unifiedApiClient.updateTask({
           organizationId,
           projectId,
           taskId: monitorId,
           updateTaskDto: {
-            sections: [
-              {
-                key: EXECUTION_DEFINITION_SECTION,
-                content: {
-                  ...parsed.definition,
-                  executionPlan: parsed.definition.executionPlan.map((node) =>
-                    node.taskId === taskId
-                      ? { ...node, launchConfiguration: configuration }
-                      : node,
-                  ),
-                },
-              },
-            ],
+            sections: [{ key: EXECUTION_DEFINITION_SECTION, content }],
           },
         });
         await monitorQuery.refetch();
@@ -312,39 +376,87 @@ export const useTaskMonitorProjection = ({
       projectId,
     ],
   );
+  const saveLaunchConfiguration = useCallback(
+    (
+      taskId: string,
+      configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+    ): Promise<void> =>
+      saveDefinition((current) => {
+        const target = current.executionPlan.find(
+          (node) => node.taskId === taskId,
+        );
+        if (target?.agentSessionId) {
+          throw new Error(
+            "This task's session has already started, so its setup can no longer change.",
+          );
+        }
+        return {
+          ...current,
+          executionPlan: current.executionPlan.map((node) =>
+            node.taskId === taskId
+              ? { ...node, launchConfiguration: configuration }
+              : node,
+          ),
+        };
+      }),
+    [saveDefinition],
+  );
   const saveCoordinatorRuntime = useCallback(
-    async (runtime: TaskMonitorRuntimeSelection): Promise<void> => {
-      if (!parsed.definition || isSavingLaunchConfiguration) {
-        throw new Error("The Task Monitor setup is unavailable.");
-      }
+    (runtime: TaskMonitorRuntimeSelection): Promise<void> =>
+      saveDefinition((current) => ({
+        ...current,
+        coordinatorRuntime: runtime,
+      })),
+    [saveDefinition],
+  );
+  const saveReviewRuntime = useCallback(
+    (runtime: TaskMonitorRuntimeSelection | null): Promise<void> =>
+      saveDefinition((current) => {
+        const { reviewRuntime: _previous, ...terminalSupervision } =
+          current.launchPolicy.terminalSupervision;
+        return {
+          ...current,
+          launchPolicy: {
+            ...current.launchPolicy,
+            terminalSupervision: runtime
+              ? { ...terminalSupervision, reviewRuntime: runtime }
+              : terminalSupervision,
+          },
+        };
+      }),
+    [saveDefinition],
+  );
+  const saveLaunchPolicy = useCallback(
+    (launchPolicy: TaskMonitorLaunchPolicy): Promise<void> =>
+      saveDefinition((current) => ({ ...current, launchPolicy })),
+    [saveDefinition],
+  );
+  const applyToUnstartedTasks = useCallback(
+    async (
+      configuration: TaskMonitorExecutionNodeLaunchConfiguration,
+    ): Promise<ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto> => {
       setIsSavingLaunchConfiguration(true);
       try {
-        await unifiedApiClient.updateTask({
-          organizationId,
-          projectId,
-          taskId: monitorId,
-          updateTaskDto: {
-            sections: [
-              {
-                key: EXECUTION_DEFINITION_SECTION,
-                content: { ...parsed.definition, coordinatorRuntime: runtime },
-              },
-            ],
-          },
-        });
+        const response =
+          await tasksClient.applyTaskMonitorUnstartedLaunchConfiguration({
+            organizationId,
+            projectId,
+            monitorId,
+            taskMonitorExecutionNodeLaunchConfiguration: configuration,
+          });
+        const result = response.data?.data;
+        if (!result) {
+          throw new Error(
+            "The server did not report which tasks were updated.",
+          );
+        }
         await monitorQuery.refetch();
+        return result;
       } finally {
         setIsSavingLaunchConfiguration(false);
       }
     },
-    [
-      isSavingLaunchConfiguration,
-      monitorId,
-      monitorQuery,
-      organizationId,
-      parsed.definition,
-      projectId,
-    ],
+    [monitorId, monitorQuery, organizationId, projectId],
   );
   return {
     monitor: monitorQuery.workItem,
@@ -354,18 +466,25 @@ export const useTaskMonitorProjection = ({
       enabled &&
       (monitorQuery.isLoading ||
         (tasksRequired && tasksQuery.isLoading) ||
-        (sessionsRequired && sessionsQuery.isLoading)),
+        (sessionsHoldWorkspace && sessionsQuery.isLoading)),
     isFetched:
       !enabled ||
       (monitorQuery.isFetched &&
         (!tasksRequired || tasksQuery.isFetched) &&
-        (!sessionsRequired || sessionsQuery.isFetched)),
+        (!sessionsHoldWorkspace ||
+          sessionsQuery.isFetched ||
+          Boolean(sessionsQuery.error))),
     errorMessage:
       parsed.errorMessage ??
       (loadError ? "Unable to load the Task Monitor execution data." : null),
     isSavingLaunchConfiguration,
+    isRefreshingTasks: tasksQuery.isFetching,
+    refreshTasks: tasksQuery.refetch,
     reconcileAfterCommand,
     saveLaunchConfiguration,
     saveCoordinatorRuntime,
+    saveReviewRuntime,
+    saveLaunchPolicy,
+    applyToUnstartedTasks,
   };
 };

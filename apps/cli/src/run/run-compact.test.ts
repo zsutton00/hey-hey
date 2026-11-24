@@ -142,6 +142,112 @@ const responsesFrom = (poster: RunCollaborators['poster']): string[] => {
   });
 };
 
+const markersFrom = (poster: RunCollaborators['poster']): unknown[] => {
+  const mock = poster.createOutOfBand as unknown as ReturnType<typeof vi.fn>;
+  return mock.mock.calls.map((args) => {
+    const [first] = args as [{ dto: { data: { compaction?: unknown } } }];
+    return first.dto.data.compaction;
+  });
+};
+
+const deferred = () => {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
+
+describe('Run.compact occupies the Run like a Turn', () => {
+  const makeIdleRun = (compactImpl: () => Promise<void>) => {
+    const events: string[] = [];
+    const collaborators = makeCollaborators({
+      pickRunner: () => ({
+        run: async () => {
+          events.push('turn');
+        },
+      }),
+    });
+    (collaborators.poster.createOutOfBand as ReturnType<typeof vi.fn>).mockImplementation(
+      (args) => {
+        const data = (args as { dto: { data: { response: string } } }).dto.data;
+        events.push(`post:${data.response}`);
+        return Promise.resolve('note-msg');
+      },
+    );
+    const run = new Run(
+      makeRunArgs({ hasProviderSession: true, skipProjectAssistant: true }),
+      collaborators,
+    );
+    run.setRunner(makeRunnerWithCompact(compactImpl));
+    return { run, events, collaborators };
+  };
+
+  it('queues a follow-up sent during an idle compaction and starts it after Finished posts', async () => {
+    const gate = deferred();
+    const { run, events } = makeIdleRun(() => gate.promise);
+
+    const compactDone = run.compaction.compact();
+    await vi.waitFor(() => expect(events).toContain('post:Starting compact…'));
+    expect(run.isProcessing).toBe(true);
+
+    void run.handleMessage(makeInput());
+    void run.handleMessage(makeInput());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(events).not.toContain('turn');
+
+    gate.resolve();
+    await compactDone;
+    await vi.waitFor(() => expect(events.filter((e) => e === 'turn').length).toBe(1));
+    await run.awaitIdle();
+
+    const finished = events.indexOf('post:Finished compact…');
+    expect(finished).toBeGreaterThan(-1);
+    expect(events.indexOf('turn')).toBeGreaterThan(finished);
+  });
+
+  it('drains the queued follow-up after a failed idle compaction', async () => {
+    const gate = deferred();
+    const { run, events, collaborators } = makeIdleRun(() => gate.promise);
+
+    const compactDone = run.compaction.compact();
+    await vi.waitFor(() => expect(events).toContain('post:Starting compact…'));
+    void run.handleMessage(makeInput());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(events).not.toContain('turn');
+
+    gate.reject(new AgentSessionRunnerError('RUN_FAILED', 'sdk timeout'));
+    await expect(compactDone).rejects.toBeInstanceOf(AgentSessionRunnerError);
+    await vi.waitFor(() => expect(events).toContain('turn'));
+    await run.awaitIdle();
+
+    expect(events.indexOf('turn')).toBeGreaterThan(
+      events.indexOf('post:Compact failed: sdk timeout'),
+    );
+    expect(markersFrom(collaborators.poster).slice(0, 2)).toEqual([
+      { phase: 'started' },
+      { phase: 'failed', code: 'RUN_FAILED' },
+    ]);
+  });
+
+  it('a second request during an idle compaction settles with the first from one runner call', async () => {
+    const gate = deferred();
+    const compactImpl = vi.fn(() => gate.promise);
+    const { run } = makeIdleRun(compactImpl);
+
+    const first = run.compaction.compact();
+    await vi.waitFor(() => expect(compactImpl).toHaveBeenCalled());
+    const second = run.compaction.compact();
+
+    gate.resolve();
+    await expect(first).resolves.toBeUndefined();
+    await expect(second).resolves.toBeUndefined();
+    expect(compactImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Run.compact', () => {
   it('posts Starting then Finished on success, in order', async () => {
     const collaborators = makeCollaborators();
@@ -217,17 +323,17 @@ describe('Run.compact', () => {
     ]);
   });
 
-  it('throws NOT_SUPPORTED and posts nothing when no runner is bound', async () => {
+  it('posts a typed NOT_SUPPORTED failure and throws when no runner is bound', async () => {
     const collaborators = makeCollaborators();
     const run = new Run(makeRunArgs(), collaborators);
 
     await expect(run.compaction.compact()).rejects.toSatisfy(
       (e: unknown) => e instanceof AgentSessionRunnerError && e.code === 'NOT_SUPPORTED',
     );
-    expect(collaborators.poster.createOutOfBand).not.toHaveBeenCalled();
+    expect(markersFrom(collaborators.poster)).toEqual([{ phase: 'failed', code: 'NOT_SUPPORTED' }]);
   });
 
-  it('throws NOT_SUPPORTED and posts nothing when the bound runner has no compact()', async () => {
+  it('posts a typed NOT_SUPPORTED failure and throws when the bound runner has no compact()', async () => {
     const collaborators = makeCollaborators();
     const run = new Run(makeRunArgs(), collaborators);
     run.setRunner({ run: async () => {} } as unknown as AgentSessionRunner);
@@ -235,7 +341,7 @@ describe('Run.compact', () => {
     await expect(run.compaction.compact()).rejects.toSatisfy(
       (e: unknown) => e instanceof AgentSessionRunnerError && e.code === 'NOT_SUPPORTED',
     );
-    expect(collaborators.poster.createOutOfBand).not.toHaveBeenCalled();
+    expect(markersFrom(collaborators.poster)).toEqual([{ phase: 'failed', code: 'NOT_SUPPORTED' }]);
   });
 
   describe('deferred mid-Turn request', () => {
@@ -266,6 +372,96 @@ describe('Run.compact', () => {
 
       return { run, collaborators, runnerRunning, signalFinish };
     };
+
+    it('a follow-up arriving between Turn end and the deferred compact queues behind it', async () => {
+      const gate = deferred();
+      let turns = 0;
+      let finishFirst!: () => void;
+      const firstFinish = new Promise<void>((r) => {
+        finishFirst = r;
+      });
+      const collaborators = makeCollaborators({
+        pickRunner: () => ({
+          run: async () => {
+            turns += 1;
+            if (turns === 1) await firstFinish;
+          },
+        }),
+      });
+      const run = new Run(
+        makeRunArgs({ hasProviderSession: true, skipProjectAssistant: true }),
+        collaborators,
+      );
+      const compactImpl = vi.fn(() => gate.promise);
+      run.setRunner(makeRunnerWithCompact(compactImpl));
+
+      void run.handleMessage(makeInput());
+      await vi.waitFor(() => expect(turns).toBe(1));
+      const compactDone = run.compaction.compact();
+
+      finishFirst();
+      await vi.waitFor(() => expect(compactImpl).toHaveBeenCalled());
+      expect(run.isProcessing).toBe(true);
+      void run.handleMessage(makeInput());
+      await new Promise((r) => setTimeout(r, 10));
+      expect(turns).toBe(1);
+
+      gate.resolve();
+      await compactDone;
+      await vi.waitFor(() => expect(turns).toBe(2));
+      await run.awaitIdle();
+    });
+
+    it('a compact arriving during turn-end cleanup is not released by that cleanup', async () => {
+      const gate = deferred();
+      const flushGate = deferred();
+      let turns = 0;
+      let finishFirst!: () => void;
+      const firstFinish = new Promise<void>((r) => {
+        finishFirst = r;
+      });
+      const collaborators = makeCollaborators({
+        pickRunner: () => ({
+          run: async () => {
+            turns += 1;
+            if (turns === 1) await firstFinish;
+          },
+        }),
+      });
+      const run = new Run(
+        makeRunArgs({ hasProviderSession: true, skipProjectAssistant: true }),
+        collaborators,
+      );
+      const compactImpl = vi.fn(() => gate.promise);
+      run.setRunner(makeRunnerWithCompact(compactImpl));
+      // Block turn-end cleanup on the completion flush.
+      const flush = vi
+        .spyOn(run, 'flushPendingCompletion')
+        .mockImplementation(() => flushGate.promise);
+
+      void run.handleMessage(makeInput());
+      await vi.waitFor(() => expect(turns).toBe(1));
+      finishFirst();
+      await vi.waitFor(() => expect(flush).toHaveBeenCalled());
+
+      // Compact and a follow-up arrive while cleanup is blocked.
+      const compactDone = run.compaction.compact();
+      void run.handleMessage(makeInput());
+      expect(run.isProcessing).toBe(true);
+
+      // Cleanup resumes while the provider is still compacting.
+      flushGate.resolve();
+      await vi.waitFor(() => expect(compactImpl).toHaveBeenCalled());
+      await new Promise((r) => setTimeout(r, 10));
+      expect(run.isProcessing).toBe(true);
+      expect(turns).toBe(1);
+
+      gate.resolve();
+      await compactDone;
+      await vi.waitFor(() => expect(turns).toBe(2));
+      await run.awaitIdle();
+      expect(compactImpl).toHaveBeenCalledTimes(1);
+    });
 
     it('does not reject and resolves after the turn ends', async () => {
       const compactImpl = vi.fn().mockResolvedValue(undefined);
@@ -320,8 +516,12 @@ describe('Run.compact', () => {
       await silent;
       await nonSilent;
 
-      // Non-silent flag should win — Starting/Finished notes posted.
-      expect(collaborators.poster.createOutOfBand).toHaveBeenCalled();
+      // Non-silent flag should win — one queued notice, then Starting/Finished.
+      expect(markersFrom(collaborators.poster)).toEqual([
+        { phase: 'queued' },
+        { phase: 'started' },
+        { phase: 'completed' },
+      ]);
       expect(compactImpl).toHaveBeenCalledTimes(1);
     });
 

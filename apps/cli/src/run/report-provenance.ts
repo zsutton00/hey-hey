@@ -30,6 +30,7 @@ const pendingSchema = z.object({
   summary: z.string(),
   files: z.array(z.string()),
   hashes: z.array(hashSchema),
+  failedServiceId: z.string().optional(),
 });
 const recordSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('entry'), entry: entrySchema }),
@@ -37,7 +38,9 @@ const recordSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('settled') }),
 ]);
 type Record = z.infer<typeof recordSchema>;
-export type PendingCommitReport = Pick<CommitReportPayload, 'summary' | 'files' | 'hashes'>;
+export type PendingCommitReport = Pick<CommitReportPayload, 'summary' | 'files' | 'hashes'> & {
+  failedServiceId?: string | undefined;
+};
 
 /** Run-local journal. A pending outcome is replayed before any further git operation. */
 export class ReportProvenance {

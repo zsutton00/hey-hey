@@ -27,6 +27,7 @@ import {
   type CliReadRunToolCallsLatestTurnErrorResponseDto,
   type CliReadRunToolCallsLatestTurnSuccessResponseDto,
   type CliReadRuntimeModelCatalogGetErrorResponseDto,
+  type CliReadWorkspaceServicePlacesListErrorResponseDto,
   type CliReadAgentSessionContinuationInspectErrorResponseDto,
   type CliReadRuntimeModelCatalogGetSuccessResponseDto,
 } from '@hey-hey/contracts/agent-bridge';
@@ -102,6 +103,7 @@ export interface CliReadHandlerDependencies {
     | 'readRunContextUsage'
     | 'listRunSkills'
     | 'listWorkspaceSkills'
+    | 'readServicePlaces'
   >;
   sessionActivity: Pick<SessionActivitySource, 'snapshot'>;
   /** Read on every tool-call request so the options-screen setting takes effect immediately. */
@@ -164,6 +166,7 @@ export class CliReadHandler {
     if (
       verification.verified.body.operation === 'workspace.skills.list' ||
       verification.verified.body.operation === 'runtime.model_catalog.get' ||
+      verification.verified.body.operation === 'workspace.service_places.list' ||
       verification.verified.body.operation === 'agent_session.continuation.inspect'
     ) {
       const body = verification.verified.body;
@@ -187,6 +190,12 @@ export class CliReadHandler {
                 body.catalogContext.policy === 'non_repository'
                   ? { policy: 'non_repository' }
                   : { policy: 'service_workspace', serviceId: body.catalogContext.serviceId },
+            }
+          : {}),
+        ...(body.operation === 'workspace.service_places.list'
+          ? {
+              serviceIds: body.serviceIds,
+              ...(body.branchQuery === undefined ? {} : { branchQuery: body.branchQuery }),
             }
           : {}),
         // Inspecting local provider state is a protected read bound to one
@@ -224,6 +233,14 @@ export class CliReadHandler {
         return this.dependencies.agentService.listWorkspaceSkills(body, envelope.userId);
       }
       try {
+        if (body.operation === 'workspace.service_places.list') {
+          return {
+            requestId: body.requestId,
+            operation: 'workspace.service_places.list',
+            status: 'success',
+            result: { services: await this.dependencies.agentService.readServicePlaces(body) },
+          };
+        }
         if (body.operation === 'agent_session.continuation.inspect') {
           return {
             requestId: body.requestId,
@@ -338,6 +355,7 @@ export class CliReadHandler {
         return this.readRunToolCallsLatestTurn(verified);
       case 'workspace.skills.list':
       case 'runtime.model_catalog.get':
+      case 'workspace.service_places.list':
       case 'agent_session.continuation.inspect':
         throw new Error('Machine-addressed reads require machine-scoped admission');
     }
@@ -983,6 +1001,7 @@ export class CliReadHandler {
     | CliReadProjectSessionCostsListErrorResponseDto
     | CliReadProviderUsageGetErrorResponseDto
     | CliReadRuntimeModelCatalogGetErrorResponseDto
+    | CliReadWorkspaceServicePlacesListErrorResponseDto
     | CliReadAgentSessionContinuationInspectErrorResponseDto
     | CliReadRunContextUsageGetErrorResponseDto
     | CliReadRunSkillsListErrorResponseDto
@@ -1010,6 +1029,14 @@ export class CliReadHandler {
       return {
         requestId: verified.body.requestId,
         operation: 'provider.usage.get',
+        status: 'error',
+        error: { code, message },
+      };
+    }
+    if (verified.body.operation === 'workspace.service_places.list') {
+      return {
+        requestId: verified.body.requestId,
+        operation: 'workspace.service_places.list',
         status: 'error',
         error: { code, message },
       };

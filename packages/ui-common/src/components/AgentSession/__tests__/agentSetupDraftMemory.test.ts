@@ -17,7 +17,8 @@ const buildDraft = (
   projectModeSelection: null,
   serviceIds: ["service-1"],
   launchServiceId: "service-1",
-  worktreeBranch: null,
+  sessionPlaceChoice: null,
+  perServicePlaceChoices: null,
   provider: "claude",
   model: "claude-opus-4-7",
   reasoningEffort: "medium",
@@ -40,7 +41,7 @@ describe("agentSetupDraftMemory", () => {
       readAgentSetupDraft("user-1", "org-1:project-1:session-1"),
     ).toMatchObject({
       setupContextKey: "org-1:project-1:session-1",
-      version: 2,
+      version: 3,
       lastEditedAt: "2026-08-23T10:00:00.000Z",
     });
     expect(
@@ -48,19 +49,19 @@ describe("agentSetupDraftMemory", () => {
     ).toBeNull();
 
     const stored = localStorage.getItem(getAgentSetupDraftStorageKey("user-1"));
-    expect(stored).toContain('"version":2');
+    expect(stored).toContain('"version":3');
   });
 
   it("ignores malformed collection entries without affecting valid drafts", () => {
     localStorage.setItem(
       getAgentSetupDraftStorageKey("user-1"),
       JSON.stringify({
-        version: 2,
+        version: 3,
         drafts: [
           { setupContextKey: "invalid", provider: "unknown" },
           {
             ...buildDraft("valid"),
-            version: 2,
+            version: 3,
             lastEditedAt: "2026-08-23T10:00:00.000Z",
           },
         ],
@@ -107,9 +108,7 @@ describe("agentSetupDraftMemory", () => {
       "2026-08-23T10:02:00.000Z",
     );
 
-    expect(readAgentSetupDraft("user-1", "context-1")?.model).toBe(
-      "new-model",
-    );
+    expect(readAgentSetupDraft("user-1", "context-1")?.model).toBe("new-model");
     expect(readAgentSetupDraft("user-1", "context-2")).not.toBeNull();
   });
 

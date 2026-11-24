@@ -22,4 +22,25 @@ describe('buildPlatformMcpProxyMcpConfig', () => {
     });
     expect(result.allowedTools).toEqual(['mcp__heyhey-platform__get_context']);
   });
+
+  it('adds the schema lookup to the allowed tools only for the compact catalog it serves', () => {
+    const result = buildPlatformMcpProxyMcpConfig({
+      mount: {
+        runId: 'run-1',
+        turnId: 'turn-1',
+        token: 'proxy-token',
+        allowedTools: ['mcp__heyhey-platform__get_context'],
+      },
+      cliBaseUrl: 'http://127.0.0.1:3847',
+      compact: true,
+    });
+
+    expect(result.serverEntry.url).toBe(
+      'http://127.0.0.1:3847/mcp/platform/run-1/turn-1/proxy-token?catalog=compact',
+    );
+    expect(result.allowedTools).toEqual([
+      'mcp__heyhey-platform__get_context',
+      'mcp__heyhey-platform__describe_platform_tool',
+    ]);
+  });
 });

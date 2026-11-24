@@ -51,7 +51,10 @@ const mcpAgentSessionDtoSchema = z.object({
   agentSessionId: z.string().describe('Agent session ID'),
   title: z.string().describe('Agent session title'),
   status: z.string().describe('Agent session status'),
-  provider: z.string().optional().describe('Agent provider (claude, codex)'),
+  provider: z
+    .string()
+    .optional()
+    .describe('Agent provider (claude, codex, opencode, antigravity)'),
   taskId: z.string().optional().describe('Associated task ID'),
   serviceId: z.string().optional().describe('Associated service ID'),
   serviceName: z.string().optional().describe('Associated service name'),
@@ -464,6 +467,10 @@ export class AgentSessionToolsProvider {
     messagesByConversation: Map<string, MessageRow[]>;
     rawRowCount: number;
   }> {
+    if (conversationIds.length === 0) {
+      return { messagesByConversation: new Map(), rawRowCount: 0 };
+    }
+
     const messages = await this.prisma.db.message.findMany({
       where: {
         conversationId: { in: conversationIds },

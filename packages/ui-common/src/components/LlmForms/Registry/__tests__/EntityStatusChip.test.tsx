@@ -8,10 +8,10 @@ import { EntityStatusChip } from "../EntityStatusChip";
 describe("EntityStatusChip", () => {
   it.each([
     { status: "QA", label: "QA" },
-    { status: "ACTIVE", label: "Ready for QA" },
+    { status: "ACTIVE", label: "ACTIVE" },
     { status: "Retired QA", label: "Retired QA" },
   ])(
-    "displays the project's label or retained name for $status",
+    "displays the defined name or retained name for $status",
     async ({ status, label }) => {
       const server = new FakeWorkItemServer([
         { id: "item", name: "Item", type: "STANDARD", status },
@@ -26,8 +26,8 @@ describe("EntityStatusChip", () => {
         {
           definition: statusDefinition([], {
             statuses: [
-              { name: "QA", label: "QA", meaning: "IN_PROGRESS" },
-              { name: "ACTIVE", label: "Ready for QA", meaning: "IN_PROGRESS" },
+              { name: "QA", meaning: { kind: "IN_PROGRESS" as const } },
+              { name: "ACTIVE", meaning: { kind: "IN_PROGRESS" as const } },
             ],
           }),
         },

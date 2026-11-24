@@ -2,6 +2,8 @@ import { LocalOnboardingController } from './controllers/local-onboarding.contro
 import { ProjectApprovalPolicyController } from './controllers/project-approval-policy.controller';
 import { WorkspaceSkillsController } from './controllers/workspace-skills.controller';
 import { RuntimeModelCatalogController } from './controllers/runtime-model-catalog.controller';
+import { ServicePlacesController } from './controllers/service-places.controller';
+import { ServicePlacesReadService } from './services/service-places-read.service';
 import {
   AgentSessionContinuationController,
   MachineAgentSessionContinuationController,
@@ -271,6 +273,7 @@ import { isLocalApplication } from './deployment-environment';
   controllers: [
     WorkspaceSkillsController,
     RuntimeModelCatalogController,
+    ServicePlacesController,
     AgentSessionContinuationController,
     MachineAgentSessionContinuationController,
     AdminController,
@@ -371,6 +374,7 @@ import { isLocalApplication } from './deployment-environment';
   providers: [
     WorkspaceSkillsReadService,
     RuntimeModelCatalogReadService,
+    ServicePlacesReadService,
     AgentSessionContinuationService,
     CustomLoggerService,
     {

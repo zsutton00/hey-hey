@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -30,7 +31,9 @@ import {
   useAgentSessionCurrentState,
   useTriageApplication,
   useTriageApplicationPorts,
+  useWorkItemTypes,
 } from "@hey-hey/ui-common/data";
+import type { WorkItemIconRegistry } from "@hey-hey/ui-common/components/Entity";
 import {
   CanonicalPageBoundary,
   createCanonicalPageDescriptor,
@@ -40,6 +43,7 @@ import { OpenItemsPromotionDialog } from "./OpenItemsPromotionDialog";
 import { buildAgentSessionPresentation } from "../../pages/AgentSession/agentSessionPresentation";
 import { useTriagePromotionConfirmation } from "./useTriagePromotionConfirmation";
 import { useTriageLaunchOutcome } from "./useTriageLaunchOutcome";
+import { indexWorkItemTypeDefinitions } from "../../types/workItemTypes";
 
 const href = (projectId: string, item: OpenItemsTriageItem) => {
   const routes: Partial<Record<EntityType, string>> = {
@@ -73,6 +77,8 @@ export interface OpenItemsTriageReviewBinding {
   onFollowUpSubmitted: (messageId: string) => void;
   /** `runActive`: a request is pending or authoritative state is active. */
   onActivity: (activity: "running" | "results", runActive: boolean) => void;
+  /** Whether a correlated result is rendered; drives the modal's full height. */
+  onResultPresence: (present: boolean) => void;
   onRunAgain: () => void;
   onLaunchFailed: (message: string) => void;
   /** Registers the signed stop for a confirmed close during progress. */
@@ -119,6 +125,17 @@ export function OpenItemsTriagePage({
     projectId,
     userId: user?.id ?? "",
   });
+  // The same registry rows the Open Items sidebar draws its icons from.
+  const { workItemTypes } = useWorkItemTypes(organizationId, { projectId });
+  const workItemIcons = useMemo<WorkItemIconRegistry>(
+    () => ({
+      definitions: indexWorkItemTypeDefinitions(workItemTypes),
+      sources: new Map(
+        workItemTypes.map((row) => [row.definition.key, row.effectiveSource]),
+      ),
+    }),
+    [workItemTypes],
+  );
   const confirmation = useTriagePromotionConfirmation();
   const ports = useTriageApplicationPorts(
     canonical.adapter,
@@ -148,6 +165,10 @@ export function OpenItemsTriagePage({
   const requestMessageIds = review.requestMessageIds;
   const latestRequest = requestMessageIds?.at(-1) ?? null;
   const [hasResult, setHasResult] = useState(false);
+  const onResultPresence = review.onResultPresence;
+  useEffect(() => {
+    onResultPresence(hasResult);
+  }, [onResultPresence, hasResult]);
   const launch = useTriageLaunchOutcome({
     organizationId,
     projectId,
@@ -271,7 +292,11 @@ export function OpenItemsTriagePage({
             }
       }
     >
-      <Stack spacing={2} data-testid="open-items-triage-page">
+      <Stack
+        spacing={2}
+        data-testid="open-items-triage-page"
+        sx={{ flex: 1, minHeight: 0 }}
+      >
         <Stack
           direction="row"
           justifyContent="space-between"
@@ -280,6 +305,7 @@ export function OpenItemsTriagePage({
           sx={
             onClose
               ? {
+                  flexShrink: 0,
                   pr: inModalShell ? 13 : 0,
                   minHeight: 48,
                   pb: 1.25,
@@ -316,7 +342,7 @@ export function OpenItemsTriagePage({
         {closeGate}
         <Stack
           spacing={2}
-          sx={closeGate ? { display: "none" } : undefined}
+          sx={closeGate ? { display: "none" } : { flex: 1, minHeight: 0 }}
           data-testid="open-items-triage-body"
         >
           {runtime.error && <Alert severity="error">{runtime.error}</Alert>}
@@ -362,6 +388,7 @@ export function OpenItemsTriagePage({
             conversationId={agentSession.conversationId}
             application={canonical.collection ? application : undefined}
             collection={canonical.collection ?? undefined}
+            workItemIcons={workItemIcons}
             itemHref={(item) => href(projectId, item)}
             pending={pending}
             disabled={preview || !runtime.ready}

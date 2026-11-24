@@ -35,6 +35,7 @@ export const SuggestionType = {
     RelatedEntities: 'related_entities',
     GeneratedInitiative: 'generated_initiative',
     VerifyFeature: 'verify_feature',
+    ProjectAssistantUpdate: 'project_assistant_update',
     "task_generation_generate": "task_generation_generate",
     "task_stub_generation_generate": "task_stub_generation_generate",
     "adr_content_apply": "adr_content_apply",
@@ -48,6 +49,7 @@ export const SuggestionType = {
     "related_entities": "related_entities",
     "generated_initiative": "generated_initiative",
     "verify_feature": "verify_feature",
+    "project_assistant_update": "project_assistant_update",
 } as const;
 Object.defineProperty(SuggestionType, "task_generation_generate", { enumerable: false, value: SuggestionType["TaskGenerationGenerate"] });
 Object.defineProperty(SuggestionType, "task_stub_generation_generate", { enumerable: false, value: SuggestionType["TaskStubGenerationGenerate"] });
@@ -62,5 +64,6 @@ Object.defineProperty(SuggestionType, "suggested_action_initiative", { enumerabl
 Object.defineProperty(SuggestionType, "related_entities", { enumerable: false, value: SuggestionType["RelatedEntities"] });
 Object.defineProperty(SuggestionType, "generated_initiative", { enumerable: false, value: SuggestionType["GeneratedInitiative"] });
 Object.defineProperty(SuggestionType, "verify_feature", { enumerable: false, value: SuggestionType["VerifyFeature"] });
+Object.defineProperty(SuggestionType, "project_assistant_update", { enumerable: false, value: SuggestionType["ProjectAssistantUpdate"] });
 
 export type SuggestionType = typeof SuggestionType[keyof typeof SuggestionType];

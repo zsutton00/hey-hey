@@ -1,7 +1,9 @@
-import type {
-  OpenItem,
-  OpenItemsTriageItem,
-  OpenItemsTriageSuggestion,
+import {
+  EntityType,
+  type OpenItem,
+  type OpenItemPresentation,
+  type OpenItemsTriageItem,
+  type OpenItemsTriageSuggestion,
 } from "../../api";
 import type { TriageTarget } from "./application";
 import {
@@ -11,105 +13,9 @@ import {
   decideGroup,
   decideRemove,
   decideReopen,
+  itemKey,
+  suggestionKeys,
 } from "./decisions";
-
-export const itemKey = (item: { entityType: string; entityId: string }) =>
-  `${item.entityType}:${item.entityId}`;
-
-/** Every item a suggestion names, plus a promoted group's current members. */
-export function suggestionItems(
-  suggestion: OpenItemsTriageSuggestion,
-): OpenItemsTriageItem[] {
-  return suggestion.kind === "promoteGroupToGoal"
-    ? suggestion.affectedMembers
-    : suggestion.items;
-}
-
-/** Keys an accepted suggestion occupies, including a promoted group's live members. */
-export function suggestionKeys(
-  suggestion: OpenItemsTriageSuggestion,
-  items: readonly OpenItem[],
-): Set<string> {
-  const keys = new Set(suggestionItems(suggestion).map(itemKey));
-  if (suggestion.kind === "promoteGroupToGoal") {
-    for (const row of items) {
-      if (row.groupId === suggestion.groupId) {
-        keys.add(itemKey(row));
-      }
-    }
-  }
-  return keys;
-}
-
-export interface SuggestionBlock {
-  /** The accepted suggestion that holds the shared item. */
-  blockedBy: string;
-  item: OpenItemsTriageItem | { entityType: string; entityId: string };
-  itemTitle: string;
-}
-
-/**
- * Which suggestions cannot be accepted because an earlier accepted suggestion
- * already holds one of their items. An existing acceptance always wins, so a
- * live membership change never evicts an earlier choice.
- */
-export function resolveSelection(
-  suggestions: readonly OpenItemsTriageSuggestion[],
-  accepted: ReadonlySet<string>,
-  items: readonly OpenItem[],
-): { accepted: string[]; blocked: Map<string, SuggestionBlock> } {
-  const held = new Map<string, string>();
-  const effective: string[] = [];
-  const blocked = new Map<string, SuggestionBlock>();
-  const titles = new Map<string, string>();
-  for (const suggestion of suggestions) {
-    for (const item of suggestionItems(suggestion)) {
-      titles.set(itemKey(item), item.title);
-    }
-  }
-  for (const row of items) {
-    titles.set(
-      itemKey(row),
-      titles.get(itemKey(row)) ?? row.presentation.label,
-    );
-  }
-  const ownKeys = (suggestion: OpenItemsTriageSuggestion) =>
-    suggestionKeys(suggestion, items);
-  // Accepted suggestions are processed first, in reply order, so a competing
-  // unaccepted card is judged against everything accepted.
-  for (const suggestion of suggestions) {
-    if (!accepted.has(suggestion.suggestionId)) {
-      continue;
-    }
-    const conflict = [...ownKeys(suggestion)].find((key) => held.has(key));
-    if (conflict) {
-      blocked.set(suggestion.suggestionId, {
-        blockedBy: held.get(conflict)!,
-        item: { entityType: conflict.split(":")[0], entityId: conflict },
-        itemTitle: titles.get(conflict) ?? conflict,
-      });
-      continue;
-    }
-    effective.push(suggestion.suggestionId);
-    for (const key of ownKeys(suggestion)) {
-      held.set(key, suggestion.suggestionId);
-    }
-  }
-  for (const suggestion of suggestions) {
-    if (accepted.has(suggestion.suggestionId)) {
-      continue;
-    }
-    const conflict = [...ownKeys(suggestion)].find((key) => held.has(key));
-    if (conflict) {
-      blocked.set(suggestion.suggestionId, {
-        blockedBy: held.get(conflict)!,
-        item: { entityType: conflict.split(":")[0], entityId: conflict },
-        itemTitle: titles.get(conflict) ?? conflict,
-      });
-    }
-  }
-  return { accepted: effective, blocked };
-}
 
 export type RowChange =
   | "unchanged"
@@ -119,8 +25,7 @@ export type RowChange =
   | "reopened"
   | "tracked"
   | "promoted"
-  | "goal"
-  | "pending";
+  | "goal";
 
 export interface PreviewRow {
   key: string;
@@ -133,8 +38,6 @@ export interface PreviewRow {
   provisional?: boolean;
   isGroup?: boolean;
   trackedOn?: string;
-  /** For a not-accepted suggestion, e.g. "Remove? not accepted". */
-  note?: string;
 }
 
 export interface PreviewRibbon {
@@ -161,11 +64,9 @@ export type RowMarker =
   | { kind: "goalLeaves" }
   | { kind: "tracked"; goal: string }
   | { kind: "newGroup"; count: number }
-  | { kind: "pinnedGoal" }
-  | { kind: "pending"; verb: OpenItemsTriageSuggestion["kind"] };
+  | { kind: "pinnedGoal" };
 
-export type FlowTone =
-  "same" | "removed" | "moved" | "goal" | "new" | "pending";
+export type FlowTone = "same" | "removed" | "moved" | "goal" | "new";
 
 /** One drawn row in a column; folds stand for a run of unchanged items. */
 export type LayoutRow =
@@ -173,11 +74,23 @@ export type LayoutRow =
       kind: "item";
       key: string;
       title: string;
-      entityType: string;
+      entityType: EntityType | "GROUP";
+      /** The Open Items row's own presentation; null for rows Open Items has
+       * no snapshot of yet (reopened items, new groups, provisional Goals). */
+      presentation: OpenItemPresentation | null;
+      /** The real item behind the row, for the Peek; null for groups and
+       * provisional Goals, which do not exist yet. */
+      peek: {
+        entityId: string;
+        entityType: EntityType;
+        note: string | null;
+      } | null;
       depth: 0 | 1;
       change: RowChange;
       marker: RowMarker | null;
       isGroup: boolean;
+      /** The suggestion that affects this row, for hover highlighting. */
+      suggestionId: string | null;
     }
   | { kind: "fold"; key: string; count: number };
 
@@ -187,7 +100,8 @@ export interface LayoutFlow {
   /** Row index in `after`, or null when the item ends in a ✕. */
   to: number | null;
   tone: FlowTone;
-  dashed: boolean;
+  /** The suggestion this ribbon belongs to, for hover highlighting. */
+  suggestionId: string | null;
 }
 
 export interface PreviewLayout {
@@ -206,8 +120,6 @@ export interface TriagePreview {
   warnings: PreviewWarning[];
   /** Projected outcomes the existing reads cannot confirm; never counted as certain. */
   unverified: { suggestionId: string; message: string }[];
-  /** Suggestions not accepted, shown only as notes outside the totals. */
-  pendingNotes: { suggestionId: string; itemKeys: string[] }[];
   totals: {
     before: number;
     after: number;
@@ -224,9 +136,11 @@ export interface TriagePreview {
 
 interface ScratchRow {
   key: string;
-  entityType: string;
+  entityType: EntityType;
   entityId: string;
   title: string;
+  presentation: OpenItemPresentation | null;
+  note?: string | null;
   groupId: string | null;
   pinned: boolean;
   lineage: Set<string>;
@@ -239,14 +153,16 @@ export interface ReplayInput {
   items: readonly OpenItem[];
   groups: readonly { groupId: string; name: string }[];
   suggestions: readonly OpenItemsTriageSuggestion[];
-  accepted: readonly string[];
+  /** Effective selection, in agent order, minus suggestions already applied. */
+  selected: readonly string[];
+  /** Suggestions still offered (not yet applied). Items of an offered but
+   * unchecked suggestion stay drawn as plain rows instead of folding. */
+  offered: ReadonlySet<string>;
   /** Per-reply baseline shared with Apply; absent means "as currently read". */
   baselineFor?: (
     suggestion: OpenItemsTriageSuggestion,
     item: OpenItemsTriageItem,
   ) => TriageTarget | undefined;
-  /** Suggestions that must not appear as pending notes (applied or blocked). */
-  hidePending?: ReadonlySet<string>;
   /** Items whose work Apply already finished. */
   isCompleted?: (
     suggestion: OpenItemsTriageSuggestion,
@@ -263,7 +179,7 @@ const targetOf = (row: ScratchRow | undefined): TriageTarget => ({
   pinned: row?.pinned ?? false,
 });
 
-/** Replays accepted suggestions, in reply order, against the collection. */
+/** Replays selected suggestions, in agent order, against the collection. */
 export function replayTriage(input: ReplayInput): TriagePreview {
   const scratch = new Map<string, ScratchRow>();
   const order: string[] = [];
@@ -284,6 +200,8 @@ export function replayTriage(input: ReplayInput): TriagePreview {
       entityType: row.entityType,
       entityId: row.entityId,
       title: row.presentation.label,
+      presentation: row.presentation,
+      note: row.note ?? null,
       groupId: row.groupId,
       pinned: row.pinned,
       lineage: new Set(row.lineage.map(itemKey)),
@@ -300,7 +218,9 @@ export function replayTriage(input: ReplayInput): TriagePreview {
       (row) => row.key !== rootKey && row.lineage.has(rootKey),
     );
 
-  for (const suggestionId of input.accepted) {
+  const owners = suggestionOwners(input);
+
+  for (const suggestionId of input.selected) {
     const suggestion = input.suggestions.find(
       (s) => s.suggestionId === suggestionId,
     );
@@ -352,6 +272,7 @@ export function replayTriage(input: ReplayInput): TriagePreview {
               entityType: item.entityType,
               entityId: item.entityId,
               title: item.title,
+              presentation: null,
               groupId: null,
               pinned: false,
               lineage: new Set(),
@@ -377,6 +298,7 @@ export function replayTriage(input: ReplayInput): TriagePreview {
           if (decision.kind === "conflict") {
             warn(suggestionId, key, decision.reason);
           } else if (decision.kind === "proceed" && row) {
+            owners.set(`group:${targetId}`, suggestionId);
             if (!isExisting && !createdGroups.has(targetId)) {
               createdGroups.add(targetId);
               groupNames.set(
@@ -436,15 +358,18 @@ export function replayTriage(input: ReplayInput): TriagePreview {
     }
     groupNames.delete(suggestion.groupId);
     promotedGroups.add(suggestion.groupId);
+    owners.set(`group:${suggestion.groupId}`, suggestion.suggestionId);
+    owners.set(newGoalId(suggestion.suggestionId), suggestion.suggestionId);
     unverified.push({
       suggestionId: suggestion.suggestionId,
       message: `Which members of "${suggestion.groupName}" can be tracked is confirmed when you apply.`,
     });
     addedGoals.push({
       key: newGoalId(suggestion.suggestionId),
-      entityType: "TASK",
+      entityType: EntityType.Task,
       entityId: newGoalId(suggestion.suggestionId),
       title: suggestion.goalName,
+      presentation: null,
       groupId: null,
       pinned: true,
       lineage: new Set(),
@@ -465,7 +390,39 @@ export function replayTriage(input: ReplayInput): TriagePreview {
     addedGoals,
     warnings,
     unverified,
+    owners,
   });
+}
+
+/**
+ * Which suggestion each item belongs to: the selected suggestion acting on it,
+ * otherwise the first still-offered suggestion naming it.
+ */
+function suggestionOwners(input: ReplayInput): Map<string, string> {
+  const owners = new Map<string, string>();
+  const selected = new Set(input.selected);
+  const claim = (suggestion: OpenItemsTriageSuggestion) => {
+    for (const key of suggestionKeys(suggestion, input.items)) {
+      if (!owners.has(key)) {
+        owners.set(key, suggestion.suggestionId);
+      }
+    }
+  };
+  for (const id of input.selected) {
+    const suggestion = input.suggestions.find((s) => s.suggestionId === id);
+    if (suggestion) {
+      claim(suggestion);
+    }
+  }
+  for (const suggestion of input.suggestions) {
+    if (
+      !selected.has(suggestion.suggestionId) &&
+      input.offered.has(suggestion.suggestionId)
+    ) {
+      claim(suggestion);
+    }
+  }
+  return owners;
 }
 
 function buildPreview(args: {
@@ -481,6 +438,7 @@ function buildPreview(args: {
   addedGoals: ScratchRow[];
   warnings: PreviewWarning[];
   unverified: { suggestionId: string; message: string }[];
+  owners: Map<string, string>;
 }): TriagePreview {
   const { input, original, scratch, order, groupNames } = args;
   const nameOf = (id: string | null) =>
@@ -509,51 +467,26 @@ function buildPreview(args: {
 
   const reopened = [...scratch.keys()].filter((key) => !original.has(key));
 
-  // Not-accepted suggestions appear only as dashed rows; they never change
-  // the projected right column or the totals.
-  const acceptedSet = new Set(input.accepted);
-  const pendingVerbs: Record<OpenItemsTriageSuggestion["kind"], string> = {
-    removeOpenItems: "Remove",
-    reopenItems: "Reopen",
-    groupOpenItems: "Group",
-    trackOnGoal: "Track on Goal",
-    promoteGroupToGoal: "Promote",
-  };
-  const pendingNote = new Map<string, string>();
-  const ghosts = new Map<
-    string,
-    { title: string; entityType: string; note: string }
-  >();
+  // Items of an offered but unchecked suggestion stay drawn, unchanged, so
+  // hovering its card can point at them and toggling never reflows the list.
+  const selectedSet = new Set(input.selected);
+  const shownKeys = new Set<string>();
   for (const suggestion of input.suggestions) {
     if (
-      acceptedSet.has(suggestion.suggestionId) ||
-      input.hidePending?.has(suggestion.suggestionId)
+      selectedSet.has(suggestion.suggestionId) ||
+      !input.offered.has(suggestion.suggestionId)
     ) {
       continue;
     }
-    const note = `${pendingVerbs[suggestion.kind]}? not accepted`;
-    for (const item of suggestionItems(suggestion)) {
-      const key = itemKey(item);
-      if (suggestion.kind === "reopenItems") {
-        if (!scratch.has(key) && !ghosts.has(key)) {
-          ghosts.set(key, {
-            title: item.title,
-            entityType: item.entityType,
-            note,
-          });
-        }
-      } else if (
-        original.has(key) &&
-        changeOf(key) === "unchanged" &&
-        !pendingNote.has(key)
-      ) {
-        pendingNote.set(key, note);
+    for (const key of suggestionKeys(suggestion, input.items)) {
+      if (original.has(key)) {
+        shownKeys.add(key);
       }
     }
   }
 
   const visibleKeys = order.filter(
-    (key) => changeOf(key) !== "unchanged" || pendingNote.has(key),
+    (key) => changeOf(key) !== "unchanged" || shownKeys.has(key),
   );
   const unchangedCount = order.length - visibleKeys.length;
 
@@ -573,19 +506,15 @@ function buildPreview(args: {
 
   const before: PreviewRow[] = visibleKeys.map((key) => {
     const row = original.get(key)!;
-    const change = changeOf(key);
-    return {
-      ...toRow(
-        row,
-        originalGroupName.get(row.groupId ?? "") ?? null,
-        change === "unchanged" ? "pending" : change,
-      ),
-      note: pendingNote.get(key),
-    };
+    return toRow(
+      row,
+      originalGroupName.get(row.groupId ?? "") ?? null,
+      changeOf(key),
+    );
   });
 
   // Right column: new/changed group headers with their moved members beneath,
-  // then other visible rows, then reopened rows, ghosts and provisional Goals.
+  // then other visible rows, then reopened rows and provisional Goals.
   const after: PreviewRow[] = [];
   const afterIndex = new Map<string, number>();
   const groupsShown = new Set<string>();
@@ -620,18 +549,6 @@ function buildPreview(args: {
       after.push(toRow(row, nameOf(row.groupId), changeOf(key)));
     }
   }
-  for (const [key, ghost] of ghosts) {
-    afterIndex.set(`ghost:${key}`, after.length);
-    after.push({
-      key: `ghost:${key}`,
-      title: ghost.title,
-      entityType: ghost.entityType,
-      pinned: false,
-      groupName: null,
-      change: "pending",
-      note: ghost.note,
-    });
-  }
   for (const goal of args.addedGoals) {
     afterIndex.set(goal.key, after.length);
     after.push({ ...toRow(goal, null, "goal"), provisional: true });
@@ -640,7 +557,7 @@ function buildPreview(args: {
   const ribbons: PreviewRibbon[] = visibleKeys.map((key, from) => ({
     from,
     to: afterIndex.get(key) ?? null,
-    change: pendingNote.has(key) ? "pending" : changeOf(key),
+    change: changeOf(key),
   }));
   for (const key of reopened) {
     ribbons.push({
@@ -656,17 +573,6 @@ function buildPreview(args: {
       change: "goal",
     });
   }
-
-  const pendingNotes = input.suggestions
-    .filter(
-      (s) =>
-        !acceptedSet.has(s.suggestionId) &&
-        !input.hidePending?.has(s.suggestionId),
-    )
-    .map((s) => ({
-      suggestionId: s.suggestionId,
-      itemKeys: suggestionItems(s).map(itemKey),
-    }));
 
   const removed = [...args.removedKeys].filter(
     (key) => original.has(key) && !args.promotedKeys.has(key),
@@ -692,14 +598,13 @@ function buildPreview(args: {
       promotedGroups: args.promotedGroups,
       addedGoals: args.addedGoals,
       reopened,
-      ghosts,
-      pendingVerb: pendingVerbOf(input),
+      shownKeys,
+      owners: args.owners,
       changeOf,
     }),
     unchangedCount,
     warnings: args.warnings,
     unverified: args.unverified,
-    pendingNotes,
     totals: {
       before: order.length,
       after: scratch.size + args.addedGoals.length,
@@ -711,29 +616,6 @@ function buildPreview(args: {
       goalMembersUngrouped,
     },
   };
-}
-
-/** The first not-accepted, still-offered suggestion naming each existing item. */
-function pendingVerbOf(
-  input: ReplayInput,
-): Map<string, OpenItemsTriageSuggestion["kind"]> {
-  const accepted = new Set(input.accepted);
-  const verbs = new Map<string, OpenItemsTriageSuggestion["kind"]>();
-  for (const suggestion of input.suggestions) {
-    if (
-      accepted.has(suggestion.suggestionId) ||
-      input.hidePending?.has(suggestion.suggestionId) ||
-      suggestion.kind === "reopenItems"
-    ) {
-      continue;
-    }
-    for (const item of suggestionItems(suggestion)) {
-      if (!verbs.has(itemKey(item))) {
-        verbs.set(itemKey(item), suggestion.kind);
-      }
-    }
-  }
-  return verbs;
 }
 
 /**
@@ -751,11 +633,12 @@ function buildLayout(args: {
   promotedGroups: Set<string>;
   addedGoals: ScratchRow[];
   reopened: string[];
-  ghosts: Map<string, { title: string; entityType: string; note: string }>;
-  pendingVerb: Map<string, OpenItemsTriageSuggestion["kind"]>;
+  shownKeys: Set<string>;
+  owners: Map<string, string>;
   changeOf: (key: string) => RowChange;
 }): PreviewLayout {
-  const { original, scratch, order, changeOf, pendingVerb } = args;
+  const { original, scratch, order, changeOf, shownKeys, owners } = args;
+  const ownerOf = (key: string) => owners.get(key) ?? null;
   const before: LayoutRow[] = [];
   const after: LayoutRow[] = [];
   const flows: LayoutFlow[] = [];
@@ -763,12 +646,7 @@ function buildLayout(args: {
   const afterIndex = new Map<string, number>();
 
   const isVisible = (key: string) =>
-    changeOf(key) !== "unchanged" || pendingVerb.has(key);
-  // An item only a not-accepted suggestion touches stays put but is drawn dashed.
-  const afterChange = (key: string): RowChange =>
-    changeOf(key) === "unchanged" && pendingVerb.has(key)
-      ? "pending"
-      : changeOf(key);
+    changeOf(key) !== "unchanged" || shownKeys.has(key);
 
   // Pinned provisional Goals lead the right column, as Goals pin first.
   for (const goal of args.addedGoals) {
@@ -777,10 +655,13 @@ function buildLayout(args: {
       key: goal.key,
       title: goal.title,
       entityType: goal.entityType,
+      presentation: goalPresentation(goal.title),
+      peek: null,
       depth: 0,
       change: "goal",
       marker: { kind: "pinnedGoal" },
       isGroup: false,
+      suggestionId: ownerOf(goal.key),
     });
   }
   const goalIndexFor = (groupId: string) =>
@@ -826,7 +707,7 @@ function buildLayout(args: {
       from: before.length,
       to: after.length,
       tone: "same",
-      dashed: false,
+      suggestionId: null,
     });
     before.push({ kind: "fold", key, count: run });
     after.push({ kind: "fold", key, count: run });
@@ -845,10 +726,8 @@ function buildLayout(args: {
         return { kind: "ungrouped" };
       case "tracked":
         return { kind: "tracked", goal: scratch.get(key)!.trackedOn! };
-      default: {
-        const verb = pendingVerb.get(key);
-        return verb ? { kind: "pending", verb } : null;
-      }
+      default:
+        return null;
     }
   };
 
@@ -862,10 +741,19 @@ function buildLayout(args: {
     key: row.key,
     title: row.title,
     entityType: row.entityType,
+    presentation: row.presentation,
+    peek: row.goal
+      ? null
+      : {
+          entityId: row.entityId,
+          entityType: row.entityType,
+          note: row.note?.trim() || null,
+        },
     depth,
     change,
     marker,
     isGroup: false,
+    suggestionId: ownerOf(row.key),
   });
 
   const shownAfterGroups = new Set<string>();
@@ -884,17 +772,20 @@ function buildLayout(args: {
       key: `group:${groupId}`,
       title: args.groupNames.get(groupId) ?? "",
       entityType: "GROUP",
+      presentation: null,
+      peek: null,
       depth: 0,
       change: isNew ? "grouped" : "unchanged",
       marker: isNew ? { kind: "newGroup", count } : null,
       isGroup: true,
+      suggestionId: ownerOf(`group:${groupId}`),
     });
     if (isNew) {
       flows.push({
         from: null,
         to: afterIndex.get(`group:${groupId}`)!,
         tone: "new",
-        dashed: false,
+        suggestionId: ownerOf(`group:${groupId}`),
       });
     }
     // Everything moving into this group converges here, in original order.
@@ -911,7 +802,7 @@ function buildLayout(args: {
         itemRow(
           row,
           1,
-          afterChange(key),
+          changeOf(key),
           changeOf(key) === "tracked"
             ? { kind: "tracked", goal: row.trackedOn! }
             : null,
@@ -929,7 +820,7 @@ function buildLayout(args: {
       pushAfterGroupHeader(row.groupId);
       return;
     }
-    const change = afterChange(key);
+    const change = changeOf(key);
     afterIndex.set(key, after.length);
     after.push(
       itemRow(
@@ -964,10 +855,13 @@ function buildLayout(args: {
         key: headerKey,
         title: args.originalGroupName.get(unit.groupId) ?? "",
         entityType: "GROUP",
+        presentation: null,
+        peek: null,
         depth: 0,
         change: promoted ? "promoted" : "unchanged",
         marker: promoted ? { kind: "promoteGroup" } : null,
         isGroup: true,
+        suggestionId: promoted ? ownerOf(headerKey) : null,
       });
     }
     for (const key of unit.keys) {
@@ -981,7 +875,7 @@ function buildLayout(args: {
         itemRow(
           original.get(key)!,
           unit.groupId === null ? 0 : 1,
-          changeOf(key) === "unchanged" ? "pending" : changeOf(key),
+          changeOf(key),
           markerBefore(key),
         ),
       );
@@ -994,41 +888,21 @@ function buildLayout(args: {
         from: beforeIndex.get(headerKey)!,
         to: afterIndex.get(headerKey)!,
         tone: "same",
-        dashed: false,
+        suggestionId: null,
       });
     }
   }
 
-  // Reopened items and not-accepted reopen ghosts sit before the last fold.
+  // Reopened items sit before the last fold.
   const trailing = run;
   run = 0;
   for (const key of args.reopened) {
     placeAfter(key);
   }
-  for (const [key, ghost] of args.ghosts) {
-    const ghostKey = `ghost:${key}`;
-    afterIndex.set(ghostKey, after.length);
-    after.push({
-      kind: "item",
-      key: ghostKey,
-      title: ghost.title,
-      entityType: ghost.entityType,
-      depth: 0,
-      change: "pending",
-      marker: { kind: "pending", verb: "reopenItems" },
-      isGroup: false,
-    });
-    flows.push({
-      from: null,
-      to: afterIndex.get(ghostKey)!,
-      tone: "new",
-      dashed: true,
-    });
-  }
   for (const key of args.reopened) {
     const to = afterIndex.get(key);
     if (to !== undefined) {
-      flows.push({ from: null, to, tone: "new", dashed: false });
+      flows.push({ from: null, to, tone: "new", suggestionId: ownerOf(key) });
     }
   }
   run = trailing;
@@ -1043,7 +917,7 @@ function buildLayout(args: {
           from,
           to: goalIndexFor(groupId),
           tone: "goal",
-          dashed: false,
+          suggestionId: ownerOf(key),
         });
       }
       continue;
@@ -1055,7 +929,7 @@ function buildLayout(args: {
         from,
         to: goalIndexFor(groupId),
         tone: "goal",
-        dashed: false,
+        suggestionId: ownerOf(key),
       });
       continue;
     }
@@ -1071,9 +945,16 @@ function buildLayout(args: {
             : change === "tracked"
               ? "goal"
               : "same",
-      dashed: change === "unchanged" && pendingVerb.has(key),
+      suggestionId: ownerOf(key),
     });
   }
 
   return { before, after, flows };
 }
+
+/** A provisional Goal is drawn with the Goal icon Open Items uses for Goals. */
+const goalPresentation = (label: string): OpenItemPresentation => ({
+  label,
+  workItemTypeKey: "GOAL",
+  routeParams: { workItemRoute: "goal" },
+});

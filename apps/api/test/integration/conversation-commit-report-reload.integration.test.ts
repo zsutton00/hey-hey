@@ -1,0 +1,365 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { INestApplication } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import * as request from 'supertest';
+import { AppModule } from '../../src/app.module';
+import { PrismaService } from '../../src/prisma/prisma.service';
+
+/**
+ * Integration coverage for authenticated conversation reads with explicit
+ * Message-owned Proposal and Report associations.
+ *
+ * Boots the full Nest app, seeds an organization/project/conversation and an
+ * intentionally ambiguous historical interaction, then issues authenticated
+ * conversation reads with Messages, Proposals, and Reports included. The
+ * carrier-owned records must remain attached to their original Message.
+ */
+describe('GET /conversations/:id — historical carrier associations', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let module: TestingModule;
+  let authToken: string;
+  let testOrganizationId: string;
+  let testProjectId: string;
+  let testConversationId: string;
+  let testUserMessageId: string;
+  let testCarrierMessageId: string;
+  let testNarrationMessageId: string;
+  let testCompletionMessageId: string;
+  let testProposalId: string;
+  let testReportId: string;
+  let testInternalReportId: string;
+
+  const testUser = {
+    email: 'include-reports-test@example.com',
+    password: 'SecurePassword123!',
+    name: 'Include Reports Test User',
+    organizationName: 'Include Reports Test Organization',
+  };
+
+  beforeAll(async () => {
+    module = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = module.createNestApplication();
+    prisma = module.get<PrismaService>(PrismaService);
+
+    await app.init();
+    await setupTestData();
+  });
+
+  afterAll(async () => {
+    await cleanupTestData();
+    await app.close();
+    await module.close();
+  });
+
+  it('reloads a single final message with its explicitly attached COMMIT report', async () => {
+    const server = app.getHttpServer();
+    const projectUrl = `/api/v1/organizations/${testOrganizationId}/projects/${testProjectId}`;
+    const authorization = `Bearer ${authToken}`;
+    const repo = await mkdtemp(join(tmpdir(), 'commit-reload-'));
+    const file = 'ApprovalControls.tsx';
+    let hash: string;
+    try {
+      const git = (...args: string[]) =>
+        execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
+      git('init', '-b', 'dev');
+      await writeFile(
+        join(repo, file),
+        'export const approvalActions = ["Allow", "Deny"];\n',
+      );
+      git('add', file);
+      git(
+        '-c',
+        'user.name=Hey Hey Tests',
+        '-c',
+        'user.email=tests@example.com',
+        '-c',
+        'core.hooksPath=/dev/null',
+        '-c',
+        'commit.gpgsign=false',
+        'commit',
+        '-m',
+        'Update approval controls',
+      );
+      hash = git('rev-parse', '--short', 'HEAD');
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+    const report = await request(server)
+      .post(`/api/v1/organizations/${testOrganizationId}/reports`)
+      .set('Authorization', authorization)
+      .send({
+        projectId: testProjectId,
+        reportType: 'COMMIT',
+        audience: 'PROJECT_VISIBLE',
+        payload: {
+          reportType: 'COMMIT',
+          summary: 'Update approval controls',
+          files: [file],
+          hashes: [{ service: testProjectId, hash, branch: 'dev' }],
+        },
+        entities: [
+          {
+            entityType: 'CONVERSATION',
+            entityId: testConversationId,
+            relation: 'CONTEXT',
+          },
+        ],
+      })
+      .expect(201);
+
+    const message = await request(server)
+      .post(`${projectUrl}/messages`)
+      .set('Authorization', authorization)
+      .send({
+        type: 'SYSTEM',
+        conversationId: testConversationId,
+        status: 'completed',
+        data: {
+          type: 'AGENT',
+          response: 'Committed session changes.',
+          actionHint: 'task_complete',
+          detectedIntent: 'agent_response',
+          intentConfidence: 1,
+        },
+        reportIds: [report.body.id],
+      })
+      .expect(201);
+
+    const reload = await request(server)
+      .get(`${projectUrl}/messages`)
+      .set('Authorization', authorization)
+      .query({ conversationId: testConversationId, includeReports: 'true' })
+      .expect(200);
+
+    // The fixture also contains a historical completion and a carrier report.
+    // Only the newly posted completion may present this commit report.
+    const completions = reload.body.filter(
+      (entry: { id: string; data?: { actionHint?: string } }) =>
+        entry.id !== testCompletionMessageId &&
+        entry.data?.actionHint === 'task_complete',
+    );
+    expect(completions).toHaveLength(1);
+    expect(completions[0]).toMatchObject({
+      id: message.body.id,
+      type: 'SYSTEM',
+      data: { type: 'AGENT', actionHint: 'task_complete' },
+      reports: [
+        {
+          id: report.body.id,
+          reportType: 'COMMIT',
+          payload: {
+            hashes: [{ service: testProjectId, hash, branch: 'dev' }],
+          },
+        },
+      ],
+    });
+  });
+
+  async function setupTestData() {
+    const registerResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send(testUser);
+
+    authToken = registerResponse.body.accessToken;
+
+    const user = await prisma.db.user.findUnique({
+      where: { email: testUser.email },
+      include: { memberships: { include: { organization: true } } },
+    });
+    if (!user) throw new Error('Failed to create test user');
+    testOrganizationId = user.memberships[0]!.organizationId;
+
+    const project = await prisma.db.project.create({
+      data: {
+        name: 'IncludeReports Integration Project',
+        description: 'Project for includeReports integration tests',
+        organizationId: testOrganizationId,
+        status: 'ACTIVE',
+      },
+    });
+    testProjectId = project.id;
+
+    const conversation = await prisma.db.conversation.create({
+      data: {
+        title: 'IncludeReports Integration Conversation',
+        createdBy: user.id,
+        restricted: true,
+        workflowName: 'support',
+        status: 'STARTED',
+        projectId: testProjectId,
+        organizationId: testOrganizationId,
+        workflowId: `test-workflow-${Date.now()}`,
+        initiatedBy: 'USER',
+        triggerEvent: 'test_trigger',
+      },
+    });
+    testConversationId = conversation.id;
+
+    await prisma.db.projectMember.create({
+      data: {
+        projectId: testProjectId,
+        userId: user.id,
+        role: 'OWNER',
+      },
+    });
+
+    const baseMessageTime = new Date('2026-08-30T00:00:00.000Z');
+    const userMessage = await prisma.db.message.create({
+      data: {
+        type: 'USER',
+        status: 'OPEN',
+        userId: user.id,
+        projectId: testProjectId,
+        conversationId: testConversationId,
+        data: { text: 'Historical interaction' },
+        createdAt: new Date(baseMessageTime.getTime() + 1000),
+      },
+    });
+    testUserMessageId = userMessage.id;
+
+    const carrierMessage = await prisma.db.message.create({
+      data: {
+        type: 'SYSTEM',
+        status: 'completed',
+        userId: 'system',
+        projectId: testProjectId,
+        conversationId: testConversationId,
+        data: { type: 'CARRIER' },
+        createdAt: new Date(baseMessageTime.getTime() + 2000),
+      },
+    });
+    testCarrierMessageId = carrierMessage.id;
+
+    const narrationMessage = await prisma.db.message.create({
+      data: {
+        type: 'SYSTEM',
+        status: 'completed',
+        userId: 'system',
+        projectId: testProjectId,
+        conversationId: testConversationId,
+        data: { type: 'AGENT', response: 'Historical narration' },
+        createdAt: new Date(baseMessageTime.getTime() + 3000),
+      },
+    });
+    testNarrationMessageId = narrationMessage.id;
+
+    const completionMessage = await prisma.db.message.create({
+      data: {
+        type: 'SYSTEM',
+        status: 'completed',
+        userId: 'system',
+        projectId: testProjectId,
+        conversationId: testConversationId,
+        data: {
+          type: 'AGENT',
+          actionHint: 'task_complete',
+          response: 'Historical completion',
+        },
+        createdAt: new Date(baseMessageTime.getTime() + 4000),
+      },
+    });
+    testCompletionMessageId = completionMessage.id;
+
+    const proposal = await prisma.db.proposal.create({
+      data: {
+        organizationId: testOrganizationId,
+        projectId: testProjectId,
+        type: 'SINGLE',
+        action: 'UPDATE',
+        status: 'DRAFT',
+        targetEntityId: testConversationId,
+        targetEntityType: 'CONVERSATION',
+        updates: { title: 'Historical proposal' },
+        requestorId: user.id,
+        requestorContext: { source: 'agent' },
+        conversationId: testConversationId,
+        messageId: testCarrierMessageId,
+        createdAt: new Date(baseMessageTime.getTime() + 5000),
+      },
+    });
+    testProposalId = proposal.id;
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const report = await prisma.db.report.create({
+      data: {
+        organizationId: testOrganizationId,
+        projectId: testProjectId,
+        reportType: 'SESSION_SUMMARY',
+        audience: 'PROJECT_VISIBLE',
+        payload: {
+          reportType: 'SESSION_SUMMARY',
+          text: 'A short summary of the session.',
+        },
+        schemaVersion: 1,
+        expiresAt,
+        reportEntities: {
+          create: [
+            {
+              entityType: 'MESSAGE',
+              entityId: testCarrierMessageId,
+              relation: 'CONTEXT',
+            },
+          ],
+        },
+      },
+    });
+    testReportId = report.id;
+
+    const internalReport = await prisma.db.report.create({
+      data: {
+        organizationId: testOrganizationId,
+        projectId: testProjectId,
+        reportType: 'SESSION_SUMMARY',
+        audience: 'WORKFLOW_ONLY',
+        payload: {
+          reportType: 'SESSION_SUMMARY',
+          text: 'Internal-only summary that must not leak into the response.',
+        },
+        schemaVersion: 1,
+        expiresAt,
+        reportEntities: {
+          create: [
+            {
+              entityType: 'MESSAGE',
+              entityId: testCarrierMessageId,
+              relation: 'CONTEXT',
+            },
+          ],
+        },
+      },
+    });
+    testInternalReportId = internalReport.id;
+  }
+
+  async function cleanupTestData() {
+    try {
+      await prisma.db.report.deleteMany({
+        where: { organizationId: testOrganizationId },
+      });
+      await prisma.db.proposal.deleteMany({
+        where: { organizationId: testOrganizationId },
+      });
+      await prisma.db.message.deleteMany({
+        where: { conversationId: testConversationId },
+      });
+      await prisma.db.conversation.deleteMany({
+        where: { id: testConversationId },
+      });
+      await prisma.db.project.deleteMany({
+        where: { id: testProjectId },
+      });
+      await prisma.db.organization.deleteMany({
+        where: { name: testUser.organizationName },
+      });
+    } catch (error) {
+      console.error('Failed to clean up include-reports test data', error);
+    }
+  }
+});

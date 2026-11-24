@@ -1,3 +1,4 @@
+import { describeStatusMeaning } from "../../utils/workItemStatusMeaning";
 import { getWorkItemTypeStatusNames } from "../../utils/statusUtils";
 import { SessionRole } from "../../api";
 import type {
@@ -84,7 +85,7 @@ function definitionFields(
     "Allowed statuses": getWorkItemTypeStatusNames(d),
     "Starting status": d.statuses[0]?.name ?? "",
     "Status meanings": d.statuses.map(
-      (status) => `${status.name}: ${status.meaning}`,
+      (status) => `${status.name}: ${describeStatusMeaning(status.meaning)}`,
     ),
     "Allowed parent types": d.allowedParentTypes ?? [],
     "Edge targets": d.edgeTargets ?? [],

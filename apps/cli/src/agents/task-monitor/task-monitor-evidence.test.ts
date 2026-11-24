@@ -33,8 +33,8 @@ const envelope = (data: object | object[]): Response =>
 const standardType = {
   definition: {
     statuses: [
-      { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
-      { name: 'COMPLETED', meaning: 'FINISHED', completionBehavior: 'COMPLETED' },
+      { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' as const } },
+      { name: 'COMPLETED', meaning: { kind: 'COMPLETED' as const } },
     ],
   },
 };

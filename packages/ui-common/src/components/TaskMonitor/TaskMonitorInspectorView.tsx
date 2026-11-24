@@ -1,8 +1,8 @@
 import { Alert, LinearProgress, Stack, Typography } from "@mui/material";
 import type { TaskResponseDto } from "../../api";
 import { usePathService } from "../../contexts";
-import { resolveAgentSessionMetadata } from "../AgentSession/resolveAgentSessionMetadata";
 import { MonitorHeldPermissions } from "../AgentSession/MonitorHeldPermissions";
+import { useAgentSessionMetadata } from "../AgentSession/useAgentSessionMetadata";
 import { TaskMonitorConversationPane } from "./TaskMonitorConversationPane";
 import { TaskMonitorSessionActivityIndicator } from "./TaskMonitorSessionActivityIndicator";
 import { resolveTaskMonitorInspectorPresentation } from "./taskMonitorInspectorState";
@@ -26,6 +26,7 @@ export const TaskMonitorInspectorView = ({
 }: TaskMonitorInspectorViewProps) => {
   const pathService = usePathService();
   const session = node.session.kind === "loaded" ? node.session.session : null;
+  const agentSessionMetadata = useAgentSessionMetadata(session);
   const conversation = useTaskMonitorConversation({
     organizationId,
     projectId,
@@ -35,6 +36,31 @@ export const TaskMonitorInspectorView = ({
     return (
       <Alert severity="error" data-testid="task-monitor-inspector-missing-task">
         The canonical task could not be loaded.
+      </Alert>
+    );
+  }
+
+  if (node.session.kind === "loading") {
+    return (
+      <Stack
+        spacing={2}
+        data-testid="task-monitor-inspector-loading-session"
+        sx={{ p: 2 }}
+      >
+        <LinearProgress aria-label="Loading linked session" />
+        <Typography color="text.secondary">Loading linked session…</Typography>
+      </Stack>
+    );
+  }
+
+  if (node.session.kind === "failed") {
+    return (
+      <Alert
+        severity="error"
+        data-testid="task-monitor-inspector-session-read-failed"
+      >
+        The linked session could not be read. It will be read again on the next
+        update.
       </Alert>
     );
   }
@@ -93,9 +119,7 @@ export const TaskMonitorInspectorView = ({
               })
             : undefined
         }
-        agentSessionMetadata={
-          session ? resolveAgentSessionMetadata(session) : undefined
-        }
+        agentSessionMetadata={agentSessionMetadata}
         contentAfter={
           <TaskMonitorSessionActivityIndicator
             organizationId={organizationId}

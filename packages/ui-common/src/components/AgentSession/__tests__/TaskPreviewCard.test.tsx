@@ -91,3 +91,52 @@ describe("TaskPreviewCard Escape handling", () => {
     expect(screen.getByRole("button", { name: "collapse" })).toBeTruthy();
   });
 });
+
+describe("TaskPreviewCard body height limit", () => {
+  const stubContentHeight = (height: number) => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(
+      height,
+    );
+  };
+
+  it("clips content taller than the limit and toggles with an announced control", () => {
+    stubContentHeight(900);
+    render(
+      <TaskPreviewCard
+        task={task}
+        collapseOnEscape={false}
+        bodyHeightLimit={400}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: "Show full task" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByTestId("task-preview-card-body").style.maxHeight).toBe(
+      "",
+    );
+    expect(screen.getByTestId("task-preview-card-fade")).toBeTruthy();
+
+    fireEvent.click(toggle);
+
+    const expanded = screen.getByRole("button", { name: "Show less" });
+    expect(expanded.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByTestId("task-preview-card-fade")).toBeNull();
+
+    fireEvent.click(expanded);
+    expect(screen.getByRole("button", { name: "Show full task" })).toBeTruthy();
+  });
+
+  it("shows content within the limit in full without a control", () => {
+    stubContentHeight(300);
+    render(
+      <TaskPreviewCard
+        task={task}
+        collapseOnEscape={false}
+        bodyHeightLimit={400}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Show full task" })).toBeNull();
+    expect(screen.queryByTestId("task-preview-card-fade")).toBeNull();
+  });
+});

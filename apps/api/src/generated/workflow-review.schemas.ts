@@ -83,7 +83,7 @@ export const CodingPlanVersionSchema = z
 
 const ImplementRuntimeSelectionSchema = z
   .object({
-    provider: z.enum(['claude', 'codex', 'opencode']),
+    provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     model: z.string().min(1),
     reasoningEffort: z
       .enum([
@@ -300,7 +300,9 @@ export const CodingPlanReviewAnswerPayloadSchema = z.intersection(
         .array(CodingPlanReviewQuestionAnswerEntrySchema)
         .optional(),
       feedback: z.string().optional(),
-      provider: z.enum(['claude', 'codex', 'opencode']).optional(),
+      provider: z
+        .enum(['claude', 'codex', 'opencode', 'antigravity'])
+        .optional(),
       model: z.string().min(1).optional(),
       reasoningEffort: z
         .enum([
@@ -364,10 +366,23 @@ const PlanShapingFeatureSyncItemDecisionSchema = z
   })
   .strict();
 
+const PlanShapingFeatureSyncReportSelectionSchema = z
+  .object({
+    groupId: z.string().min(1),
+    groupTitle: z.string(),
+    choiceId: z.string().min(1),
+    choiceLabel: z.string(),
+    isNoChange: z.boolean(),
+  })
+  .strict();
+
 export const PlanShapingFeatureSyncReviewRefineAnswerPayloadSchema = z
   .object({
     feedback: z.string(),
     decisions: z.array(PlanShapingFeatureSyncItemDecisionSchema).optional(),
+    reportSelections: z
+      .array(PlanShapingFeatureSyncReportSelectionSchema)
+      .optional(),
   })
   .strict();
 

@@ -25,12 +25,15 @@ export const Provider = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(Provider, "claude", { enumerable: false, value: Provider["Claude"] });
 Object.defineProperty(Provider, "codex", { enumerable: false, value: Provider["Codex"] });
 Object.defineProperty(Provider, "opencode", { enumerable: false, value: Provider["Opencode"] });
+Object.defineProperty(Provider, "antigravity", { enumerable: false, value: Provider["Antigravity"] });
 
 export type Provider = typeof Provider[keyof typeof Provider];

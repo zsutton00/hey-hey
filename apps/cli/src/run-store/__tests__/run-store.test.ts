@@ -1,3 +1,4 @@
+import { UnknownAgentProviderError } from '../../agents/providers/provider-config';
 import { handleAssistantComplete } from '../../run/handlers/assistant-complete';
 import { codingFreeformHandler } from '../../agents/coding-conversation';
 import { mapCodexEvent } from '../../agents/providers/codex/codex-event-mapper';
@@ -1815,9 +1816,17 @@ describe('RunStore', () => {
     });
 
     it('persists and retrieves preference', async () => {
-      await store.setProviderPreference('codex');
+      await store.setProviderPreference('antigravity');
       const pref = await store.getProviderPreference();
-      expect(pref).toBe('codex');
+      expect(pref).toBe('antigravity');
+    });
+
+    it('rejects an unknown provider id stored by a different client', async () => {
+      await fs.writeFile(
+        createTempPaths(tempRoot).preferencesPath,
+        JSON.stringify({ providerPreference: 'codex-preview' }),
+      );
+      await expect(store.getProviderPreference()).rejects.toThrow(UnknownAgentProviderError);
     });
 
     it('overwrites existing preference', async () => {

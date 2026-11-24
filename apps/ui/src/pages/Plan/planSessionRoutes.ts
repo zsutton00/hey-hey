@@ -43,12 +43,30 @@ export const buildPlanTabPath = (
   return `${planPath}?${searchParams.toString()}`;
 };
 
-export const buildPlanTaskMonitorSetupPath = (
+/**
+ * Where an Automate click creates a stage's Task Monitor. Only a new push
+ * carrying {@link PLAN_TASK_MONITOR_CREATE_INTENT} creates one; a refresh,
+ * bookmark or Back to this address opens the Automation tab instead.
+ */
+export const buildPlanTaskMonitorCreatePath = (
   projectId: string,
   planId: string,
   stageId: string,
 ): string =>
-  `${buildPlanStagePath(projectId, planId, stageId)}/task-monitor/setup`;
+  `${buildPlanStagePath(projectId, planId, stageId)}/task-monitor/new`;
+
+export const PLAN_TASK_MONITOR_CREATE_INTENT = {
+  createTaskMonitor: true,
+} as const;
+
+/** History state is untyped; this is the one place it is read. */
+export const hasPlanTaskMonitorCreateIntent = (
+  state: unknown,
+): state is typeof PLAN_TASK_MONITOR_CREATE_INTENT =>
+  typeof state === "object" &&
+  state !== null &&
+  "createTaskMonitor" in state &&
+  state.createTaskMonitor === true;
 
 export const buildPlanTaskMonitorPath = (
   projectId: string,

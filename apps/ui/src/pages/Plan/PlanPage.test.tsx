@@ -445,13 +445,13 @@ describe("canonical Plan page", () => {
       expect.objectContaining({ plan: draft, configuration }),
     );
   });
-  it("routes the selected canonical Stage to monitor setup", async () => {
+  it("routes the selected canonical Stage to create its monitor", async () => {
     renderPage();
     await userEvent.click(
       screen.getByRole("button", { name: "Automate selected stage" }),
     );
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/projects/project-1/plans/plan-1/stages/stage-2/task-monitor/setup",
+      "/projects/project-1/plans/plan-1/stages/stage-2/task-monitor/new",
     );
   });
   it("opens existing automation under the Plan URL", () => {

@@ -61,7 +61,8 @@ import {
   within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -194,7 +195,7 @@ const renderViewer = async (
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  const theme = createTheme();
+  const theme = createHeyTheme("light");
   (theme.palette as Record<string, unknown>).attention = {
     main: "#1976d2",
     contrastText: "#ffffff",

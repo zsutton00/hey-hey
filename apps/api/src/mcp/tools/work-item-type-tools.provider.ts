@@ -81,14 +81,12 @@ export class WorkItemTypeToolsProvider {
   @Tool({
     name: 'resolve_work_item_type_statuses',
     description:
-      "Suggest Hey Hey's standard statuses and resolve meanings for a status list. Standard names (any case) keep their standard meaning; omit names to keep existing statuses. Pass existing statuses unchanged when editing; if clarification is returned, ask which names mean finished and submit finishedNames, including an empty array when none do. finishedNames may list only new names: known (standard or saved) statuses keep their meaning and are rejected there. New names not listed as finished become UNFINISHED; a new status cannot be marked not started or in progress through this tool.",
+      "Validate a status list and suggest Hey Hey's standard statuses. Each status is a name plus exactly one meaning: COMPLETED, CANCELLED, IN_PROGRESS, or CUSTOM with 1-50 characters of text in the user's own words. Standard names (any case) may omit the meaning and take the standard one; every other name must state its meaning, otherwise the call is rejected naming those statuses, so ask the user which meaning each has instead of guessing. Omit statuses to receive the standard list. Pass existing statuses unchanged when editing.",
     parameters: statusAuthoringRequestSchema,
     outputSchema: z
       .object({
         suggestions: z.array(z.string()),
-        state: z.enum(['RESOLVED', 'CLARIFICATION']),
-        statuses: z.array(workItemTypeStatusSchema).optional(),
-        question: z.string().optional(),
+        statuses: z.array(workItemTypeStatusSchema),
       })
       .strict(),
   })

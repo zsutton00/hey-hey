@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cliReadFrameV2Schema,
+  conversationControlV2Schema,
   CLI_READ_OPERATION_SCHEMAS,
   PROTECTED_CLI_READ_OPERATIONS,
   executableAuthorizationSchema,
@@ -609,5 +610,64 @@ describe('workspace catalog protocol', () => {
       CLI_READ_OPERATION_SCHEMAS['workspace.skills.list'].safeParse({ ...body, ...overrides })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('permission_decision control with service place choices', () => {
+  const approval = {
+    kind: 'permission_decision' as const,
+    agentSessionId: '00000000-0000-4000-8000-000000000010',
+    decision: 'approve' as const,
+    requestId: 'request-1',
+    sessionId: 'provider-session-1',
+    agentType: 'claude' as const,
+    idempotencyToken: 'token-1',
+  };
+  const choices = [
+    { serviceId: '00000000-0000-4000-8000-0000000000a1', kind: 'MAIN_FOLDER' as const },
+    {
+      serviceId: '00000000-0000-4000-8000-0000000000a2',
+      kind: 'WORKTREE' as const,
+      branch: 'feature/x',
+      newBranch: true,
+    },
+  ];
+
+  it('accepts the same approval with and without choices and keeps the choices intact', () => {
+    expect(conversationControlV2Schema.parse(approval)).toEqual(approval);
+    expect(
+      conversationControlV2Schema.parse({ ...approval, servicePlaceChoices: choices }),
+    ).toEqual({ ...approval, servicePlaceChoices: choices });
+  });
+
+  it.each([
+    ['a worktree without a branch', [{ ...choices[1], branch: undefined }]],
+    ['a main folder with newBranch', [{ ...choices[0], newBranch: false }]],
+    ['a Service chosen twice', [choices[0], choices[0]]],
+  ])('rejects %s', (_name, malformed) => {
+    expect(
+      conversationControlV2Schema.safeParse({ ...approval, servicePlaceChoices: malformed })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe('workspace.service_places.list body', () => {
+  const body = (serviceIds: string[]) => ({
+    requestId: '00000000-0000-4000-8000-000000000001',
+    authorizationRequestId: '00000000-0000-4000-8000-000000000002',
+    organizationId: '00000000-0000-4000-8000-000000000003',
+    projectId: '00000000-0000-4000-8000-000000000004',
+    machineId: '00000000-0000-4000-8000-000000000005',
+    operation: 'workspace.service_places.list' as const,
+    serviceIds,
+  });
+  const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+  it('accepts 1 to 20 unique Services and rejects a repeated one', () => {
+    const schema = CLI_READ_OPERATION_SCHEMAS['workspace.service_places.list'];
+
+    expect(schema.safeParse(body([id(1), id(2)])).success).toBe(true);
+    expect(schema.safeParse(body([id(1), id(1)])).success).toBe(false);
   });
 });

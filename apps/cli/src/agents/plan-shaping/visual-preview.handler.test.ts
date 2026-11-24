@@ -5,6 +5,7 @@ import {
   type PlanShapingVisualPreviewPromptPayload,
 } from '@hey-hey/contracts/agent-bridge';
 import { VISUAL_PREVIEW_ALLOWED_TOOLS } from './visual-preview.handler';
+import { resolveMcpToolNames } from '../mcp-server-config';
 import { planShapingVisualPreviewHandler } from './visual-preview.handler';
 import { buildVisualPreviewPrompt } from './visual-preview.prompt';
 import { submitVisualPreviewReadyTool } from './visual-preview.submission-tools';
@@ -27,6 +28,8 @@ const payload = (): PlanShapingVisualPreviewPromptPayload => ({
   acceptedProposalIds: [],
   feedback: 'Add the empty state.',
   userMessage: 'Please revise the empty state.',
+  reviewProposalId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  setComplete: false,
 });
 
 const approvedMockups = [
@@ -73,7 +76,7 @@ describe('plan-shaping visual-preview handler', () => {
       entries: approvedMockups,
     },
   ])(
-    'requires complete presentation and user set approval for $scenario',
+    'lets the agent own the visual set and still asks for explicit set confirmation for $scenario',
     ({ entries, refinementRound }) => {
       const reviewPayload = {
         designDocId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -91,42 +94,27 @@ describe('plan-shaping visual-preview handler', () => {
       expect(prompt).toContain(
         `Accepted proposal ids: ${JSON.stringify(reviewPayload.acceptedProposalIds)}`,
       );
+      expect(guidance).toContain("You own the plan's visual design");
+      expect(guidance).toContain('say which visuals you think the work needs and why');
+      expect(guidance).toContain('including for visuals they already approved');
+      expect(guidance).toContain('"change this one" changes only the visual under review');
+      expect(guidance).toContain('Never propose a visual the user declined again');
+      expect(guidance).toContain('Add several in one turn only when they belong together');
+      expect(guidance).toContain('delete its proposal with `delete_proposal`');
+      expect(guidance).toContain('You decide when the set is done');
+      expect(guidance).toContain('say why the set is complete');
       expect(guidance).toContain(
-        'On every review, including the initial review and every refinement',
+        'including an APPROVED proposal from another conversation in the same project',
       );
       expect(guidance).toContain(
-        'including APPROVED proposals from another conversation in the same project',
+        'Attach a reused visual to your reply only while it still needs a decision',
       );
-      expect(guidance).toContain(
-        'retain it in the entries submitted through `submit_visual_preview_ready` (READY)',
-      );
-      expect(guidance).toContain(
-        'call `include_existing_proposals_in_current_message` with it in `proposalIds` before submission',
-      );
-      expect(guidance).toContain(
-        'both the ordered preview submission and current Message must include their Proposal IDs',
-      );
+      expect(guidance).toContain('Never attach an APPROVED reused visual');
       expect(guidance).toContain(
         'Reuse creates no duplicate proposal and preserves proposal identity, original Conversation and Message ownership, any Proposal Group home, and approval status',
       );
-      expect(guidance).toContain(
-        'An individually APPROVED proposal needs no renewed individual decision',
-      );
-      expect(guidance).toContain(
-        'Explicit user approval of the complete visual set is still required before plan stages or tasks, even when every selected visual is already APPROVED',
-      );
-      expect(guidance).toContain(
-        'two unchanged APPROVED Mockups from an earlier same-project conversation plus one new Diagram are reviewed as two Mockups shown as content and one Diagram proposal',
-      );
-      expect(guidance).toContain('Do not submit only the new Diagram');
-      expect(guidance).toContain('Only new or revised visuals are submitted as new proposals');
-      expect(guidance).toContain(
-        'The review shows an unchanged APPROVED visual as its Mockup or Diagram content instead of a proposal card',
-      );
-      expect(guidance).toContain('new, revised, and pending visuals stay reviewable proposals');
-      expect(guidance).toContain(
-        'include both existing Proposal IDs in the current Message and submit both in the complete ordered preview',
-      );
+      expect(guidance).toContain('so the user can decide it on its card at its place in the order');
+      expect(guidance).toContain('READY never supplies that confirmation');
     },
   );
 
@@ -140,6 +128,19 @@ describe('plan-shaping visual-preview handler', () => {
     ]);
     expect(planShapingVisualPreviewHandler.additionalAllowedTools).toEqual(
       VISUAL_PREVIEW_ALLOWED_TOOLS,
+    );
+  });
+
+  it('lets the visual agent delete the proposals of visuals it drops', () => {
+    const tools = resolveMcpToolNames({
+      ...(planShapingVisualPreviewHandler.mcpToolUseCase
+        ? { useCase: planShapingVisualPreviewHandler.mcpToolUseCase }
+        : {}),
+      additionalTools: planShapingVisualPreviewHandler.additionalAllowedTools ?? [],
+    });
+
+    expect(tools).toEqual(
+      expect.arrayContaining(['create_work_item', 'update_proposal', 'delete_proposal']),
     );
   });
 
@@ -167,6 +168,7 @@ describe('plan-shaping visual-preview handler', () => {
     expect(prompt).toContain('dddddddd-dddd-dddd-dddd-dddddddddddd');
     expect(prompt).toContain('Add the empty state.');
     expect(prompt).toContain('Refinement round: 1');
+    expect(prompt).toContain('First visual under review: dddddddd-dddd-dddd-dddd-dddddddddddd');
     expect(prompt).toContain('mcp__heyhey-submission-tools__<name>');
   });
 
@@ -181,6 +183,7 @@ describe('plan-shaping visual-preview handler', () => {
       runId: 'run-1',
       args: {
         refinementRound: 2,
+        setComplete: true,
         entries: [
           {
             proposalId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
@@ -204,6 +207,7 @@ describe('plan-shaping visual-preview handler', () => {
       action: 'READY',
       payload: {
         refinementRound: 2,
+        setComplete: true,
         entries: [
           {
             proposalId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',

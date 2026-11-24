@@ -24,6 +24,11 @@ import type {
   CliReadProviderUsageResult,
   CliReadRuntimeModelCatalogResult,
 } from '@hey-hey/contracts/agent-bridge';
+import { ServicePlacesReader } from './service-places-reader';
+import type {
+  CliReadServicePlacesEntry,
+  CliReadWorkspaceServicePlacesListEnvelopeBody,
+} from '@hey-hey/contracts/agent-bridge';
 import { readRuntimeModelCatalogResult } from './model-catalog/runtime-model-catalog-result';
 import type { CatalogAvailability } from './runtime-capability-catalog';
 import type { ServerLogger } from './logger';
@@ -60,6 +65,7 @@ import { ProjectModeBundleMaterializer } from '../agents/project-mode';
 import type { RunTabs } from '../browser/run-tabs';
 import type { StagedBrowserTabReference } from '@hey-hey/contracts/agent-bridge';
 import { RunAttachmentStore } from './run-attachment-store';
+import { AntigravityUsagePoller } from '../provider-usage/antigravity-usage';
 import { ProviderUsageStore } from '../provider-usage/provider-usage-store';
 import { providers } from '../provider-usage/provider-usage';
 import { readClaudeUsage } from '../provider-usage/claude-usage';
@@ -107,12 +113,14 @@ export class LocalAgentService {
   }
 
   private readonly workspaceSkills: WorkspaceSkillsReadHandler;
+  private readonly servicePlaces: ServicePlacesReader;
   private readonly runService: RunService;
   private readonly messageService: MessageService;
   private readonly runCreationCoordinator: RunCreationCoordinator;
   private readonly monitorRunIdentityService: MonitorRunIdentityService;
   private readonly projectSessionCostsService: ProjectSessionCostsService;
   private readonly providerUsageStore: ProviderUsageStore;
+  private readonly antigravityUsage: AntigravityUsagePoller;
   private readonly sessionCostAdapter: SessionCostAdapter;
   private readonly sessionRunnerFacade: SessionRunnerFacade | undefined;
   private readonly logger: ServerLogger;
@@ -122,6 +130,7 @@ export class LocalAgentService {
     const logger = dependencies.logger;
     this.capabilityCatalog = dependencies.capabilityCatalog;
     this.workspaceSkills = new WorkspaceSkillsReadHandler(dependencies.repoStore, logger);
+    this.servicePlaces = new ServicePlacesReader(dependencies.repoStore, logger);
     this.logger = logger;
     this.sessionRunnerFacade = dependencies.sessionRunnerFacade;
     this.runService = new RunService({
@@ -146,6 +155,10 @@ export class LocalAgentService {
     });
     this.providerUsageStore = new ProviderUsageStore(
       dependencies.runStore.getDataDirectory(),
+      logger.child({ component: 'provider-usage' }),
+    );
+    this.antigravityUsage = new AntigravityUsagePoller(
+      this.providerUsageStore,
       logger.child({ component: 'provider-usage' }),
     );
     this.sessionCostAdapter = new SessionCostAdapter(dependencies.readCcusageSessionJson);
@@ -286,6 +299,8 @@ export class LocalAgentService {
     });
     const facade = this.sessionRunnerFacade;
     const claudeLogger = this.logger.child({ component: 'provider-usage' });
+    // A signed-out agy can wait a minute for login, so the read never waits on it; the next read sees the result.
+    void this.antigravityUsage.refresh();
     const [claude, stored] = await Promise.all([
       readClaudeUsage(
         (signal) =>
@@ -406,6 +421,12 @@ export class LocalAgentService {
         durationMs: Date.now() - startedAt,
       });
     }
+  }
+
+  public readServicePlaces(
+    body: CliReadWorkspaceServicePlacesListEnvelopeBody,
+  ): Promise<CliReadServicePlacesEntry[]> {
+    return this.servicePlaces.read(body);
   }
 
   public listWorkspaceSkills(

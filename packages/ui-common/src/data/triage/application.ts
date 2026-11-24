@@ -1,4 +1,5 @@
 import type {
+  OpenItem,
   OpenItemsTriageItem,
   OpenItemsTriageSuggestion,
   OpenItemsTriageNewGoalDraft,
@@ -10,6 +11,8 @@ import {
   decideGroup,
   decideRemove,
   decideReopen,
+  resolveSelection,
+  selectAvailable,
   type ItemSuggestion,
   type TriageItemDecision,
 } from "./decisions";
@@ -85,6 +88,7 @@ interface Progress {
  * manual operations remain the authority; completed item work survives retries. */
 export class TriageApplicationCoordinator {
   private progress = new Map<string, Progress>();
+  private selections = new Map<string, ReadonlySet<string>>();
   private listeners = new Set<() => void>();
   private version = 0;
   constructor(private ports: TriageApplicationPorts) {}
@@ -217,6 +221,83 @@ export class TriageApplicationCoordinator {
     suggestions: OpenItemsTriageSuggestion[],
   ) => {
     for (const suggestion of suggestions) await this.apply(scope, suggestion);
+  };
+
+  /**
+   * The suggestions checked for this reply. Every available suggestion starts
+   * checked, in agent order, the first time a reply's suggestions are seen.
+   * Seeding emits nothing, so it is safe to call while rendering.
+   */
+  selected(
+    scope: string,
+    suggestions: readonly OpenItemsTriageSuggestion[],
+    items: readonly OpenItem[],
+  ): ReadonlySet<string> {
+    let selection = this.selections.get(scope);
+    if (!selection) {
+      selection = selectAvailable(suggestions, new Set(), items);
+      this.selections.set(scope, selection);
+    }
+    return selection;
+  }
+  toggle(scope: string, suggestionId: string) {
+    const next = new Set(this.selections.get(scope));
+    if (next.has(suggestionId)) {
+      next.delete(suggestionId);
+    } else {
+      next.add(suggestionId);
+    }
+    this.selections.set(scope, next);
+    this.emit();
+  }
+  selectAll(
+    scope: string,
+    suggestions: readonly OpenItemsTriageSuggestion[],
+    items: readonly OpenItem[],
+  ) {
+    const current = this.selected(scope, suggestions, items);
+    this.selections.set(scope, selectAvailable(suggestions, current, items));
+    this.emit();
+  }
+  clear(scope: string) {
+    this.selections.set(scope, new Set());
+    this.emit();
+  }
+
+  /**
+   * Applies every checked suggestion not yet applied, each on its own through
+   * `apply`. Promotions run first so the Goal-name confirmation comes before
+   * anything changes; cancelling one stops the rest.
+   */
+  applySelected = async (
+    scope: string,
+    suggestions: readonly OpenItemsTriageSuggestion[],
+    items: readonly OpenItem[],
+  ) => {
+    const { selected } = resolveSelection(
+      suggestions,
+      this.selected(scope, suggestions, items),
+      items,
+    );
+    const pending = suggestions.filter(
+      (suggestion) =>
+        selected.includes(suggestion.suggestionId) &&
+        this.outcome(scope, suggestion).state !== "success",
+    );
+    const promotions = pending.filter(
+      (suggestion) => suggestion.kind === "promoteGroupToGoal",
+    );
+    for (const promotion of promotions) {
+      await this.apply(scope, promotion);
+      if (this.outcome(scope, promotion).state === "cancelled") {
+        return;
+      }
+    }
+    for (const suggestion of pending) {
+      if (suggestion.kind !== "promoteGroupToGoal") {
+        await this.apply(scope, suggestion);
+      }
+    }
   };
   private async applyItems(
     progress: Progress,

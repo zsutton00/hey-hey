@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import type { AgentRequestPermissionPayload } from "../../../../api";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentPermissionRequestField } from "../AgentPermissionRequestField";
@@ -20,7 +21,7 @@ const basePayload = {
     permissionType: "filesystem_write",
     sessionId: "run-1",
     agentId: "agent-1",
-    agentType: "codex" as const,
+    agentType: "antigravity" as const,
     timestamp: "2026-03-06T00:00:00.000Z",
     idempotencyToken: "idem-1",
     reason: "Need elevated write access",
@@ -42,7 +43,11 @@ const basePayload = {
   },
 };
 
-const renderField = (overrides?: { agentSessionId?: string | undefined }) => {
+const renderField = (overrides?: {
+  agentSessionId?: string | undefined;
+  availableDecisions?: AgentRequestPermissionPayload["permissionRequest"]["availableDecisions"];
+  command?: { text: string; summary: string };
+}) => {
   const context = {
     conversationId: "conversation-1",
     organizationId: "org-1",
@@ -58,7 +63,30 @@ const renderField = (overrides?: { agentSessionId?: string | undefined }) => {
         field: "permission-field",
         description: "Permission request",
         type: "agent_request_permission",
-        payload: basePayload,
+        payload: {
+          ...basePayload,
+          permissionRequest: {
+            ...basePayload.permissionRequest,
+            ...(overrides?.availableDecisions
+              ? { availableDecisions: overrides.availableDecisions }
+              : {}),
+            ...(overrides?.command
+              ? {
+                  permissionType: "command_execution",
+                  reason: overrides.command.summary,
+                  agentIntent: null,
+                  referencedFiles: [],
+                  referencedDiffs: [],
+                }
+              : {}),
+          },
+          ...(overrides?.command
+            ? {
+                rawEvent: null,
+                enrichmentMetadata: { command: overrides.command.text },
+              }
+            : {}),
+        },
       }}
       context={context}
       isSubmitted={false}
@@ -67,6 +95,17 @@ const renderField = (overrides?: { agentSessionId?: string | undefined }) => {
 };
 
 describe("AgentPermissionRequestField", () => {
+  it("shows the command and its purpose before approving execution", () => {
+    const command = {
+      text: "printf 'attempt 1' > permission-probe.txt && cat permission-probe.txt",
+      summary: "Write text to permission probe file",
+    };
+    renderField({ command });
+
+    expect(screen.getByText(command.text)).toBeVisible();
+    expect(screen.getByText(`Reason: ${command.summary}`)).toBeVisible();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
     submitDecisionMock.mockResolvedValue(undefined as never);
@@ -103,6 +142,12 @@ describe("AgentPermissionRequestField", () => {
     submitDecisionMock.mockResolvedValue(undefined as never);
     renderField();
 
+    expect(
+      screen.queryByRole("button", { name: "Always Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Whitelist" }),
+    ).not.toBeInTheDocument();
     await userEvent.click(
       screen.getByTestId("permission-request-approve-request-1"),
     );
@@ -115,7 +160,7 @@ describe("AgentPermissionRequestField", () => {
       decision: "approve",
       requestId: "request-1",
       sessionId: "run-1",
-      agentType: "codex",
+      agentType: "antigravity",
       reason: null,
       idempotencyToken: "idem-1",
     });
@@ -124,8 +169,39 @@ describe("AgentPermissionRequestField", () => {
       await screen.findByTestId(
         "permission-request-submitted-decision-request-1",
       ),
-    ).toHaveTextContent("Decision: approve");
+    ).toHaveTextContent("Decision: approve (Sent)");
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
   });
+
+  it.each([
+    {
+      availableDecisions: ["approve", "deny"],
+      button: "Approve",
+      decision: "approve",
+    },
+    {
+      availableDecisions: ["approve", "always_approve", "deny"],
+      button: "Always Approve",
+      decision: "always_approve",
+    },
+  ] as const)(
+    "sends $decision when offered by Antigravity",
+    async ({ availableDecisions, button, decision }) => {
+      submitDecisionMock.mockResolvedValue(undefined);
+      renderField({ availableDecisions: [...availableDecisions] });
+
+      expect(
+        screen.queryByRole("button", { name: "Whitelist" }),
+      ).not.toBeInTheDocument();
+      expect(
+        Boolean(screen.queryByRole("button", { name: "Always Approve" })),
+      ).toBe(decision === "always_approve");
+      await userEvent.click(screen.getByRole("button", { name: button }));
+      expect(submitDecisionMock).toHaveBeenCalledWith(
+        expect.objectContaining({ decision }),
+      );
+    },
+  );
 
   it("submits the deny decision via the agent-session permission-decision endpoint", async () => {
     submitDecisionMock.mockResolvedValue(undefined as never);
@@ -143,7 +219,7 @@ describe("AgentPermissionRequestField", () => {
       decision: "deny",
       requestId: "request-1",
       sessionId: "run-1",
-      agentType: "codex",
+      agentType: "antigravity",
       reason: null,
       idempotencyToken: "idem-1",
     });
@@ -160,6 +236,8 @@ describe("AgentPermissionRequestField", () => {
     expect(
       await screen.findByTestId("permission-request-delivery-error-request-1"),
     ).toHaveTextContent("network down");
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    expect(submitDecisionMock).toHaveBeenCalledTimes(2);
   });
 
   it("fails without firing the endpoint when agentSessionId is missing on the context", async () => {

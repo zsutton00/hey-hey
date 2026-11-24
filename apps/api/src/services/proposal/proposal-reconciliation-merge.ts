@@ -230,7 +230,7 @@ export function proposalChangedPaths(updates: Prisma.JsonValue): string[] {
           paths.add(`sections.${section.key}`);
       continue;
     }
-    paths.add(key === 'requirementOps' ? 'requirements' : key);
+    paths.add(key === 'requirementOps' ? 'sections.requirements' : key);
   }
   return [...paths].sort();
 }

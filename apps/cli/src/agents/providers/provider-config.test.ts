@@ -1,24 +1,51 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildCredentialRefreshCommand,
   extractCredentialLookupFromErrorMessage,
   resolveAgentAccountId,
   nativePermissionModeFor,
   resolveAgentProviderId,
+  UnknownAgentProviderError,
   toProviderDisplayName,
 } from './provider-config';
 
 describe('provider-config', () => {
   it('maps providers to adapter ids', () => {
     expect(resolveAgentProviderId('claude')).toBe('claude');
-    expect(resolveAgentProviderId('claude_code')).toBe('claude');
     expect(resolveAgentProviderId('codex')).toBe('codex');
-    expect(resolveAgentProviderId('Codex CLI')).toBe('codex');
+    expect(resolveAgentProviderId('opencode')).toBe('opencode');
+    expect(resolveAgentProviderId('antigravity')).toBe('antigravity');
+  });
+
+  it.each(['claude_code', 'Codex CLI', 'codex-preview', 'unknown'])(
+    'rejects the unknown provider id %s',
+    (provider) => {
+      expect(() => resolveAgentProviderId(provider)).toThrow(UnknownAgentProviderError);
+    },
+  );
+
+  it('identifies Antigravity credentials and rejects unknown provider names', () => {
+    expect(
+      extractCredentialLookupFromErrorMessage('No Antigravity credential found for account google'),
+    ).toEqual({ providerId: 'antigravity', accountId: 'google' });
+    expect(() =>
+      extractCredentialLookupFromErrorMessage('No Codex CLI credential found for account default'),
+    ).toThrow(UnknownAgentProviderError);
+  });
+
+  it('uses the Antigravity account override', () => {
+    vi.stubEnv('HEYHEY_ANTIGRAVITY_ACCOUNT_ID', 'google-account');
+    try {
+      expect(resolveAgentAccountId('antigravity')).toBe('google-account');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('formats provider labels', () => {
     expect(toProviderDisplayName('claude')).toBe('Claude');
     expect(toProviderDisplayName('codex')).toBe('Codex');
+    expect(toProviderDisplayName('antigravity')).toBe('Antigravity');
   });
 
   it('builds credential refresh command', () => {
@@ -86,5 +113,6 @@ describe('nativePermissionModeFor', () => {
     expect(nativePermissionModeFor('claude')).toBe('auto');
     expect(nativePermissionModeFor('codex')).toBe('auto');
     expect(nativePermissionModeFor('opencode')).toBeNull();
+    expect(nativePermissionModeFor('antigravity')).toBeNull();
   });
 });

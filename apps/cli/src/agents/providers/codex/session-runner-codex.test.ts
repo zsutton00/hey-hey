@@ -3821,7 +3821,7 @@ describe('session-runner-codex', () => {
     expect(sdkSubmitClientResponseMock).toHaveBeenCalledWith(8, {
       action: 'accept',
       content: null,
-      _meta: { persist: 'always' },
+      _meta: null,
     });
   });
 
@@ -3897,7 +3897,7 @@ describe('session-runner-codex', () => {
     expect(sdkSubmitClientResponseMock).toHaveBeenCalledWith(15, {
       action: 'accept',
       content: null,
-      _meta: { persist: 'always' },
+      _meta: null,
     });
   });
 
@@ -4091,7 +4091,7 @@ describe('session-runner-codex', () => {
     expect(sdkSubmitClientResponseMock).toHaveBeenCalledWith(13, {
       action: 'accept',
       content: null,
-      _meta: { persist: 'always' },
+      _meta: null,
     });
   });
 

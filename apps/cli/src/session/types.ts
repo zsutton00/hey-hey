@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import type {
   LocalReasoningEffort,
   LocalRunScope,
@@ -13,7 +14,11 @@ import type {
   TaskResponseDto,
 } from '../shared/agent-bridge-contract/contract';
 import type { EvalSearchScope } from '../shared/agent-bridge-contract/runtime-types';
-import type { AgentSessionServiceScopeRequest } from '@hey-hey/contracts/api/models';
+import type {
+  AgentSessionServiceScopeRequest,
+  ReportedAgentSessionServicePlace,
+  ServicePlaceChoice,
+} from '@hey-hey/contracts/api/models';
 import type {
   ReviewFileScopeContinuation,
   ReviewFileScopeReconciliation,
@@ -21,7 +26,7 @@ import type {
 } from '../agents/review-file-scope-request/review-file-scope-types';
 import type { CanonicalFileChangeFact } from '../run/file-change-facts';
 
-export type TaskSessionProviderPreference = 'claude' | 'codex' | 'opencode';
+export type TaskSessionProviderPreference = AgentProviderId;
 
 export type AgenticSessionStatus = 'idle' | 'running' | 'complete';
 type AgenticEventActor = 'app' | 'agent' | 'system';
@@ -183,7 +188,17 @@ interface AgenticSessionBase {
   promptType?: string;
   config?: AgentSessionConfig | null;
   worktree?: { enabled: true; branch?: string };
+  /** Where each Service was chosen to work at launch. Absent means every Service follows `worktree`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   worktreeState?: LocalWorktreeStateByService;
+  /** Service ids whose place the server already holds a record for. */
+  reportedServicePlaceServiceIds?: string[];
+  /**
+   * Places observed when each Service was first resolved and not yet settled
+   * with the server. A retry or resume resends these instead of reading git
+   * again, so a later checkout never replaces the launch-time observation.
+   */
+  capturedServicePlaces?: ReportedAgentSessionServicePlace[];
   createdAt: string;
   updatedAt: string;
   model?: string;
@@ -289,6 +304,7 @@ interface CreateAgenticSessionInputBase {
   promptType?: string;
   config?: AgentSessionConfig | null;
   worktree?: LocalWorktreeConfig;
+  servicePlaceChoices?: ServicePlaceChoice[];
   model?: string;
   reasoningEffort?: LocalReasoningEffort;
   fastMode?: boolean;

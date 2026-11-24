@@ -1,6 +1,12 @@
 import { Alert, Box, Stack } from "@mui/material";
+import type { ReactNode } from "react";
 import { TaskMonitorResultEvidence } from "./TaskMonitorResultEvidence";
 import { EntityListItem, taskAdapter } from "../Entity";
+import { needsServiceBeforeStart } from "./taskMonitorStartReadiness";
+import {
+  TaskMonitorTaskSetup,
+  type TaskMonitorTaskSetupContext,
+} from "./TaskMonitorTaskSetup";
 import type { TaskMonitorProjectedNode } from "./useTaskMonitorProjection";
 
 export interface TaskMonitorStepsPaneProps {
@@ -10,6 +16,10 @@ export interface TaskMonitorStepsPaneProps {
   projectId: string;
   selectedTaskId: string | null;
   onSelectTask: (taskId: string) => void;
+  /** Each card's own session setup; null where cards show no setup. */
+  taskSetup: TaskMonitorTaskSetupContext | null;
+  /** Controls that act on the cards below, such as applying one setup to all. */
+  header: ReactNode;
 }
 
 export const TaskMonitorStepsPane = ({
@@ -19,6 +29,8 @@ export const TaskMonitorStepsPane = ({
   projectId,
   selectedTaskId,
   onSelectTask,
+  taskSetup,
+  header,
 }: TaskMonitorStepsPaneProps) => {
   if (nodes.length === 0) {
     return (
@@ -34,6 +46,7 @@ export const TaskMonitorStepsPane = ({
       data-testid="task-monitor-steps-pane"
       sx={{ flex: 1, minHeight: 0, overflowY: "auto", p: 2 }}
     >
+      {header}
       {nodes.map((node) => {
         if (node.task.kind === "missing") {
           return (
@@ -43,7 +56,8 @@ export const TaskMonitorStepsPane = ({
                 data-testid="task-monitor-step-missing"
                 data-task-id={node.taskId}
               >
-                The canonical selected task could not be loaded.
+                The canonical selected task could not be loaded. Start stays off
+                until it loads.
               </Alert>
               {results && organizationId ? (
                 <TaskMonitorResultEvidence
@@ -64,12 +78,26 @@ export const TaskMonitorStepsPane = ({
           onClick: () => onSelectTask(node.taskId),
         });
 
+        const needsService =
+          taskSetup !== null &&
+          taskSetup.editable &&
+          needsServiceBeforeStart(node);
+
         return (
           <Box
             key={node.taskId}
+            data-testid="task-monitor-task-card"
             data-task-id={node.taskId}
             data-active={isActive || undefined}
-            sx={{ position: "relative", flexShrink: 0 }}
+            sx={{
+              position: "relative",
+              flexShrink: 0,
+              mb: 1.5,
+              border: 1,
+              borderColor: needsService ? "warning.main" : "divider",
+              borderRadius: 1,
+              bgcolor: "background.paper",
+            }}
           >
             <Box
               component="span"
@@ -101,7 +129,7 @@ export const TaskMonitorStepsPane = ({
             <EntityListItem
               {...itemProps}
               href={undefined}
-              displayMode="minimal"
+              displayMode="list"
               statusLeadingAdornment={
                 isActive ? (
                   <Box
@@ -119,6 +147,16 @@ export const TaskMonitorStepsPane = ({
                 ) : undefined
               }
             />
+            {taskSetup ? (
+              <Box sx={{ px: 1.25, pb: 1.25 }}>
+                <TaskMonitorTaskSetup
+                  node={node}
+                  projectId={projectId}
+                  setup={taskSetup}
+                  onOpenSession={() => onSelectTask(node.taskId)}
+                />
+              </Box>
+            ) : null}
             {results && organizationId ? (
               <TaskMonitorResultEvidence
                 organizationId={organizationId}

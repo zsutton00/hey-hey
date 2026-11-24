@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -17,7 +17,10 @@ import { PermissionRequestAgentType } from './permission-request-agent-type.js';
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PermissionRequestAgentType } from './permission-request-agent-type.js';
+import type { AgentProviderId } from './agent-provider-id.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 
 /**
  * Reviewable request for expanding a repository-bound coding session\'s Service scope
@@ -51,10 +54,10 @@ export interface AgentSessionServiceScopeRequest {
     'agentId': string;
     /**
      *
-     * @type {PermissionRequestAgentType}
+     * @type {AgentProviderId}
      * @memberof AgentSessionServiceScopeRequest
      */
-    'agentType': PermissionRequestAgentType;
+    'agentType': AgentProviderId;
     /**
      * Request creation timestamp
      * @type {string}
@@ -80,6 +83,12 @@ export interface AgentSessionServiceScopeRequest {
      */
     'requestedServiceIds': Array<string>;
     /**
+     * Proposed place for each newly requested Service. Absent on requests from older CLIs.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof AgentSessionServiceScopeRequest
+     */
+    'proposedPlaces'?: Array<ServicePlaceChoice>;
+    /**
      * Agent explanation for the additional Service scope
      * @type {string}
      * @memberof AgentSessionServiceScopeRequest
@@ -88,6 +97,6 @@ export interface AgentSessionServiceScopeRequest {
 }
 
 export namespace AgentSessionServiceScopeRequest {
-    export const AgentTypeEnum = PermissionRequestAgentType;
-    export type AgentTypeEnum = PermissionRequestAgentType;
+    export const AgentTypeEnum = AgentProviderId;
+    export type AgentTypeEnum = AgentProviderId;
 }

@@ -7,7 +7,7 @@ import type {
   TaskMonitorLaunchConfig,
   TaskMonitorPlanGuidance,
 } from '@hey-hey/contracts/agent-bridge';
-import type { ReportType } from '@hey-hey/contracts/api/models';
+import type { ReportType, TaskMonitorRuntimeSelection } from '@hey-hey/contracts/api/models';
 import type { RunWorktreeCollision } from '../../run-scope';
 import type { TaskMonitorCoordinationCause } from '../task-monitor-coordination';
 
@@ -41,6 +41,15 @@ export interface TaskMonitorExecutionNode {
 
 export interface TaskMonitorTerminalPolicy {
   readonly mode: 'AGENT_DECIDES' | 'REQUIRE_REVIEW';
+  readonly reviewRuntime?: TaskMonitorReviewRuntime | undefined;
+}
+
+/** A saved Review runtime as the machine persists it. */
+export interface TaskMonitorReviewRuntime {
+  readonly provider: TaskMonitorRuntimeSelection['provider'];
+  readonly model: string;
+  readonly reasoningEffort?: TaskMonitorRuntimeSelection['reasoningEffort'] | undefined;
+  readonly fastMode?: boolean | undefined;
 }
 
 export interface TaskMonitorReviewRequest {

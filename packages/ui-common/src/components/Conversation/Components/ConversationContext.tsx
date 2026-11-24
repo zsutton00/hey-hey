@@ -65,10 +65,7 @@ import {
 } from "../utils";
 import { determineMessageState } from "../utils/messageStateUtils";
 import { placeCodingPlanReviewMessage } from "../utils/codingPlanConversation";
-import {
-  applyVisualPreviewPresentationState,
-  resolveCurrentVisualPreviewProposalIds,
-} from "../utils/visualPreviewPresentation";
+import { applyVisualPreviewPresentationState } from "../utils/visualPreviewPresentation";
 import type { SuggestionDecisionState } from "../hooks/useSuggestionDecisions";
 import type {
   ProposalsAcceptedHandler,
@@ -100,8 +97,6 @@ import {
 interface ConversationContextValue {
   // Core Data
   conversationTimeline: ConversationMessage[];
-  /** Proposal IDs of the current visual-preview round, if one is presented. */
-  currentVisualPreviewProposalIds?: string[];
   resolvedForms: Map<string, ResolvedConversationForm>;
   activeConversation: ConversationResponseDto;
   messages: MessageResponseDto[];
@@ -611,10 +606,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
       ),
     [baseConversationTimeline, realtimePatchesByMessageId],
   );
-  const currentVisualPreviewProposalIds = useMemo(
-    () => resolveCurrentVisualPreviewProposalIds(conversationTimeline),
-    [conversationTimeline],
-  );
 
   const terminalMessageIds = useMemo(() => {
     return baseConversationTimeline
@@ -898,7 +889,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
       isLoadingOlderMessages: messageQuery.isLoadingOlder,
       olderMessagesError: messageQuery.olderError,
       conversationTimeline,
-      currentVisualPreviewProposalIds,
       resolvedForms: responseModel.forms,
       activeConversation,
       project,
@@ -957,7 +947,6 @@ export const ConversationProvider: React.FC<ConversationProviderProps> = ({
     messageQuery.olderError,
     messageQuery.loadOlder,
     conversationTimeline,
-    currentVisualPreviewProposalIds,
     activeConversation,
     project,
     agentSessionCurrentState,

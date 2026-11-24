@@ -3645,6 +3645,12 @@ model ServiceAgentSession {
   relationType   String?  @map("relation_type")
   createdAt      DateTime @default(now()) @map("created_at")
 
+  // Where the Service works; all null until the CLI reports it.
+  placeKind         String?   @map("place_kind")
+  placeBranch       String?   @map("place_branch")
+  placeWorktreePath String?   @map("place_worktree_path")
+  placeRecordedAt   DateTime? @map("place_recorded_at")
+
   service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   agentSession AgentSession @relation(fields: [agentSessionId], references: [id], onDelete: Cascade)
 

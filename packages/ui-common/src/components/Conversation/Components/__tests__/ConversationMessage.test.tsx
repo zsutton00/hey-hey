@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles";
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createHeyTheme } from "../../../../contexts/ThemeContext";
 import { MemoryRouter } from "react-router-dom";
@@ -162,8 +162,9 @@ vi.mock("../../../Reports/reportConfig", async (importOriginal) => {
 const HeyTheme: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <ThemeProvider theme={createHeyTheme("light")}>{children}</ThemeProvider>
 );
-const renderThemed = (ui: React.ReactElement) =>
-  render(ui, { wrapper: HeyTheme });
+// Messages read the app theme's conversation colors, as in production.
+const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: HeyTheme });
+const renderThemed = render;
 describe("ConversationMessage", () => {
   const mockProject: ProjectResponseDto = {
     id: "project-1",
@@ -1635,7 +1636,7 @@ describe("ConversationMessage", () => {
       } as never,
     });
 
-    render(
+    rtlRender(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}
@@ -1895,7 +1896,7 @@ describe("ConversationMessage", () => {
   it("applies correct margin bottom styling", () => {
     const conversationMessage = createMockConversationMessage();
 
-    render(
+    rtlRender(
       <ConversationMessage
         conversationMessage={conversationMessage}
         messageIndex={0}

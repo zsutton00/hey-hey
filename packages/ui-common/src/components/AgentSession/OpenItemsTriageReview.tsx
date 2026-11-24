@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Box, Button, Stack, Typography } from "@mui/material";
+import { Box, Button, Link, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type {
   OpenItem,
@@ -8,16 +8,24 @@ import type {
   OpenItemsTriagePayload,
 } from "../../api";
 import type { TriageApplicationCoordinator } from "../../data/triage/application";
-import { replayTriage, resolveSelection } from "../../data/triage/replay";
+import { resolveSelection } from "../../data/triage/decisions";
+import { replayTriage } from "../../data/triage/replay";
+import type { WorkItemIconRegistry } from "../Entity/OpenItemIcon";
 import {
-  OpenItemsTriageSuggestionCard,
+  OpenItemsTriageRailCard,
   compactTitle,
 } from "../LlmForms/Registry/OpenItemsTriageSuggestionCard";
-import { OpenItemsTriagePreview } from "./OpenItemsTriagePreview";
+import {
+  OpenItemsTriagePreview,
+  TRIAGE_REVIEW_CONTAINER,
+} from "./OpenItemsTriagePreview";
+import type { TriagePeekScope } from "./useTriageRowPeek";
 
 const noSubscription = () => () => {};
 const idleSnapshot = () => 0;
 const noItems: OpenItem[] = [];
+const noSelection: ReadonlySet<string> = new Set();
+const NARROW = `@container ${TRIAGE_REVIEW_CONTAINER} (max-width: 800px)`;
 
 export interface OpenItemsTriageReviewProps {
   payload: OpenItemsTriagePayload;
@@ -25,32 +33,38 @@ export interface OpenItemsTriageReviewProps {
   application: TriageApplicationCoordinator | undefined;
   /** The canonical collection the modal already reads. */
   collection: OpenItemsCollection | undefined;
+  /** The project's work-item types, so rows show the sidebar's icons. */
+  workItemIcons: WorkItemIconRegistry;
+  /** Where the preview rows' hover Peek reads entities from. */
+  peekScope: TriagePeekScope;
   itemHref: (item: OpenItemsTriageItem) => string;
   disabled: boolean;
 }
 
 /**
  * Completed results: suggestion cards beside a live before/after comparison.
- * Selection is transient and owned here; nothing is written until Apply.
+ * Every available suggestion starts checked; nothing is written until Apply.
+ * It fills the height it is given, with the rail and the comparison each
+ * scrolling on their own.
  */
 export function OpenItemsTriageReview({
   payload,
   scope,
   application,
   collection,
+  workItemIcons,
+  peekScope,
   itemHref,
   disabled,
 }: OpenItemsTriageReviewProps) {
   const { t } = useTranslation();
-  useSyncExternalStore(
+  const version = useSyncExternalStore(
     application?.subscribe ?? noSubscription,
     application?.snapshot ?? idleSnapshot,
     idleSnapshot,
   );
-  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    setAccepted(new Set());
-  }, [scope]);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   useEffect(() => {
     payload.suggestions.forEach((suggestion) =>
       application?.observe(scope, suggestion),
@@ -62,9 +76,13 @@ export function OpenItemsTriageReview({
   const groups = present?.groups;
   const suggestions = payload.suggestions;
 
+  const checked =
+    application && present
+      ? application.selected(scope, suggestions, items)
+      : noSelection;
   const selection = useMemo(
-    () => resolveSelection(suggestions, accepted, items),
-    [suggestions, accepted, items],
+    () => resolveSelection(suggestions, checked, items),
+    [suggestions, checked, items],
   );
   const outcomeOf = (suggestionId: string) => {
     const suggestion = suggestions.find(
@@ -74,41 +92,48 @@ export function OpenItemsTriageReview({
       application?.outcome(scope, suggestion) ?? { state: "idle", items: [] }
     );
   };
-  // Finished suggestions are already in the collection; project only what remains.
-  const remaining = selection.accepted.filter(
-    (id) => outcomeOf(id).state !== "success",
-  );
-  const hidePending = new Set([
-    ...selection.blocked.keys(),
-    ...suggestions
-      .filter((s) => outcomeOf(s.suggestionId).state === "success")
-      .map((s) => s.suggestionId),
-  ]);
-  const preview = replayTriage({
-    items,
-    groups: groups ?? [],
-    suggestions,
-    accepted: remaining,
-    hidePending,
-    baselineFor: (suggestion, item) =>
-      application?.baselineFor(scope, suggestion, item),
-    isCompleted: (suggestion, item) =>
-      application?.isCompleted(scope, suggestion, item) ?? false,
-  });
 
-  const unavailable = disabled || !application;
+  // Finished suggestions are already in the collection; project only what
+  // remains. `version` changes whenever the coordinator records an outcome.
+  const applied = useMemo(
+    () =>
+      new Set(
+        suggestions
+          .filter((s) => application?.outcome(scope, s).state === "success")
+          .map((s) => s.suggestionId),
+      ),
+    [suggestions, application, scope, version],
+  );
+  const remaining = useMemo(
+    () => selection.selected.filter((id) => !applied.has(id)),
+    [selection, applied],
+  );
+
+  // Hovering only reads the replay; it never recomputes it.
+  const preview = useMemo(
+    () =>
+      replayTriage({
+        items,
+        groups: groups ?? [],
+        suggestions,
+        selected: remaining,
+        offered: new Set(
+          suggestions
+            .map((s) => s.suggestionId)
+            .filter((id) => !applied.has(id)),
+        ),
+        baselineFor: (suggestion, item) =>
+          application?.baselineFor(scope, suggestion, item),
+        isCompleted: (suggestion, item) =>
+          application?.isCompleted(scope, suggestion, item) ?? false,
+      }),
+    [items, groups, suggestions, remaining, applied, application, scope],
+  );
+
+  const unavailable = disabled || !application || !present;
   const anyPending = suggestions.some(
     (s) => application?.outcome(scope, s).state === "pending",
   );
-  const toggle = (suggestionId: string) => {
-    const next = new Set(accepted);
-    if (next.has(suggestionId)) {
-      next.delete(suggestionId);
-    } else {
-      next.add(suggestionId);
-    }
-    setAccepted(next);
-  };
   const reason = (suggestionId: string) => {
     const block = selection.blocked.get(suggestionId);
     if (!block) {
@@ -118,12 +143,11 @@ export function OpenItemsTriageReview({
     const holderName = holder ? compactTitle(holder) : block.blockedBy;
     return t(
       "triage.blocked",
-      `Unavailable: "${block.itemTitle}" is already in the accepted suggestion "${holderName}".`,
+      `Unavailable: ‘${block.itemTitle}’ is in selected suggestion ‘${holderName}’. Uncheck that one to choose this instead.`,
     );
   };
 
   const { totals } = preview;
-  const acceptedCount = selection.accepted.length;
   const summaryParts = [
     t(
       "triage.preview.summaryCount",
@@ -147,17 +171,55 @@ export function OpenItemsTriageReview({
       : []),
     t("triage.preview.summaryRemoved", `${totals.removed} removed`),
   ];
+  const selectionLocked = unavailable || anyPending;
+  const highlight = hovered
+    ? { suggestionId: hovered, selected: remaining.includes(hovered) }
+    : null;
+
   return (
     <Stack
       spacing={1.5}
       data-testid="open-items-triage-field"
-      sx={{ containerType: "inline-size" }}
+      sx={{
+        containerType: "inline-size",
+        containerName: TRIAGE_REVIEW_CONTAINER,
+        flex: 1,
+        minHeight: 0,
+      }}
     >
-      <Typography>{payload.summary}</Typography>
+      <Box sx={{ flexShrink: 0 }}>
+        <Typography
+          data-testid="triage-summary-text"
+          sx={
+            summaryOpen
+              ? undefined
+              : {
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }
+          }
+        >
+          {payload.summary}
+        </Typography>
+        <Link
+          component="button"
+          type="button"
+          data-testid="triage-summary-toggle"
+          onClick={() => setSummaryOpen((open) => !open)}
+          sx={{ fontSize: 12 }}
+        >
+          {summaryOpen
+            ? t("triage.summaryLess", "Show less")
+            : t("triage.summaryMore", "Show more")}
+        </Link>
+      </Box>
       <Box
         data-testid="triage-preview-summary"
         aria-live="polite"
         sx={{
+          flexShrink: 0,
           px: 1.25,
           py: 1,
           bgcolor: "action.hover",
@@ -168,7 +230,7 @@ export function OpenItemsTriageReview({
         <b>
           {t(
             "triage.preview.summaryLead",
-            "If you apply your accepted suggestions:",
+            `If you apply the ${remaining.length} selected ${remaining.length === 1 ? "suggestion" : "suggestions"}:`,
           )}
         </b>{" "}
         {summaryParts.join(" · ")}{" "}
@@ -180,74 +242,148 @@ export function OpenItemsTriageReview({
         </Box>
       </Box>
       <Box
+        data-testid="triage-review-layout"
         sx={{
+          flex: 1,
+          minHeight: 0,
           display: "grid",
           gap: 1.5,
           gridTemplateColumns: "220px minmax(0, 1fr)",
-          alignItems: "start",
-          "@container (max-width: 800px)": { gridTemplateColumns: "1fr" },
+          gridTemplateRows: "minmax(0, 1fr)",
+          [NARROW]: {
+            gridTemplateColumns: "1fr",
+            gridTemplateRows: "auto",
+            overflowY: "auto",
+          },
         }}
       >
         <Stack
-          spacing={0.75}
           data-testid="triage-suggestion-rail"
+          aria-label={t("triage.suggestions", "Suggestions")}
           sx={{
+            minHeight: 0,
             borderRight: 1,
             borderColor: "divider",
             pr: 1.25,
-            "@container (max-width: 800px)": { borderRight: 0, pr: 0 },
+            [NARROW]: { borderRight: 0, pr: 0 },
           }}
-          aria-label={t("triage.suggestions", "Suggestions")}
         >
-          <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-            {t("triage.suggestions", "Suggestions")}
-          </Typography>
-          {suggestions.map((suggestion) => (
-            <OpenItemsTriageSuggestionCard
-              key={suggestion.suggestionId}
-              compact
-              suggestion={suggestion}
-              outcome={outcomeOf(suggestion.suggestionId)}
-              selected={selection.accepted.includes(suggestion.suggestionId)}
-              disabled={unavailable}
-              unavailableReason={reason(suggestion.suggestionId)}
-              itemHref={itemHref}
-              onSelect={() => toggle(suggestion.suggestionId)}
-              onApply={() => {
-                void application?.apply(scope, suggestion);
-              }}
-            />
-          ))}
-          <Stack direction="row" sx={{ pt: 0.5 }}>
+          <Stack spacing={0.375} sx={{ flexShrink: 0, mb: 0.75 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+              {t("triage.suggestions", "Suggestions")}
+              <Box
+                component="small"
+                data-testid="triage-selected-count"
+                sx={{ fontWeight: 400, color: "text.secondary", ml: 0.5 }}
+              >
+                {t(
+                  "triage.selectedCount",
+                  `${selection.selected.length} of ${suggestions.length} selected`,
+                )}
+              </Box>
+            </Typography>
+            <Box sx={{ fontSize: 11 }}>
+              <Link
+                component="button"
+                type="button"
+                data-testid="triage-select-all"
+                disabled={selectionLocked}
+                onClick={() =>
+                  application?.selectAll(scope, suggestions, items)
+                }
+                sx={{ fontSize: 11 }}
+              >
+                {t("triage.selectAll", "Select all")}
+              </Link>
+              {" · "}
+              <Link
+                component="button"
+                type="button"
+                data-testid="triage-clear-selection"
+                disabled={selectionLocked}
+                onClick={() => application?.clear(scope)}
+                sx={{ fontSize: 11 }}
+              >
+                {t("triage.clearSelection", "Clear")}
+              </Link>
+            </Box>
+          </Stack>
+          <Stack
+            spacing={0.75}
+            data-testid="triage-suggestion-cards"
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              [NARROW]: { overflowY: "visible" },
+            }}
+          >
+            {suggestions.map((suggestion) => (
+              <OpenItemsTriageRailCard
+                key={suggestion.suggestionId}
+                suggestion={suggestion}
+                outcome={outcomeOf(suggestion.suggestionId)}
+                selected={selection.selected.includes(suggestion.suggestionId)}
+                disabled={selectionLocked}
+                unavailableReason={reason(suggestion.suggestionId)}
+                highlighted={hovered === suggestion.suggestionId}
+                itemHref={itemHref}
+                onSelect={() =>
+                  application?.toggle(scope, suggestion.suggestionId)
+                }
+                onHighlightChange={(on) =>
+                  setHovered((current) =>
+                    on
+                      ? suggestion.suggestionId
+                      : current === suggestion.suggestionId
+                        ? null
+                        : current,
+                  )
+                }
+              />
+            ))}
+          </Stack>
+          <Box
+            sx={{
+              flexShrink: 0,
+              borderTop: 1,
+              borderColor: "divider",
+              pt: 1,
+              mt: 0.5,
+            }}
+          >
             <Button
-              data-testid="triage-apply-all"
+              data-testid="triage-apply-selected"
               variant="contained"
               size="small"
-              disabled={unavailable || acceptedCount === 0 || anyPending}
+              fullWidth
+              disabled={unavailable || remaining.length === 0 || anyPending}
               onClick={() => {
-                void application?.applyAll(
-                  scope,
-                  suggestions.filter((s) =>
-                    selection.accepted.includes(s.suggestionId),
-                  ),
-                );
+                void application?.applySelected(scope, suggestions, items);
               }}
             >
-              {t("triage.applyAccepted", `Apply ${acceptedCount} accepted`)}
+              {t("triage.applySelected", `Apply ${remaining.length} selected`)}
             </Button>
-          </Stack>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            data-testid="triage-apply-note"
-          >
-            {t(
-              "triage.applyNote",
-              "Each suggestion applies on its own. Promotion still asks you to confirm the Goal name.",
-            )}
-          </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              data-testid="triage-apply-note"
+              sx={{ display: "block", mt: 0.5, fontSize: 10 }}
+            >
+              {t(
+                "triage.applyNote",
+                "Promotion asks you to confirm the Goal name first.",
+              )}
+            </Typography>
+          </Box>
         </Stack>
-        <OpenItemsTriagePreview preview={preview} loading={!present} />
+        <OpenItemsTriagePreview
+          preview={preview}
+          loading={!present}
+          highlight={highlight}
+          registry={workItemIcons}
+          peekScope={peekScope}
+        />
       </Box>
     </Stack>
   );

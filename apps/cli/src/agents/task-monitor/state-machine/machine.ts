@@ -29,6 +29,7 @@ import type {
   TaskMonitorRequestedLaunchConfig,
   TaskMonitorRetryableLaunch,
   TaskMonitorReviewRequest,
+  TaskMonitorReviewRuntime,
   TaskMonitorSettledRun,
   TaskMonitorTerminalPolicy,
   TaskMonitorWorktree,
@@ -145,14 +146,25 @@ type ExpandTypeUnion<Shape> = Shape extends { type: infer Type }
   : never;
 type Expect<Value extends true> = Value;
 
-const providerSchema = z.enum(['claude', 'codex', 'opencode']);
+const providerSchema = z.enum(['claude', 'codex', 'opencode', 'antigravity']);
 const effortSchema = z.enum(TaskMonitorReasoningEffort);
 const methodSchema = z.enum(['plan', 'open', 'quick']);
 const worktreeSchema = z
   .object({ enabled: z.boolean(), branch: z.string().optional() })
   .strict() satisfies z.ZodType<TaskMonitorWorktree>;
+const reviewRuntimeSchema = z
+  .object({
+    provider: providerSchema,
+    model: z.string(),
+    reasoningEffort: effortSchema.optional(),
+    fastMode: z.boolean().optional(),
+  })
+  .strict() satisfies z.ZodType<TaskMonitorReviewRuntime>;
 const terminalPolicySchema = z
-  .object({ mode: z.enum(['AGENT_DECIDES', 'REQUIRE_REVIEW']) })
+  .object({
+    mode: z.enum(['AGENT_DECIDES', 'REQUIRE_REVIEW']),
+    reviewRuntime: reviewRuntimeSchema.optional(),
+  })
   .strict() satisfies z.ZodType<TaskMonitorTerminalPolicy>;
 const normalizeUserGuidance = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
@@ -999,6 +1011,7 @@ const deliverReviewEffectSchema = z
     requestId: z.string(),
     coordinatorRunId: z.string(),
     rationale: z.string(),
+    reviewRuntime: reviewRuntimeSchema.optional(),
   })
   .strict();
 const taskMonitorEffectSchema = z.discriminatedUnion('type', [
@@ -1381,6 +1394,7 @@ const taskMonitorEffectOutcomeSchema = z.discriminatedUnion('type', [
       requestId: z.string(),
       coordinatorRunId: z.string(),
       rationale: z.string(),
+      reviewRuntime: reviewRuntimeSchema.optional(),
     })
     .strict(),
   z

@@ -12,6 +12,7 @@ import {
   AgentSessionConfigV2VersionEnum,
   ReportType,
   TaskMonitorReviewMode,
+  type TaskMonitorRuntimeSelection,
   type ReportPayload,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorOperationEvidence,
@@ -112,6 +113,8 @@ export interface TaskMonitorCanonicalEvidence {
     executionStatus: string;
     cursor: number;
     reviewMode: TaskMonitorReviewMode;
+    /** Saved runtime the Review sub-agent runs on; absent means the task session's runtime. */
+    reviewRuntime?: TaskMonitorRuntimeSelection;
     launch: {
       method: string;
       provider: string;
@@ -311,6 +314,9 @@ export const loadTaskMonitorCanonicalEvidence = async (
       executionStatus: monitor.status,
       cursor: executionDefinition.cursor,
       reviewMode: executionDefinition.launchPolicy.terminalSupervision.mode,
+      ...(executionDefinition.launchPolicy.terminalSupervision.reviewRuntime
+        ? { reviewRuntime: executionDefinition.launchPolicy.terminalSupervision.reviewRuntime }
+        : {}),
       launch: {
         method: currentNode.launchConfiguration.method,
         provider: currentNode.launchConfiguration.provider,

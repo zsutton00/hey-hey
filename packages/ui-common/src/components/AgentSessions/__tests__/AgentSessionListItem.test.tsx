@@ -8,12 +8,27 @@ import {
   type FeatureSyncReportPayload,
   FeatureSyncReportSourceType,
 } from "../../../api";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import {
+  render as renderWithoutTheme,
+  screen,
+  within,
+  fireEvent,
+} from "@testing-library/react";
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHeyTheme } from "../../../contexts/ThemeContext";
 import { logger } from "../../../utils/logger";
 import { AgentSessionListItem } from "../AgentSessionListItem";
+
+const appTheme = createHeyTheme("light");
+const render = (ui: React.ReactElement) =>
+  renderWithoutTheme(ui, {
+    wrapper: ({ children }) => (
+      <ThemeProvider theme={appTheme}>{children}</ThemeProvider>
+    ),
+  });
 
 const mocks = vi.hoisted(() => ({
   adapter: vi.fn(),
@@ -591,6 +606,39 @@ describe("AgentSessionListItem", () => {
         screen.getByTestId("user-message"),
       );
       expect(mocks.systemMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [undefined, "human"],
+    ["task_monitor", "monitor"],
+  ] as const)(
+    "presents a latest user message with provenance %s as %s-authored",
+    (provenance, authorship) => {
+      const item = makeItem({
+        agentInput: {
+          promptType: "direct",
+          userMessage: "Can we ship this?",
+          ...(provenance ? { provenance } : {}),
+        },
+      });
+      item.lastMessage = { ...item.lastMessage!, type: MessageType.User };
+      render(
+        <MemoryRouter>
+          <AgentSessionListItem
+            item={item}
+            projectId="project-1"
+            variant="conversations"
+          />
+        </MemoryRouter>,
+      );
+
+      const bubble = screen.getByTestId("session-user-message");
+      expect(bubble).toHaveAttribute("data-authorship", authorship);
+      const isBlue =
+        getComputedStyle(bubble).backgroundColor ===
+        appTheme.palette.conversationCard.roles.yourMessage.main;
+      expect(isBlue).toBe(authorship === "human");
     },
   );
 

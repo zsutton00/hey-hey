@@ -476,7 +476,7 @@ const repositoryGroundingBoundsSchema: z.ZodType<RepositoryGroundingDeterministi
 export const repositoryGroundingAnalysisConfigurationSchema = z
   .object({
     scope: repositoryGroundingScopeSchema,
-    provider: z.enum(['claude', 'codex', 'opencode']),
+    provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     resolvedFrontierModel: z.string().min(1),
     reasoningEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']),
     fastMode: z.boolean().optional(),

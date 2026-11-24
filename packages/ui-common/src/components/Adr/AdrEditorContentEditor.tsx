@@ -12,6 +12,7 @@ import { useAdrReveal } from "../../data/hooks/useAdrReveal";
 import type { AdrContent, AdrLevelType, AdrStatus } from "../../types/adr";
 import { isProcessingStatus } from "../../utils/adrUtils";
 import { MarkdownLexicalEditor } from "../LexicalEditor/MarkdownLexicalEditor";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 import { RevealSectionButton } from "../CollaborativeLexicalEditor/RevealSectionButton";
 import {
   buildConsequencesSectionConfig,
@@ -79,7 +80,7 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
       handleRevealDecision,
       isRevealingConsequences,
       isRevealingDecision,
-    ]
+    ],
   );
 
   useEffect(() => {
@@ -106,28 +107,28 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
           return t("Describe the decision that was made...");
         case "consequences":
           return t(
-            "Document the consequences and implications of this decision..."
+            "Document the consequences and implications of this decision...",
           );
         default:
           return t("Enter ADR content...");
       }
     },
-    [t]
+    [t],
   );
 
   const contextPlaceholder = useMemo(
     () => getPlaceholderForSection("context"),
-    [getPlaceholderForSection]
+    [getPlaceholderForSection],
   );
 
   const decisionPlaceholder = useMemo(
     () => getPlaceholderForSection("decision"),
-    [getPlaceholderForSection]
+    [getPlaceholderForSection],
   );
 
   const consequencesPlaceholder = useMemo(
     () => getPlaceholderForSection("consequences"),
-    [getPlaceholderForSection]
+    [getPlaceholderForSection],
   );
 
   const contextSectionConfig = useMemo(() => buildContextSectionConfig(), []);
@@ -139,7 +140,7 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
         revealHandlers,
         status,
       }),
-    [currentLevel, revealHandlers, status]
+    [currentLevel, revealHandlers, status],
   );
 
   const consequencesSectionConfig = useMemo(
@@ -149,7 +150,7 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
         revealHandlers,
         status,
       }),
-    [currentLevel, revealHandlers, status]
+    [currentLevel, revealHandlers, status],
   );
 
   const sectionsToRender = [
@@ -185,7 +186,7 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
       }
       onContentChange({ ...content, consequences: markdown });
     },
-    [content, onContentChange]
+    [content, onContentChange],
   );
 
   return (
@@ -211,6 +212,9 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
           elevation={0}
           sx={{
             border: `1px solid ${theme.palette.divider}`,
+            ...getInputBorderSx(theme, {
+              disabled: disabled || isEditorProcessing,
+            }),
             borderRadius: 1,
             backgroundColor: theme.palette.background.paper,
             overflow: "hidden",
@@ -227,7 +231,7 @@ export const AdrEditorContentEditor: React.FC<AdrEditorContentEditorProps> = ({
         >
           {sectionsToRender.map((section, index) => {
             const showSectionSkeleton = shouldShowSkeleton(
-              section.sectionConfig.content.showAsSkeleton
+              section.sectionConfig.content.showAsSkeleton,
             );
             const showDivider = index < sectionsToRender.length - 1;
 

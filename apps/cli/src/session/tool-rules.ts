@@ -14,8 +14,15 @@ export class ToolRuleStore {
 
   constructor(private readonly rulesPath: string = resolveToolRulesPath()) {}
 
-  private withWriteLock(operation: () => void): void {
-    this.writeLock = this.writeLock.then(operation, operation);
+  /** Serializes writes; the returned promise rejects with this write's own error. */
+  private withWriteLock(operation: () => void): Promise<void> {
+    const result = this.writeLock.then(operation);
+    this.writeLock = result.catch(() => undefined);
+    return result;
+  }
+
+  static isValidRuleName(name: string): boolean {
+    return isValidToolName(name);
   }
 
   load(): string[] {
@@ -31,8 +38,8 @@ export class ToolRuleStore {
     }
   }
 
-  save(toolName: string): void {
-    this.withWriteLock(() => {
+  save(toolName: string): Promise<void> {
+    return this.withWriteLock(() => {
       const rules = this.load();
       if (rules.includes(toolName)) return;
       rules.push(toolName);
@@ -40,8 +47,8 @@ export class ToolRuleStore {
     });
   }
 
-  remove(toolName: string): void {
-    this.withWriteLock(() => {
+  remove(toolName: string): Promise<void> {
+    return this.withWriteLock(() => {
       const rules = this.load();
       const filtered = rules.filter((rule) => rule !== toolName);
       fs.writeFileSync(this.rulesPath, `${JSON.stringify(filtered, null, 2)}\n`);

@@ -28,6 +28,7 @@ import { RichSlashCommandPlugin } from "../SmarterTextAreaCard/slashCommands/Ric
 import { NO_CACHED_CONVERSATION_MENTION_OPTIONS } from "../SmarterTextAreaCard/slashCommands/types";
 import { serializeEditorState } from "../SmarterTextAreaCard/serializationUtils";
 import { MentionEditorContext } from "../SmarterTextAreaCard/EditorContext";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 import { useMentionEntitySearch } from "../../data/hooks/useMentionEntitySearch";
 import { useProjectIds } from "../../hooks/useEditorContext";
 
@@ -66,7 +67,7 @@ const SubmitPlugin: React.FC<SubmitPluginProps> = ({ onSubmit, disabled }) => {
         }
         return false;
       },
-      COMMAND_PRIORITY_NORMAL
+      COMMAND_PRIORITY_NORMAL,
     );
   }, [editor]);
 
@@ -94,7 +95,7 @@ const InternalEditor: React.FC<InternalEditorProps> = ({
   const { searchEntities } = useMentionEntitySearch(
     organizationId,
     projectId,
-    null
+    null,
   );
 
   useEffect(() => {
@@ -210,6 +211,7 @@ export const ChatSessionPendingPlaceholder: React.FC<
                     borderWidth: 2,
                     margin: "-1px",
                   },
+                  ...getInputBorderSx(theme, { disabled: isBusy }),
                 }}
               >
                 <RichTextPlugin

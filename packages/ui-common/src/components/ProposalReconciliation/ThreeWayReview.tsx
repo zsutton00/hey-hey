@@ -1,6 +1,6 @@
 import { ReconciliationReference } from "./ReconciliationReference";
 import { Fragment } from "react";
-import { InfoOutlined } from "@mui/icons-material";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import { ConversationCard } from "../Conversation/Card";
 import { Alert, Box, Link, Stack, Typography } from "@mui/material";
 import { format, formatDistanceToNow } from "date-fns";
@@ -70,19 +70,22 @@ export function ThreeWayReview({
       : { kind: "work-item", definition };
   const states = [projection.original, projection.live, projection.intended];
   // Where current content already says what the proposal says, there is nothing to decide.
-  const fields = threeWayFields(projection).filter(
+  const differing = threeWayFields(projection).filter(
     (path) =>
-      state.overlaps.some(
-        (overlap) =>
-          overlap.path === path || overlap.path.startsWith(`${path}.`),
-      ) &&
-      (!projection.live ||
-        !projection.intended ||
-        !equivalentContent(
-          threeWayValue(projection.live, path),
-          threeWayValue(projection.intended, path),
-        )),
+      !projection.live ||
+      !projection.intended ||
+      !equivalentContent(
+        threeWayValue(projection.live, path),
+        threeWayValue(projection.intended, path),
+      ),
   );
+  const overlapping = differing.filter((path) =>
+    state.overlaps.some(
+      (overlap) => overlap.path === path || overlap.path.startsWith(`${path}.`),
+    ),
+  );
+  // Without a located overlap, show every differing field rather than claim a match.
+  const fields = overlapping.length ? overlapping : differing;
   const sectionOrder = new Map(
     definition?.sections.map((section, index) => [
       `sections.${section.key}`,
@@ -312,7 +315,7 @@ export function ThreeWayReview({
             </Alert>
           ) : fields.length === 0 ? (
             <Alert sx={{ gridColumn: "1 / -1" }} severity="info">
-              The current content already matches this proposal.
+              A field-by-field comparison is unavailable for this change.
             </Alert>
           ) : null}
         </Box>

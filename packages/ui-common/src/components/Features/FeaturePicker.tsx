@@ -65,10 +65,38 @@ const PickerInputSlot = React.forwardRef<HTMLDivElement, PickerInputSlotProps>(
         {value}
       </div>
     );
-  }
+  },
 );
 
 const getDisplayName = (feature: { name: string }): string => feature.name;
+
+type FeatureHrefBuilder = (featureId: string) => string;
+
+/** Props that turn a list row into a real link; plain clicks still select. */
+const getLinkProps = (
+  getFeatureHref: FeatureHrefBuilder | undefined,
+  featureId: string,
+  onActivate: () => void,
+) =>
+  getFeatureHref
+    ? {
+        component: "a" as const,
+        href: getFeatureHref(featureId),
+        onClick: (event: React.MouseEvent) => {
+          if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          ) {
+            return;
+          }
+          event.preventDefault();
+          onActivate();
+        },
+      }
+    : { onClick: onActivate };
 
 interface FeatureTreeNodeProps {
   node: FeatureHierarchyNode;
@@ -78,6 +106,7 @@ interface FeatureTreeNodeProps {
   organizationId: string;
   projectId: string;
   exclusionSet: Set<string>;
+  getFeatureHref?: FeatureHrefBuilder;
 }
 
 const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
@@ -88,6 +117,7 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
   organizationId,
   projectId,
   exclusionSet,
+  getFeatureHref,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const { entries: metadata } = useFeatureDocumentContent(
@@ -95,22 +125,22 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
     projectId,
     [node.feature.id],
     undefined,
-    "metadata"
+    "metadata",
   );
   const { entries: documents } = useFeatureDocumentContent(
     organizationId,
     projectId,
-    [node.feature.id]
+    [node.feature.id],
   );
   const feature = node.feature;
   const selected = metadata.get(feature.id)?.data;
   const document = documents.get(feature.id);
   const description = getWorkItemSectionContent(
     document?.data?.sections,
-    "description"
+    "description",
   );
   const children = node.children.filter(
-    (child) => !exclusionSet.has(child.feature.id)
+    (child) => !exclusionSet.has(child.feature.id),
   );
   return (
     <Box>
@@ -122,9 +152,9 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
         aria-selected={selectedId === feature.id}
         selected={selectedId === feature.id}
         sx={{ pl: 1 + level * 2.5 }}
-        onClick={() => {
+        {...getLinkProps(getFeatureHref, feature.id, () => {
           if (selected) onSelect(selected);
-        }}
+        })}
         dense
       >
         <Box component="span" sx={{ mr: 0.5, width: 20 }}>
@@ -135,6 +165,8 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
               data-feature-id={feature.id}
               aria-label={`Drill into ${feature.name}`}
               onClick={(event) => {
+                // The row can be a real link; expanding must not follow it.
+                event.preventDefault();
                 event.stopPropagation();
                 setExpanded((previous) => !previous);
               }}
@@ -169,8 +201,8 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
                 (document?.status === "error"
                   ? "Failed to load description"
                   : document?.status === "ready"
-                  ? undefined
-                  : "Loading description…")
+                    ? undefined
+                    : "Loading description…")
           }
         />
       </ListItemButton>
@@ -185,6 +217,7 @@ const FeatureTreeNode: React.FC<FeatureTreeNodeProps> = ({
             organizationId={organizationId}
             projectId={projectId}
             exclusionSet={exclusionSet}
+            getFeatureHref={getFeatureHref}
           />
         ))}
       </Collapse>
@@ -207,6 +240,13 @@ export interface FeaturePickerProps {
   searchable?: boolean;
   openOnMount?: boolean;
   onClose?: () => void;
+  /**
+   * Render the search field and tree directly in place instead of a dropdown
+   * under a trigger field. Always searchable.
+   */
+  inline?: boolean;
+  /** When set, feature rows are real links to this href. */
+  getFeatureHref?: FeatureHrefBuilder;
   value: string | null;
   onChange: (featureId: string | null, feature?: TaskResponseDto) => void;
 }
@@ -223,13 +263,16 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
   error = false,
   sx,
   excludeFeatureIds = EMPTY_FEATURE_IDS,
-  searchable = false,
+  searchable: searchableProp = false,
   openOnMount = false,
   onClose,
+  inline = false,
+  getFeatureHref,
   value,
   onChange,
 }) => {
   const triggerRef = useRef<HTMLDivElement | null>(null);
+  const searchable = searchableProp || inline;
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const listboxId = useId();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
@@ -242,14 +285,14 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const exclusionSet = useMemo(
     () => new Set(excludeFeatureIds.filter(Boolean)),
-    [excludeFeatureIds]
+    [excludeFeatureIds],
   );
   const visibleRoot = hierarchy.roots.filter(
-    (node) => !exclusionSet.has(node.feature.id)
+    (node) => !exclusionSet.has(node.feature.id),
   );
   const projectFeatures = useMemo(
     () => [...hierarchy.nodes.values()].map((node) => node.feature),
-    [hierarchy.nodes]
+    [hierarchy.nodes],
   );
 
   const handleOpen = useCallback(
@@ -257,7 +300,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
       if (disabled) return;
       setAnchorEl(e.currentTarget);
     },
-    [disabled]
+    [disabled],
   );
 
   const handleClose = useCallback(() => {
@@ -288,7 +331,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
       onChange(feature.id, feature);
       handleClose();
     },
-    [onChange, handleClose]
+    [onChange, handleClose],
   );
 
   const handleClear = useCallback(
@@ -296,7 +339,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
       e.stopPropagation();
       onChange(null);
     },
-    [onChange]
+    [onChange],
   );
 
   const handleSearchClear = useCallback((e: React.MouseEvent) => {
@@ -304,7 +347,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
     setSearchQuery("");
   }, []);
 
-  const open = Boolean(anchorEl);
+  const open = inline || Boolean(anchorEl);
   const hasValue = value !== null;
   const isDisabled = disabled;
   const shouldShrinkLabel =
@@ -319,12 +362,12 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
                 !exclusionSet.has(feature.id) &&
                 getDisplayName(feature)
                   .toLowerCase()
-                  .includes(normalizedSearchQuery)
+                  .includes(normalizedSearchQuery),
             )
             .sort((a, b) => getDisplayName(a).localeCompare(getDisplayName(b)))
             .slice(0, FEATURE_TITLE_RESULT_LIMIT)
         : [],
-    [exclusionSet, normalizedSearchQuery, projectFeatures]
+    [exclusionSet, normalizedSearchQuery, projectFeatures],
   );
 
   const visibleSearchIds = open
@@ -335,16 +378,16 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
     projectId,
     visibleSearchIds,
     undefined,
-    "metadata"
+    "metadata",
   );
   const { entries: searchDocuments } = useFeatureDocumentContent(
     organizationId,
     projectId,
-    visibleSearchIds
+    visibleSearchIds,
   );
   const triggerLabel = value
-    ? lookup.get(value)?.name ??
-      (hierarchy.isLoading ? "Loading feature…" : "Feature unavailable")
+    ? (lookup.get(value)?.name ??
+      (hierarchy.isLoading ? "Loading feature…" : "Feature unavailable"))
     : "";
 
   const popoverWidth = triggerRef.current?.offsetWidth ?? 360;
@@ -354,7 +397,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
   return (
     <ClickAwayListener
       onClickAway={() => {
-        if (open) handleClose();
+        if (open && !inline) handleClose();
       }}
     >
       <FormControl
@@ -367,7 +410,7 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
       >
         <InputLabel shrink={shouldShrinkLabel}>{label}</InputLabel>
         <OutlinedInput
-          autoFocus={searchable && openOnMount}
+          autoFocus={searchable && (openOnMount || inline)}
           inputRef={searchable ? searchInputRef : undefined}
           notched={shouldShrinkLabel}
           label={label}
@@ -468,17 +511,15 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
             {computedHelperText}
           </Typography>
         )}
-        <Popper
-          open={open}
-          anchorEl={anchorEl}
-          placement="bottom-start"
-          sx={{
-            zIndex: (theme) => theme.zIndex.modal + 1,
-          }}
-        >
+        {inline ? (
           <Paper
-            elevation={8}
-            sx={{ width: popoverWidth, maxHeight: 420, overflow: "auto" }}
+            elevation={inline ? 0 : 8}
+            variant={inline ? "outlined" : "elevation"}
+            sx={
+              inline
+                ? { mt: 1, overflow: "auto", flex: 1, minHeight: 0 }
+                : { width: popoverWidth, maxHeight: 420, overflow: "auto" }
+            }
           >
             <List id={listboxId} dense disablePadding role="listbox">
               {normalizedSearchQuery ? (
@@ -492,17 +533,17 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
                       data-feature-id={feature.id}
                       aria-selected={value === feature.id}
                       selected={value === feature.id}
-                      onClick={() => {
+                      {...getLinkProps(getFeatureHref, feature.id, () => {
                         const selected = searchMetadata.get(feature.id)?.data;
                         if (selected) handleSelect(selected);
-                      }}
+                      })}
                       dense
                     >
                       <ListItemText
                         primary={getDisplayName(feature)}
                         secondary={getWorkItemSectionContent(
                           searchDocuments.get(feature.id)?.data?.sections,
-                          "description"
+                          "description",
                         )}
                         primaryTypographyProps={{ variant: "body2" }}
                         secondaryTypographyProps={{
@@ -553,12 +594,113 @@ export const FeaturePicker: React.FC<FeaturePickerProps> = ({
                     organizationId={organizationId}
                     projectId={projectId}
                     exclusionSet={exclusionSet}
+                    getFeatureHref={getFeatureHref}
                   />
                 ))
               )}
             </List>
           </Paper>
-        </Popper>
+        ) : (
+          <Popper
+            open={open}
+            anchorEl={anchorEl}
+            placement="bottom-start"
+            sx={{
+              zIndex: (theme) => theme.zIndex.modal + 1,
+            }}
+          >
+            <Paper
+              elevation={inline ? 0 : 8}
+              variant={inline ? "outlined" : "elevation"}
+              sx={
+                inline
+                  ? { mt: 1, overflow: "auto", flex: 1, minHeight: 0 }
+                  : { width: popoverWidth, maxHeight: 420, overflow: "auto" }
+              }
+            >
+              <List id={listboxId} dense disablePadding role="listbox">
+                {normalizedSearchQuery ? (
+                  searchResults.length > 0 ? (
+                    searchResults.map((feature) => (
+                      <ListItemButton
+                        key={feature.id}
+                        role="option"
+                        disabled={!searchMetadata.get(feature.id)?.data}
+                        data-testid="feature-picker-search-option"
+                        data-feature-id={feature.id}
+                        aria-selected={value === feature.id}
+                        selected={value === feature.id}
+                        {...getLinkProps(getFeatureHref, feature.id, () => {
+                          const selected = searchMetadata.get(feature.id)?.data;
+                          if (selected) handleSelect(selected);
+                        })}
+                        dense
+                      >
+                        <ListItemText
+                          primary={getDisplayName(feature)}
+                          secondary={getWorkItemSectionContent(
+                            searchDocuments.get(feature.id)?.data?.sections,
+                            "description",
+                          )}
+                          primaryTypographyProps={{ variant: "body2" }}
+                          secondaryTypographyProps={{
+                            variant: "caption",
+                            sx: {
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            },
+                          }}
+                        />
+                      </ListItemButton>
+                    ))
+                  ) : isLoadingSearch ? (
+                    <Box
+                      sx={{ display: "flex", justifyContent: "center", p: 2 }}
+                    >
+                      <CircularProgress size={20} />
+                    </Box>
+                  ) : (
+                    <Box sx={{ p: 2 }}>
+                      <Typography
+                        variant="body2"
+                        color={searchError ? "error" : "text.secondary"}
+                      >
+                        {searchError
+                          ? "Failed to search features"
+                          : "No matching features"}
+                      </Typography>
+                    </Box>
+                  )
+                ) : isLoadingRoot ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+                    <CircularProgress size={20} />
+                  </Box>
+                ) : visibleRoot.length === 0 ? (
+                  <Box sx={{ p: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No features found
+                    </Typography>
+                  </Box>
+                ) : (
+                  visibleRoot.map((feature) => (
+                    <FeatureTreeNode
+                      key={feature.feature.id}
+                      node={feature}
+                      level={0}
+                      selectedId={value}
+                      onSelect={handleSelect}
+                      organizationId={organizationId}
+                      projectId={projectId}
+                      exclusionSet={exclusionSet}
+                      getFeatureHref={getFeatureHref}
+                    />
+                  ))
+                )}
+              </List>
+            </Paper>
+          </Popper>
+        )}
       </FormControl>
     </ClickAwayListener>
   );

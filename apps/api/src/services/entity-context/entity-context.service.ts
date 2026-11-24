@@ -7,6 +7,7 @@ import { WorkStatus } from '@hey-hey/contracts/api/models';
 import { PlanDependenciesService } from '../plan/plan-dependencies.service';
 import { orderPlanStages } from '../plan/order-plan-stages';
 import {
+  isFinishedMeaning,
   statusNamesInGroup,
   type McpStatusGroup,
 } from '../tasks/work-item-status-groups';
@@ -1875,7 +1876,7 @@ export class EntityContextService {
 
   private finishedGoalStatusNames(projectId: ProjectId): string[] {
     return this.goalStatuses(projectId)
-      .filter((status) => status.meaning === 'FINISHED')
+      .filter((status) => isFinishedMeaning(status.meaning))
       .map((status) => status.name);
   }
 

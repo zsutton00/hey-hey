@@ -1,0 +1,40 @@
+{
+  "label": "quota-after",
+  "signedOut": false,
+  "signedOutIsolation": null,
+  "cwd": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli",
+  "agyVersion": {
+    "stdout": "1.5.13\n",
+    "stderr": "",
+    "exitCode": 0,
+    "spawnError": null
+  },
+  "argv": {
+    "models": [
+      "-p",
+      "/models",
+      "--output-format",
+      "json"
+    ],
+    "skills": [
+      "-p",
+      "/skills",
+      "--output-format",
+      "json"
+    ],
+    "quota": [
+      "-p",
+      "/quota",
+      "--output-format",
+      "json"
+    ]
+  },
+  "outcomes": {
+    "quota": {
+      "file": "/Users/<user>/code/hey-hey/.worktrees/antigravity-provider-integration/apps/cli/src/agent-runtime/node/__fixtures__/antigravity/quota-after-quota.json",
+      "exitCode": 0,
+      "error": null
+    }
+  },
+  "finishedAt": "2026-11-20T07:20:02.867Z"
+}

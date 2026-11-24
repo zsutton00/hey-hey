@@ -5,19 +5,14 @@ import { TaskMonitorResponsiveWorkspace } from "./TaskMonitorResponsiveWorkspace
 const taskMonitorMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@hey-hey/ui-common/components", () => ({
-  TaskMonitor: (props: {
-    organizationId: string;
-    projectId: string;
-    monitorId: string;
-    activePane: string;
-  }) => {
+  TaskMonitor: (props: Record<string, unknown>) => {
     taskMonitorMock(props);
-    return <div data-testid="task-monitor">{props.activePane}</div>;
+    return <div data-testid="task-monitor" />;
   },
 }));
 
 describe("TaskMonitorResponsiveWorkspace", () => {
-  it("leaves state-dependent pane navigation with the canonical workspace", () => {
+  it("renders the canonical workspace, which owns its own pane control", () => {
     render(
       <TaskMonitorResponsiveWorkspace
         organizationId="org-1"
@@ -26,18 +21,11 @@ describe("TaskMonitorResponsiveWorkspace", () => {
       />,
     );
 
-    expect(screen.getByTestId("task-monitor")).toHaveTextContent("session");
-    expect(
-      screen.queryByRole("button", { name: "Active Session" }),
-    ).not.toBeInTheDocument();
-    expect(taskMonitorMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        organizationId: "org-1",
-        projectId: "project-1",
-        monitorId: "monitor-1",
-        activePane: "session",
-        renderPaneNavigation: expect.any(Function),
-      }),
-    );
+    expect(screen.getByTestId("task-monitor")).toBeInTheDocument();
+    expect(taskMonitorMock).toHaveBeenLastCalledWith({
+      organizationId: "org-1",
+      projectId: "project-1",
+      monitorId: "monitor-1",
+    });
   });
 });

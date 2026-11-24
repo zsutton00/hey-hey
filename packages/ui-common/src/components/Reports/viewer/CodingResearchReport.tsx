@@ -22,6 +22,8 @@ export interface CodingResearchReportProps {
   evaluationOutput?: boolean;
   /** Render the open-questions block inside this report body. */
   renderOpenQuestions?: boolean;
+  /** Render the proposed-changes panel inside this report body. */
+  renderUpdates?: boolean;
 }
 
 export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
@@ -30,6 +32,7 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
   reportTestId,
   evaluationOutput = false,
   renderOpenQuestions = true,
+  renderUpdates = true,
 }) => {
   const [isAnalysisExpanded, setIsAnalysisExpanded] = useState(false);
   const reportData =
@@ -62,12 +65,14 @@ export const CodingResearchReport: React.FC<CodingResearchReportProps> = ({
         testId={`${reportTestId}-coding-research-summary`}
         value={payload.summary}
       />
-      <CodingResearchUpdatesSection
-        frameModel={reportData.frameModel}
-        report={evaluationOutput ? undefined : report}
-        reportTestId={reportTestId}
-        updates={reportData.updates}
-      />
+      {renderUpdates ? (
+        <CodingResearchUpdatesSection
+          frameModel={reportData.frameModel}
+          report={evaluationOutput ? undefined : report}
+          reportTestId={reportTestId}
+          updates={reportData.updates}
+        />
+      ) : null}
       <ReportDisclosure
         onExpandedChange={setIsAnalysisExpanded}
         testId={`${reportTestId}-coding-research-analysis`}

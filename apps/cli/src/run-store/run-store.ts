@@ -1,3 +1,4 @@
+import { resolveAgentProviderId } from '../agents/providers/provider-config';
 import { commitIntentSchema, type CommitIntent } from '../agents/commit/commit-intent';
 import { SessionTokenUsageReader } from '../provider-usage/session-token-usage';
 import type { SubAgentResult } from '../run/subagent';
@@ -57,7 +58,12 @@ import type {
   LocalWorktreeStateByService,
   ResolvedServiceBinding,
 } from '../shared/agent-bridge-contract/contract';
-import type { ImplementationReadinessDisposition } from '@hey-hey/contracts/api/models';
+import {
+  AgentSessionServicePlaceKind,
+  type ImplementationReadinessDisposition,
+  type ReportedAgentSessionServicePlace,
+  type ServicePlaceChoice,
+} from '@hey-hey/contracts/api/models';
 import { parseImplementationReadinessFromSessionContext } from '../agents/implementation-readiness/session-context';
 import type { LocalTokenUsage } from '@hey-hey/contracts/agent-bridge';
 import {
@@ -236,6 +242,60 @@ const sameSearchScope = (
 
 const legacyPlanRunEntitySchema = z.object({ entityType: z.literal('PLAN') }).passthrough();
 
+const capturedServicePlaceSchema = z.discriminatedUnion('kind', [
+  z.object({
+    serviceId: z.string().min(1),
+    kind: z.literal(AgentSessionServicePlaceKind.MainFolder),
+    branch: z.string().min(1).nullable(),
+  }),
+  z.object({
+    serviceId: z.string().min(1),
+    kind: z.literal(AgentSessionServicePlaceKind.Worktree),
+    branch: z.string().min(1),
+    worktreePath: z.string().min(1),
+  }),
+]);
+
+/**
+ * Reads each saved place observation on its own: a malformed entry is logged
+ * with its cause and left out, so it can neither block delivery of the valid
+ * ones nor stop the Run from resuming.
+ */
+const readCapturedServicePlaces = (
+  runId: unknown,
+  raw: unknown,
+): ReportedAgentSessionServicePlace[] | undefined => {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    console.error('run.metadata.captured_service_places_invalid', {
+      runId,
+      reason: 'not_an_array',
+      receivedType: raw === null ? 'null' : typeof raw,
+    });
+    return [];
+  }
+
+  const places: ReportedAgentSessionServicePlace[] = [];
+  raw.forEach((entry: unknown, index) => {
+    const parsed = capturedServicePlaceSchema.safeParse(entry);
+    if (parsed.success) {
+      places.push(parsed.data);
+      return;
+    }
+    console.error('run.metadata.captured_service_place_invalid', {
+      runId,
+      index,
+      issues: parsed.error.issues.map((issue) => ({
+        code: issue.code,
+        path: issue.path.join('.'),
+      })),
+    });
+  });
+  return places;
+};
+
 const parseRunMetadata = (text: string): AgenticSession => {
   const parsed = JSON.parse(text) as Record<string, unknown>;
   if (parsed['inert'] !== undefined && typeof parsed['inert'] !== 'boolean') {
@@ -280,8 +340,13 @@ const parseRunMetadata = (text: string): AgenticSession => {
     throw new SessionValidationError('Persisted Run metadata has an invalid entity.');
   }
   const coerced = coerceLegacyWorktreeState(coerceLegacyServices(parsed));
+  const capturedServicePlaces = readCapturedServicePlaces(
+    parsed['agentic_session_id'],
+    parsed['capturedServicePlaces'],
+  );
   return {
     ...coerced,
+    ...(capturedServicePlaces ? { capturedServicePlaces } : {}),
     entity: parsedEntity.data,
     provider_session_agent_id:
       typeof coerced['provider_session_agent_id'] === 'string'
@@ -461,12 +526,6 @@ export type RunResult = Pick<SubAgentResult, 'assistantCompleted' | 'outputText'
 export class RunStore {
   private readonly unavailableUsageRuns = new Set<string>();
   private static readonly MAX_CHANGED_FILES_DIAGNOSTICS = 200;
-
-  private static readonly VALID_PROVIDER_PREFERENCES = new Set<string>([
-    'claude',
-    'codex',
-    'opencode',
-  ]);
 
   private readonly paths: RunStorePaths;
   private readonly now: () => Date;
@@ -1259,6 +1318,7 @@ export class RunStore {
               },
             }
           : {}),
+        ...(input.servicePlaceChoices ? { servicePlaceChoices: input.servicePlaceChoices } : {}),
         conversationId: input.conversationId,
         ...(input.promptType ? { promptType: input.promptType } : {}),
         ...(input.config !== undefined ? { config: input.config } : {}),
@@ -1461,6 +1521,91 @@ export class RunStore {
       }
 
       run.worktreeState = worktreeState;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
+  /**
+   * Records one Service's worktree as soon as it resolves, keeping the other
+   * Services' entries, so a launch that fails on a later Service can be retried
+   * without the Run losing a worktree it already opened.
+   */
+  public recordRunServiceWorktree(
+    runId: string,
+    serviceId: string,
+    worktree: LocalWorktreeState,
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      run.worktreeState = { ...run.worktreeState, [serviceId]: worktree };
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
+  public updateRunServicePlaceChoices(
+    runId: string,
+    servicePlaceChoices: ServicePlaceChoice[],
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      run.servicePlaceChoices = servicePlaceChoices;
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
+  /**
+   * Keeps each Service's first observed place until delivery settles. A Service
+   * that already has a captured place keeps it; a later capture never replaces it.
+   */
+  public recordCapturedServicePlaces(
+    runId: string,
+    places: readonly ReportedAgentSessionServicePlace[],
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      const existing = run.capturedServicePlaces ?? [];
+      const capturedIds = new Set(existing.map((place) => place.serviceId));
+      const added = places.filter((place) => !capturedIds.has(place.serviceId));
+      run.capturedServicePlaces = [...existing, ...added];
+      run.updatedAt = this.now().toISOString();
+      await writeRunMetadata(this.runFamilies, run);
+      return run;
+    });
+  }
+
+  public markServicePlacesReported(
+    runId: string,
+    serviceIds: readonly string[],
+  ): Promise<AgenticSession> {
+    return this.withMetadataLock(runId, async () => {
+      const run = await readRunMetadata(this.runFamilies, runId);
+      if (!run) {
+        throw new SessionValidationError(`Unknown agentic session: ${runId}`);
+      }
+
+      const reported = new Set([...(run.reportedServicePlaceServiceIds ?? []), ...serviceIds]);
+      run.reportedServicePlaceServiceIds = Array.from(reported);
+      run.capturedServicePlaces = (run.capturedServicePlaces ?? []).filter(
+        (place) => !reported.has(place.serviceId),
+      );
       run.updatedAt = this.now().toISOString();
       await writeRunMetadata(this.runFamilies, run);
       return run;
@@ -2272,10 +2417,7 @@ export class RunStore {
       const text = await fs.readFile(this.paths.preferencesPath, 'utf8');
       const parsed = JSON.parse(text) as Record<string, unknown>;
       const provider = parsed['providerPreference'];
-      if (typeof provider === 'string' && RunStore.VALID_PROVIDER_PREFERENCES.has(provider)) {
-        return provider as TaskSessionProviderPreference;
-      }
-      return null;
+      return provider == null ? null : resolveAgentProviderId(provider);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       throw error;
@@ -2290,7 +2432,7 @@ export class RunStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
-    existing['providerPreference'] = provider;
+    existing['providerPreference'] = resolveAgentProviderId(provider);
     await fs.writeFile(this.paths.preferencesPath, JSON.stringify(existing, null, 2), 'utf8');
   }
 

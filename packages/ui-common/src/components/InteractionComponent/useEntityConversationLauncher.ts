@@ -21,7 +21,10 @@ import { getErrorMessage } from "../../utils/errorUtils";
 import { getWorkflowAboutTypeForEntityType } from "../../utils/agentSessionUtils";
 import { buildRunEntityReference } from "../AgentSession/runEntityReference";
 import type { LineageContext } from "./types";
-import type { GraphConversationLaunchInput } from "./graphConversationLaunchInput";
+import {
+  worktreeFor,
+  type GraphConversationLaunchInput,
+} from "./graphConversationLaunchInput";
 import { buildGoalEntityFields } from "./goalSnapshot";
 import {
   resolveEntityTypeConfig,
@@ -54,6 +57,11 @@ export interface EntityConversationLaunchError {
 
 export interface EntityConversationLaunchInput extends GraphConversationLaunchInput {
   context: LineageContext;
+  /**
+   * Called with the created Agent Session id once the start succeeded, before
+   * navigation. A failed or cancelled start never calls it.
+   */
+  onLaunched?: (agentSessionId: string) => void;
 }
 
 export const useEntityConversationLauncher = ({
@@ -94,9 +102,11 @@ export const useEntityConversationLauncher = ({
       reasoningEffort,
       machineId,
       serviceId,
+      servicePlaceChoices,
       fastMode,
       projectAssistant,
       disableCodexSystemPrompt,
+      onLaunched,
     }: EntityConversationLaunchInput): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
@@ -224,6 +234,12 @@ export const useEntityConversationLauncher = ({
               ...(serviceId
                 ? { serviceIds: [serviceId], launchServiceId: serviceId }
                 : {}),
+              ...(serviceId && servicePlaceChoices?.length
+                ? {
+                    servicePlaceChoices,
+                    ...worktreeFor(servicePlaceChoices),
+                  }
+                : {}),
               initialMessage: { role: MessageType.User },
             },
           });
@@ -244,6 +260,8 @@ export const useEntityConversationLauncher = ({
           });
           return false;
         }
+
+        onLaunched?.(session.id);
 
         navigate(
           pathService.entityConversation({

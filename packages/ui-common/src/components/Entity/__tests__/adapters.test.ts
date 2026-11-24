@@ -108,7 +108,7 @@ describe("Entity Adapters", () => {
         typeKey: "BUG",
         definition: statusBearingDefinition,
       });
-      expect(result.status).toBe("In progress");
+      expect(result.status).toBe(mockTask.status);
     });
 
     it("shows a removed status by its saved name with a warning", () => {
@@ -1039,6 +1039,19 @@ describe("Entity Adapters", () => {
       );
 
       expect(result.tags).toContain("Codex");
+    });
+
+    it("labels Antigravity in the session tag and provider metadata", () => {
+      const result = agentSessionAdapter.toEntityListItemProps(
+        { ...mockSession, provider: "antigravity" },
+        { projectId: "project-1" },
+      );
+
+      expect(result.tags).toContain("Antigravity");
+      expect(result.metadata).toContainEqual({
+        label: "Provider",
+        value: "Antigravity",
+      });
     });
 
     it("should append the trimmed worktree branch for a coding session", () => {

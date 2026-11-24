@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { planShapingProposedStagesHandler } from '../agents/plan-shaping/proposed-stages.handler';
 import type { PromptTypeHandler } from '../agents/prompt-type-handler';
 import { createOnCompleteTestDeps } from '../agents/prompt-type-handler.test-support';
 import { LocalPromptType } from '@hey-hey/contracts/agent-bridge';
@@ -11,7 +12,7 @@ import type { AssistantCompleteEvent } from './types';
 const complete = (summary: string): AssistantCompleteEvent =>
   ({ kind: 'assistant_complete', summary }) as AssistantCompleteEvent;
 
-const setup = (replies: string[]) => {
+const setup = (replies: string[], stageProposal = false) => {
   const onInvalidCompletion = vi.fn().mockResolvedValue(undefined);
   const handler = {
     promptType: LocalPromptType.RepositoryGrounding,
@@ -53,7 +54,7 @@ const setup = (replies: string[]) => {
     turnId: 'turn-1',
     runId: run.runId,
     resolvedPrompt: '',
-    handler,
+    handler: stageProposal ? planShapingProposedStagesHandler : handler,
     externalAgentNodeId: 'node-1',
     triggerMessageId: 'trigger-1',
     runner,
@@ -123,4 +124,32 @@ describe('Run.completeCompletionCorrection', () => {
     expect(onInvalidCompletion).not.toHaveBeenCalled();
     expect(recordPendingCompletion).toHaveBeenCalledOnce();
   });
+});
+
+describe('stage proposal completion', () => {
+  it.each(['initial', 'retry', 'missing'] as const)(
+    'handles a %s submission',
+    async (submission) => {
+      const { run, turn, continueTurn } = setup([], true);
+      const submit = () =>
+        run.setLastSubmissionAction({ action: 'READY', payload: { expectedStageCount: 2 } });
+      if (submission === 'initial') {
+        submit();
+      }
+      if (submission === 'retry') {
+        continueTurn.mockImplementationOnce(async () => submit());
+      }
+
+      await turn.begin();
+      await turn.run();
+
+      expect(continueTurn).toHaveBeenCalledTimes(submission === 'initial' ? 0 : 1);
+      expect(turn.terminalOutcome).toBe(submission === 'missing' ? 'FAILED' : 'COMPLETED');
+      if (submission === 'missing') {
+        expect(run['poster'].postFailureMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ reason: 'STAGE_COUNT_MISSING' }),
+        );
+      }
+    },
+  );
 });

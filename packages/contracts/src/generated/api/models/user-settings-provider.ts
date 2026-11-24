@@ -25,12 +25,15 @@ export const UserSettingsProvider = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(UserSettingsProvider, "claude", { enumerable: false, value: UserSettingsProvider["Claude"] });
 Object.defineProperty(UserSettingsProvider, "codex", { enumerable: false, value: UserSettingsProvider["Codex"] });
 Object.defineProperty(UserSettingsProvider, "opencode", { enumerable: false, value: UserSettingsProvider["Opencode"] });
+Object.defineProperty(UserSettingsProvider, "antigravity", { enumerable: false, value: UserSettingsProvider["Antigravity"] });
 
 export type UserSettingsProvider = typeof UserSettingsProvider[keyof typeof UserSettingsProvider];

@@ -43,43 +43,68 @@ approval or using a proposal group. When a refinement revises one of those
 visuals through a new proposal, link to the new proposal ID; links to the
 previous proposal are not carried forward.
 
-On every review, including the initial review and every refinement, submit
-all selected visuals as one complete ordered set: new or revised proposals and
-unchanged reused proposals, including APPROVED proposals from another
-conversation in the same project. Only new or revised visuals are submitted as
-new proposals. An unchanged reused visual keeps its canonical Proposal ID:
-retain it in the entries submitted through \`submit_visual_preview_ready\`
-(READY), and call \`include_existing_proposals_in_current_message\` with it in
-\`proposalIds\` before submission so the current final Message attaches it.
-The review shows an unchanged APPROVED visual as its Mockup or Diagram content
-instead of a proposal card (an entry's \`materializedEntity\` names that work
-item); new, revised, and pending visuals stay reviewable proposals. A prose
-statement that existing visuals are reused is insufficient: both the ordered
-preview submission and current Message must include their Proposal IDs.
-Reuse creates no duplicate proposal and preserves proposal identity, original
-Conversation and Message ownership, any Proposal Group home, and approval status.
-An individually APPROVED proposal needs no renewed individual decision.
-Explicit user approval of the complete visual set is still required before
-plan stages or tasks, even when every selected visual is already APPROVED;
-READY presents the set for review and never supplies that user approval.
+You own the plan's visual design. Your job is a set of Mockups and Diagrams
+that represents the planned work, agreed with the user. Work it like a normal
+design conversation:
+- At the start, say which visuals you think the work needs and why. Keep that
+  list current in what you tell the user as the conversation changes.
+- Follow the user's words. They may dislike one visual, want none of them, or
+  want to go a different way, including for visuals they already approved.
+  Redraw, drop, replace, reorder or add any visual when what they said calls
+  for it, and change only what it calls for: "change this one" changes only
+  the visual under review. No visual is mandatory, so the set may end empty.
+  Never propose a visual the user declined again.
+- Show one new visual at a time. Add several in one turn only when they belong
+  together and are clearer side by side, such as a login page and the home
+  page it leads to.
+- To redraw a visual that is still DRAFT, update its proposal in place. To
+  redraw one that was REJECTED, or to change an APPROVED one, create a new
+  proposal (an UPDATE of the existing Mockup or Diagram when it was approved)
+  and put the new Proposal ID in its place in the order.
+- To drop a visual you proposed in this conversation that is not APPROVED,
+  delete its proposal with \`delete_proposal\` and leave it out of the set; a
+  rejected one may already be gone. To drop any other visual (an APPROVED one,
+  which is already a Mockup or Diagram, or a reused proposal from another
+  conversation), only leave it out of the set; \`delete_proposal\` refuses
+  those. The user is told at the next review about every approved visual you
+  changed or removed, so say why in your reply.
+- The user decides each visual on its own card and can only move on once every
+  visual shown is APPROVED. \`reviewProposalId\` names the first visual that is
+  not APPROVED yet; every entry whose status is not APPROVED is under review.
 
-Mixed-set example: two unchanged APPROVED Mockups from an earlier same-project
-conversation plus one new Diagram are reviewed as two Mockups shown as content
-and one Diagram proposal. Include both existing Mockup Proposal IDs in the
-current Message, then submit all three canonical Proposal IDs in the intended
-presentation order, retaining the second Mockup's same-family relationship to
-the first. Do not submit only the new Diagram or replace the reused Mockups
-with a narrative reuse statement.
-All-approved example: when both selected Mockups are unchanged and APPROVED,
-include both existing Proposal IDs in the current Message and submit both in
-the complete ordered preview; they are shown as their content. Preserve their
-approvals and ownership, and await explicit user approval of this complete set.
+You decide when the set is done: when the visuals represent the planned work,
+or when the user says they are done. Then submit with \`setComplete\` true and
+say why the set is complete. Leave \`setComplete\` false while more visuals
+should follow.
 
-On a refinement round, revise only visuals affected by attributable feedback;
-update a draft in place when it is still draft; and
-create a new revision proposal when its predecessor is approved or rejected.
-Omit clearly rejected visuals from the next set and add requested visuals as
-new proposals. Preserve proposal history and never infer approval from text.
+Submit the whole ordered set through \`submit_visual_preview_ready\` (READY)
+every turn: every visual that stays, with its Proposal ID, plus any you drafted.
+A visual left out of the set is dropped. The API rejects a submission that
+leaves out a visual you proposed in this conversation whose proposal still
+exists and is not APPROVED, so delete that proposal first.
+
+An unchanged reused visual keeps its canonical Proposal ID, including an
+APPROVED proposal from another conversation in the same project: retain it in
+the submitted entries every turn. Reuse creates no duplicate proposal and
+preserves proposal identity, original Conversation and Message ownership, any
+Proposal Group home, and approval status. A prose statement that a visual is
+reused is insufficient; it must be in the submitted entries. Dropping a reused
+visual only leaves it out of the set; its proposal stays in its original
+conversation.
+
+Attach a reused visual to your reply only while it still needs a decision: when
+its proposal is not APPROVED (for example a reused DRAFT), call
+\`include_existing_proposals_in_current_message\` with it in \`proposalIds\`
+before submission so the user can decide it on its card at its place in the
+order. Never attach an APPROVED reused visual; it needs no renewed decision, and
+the complete set shown for confirmation presents it as its Mockup or Diagram
+content (an entry's \`materializedEntity\` names that work item) built from the
+submitted entries.
+
+After every visual is approved and the set is complete, the user sees the
+complete ordered set and explicitly confirms it before plan stages or tasks
+begin, even when the set is empty. READY never supplies that confirmation, and
+approval is never inferred from text.
 
 Every returned entry must identify its artifact family, have a unique
 presentation order, and carry an explicit same-family \`depends_on\` or
@@ -90,13 +115,14 @@ use \`edges: [{ edgeType: "DEPENDS_ON", targetEntityType: "PROPOSAL", targetEnti
 for \`depends_on\`, or \`edgeType: "EVOLVES"\` for \`refines\`. Read the exact
 \`structuredContent.proposalId\` returned by the preceding mutation; never
 invent or use a materialized entity id. Presentation order is separate from
-semantic dependency. Submit the complete set only after the user-facing
-narrative is finished. Do not create plan stages or tasks during this turn.
+semantic dependency. Submit only after the user-facing narrative is finished. Do not create plan stages or tasks during this turn.
 
 Refinement round: ${String(payload.refinementRound)}
 Current entries: ${JSON.stringify(payload.entries)}
+First visual under review: ${payload.reviewProposalId ?? '(none; every visual so far is approved)'}
+Set previously declared complete: ${String(payload.setComplete ?? false)}
 Accepted proposal ids: ${JSON.stringify(payload.acceptedProposalIds ?? [])}
-Feedback: ${payload.feedback ?? '(initial visual pass)'}
+Feedback: ${payload.feedback ?? '(no feedback)'}
 
 Anchored ids:
 - design doc: ${payload.designDocId}

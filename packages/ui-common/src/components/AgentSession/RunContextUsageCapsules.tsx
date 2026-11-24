@@ -6,6 +6,8 @@ import { useConversationMessages } from "../../data/hooks/useConversationMessage
 import { CapsuleAction } from "../ActionsCapsule/CapsuleAction";
 import { ContextIcon } from "../ActionsCapsule/ContextIcon";
 import { RunContextUsageModal } from "./RunContextUsageModal";
+import { useCompactRun } from "../../data/hooks/useCompactRun";
+import { useRunCompactionControl } from "./runtime/hooks/useRunCompactionControl";
 import type { AgentProvider } from "./runtime/types";
 
 export interface ProviderSessionChoice {
@@ -182,6 +184,18 @@ export const RunContextUsageCapsules = ({
     () => collectProviderSessions(messages.data ?? []),
     [messages.data],
   );
+  // Owned here, not by the modal, so an in-flight compaction survives the
+  // modal closing and reopening. Always targets the bound current Run.
+  const requestCompact = useCompactRun(
+    organizationId,
+    projectId,
+    agentSessionId,
+    conversationId,
+  );
+  const compaction = useRunCompactionControl({
+    messages: messages.data ?? [],
+    requestCompact,
+  });
   const handleOpen = useCallback(() => setOpen(true), []);
   const handleClose = useCallback(() => setOpen(false), []);
   const level = getContextSizeLevel(contextTokens, contextWindowTokens);
@@ -239,6 +253,7 @@ export const RunContextUsageCapsules = ({
           runId={runId}
           providerSessions={sessions}
           provider={provider}
+          compaction={compaction}
         />
       ) : null}
     </>

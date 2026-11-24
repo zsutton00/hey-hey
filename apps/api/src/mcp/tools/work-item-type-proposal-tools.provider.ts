@@ -400,7 +400,7 @@ export const createWorkItemTypeParameters = z
           'means the field is rejected on items of this type.',
       ),
     statuses: workItemTypeStatusesSchema.describe(
-      'Ordered ordinary status names and their resolved internal meanings; first is initial. Call resolve_work_item_type_statuses to obtain suggestions, preserve existing meanings, and resolve clarification before submitting.',
+      "Ordered ordinary statuses: each is the name the user typed plus exactly one meaning (COMPLETED, CANCELLED, IN_PROGRESS, or CUSTOM with 1-50 characters of text in the user's own words); first is initial. Call resolve_work_item_type_statuses to validate a list; a status without a meaning is rejected, so ask the user rather than guessing.",
     ),
     allowedParentTypes: z
       .array(z.string())

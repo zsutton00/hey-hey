@@ -42,15 +42,24 @@ describe("complete type definition comparison", () => {
     const before = {
       ...current,
       statuses: [
-        { name: "Drafting", meaning: "NOT_STARTED" as const },
-        { name: "Published", meaning: "FINISHED" as const },
+        {
+          name: "Drafting",
+          meaning: { kind: "CUSTOM" as const, text: "Not started" } as const,
+        },
+        { name: "Published", meaning: { kind: "COMPLETED" as const } as const },
       ],
     };
     const after = {
       ...current,
       statuses: [
-        { name: "Published", meaning: "UNFINISHED" as const },
-        { name: "Drafting", meaning: "NOT_STARTED" as const },
+        {
+          name: "Published",
+          meaning: { kind: "CUSTOM" as const, text: "Unfinished" } as const,
+        },
+        {
+          name: "Drafting",
+          meaning: { kind: "CUSTOM" as const, text: "Not started" } as const,
+        },
       ],
     };
     const labels = compareWorkItemTypeDefinitions(before, after).fields.map(

@@ -44,6 +44,12 @@ export interface PreviewModalProps {
   layout?: "viewport" | "dialog";
   /** Width (px, or a CSS length) of the `dialog` layout, capped at the viewport. Defaults to 720. */
   dialogWidth?: number | string;
+  /**
+   * A fixed height for the `dialog` layout, so content that fills the
+   * dialog (rather than sizing to its content) has a height to fill. Omit it
+   * to keep the content-height dialog.
+   */
+  dialogHeight?: string;
   /** Id of the element that names the dialog, forwarded as aria-labelledby. */
   labelledBy?: string;
   /** Id of the element that describes the dialog, forwarded as aria-describedby. */
@@ -106,6 +112,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
   children,
   layout = "viewport",
   dialogWidth = 720,
+  dialogHeight,
   labelledBy,
   describedBy,
 }) => {
@@ -176,7 +183,12 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                     maxWidth: "80vw",
                     maxHeight: "80vh",
                   }
-                : { width: dialogWidth, maxWidth: "100%", maxHeight: "90vh" },
+                : {
+                    width: dialogWidth,
+                    maxWidth: "100%",
+                    maxHeight: "90vh",
+                    ...(dialogHeight && { height: dialogHeight }),
+                  },
           },
         }}
         closeControl={

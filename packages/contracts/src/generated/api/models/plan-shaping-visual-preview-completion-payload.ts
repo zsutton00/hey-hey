@@ -19,7 +19,7 @@
 import type { PlanGenerationVisualPreviewEntry } from './plan-generation-visual-preview-entry.js';
 
 /**
- * The complete ordered visual proposal set emitted after the CLI has finished its narrative and proposal authoring for this refinement round. Each entry references one independently reviewable Mockup or Diagram proposal.
+ * The ordered visual proposal set so far, emitted after the CLI has finished its narrative and proposal authoring for this turn. Each entry references one independently reviewable Mockup or Diagram proposal. A turn drafts or redrafts at most one visual; the user reviews visuals one by one in presentation order.
  * @export
  * @interface PlanShapingVisualPreviewCompletionPayload
  */
@@ -36,4 +36,10 @@ export interface PlanShapingVisualPreviewCompletionPayload {
      * @memberof PlanShapingVisualPreviewCompletionPayload
      */
     'entries': Array<PlanGenerationVisualPreviewEntry>;
+    /**
+     * True when no further visuals follow the ones in this set. Omitted or false means more visuals may follow, so the API asks for the next visual once every visual in the set is approved.
+     * @type {boolean}
+     * @memberof PlanShapingVisualPreviewCompletionPayload
+     */
+    'setComplete'?: boolean;
 }

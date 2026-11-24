@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -16,6 +17,9 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { CliReadRuntimeModelCatalogModel } from './cli-read-runtime-model-catalog-model.js';
 
 /**
@@ -26,10 +30,10 @@ import type { CliReadRuntimeModelCatalogModel } from './cli-read-runtime-model-c
 export interface CliReadRuntimeModelCatalogProvider {
     /**
      *
-     * @type {string}
+     * @type {AgentProviderId}
      * @memberof CliReadRuntimeModelCatalogProvider
      */
-    'provider': CliReadRuntimeModelCatalogProviderProviderEnum;
+    'provider': AgentProviderId;
     /**
      *
      * @type {Array<CliReadRuntimeModelCatalogModel>}
@@ -44,23 +48,7 @@ export interface CliReadRuntimeModelCatalogProvider {
     'notice'?: string;
 }
 
-
-
-export const CliReadRuntimeModelCatalogProviderProviderEnum = {
-    Claude: 'claude',
-    Codex: 'codex',
-    Opencode: 'opencode',
-    "claude": "claude",
-    "codex": "codex",
-    "opencode": "opencode",
-} as const;
-Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "claude", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Claude"] });
-Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "codex", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Codex"] });
-Object.defineProperty(CliReadRuntimeModelCatalogProviderProviderEnum, "opencode", { enumerable: false, value: CliReadRuntimeModelCatalogProviderProviderEnum["Opencode"] });
-
-export type CliReadRuntimeModelCatalogProviderProviderEnum = typeof CliReadRuntimeModelCatalogProviderProviderEnum[keyof typeof CliReadRuntimeModelCatalogProviderProviderEnum];
-
 export namespace CliReadRuntimeModelCatalogProvider {
-    export const ProviderEnum = CliReadRuntimeModelCatalogProviderProviderEnum;
-    export type ProviderEnum = CliReadRuntimeModelCatalogProviderProviderEnum;
+    export const ProviderEnum = AgentProviderId;
+    export type ProviderEnum = AgentProviderId;
 }

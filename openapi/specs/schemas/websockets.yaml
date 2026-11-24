@@ -1993,6 +1993,7 @@ CliReadEnvelopeBody:
     - $ref: "#/CliReadRunSkillsListEnvelopeBody"
     - $ref: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
     - $ref: "#/CliReadWorkspaceSkillsListEnvelopeBody"
+    - $ref: "#/CliReadWorkspaceServicePlacesListEnvelopeBody"
     - $ref: "#/CliReadProjectSessionCostsListEnvelopeBody"
     - $ref: "#/CliReadProviderUsageGetEnvelopeBody"
     - $ref: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
@@ -2008,6 +2009,7 @@ CliReadEnvelopeBody:
       run.skills.list: "#/CliReadRunSkillsListEnvelopeBody"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnEnvelopeBody"
       workspace.skills.list: "#/CliReadWorkspaceSkillsListEnvelopeBody"
+      workspace.service_places.list: "#/CliReadWorkspaceServicePlacesListEnvelopeBody"
       project.session_costs.list: "#/CliReadProjectSessionCostsListEnvelopeBody"
       provider.usage.get: "#/CliReadProviderUsageGetEnvelopeBody"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetEnvelopeBody"
@@ -2062,6 +2064,7 @@ CliReadProjectSessionCostMember:
         - claude
         - codex
         - opencode
+        - antigravity
     providerSessionId:
       type: string
       minLength: 1
@@ -2350,6 +2353,7 @@ CliReadSuccessResponseDto:
     - $ref: "#/CliReadRunSkillsListSuccessResponseDto"
     - $ref: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
     - $ref: "#/CliReadWorkspaceSkillsListSuccessResponseDto"
+    - $ref: "#/CliReadWorkspaceServicePlacesListSuccessResponseDto"
     - $ref: "#/CliReadProjectSessionCostsListSuccessResponseDto"
     - $ref: "#/CliReadProviderUsageGetSuccessResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
@@ -2365,6 +2369,7 @@ CliReadSuccessResponseDto:
       run.skills.list: "#/CliReadRunSkillsListSuccessResponseDto"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnSuccessResponseDto"
       workspace.skills.list: "#/CliReadWorkspaceSkillsListSuccessResponseDto"
+      workspace.service_places.list: "#/CliReadWorkspaceServicePlacesListSuccessResponseDto"
       project.session_costs.list: "#/CliReadProjectSessionCostsListSuccessResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetSuccessResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
@@ -2380,6 +2385,7 @@ CliReadErrorResponseDto:
     - $ref: "#/CliReadRunSkillsListErrorResponseDto"
     - $ref: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
     - $ref: "#/CliReadWorkspaceSkillsListErrorResponseDto"
+    - $ref: "#/CliReadWorkspaceServicePlacesListErrorResponseDto"
     - $ref: "#/CliReadProjectSessionCostsListErrorResponseDto"
     - $ref: "#/CliReadProviderUsageGetErrorResponseDto"
     - $ref: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
@@ -2395,6 +2401,7 @@ CliReadErrorResponseDto:
       run.skills.list: "#/CliReadRunSkillsListErrorResponseDto"
       run.tool_calls.latest_turn: "#/CliReadRunToolCallsLatestTurnErrorResponseDto"
       workspace.skills.list: "#/CliReadWorkspaceSkillsListErrorResponseDto"
+      workspace.service_places.list: "#/CliReadWorkspaceServicePlacesListErrorResponseDto"
       project.session_costs.list: "#/CliReadProjectSessionCostsListErrorResponseDto"
       provider.usage.get: "#/CliReadProviderUsageGetErrorResponseDto"
       runtime.model_catalog.get: "#/CliReadRuntimeModelCatalogGetErrorResponseDto"
@@ -2824,11 +2831,7 @@ ConversationControlPermissionDecision:
         Provider session identifier. Together with `agentType`, uniquely
         identifies the agent session holding the permission gate.
     agentType:
-      type: string
-      enum:
-        - claude
-        - codex
-        - opencode
+      $ref: "./common.yaml#/AgentProviderId"
       description: >-
         Agent provider that issued the permission request.
     reason:
@@ -2837,6 +2840,12 @@ ConversationControlPermissionDecision:
       description: >-
         User-supplied explanation for the decision, rendered alongside the
         Approved/Denied message in CLI output.
+    servicePlaceChoices:
+      type: array
+      items:
+        $ref: "../schemas/coding-sessions.yaml#/ServicePlaceChoice"
+      description: >-
+        Where each newly requested Service works. Present only with `approve`.
     idempotencyToken:
       type: string
       minLength: 1
@@ -2886,6 +2895,7 @@ ConversationControlQuestionAnswer:
         - claude
         - codex
         - opencode
+        - antigravity
     answers:
       type: object
       additionalProperties:
@@ -3411,6 +3421,18 @@ WebSocketLeftResponse:
   oneOf:
     - $ref: "#/WebSocketLeftSuccessResponse"
     - $ref: "#/WebSocketAccessDeniedResponse"
+
+CliReadWorkspaceServicePlacesListRequest:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceServicePlacesListRequest"
+
+CliReadWorkspaceServicePlacesListEnvelopeBody:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceServicePlacesListEnvelopeBody"
+
+CliReadWorkspaceServicePlacesListSuccessResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceServicePlacesListSuccessResponseDto"
+
+CliReadWorkspaceServicePlacesListErrorResponseDto:
+  $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceServicePlacesListErrorResponseDto"
 
 CliReadWorkspaceSkillsListRequest:
   $ref: "../agent-bridge/openapi.yaml#/components/schemas/CliReadWorkspaceSkillsListRequest"

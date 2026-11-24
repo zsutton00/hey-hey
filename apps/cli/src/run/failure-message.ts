@@ -10,6 +10,8 @@ const explanations = {
     'The session could not authorize the request. Reconnect the CLI and check that you are signed in to your provider, then send your message again.',
   OPERATION_FINGERPRINT_MISMATCH:
     'This request conflicts with an earlier delivery. Refresh the conversation, then send your message again.',
+  STAGE_COUNT_MISSING:
+    'Stage review could not start because the agent did not submit the stage count after a retry.',
   EXECUTION_FAILED: 'The session failed while working on your message. Please try again.',
   SERVICE_FOLDER_NOT_BOUND:
     'This session needs a Service folder. Bind its folder on this machine, or start a new session with a Service, then send your message again.',

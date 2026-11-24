@@ -10,6 +10,7 @@ import {
   type ExecutionObservation,
   type CaptureRoot,
   type CaptureGap,
+  type CaptureProvider,
 } from './observation';
 
 const envelopeSchema = z.object({
@@ -169,7 +170,7 @@ export class ObservationStore {
     sessionId: string;
     runId: string;
     turnId: string;
-    provider: 'claude' | 'codex';
+    provider: CaptureProvider;
     roots: readonly CaptureRoot[];
     harnessVersion: string;
     reason: CaptureGap;

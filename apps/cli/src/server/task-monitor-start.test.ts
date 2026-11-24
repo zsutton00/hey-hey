@@ -368,6 +368,7 @@ describe('Task Monitor persisted execution definition boundary', () => {
   it('rejects a pending mutation instead of attempting to approve it', async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
+      .mockResolvedValueOnce(workItemResponse(definition()))
       .mockResolvedValueOnce(mutationResponse(MONITOR_ID, 'PENDING'));
     const runtime = new TaskMonitorStartRuntime({
       apiBaseUrl: 'https://api.example.test',
@@ -381,6 +382,49 @@ describe('Task Monitor persisted execution definition boundary', () => {
     ).rejects.toThrow(
       'Task Monitor mutation remained pending instead of auto-applying under API governance.',
     );
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps settings saved by another writer when it records a launch from an older read', async () => {
+    const appliedConfiguration = {
+      method: 'plan',
+      provider: 'claude',
+      model: 'claude-opus-5-5',
+      reasoningEffort: 'medium',
+    } as const;
+    const stored = definition();
+    const afterApply: TaskMonitorExecutionDefinition = {
+      ...stored,
+      executionPlan: stored.executionPlan.map((node, index) =>
+        index === 0 ? node : { ...node, launchConfiguration: appliedConfiguration },
+      ),
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(workItemResponse(afterApply))
+      .mockResolvedValueOnce(mutationResponse(MONITOR_ID, 'APPLIED'));
+    const runtime = new TaskMonitorStartRuntime({
+      apiBaseUrl: 'https://api.example.test',
+      fetchImpl,
+      authContext: createTestPlatformAuthContext(null, 'token'),
+      logger: NOOP_LOGGER,
+    });
+
+    // monitor() is the copy read before the Apply.
+    await runtime.persistLaunch({
+      monitor: monitor(),
+      planIndex: 0,
+      agentSessionId: AGENT_SESSION_ID,
+    });
+
+    const patch = fetchImpl.mock.calls[1]?.[1];
+    expect(patch?.method).toBe('PATCH');
+    const body = JSON.parse(String(patch?.body)) as {
+      sections: [{ content: TaskMonitorExecutionDefinition }];
+    };
+    const saved = body.sections[0].content.executionPlan;
+    expect(saved[0]).toMatchObject({ agentSessionId: AGENT_SESSION_ID });
+    expect(saved[1]?.launchConfiguration).toEqual(appliedConfiguration);
+    expect(saved[2]?.launchConfiguration).toEqual(appliedConfiguration);
   });
 });

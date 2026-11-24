@@ -7,6 +7,10 @@ import { OpenItemsProvider } from "../../contexts/OpenItemsContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createEntityActivation } from "@hey-hey/ui-common/context";
 import {
+  useTaskMonitorRowSignals,
+  type TaskMonitorRowSignal,
+} from "@hey-hey/ui-common/components";
+import {
   AgentSessionCurrentState,
   AgentSessionOutputAttentionState,
   AgentSessionType,
@@ -102,7 +106,8 @@ vi.mock("@hey-hey/ui-common/hooks", () => ({
   useCanHover: canHoverMock,
 }));
 
-vi.mock("@hey-hey/ui-common/components/Entity", () => ({
+// The shared Open Items icon draws its generic icons through EntityIcon.
+vi.mock("@hey-hey/ui-common/components/Entity/EntityIcon", () => ({
   EntityIcon: (props: {
     agentSessionType?: string;
     entityType: string;
@@ -142,6 +147,8 @@ vi.mock("@hey-hey/ui-common/components", async (importOriginal) => {
   return {
     getAgentSessionRowSignalPresentation:
       actual.getAgentSessionRowSignalPresentation,
+    TASK_MONITOR_ROW_LABELS: actual.TASK_MONITOR_ROW_LABELS,
+    useTaskMonitorRowSignals: vi.fn(actual.useTaskMonitorRowSignals),
     ConversationPhaseIndicator: ({ phase }: { phase: string | undefined }) =>
       phase ? (
         <span
@@ -454,6 +461,7 @@ vi.mock("react-i18next", () => ({
 }));
 
 const useWorkItemMock = vi.mocked(useWorkItem);
+const useTaskMonitorRowSignalsMock = vi.mocked(useTaskMonitorRowSignals);
 const useAgentSessionMock = vi.mocked(useAgentSession);
 const useAgentSessionCurrentStatesMock = vi.mocked(
   useAgentSessionCurrentStates,
@@ -966,13 +974,15 @@ describe("OpenItemsSection", () => {
       "aria-current",
       "page",
     );
-    await userEvent.click(
-      screen.getByTestId(`open-item-preview-task-${entityId}`),
-    );
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityType: "task",
-      entityId,
-    });
+    expect(
+      screen.queryByTestId(`open-item-preview-task-${entityId}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`open-item-close-task-${entityId}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(`open-item-interaction-${entityId}`),
+    ).toHaveAttribute("data-entity-type", "TASK");
     expect(screen.getByTestId("location")).toHaveTextContent("/current-page");
     expect(readOpenItemsTestCache("project-1").items).toHaveLength(2);
   });
@@ -2337,11 +2347,11 @@ describe("OpenItemsSection", () => {
       screen.getByTestId("open-item-task-bbc04762-4810-53b6-a5a9-7075c179551f"),
     ).toHaveAttribute("data-active", "false");
     expect(
-      screen.getByRole("button", { name: "Preview Task Two" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Remove Task Two" }),
+      screen.queryByRole("button", { name: "Preview Task Two" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Task Two from Open" }),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -2572,6 +2582,97 @@ describe("OpenItemsSection", () => {
       undefined,
     );
     expect(getEntityColorsMock).toHaveBeenCalledWith("CONTRACT");
+  });
+
+  describe("Task Monitor row status", () => {
+    const monitorId = "e8a970e8-3ee8-5d4f-a62e-d273e23779ab";
+
+    const renderMonitorRow = (signal: TaskMonitorRowSignal) => {
+      setWorkItemTypeDefinitions({
+        key: "TASK_MONITOR",
+        name: "Task Monitor",
+      } as WorkItemTypeDefinitionDto);
+      useTaskMonitorRowSignalsMock.mockReturnValue({ [monitorId]: signal });
+      localStorage.setItem(
+        "open-items:v1:project-1",
+        JSON.stringify({
+          version: 1,
+          items: [
+            {
+              entityId: monitorId,
+              entityType: "task",
+              presentation: {
+                kind: "task",
+                label: "Nightly monitor",
+                taskType: "TASK_MONITOR",
+              },
+            },
+          ],
+        }),
+      );
+      const tree = () => (
+        <MemoryRouter initialEntries={["/projects/project-1"]}>
+          <OpenItemsProvider
+            organizationId="org-1"
+            userId={openItemsTestUserId()}
+            projectId="project-1"
+          >
+            <OpenItemsSection organizationId="org-1" projectId="project-1" />
+            <CanonicalOpenItemsReady />
+          </OpenItemsProvider>
+        </MemoryRouter>
+      );
+      const view = render(tree());
+
+      return { ...view, update: () => view.rerender(tree()) };
+    };
+
+    it("shows the monitor's status beside its title, without its page open, and follows a pushed snapshot", async () => {
+      const view = renderMonitorRow({
+        kind: "status",
+        status: "running",
+        stale: false,
+      });
+      expect(
+        await screen.findByTestId("open-item-monitor-status"),
+      ).toHaveTextContent("Running");
+      await waitFor(() =>
+        expect(useTaskMonitorRowSignalsMock).toHaveBeenLastCalledWith(
+          "org-1",
+          "project-1",
+          [monitorId],
+        ),
+      );
+
+      useTaskMonitorRowSignalsMock.mockReturnValue({
+        [monitorId]: { kind: "status", status: "needs_feedback", stale: false },
+      });
+      view.update();
+      expect(
+        await screen.findByText("Needs feedback", {
+          selector: "[data-testid=open-item-monitor-status]",
+        }),
+      ).toBeInTheDocument();
+    });
+
+    it("marks a last-known status as such", async () => {
+      renderMonitorRow({ kind: "status", status: "paused", stale: true });
+
+      expect(
+        await screen.findByTestId("open-item-monitor-status"),
+      ).toHaveTextContent("Last known: Paused");
+    });
+
+    it("shows no status when the monitor's state is unknown", async () => {
+      renderMonitorRow({ kind: "none", reason: "missing" });
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("canonical-open-items-ready"),
+        ).toHaveAttribute("data-ready", "true"),
+      );
+
+      expect(screen.queryByTestId("open-item-monitor-status")).toBeNull();
+    });
   });
 
   it("backfills the dedicated Task Monitor icon for an existing definition", async () => {
@@ -2972,15 +3073,12 @@ describe("OpenItemsSection", () => {
       );
     });
 
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Preview Ship the goal" }),
-      );
-    });
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityId: "6f00a8d2-918f-5fbc-8ed3-82fa8a6d725e",
-      entityType: "goal",
-    });
+    expect(
+      screen.queryByRole("button", { name: "Preview Ship the goal" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Ship the goal from Open" }),
+    ).toBeInTheDocument();
   });
 
   it("renders pinned indicators and wires state-dependent pin actions", async () => {
@@ -3582,7 +3680,16 @@ describe("OpenItemsSection", () => {
     });
   });
 
-  it("opens inline preview without changing the current route", async () => {
+  it("replaces the inline preview button with a keyboard-reachable close button that removes only that entry without navigating or touching recently viewed state", async () => {
+    const recentlyViewedRecord = JSON.stringify({
+      events: [
+        {
+          id: "f92326ba-4259-550c-893e-9e11f70c56ee",
+          entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+        },
+      ],
+    });
+    localStorage.setItem("recently-viewed:test", recentlyViewedRecord);
     localStorage.setItem(
       "open-items:v1:project-1",
       JSON.stringify({
@@ -3592,10 +3699,15 @@ describe("OpenItemsSection", () => {
             entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
             entityType: "task",
           },
+          {
+            entityId: "bbc04762-4810-53b6-a5a9-7075c179551f",
+            entityType: "task",
+          },
         ],
       }),
     );
 
+    const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/projects/project-1"]}>
         <OpenItemsProvider
@@ -3617,25 +3729,37 @@ describe("OpenItemsSection", () => {
       ),
     );
 
-    await act(async () => {
-      fireEvent.click(
-        await screen.findByRole("button", {
-          name: "Preview Investigate preview",
-        }),
-      );
-    });
+    expect(
+      screen.queryByTestId(
+        "open-item-preview-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+      ),
+    ).not.toBeInTheDocument();
 
-    expect(openPreviewMock).toHaveBeenCalledTimes(1);
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
-      entityType: "task",
+    const closeButton = screen.getByRole("button", {
+      name: "Remove Investigate preview from Open",
     });
+    expect(closeButton).toHaveAttribute(
+      "data-testid",
+      "open-item-close-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+    );
+    closeButton.focus();
+    expect(closeButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      screen.queryByTestId(
+        "open-item-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("open-item-task-bbc04762-4810-53b6-a5a9-7075c179551f"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/projects/project-1",
     );
-    expect(
-      screen.getByTestId("open-item-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab"),
-    ).toBeInTheDocument();
+    expect(localStorage.getItem("recently-viewed:test")).toBe(
+      recentlyViewedRecord,
+    );
   });
 
   it("removes an inline open item without navigating or touching recently viewed state", async () => {
@@ -3703,7 +3827,10 @@ describe("OpenItemsSection", () => {
     );
   });
 
-  it.each([{ entryPoint: "context menu", buttonName: "Remove from Open" }])(
+  it.each([
+    { entryPoint: "context menu", buttonName: "Remove from Open" },
+    { entryPoint: "inline close", buttonName: /^Remove .* from Open$/ },
+  ])(
     "preserves pinned descendants when removing a branch from the $entryPoint control",
     async ({ entryPoint, buttonName }) => {
       localStorage.setItem(
@@ -4991,7 +5118,12 @@ describe("OpenItemsSection", () => {
       "/projects/project-1/plans/8013eea4-4c54-5f6a-ae42-d9188e822bf7",
     );
     expect(
-      screen.getByRole("button", { name: "Preview Ship the importer" }),
+      screen.queryByRole("button", { name: "Preview Ship the importer" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Remove Ship the importer from Open",
+      }),
     ).toBeInTheDocument();
     expect(usePlanMock).not.toHaveBeenCalled();
   });

@@ -1959,6 +1959,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ],
       "description": "Agent provider selected for the implementation run."
@@ -2535,6 +2539,14 @@
         "userMessage": {
           "type": "string",
           "description": "Optional user-authored refinement note for the current turn."
+        },
+        "reviewProposalId": {
+          "type": "string",
+          "description": "The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set."
+        },
+        "setComplete": {
+          "type": "boolean",
+          "description": "Whether the previous turn declared that no further visuals follow."
         }
       },
       "required": [
@@ -2544,7 +2556,7 @@
         "refinementRound",
         "entries"
       ],
-      "description": "Complete API-owned context for one visual-preview refinement turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text."
+      "description": "Complete API-owned context for one visual-preview turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text."
     },
     "PlanShapingVisualPreviewEntry": {
       "type": "object",
@@ -2753,6 +2765,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -3124,6 +3140,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -3326,6 +3346,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -3511,6 +3535,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -3888,8 +3916,7 @@
           "description": "Typed AgentSession launch config forwarded to the CLI. Project Assistant proactive behavior and plan-combination aggressiveness are read from this persisted config after the Run is materialized; absent config or absent flags resolve at the consuming boundary."
         },
         "provider": {
-          "$ref": "#/definitions/StartRunPromptPayloadProviderEnum",
-          "description": "Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep."
+          "$ref": "#/definitions/AgentProviderId"
         },
         "skillSelection": {
           "$ref": "#/definitions/AgentSkillSelection"
@@ -3915,6 +3942,13 @@
         },
         "worktree": {
           "$ref": "#/definitions/StartRunWorktree"
+        },
+        "servicePlaceChoices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServicePlaceChoice"
+          },
+          "description": "Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it."
         },
         "agentSessionId": {
           "type": "string",
@@ -4762,6 +4796,14 @@
             "userMessage": {
               "type": "string",
               "description": "Optional user-authored refinement note for the current turn."
+            },
+            "reviewProposalId": {
+              "type": "string",
+              "description": "The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set."
+            },
+            "setComplete": {
+              "type": "boolean",
+              "description": "Whether the previous turn declared that no further visuals follow."
             }
           },
           "required": [
@@ -6363,9 +6405,6 @@
         "statusMeaning": {
           "$ref": "#/definitions/WorkItemStatusMeaning"
         },
-        "completionBehavior": {
-          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
-        },
         "dueDate": {
           "type": [
             "string",
@@ -6446,26 +6485,26 @@
     "WorkItemStatusMeaning": {
       "anyOf": [
         {
-          "type": "string",
-          "const": "NOT_STARTED"
+          "$ref": "#/definitions/WorkItemStatusBuiltInMeaning"
         },
         {
-          "type": "string",
-          "const": "IN_PROGRESS"
-        },
-        {
-          "type": "string",
-          "const": "UNFINISHED"
-        },
-        {
-          "type": "string",
-          "const": "FINISHED"
-        },
-        {}
-      ],
-      "description": "What an ordinary status means for progress: NOT_STARTED work has not begun, IN_PROGRESS work is underway, FINISHED work needs no further effort. UNFINISHED preserves an unfinished state whose start state is unspecified (for example legacy Blocked and On Hold). Goal progress and active filters read this, never the status name."
+          "$ref": "#/definitions/WorkItemStatusCustomMeaning"
+        }
+      ]
     },
-    "WorkItemStatusCompletionBehavior": {
+    "WorkItemStatusBuiltInMeaning": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/WorkItemStatusBuiltInMeaningKindEnum"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "description": "A built-in meaning the platform acts on. It carries no text."
+    },
+    "WorkItemStatusBuiltInMeaningKindEnum": {
       "anyOf": [
         {
           "type": "string",
@@ -6475,9 +6514,37 @@
           "type": "string",
           "const": "CANCELLED"
         },
+        {
+          "type": "string",
+          "const": "IN_PROGRESS"
+        },
         {}
+      ]
+    },
+    "WorkItemStatusCustomMeaning": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/WorkItemStatusCustomMeaningKindEnum"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
       ],
-      "description": "Legacy completion semantics a FINISHED status carries: COMPLETED counts toward Goal completion and emits completion events; CANCELLED ends work without counting as done. Absent for statuses with neither behavior."
+      "description": "A note in the user\\'s own words that the platform never interprets. The text counts characters as people see them (Unicode code points), 1 to 50, and may not repeat a built-in meaning\\'s name; choose the built-in instead."
+    },
+    "WorkItemStatusCustomMeaningKindEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "CUSTOM"
+        },
+        {}
+      ]
     },
     "LocalEntityConversationInfluence": {
       "type": "object",
@@ -7454,6 +7521,14 @@
           "items": {
             "type": "string"
           }
+        },
+        "alreadyMatches": {
+          "type": "boolean",
+          "description": "The authoritative live content already matches the complete future result."
+        },
+        "mergedResult": {
+          "type": "object",
+          "description": "Present only for a future revision whose changes and the changes applied since it was written touch different content and combine without a conflict. The complete content Apply will write if the reviewed basis is still current. Further changes require a fresh review before applying. Compare it with the first current basis."
         },
         "candidateRevisionId": {
           "type": "string"
@@ -8987,6 +9062,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -9177,6 +9256,10 @@
           "type": "string",
           "const": "codex"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -9293,6 +9376,13 @@
             "worktree": {
               "type": "string",
               "description": "Branch name to materialize as a git worktree per selected service at launch. Presence means worktree-enabled (the branch to materialize); absence means worktree off. Omitted entirely when the wizard has not enabled worktree."
+            },
+            "servicePlaceChoices": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ServicePlaceChoice"
+              },
+              "description": "Where each selected Service works, chosen on the launch screen. Saved with the session so the Run start sends the same choices after a reload. Omitted when the launch uses a Plan\\'s locked branch or the wizard recorded no per-Service choice."
             },
             "sessionMonitorTerminalPolicy": {
               "$ref": "#/definitions/SessionMonitorTerminalPolicy"
@@ -9454,6 +9544,50 @@
         {}
       ],
       "description": "Launch method selected by the user in the new-session wizard. Plan is workflow-bound (dispatched through the `workflowName` arm of `/start-run`); the other arms go through the handler path."
+    },
+    "ServicePlaceChoice": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "MAIN_FOLDER"
+            }
+          },
+          "required": [
+            "kind",
+            "serviceId"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "serviceId": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "WORKTREE"
+            },
+            "branch": {
+              "type": "string"
+            },
+            "newBranch": {
+              "type": "boolean",
+              "description": "True creates `branch` as a new branch."
+            }
+          },
+          "required": [
+            "branch",
+            "kind",
+            "serviceId"
+          ]
+        }
+      ]
     },
     "SessionMonitorTerminalPolicy": {
       "type": "object",
@@ -9800,7 +9934,7 @@
         {}
       ]
     },
-    "StartRunPromptPayloadProviderEnum": {
+    "AgentProviderId": {
       "anyOf": [
         {
           "type": "string",
@@ -9814,8 +9948,13 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
-      ]
+      ],
+      "description": "Identifier for a supported agent provider."
     },
     "AgentSkillSelection": {
       "type": "object",
@@ -9850,6 +9989,10 @@
         {
           "type": "string",
           "const": "opencode"
+        },
+        {
+          "type": "string",
+          "const": "antigravity"
         },
         {}
       ]
@@ -12158,6 +12301,14 @@
         },
         "feedback": {
           "type": "string"
+        },
+        "reviewProposalId": {
+          "type": "string",
+          "description": "The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set."
+        },
+        "setComplete": {
+          "type": "boolean",
+          "description": "Whether the previous turn declared that no further visuals follow."
         }
       },
       "required": [
@@ -13065,6 +13216,9 @@
           "$ref": "#/definitions/SystemMessageDataNoticeSeverityEnum",
           "description": "Severity of an automated notice, independent of the notice classification. Only meaningful when presentation is \\\"notice\\\"; a notice without it renders as info."
         },
+        "compaction": {
+          "$ref": "#/definitions/CompactionNoticeMarker"
+        },
         "reasoning": {
           "type": "string",
           "description": "LLM\\'s reasoning for the intent detection"
@@ -13267,6 +13421,44 @@
         {
           "type": "string",
           "const": "warning"
+        },
+        {}
+      ]
+    },
+    "CompactionNoticeMarker": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "$ref": "#/definitions/CompactionNoticeMarkerPhaseEnum",
+          "description": "queued: deferred until the active Turn ends; started: compaction began; completed: the provider reported compaction done; failed: it did not complete (see code)."
+        },
+        "code": {
+          "type": "string",
+          "description": "Runner error code for a failed compaction, e.g. NOT_SUPPORTED, NO_ACTIVE_SESSION or FAILED. Only set when phase is failed."
+        }
+      },
+      "required": [
+        "phase"
+      ],
+      "description": "Typed lifecycle marker on a Run\\'s explicit compaction notice, so clients track compaction without parsing the notice text. Absent on other messages and on historical compaction notices."
+    },
+    "CompactionNoticeMarkerPhaseEnum": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "queued"
+        },
+        {
+          "type": "string",
+          "const": "started"
+        },
+        {
+          "type": "string",
+          "const": "completed"
+        },
+        {
+          "type": "string",
+          "const": "failed"
         },
         {}
       ]
@@ -14594,6 +14786,10 @@
           "type": "string",
           "const": "opencode"
         },
+        {
+          "type": "string",
+          "const": "antigravity"
+        },
         {}
       ]
     },
@@ -14737,7 +14933,7 @@
           "description": "Agent instance identifier that requested permission"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string",
@@ -14774,6 +14970,13 @@
             "type": "string"
           },
           "description": "Diffs referenced by the permission request"
+        },
+        "availableDecisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PermissionRequestSummaryAvailableDecisionsEnum"
+          },
+          "description": "Decisions the provider and Run policy permit for this request, when known"
         }
       },
       "required": [
@@ -14789,23 +14992,26 @@
       ],
       "description": "Normalized permission request details for UI rendering"
     },
-    "PermissionRequestAgentType": {
+    "PermissionRequestSummaryAvailableDecisionsEnum": {
       "anyOf": [
         {
           "type": "string",
-          "const": "claude"
+          "const": "approve"
         },
         {
           "type": "string",
-          "const": "codex"
+          "const": "always_approve"
         },
         {
           "type": "string",
-          "const": "opencode"
+          "const": "whitelist"
+        },
+        {
+          "type": "string",
+          "const": "deny"
         },
         {}
-      ],
-      "description": "Agent providers that can issue permission requests"
+      ]
     },
     "AgentRequestPermissionPayloadDecisionEnum": {
       "anyOf": [
@@ -14941,7 +15147,7 @@
           "type": "string"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string"
@@ -15030,6 +15236,13 @@
             "null"
           ],
           "description": "ISO timestamp of the recorded decision"
+        },
+        "failureReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why an approved request could not be applied. Set when the decision was recorded but nothing was granted."
         }
       },
       "required": [
@@ -15070,7 +15283,7 @@
           "description": "Stable coding-agent handler identifier"
         },
         "agentType": {
-          "$ref": "#/definitions/PermissionRequestAgentType"
+          "$ref": "#/definitions/AgentProviderId"
         },
         "timestamp": {
           "type": "string",
@@ -15093,6 +15306,13 @@
             "type": "string"
           },
           "description": "Complete proposed Service scope after approval"
+        },
+        "proposedPlaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServicePlaceChoice"
+          },
+          "description": "Proposed place for each newly requested Service. Absent on requests from older CLIs."
         },
         "reason": {
           "type": "string",
@@ -18929,6 +19149,13 @@
         },
         "expectedRevision": {
           "type": "number"
+        },
+        "reviewedRefinementProposalIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Pending refinements the reviewer saw and confirmed would be rejected by this cancellation. When present, cancellation is refused with a conflict if the future\\'s pending refinements differ at submission or approval, so a refinement that arrived later is never rejected unseen. Omit to cancel without a reviewed set."
         }
       },
       "required": [
@@ -21714,24 +21941,17 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "The status name, stored verbatim on items (e.g. \\\"BACKLOG\\\" for a migrated platform status, \\\"Testing\\\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED."
-        },
-        "label": {
-          "type": "string",
-          "description": "Display label when it differs from `name` (preserves the labels existing statuses have always shown, e.g. ACTIVE shows \\\"In progress\\\"). Absent means `name` is shown as written."
+          "description": "The status name, stored verbatim on items (e.g. \\\"BACKLOG\\\" for a platform status, \\\"Testing\\\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED."
         },
         "meaning": {
           "$ref": "#/definitions/WorkItemStatusMeaning"
-        },
-        "completionBehavior": {
-          "$ref": "#/definitions/WorkItemStatusCompletionBehavior"
         }
       },
       "required": [
         "name",
         "meaning"
       ],
-      "description": "One ordinary status of a work-item type. `name` is the exact value stored on items and is never rewritten by a type edit."
+      "description": "One ordinary status of a work-item type: the name the user typed plus exactly one meaning. `name` is the exact value stored on items, shown as written everywhere, and never rewritten by a type edit."
     },
     "WorkItemTypeEdgeTarget": {
       "type": "object",
@@ -24020,11 +24240,18 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "targetRunId": {
               "type": "string",
               "description": "Host-stamped reviewed Run identity whose resolved Service workspaces supply source authority."
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ChangeWalkthroughPart"
+              },
+              "description": "Parts of the system the changes touch. Optional so reports saved before this field still validate."
             },
             "groups": {
               "type": "array",
@@ -24145,7 +24372,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24164,7 +24391,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24197,7 +24424,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24225,7 +24452,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24244,7 +24471,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "caseInputId": {
               "type": "string",
@@ -24391,7 +24618,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "score": {
               "type": "number"
@@ -24422,7 +24649,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "evalId": {
               "type": "string"
@@ -24547,7 +24774,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24587,7 +24814,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24620,7 +24847,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24645,7 +24872,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24670,7 +24897,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24688,7 +24915,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24714,7 +24941,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -24763,7 +24990,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24792,7 +25019,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24823,7 +25050,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24876,7 +25103,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24952,7 +25179,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -24970,7 +25197,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "title": {
               "type": "string",
@@ -25020,7 +25247,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25061,7 +25288,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25082,7 +25309,7 @@
             },
             "summary": {
               "not": {},
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             },
             "text": {
               "type": "string"
@@ -25103,7 +25330,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25126,7 +25353,7 @@
             },
             "summary": {
               "type": "string",
-              "description": "50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run."
+              "description": "Default: 50-100 word phase handoff. Captures what the next agent needs to know to pick up — outcomes, decisions, and live constraints — not a turn-by-turn transcript of what happened this run. A variant\\'s own `summary` description takes precedence over this default."
             }
           },
           "required": [
@@ -25135,6 +25362,47 @@
             "validationSteps"
           ]
         }
+      ]
+    },
+    "ChangeWalkthroughPart": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The part\\'s name as it appears in the code."
+        },
+        "role": {
+          "type": "string",
+          "description": "What the part does in the product."
+        },
+        "relations": {
+          "type": "string",
+          "description": "How the part relates to the other listed parts."
+        },
+        "diagramElementRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChangeWalkthroughDiagramElementRef"
+          },
+          "description": "Diagram Elements the part belongs to, set only when a recorded project link (the originating task, the part\\'s Service or Contracts, Contract participation, or FULFILLED_BY) leads to the element. Empty when no link exists; never guessed from names. Elements that no longer resolve are omitted when the report is shown."
+        }
+      },
+      "required": [
+        "name",
+        "role",
+        "relations"
+      ],
+      "description": "A part of the system the walkthrough\\'s changes touch, with its role and how it relates to other listed parts."
+    },
+    "ChangeWalkthroughDiagramElementRef": {
+      "type": "object",
+      "properties": {
+        "diagramElementId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "diagramElementId"
       ]
     },
     "ChangeWalkthroughGroup": {
@@ -26496,6 +26764,9 @@
         "versionsRecorded": {
           "type": "boolean",
           "description": "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository\\'s object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate."
+        },
+        "place": {
+          "$ref": "#/definitions/ImplementReportEditPlace"
         }
       },
       "required": [
@@ -26526,6 +26797,44 @@
         "endLine"
       ],
       "description": "A 1-based, inclusive range of lines in one version of a file."
+    },
+    "ImplementReportEditPlace": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/AgentSessionServicePlaceKind"
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Branch checked out when the edit was recorded. Null means detached."
+        },
+        "worktreePath": {
+          "type": "string",
+          "description": "Top-level folder of the worktree. Present for WORKTREE, absent for MAIN_FOLDER."
+        }
+      },
+      "required": [
+        "kind",
+        "branch"
+      ],
+      "description": "Where the edit was made: the branch checked out, and the worktree if any, in the folder the edit ran in, read when the edit was recorded. When an edit has no `place`, its place was not recorded (older records, or git could not be read) and readers must show it as not recorded, never guess it from the session."
+    },
+    "AgentSessionServicePlaceKind": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "MAIN_FOLDER"
+        },
+        {
+          "type": "string",
+          "const": "WORKTREE"
+        },
+        {}
+      ],
+      "description": "Whether a Service works in its main folder or in a worktree."
     },
     "ImplementReportPayloadAllOfDecisions": {
       "type": "object",

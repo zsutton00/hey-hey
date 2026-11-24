@@ -19,13 +19,16 @@
 import type { ConversationControlCompactRun1 } from './conversation-control-compact-run1.js';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ConversationControlPermissionDecision } from './conversation-control-permission-decision.js';
+import type { ConversationControlPermissionDecision1 } from './conversation-control-permission-decision1.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ConversationControlQuestionAnswer } from './conversation-control-question-answer.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 
 /**
  * @type ConversationAuthorityIncreasingControlBody1
  * @export
  */
-export type ConversationAuthorityIncreasingControlBody1 = { kind: 'compact_run' } & ConversationControlCompactRun1 | { kind: 'permission_decision' } & ConversationControlPermissionDecision | { kind: 'question_answer' } & ConversationControlQuestionAnswer;
+export type ConversationAuthorityIncreasingControlBody1 = { kind: 'compact_run' } & ConversationControlCompactRun1 | { kind: 'permission_decision' } & ConversationControlPermissionDecision1 | { kind: 'question_answer' } & ConversationControlQuestionAnswer;

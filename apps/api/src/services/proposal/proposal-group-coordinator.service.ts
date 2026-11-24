@@ -307,6 +307,7 @@ export class ProposalGroupCoordinatorService {
     organizationId: OrganizationId,
     projectId: ProjectId,
     proposalIds: string[],
+    terminalReason = 'Future applied with confirmed refinement invalidation.',
   ): Promise<void> {
     const members = await tx.proposalGroupMember.findMany({
       where: {
@@ -322,8 +323,7 @@ export class ProposalGroupCoordinatorService {
         data: {
           executionState: 'INVALIDATED',
           invalidatedAt: now,
-          terminalReason:
-            'Future applied with confirmed refinement invalidation.',
+          terminalReason,
         },
       });
       const dependentIds = await this.invalidateImpossibleDependents(

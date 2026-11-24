@@ -28,6 +28,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OrganizationGuard } from 'src/auth/guards/organization.guard';
 import {
   ReportAudience,
+  ProjectChangePlaces,
   ProjectChangesPage,
   CreateReportDto,
   CreateReportEntityDto,
@@ -452,6 +453,7 @@ export class ProjectReportsController {
     @Query('featureId', new ParseUUIDPipe({ optional: true }))
     featureId?: string,
     @Query('committed') committed?: string,
+    @Query('placeKey') placeKey?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ): Promise<ProjectChangesPage> {
@@ -468,12 +470,45 @@ export class ProjectReportsController {
       ...(committed === undefined
         ? {}
         : { committed: this.parseBoolean(committed, 'committed') }),
+      ...(placeKey ? { placeKey } : {}),
       limit: pageSize,
       offset:
         offset === undefined
           ? 0
           : this.parseNonNegativeInteger(offset, 'offset'),
     });
+  }
+
+  @Get('changes/places')
+  @ApiOperation({
+    operationId: 'listProjectChangePlaces',
+    summary: 'List the branches and worktrees that have change records',
+  })
+  async listProjectChangePlaces(
+    @CurrentOrganization() organizationId: OrganizationId,
+    @Param('projectId', ParseUUIDPipe) projectId: string,
+    @Query('agentSessionId', new ParseUUIDPipe({ optional: true }))
+    agentSessionId?: string,
+    @Query('serviceId', new ParseUUIDPipe({ optional: true }))
+    serviceId?: string,
+    @Query('taskId', new ParseUUIDPipe({ optional: true })) taskId?: string,
+    @Query('featureId', new ParseUUIDPipe({ optional: true }))
+    featureId?: string,
+    @Query('committed') committed?: string,
+  ): Promise<ProjectChangePlaces> {
+    return this.reportService.listProjectChangePlaces(
+      organizationId,
+      projectId,
+      {
+        ...(agentSessionId ? { agentSessionId } : {}),
+        ...(serviceId ? { serviceId } : {}),
+        ...(taskId ? { taskId } : {}),
+        ...(featureId ? { featureId } : {}),
+        ...(committed === undefined
+          ? {}
+          : { committed: this.parseBoolean(committed, 'committed') }),
+      },
+    );
   }
 
   @Get('usage-trends')

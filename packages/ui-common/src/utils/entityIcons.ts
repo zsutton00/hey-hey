@@ -313,6 +313,37 @@ export const resolveWorkItemIcon = (
 
 export const getWorkItemIcon = resolveWorkItemIcon;
 
+const BUILT_IN_WORK_ITEM_ICON_KEYS: Partial<Record<string, WorkItemIconKey>> = {
+  STANDARD: "task",
+  BUG: "bug",
+  FEATURE: "feature",
+  GOAL: "goal",
+  CONTRACT: "contract",
+  DIAGRAM: "workflow",
+  workflow: "workflow",
+  TASK_MONITOR: "task",
+};
+
+/**
+ * Compatibility for built-in registry rows created before iconKey was
+ * persisted. A definition must still be present and keyed exactly; unknown
+ * or unresolved work-item types remain fail-closed.
+ */
+export const getBuiltInWorkItemIconKey = (
+  typeKey: string,
+  definition: WorkItemTypeDefinitionDto | undefined,
+): WorkItemIconKey | undefined => {
+  if (
+    !definition ||
+    definition.key !== typeKey ||
+    definition.iconKey !== undefined
+  ) {
+    return undefined;
+  }
+
+  return BUILT_IN_WORK_ITEM_ICON_KEYS[typeKey];
+};
+
 export interface ResolvedWorkItemIconPresentation {
   Icon: ComponentType<SvgIconProps>;
   colors: EntityColors;

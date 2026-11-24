@@ -29,8 +29,10 @@ vi.mock("../../../data/hooks", () => ({
   useAgentSessions: vi.fn(),
 }));
 const updateTask = vi.hoisted(() => vi.fn());
+const applyTaskMonitorUnstartedLaunchConfiguration = vi.hoisted(() => vi.fn());
 vi.mock("../../../clients/serviceClients", () => ({
   unifiedApiClient: { updateTask },
+  tasksClient: { applyTaskMonitorUnstartedLaunchConfiguration },
 }));
 
 import {
@@ -74,7 +76,7 @@ describe("useTaskMonitorProjection", () => {
     collectionMocks.agentSessionListQueryOptions.mockReset();
     collectionMocks.agentSessionListQueryOptions.mockImplementation(
       (_organizationId: string, _projectId: string, filters: unknown) =>
-        listOptions(filters)
+        listOptions(filters),
     );
     mockUseWorkItem.mockReturnValue({
       workItem: monitor(),
@@ -104,8 +106,8 @@ describe("useTaskMonitorProjection", () => {
           selectedWork: [],
           dependencyOrder: { nodes: [], edges: [] },
           cursor: { state: "READY" },
-        })
-      )
+        }),
+      ),
     ).toThrow("does not match the Task Monitor schema");
   });
 
@@ -115,7 +117,7 @@ describe("useTaskMonitorProjection", () => {
         organizationId: "org-1",
         projectId: "project-1",
         monitorId: "monitor-1",
-      })
+      }),
     );
 
     expect(mockUseWorkItems).toHaveBeenCalledWith(
@@ -123,12 +125,12 @@ describe("useTaskMonitorProjection", () => {
       "task",
       "project-1",
       undefined,
-      expect.objectContaining({ taskIds: [firstTaskId, secondTaskId] })
+      expect.objectContaining({ taskIds: [firstTaskId, secondTaskId] }),
     );
     expect(mockUseAgentSessions).toHaveBeenCalledWith(
       "org-1",
       "project-1",
-      expect.objectContaining({ ids: [sessionId] })
+      expect.objectContaining({ ids: [sessionId] }),
     );
     expect(result.current.nodes.map((node) => node.taskId)).toEqual([
       firstTaskId,
@@ -161,18 +163,37 @@ describe("useTaskMonitorProjection", () => {
         organizationId: "org-1",
         projectId: "project-1",
         monitorId: "monitor-1",
-      })
+      }),
     );
     expect(result.current.nodes[1]?.session).toEqual({ kind: "missing" });
   });
 
-  it("updates only the generated execution-definition section and refreshes it", async () => {
+  it("saves one task's setup onto the latest definition, keeping other writers' changes", async () => {
+    const cached = createTaskMonitorDefinition();
+    const latest = {
+      ...cached,
+      cursor: 0,
+      executionPlan: cached.executionPlan.map((node) =>
+        node.taskId === secondTaskId
+          ? {
+              ...node,
+              launchConfiguration: {
+                method: "quick" as const,
+                provider: "codex" as const,
+                model: "gpt-6-sol",
+                reasoningEffort: "low" as const,
+              },
+            }
+          : node,
+      ),
+    };
+    refetchMonitor.mockResolvedValue(monitor(latest));
     const { result } = renderHook(() =>
       useTaskMonitorProjection({
         organizationId: "org-1",
         projectId: "project-1",
         monitorId: "monitor-1",
-      })
+      }),
     );
 
     await act(() =>
@@ -181,7 +202,7 @@ describe("useTaskMonitorProjection", () => {
         provider: "claude",
         model: "claude-sonnet-4-6",
         reasoningEffort: "high",
-      })
+      }),
     );
 
     expect(updateTask).toHaveBeenCalledWith({
@@ -193,25 +214,88 @@ describe("useTaskMonitorProjection", () => {
           {
             key: "executionDefinition",
             content: {
-              ...createTaskMonitorDefinition(),
-              executionPlan: createTaskMonitorDefinition().executionPlan.map(
-                (node) =>
-                  node.taskId === firstTaskId
-                    ? {
-                        ...node,
-                        launchConfiguration: {
-                          method: "plan",
-                          provider: "claude",
-                          model: "claude-sonnet-4-6",
-                          reasoningEffort: "high",
-                        },
-                      }
-                    : node
+              ...latest,
+              executionPlan: latest.executionPlan.map((node) =>
+                node.taskId === firstTaskId
+                  ? {
+                      ...node,
+                      launchConfiguration: {
+                        method: "plan",
+                        provider: "claude",
+                        model: "claude-sonnet-4-6",
+                        reasoningEffort: "high",
+                      },
+                    }
+                  : node,
               ),
             },
           },
         ],
       },
+    });
+    // Once to read the latest definition, once to show the saved one.
+    expect(refetchMonitor).toHaveBeenCalledTimes(2);
+  });
+
+  it("refuses to change a task's setup once its session has started", async () => {
+    const { result } = renderHook(() =>
+      useTaskMonitorProjection({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+      }),
+    );
+
+    await expect(
+      act(() =>
+        result.current.saveLaunchConfiguration(secondTaskId, {
+          method: "plan",
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+          reasoningEffort: "high",
+        }),
+      ),
+    ).rejects.toThrow("already started");
+    expect(updateTask).not.toHaveBeenCalled();
+  });
+
+  it("sends only the chosen setup for unstarted tasks, so the server decides which tasks change", async () => {
+    applyTaskMonitorUnstartedLaunchConfiguration.mockResolvedValue({
+      data: {
+        data: { updatedTaskIds: [firstTaskId], skippedTaskIds: [secondTaskId] },
+      },
+    });
+    const { result } = renderHook(() =>
+      useTaskMonitorProjection({
+        organizationId: "org-1",
+        projectId: "project-1",
+        monitorId: "monitor-1",
+      }),
+    );
+    const configuration = {
+      method: "open" as const,
+      provider: "claude" as const,
+      model: "claude-sonnet-5-5",
+      reasoningEffort: "medium" as const,
+    };
+
+    const outcome = await act(() =>
+      result.current.applyToUnstartedTasks(configuration),
+    );
+
+    expect(applyTaskMonitorUnstartedLaunchConfiguration).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(applyTaskMonitorUnstartedLaunchConfiguration).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      projectId: "project-1",
+      monitorId: "monitor-1",
+      taskMonitorExecutionNodeLaunchConfiguration: configuration,
+    });
+    expect(updateTask).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      updatedTaskIds: [firstTaskId],
+      skippedTaskIds: [secondTaskId],
     });
     expect(refetchMonitor).toHaveBeenCalledTimes(1);
   });
@@ -223,7 +307,7 @@ describe("useTaskMonitorProjection", () => {
       ...createTaskMonitorDefinition(),
       executionPlan: createTaskMonitorDefinition().executionPlan.map(
         (node, index) =>
-          index === 0 ? { ...node, agentSessionId: newSessionId } : node
+          index === 0 ? { ...node, agentSessionId: newSessionId } : node,
       ),
     };
     refetchMonitor.mockImplementation(async () => {
@@ -234,7 +318,7 @@ describe("useTaskMonitorProjection", () => {
       (_organizationId: string, _projectId: string, filters: unknown) => {
         events.push("derive-linked-sessions");
         return listOptions(filters);
-      }
+      },
     );
     collectionMocks.readSessions.mockImplementation(async () => {
       events.push("refetch-sessions");
@@ -245,7 +329,7 @@ describe("useTaskMonitorProjection", () => {
         organizationId: "org-1",
         projectId: "project-1",
         monitorId: "monitor-1",
-      })
+      }),
     );
 
     await act(() => result.current.reconcileAfterCommand());
@@ -259,7 +343,7 @@ describe("useTaskMonitorProjection", () => {
     expect(collectionMocks.agentSessionListQueryOptions).toHaveBeenCalledWith(
       "org-1",
       "project-1",
-      { ids: [newSessionId, sessionId] }
+      { ids: [newSessionId, sessionId] },
     );
     expect(collectionMocks.readSessions).toHaveBeenCalledOnce();
   });
@@ -271,11 +355,11 @@ describe("useTaskMonitorProjection", () => {
         organizationId: "org-1",
         projectId: "project-1",
         monitorId: "monitor-1",
-      })
+      }),
     );
 
     await expect(
-      act(() => result.current.reconcileAfterCommand())
+      act(() => result.current.reconcileAfterCommand()),
     ).rejects.toThrow("canonical Task Monitor could not be refreshed");
     expect(collectionMocks.readSessions).not.toHaveBeenCalled();
   });

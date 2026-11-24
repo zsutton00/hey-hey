@@ -15,12 +15,11 @@ import { DiagramReferenceActions } from "./DiagramReferenceActions";
 import { DIAGRAM_TASK_TYPE } from "../../constants/taskTypes";
 import { MentionArtifactCard } from "./MentionArtifactCard";
 import { useMentionExpansion } from "./MentionExpansionContext";
+import { useAutomaticDiagramLayout } from "./useAutomaticDiagramLayout";
 import {
-  DIAGRAM_LAYOUT_CANDIDATES,
-  type DiagramLayoutCandidate,
-  type DiagramLayoutDirection,
-} from "./diagramLayoutCandidates";
-import { useDiagramLayoutComparison } from "./useDiagramLayoutComparison";
+  VisualArtifactPreviewContent,
+  VisualArtifactPreviewLoading,
+} from "./VisualArtifactPreview";
 import {
   buildDiagramLayoutGroupHints,
   computeBoundaryBoxes,
@@ -28,36 +27,23 @@ import {
   parseDiagramGroups,
   type DiagramBoundaryBox,
 } from "./diagramGroupBoundaries";
-import { useDiagramLayoutPreference } from "./useDiagramLayoutPreference";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
-import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
-import CodeIcon from "@mui/icons-material/Code";
 import CloseIcon from "@mui/icons-material/Close";
-import HubIcon from "@mui/icons-material/Hub";
-import Inventory2Icon from "@mui/icons-material/Inventory2";
 import FitScreenIcon from "@mui/icons-material/FitScreen";
 import OpenInFullIcon from "@mui/icons-material/OpenInFull";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import PersonIcon from "@mui/icons-material/Person";
-import PsychologyIcon from "@mui/icons-material/Psychology";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import StopCircleOutlinedIcon from "@mui/icons-material/StopCircleOutlined";
-import StorageIcon from "@mui/icons-material/Storage";
-import WidgetsIcon from "@mui/icons-material/Widgets";
 import LoginIcon from "@mui/icons-material/Login";
-import WebAssetIcon from "@mui/icons-material/WebAsset";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import {
-  AgentEdgeCategory,
   AgentEdgeDirection,
   AgentEdgeType,
   DiagramKind,
   DiagramLevel,
   TargetEntityType,
-  type AgentEdgeEndpointEntityType,
   type AgentEdgeResponseDto,
   type ProjectedWorkItem,
   type ProjectedWorkItemRelationship,
@@ -78,6 +64,10 @@ import {
   parseJsonSection,
   type GraphWorkItem,
 } from "./diagramElementMetadata";
+import {
+  displayToSavedPosition,
+  savedToDisplayPosition,
+} from "./workflowGraphSavedPositions";
 import {
   Box,
   Alert,
@@ -133,13 +123,13 @@ import {
   type HandleType,
   useNodesInitialized,
   useReactFlow,
+  useStore,
   useUpdateNodeInternals,
   ViewportPortal,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useProjectContext } from "../../contexts";
 import { useOptionalConversationScrollPolicy } from "../Conversation/hooks/useConversationScrolling";
-import { useWorkItem } from "../../data/hooks/useWorkItem";
 import { useWorkItemGraph } from "../../data/hooks/useWorkItemGraph";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { getTaskContentFromSections } from "../../utils/workItemSections";
@@ -151,20 +141,27 @@ import {
   MentionBadgeInner,
   type MentionMode,
 } from "../SmarterTextAreaCard/MentionBadge";
-import { EntityHoverCard } from "../SmarterTextAreaCard/EntityHoverCard";
 import { MentionEditorContext } from "../SmarterTextAreaCard/EditorContext";
 import { renderInlineMentions } from "../SmarterTextAreaCard/renderInlineMentions";
 import type { EntityMention } from "../SmarterTextAreaCard/types";
 import { InteractionComponent } from "../InteractionComponent";
 import { getPathService } from "../../services/webPathService";
 import {
-  getEntityColors,
-  getEntityIcon,
   getFallbackEntityColors,
   resolveWorkItemIcon,
-  resolveWorkItemIconPresentation,
 } from "../../utils/entityIcons";
-import { DecisionIcon } from "../../utils/icons/Decision";
+import {
+  getDirectEntityLinksByNodeId,
+  getEdgeNodeName,
+  isFlowEdge,
+  type FlowEdgeType,
+  WorkflowGraphDirectEntityLinkStrip,
+  formatDiagramSemanticLabel,
+  getDiagramRoleIcon,
+  type WorkflowGraphDirectEntityLink,
+  type WorkflowGraphRenderedEntityLink,
+} from "./diagramElementDirectLinks";
+export type { WorkflowGraphDirectEntityLink } from "./diagramElementDirectLinks";
 import {
   ReportMentionInlineRenderer,
   REPORT_MENTION_ENTITY_TYPE,
@@ -203,11 +200,6 @@ import type {
 
 const WORKFLOW_MENTION_ENTITY_TYPE = "workflow" as const;
 const DIAGRAM_MENTION_ENTITY_TYPE = "diagram" as const;
-const FLOW_EDGE_TYPES = [
-  AgentEdgeType.Standard,
-  AgentEdgeType.Conditional,
-  AgentEdgeType.Loop,
-] as const;
 
 const WORKFLOW_STEP_NODE_TYPE = "workflowStep" as const;
 const WORKFLOW_FLOW_EDGE_TYPE = "workflowFlow" as const;
@@ -348,8 +340,6 @@ export type WorkflowGraphPresentationState = "added" | "authored";
 const DEFAULT_WORKFLOW_GRAPH_PRESENTATION_STATE: WorkflowGraphPresentationState =
   "added";
 
-type FlowEdgeType = (typeof FLOW_EDGE_TYPES)[number];
-
 interface WorkflowMentionInlineRendererProps {
   mention: EntityMention;
   mode?: MentionMode;
@@ -369,20 +359,6 @@ export interface WorkflowGraphSurfaceData {
   workflowTypeDefinition?: WorkItemTypeDefinitionDto;
   nodeTypeDefinition?: WorkItemTypeDefinitionDto;
   layout?: WorkItemGraphLayoutValue | null;
-}
-
-export interface WorkflowGraphDirectEntityLink {
-  sourceNodeId: string;
-  targetEntityId: string;
-  targetEntityType: AgentEdgeEndpointEntityType | TargetEntityType;
-  targetWorkItemType?: string;
-  targetTitle: string;
-  relationshipType: string;
-}
-
-interface WorkflowGraphRenderedEntityLink extends WorkflowGraphDirectEntityLink {
-  href: string;
-  Icon: ComponentType<SvgIconProps>;
 }
 
 interface WorkflowFulfillmentTargetData {
@@ -748,8 +724,6 @@ interface WorkflowGraphSurfaceProps {
   onSelectionChange?: (selection: WorkItemGraphSelection) => void;
   onEmptyCanvasDrop?: (drop: WorkItemGraphEmptyCanvasDrop) => void;
   onVisibleCanvasPositionChange?: (position: WorkItemChangeSetPosition) => void;
-  /** Reports whether a layout preview currently suspends editing. */
-  onLayoutPreviewChange?: (previewing: boolean) => void;
   explorationAncestors?: readonly string[];
   participation?: WorkItemGraphParticipationResponseDto | null;
   directEntityLinks?: readonly WorkflowGraphDirectEntityLink[];
@@ -758,16 +732,6 @@ interface WorkflowGraphSurfaceProps {
 }
 
 interface WorkflowGraphViewportSurfaceProps {
-  layoutComparisonControls: {
-    candidate: DiagramLayoutCandidate;
-    direction: DiagramLayoutDirection;
-    automaticCandidate: DiagramLayoutCandidate;
-    automaticDirection: DiagramLayoutDirection;
-    previewRequested: boolean;
-    onPreviewCancel: () => void;
-    onCandidateChange: (candidate: DiagramLayoutCandidate) => void;
-    onDirectionChange: (direction: DiagramLayoutDirection) => void;
-  };
   graphData: WorkflowGraphSurfaceData;
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
@@ -805,11 +769,11 @@ interface WorkflowGraphViewportSurfaceProps {
     | "onSelectionChange"
     | "onEmptyCanvasDrop"
     | "onVisibleCanvasPositionChange"
-    | "onLayoutPreviewChange"
   >;
 }
 
 interface WorkflowGraphViewportControllerProps {
+  boundaryBoxes: readonly DiagramBoundaryBox[];
   enableInitialFit: boolean;
   hasGraphNodes: boolean;
   onReady: (instance: WorkflowGraphFlowInstance) => void;
@@ -1012,144 +976,6 @@ const getDiagramRoleDefinitions = (
   definition?.sections.find(
     (section) => section.key === "diagramElementMetadata",
   )?.diagramElementPolicy?.roles ?? [];
-
-const DIAGRAM_ROLE_ICONS: Readonly<
-  Record<string, ComponentType<SvgIconProps>>
-> = {
-  GENERIC: CategoryOutlinedIcon,
-  PERSON: PersonIcon,
-  AGENT: PsychologyIcon,
-  START: PlayCircleOutlineIcon,
-  END: StopCircleOutlinedIcon,
-  SOFTWARE_SYSTEM: HubIcon,
-  CONTAINER: Inventory2Icon,
-  COMPONENT: WidgetsIcon,
-  CODE: CodeIcon,
-  DATABASE: StorageIcon,
-  UI: WebAssetIcon,
-  UI_START: LoginIcon,
-  PRODUCT: Inventory2Icon,
-  DECISION: DecisionIcon,
-  EXTERNAL_SYSTEM: CloudOutlinedIcon,
-  DIAGRAM_REFERENCE: AccountTreeIcon,
-};
-
-const getDiagramRoleIcon = (
-  roleKey: string,
-  notation?: DiagramElementRoleDefinition["notation"],
-): ComponentType<SvgIconProps> => {
-  const knownRoleIcon = DIAGRAM_ROLE_ICONS[roleKey];
-  if (knownRoleIcon) return knownRoleIcon;
-
-  switch (notation) {
-    case "person":
-      return PersonIcon;
-    case "cylinder":
-      return StorageIcon;
-    case "diamond":
-      return DecisionIcon;
-    case "frame":
-      return AccountTreeIcon;
-    case "box":
-    default:
-      return CategoryOutlinedIcon;
-  }
-};
-
-const getDirectEntityHref = (
-  entityType: AgentEdgeEndpointEntityType | TargetEntityType,
-  entityId: string,
-  projectId: string,
-): string | undefined => {
-  const paths = getPathService();
-  switch (entityType.toUpperCase()) {
-    case "TASK":
-    case "BUG":
-    case "WORKFLOW":
-    case "DIAGRAM":
-    case "DIAGRAM_ELEMENT":
-    case "CONTRACT":
-      return paths.task({ projectId, taskId: entityId });
-    case "SERVICE":
-      return paths.service({ projectId, serviceId: entityId });
-    case "DESIGN_DOC":
-      return paths.designDoc({ projectId, designDocId: entityId });
-    case "INITIATIVE":
-      return paths.initiativeDetail({ projectId, initiativeId: entityId });
-    case "FEATURE":
-      return paths.feature({ projectId, featureId: entityId });
-    case "AGENT_SESSION":
-      return paths.agentSession({ projectId, agentSessionId: entityId });
-    case "CONVERSATION":
-      return paths.resolveAgentSession({ projectId, conversationId: entityId });
-    case "MESSAGE":
-      return paths.resolveMessageById({ projectId, messageId: entityId });
-    case "REPORT":
-      return paths.report({ projectId, reportId: entityId });
-    case "PROPOSAL":
-      return paths.proposal({ projectId, proposalId: entityId });
-    case "PROJECT":
-      return paths.project(entityId);
-    case "ARTIFACT":
-      return paths.artifact({ projectId, artifactId: entityId });
-    default:
-      return undefined;
-  }
-};
-
-const getDirectEntityLinksByNodeId = (
-  steps: readonly GraphWorkItem[],
-  edges: readonly AgentEdgeResponseDto[],
-  directEntityLinks: readonly WorkflowGraphDirectEntityLink[],
-  projectId: string,
-): Map<string, WorkflowGraphRenderedEntityLink[]> => {
-  const stepIds = new Set(steps.map((step) => step.id));
-  const linksByNodeId = new Map<string, WorkflowGraphRenderedEntityLink[]>();
-  const addLink = (link: WorkflowGraphDirectEntityLink): void => {
-    const targetTitle = link.targetTitle.trim();
-    if (!stepIds.has(link.sourceNodeId) || !targetTitle) return;
-    const href = getDirectEntityHref(
-      link.targetEntityType,
-      link.targetEntityId,
-      projectId,
-    );
-    if (!href) return;
-    const existing = linksByNodeId.get(link.sourceNodeId) ?? [];
-    linksByNodeId.set(link.sourceNodeId, [
-      ...existing,
-      {
-        ...link,
-        targetTitle,
-        href,
-        Icon: getEntityIcon(link.targetEntityType),
-      },
-    ]);
-  };
-
-  edges.forEach((edge) => {
-    if (isFlowEdge(edge) || !edge.targetEntityType) return;
-    const targetTitle = getEdgeNodeName(edge, "targetNodeName");
-    if (!targetTitle) return;
-    addLink({
-      sourceNodeId: edge.sourceNodeId,
-      targetEntityId: edge.targetNodeId,
-      targetEntityType: edge.targetEntityType,
-      ...(edge.targetNodeType
-        ? { targetWorkItemType: edge.targetNodeType }
-        : {}),
-      targetTitle,
-      relationshipType: edge.type,
-    });
-  });
-  directEntityLinks.forEach(addLink);
-  return linksByNodeId;
-};
-
-const formatDiagramSemanticLabel = (value: string): string =>
-  value
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/^\w/, (character) => character.toUpperCase());
 
 const isReportMention = (mention: EntityMention): boolean =>
   mention.entityType === REPORT_MENTION_ENTITY_TYPE;
@@ -1432,29 +1258,10 @@ const pointerEventPoint = (
   return { x: event.clientX, y: event.clientY };
 };
 
-const isFlowEdge = (
-  edge: AgentEdgeResponseDto,
-): edge is AgentEdgeResponseDto & { type: FlowEdgeType } =>
-  edge.category === AgentEdgeCategory.Flow &&
-  FLOW_EDGE_TYPES.includes(edge.type as FlowEdgeType);
-
 const isFulfilledByEdge = (
   edge: AgentEdgeResponseDto,
 ): edge is AgentEdgeResponseDto & { type: typeof AgentEdgeType.FulfilledBy } =>
   edge.type === AgentEdgeType.FulfilledBy;
-
-const getEdgeNodeName = (
-  edge: AgentEdgeResponseDto,
-  key: "sourceNodeName" | "targetNodeName",
-): string | null => {
-  const value = (
-    edge as AgentEdgeResponseDto & {
-      sourceNodeName?: unknown;
-      targetNodeName?: unknown;
-    }
-  )[key];
-  return typeof value === "string" && value.trim() ? value : null;
-};
 
 const dedupeEdges = (
   edgeLists: Array<AgentEdgeResponseDto[] | undefined>,
@@ -5197,259 +5004,6 @@ const WorkflowStepCardContent: React.FC<{
   );
 };
 
-const DIRECT_ENTITY_PREVIEW_OPEN_DELAY_MS = 300;
-const DIRECT_ENTITY_PREVIEW_CLOSE_DELAY_MS = 150;
-
-const WorkflowGraphDirectEntityLinkButton: React.FC<{
-  link: WorkflowGraphRenderedEntityLink;
-  expanded: boolean;
-  organizationId: string;
-  projectId: string;
-  onMouseEnter: (
-    event: React.MouseEvent<HTMLElement>,
-    link: WorkflowGraphRenderedEntityLink,
-  ) => void;
-  onMouseLeave: () => void;
-  onActivate: (
-    event: React.MouseEvent<HTMLButtonElement>,
-    link: WorkflowGraphRenderedEntityLink,
-  ) => void;
-}> = ({
-  link,
-  expanded,
-  organizationId,
-  projectId,
-  onMouseEnter,
-  onMouseLeave,
-  onActivate,
-}) => {
-  const isTaskTarget = link.targetEntityType === "TASK";
-  const taskQuery = useWorkItem(organizationId, "task", link.targetEntityId, {
-    projectId,
-    enabled: isTaskTarget && link.targetWorkItemType === undefined,
-  });
-  const taskType = link.targetWorkItemType ?? taskQuery.workItem?.type;
-  const taskTypeQuery = useWorkItemTypeByKey(
-    isTaskTarget ? organizationId : undefined,
-    isTaskTarget ? projectId : undefined,
-    taskType,
-  );
-  const taskPresentation =
-    isTaskTarget && taskType && taskTypeQuery.isReady
-      ? resolveWorkItemIconPresentation(
-          taskType,
-          taskTypeQuery.workItemTypeDefinition,
-          taskTypeQuery.workItemTypeSummary?.effectiveSource,
-        )
-      : undefined;
-  const Icon = taskPresentation?.Icon ?? link.Icon;
-  const colors =
-    taskPresentation?.colors ?? getEntityColors(link.targetEntityType);
-  const relationship = formatDiagramSemanticLabel(link.relationshipType);
-  const accessibleName = `Preview ${link.targetTitle}; ${relationship}`;
-
-  // Icons only open the preview; its title carries navigation. They never
-  // navigate, so they stay enabled on editable surfaces.
-  return (
-    <IconButton
-      size="small"
-      aria-haspopup="dialog"
-      aria-expanded={expanded}
-      onClick={(event) => {
-        event.stopPropagation();
-        onActivate(event, link);
-      }}
-      onMouseEnter={(event) => onMouseEnter(event, link)}
-      onMouseLeave={onMouseLeave}
-      aria-label={accessibleName}
-      data-testid="diagram-element-direct-link"
-      data-target-entity-id={link.targetEntityId}
-      data-target-entity-type={link.targetEntityType}
-      data-target-work-item-type={taskType}
-      data-relationship-type={link.relationshipType}
-      sx={{
-        width: 24,
-        height: 24,
-        p: 0,
-        borderRadius: "2px",
-        bgcolor: colors.background,
-        color: colors.color,
-        "&:hover": { bgcolor: colors.background, opacity: 0.85 },
-      }}
-    >
-      <Icon
-        aria-hidden
-        sx={{ fontSize: 16 }}
-        data-testid="diagram-element-direct-link-icon"
-        data-work-item-type={taskType}
-      />
-    </IconButton>
-  );
-};
-
-const WorkflowGraphDirectEntityLinkStrip: React.FC<{
-  links: readonly WorkflowGraphRenderedEntityLink[];
-  organizationId: string;
-  projectId: string;
-  /** Frame-relative inset of the strip's lower-left corner. */
-  inset?: { left: number; bottom: number };
-}> = ({ links, organizationId, projectId, inset }) => {
-  const hasScope = Boolean(organizationId && projectId);
-  const [hoveredTarget, setHoveredTarget] = useState<{
-    anchorEl: HTMLElement;
-    link: WorkflowGraphRenderedEntityLink;
-    /** Opened by activation; hover-out does not close it. */
-    pinned: boolean;
-    focusOnOpen: boolean;
-  } | null>(null);
-  const openTimeoutRef = useRef<number | null>(null);
-  const closeTimeoutRef = useRef<number | null>(null);
-
-  const clearOpenTimeout = useCallback(() => {
-    if (openTimeoutRef.current !== null) {
-      window.clearTimeout(openTimeoutRef.current);
-      openTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearCloseTimeout = useCallback(() => {
-    if (closeTimeoutRef.current !== null) {
-      window.clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  }, []);
-
-  const handleLinkMouseEnter = useCallback(
-    (
-      event: React.MouseEvent<HTMLElement>,
-      link: WorkflowGraphRenderedEntityLink,
-    ) => {
-      clearCloseTimeout();
-      clearOpenTimeout();
-      // Unscoped projections must not fetch previews.
-      if (!hasScope) return;
-      const anchorEl = event.currentTarget;
-      openTimeoutRef.current = window.setTimeout(() => {
-        setHoveredTarget((current) =>
-          current?.pinned
-            ? current
-            : { anchorEl, link, pinned: false, focusOnOpen: false },
-        );
-        openTimeoutRef.current = null;
-      }, DIRECT_ENTITY_PREVIEW_OPEN_DELAY_MS);
-    },
-    [clearCloseTimeout, clearOpenTimeout, hasScope],
-  );
-
-  const handleLinkMouseLeave = useCallback(() => {
-    clearOpenTimeout();
-    if (!hoveredTarget || hoveredTarget.pinned) return;
-    clearCloseTimeout();
-    closeTimeoutRef.current = window.setTimeout(() => {
-      setHoveredTarget(null);
-      closeTimeoutRef.current = null;
-    }, DIRECT_ENTITY_PREVIEW_CLOSE_DELAY_MS);
-  }, [clearCloseTimeout, clearOpenTimeout, hoveredTarget]);
-
-  const handlePreviewMouseEnter = useCallback(() => {
-    clearCloseTimeout();
-  }, [clearCloseTimeout]);
-
-  const handlePreviewMouseLeave = useCallback(() => {
-    clearOpenTimeout();
-    clearCloseTimeout();
-    setHoveredTarget((current) => (current?.pinned ? current : null));
-  }, [clearCloseTimeout, clearOpenTimeout]);
-
-  const handleLinkActivate = useCallback(
-    (
-      event: React.MouseEvent<HTMLButtonElement>,
-      link: WorkflowGraphRenderedEntityLink,
-    ) => {
-      clearOpenTimeout();
-      clearCloseTimeout();
-      if (!hasScope) return;
-      const anchorEl = event.currentTarget;
-      // Enter/Space synthesize a click with detail 0.
-      const fromKeyboard = event.detail === 0;
-      setHoveredTarget((current) =>
-        current?.pinned && current.anchorEl === anchorEl
-          ? null
-          : { anchorEl, link, pinned: true, focusOnOpen: fromKeyboard },
-      );
-    },
-    [clearCloseTimeout, clearOpenTimeout, hasScope],
-  );
-
-  const handlePreviewClose = useCallback(() => {
-    clearOpenTimeout();
-    clearCloseTimeout();
-    if (hoveredTarget?.focusOnOpen) hoveredTarget.anchorEl.focus();
-    setHoveredTarget(null);
-  }, [clearCloseTimeout, clearOpenTimeout, hoveredTarget]);
-
-  useEffect(
-    () => () => {
-      clearOpenTimeout();
-      clearCloseTimeout();
-    },
-    [clearCloseTimeout, clearOpenTimeout],
-  );
-
-  if (links.length === 0) return null;
-
-  return (
-    <>
-      <Stack
-        direction="row"
-        spacing={0.25}
-        className="nodrag nopan"
-        role="group"
-        aria-label="Directly linked entities"
-        data-testid="diagram-element-link-strip"
-        sx={{
-          position: "absolute",
-          left: inset?.left ?? 4,
-          bottom: inset?.bottom ?? 4,
-          alignItems: "center",
-          zIndex: 3,
-          pointerEvents: "all",
-        }}
-      >
-        {links.map((link) => (
-          <WorkflowGraphDirectEntityLinkButton
-            key={`${link.targetEntityId}:${link.relationshipType}`}
-            link={link}
-            expanded={
-              hoveredTarget?.link.targetEntityId === link.targetEntityId &&
-              hoveredTarget.link.relationshipType === link.relationshipType
-            }
-            organizationId={organizationId}
-            projectId={projectId}
-            onMouseEnter={handleLinkMouseEnter}
-            onMouseLeave={handleLinkMouseLeave}
-            onActivate={handleLinkActivate}
-          />
-        ))}
-      </Stack>
-      {hasScope ? (
-        <EntityHoverCard
-          entityId={hoveredTarget?.link.targetEntityId ?? ""}
-          entityType={hoveredTarget?.link.targetEntityType ?? "task"}
-          organizationId={organizationId}
-          projectId={projectId}
-          anchorEl={hoveredTarget?.anchorEl ?? null}
-          onPopoverMouseEnter={handlePreviewMouseEnter}
-          onPopoverMouseLeave={handlePreviewMouseLeave}
-          titleHref={hoveredTarget?.link.href}
-          onClose={handlePreviewClose}
-          focusOnOpen={hoveredTarget?.focusOnOpen ?? false}
-        />
-      ) : null}
-    </>
-  );
-};
-
 const WorkflowStepNode = memo(
   ({
     id,
@@ -5907,10 +5461,26 @@ const WorkflowGraphControls: React.FC<{
   </Stack>
 );
 
+/** Bounds of the nodes plus every group box, so padding and labels stay in view. */
+const getBoundsWithBoundaryBoxes = (
+  nodes: Parameters<typeof getNodesBounds>[0],
+  boxes: readonly DiagramBoundaryBox[],
+) => {
+  const nodeBounds = getNodesBounds(nodes);
+  const rects = [nodeBounds, ...boxes];
+  const left = Math.min(...rects.map((rect) => rect.x));
+  const top = Math.min(...rects.map((rect) => rect.y));
+  const right = Math.max(...rects.map((rect) => rect.x + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.y + rect.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+};
+
 const WorkflowGraphViewportController: React.FC<
   WorkflowGraphViewportControllerProps
-> = ({ enableInitialFit, hasGraphNodes, onReady, open }) => {
+> = ({ boundaryBoxes, enableInitialFit, hasGraphNodes, onReady, open }) => {
   const reactFlow = useReactFlow<WorkflowGraphNode, WorkflowGraphEdge>();
+  const canvasWidth = useStore((state) => state.width);
+  const canvasHeight = useStore((state) => state.height);
   const nodesInitialized = useNodesInitialized({
     includeHiddenNodes: false,
   });
@@ -5937,6 +5507,24 @@ const WorkflowGraphViewportController: React.FC<
     }
 
     const frameId = window.requestAnimationFrame(() => {
+      if (boundaryBoxes.length > 0 && canvasWidth > 0 && canvasHeight > 0) {
+        const bounds = getBoundsWithBoundaryBoxes(
+          reactFlow.getNodes(),
+          boundaryBoxes,
+        );
+        void reactFlow.setViewport(
+          getViewportForBounds(
+            bounds,
+            canvasWidth,
+            canvasHeight,
+            WORKFLOW_GRAPH_MIN_ZOOM,
+            WORKFLOW_GRAPH_MAX_ZOOM,
+            WORKFLOW_GRAPH_FIT_VIEW_PADDING,
+          ),
+          { duration: 0 },
+        );
+        return;
+      }
       void reactFlow.fitView({
         duration: 0,
         padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
@@ -5947,6 +5535,9 @@ const WorkflowGraphViewportController: React.FC<
       window.cancelAnimationFrame(frameId);
     };
   }, [
+    boundaryBoxes,
+    canvasHeight,
+    canvasWidth,
     enableInitialFit,
     hasGraphNodes,
     nodesInitialized,
@@ -5966,7 +5557,6 @@ interface DiagramExplorationTarget {
 const WorkflowGraphViewportSurface: React.FC<
   WorkflowGraphViewportSurfaceProps
 > = ({
-  layoutComparisonControls,
   graphData,
   projection,
   graphSizeMode,
@@ -6005,7 +5595,7 @@ const WorkflowGraphViewportSurface: React.FC<
       return new Map(
         projection.effectiveLayout.nodes.map(({ node, position }) => [
           workItemIdentityKey(node),
-          position,
+          savedToDisplayPosition(position, graphSizeMode),
         ]),
       );
     }
@@ -6015,11 +5605,16 @@ const WorkflowGraphViewportSurface: React.FC<
     return new Map(
       graphData.layout.nodes.flatMap(({ node, position }) =>
         node.kind === "persistedWorkItem"
-          ? [[node.workItemId, position] as const]
+          ? [
+              [
+                node.workItemId,
+                savedToDisplayPosition(position, graphSizeMode),
+              ] as const,
+            ]
           : [],
       ),
     );
-  }, [graphData.layout, projection]);
+  }, [graphData.layout, graphSizeMode, projection]);
   const reconnectableEdgeIds = useMemo(
     () =>
       new Set(
@@ -6091,11 +5686,9 @@ const WorkflowGraphViewportSurface: React.FC<
     () => buildModel(authoredPositions, canEdit),
     [authoredPositions, buildModel, canEdit],
   );
-  const preserveAuthoredLayout =
-    Boolean(authoredPositions?.size) &&
-    !layoutComparisonControls.previewRequested;
+  const hasSavedPositions = Boolean(authoredPositions?.size);
   const diagramGroups = useMemo(() => getDiagramGroups(graphData), [graphData]);
-  const comparison = useDiagramLayoutComparison(
+  const comparison = useAutomaticDiagramLayout(
     {
       ...diagramLayoutGroupsFor(
         diagramGroups,
@@ -6122,26 +5715,12 @@ const WorkflowGraphViewportSurface: React.FC<
           edge.type === WORKFLOW_FLOW_EDGE_TYPE ? (edge.data?.label ?? "") : "",
       })),
     },
-    preserveAuthoredLayout
-      ? undefined
-      : layoutComparisonControls.previewRequested
-        ? layoutComparisonControls.candidate
-        : layoutComparisonControls.automaticCandidate,
-    layoutComparisonControls.previewRequested
-      ? layoutComparisonControls.direction
-      : layoutComparisonControls.automaticDirection,
+    !hasSavedPositions,
   );
-  const isPreview =
-    comparison.active && layoutComparisonControls.previewRequested;
-  const isEditing = canEdit && !isPreview;
-  const onLayoutPreviewChange = interaction?.onLayoutPreviewChange;
-  useEffect(() => {
-    onLayoutPreviewChange?.(isPreview);
-  }, [isPreview, onLayoutPreviewChange]);
-  // Only saved positions or the selected engine's arrangement are displayed.
-  // Without saved positions, nothing renders until the engine is ready.
-  const isArranging =
-    comparison.active && !comparison.positions && !authoredPositions?.size;
+  const isEditing = canEdit;
+  // Only saved positions or the automatic arrangement are displayed.
+  // Without saved positions, nothing renders until the arrangement is ready.
+  const isArranging = comparison.active && !comparison.positions;
   const graphModel = useMemo(
     () =>
       comparison.positions
@@ -6341,6 +5920,11 @@ const WorkflowGraphViewportSurface: React.FC<
     };
   }, [open]);
 
+  const toSavedPosition = useCallback(
+    (position: WorkItemChangeSetPosition) =>
+      displayToSavedPosition(position, graphSizeMode),
+    [graphSizeMode],
+  );
   const onVisibleCanvasPositionChange =
     interaction?.onVisibleCanvasPositionChange;
   const publishVisibleCanvasPosition = useCallback(() => {
@@ -6355,8 +5939,8 @@ const WorkflowGraphViewportSurface: React.FC<
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
       return;
     }
-    onVisibleCanvasPositionChange?.(position);
-  }, [onVisibleCanvasPositionChange, reactFlowInstance]);
+    onVisibleCanvasPositionChange?.(toSavedPosition(position));
+  }, [onVisibleCanvasPositionChange, reactFlowInstance, toSavedPosition]);
 
   useEffect(() => {
     publishVisibleCanvasPosition();
@@ -6402,10 +5986,12 @@ const WorkflowGraphViewportSurface: React.FC<
       }
       const menu = resolveNodeContextMenu({
         child,
-        position: reactFlowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        }),
+        position: toSavedPosition(
+          reactFlowInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          }),
+        ),
         menuPosition: { x: event.clientX, y: event.clientY },
         allowContextMenu: true,
       });
@@ -6416,7 +6002,13 @@ const WorkflowGraphViewportSurface: React.FC<
       event.stopPropagation();
       onNodeContextMenu(menu);
     },
-    [identitiesByNodeId, interaction, isEditing, reactFlowInstance],
+    [
+      identitiesByNodeId,
+      interaction,
+      isEditing,
+      reactFlowInstance,
+      toSavedPosition,
+    ],
   );
 
   const handlePaneContextMenu = useCallback(
@@ -6426,10 +6018,12 @@ const WorkflowGraphViewportSurface: React.FC<
         return;
       }
       const menu = resolveEmptyCanvasContextMenu({
-        position: reactFlowInstance.screenToFlowPosition({
-          x: event.clientX,
-          y: event.clientY,
-        }),
+        position: toSavedPosition(
+          reactFlowInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          }),
+        ),
         menuPosition: { x: event.clientX, y: event.clientY },
         allowContextMenu: true,
       });
@@ -6440,7 +6034,7 @@ const WorkflowGraphViewportSurface: React.FC<
       event.stopPropagation();
       onEmptyCanvasContextMenu(menu);
     },
-    [interaction, isEditing, reactFlowInstance],
+    [interaction, isEditing, reactFlowInstance, toSavedPosition],
   );
 
   const updateGestureTarget = useCallback(
@@ -6467,7 +6061,10 @@ const WorkflowGraphViewportSurface: React.FC<
       const height = viewportElement?.clientHeight ?? 0;
 
       if (width > 0 && height > 0) {
-        const bounds = getNodesBounds(graphModel.nodes);
+        const bounds = getBoundsWithBoundaryBoxes(
+          graphModel.nodes,
+          boundaryBoxes,
+        );
         const nextViewport = getViewportForBounds(
           bounds,
           width,
@@ -6488,7 +6085,13 @@ const WorkflowGraphViewportSurface: React.FC<
       duration: 0,
       padding: WORKFLOW_GRAPH_FIT_VIEW_PADDING,
     });
-  }, [graphModel.nodes, hasGraphNodes, isFullscreen, reactFlowInstance]);
+  }, [
+    boundaryBoxes,
+    graphModel.nodes,
+    hasGraphNodes,
+    isFullscreen,
+    reactFlowInstance,
+  ]);
 
   const zoomIn = useCallback(() => {
     if (!reactFlowInstance) {
@@ -6512,7 +6115,6 @@ const WorkflowGraphViewportSurface: React.FC<
       data-workflow-id={graphData.workflow.id}
       data-workflow-graph-size={graphSizeMode}
       data-workflow-layout={graphModel.layoutMode}
-      data-layout-candidate={comparison.candidate}
       data-workflow-view-mode={
         isArranging
           ? "arranging"
@@ -6572,75 +6174,11 @@ const WorkflowGraphViewportSurface: React.FC<
           />
         </Stack>
       </Stack>
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        sx={{ px: 1.5, py: 1, flexWrap: "wrap", gap: 1 }}
-        data-testid="diagram-layout-comparison"
-      >
-        <Typography variant="caption">Layout</Typography>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layoutComparisonControls.candidate}
-          aria-label="Layout style"
-        >
-          {DIAGRAM_LAYOUT_CANDIDATES.map((candidate) => (
-            <ToggleButton
-              key={candidate.key}
-              value={candidate.key}
-              data-testid={candidate.testId}
-              onClick={() =>
-                layoutComparisonControls.onCandidateChange(candidate.key)
-              }
-            >
-              {candidate.label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={layoutComparisonControls.direction}
-          aria-label="Layout direction"
-          disabled={layoutComparisonControls.candidate === "elk-stress"}
-        >
-          <ToggleButton
-            value="RIGHT"
-            data-testid="diagram-layout-horizontal"
-            onClick={() => layoutComparisonControls.onDirectionChange("RIGHT")}
-          >
-            Horizontal
-          </ToggleButton>
-          <ToggleButton
-            value="DOWN"
-            data-testid="diagram-layout-vertical"
-            onClick={() => layoutComparisonControls.onDirectionChange("DOWN")}
-          >
-            Vertical
-          </ToggleButton>
-        </ToggleButtonGroup>
-        {comparison.pending ? (
-          <Typography role="status" variant="caption">
-            Arranging…
-          </Typography>
-        ) : null}
-        {isPreview ? (
-          <Button
-            size="small"
-            data-testid="diagram-layout-cancel-preview"
-            onClick={layoutComparisonControls.onPreviewCancel}
-          >
-            Cancel preview
-          </Button>
-        ) : null}
-        {preserveAuthoredLayout ? (
-          <Typography variant="caption">
-            Saved positions · select a layout to preview
-          </Typography>
-        ) : null}
-      </Stack>
+      {comparison.pending ? (
+        <Typography role="status" variant="caption" sx={{ px: 1.5, py: 1 }}>
+          Arranging…
+        </Typography>
+      ) : null}
       {(() => {
         const hasRole = (...keys: string[]) =>
           graphModel.nodes.some((node) =>
@@ -6688,10 +6226,7 @@ const WorkflowGraphViewportSurface: React.FC<
       })()}
       {comparison.error ? (
         <Alert severity="error" data-testid="diagram-layout-error">
-          {comparison.error}{" "}
-          {isPreview
-            ? "Cancel the preview to resume editing."
-            : "Select another layout to retry."}
+          {comparison.error}
         </Alert>
       ) : null}
       <Box
@@ -6791,7 +6326,7 @@ const WorkflowGraphViewportSurface: React.FC<
                 onNodeDragStop={(_event, node) => {
                   const completion = resolveNodeDragCompletion({
                     child: identitiesByNodeId.get(node.id),
-                    position: node.position,
+                    position: toSavedPosition(node.position),
                     allowNodeDragging: Boolean(interaction?.allowNodeDragging),
                     isConnecting: connectingSourceIdRef.current !== null,
                     isReconnecting: reconnectingRef.current,
@@ -6802,7 +6337,14 @@ const WorkflowGraphViewportSurface: React.FC<
                       completion.position,
                       surfaceNodes.flatMap(({ id, position }) => {
                         const identity = identitiesByNodeId.get(id);
-                        return identity ? [{ node: identity, position }] : [];
+                        return identity
+                          ? [
+                              {
+                                node: identity,
+                                position: toSavedPosition(position),
+                              },
+                            ]
+                          : [];
                       }),
                     );
                   } else {
@@ -6917,8 +6459,10 @@ const WorkflowGraphViewportSurface: React.FC<
                     isReconnecting: reconnectingRef.current,
                     emptyCanvasPosition:
                       !target && reactFlowInstance
-                        ? reactFlowInstance.screenToFlowPosition(
-                            pointerEventPoint(event),
+                        ? toSavedPosition(
+                            reactFlowInstance.screenToFlowPosition(
+                              pointerEventPoint(event),
+                            ),
                           )
                         : undefined,
                   });
@@ -6958,6 +6502,7 @@ const WorkflowGraphViewportSurface: React.FC<
                   />
                 )}
                 <WorkflowGraphViewportController
+                  boundaryBoxes={boundaryBoxes}
                   enableInitialFit={startsFitToView}
                   hasGraphNodes={hasGraphNodes}
                   onReady={setReactFlowInstance}
@@ -7013,7 +6558,6 @@ const WorkflowGraphViewportSurface: React.FC<
 };
 
 interface WorkflowGraphFullscreenDialogProps {
-  layoutComparisonControls: WorkflowGraphViewportSurfaceProps["layoutComparisonControls"];
   graphData: WorkflowGraphSurfaceData;
   projection?: WorkItemGraphProjectionData;
   graphSizeMode: WorkflowGraphSizeMode;
@@ -7040,7 +6584,6 @@ interface WorkflowGraphFullscreenDialogProps {
 const WorkflowGraphFullscreenDialog: React.FC<
   WorkflowGraphFullscreenDialogProps
 > = ({
-  layoutComparisonControls,
   graphData,
   projection,
   graphSizeMode,
@@ -7116,7 +6659,6 @@ const WorkflowGraphFullscreenDialog: React.FC<
       }}
     >
       <WorkflowGraphViewportSurface
-        layoutComparisonControls={layoutComparisonControls}
         graphData={graphData}
         projection={projection}
         graphSizeMode={graphSizeMode}
@@ -7548,15 +7090,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
         : undefined,
     [graphDataWithParticipation],
   );
-  const layoutComparisonControls = useDiagramLayoutPreference(
-    hydratedGraphData
-      ? {
-          organizationId: hydratedGraphData.workflow.organizationId,
-          projectId: hydratedGraphData.workflow.projectId,
-          diagramId: hydratedGraphData.workflow.id,
-        }
-      : undefined,
-  );
   if (
     !hydratedGraphData ||
     !(projection
@@ -7607,7 +7140,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
   const content = (
     <>
       <WorkflowGraphViewportSurface
-        layoutComparisonControls={layoutComparisonControls}
         graphData={hydratedGraphData}
         projection={projection}
         graphSizeMode={graphSizeMode}
@@ -7637,7 +7169,6 @@ export const WorkflowGraphSurface: React.FC<WorkflowGraphSurfaceProps> = ({
       />
       <ModalWorkOwner.Provider value={isFullscreenOpenOwnerKey}>
         <WorkflowGraphFullscreenDialog
-          layoutComparisonControls={layoutComparisonControls}
           graphData={hydratedGraphData}
           projection={projection}
           graphSizeMode={graphSizeMode}
@@ -7895,7 +7426,7 @@ const getThumbnailNodeSize = (
 
 export interface WorkflowGraphThumbnailProps {
   graphData: WorkflowGraphSurfaceData;
-  height: number;
+  description: string;
 }
 
 /**
@@ -7906,17 +7437,12 @@ export interface WorkflowGraphThumbnailProps {
  */
 export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
   graphData,
-  height,
+  description,
 }) => {
   const hydratedGraphData = useMemo(
     () => hydrateWorkflowGraphEdges(graphData),
     [graphData],
   );
-  const layoutPreference = useDiagramLayoutPreference({
-    organizationId: hydratedGraphData.workflow.organizationId,
-    projectId: hydratedGraphData.workflow.projectId,
-    diagramId: hydratedGraphData.workflow.id,
-  });
   const authoredPositions = useMemo(
     () =>
       hydratedGraphData.layout
@@ -7943,7 +7469,7 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     () => getDiagramGroups(hydratedGraphData),
     [hydratedGraphData],
   );
-  const comparison = useDiagramLayoutComparison(
+  const comparison = useAutomaticDiagramLayout(
     {
       ...diagramLayoutGroupsFor(
         thumbnailGroups,
@@ -7970,11 +7496,8 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
           edge.type === WORKFLOW_FLOW_EDGE_TYPE ? (edge.data?.label ?? "") : "",
       })),
     },
-    hasAuthoredLayout ? undefined : layoutPreference.automaticCandidate,
-    layoutPreference.automaticDirection,
+    !hasAuthoredLayout,
   );
-  const isArranging =
-    comparison.active && !comparison.positions && !hasAuthoredLayout;
   const graphModel = useMemo(
     () =>
       comparison.positions
@@ -8035,54 +7558,63 @@ export const WorkflowGraphThumbnail: React.FC<WorkflowGraphThumbnailProps> = ({
     };
   }, [graphModel.edges, graphModel.nodes]);
 
+  if (comparison.pending) {
+    return <VisualArtifactPreviewLoading testId="diagram-thumbnail-loading" />;
+  }
+
   return (
-    <Box
-      data-testid="workflow-graph-thumbnail"
-      aria-hidden
-      sx={{
-        position: "relative",
-        width: "100%",
-        height,
-        overflow: "hidden",
-        borderRadius: 1,
-        pointerEvents: "none",
-        bgcolor:
-          theme.palette.mode === "dark"
-            ? theme.palette.grey[900]
-            : theme.palette.grey[100],
-      }}
+    <VisualArtifactPreviewContent
+      caption={description}
+      captionTestId="diagram-thumbnail-description"
     >
-      {isArranging || !shapes ? null : (
-        <svg
-          width="100%"
-          height="100%"
-          viewBox={shapes.viewBox}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {shapes.lines.map((line) => (
-            <line
-              key={line.id}
-              {...{ x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 }}
-              stroke={theme.palette.text.secondary}
-              strokeWidth={Math.max(2, shapes.strokeScale * 1.5)}
-            />
-          ))}
-          {shapes.boxes.map(([id, box]) => (
-            <rect
-              key={id}
-              data-testid="workflow-graph-thumbnail-node"
-              x={box.x}
-              y={box.y}
-              width={box.width}
-              height={box.height}
-              rx={Math.min(box.width, box.height) / (box.round ? 6 : 10)}
-              fill={theme.palette.background.paper}
-              stroke={theme.palette.primary.main}
-              strokeWidth={Math.max(2, shapes.strokeScale * 2)}
-            />
-          ))}
-        </svg>
-      )}
-    </Box>
+      <Box
+        data-testid="workflow-graph-thumbnail"
+        aria-hidden
+        sx={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          borderRadius: 1,
+          pointerEvents: "none",
+          bgcolor:
+            theme.palette.mode === "dark"
+              ? theme.palette.grey[900]
+              : theme.palette.grey[100],
+        }}
+      >
+        {shapes && (
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={shapes.viewBox}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {shapes.lines.map((line) => (
+              <line
+                key={line.id}
+                {...{ x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 }}
+                stroke={theme.palette.text.secondary}
+                strokeWidth={Math.max(2, shapes.strokeScale * 1.5)}
+              />
+            ))}
+            {shapes.boxes.map(([id, box]) => (
+              <rect
+                key={id}
+                data-testid="workflow-graph-thumbnail-node"
+                x={box.x}
+                y={box.y}
+                width={box.width}
+                height={box.height}
+                rx={Math.min(box.width, box.height) / (box.round ? 6 : 10)}
+                fill={theme.palette.background.paper}
+                stroke={theme.palette.primary.main}
+                strokeWidth={Math.max(2, shapes.strokeScale * 2)}
+              />
+            ))}
+          </svg>
+        )}
+      </Box>
+    </VisualArtifactPreviewContent>
   );
 };

@@ -38,7 +38,7 @@ const runChangedFilesDiagnosticEntrySchema = z.object({
     organizationId: z.string(),
     projectId: z.string(),
     conversationId: z.string(),
-    provider: z.enum(['claude', 'codex', 'opencode']),
+    provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
     providerSessionId: z.string().nullable(),
   }),
   membership: z.object({

@@ -43,6 +43,7 @@ import type {
   ProposalResponseDto,
   WorkItemIconKey,
   WorkItemColorKey,
+  WorkItemStatusMeaning,
   WorkItemTypeDefinitionDto,
   WorkItemTypeCascadeImpactDto,
   WorkItemTypeEdgeTarget,
@@ -54,6 +55,7 @@ import type {
 } from "@hey-hey/contracts/api";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import {
   Alert,
   AlertTitle,
@@ -79,6 +81,7 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
@@ -108,6 +111,50 @@ import {
   serializeEdgeTargetSelection,
 } from "./workItemTypeFormPresentation";
 import type { EdgeTargetSelectionValue } from "./workItemTypeFormPresentation";
+
+const CUSTOM_MEANING_MAX_LENGTH = 50;
+
+type StatusMeaningChoice = "" | WorkItemStatusMeaning["kind"];
+
+/** One status row's meaning as edited: no choice yet, a built-in, or custom text. */
+interface StatusMeaningRow {
+  kind: StatusMeaningChoice;
+  text: string;
+}
+
+const NO_MEANING: StatusMeaningRow = { kind: "", text: "" };
+const STATUS_ROW_COLUMNS =
+  "minmax(10rem, 1fr) 11rem minmax(10rem, 1.2fr) 6.5rem";
+
+const statusMeaningRowOf = (
+  meaning: WorkItemStatusMeaning,
+): StatusMeaningRow => ({
+  kind: meaning.kind,
+  text: meaning.kind === "CUSTOM" ? meaning.text : "",
+});
+
+/** The meaning to save, or undefined while the row has none (or empty custom text). */
+const statusMeaningOf = (
+  row: StatusMeaningRow | undefined,
+): WorkItemStatusMeaning | undefined => {
+  if (!row || row.kind === "") {
+    return undefined;
+  }
+  if (row.kind !== "CUSTOM") {
+    return { kind: row.kind };
+  }
+  const text = row.text.trim();
+
+  return text ? { kind: "CUSTOM", text } : undefined;
+};
+
+const STATUS_MEANING_NOTE_KEYS: Partial<
+  Record<WorkItemStatusMeaning["kind"], string>
+> = {
+  COMPLETED: "workItemType.status.noteCompleted",
+  CANCELLED: "workItemType.status.noteCancelled",
+  IN_PROGRESS: "workItemType.status.noteInProgress",
+};
 
 interface SectionRow {
   key: string;
@@ -358,12 +405,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
   const { t } = useTranslation();
   const statusResolver = useResolveWorkItemTypeStatuses();
   const [statusName, setStatusName] = useState("");
-  const [needsFinishedSelection, setNeedsFinishedSelection] = useState(false);
-  const [finishedNames, setFinishedNames] = useState<string[]>([]);
-  const [noFinishedSelected, setNoFinishedSelected] = useState(false);
-  // Parallel to allowedStatuses: the persisted name each row started as, or
-  // null for rows added in this session. Lets a rename keep its meaning.
-  const [statusOrigins, setStatusOrigins] = useState<(string | null)[]>([]);
+  // Parallel to allowedStatuses: each row's one meaning. A rename keeps the
+  // row, so it keeps the meaning and nothing else.
+  const [statusMeanings, setStatusMeanings] = useState<StatusMeaningRow[]>([]);
   const renameStatus = (index: number, next: string) => {
     const previous = allowedStatuses[index]!;
     const renamed = allowedStatuses.map((name, i) =>
@@ -375,7 +419,6 @@ export const WorkItemTypeFormPage: React.FC = () => {
         : names.map((name) => (name === previous ? next : name));
     setAllowedStatuses(renamed);
     setAgentSettableStatuses(swap(agentSettableStatuses));
-    setFinishedNames(swap(finishedNames));
   };
 
   const moveStatus = (from: number, to: number) => {
@@ -385,19 +428,18 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return next;
     };
     setAllowedStatuses(swapRows(allowedStatuses));
-    setStatusOrigins(swapRows(statusOrigins));
+    setStatusMeanings(swapRows(statusMeanings));
   };
 
   const removeStatus = (index: number) => {
     const removed = allowedStatuses[index]!;
     const remaining = allowedStatuses.filter((_, i) => i !== index);
     setAllowedStatuses(remaining);
-    setStatusOrigins(statusOrigins.filter((_, i) => i !== index));
+    setStatusMeanings(statusMeanings.filter((_, i) => i !== index));
     if (!remaining.includes(removed)) {
       setAgentSettableStatuses(
         agentSettableStatuses.filter((name) => name !== removed),
       );
-      setFinishedNames(finishedNames.filter((name) => name !== removed));
     }
   };
 
@@ -493,7 +535,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
       return membership;
     });
     setAllowedStatuses(definition.statuses.map((status) => status.name));
-    setStatusOrigins(definition.statuses.map((status) => status.name));
+    setStatusMeanings(
+      definition.statuses.map((status) => statusMeaningRowOf(status.meaning)),
+    );
     const sourceAllowedParentTypes = definition.allowedParentTypes ?? [];
     setAllowedParentTypes(sourceAllowedParentTypes);
     setEdgeTargets(
@@ -796,11 +840,9 @@ export const WorkItemTypeFormPage: React.FC = () => {
       sections: sectionDtos,
       requiredScalars,
       forbiddenScalars,
-      statuses: allowedStatuses.map((name) => {
-        const status = workItemTypeSummary?.definition.statuses.find(
-          (entry) => entry.name === name,
-        );
-        return status ?? { name, meaning: "UNFINISHED" };
+      statuses: allowedStatuses.flatMap((name, index) => {
+        const meaning = statusMeaningOf(statusMeanings[index]);
+        return meaning ? [{ name, meaning }] : [];
       }),
       allowedParentTypes,
       edgeTargets: edgeTargetDtos,
@@ -904,6 +946,7 @@ export const WorkItemTypeFormPage: React.FC = () => {
     allowedParentEntityTypes,
     allowedParentTypes,
     allowedStatuses,
+    statusMeanings,
     agentSettableStatuses,
     anchorableReportTypes,
     capabilities,
@@ -1118,71 +1161,41 @@ export const WorkItemTypeFormPage: React.FC = () => {
       setError(t("workItemType.status.invalidNames"));
       return;
     }
-    if (
-      needsFinishedSelection &&
-      finishedNames.length === 0 &&
-      !noFinishedSelected
-    ) {
-      setError(t("workItemType.status.answerRequired"));
-      return;
-    }
-
-    const persistedStatuses = workItemTypeSummary?.definition.statuses ?? [];
-    const existingStatuses = persistedStatuses.flatMap((status) => {
-      const row = statusOrigins.indexOf(status.name);
-      return row === -1 ? [] : [{ ...status, name: allowedStatuses[row]! }];
-    });
-    const statusesUnchanged =
-      isEditMode &&
-      persistedStatuses.length > 0 &&
-      persistedStatuses.length === allowedStatuses.length &&
-      persistedStatuses.every(
-        (status, index) => status.name === allowedStatuses[index],
+    const unassigned = allowedStatuses.filter(
+      (_, index) => statusMeaningOf(statusMeanings[index]) === undefined,
+    );
+    if (unassigned.length > 0) {
+      setError(
+        t("workItemType.status.meaningRequired", {
+          names: unassigned.join(", "),
+        }),
       );
-    let resolved;
-    try {
-      resolved = statusesUnchanged
-        ? { state: "RESOLVED" as const, statuses: persistedStatuses }
-        : await statusResolver.mutate({
-            organizationId: currentOrgId,
-            projectId,
-            request: {
-              purpose: description || name,
-              ...(allowedStatuses.length > 0 ? { names: allowedStatuses } : {}),
-              existingStatuses,
-              ...(needsFinishedSelection ? { finishedNames } : {}),
-            },
-          });
-    } catch {
-      setError(t("workItemType.status.resolveError"));
-      return;
-    }
-    if (resolved.state === "CLARIFICATION") {
-      setNeedsFinishedSelection(true);
-      setFinishedNames(
-        (workItemTypeSummary?.definition.statuses ?? [])
-          .filter(
-            (status) =>
-              status.meaning === "FINISHED" &&
-              allowedStatuses.includes(status.name),
-          )
-          .map((status) => status.name),
-      );
-      setNoFinishedSelected(false);
       setActiveTab("Lifecycle");
       return;
     }
-    if (!resolved.statuses) {
-      setError(t("workItemType.status.resolveError"));
-      return;
+
+    let resolvedStatuses = draftDefinition.statuses;
+    if (allowedStatuses.length === 0) {
+      try {
+        resolvedStatuses = (
+          await statusResolver.mutate({
+            organizationId: currentOrgId,
+            projectId,
+            request: { purpose: description || name },
+          })
+        ).statuses;
+      } catch {
+        setError(t("workItemType.status.resolveError"));
+        return;
+      }
     }
     const definition = {
       ...draftDefinition,
-      statuses: resolved.statuses,
+      statuses: resolvedStatuses,
       ...(!isEditMode && allowedStatuses.length === 0
         ? {
             agentSettableStatuses: [
-              ...resolved.statuses.map((status) => status.name),
+              ...resolvedStatuses.map((status) => status.name),
               "ARCHIVED",
             ],
           }
@@ -2211,190 +2224,266 @@ export const WorkItemTypeFormPage: React.FC = () => {
                 Statuses
               </Typography>
               <Stack spacing={2.5}>
-                <Stack spacing={1} data-testid="wit-form-statuses">
-                  {allowedStatuses.map((status, index) => (
-                    <Stack
-                      key={index}
-                      direction="row"
-                      alignItems="center"
-                      spacing={1}
+                <Stack spacing={3} data-testid="wit-form-statuses">
+                  <Stack spacing={1}>
+                    <Box
+                      aria-hidden="true"
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: STATUS_ROW_COLUMNS,
+                        columnGap: 1,
+                        color: "text.secondary",
+                      }}
                     >
+                      <Typography variant="caption">
+                        {t("workItemType.status.columnName")}
+                      </Typography>
+                      <Typography variant="caption">
+                        {t("workItemType.status.columnMeaning")}
+                      </Typography>
+                      <Typography variant="caption">
+                        {t("workItemType.status.columnCustomMeaning")}
+                      </Typography>
+                      <span />
+                    </Box>
+                    {allowedStatuses.map((status, index) => {
+                      const meaning = statusMeanings[index] ?? NO_MEANING;
+                      const noteKey =
+                        meaning.kind === ""
+                          ? undefined
+                          : STATUS_MEANING_NOTE_KEYS[meaning.kind];
+                      const position = index + 1;
+                      const setMeaning = (next: StatusMeaningRow) =>
+                        setStatusMeanings(
+                          statusMeanings.map((row, i) =>
+                            i === index ? next : row,
+                          ),
+                        );
+
+                      return (
+                        <Box
+                          key={index}
+                          data-testid="wit-status-row"
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: STATUS_ROW_COLUMNS,
+                            alignItems: "center",
+                            columnGap: 1,
+                          }}
+                        >
+                          <TextField
+                            size="small"
+                            value={status}
+                            disabled={isPending || isReadOnly}
+                            inputProps={{
+                              "aria-label": t("workItemType.status.name", {
+                                position,
+                              }),
+                            }}
+                            InputProps={{
+                              endAdornment:
+                                index === 0 ? (
+                                  <Tooltip
+                                    title={t("workItemType.status.start")}
+                                  >
+                                    <PlayCircleOutlineIcon
+                                      fontSize="small"
+                                      color="primary"
+                                      tabIndex={0}
+                                      aria-label={t(
+                                        "workItemType.status.start",
+                                      )}
+                                      data-testid="wit-status-start"
+                                    />
+                                  </Tooltip>
+                                ) : undefined,
+                            }}
+                            onChange={(event) =>
+                              renameStatus(index, event.target.value)
+                            }
+                          />
+                          <Select
+                            size="small"
+                            displayEmpty
+                            value={meaning.kind}
+                            disabled={isPending || isReadOnly}
+                            data-testid="wit-status-meaning"
+                            inputProps={{
+                              "aria-label": t("workItemType.status.meaning", {
+                                position,
+                              }),
+                            }}
+                            onChange={(event) =>
+                              setMeaning({
+                                kind: event.target.value as StatusMeaningChoice,
+                                text:
+                                  event.target.value === "CUSTOM"
+                                    ? meaning.text
+                                    : "",
+                              })
+                            }
+                          >
+                            <MenuItem value="" disabled>
+                              {t("workItemType.status.selectMeaning")}
+                            </MenuItem>
+                            <MenuItem value="COMPLETED">
+                              {t("workItemType.status.meaningCompleted")}
+                            </MenuItem>
+                            <MenuItem value="CANCELLED">
+                              {t("workItemType.status.meaningCancelled")}
+                            </MenuItem>
+                            <MenuItem value="IN_PROGRESS">
+                              {t("workItemType.status.meaningInProgress")}
+                            </MenuItem>
+                            <MenuItem value="CUSTOM">
+                              {t("workItemType.status.meaningCustom")}
+                            </MenuItem>
+                          </Select>
+                          {meaning.kind === "CUSTOM" ? (
+                            <TextField
+                              size="small"
+                              value={meaning.text}
+                              placeholder={t(
+                                "workItemType.status.customMeaningPlaceholder",
+                              )}
+                              disabled={isPending || isReadOnly}
+                              inputProps={{
+                                "aria-label": t(
+                                  "workItemType.status.customMeaning",
+                                  { position },
+                                ),
+                              }}
+                              onChange={(event) =>
+                                setMeaning({
+                                  kind: "CUSTOM",
+                                  text: Array.from(event.target.value)
+                                    .slice(0, CUSTOM_MEANING_MAX_LENGTH)
+                                    .join(""),
+                                })
+                              }
+                            />
+                          ) : (
+                            <Typography variant="caption">
+                              {noteKey ? t(noteKey) : ""}
+                            </Typography>
+                          )}
+                          <Stack direction="row">
+                            <IconButton
+                              size="small"
+                              disabled={index === 0 || isPending || isReadOnly}
+                              aria-label={t("workItemType.status.moveUp")}
+                              onClick={() => moveStatus(index, index - 1)}
+                            >
+                              ↑
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              disabled={
+                                index === allowedStatuses.length - 1 ||
+                                isPending ||
+                                isReadOnly
+                              }
+                              aria-label={t("workItemType.status.moveDown")}
+                              onClick={() => moveStatus(index, index + 1)}
+                            >
+                              ↓
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              disabled={isPending || isReadOnly}
+                              aria-label={t("workItemType.status.remove")}
+                              onClick={() => removeStatus(index)}
+                            >
+                              ×
+                            </IconButton>
+                          </Stack>
+                        </Box>
+                      );
+                    })}
+                    <Stack direction="row" spacing={1} alignItems="center">
                       <TextField
                         size="small"
-                        value={status}
-                        sx={{ flex: 1 }}
-                        disabled={isPending || isReadOnly}
-                        inputProps={{
-                          "aria-label": t("workItemType.status.name", {
-                            position: index + 1,
-                          }),
-                        }}
-                        onChange={(event) =>
-                          renameStatus(index, event.target.value)
-                        }
+                        sx={{ minWidth: "10rem", flex: "0 1 22rem" }}
+                        label={t("workItemType.status.new")}
+                        value={statusName}
+                        onChange={(event) => setStatusName(event.target.value)}
+                        data-testid="wit-status-name"
+                        disabled={isReadOnly || isPending}
                       />
-                      {index === 0 && (
-                        <Typography
-                          variant="caption"
-                          data-testid="wit-status-start"
-                        >
-                          {t("workItemType.status.start")}
-                        </Typography>
-                      )}
                       <Button
                         type="button"
-                        disabled={index === 0 || isPending || isReadOnly}
-                        aria-label={t("workItemType.status.moveUp")}
-                        onClick={() => moveStatus(index, index - 1)}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        type="button"
+                        data-testid="wit-status-add"
                         disabled={
-                          index === allowedStatuses.length - 1 ||
+                          isReadOnly ||
                           isPending ||
-                          isReadOnly
+                          !statusName.trim() ||
+                          isReservedOrDuplicateStatus(
+                            statusName,
+                            allowedStatuses,
+                          )
                         }
-                        aria-label={t("workItemType.status.moveDown")}
-                        onClick={() => moveStatus(index, index + 1)}
+                        onClick={() => {
+                          const next = statusName.trim();
+                          setAllowedStatuses([...allowedStatuses, next]);
+                          setStatusMeanings([...statusMeanings, NO_MEANING]);
+                          setAgentSettableStatuses([
+                            ...agentSettableStatuses,
+                            ...(!isEditMode && allowedStatuses.length === 0
+                              ? ["ARCHIVED"]
+                              : []),
+                            next,
+                          ]);
+                          setStatusName("");
+                        }}
                       >
-                        ↓
+                        {t("workItemType.status.add")}
                       </Button>
                       <Button
                         type="button"
-                        disabled={isPending || isReadOnly}
-                        aria-label={t("workItemType.status.remove")}
-                        onClick={() => removeStatus(index)}
+                        data-testid="wit-status-suggest"
+                        disabled={
+                          isReadOnly || isPending || !currentOrgId || !projectId
+                        }
+                        onClick={async () => {
+                          if (!currentOrgId || !projectId) return;
+                          try {
+                            const result = await statusResolver.mutate({
+                              organizationId: currentOrgId,
+                              projectId,
+                              request: { purpose: description || name },
+                            });
+                            setAllowedStatuses(result.suggestions);
+                            setStatusMeanings(
+                              result.statuses.map((status) =>
+                                statusMeaningRowOf(status.meaning),
+                              ),
+                            );
+                            setAgentSettableStatuses([
+                              ...result.suggestions,
+                              "ARCHIVED",
+                            ]);
+                          } catch {
+                            setError(t("workItemType.status.resolveError"));
+                          }
+                        }}
                       >
-                        ×
+                        {t("workItemType.status.suggest")}
                       </Button>
                     </Stack>
-                  ))}
-                  <Stack direction="row" spacing={1}>
-                    <TextField
-                      size="small"
-                      label={t("workItemType.status.new")}
-                      value={statusName}
-                      onChange={(event) => setStatusName(event.target.value)}
-                      data-testid="wit-status-name"
-                      disabled={isReadOnly || isPending}
-                    />
-                    <Button
-                      type="button"
-                      data-testid="wit-status-add"
-                      disabled={
-                        isReadOnly ||
-                        isPending ||
-                        !statusName.trim() ||
-                        isReservedOrDuplicateStatus(statusName, allowedStatuses)
-                      }
-                      onClick={() => {
-                        const next = statusName.trim();
-                        setAllowedStatuses([...allowedStatuses, next]);
-                        setStatusOrigins([...statusOrigins, null]);
-                        setAgentSettableStatuses([
-                          ...agentSettableStatuses,
-                          ...(!isEditMode && allowedStatuses.length === 0
-                            ? ["ARCHIVED"]
-                            : []),
-                          next,
-                        ]);
-                        setStatusName("");
-                      }}
-                    >
-                      {t("workItemType.status.add")}
-                    </Button>
-                    <Button
-                      type="button"
-                      data-testid="wit-status-suggest"
-                      disabled={
-                        isReadOnly || isPending || !currentOrgId || !projectId
-                      }
-                      onClick={async () => {
-                        if (!currentOrgId || !projectId) return;
-                        try {
-                          const result = await statusResolver.mutate({
-                            organizationId: currentOrgId,
-                            projectId,
-                            request: { purpose: description || name },
-                          });
-                          setAllowedStatuses(result.suggestions);
-                          setStatusOrigins(result.suggestions.map(() => null));
-                          setNeedsFinishedSelection(false);
-                          setAgentSettableStatuses([
-                            ...result.suggestions,
-                            "ARCHIVED",
-                          ]);
-                          setFinishedNames([]);
-                          setNoFinishedSelected(false);
-                        } catch {
-                          setError(t("workItemType.status.resolveError"));
-                        }
-                      }}
-                    >
-                      {t("workItemType.status.suggest")}
-                    </Button>
                   </Stack>
-                  {needsFinishedSelection && (
-                    <Box
-                      component="fieldset"
-                      data-testid="wit-status-clarification"
-                    >
-                      <Typography component="legend">
-                        {t("workItemType.status.finished")}
-                      </Typography>
-                      {allowedStatuses.map((status, index) => (
-                        <FormControlLabel
-                          key={index}
-                          label={status}
-                          control={
-                            <Checkbox
-                              checked={finishedNames.includes(status)}
-                              onChange={(event) => {
-                                setNoFinishedSelected(false);
-                                setFinishedNames(
-                                  event.target.checked
-                                    ? [...finishedNames, status]
-                                    : finishedNames.filter(
-                                        (name) => name !== status,
-                                      ),
-                                );
-                              }}
-                            />
-                          }
-                        />
-                      ))}
-                      <FormControlLabel
-                        label={t("workItemType.status.noneOfThese")}
-                        control={
-                          <Checkbox
-                            checked={noFinishedSelected}
-                            onChange={(event) => {
-                              setNoFinishedSelected(event.target.checked);
-                              if (event.target.checked) {
-                                setFinishedNames([]);
-                              }
-                            }}
-                          />
-                        }
-                      />
-                      <Typography variant="caption" display="block">
-                        {t("workItemType.status.none")}
-                      </Typography>
-                    </Box>
-                  )}
-                  <Box data-testid="wit-status-reserved">
-                    <Typography variant="subtitle2">
-                      {t("workItemType.status.reserved")}
-                    </Typography>
+                  <Alert
+                    severity="info"
+                    variant="outlined"
+                    data-testid="wit-status-reserved"
+                  >
+                    <AlertTitle>{t("workItemType.status.reserved")}</AlertTitle>
                     <Typography variant="body2">
                       {t("workItemType.status.reservedArchived")}
                     </Typography>
                     <Typography variant="body2">
                       {t("workItemType.status.reservedSuperseded")}
                     </Typography>
-                  </Box>
+                  </Alert>
                   <Typography variant="caption">
                     {t("workItemType.status.existingItems")}
                   </Typography>

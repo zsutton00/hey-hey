@@ -270,6 +270,9 @@ describe('local application installation and return visits', () => {
     expect(app.state.kind).toBe('ready');
     expect(docker.calls.some((args) => args.includes('up'))).toBe(true);
     expect(docker.calls.some((args) => args.includes('pull'))).toBe(false);
+    expect(
+      docker.calls.some((args) => args.includes('migrate') && args.includes('-outOfOrder=true')),
+    ).toBe(true);
     expect(await storage.secrets()).toEqual(before);
   });
 

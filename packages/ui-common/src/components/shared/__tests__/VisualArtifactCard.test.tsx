@@ -79,7 +79,7 @@ class MockIntersectionObserver {
     intersect = (isIntersecting) =>
       callback(
         [{ isIntersecting } as IntersectionObserverEntry],
-        this as unknown as IntersectionObserver
+        this as unknown as IntersectionObserver,
       );
   }
   observe() {}
@@ -94,6 +94,7 @@ describe("VisualArtifactCard", () => {
   beforeEach(() => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     mockOpenPreview.mockReset();
+    mockUseWorkItem.mockClear();
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       width: 280,
     } as DOMRect);
@@ -131,18 +132,23 @@ describe("VisualArtifactCard", () => {
           organizationId="org-1"
           projectId="project-1"
         />
-      </PreviewHostProvider>
+      </PreviewHostProvider>,
     );
 
   it("defers loading until the card nears the viewport", () => {
     renderCard("mockup");
 
     expect(
-      screen.getByTestId("visual-artifact-card-artifact-1-preview")
+      screen.getByTestId("visual-artifact-card-artifact-1-preview"),
     ).toHaveAttribute("data-load-state", "deferred");
     expect(screen.getByTestId("visual-artifact-card-loading")).toBeVisible();
     expect(mockUseWorkItem).not.toHaveBeenCalled();
-    expect(screen.getByTestId("visual-artifact-card-artifact-1-preview")).toHaveStyle({ minHeight: "180px" });
+    expect(
+      screen.getByTestId("visual-artifact-card-artifact-1-preview"),
+    ).toHaveStyle({ height: "242px" });
+    expect(screen.getByTestId("visual-artifact-card-loading")).toHaveStyle({
+      height: "100%",
+    });
   });
 
   it("renders the mockup section chosen by kind, not by key", () => {
@@ -165,7 +171,7 @@ describe("VisualArtifactCard", () => {
     act(() => intersect(true));
 
     expect(
-      screen.getByTestId("structured-mockup-thumbnail")
+      screen.getByTestId("structured-mockup-thumbnail"),
     ).toBeInTheDocument();
   });
 
@@ -175,7 +181,7 @@ describe("VisualArtifactCard", () => {
 
     expect(screen.getByTestId("diagram-thumbnail")).toHaveAttribute(
       "data-diagram-id",
-      "artifact-1"
+      "artifact-1",
     );
   });
 
@@ -190,7 +196,8 @@ describe("VisualArtifactCard", () => {
             { key: "description", content: "Unused description" },
             {
               key: "purpose",
-              content: "Show **sign-in** for @[feature:example|Account Management].",
+              content:
+                "Show **sign-in** for @[feature:example|Account Management].",
             },
           ],
         },
@@ -201,9 +208,16 @@ describe("VisualArtifactCard", () => {
         workItemTypeDefinition: { sections: [{ key: "screen", kind }] },
       });
       renderCard("mockup");
+      const frame = screen.getByTestId(
+        "visual-artifact-card-artifact-1-preview",
+      );
+      const open = screen.getByRole("button", { name: "Open Login" });
+      act(() => open.focus());
       expect(screen.queryByTestId("mockup-purpose")).not.toBeInTheDocument();
       act(() => intersect(true));
 
+      expect(frame).toHaveStyle({ height: "242px" });
+      expect(open).toHaveFocus();
       const purpose = screen.getByTestId("mockup-purpose");
       expect(purpose).toHaveTextContent("Show sign-in for Account Management.");
       expect(screen.queryByText("Unused description")).not.toBeInTheDocument();
@@ -213,17 +227,37 @@ describe("VisualArtifactCard", () => {
         overflow: "hidden",
       });
       const thumbnail = screen.getByTestId(
-        kind === "html/css" ? "html-css-thumbnail" : "structured-mockup-thumbnail"
+        kind === "html/css"
+          ? "html-css-thumbnail"
+          : "structured-mockup-thumbnail",
       );
-      expect(thumbnail.compareDocumentPosition(purpose) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(mockUseWorkItem.mock.calls.every((args) => args[2] === "artifact-1")).toBe(true);
-    }
+      expect(
+        thumbnail.compareDocumentPosition(purpose) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(
+        mockUseWorkItem.mock.calls.every((args) => args[2] === "artifact-1"),
+      ).toBe(true);
+    },
   );
 
   it("adds no caption when the mockup has no purpose", () => {
     renderCard("mockup");
     act(() => intersect(true));
     expect(screen.queryByTestId("mockup-purpose")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("visual-artifact-card-artifact-1-preview"),
+    ).toHaveStyle({ height: "242px" });
+  });
+
+  it("applies the short reveal to ready content only", () => {
+    renderCard("mockup");
+    expect(screen.queryByTestId("visual-artifact-preview-content")).toBeNull();
+    act(() => intersect(true));
+
+    expect(screen.getByTestId("visual-artifact-preview-content")).toHaveStyle({
+      animationDuration: "0.15s",
+    });
   });
 
   it.each(["mockup", "DIAGRAM"])(
@@ -238,7 +272,7 @@ describe("VisualArtifactCard", () => {
         entityType: "task",
         entityId: "artifact-1",
       });
-    }
+    },
   );
 
   it("keeps the shared card title on one truncated line", () => {
@@ -255,7 +289,7 @@ const related = (
   entityId: string,
   taskType: string,
   relationship = "related-to",
-  entityType = "TASK"
+  entityType = "TASK",
 ): ContextRelatedEntityDto =>
   ({
     entityId,
@@ -263,7 +297,7 @@ const related = (
     displayName: entityId,
     relationship,
     taskType,
-  } as ContextRelatedEntityDto);
+  }) as ContextRelatedEntityDto;
 
 describe("selectVisualArtifacts", () => {
   it("lists structural children first, then linked artifacts, each once", () => {
@@ -278,7 +312,7 @@ describe("selectVisualArtifacts", () => {
         related("shared", "mockup", "depends-on"),
         related("linked-mockup", "mockup", "mentions"),
         related("linked-task", "STANDARD"),
-      ]
+      ],
     );
 
     expect(artifacts.map((artifact) => artifact.entityId)).toEqual([
@@ -296,7 +330,7 @@ describe("selectVisualArtifacts", () => {
         related("sibling", "mockup", "sibling-via-parent"),
         related("flow", "DIAGRAM", "standard"),
         related("doc", "mockup", "related-to", "DESIGN_DOC"),
-      ]
+      ],
     );
 
     expect(artifacts).toEqual([]);
@@ -304,7 +338,7 @@ describe("selectVisualArtifacts", () => {
 
   it("does not cap the number of artifacts", () => {
     const relatedEntities = Array.from({ length: 12 }, (_, index) =>
-      related(`mockup-${index}`, "mockup")
+      related(`mockup-${index}`, "mockup"),
     );
     expect(selectVisualArtifacts([], relatedEntities)).toHaveLength(12);
   });

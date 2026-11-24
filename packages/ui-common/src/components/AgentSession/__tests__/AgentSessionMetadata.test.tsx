@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AgentSessionMetadata,
   type AgentSessionMetadataPlacement,
+  type AgentSessionServicePlaceEntry,
 } from "../AgentSessionMetadata";
 
 const originalMatchMedia = window.matchMedia;
@@ -29,22 +30,28 @@ afterEach(() => {
   });
 });
 
+const mixedPlaces: AgentSessionServicePlaceEntry[] = [
+  { serviceName: "hey-hey", place: { kind: "worktree", branch: "feature-x" } },
+  { serviceName: "demos", place: { kind: "main-folder", branch: "dev" } },
+  { serviceName: "docs", place: { kind: "main-folder", branch: null } },
+  { serviceName: "infra", place: { kind: "not-recorded" } },
+];
+
 const renderMetadata = (
   placement: AgentSessionMetadataPlacement,
   effort?: "low" | "medium" | "high" | "xhigh" | "max",
   fastMode?: boolean,
-  worktree?: string
+  servicePlaces?: readonly AgentSessionServicePlaceEntry[],
 ) =>
   render(
     <AgentSessionMetadata
       placement={placement}
       provider="codex"
       model="claude-opus-4-7"
-      serviceNames={["API", "Web UI"]}
       {...(effort ? { effort } : {})}
       {...(fastMode !== undefined ? { fastMode } : {})}
-      {...(worktree ? { worktree } : {})}
-    />
+      {...(servicePlaces ? { servicePlaces } : {})}
+    />,
   );
 
 describe("AgentSessionMetadata", () => {
@@ -53,33 +60,38 @@ describe("AgentSessionMetadata", () => {
     (placement) => {
       setViewport(false);
 
-      renderMetadata(placement, "high", true, "feature/current-worktree");
+      renderMetadata(placement, "high", true, mixedPlaces);
 
       expect(
-        screen.getAllByTestId("agent-session-metadata-service")
-          .map((node) => node.textContent)
-      ).toEqual(["API", "Web UI"]);
-      expect(
-        screen.queryByTestId("agent-session-metadata-mobile-toggle")
+        screen.queryByTestId("agent-session-metadata-mobile-toggle"),
       ).not.toBeInTheDocument();
       const root = screen.getByTestId("agent-session-metadata");
       expect(root).toHaveAttribute("data-placement", placement);
       expect(
-        screen.getByTestId("agent-session-metadata-provider")
+        screen.getByTestId("agent-session-metadata-provider"),
       ).toHaveTextContent("codex");
       expect(
-        screen.getByTestId("agent-session-metadata-model")
+        screen.getByTestId("agent-session-metadata-model"),
       ).toHaveTextContent("claude-opus-4-7");
       expect(
-        screen.getByTestId("agent-session-metadata-effort")
+        screen.getByTestId("agent-session-metadata-effort"),
       ).toHaveTextContent("high");
-      expect(screen.getByTestId("agent-session-metadata-fast")).toHaveTextContent(
-        "fast"
-      );
       expect(
-        screen.getByTestId("agent-session-metadata-worktree")
-      ).toHaveTextContent("feature/current-worktree");
-    }
+        screen.getByTestId("agent-session-metadata-fast"),
+      ).toHaveTextContent("fast");
+      expect(
+        screen.getByTestId("agent-session-metadata-place-worktree"),
+      ).toHaveTextContent("hey-hey: worktree feature-x");
+      expect(
+        screen.getByTestId("agent-session-metadata-place-main"),
+      ).toHaveTextContent("demos: main folder on dev");
+      expect(
+        screen.getByTestId("agent-session-metadata-place-detached"),
+      ).toHaveTextContent("docs: main folder, detached");
+      expect(
+        screen.getByTestId("agent-session-metadata-place-not-recorded"),
+      ).toHaveTextContent("infra: Not recorded");
+    },
   );
 
   it("omits unset effort and does not render a placeholder", () => {
@@ -88,26 +100,26 @@ describe("AgentSessionMetadata", () => {
     renderMetadata("below-conversation");
 
     expect(
-      screen.getByTestId("agent-session-metadata-provider")
+      screen.getByTestId("agent-session-metadata-provider"),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId("agent-session-metadata-model")
+      screen.getByTestId("agent-session-metadata-model"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-session-metadata-effort")
+      screen.queryByTestId("agent-session-metadata-effort"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByTestId("agent-session-metadata-fast")
+      screen.queryByTestId("agent-session-metadata-fast"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/unknown|not set|default/i)
+      screen.queryByText(/unknown|not set|default/i),
     ).not.toBeInTheDocument();
   });
 
   it("uses an info-icon popover disclosure at a 375px mobile width", () => {
     setViewport(true);
 
-    renderMetadata("below-composer", "high", true);
+    renderMetadata("below-composer", "high", true, mixedPlaces);
 
     const toggle = screen.getByTestId("agent-session-metadata-mobile-toggle");
     const root = screen.getByTestId("agent-session-metadata");
@@ -115,54 +127,39 @@ describe("AgentSessionMetadata", () => {
     expect(toggle).toHaveAttribute("aria-haspopup", "dialog");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(
-      screen.queryByTestId("agent-session-metadata-mobile-details")
+      screen.queryByTestId("agent-session-metadata-mobile-details"),
     ).not.toBeInTheDocument();
     expect(getComputedStyle(root).overflow).toBe("hidden");
 
     fireEvent.click(toggle);
 
-    expect(
-      screen.getAllByTestId("agent-session-metadata-service")
-        .map((node) => node.textContent)
-    ).toEqual(["ServiceAPI", "ServiceWeb UI"]);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(toggle).toHaveAttribute("aria-label", "Hide more details");
     expect(
-      screen.getByTestId("agent-session-metadata-mobile-details")
+      screen.getByTestId("agent-session-metadata-mobile-details"),
     ).toHaveTextContent("Modelclaude-opus-4-7");
     expect(
-      screen.getByTestId("agent-session-metadata-mobile-details")
+      screen.getByTestId("agent-session-metadata-mobile-details"),
     ).toHaveTextContent("Providercodex");
     expect(
-      screen.getByTestId("agent-session-metadata-mobile-details")
+      screen.getByTestId("agent-session-metadata-mobile-details"),
     ).toHaveTextContent("Reasoning efforthigh");
     expect(
-      screen.getByTestId("agent-session-metadata-mobile-details")
+      screen.getByTestId("agent-session-metadata-mobile-details"),
     ).toHaveTextContent("Fast modefast");
+    const details = screen.getByTestId("agent-session-metadata-mobile-details");
+    expect(details).toHaveTextContent("Where each Service works");
+    expect(details).toHaveTextContent("hey-heyworktree feature-x");
+    expect(details).toHaveTextContent("demosmain folder on dev");
+    expect(details).toHaveTextContent("docsmain folder, detached");
+    expect(details).toHaveTextContent("infraNot recorded");
 
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("includes the worktree in mobile metadata details", () => {
-    setViewport(true);
-
-    renderMetadata(
-      "below-conversation",
-      "high",
-      undefined,
-      "feature/current-worktree"
-    );
-
-    fireEvent.click(screen.getByTestId("agent-session-metadata-mobile-toggle"));
-
-    expect(
-      screen.getByTestId("agent-session-metadata-worktree")
-    ).toHaveTextContent("feature/current-worktree");
-  });
-
-  it("copies the worktree from the chip copy button", async () => {
+  it("copies the branch from a worktree entry's copy button", async () => {
     setViewport(false);
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
@@ -170,17 +167,15 @@ describe("AgentSessionMetadata", () => {
       configurable: true,
     });
 
-    renderMetadata(
-      "below-conversation",
-      undefined,
-      undefined,
-      "feature/current-worktree"
-    );
+    renderMetadata("below-conversation", undefined, undefined, mixedPlaces);
 
-    fireEvent.click(screen.getByTestId("agent-session-metadata-worktree-copy"));
+    fireEvent.click(screen.getByTestId("agent-session-metadata-place-copy-0"));
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("feature/current-worktree");
+      expect(writeText).toHaveBeenCalledWith("feature-x");
     });
+    expect(
+      screen.queryByTestId("agent-session-metadata-place-copy-1"),
+    ).not.toBeInTheDocument();
   });
 });

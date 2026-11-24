@@ -25,12 +25,15 @@ export const AgentSkillProvider = {
     Claude: 'claude',
     Codex: 'codex',
     Opencode: 'opencode',
+    Antigravity: 'antigravity',
     "claude": "claude",
     "codex": "codex",
     "opencode": "opencode",
+    "antigravity": "antigravity",
 } as const;
 Object.defineProperty(AgentSkillProvider, "claude", { enumerable: false, value: AgentSkillProvider["Claude"] });
 Object.defineProperty(AgentSkillProvider, "codex", { enumerable: false, value: AgentSkillProvider["Codex"] });
 Object.defineProperty(AgentSkillProvider, "opencode", { enumerable: false, value: AgentSkillProvider["Opencode"] });
+Object.defineProperty(AgentSkillProvider, "antigravity", { enumerable: false, value: AgentSkillProvider["Antigravity"] });
 
 export type AgentSkillProvider = typeof AgentSkillProvider[keyof typeof AgentSkillProvider];

@@ -699,6 +699,41 @@ describe('TriggerVerifier', () => {
     expect(result.reason).toBe('schema');
   });
 
+  it('names the failing field when a protocol-v2 read matches its operation but not its shape', () => {
+    const { privateKey, rawPublicKey } = generateServerSigningKeys();
+    const verifier = buildProtocolV2Verifier(rawPublicKey);
+    const serviceId = '70000000-0000-4000-8000-000000000007';
+
+    const result = verifier.verifyCliReadFrame({
+      ...buildProtocolV2CliSettingsFrame(privateKey, {
+        requestId: '60000000-0000-4000-8000-000000000006',
+        authorizationRequestId: '61000000-0000-4000-8000-000000000006',
+        organizationId: V2_ORGANIZATION_ID,
+        projectId: V2_PROJECT_ID,
+        machineId: V2_MACHINE_ID,
+        operation: 'workspace.service_places.list',
+        serviceIds: [serviceId, serviceId],
+        branchQuery: null,
+      }),
+      type: 'cli.read.request',
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'schema' });
+    if (result.ok) return;
+    expect(result.details['issues']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'envelope.event.branchQuery',
+          message: 'Expected string, received null',
+        }),
+        expect.objectContaining({
+          path: 'envelope.event.serviceIds',
+          message: 'serviceIds must be unique',
+        }),
+      ]),
+    );
+  });
+
   it('rejects mixed project-session and Run read fields before execution', () => {
     const { privateKey, rawPublicKey } = generateServerSigningKeys();
     const verifier = buildVerifier(rawPublicKey);
@@ -1339,7 +1374,8 @@ describe('TriggerVerifier', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     if (result.verified.kind !== 'trigger.control') throw new Error('expected trigger.control');
-    if (result.verified.body.kind !== 'question_answer') throw new Error('expected question_answer');
+    if (result.verified.body.kind !== 'question_answer')
+      throw new Error('expected question_answer');
     expect(result.verified.body.requestId).toBe('claude_question_1');
     expect(result.verified.body.answers).toEqual({ 'Which colour?': 'Teal' });
     expect(result.verified.body.idempotencyToken).toBe('idem-q-1');

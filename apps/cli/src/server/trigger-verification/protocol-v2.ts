@@ -1,3 +1,4 @@
+import { servicePlaceChoicesSchema } from '../service-place-choice-schema';
 import { recordedEditSchema } from './recorded-edit-schema';
 import { taskMonitorLaunchConfigInputSchema as taskMonitorLaunchConfigV2Schema } from './task-monitor-launch-config';
 import { z } from 'zod';
@@ -450,8 +451,9 @@ const permissionDecisionControlV2Shape = {
   decision: z.enum(['approve', 'always_approve', 'deny', 'whitelist']),
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
-  agentType: z.enum(['claude', 'codex', 'opencode']),
+  agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   reason: z.string().nullable().optional(),
+  servicePlaceChoices: servicePlaceChoicesSchema.optional(),
   idempotencyToken: z.string().min(1),
 } satisfies OpenApiZodShape<ConversationControlPermissionDecision>;
 
@@ -460,12 +462,12 @@ const questionAnswerControlV2Shape = {
   agentSessionId: uuid,
   requestId: z.string().min(1),
   sessionId: z.string().min(1),
-  agentType: z.enum(['claude', 'codex', 'opencode']),
+  agentType: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   answers: z.record(z.string(), z.string()),
   idempotencyToken: z.string().min(1),
 } satisfies OpenApiZodShape<ConversationControlQuestionAnswer>;
 
-const conversationControlV2Schema = z.union([
+export const conversationControlV2Schema = z.union([
   z
     .object({
       kind: z.literal('compact_run'),
@@ -514,9 +516,13 @@ export const triggerMonitorCommandFrameV2Schema = z
   .strict();
 
 type CliReadOperation = CliReadEnvelopeBody['operation'];
-type ZodCompatibleInput<T> = {
-  [K in keyof T]: {} extends Pick<T, K> ? T[K] | undefined : T[K];
-};
+type ZodCompatibleInput<T> = T extends object
+  ? {
+      [K in keyof T]: {} extends Pick<T, K>
+        ? ZodCompatibleInput<T[K]> | undefined
+        : ZodCompatibleInput<T[K]>;
+    }
+  : T;
 type CliReadBodySchema<TOperation extends CliReadOperation> = z.ZodType<
   unknown,
   z.ZodTypeDef,
@@ -532,7 +538,7 @@ export const CLI_READ_OPERATION_SCHEMAS = {
       projectId: uuid,
       machineId: uuid,
       operation: z.literal('workspace.skills.list'),
-      provider: z.enum(['claude', 'codex', 'opencode']),
+      provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
       catalogContext: z.discriminatedUnion('policy', [
         z.object({ policy: z.literal('non_repository') }).strict(),
         z.object({ policy: z.literal('service_workspace'), serviceId: uuid }).strict(),
@@ -635,6 +641,22 @@ export const CLI_READ_OPERATION_SCHEMAS = {
       operation: z.literal('runtime.model_catalog.get'),
     })
     .strict(),
+  'workspace.service_places.list': z
+    .object({
+      requestId: uuid,
+      authorizationRequestId: uuid,
+      organizationId: uuid,
+      projectId: uuid,
+      machineId: uuid,
+      operation: z.literal('workspace.service_places.list'),
+      serviceIds: z
+        .array(uuid)
+        .min(1)
+        .max(20)
+        .refine((ids) => new Set(ids).size === ids.length, 'serviceIds must be unique'),
+      branchQuery: z.string().max(100).optional(),
+    })
+    .strict(),
   'agent_session.continuation.inspect': z
     .object({
       requestId: uuid,
@@ -664,6 +686,7 @@ const cliReadBodyV2Schema = z.union([
   CLI_READ_OPERATION_SCHEMAS['project.session_costs.list'],
   CLI_READ_OPERATION_SCHEMAS['provider.usage.get'],
   CLI_READ_OPERATION_SCHEMAS['runtime.model_catalog.get'],
+  CLI_READ_OPERATION_SCHEMAS['workspace.service_places.list'],
   CLI_READ_OPERATION_SCHEMAS['agent_session.continuation.inspect'],
 ]) satisfies z.ZodType<unknown, z.ZodTypeDef, ZodCompatibleInput<CliReadEnvelopeBody>>;
 

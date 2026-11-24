@@ -1,6 +1,7 @@
 import { FunctionalDialog as Dialog } from "../Modals/FunctionalDialog";
 import CloseIcon from "@mui/icons-material/Close";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import type { RunCompactionState } from "./runtime/hooks/useRunCompactionControl";
 import {
   Alert,
   Box,
@@ -214,6 +215,66 @@ const ProviderUsageSection = ({
   return <StateContent state={selectedProviderState} />;
 };
 
+export interface RunCompactionControl {
+  state: RunCompactionState;
+  compact: () => Promise<void>;
+  isPending: boolean;
+}
+
+const compactionStatusText = (state: RunCompactionState): string | null => {
+  switch (state.status) {
+    case "idle":
+      return null;
+    case "authorizing":
+      return "Authorizing…";
+    case "awaiting_start":
+      return "Requesting compaction…";
+    case "queued":
+      return "Waiting for the current turn to finish…";
+    case "compacting":
+      return "Compacting…";
+    case "completed":
+      return "Compaction finished";
+    case "failed":
+      return `Compaction failed: ${state.message}`;
+  }
+};
+
+const CompactControl = ({
+  compaction,
+}: {
+  compaction: RunCompactionControl;
+}) => {
+  const statusText = compactionStatusText(compaction.state);
+  const failed = compaction.state.status === "failed";
+  return (
+    <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={() => void compaction.compact()}
+        disabled={compaction.isPending}
+        startIcon={
+          compaction.isPending ? <CircularProgress size={14} /> : undefined
+        }
+        data-testid="run-context-usage-compact"
+      >
+        {failed ? "Retry compact" : "Compact"}
+      </Button>
+      {statusText ? (
+        <Typography
+          role="status"
+          variant="body2"
+          color={failed ? "error" : "text.secondary"}
+          data-testid="run-context-usage-compact-status"
+        >
+          {statusText}
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+};
+
 export const RunContextUsageModal = ({
   open,
   onClose,
@@ -223,6 +284,7 @@ export const RunContextUsageModal = ({
   runId,
   providerSessions,
   provider,
+  compaction,
 }: {
   open: boolean;
   onClose: () => void;
@@ -232,6 +294,8 @@ export const RunContextUsageModal = ({
   runId: string;
   providerSessions: ProviderSessionChoice[];
   provider: AgentProvider;
+  /** Compact control for the bound current Run; never the picked session. */
+  compaction?: RunCompactionControl;
 }) => {
   const { providerSessionId, selectSession } = useRunContextUsageSelection(
     JSON.stringify([organizationId, projectId, agentSessionId, runId]),
@@ -257,6 +321,25 @@ export const RunContextUsageModal = ({
       provider={provider}
     />
   );
+  // After a completed compaction show the current Run's fresh reading: go
+  // back to the latest provider session and read it again.
+  const latestSessionId = providerSessions.at(-1)?.id;
+  const compactionStatus = compaction?.state.status;
+  const previousCompactionStatus = useRef(compactionStatus);
+  const { retry } = usage;
+  useEffect(() => {
+    const justCompleted =
+      compactionStatus === "completed" &&
+      previousCompactionStatus.current !== "completed";
+    previousCompactionStatus.current = compactionStatus;
+    if (!justCompleted) {
+      return;
+    }
+    if (latestSessionId) {
+      selectSession(latestSessionId);
+    }
+    retry();
+  }, [compactionStatus, latestSessionId, retry, selectSession]);
   const handleSessionChange = (event: SelectChangeEvent<string>) =>
     selectSession(event.target.value);
 
@@ -283,6 +366,7 @@ export const RunContextUsageModal = ({
         </Typography>
       </DialogTitle>
       <DialogContent dividers>
+        {compaction ? <CompactControl compaction={compaction} /> : null}
         {providerSessions.length > 1 ? (
           <FormControl size="small" fullWidth sx={{ mb: 2 }}>
             <InputLabel id="run-context-usage-session-picker-label">

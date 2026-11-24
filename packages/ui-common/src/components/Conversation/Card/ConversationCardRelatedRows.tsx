@@ -72,12 +72,12 @@ export const ConversationCardRelatedRows: React.FC<
             component="span"
             data-testid="conversation-card-row-reason"
             variant="body2"
-            sx={{ flex: 1, minWidth: 0 }}
+            sx={{ flex: "1 1 12rem", minWidth: 0 }}
           >
             {row.reason}
           </Typography>
         ) : (
-          <Box sx={{ flex: 1 }} />
+          <Box sx={{ flex: "1 1 0", minWidth: 0 }} />
         )}
         {row.state ? (
           <Box

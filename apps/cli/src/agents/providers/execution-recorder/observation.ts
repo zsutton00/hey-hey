@@ -4,13 +4,14 @@ const captureIdentitySchema = z.object({
   sessionId: z.string().min(1),
   runId: z.string().min(1),
   turnId: z.string().min(1),
-  provider: z.enum(['codex', 'claude']),
+  provider: z.enum(['codex', 'claude', 'antigravity']),
   providerSessionId: z.string().min(1),
   providerTurnId: z.string().min(1).nullable(),
   toolCallId: z.string().min(1),
   toolName: z.string().min(1),
 });
 export type CaptureIdentity = z.infer<typeof captureIdentitySchema>;
+export type CaptureProvider = CaptureIdentity['provider'];
 
 const captureRootSchema = z.object({
   serviceId: z.string().min(1),

@@ -253,6 +253,50 @@ export const controllerActionRuntimeSchema = {
                 'actionType',
                 'targetKind',
                 'targetId',
+                'serviceIds',
+              ],
+              properties: {
+                requestId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+                actionCategory: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                actionType: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetKind: {
+                  type: 'string',
+                  enum: ['CLI_READ'],
+                },
+                targetId: {
+                  type: 'string',
+                  format: 'uuid',
+                  description:
+                    'Durable selected machine identity, never a request correlation identity.',
+                },
+                serviceIds: {
+                  $ref: '#/definitions/CliReadServicePlacesServiceIds',
+                },
+                branchQuery: {
+                  $ref: '#/definitions/CliReadServicePlacesBranchQuery',
+                },
+              },
+              description:
+                'Exact machine-addressed Service places read under existing CLI_READ authority.',
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: [
+                'requestId',
+                'actionCategory',
+                'actionType',
+                'targetKind',
+                'targetId',
                 'agentSessionId',
                 'continuationId',
                 'expectedSourceMachineId',
@@ -384,6 +428,9 @@ export const controllerActionRuntimeSchema = {
                 },
                 {
                   $ref: '#/definitions/CliReadWorkspaceSkillsListEnvelopeBody',
+                },
+                {
+                  $ref: '#/definitions/CliReadWorkspaceServicePlacesListEnvelopeBody',
                 },
                 {
                   type: 'object',
@@ -549,8 +596,7 @@ export const controllerActionRuntimeSchema = {
                         'Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the permission gate.',
                     },
                     agentType: {
-                      type: 'string',
-                      enum: ['claude', 'codex', 'opencode'],
+                      $ref: '#/definitions/AgentProviderId',
                       description:
                         'Agent provider that issued the permission request.',
                     },
@@ -558,6 +604,14 @@ export const controllerActionRuntimeSchema = {
                       type: ['string', 'null'],
                       description:
                         'User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.',
+                    },
+                    servicePlaceChoices: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+                      },
+                      description:
+                        'Where each newly requested Service works. Present only with `approve`.',
                     },
                     idempotencyToken: {
                       type: 'string',
@@ -861,6 +915,30 @@ export const controllerActionRuntimeSchema = {
               type: 'boolean',
               description:
                 "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
+            },
+            place: {
+              type: 'object',
+              description:
+                'Where the edit was made: the branch checked out, and the worktree if any, in the folder the edit ran in, read when the edit was recorded. When an edit has no `place`, its place was not recorded (older records, or git could not be read) and readers must show it as not recorded, never guess it from the session.\n',
+              required: ['kind', 'branch'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['MAIN_FOLDER', 'WORKTREE'],
+                  description:
+                    'Whether a Service works in its main folder or in a worktree.',
+                },
+                branch: {
+                  type: ['string', 'null'],
+                  description:
+                    'Branch checked out when the edit was recorded. Null means detached.',
+                },
+                worktreePath: {
+                  type: 'string',
+                  description:
+                    'Top-level folder of the worktree. Present for WORKTREE, absent for MAIN_FOLDER.',
+                },
+              },
             },
           },
         },
@@ -1328,7 +1406,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex'],
+          enum: ['claude', 'codex', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -1558,7 +1636,7 @@ export const controllerActionRuntimeSchema = {
     },
     AgentSkillProvider: {
       type: 'string',
-      enum: ['claude', 'codex', 'opencode'],
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
     },
     AgentSkillCatalogContext: {
       oneOf: [
@@ -1595,6 +1673,70 @@ export const controllerActionRuntimeSchema = {
           format: 'uuid',
         },
       },
+    },
+    CliReadWorkspaceServicePlacesListEnvelopeBody: {
+      type: 'object',
+      required: [
+        'requestId',
+        'operation',
+        'serviceIds',
+        'organizationId',
+        'projectId',
+        'machineId',
+        'authorizationRequestId',
+      ],
+      properties: {
+        requestId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Correlation identity minted by the platform for this read.',
+        },
+        operation: {
+          type: 'string',
+          enum: ['workspace.service_places.list'],
+        },
+        serviceIds: {
+          $ref: '#/definitions/CliReadServicePlacesServiceIds',
+        },
+        branchQuery: {
+          $ref: '#/definitions/CliReadServicePlacesBranchQuery',
+        },
+        organizationId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        projectId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        machineId: {
+          type: 'string',
+          format: 'uuid',
+        },
+        authorizationRequestId: {
+          type: 'string',
+          format: 'uuid',
+        },
+      },
+      additionalProperties: false,
+    },
+    CliReadServicePlacesServiceIds: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      uniqueItems: true,
+      items: {
+        type: 'string',
+        format: 'uuid',
+      },
+      description:
+        'Project Services whose places on the selected machine are read.',
+    },
+    CliReadServicePlacesBranchQuery: {
+      type: 'string',
+      maxLength: 100,
+      description: 'Case-insensitive text matched against local branch names.',
     },
     CliReadProviderUsageGetEnvelopeBody: {
       type: 'object',
@@ -1728,6 +1870,131 @@ export const controllerActionRuntimeSchema = {
       },
       additionalProperties: false,
     },
+    AgentProviderId: {
+      type: 'string',
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
+      description: 'Identifier for a supported agent provider.',
+    },
+    ConversationControlPermissionDecision: {
+      type: 'object',
+      required: [
+        'kind',
+        'agentSessionId',
+        'decision',
+        'requestId',
+        'sessionId',
+        'agentType',
+        'idempotencyToken',
+      ],
+      properties: {
+        kind: {
+          type: 'string',
+          enum: ['permission_decision'],
+          description:
+            "Discriminator for the permission-decision control. Selects the dispatcher branch that delivers the user's permission decision to the live runner awaiting the gate.",
+        },
+        agentSessionId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Canonical Agent Session authorization target.',
+        },
+        replyConversationId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'Authorized reply conversation for an answer submitted from the Task Monitor workspace. Defaults to the coding conversation.',
+        },
+        decision: {
+          type: 'string',
+          enum: ['approve', 'always_approve', 'deny', 'whitelist'],
+          description:
+            "The user's approval decision for the pending permission request.",
+        },
+        requestId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Stable identifier for the permission request this decision responds to. The CLI dispatcher uses this to locate the awaiting runner.',
+        },
+        sessionId: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Provider session identifier. Together with `agentType`, uniquely identifies the agent session holding the permission gate.',
+        },
+        agentType: {
+          $ref: '#/definitions/AgentProviderId',
+          description: 'Agent provider that issued the permission request.',
+        },
+        reason: {
+          type: ['string', 'null'],
+          description:
+            'User-supplied explanation for the decision, rendered alongside the Approved/Denied message in CLI output.',
+        },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            oneOf: [
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['serviceId', 'kind'],
+                description:
+                  'The Service works in its main folder. It names no branch.',
+                properties: {
+                  serviceId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['MAIN_FOLDER'],
+                  },
+                },
+              },
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['serviceId', 'kind', 'branch'],
+                description: 'The Service works in a worktree on `branch`.',
+                properties: {
+                  serviceId: {
+                    type: 'string',
+                    format: 'uuid',
+                  },
+                  kind: {
+                    type: 'string',
+                    enum: ['WORKTREE'],
+                  },
+                  branch: {
+                    type: 'string',
+                    minLength: 1,
+                  },
+                  newBranch: {
+                    type: 'boolean',
+                    default: false,
+                    description: 'True creates `branch` as a new branch.',
+                  },
+                },
+              },
+            ],
+            description:
+              "Where one Service works. MAIN_FOLDER is the main folder as it is. WORKTREE with newBranch false uses the worktree already on `branch`, or opens an existing branch that is not checked out anywhere as a new worktree. WORKTREE with newBranch true creates `branch` from the main folder's current branch in a new worktree.",
+          },
+          description:
+            'Where each newly requested Service works. Present only with `approve`.',
+        },
+        idempotencyToken: {
+          type: 'string',
+          minLength: 1,
+          description:
+            'Stable token for deduplicating delivery of this decision. The CLI discards duplicate frames that arrive from re-sends.',
+        },
+      },
+      additionalProperties: false,
+      description:
+        'Structural control body for delivering a user permission decision to a live CLI runner awaiting a permission gate. Carries the decision payload and matching identifiers only: no free-form prompt fragment or `payload` escape hatch. The CLI dispatcher matches the frame to the awaiting runner via `requestId`, `sessionId`, and `agentType`, then unblocks the gate with the received `decision`.',
+    },
     ConversationControlQuestionAnswer: {
       type: 'object',
       required: [
@@ -1761,7 +2028,7 @@ export const controllerActionRuntimeSchema = {
         },
         agentType: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         answers: {
           type: 'object',
@@ -2384,6 +2651,9 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/CliReadWorkspaceSkillsListEnvelopeBody',
         },
         {
+          $ref: '#/definitions/CliReadWorkspaceServicePlacesListEnvelopeBody',
+        },
+        {
           $ref: '#/definitions/CliReadProjectSessionCostsListEnvelopeBody',
         },
         {
@@ -2518,7 +2788,7 @@ export const controllerActionRuntimeSchema = {
     },
     TaskMonitorLaunchProvider: {
       type: 'string',
-      enum: ['claude', 'codex', 'opencode'],
+      enum: ['claude', 'codex', 'opencode', 'antigravity'],
     },
     TaskMonitorReasoningEffort: {
       type: 'string',
@@ -2827,10 +3097,8 @@ export const controllerActionRuntimeSchema = {
           ],
         },
         provider: {
-          type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
-          description:
-            'Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep.\n',
+          $ref: '#/definitions/AgentProviderId',
+          description: 'Agent provider the CLI should dispatch against.\n',
         },
         skillSelection: {
           $ref: '#/definitions/AgentSkillSelection',
@@ -2870,6 +3138,14 @@ export const controllerActionRuntimeSchema = {
           $ref: '#/definitions/StartRunWorktree',
           description:
             'Worktree materialization request forwarded to the CLI-side the Agent Bridge worktree field. Present only when the launch wizard enabled worktree creation. `branch` carries the chosen branch name the CLI should materialize for each selected service.\n',
+        },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+          },
+          description:
+            'Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it.\n',
         },
         agentSessionId: {
           type: 'string',
@@ -3375,6 +3651,17 @@ export const controllerActionRuntimeSchema = {
               type: 'string',
               description:
                 'Optional user-authored refinement note for the current turn.',
+            },
+            reviewProposalId: {
+              type: 'string',
+              format: 'uuid',
+              description:
+                'The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set.',
+            },
+            setComplete: {
+              type: 'boolean',
+              description:
+                'Whether the previous turn declared that no further visuals follow.',
             },
           },
         },
@@ -4755,14 +5042,39 @@ export const controllerActionRuntimeSchema = {
         statusMeaning: {
           description:
             'Effective ordinary status meaning; absent when the stored status is unresolved.',
-          type: 'string',
-          enum: ['NOT_STARTED', 'IN_PROGRESS', 'UNFINISHED', 'FINISHED'],
-        },
-        completionBehavior: {
-          description:
-            'Effective migrated compatibility behavior; never inferred from a name.',
-          type: 'string',
-          enum: ['COMPLETED', 'CANCELLED'],
+          oneOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              description:
+                'A built-in meaning the platform acts on. It carries no text.\n',
+              required: ['kind'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['COMPLETED', 'CANCELLED', 'IN_PROGRESS'],
+                },
+              },
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              description:
+                "A note in the user's own words that the platform never interprets. The text counts characters as people see them (Unicode code points), 1 to 50, and may not repeat a built-in meaning's name; choose the built-in instead.\n",
+              required: ['kind', 'text'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['CUSTOM'],
+                },
+                text: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 50,
+                },
+              },
+            },
+          ],
         },
         dueDate: {
           type: ['string', 'null'],
@@ -5508,7 +5820,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -5672,7 +5984,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -7402,6 +7714,17 @@ export const controllerActionRuntimeSchema = {
                 type: 'string',
               },
             },
+            alreadyMatches: {
+              type: 'boolean',
+              description:
+                'The authoritative live content already matches the complete future result.',
+            },
+            mergedResult: {
+              type: 'object',
+              additionalProperties: true,
+              description:
+                'Present only for a future revision whose changes and the changes applied since it was written touch different content and combine without a conflict. The complete content Apply will write if the reviewed basis is still current. Further changes require a fresh review before applying. Compare it with the first current basis.',
+            },
             candidateRevisionId: {
               type: 'string',
               format: 'uuid',
@@ -7962,7 +8285,7 @@ export const controllerActionRuntimeSchema = {
             },
             provider: {
               type: 'string',
-              enum: ['claude', 'codex', 'opencode'],
+              enum: ['claude', 'codex', 'opencode', 'antigravity'],
             },
             resolvedFrontierModel: {
               type: 'string',
@@ -8100,7 +8423,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -8204,7 +8527,7 @@ export const controllerActionRuntimeSchema = {
         },
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
         },
         resolvedFrontierModel: {
           type: 'string',
@@ -8619,9 +8942,20 @@ export const controllerActionRuntimeSchema = {
           description:
             'Optional user-authored refinement note for the current turn.',
         },
+        reviewProposalId: {
+          type: 'string',
+          format: 'uuid',
+          description:
+            'The first visual in presentation order that is not yet APPROVED. When present, this turn redrafts only that visual. When absent, every visual is approved and the turn drafts the next visual, or declares the set complete, or applies feedback on the complete set.',
+        },
+        setComplete: {
+          type: 'boolean',
+          description:
+            'Whether the previous turn declared that no further visuals follow.',
+        },
       },
       description:
-        'Complete API-owned context for one visual-preview refinement turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text.',
+        'Complete API-owned context for one visual-preview turn. Proposal status is a live snapshot supplied by the API; proposal identity, presentation order, and same-family relationship metadata are carried explicitly so the CLI can revise affected visuals and carry unchanged proposals without reconstructing state from conversation text.',
     },
     PlanShapingPhaseBreakdownPromptPayload: {
       type: 'object',
@@ -9870,6 +10204,14 @@ export const controllerActionRuntimeSchema = {
           description:
             'Branch name to materialize as a git worktree per selected service at launch.\nPresence means worktree-enabled (the branch to materialize); absence means\nworktree off. Omitted entirely when the wizard has not enabled worktree.\n',
         },
+        servicePlaceChoices: {
+          type: 'array',
+          items: {
+            $ref: '#/definitions/ConversationControlPermissionDecision/properties/servicePlaceChoices/items',
+          },
+          description:
+            "Where each selected Service works, chosen on the launch screen. Saved with the\nsession so the Run start sends the same choices after a reload. Omitted when the\nlaunch uses a Plan's locked branch or the wizard recorded no per-Service choice.\n",
+        },
         sessionMonitorTerminalPolicy: {
           description:
             'Optional explicit policy consumed by the session-monitor when terminal\nreports arrive for this coding session. Absence preserves the existing\nmonitoringEnabled/autoDecide behavior.\n',
@@ -10227,7 +10569,7 @@ export const controllerActionRuntimeSchema = {
       properties: {
         provider: {
           type: 'string',
-          enum: ['claude', 'codex', 'opencode'],
+          enum: ['claude', 'codex', 'opencode', 'antigravity'],
           description: 'Agent provider selected for the implementation run.',
         },
         model: {

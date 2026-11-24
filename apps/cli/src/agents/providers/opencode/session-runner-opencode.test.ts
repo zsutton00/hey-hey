@@ -111,7 +111,7 @@ vi.mock('../../../shared/runtime/components/AgentSession/capabilityCatalog', () 
 
 const toolRuleStoreDirectory = mkdtempSync(join(tmpdir(), 'hey-hey-opencode-tool-rules-'));
 const toolRuleStore = new ToolRuleStore(join(toolRuleStoreDirectory, 'tool-rules.json'));
-const saveToolRuleMock = vi.spyOn(toolRuleStore, 'save').mockImplementation(() => undefined);
+const saveToolRuleMock = vi.spyOn(toolRuleStore, 'save').mockResolvedValue(undefined);
 const loadToolRulesMock = vi.spyOn(toolRuleStore, 'load').mockReturnValue([]);
 
 afterAll(() => {
@@ -1510,34 +1510,52 @@ describe('session-runner-opencode parity', () => {
     expect(submissionAdd).toBeDefined();
   });
 
-  it('auto-approves a permission for a tool on the alwaysAllowedTools allowlist', async () => {
+  it('pre-approves only the turn\u2019s active Hey Hey tools and leaves other tools to the user', async () => {
     const harness = installFetchHarness();
     const { logger } = makeLogger();
+    localAgentEndpoint.set('http://127.0.0.1:3847');
     const runner = new OpenCodeAgentSessionRunner({
       localAgentEndpoint,
       submissionToolRegistry,
       toolRuleStore,
       runStore: makeRunStore(),
       repoStore: makeRepoStore(),
-      oauthClient: makeOauthClient(),
       logger,
     });
 
-    const runPromise = runner.runPrompt({ session: makeSession(), prompt: 'go' });
-    await waitFor(() => harness.sseSink.current !== null);
-
-    harness.sseSink.current!.push({
-      type: 'permission.asked',
-      properties: {
-        id: 'perm-allow-1',
-        sessionID: 'opencode-session-1',
-        permission: 'mcp__heyhey-platform__unified_search',
-        patterns: [],
-        metadata: {},
+    const runPromise = runner.runPrompt({
+      session: makeSession(),
+      prompt: 'go',
+      platformMcpProxyMount: {
+        runId: 'run-1',
+        turnId: 'turn-1',
+        token: 'platform-token',
+        allowedTools: ['mcp__heyhey-platform__unified_search'],
       },
     });
+    await waitFor(() => harness.sseSink.current !== null);
 
-    await waitFor(() => harness.permissionReplies.some((r) => r.requestId === 'perm-allow-1'));
+    const ask = (id: string, permission: string) =>
+      harness.sseSink.current!.push({
+        type: 'permission.asked',
+        properties: { id, sessionID: 'opencode-session-1', permission, patterns: [], metadata: {} },
+      });
+    ask('qualified', 'mcp__heyhey-platform__unified_search');
+    ask('tool-id', 'heyhey-platform_unified_search');
+    ask('inactive', 'mcp__heyhey-platform__create_work_item');
+    ask('shell', 'bash');
+
+    await waitFor(() =>
+      ['qualified', 'tool-id'].every((id) =>
+        harness.permissionReplies.some((r) => r.requestId === id),
+      ),
+    );
+    const replyTo = (id: string) =>
+      harness.permissionReplies.find((r) => r.requestId === id)?.reply;
+    expect(replyTo('qualified')).toBe('once');
+    expect(replyTo('tool-id')).toBe('once');
+    expect(replyTo('inactive')).toBeUndefined();
+    expect(replyTo('shell')).toBeUndefined();
 
     harness.sseSink.current!.push({
       type: 'session.status',
@@ -1545,9 +1563,6 @@ describe('session-runner-opencode parity', () => {
     });
     harness.sseSink.current!.end();
     await runPromise;
-
-    const reply = harness.permissionReplies.find((r) => r.requestId === 'perm-allow-1');
-    expect(reply?.reply).toBe('once');
   });
 
   it('persists tool-rule on whitelist decision and emits permission_decision_submitted + permission_decision_ui', async () => {

@@ -5,7 +5,9 @@ import {
   buildPlanDetailPath,
   buildPlanTabPath,
   buildPlanTaskMonitorPath,
-  buildPlanTaskMonitorSetupPath,
+  buildPlanTaskMonitorCreatePath,
+  hasPlanTaskMonitorCreateIntent,
+  PLAN_TASK_MONITOR_CREATE_INTENT,
   buildPlansIndexPath,
   buildPlanStepPath,
 } from "./planSessionRoutes";
@@ -21,11 +23,16 @@ describe("planSessionRoutes", () => {
     );
   });
 
-  it("builds the canonical stage-scoped Task Monitor setup path", () => {
+  it("builds the stage-scoped Task Monitor create path and recognizes only an Automate intent", () => {
     expect(
-      buildPlanTaskMonitorSetupPath("project-1", "plan-1", "stage-1"),
-    ).toBe(
-      "/projects/project-1/plans/plan-1/stages/stage-1/task-monitor/setup",
+      buildPlanTaskMonitorCreatePath("project-1", "plan-1", "stage-1"),
+    ).toBe("/projects/project-1/plans/plan-1/stages/stage-1/task-monitor/new");
+    expect(
+      hasPlanTaskMonitorCreateIntent(PLAN_TASK_MONITOR_CREATE_INTENT),
+    ).toBe(true);
+    expect(hasPlanTaskMonitorCreateIntent(null)).toBe(false);
+    expect(hasPlanTaskMonitorCreateIntent({ createTaskMonitor: "yes" })).toBe(
+      false,
     );
   });
 

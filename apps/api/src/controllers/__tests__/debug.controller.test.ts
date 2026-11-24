@@ -1,17 +1,23 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Test } from '@nestjs/testing';
+import { MessageService } from '../../services/message.service';
 import { DebugController } from '../debug.controller';
 
 describe('DebugController', () => {
   describe('getProjectMessages', () => {
     it('scopes the message list to conversations the caller can read', async () => {
       const messageService = { getMessages: jest.fn().mockResolvedValue([]) };
-      const controller = new DebugController(
-        {} as any,
-        {} as any,
-        {} as any,
-        messageService as any,
-        ...Array.from({ length: 12 }, () => ({}) as any),
-      );
+      const module = await Test.createTestingModule({
+        controllers: [DebugController],
+        providers: [
+          { provide: ConfigService, useValue: { get: () => undefined } },
+          { provide: MessageService, useValue: messageService },
+        ],
+      })
+        .useMocker(() => ({}))
+        .compile();
+      const controller = module.get(DebugController);
 
       await controller.getProjectMessages(
         { userId: 'reader-1', currentOrgId: 'org-1' } as any,

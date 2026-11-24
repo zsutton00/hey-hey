@@ -680,13 +680,21 @@ describe('buildMcpServerConfig', () => {
   });
 
   describe('task_monitor use case', () => {
-    it('exposes no platform tools because canonical evidence is preloaded', async () => {
+    it('exposes exactly the read-only project knowledge tools', async () => {
       const client = createMockOAuthClient({ success: true, data: TEST_TOKEN });
 
       const result = await buildMcpServerConfig(client, {}, { useCase: 'task_monitor' });
 
-      expect(result.allowedTools).toEqual([]);
-      expect(TASK_MONITOR_MCP_TOOLS).toEqual([]);
+      expect(result.allowedTools).toEqual(
+        [
+          'get_entity_identities',
+          'get_full_entity',
+          'get_context',
+          'get_edges',
+          'unified_search',
+          'search_design_docs',
+        ].map(qualifyMcpToolName),
+      );
     });
 
     it('excludes every mutation and lifecycle side channel', () => {

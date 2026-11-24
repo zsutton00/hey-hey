@@ -31,39 +31,9 @@ export interface WorkItemStatusAuthoringResponse {
      */
     'suggestions': Array<string>;
     /**
-     *
-     * @type {string}
-     * @memberof WorkItemStatusAuthoringResponse
-     */
-    'state': WorkItemStatusAuthoringResponseStateEnum;
-    /**
-     * Fully resolved definition, present only when state is RESOLVED.
+     * Fully resolved, validated definition.
      * @type {Array<WorkItemTypeStatus>}
      * @memberof WorkItemStatusAuthoringResponse
      */
-    'statuses'?: Array<WorkItemTypeStatus>;
-    /**
-     * Question to ask when finished statuses are unclear.
-     * @type {string}
-     * @memberof WorkItemStatusAuthoringResponse
-     */
-    'question'?: string;
-}
-
-
-
-export const WorkItemStatusAuthoringResponseStateEnum = {
-    Resolved: 'RESOLVED',
-    Clarification: 'CLARIFICATION',
-    "RESOLVED": "RESOLVED",
-    "CLARIFICATION": "CLARIFICATION",
-} as const;
-Object.defineProperty(WorkItemStatusAuthoringResponseStateEnum, "RESOLVED", { enumerable: false, value: WorkItemStatusAuthoringResponseStateEnum["Resolved"] });
-Object.defineProperty(WorkItemStatusAuthoringResponseStateEnum, "CLARIFICATION", { enumerable: false, value: WorkItemStatusAuthoringResponseStateEnum["Clarification"] });
-
-export type WorkItemStatusAuthoringResponseStateEnum = typeof WorkItemStatusAuthoringResponseStateEnum[keyof typeof WorkItemStatusAuthoringResponseStateEnum];
-
-export namespace WorkItemStatusAuthoringResponse {
-    export const StateEnum = WorkItemStatusAuthoringResponseStateEnum;
-    export type StateEnum = WorkItemStatusAuthoringResponseStateEnum;
+    'statuses': Array<WorkItemTypeStatus>;
 }

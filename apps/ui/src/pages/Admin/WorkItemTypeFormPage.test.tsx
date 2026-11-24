@@ -262,15 +262,14 @@ describe("WorkItemTypeFormPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolveStatuses.mockReset();
-    mockResolveStatuses.mockImplementation(async ({ request }) => ({
-      state: "RESOLVED",
+    mockResolveStatuses.mockImplementation(async () => ({
       suggestions: ["BACKLOG"],
-      statuses: (request.names ?? ["BACKLOG"]).map(
-        (name: string) =>
-          request.existingStatuses?.find(
-            (status: { name: string }) => status.name === name,
-          ) ?? { name, meaning: "NOT_STARTED" },
-      ),
+      statuses: [
+        {
+          name: "BACKLOG",
+          meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+        },
+      ],
     }));
     capturedCreateOptions = undefined;
     capturedEditOptions = undefined;
@@ -786,58 +785,166 @@ describe("WorkItemTypeFormPage", () => {
     expect(screen.getByTestId("wit-form-add-capability")).toBeInTheDocument();
   });
 
-  it("uses the shared resolver for a custom status and accepts no finished statuses", async () => {
+  const rowOf = (index: number) =>
+    screen.getAllByTestId("wit-status-row")[index]!;
+
+  const chooseMeaning = async (
+    user: ReturnType<typeof userEvent.setup>,
+    index: number,
+    option: string,
+  ) => {
+    await user.click(within(rowOf(index)).getByRole("combobox"));
+    await user.click(
+      await screen.findByRole("option", {
+        name: `workItemType.status.${option}`,
+      }),
+    );
+  };
+
+  const addStatus = async (
+    user: ReturnType<typeof userEvent.setup>,
+    name: string,
+  ) => {
+    await user.type(
+      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
+      name,
+    );
+    await user.click(screen.getByTestId("wit-status-add"));
+  };
+
+  it("blocks saving until every status has a meaning and names the ones missing it", async () => {
     const user = userEvent.setup();
-    mockResolveStatuses
-      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
-      .mockResolvedValueOnce({
-        state: "RESOLVED",
-        suggestions: [],
-        statuses: [{ name: "Maintained", meaning: "IN_PROGRESS" }],
-      });
     renderForm();
     fillField("wit-form-key", "resume");
     fillField("wit-form-name", "Résumé");
     await openTab(user, "Lifecycle");
-    await user.type(
-      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
-      "Maintained",
-    );
-    await user.click(screen.getByTestId("wit-status-add"));
-    await user.click(screen.getByTestId("wit-form-submit"));
-    const question = await screen.findByTestId("wit-status-clarification");
+    await addStatus(user, "Considering");
+    await addStatus(user, "Applied");
+
     expect(
-      within(question).getByText("workItemType.status.finished"),
+      within(rowOf(0)).getByText("workItemType.status.selectMeaning"),
     ).toBeInTheDocument();
-    expect(mockCreateMutate).not.toHaveBeenCalled();
-
-    // The answer is required: submitting without one is blocked.
+    await chooseMeaning(user, 1, "meaningInProgress");
     await user.click(screen.getByTestId("wit-form-submit"));
-    expect(mockCreateMutate).not.toHaveBeenCalled();
 
-    await user.click(
-      within(question).getByLabelText("workItemType.status.noneOfThese"),
-    );
+    expect(mockCreateMutate).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText("workItemType.status.meaningRequired"),
+    ).toBeInTheDocument();
+  });
+
+  it("saves each status as its name plus one meaning, with custom text limited to 50 characters", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await addStatus(user, "Considering");
+    await addStatus(user, "Applied");
+    await addStatus(user, "Rejected");
+    await addStatus(user, "Offer");
+
+    await chooseMeaning(user, 0, "meaningCustom");
+    const text = within(rowOf(0)).getByRole("textbox", {
+      name: "workItemType.status.customMeaning",
+    });
+    fireEvent.change(text, { target: { value: "🚀".repeat(51) } });
+    expect(text).toHaveValue("🚀".repeat(50));
+    await chooseMeaning(user, 1, "meaningInProgress");
+    await chooseMeaning(user, 2, "meaningCancelled");
+    await chooseMeaning(user, 3, "meaningCompleted");
+    expect(
+      within(rowOf(3)).getByText("workItemType.status.noteCompleted"),
+    ).toBeInTheDocument();
     await user.click(screen.getByTestId("wit-form-submit"));
+
     await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
-    expect(mockResolveStatuses).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        request: expect.objectContaining({
-          names: ["Maintained"],
-          finishedNames: [],
-        }),
-      }),
-    );
     expect(mockCreateMutate.mock.calls[0][0].definition.statuses).toEqual([
-      { name: "Maintained", meaning: "IN_PROGRESS" },
+      {
+        name: "Considering",
+        meaning: { kind: "CUSTOM" as const, text: "🚀".repeat(50) },
+      },
+      { name: "Applied", meaning: { kind: "IN_PROGRESS" as const } },
+      { name: "Rejected", meaning: { kind: "CANCELLED" as const } },
+      { name: "Offer", meaning: { kind: "COMPLETED" as const } },
+    ]);
+    expect(mockResolveStatuses).not.toHaveBeenCalled();
+  });
+
+  it("offers exactly four meanings and shows 'Starts here' only on the first row", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await openTab(user, "Lifecycle");
+    await addStatus(user, "Idea");
+    await addStatus(user, "Made");
+
+    await user.click(within(rowOf(0)).getByRole("combobox"));
+    const options = (await screen.findAllByRole("option")).map(
+      (option) => option.textContent,
+    );
+    expect(options).toEqual([
+      "workItemType.status.selectMeaning",
+      "workItemType.status.meaningCompleted",
+      "workItemType.status.meaningCancelled",
+      "workItemType.status.meaningInProgress",
+      "workItemType.status.meaningCustom",
+    ]);
+    expect(
+      screen.getByRole("option", { name: "workItemType.status.selectMeaning" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{Escape}");
+
+    const starts = screen
+      .getAllByTestId("wit-status-start")
+      .map((cell) => cell.getAttribute("aria-label"));
+    expect(starts).toEqual(["workItemType.status.start"]);
+  });
+
+  it("keeps a row's meaning when it is renamed or moved, and carries nothing else", async () => {
+    const user = userEvent.setup();
+    mockResolveStatuses.mockResolvedValue({
+      suggestions: ["Idea", "Testing"],
+      statuses: [
+        {
+          name: "Idea",
+          meaning: { kind: "CUSTOM" as const, text: "Just a thought" },
+        },
+        { name: "Testing", meaning: { kind: "IN_PROGRESS" as const } },
+      ],
+    });
+    renderForm();
+    fillField("wit-form-key", "resume");
+    fillField("wit-form-name", "Résumé");
+    await openTab(user, "Lifecycle");
+    await user.click(screen.getByTestId("wit-status-suggest"));
+    await screen.findByDisplayValue("Idea");
+
+    const names = () => screen.getAllByLabelText("workItemType.status.name");
+    await user.clear(names()[0]!);
+    await user.type(names()[0]!, "CONSIDERING");
+    await user.click(
+      screen.getAllByLabelText("workItemType.status.moveDown")[0]!,
+    );
+    await user.click(screen.getByTestId("wit-form-submit"));
+
+    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
+    expect(mockCreateMutate.mock.calls[0][0].definition.statuses).toEqual([
+      { name: "Testing", meaning: { kind: "IN_PROGRESS" as const } },
+      {
+        name: "CONSIDERING",
+        meaning: { kind: "CUSTOM" as const, text: "Just a thought" },
+      },
     ]);
   });
 
   it("lets people rename, reorder and remove statuses while keeping the first as the start", async () => {
     const user = userEvent.setup();
     mockResolveStatuses.mockResolvedValue({
-      state: "RESOLVED",
       suggestions: ["Idea", "Testing", "Made"],
+      statuses: ["Idea", "Testing", "Made"].map((name) => ({
+        name,
+        meaning: { kind: "IN_PROGRESS" as const },
+      })),
     });
     renderForm();
     await openTab(user, "Lifecycle");
@@ -852,7 +959,7 @@ describe("WorkItemTypeFormPage", () => {
     );
 
     expect(rows()[0]).toHaveValue("Tasting");
-    expect(screen.getByTestId("wit-status-start")).toBeInTheDocument();
+    expect(screen.getAllByTestId("wit-status-start")[0]).toBeInTheDocument();
 
     await user.click(
       screen.getAllByLabelText("workItemType.status.remove")[0]!,
@@ -865,8 +972,11 @@ describe("WorkItemTypeFormPage", () => {
   it("edits only the targeted row while a rename temporarily duplicates another name", async () => {
     const user = userEvent.setup();
     mockResolveStatuses.mockResolvedValue({
-      state: "RESOLVED",
       suggestions: ["Idea", "Testing"],
+      statuses: ["Idea", "Testing"].map((name) => ({
+        name,
+        meaning: { kind: "IN_PROGRESS" as const },
+      })),
     });
     renderForm();
     await openTab(user, "Lifecycle");
@@ -882,42 +992,14 @@ describe("WorkItemTypeFormPage", () => {
     expect(rows()[1]).toHaveValue("Ideas");
   });
 
-  it("drops the finished question when new suggestions replace the list", async () => {
-    const user = userEvent.setup();
-    mockResolveStatuses
-      .mockResolvedValueOnce({ state: "CLARIFICATION", suggestions: [] })
-      .mockResolvedValueOnce({ state: "RESOLVED", suggestions: ["Idea"] })
-      .mockResolvedValueOnce({
-        state: "RESOLVED",
-        suggestions: [],
-        statuses: [{ name: "Idea", meaning: "NOT_STARTED" }],
-      });
-    renderForm();
-    fillField("wit-form-key", "resume");
-    fillField("wit-form-name", "Résumé");
-    await openTab(user, "Lifecycle");
-    await user.type(
-      within(screen.getByTestId("wit-status-name")).getByRole("textbox"),
-      "Maintained",
-    );
-    await user.click(screen.getByTestId("wit-status-add"));
-    await user.click(screen.getByTestId("wit-form-submit"));
-    await screen.findByTestId("wit-status-clarification");
-
-    await user.click(screen.getByTestId("wit-status-suggest"));
-    expect(
-      screen.queryByTestId("wit-status-clarification"),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByTestId("wit-form-submit"));
-    await waitFor(() => expect(mockCreateMutate).toHaveBeenCalledTimes(1));
-  });
-
   it("requests suggestions for the type purpose", async () => {
     const user = userEvent.setup();
     mockResolveStatuses.mockResolvedValue({
-      state: "RESOLVED",
       suggestions: ["Idea", "Testing", "Made", "Rejected"],
+      statuses: ["Idea", "Testing", "Made", "Rejected"].map((name) => ({
+        name,
+        meaning: { kind: "IN_PROGRESS" as const },
+      })),
     });
     renderForm();
     fillField("wit-form-name", "Recipe");
@@ -989,7 +1071,12 @@ describe("WorkItemTypeFormPage", () => {
       sections: [
         { key: "details", label: "Details", writingStandard: "Be specific." },
       ],
-      statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
+      statuses: [
+        {
+          name: "BACKLOG",
+          meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+        },
+      ],
       writingStandards: { create: "Lead with the audience.", edit: "" },
     });
   });
@@ -1741,7 +1828,12 @@ describe("WorkItemTypeFormPage", () => {
         sections: [],
         requiredScalars: [],
         forbiddenScalars: [],
-        statuses: [{ name: "BACKLOG", meaning: "NOT_STARTED" }],
+        statuses: [
+          {
+            name: "BACKLOG",
+            meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+          },
+        ],
         allowedParentTypes: [],
         edgeTargets: [],
         allowedParentEntityTypes: [],

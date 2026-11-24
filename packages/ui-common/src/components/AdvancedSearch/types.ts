@@ -2,8 +2,7 @@ import type { SearchEntity } from "../SmarterTextAreaCard/types";
 import { EntityType } from "../../api";
 
 export type AdvancedSearchScopeEntityType =
-  | typeof EntityType.Initiative
-  | typeof EntityType.Task;
+  typeof EntityType.Initiative | typeof EntityType.Task;
 
 export interface AdvancedSearchEntityScope {
   entityId: string;
@@ -58,11 +57,6 @@ interface AdvancedSearchCommonProps {
    * Initial query text to seed the search input with on mount
    */
   defaultQuery?: string;
-
-  /**
-   * Hide the advanced status filter
-   */
-  hideFilters?: boolean;
 
   /**
    * Called whenever the "has content" state changes (results present, agent

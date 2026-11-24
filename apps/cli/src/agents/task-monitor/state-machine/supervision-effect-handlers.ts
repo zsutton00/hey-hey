@@ -7,12 +7,15 @@ import {
   type UpdateAgentSessionDto,
   type TaskMonitorExecutionDefinition,
   type TaskMonitorLaunchConfig,
+  type TaskMonitorTerminalSupervisionPolicy,
 } from '@hey-hey/contracts/api/models';
 import {
   LocalPromptType,
   type LocalTaskMonitorCoordinatorDecision,
 } from '@hey-hey/contracts/agent-bridge';
 import { buildCodeReviewRequest } from '../../review-subagent/review-request';
+import { reviewRuntimeCatalogIssue, reviewTurnRuntime } from '../coordinator-runtime';
+import type { TaskMonitorReviewRuntime } from './context';
 import type { TaskMonitorDecisionStore } from '../task-monitor-decision-store';
 import {
   toTaskMonitorReviewLifecycleMessage,
@@ -110,9 +113,14 @@ class TaskMonitorSupervisionOwners {
     await this.patch(auth, `/agent-sessions/${encodeURIComponent(agentSessionId)}`, update);
   }
 
-  public requestReview(agentSessionId: string, rationale: string): Promise<void> {
+  public requestReview(
+    agentSessionId: string,
+    rationale: string,
+    reviewRuntime: TaskMonitorReviewRuntime | undefined,
+  ): Promise<void> {
+    const runtime = reviewRuntime ? reviewTurnRuntime(reviewRuntime) : undefined;
     return this.dependencies.agentService
-      .sendSystemMessage(agentSessionId, buildCodeReviewRequest(rationale))
+      .sendSystemMessage(agentSessionId, buildCodeReviewRequest(rationale, undefined, runtime))
       .then(() => undefined);
   }
 
@@ -276,6 +284,8 @@ export class TaskMonitorReviewDeliveryEffectHandler implements EffectHandler<
     const auth = await this.requireAuth(effect);
     if (auth === null)
       return this.failed(effect, 'Review delivery owner scope is unavailable.', true);
+    const runtimeIssue = await this.rejectInvalidRuntime(auth, effect);
+    if (runtimeIssue) return runtimeIssue;
     try {
       const existing = await this.dependencies.runStore.getRun(effect.agentSessionId);
       if (existing?.promptType === LocalPromptType.CodeReview) {
@@ -287,7 +297,12 @@ export class TaskMonitorReviewDeliveryEffectHandler implements EffectHandler<
         return this.accepted(effect);
       }
       await this.publish(auth, effect, 'REQUESTING_REVIEW');
-      await this.owners.requestReview(effect.agentSessionId, effect.rationale);
+      this.logRuntime(effect);
+      await this.owners.requestReview(
+        effect.agentSessionId,
+        effect.rationale,
+        effect.reviewRuntime,
+      );
       await this.publish(auth, effect, 'AWAITING_REVIEW');
       this.dependencies.logger.info('task_monitor.review_delivery.accepted', {
         taskMonitorId: effect.taskMonitorId,
@@ -326,8 +341,15 @@ export class TaskMonitorReviewDeliveryEffectHandler implements EffectHandler<
       return this.accepted(effect);
     }
     if (current) {
+      const runtimeIssue = await this.rejectInvalidRuntime(auth, effect);
+      if (runtimeIssue) return runtimeIssue;
       try {
-        await this.owners.requestReview(effect.agentSessionId, effect.rationale);
+        this.logRuntime(effect);
+        await this.owners.requestReview(
+          effect.agentSessionId,
+          effect.rationale,
+          effect.reviewRuntime,
+        );
         await this.publish(auth, effect, 'AWAITING_REVIEW');
         return this.accepted(effect);
       } catch (error) {
@@ -339,6 +361,48 @@ export class TaskMonitorReviewDeliveryEffectHandler implements EffectHandler<
     const reason = 'The claimed Review request cannot be reconciled to its target coding session.';
     await this.publishFailure(auth, effect, reason, true);
     return this.failed(effect, reason, true);
+  }
+
+  /**
+   * Fails the Review request before anything is sent when its saved Review runtime is no
+   * longer valid in this machine's Runtime Model Catalog.
+   */
+  private async rejectInvalidRuntime(
+    auth: PlatformAuth,
+    effect: DeliverTaskMonitorReviewEffect,
+  ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome> | null> {
+    if (!effect.reviewRuntime) {
+      return null;
+    }
+
+    const issue = reviewRuntimeCatalogIssue(effect.reviewRuntime);
+    this.dependencies.logger.info('task_monitor.review_delivery.runtime_validated', {
+      taskMonitorId: effect.taskMonitorId,
+      requestId: effect.requestId,
+      provider: effect.reviewRuntime.provider,
+      model: effect.reviewRuntime.model,
+      reasoningEffort: effect.reviewRuntime.reasoningEffort ?? null,
+      fastMode: effect.reviewRuntime.fastMode ?? null,
+      valid: issue === null,
+      reason: issue,
+    });
+    if (issue === null) {
+      return null;
+    }
+
+    await this.publishFailure(auth, effect, issue, false);
+    return this.failed(effect, issue, false);
+  }
+
+  private logRuntime(effect: DeliverTaskMonitorReviewEffect): void {
+    this.dependencies.logger.info('task_monitor.review_delivery.runtime', {
+      taskMonitorId: effect.taskMonitorId,
+      requestId: effect.requestId,
+      agentSessionId: effect.agentSessionId,
+      runtime: effect.reviewRuntime
+        ? reviewTurnRuntime(effect.reviewRuntime)
+        : 'none (task Agent Session runtime)',
+    });
   }
 
   private async requireAuth(effect: DeliverTaskMonitorReviewEffect): Promise<PlatformAuth | null> {
@@ -643,7 +707,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
         launchConfig,
         entry.taskId,
         session.conversationId,
-        current.definition.launchPolicy.terminalSupervision.mode,
+        current.definition.launchPolicy.terminalSupervision,
         result.decision,
       );
     } catch (error) {
@@ -664,7 +728,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
     auth: PlatformAuth,
     taskId: string,
     conversationId: string | null,
-    reviewMode: TaskMonitorReviewMode,
+    terminalPolicy: TaskMonitorTerminalSupervisionPolicy,
     completeAgentSession: boolean,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
     return this.applyDecision(
@@ -675,7 +739,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
       undefined,
       taskId,
       conversationId,
-      reviewMode,
+      terminalPolicy,
       decision,
       completeAgentSession,
     );
@@ -689,10 +753,14 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
     launchConfig: TaskMonitorLaunchConfig | undefined,
     taskId: string,
     conversationId: string | null,
-    reviewMode: TaskMonitorReviewMode,
+    terminalPolicy: TaskMonitorTerminalSupervisionPolicy,
     decision: LocalTaskMonitorCoordinatorDecision,
     completeAgentSession = true,
   ): Promise<EffectSettlement<TaskMonitorMachineEffectOutcome>> {
+    const reviewMode = terminalPolicy.mode;
+    // The Review runtime is saved intent for required Review only.
+    const reviewRuntime =
+      reviewMode === TaskMonitorReviewMode.RequireReview ? terminalPolicy.reviewRuntime : undefined;
     switch (decision.action) {
       case 'APPROVE_PERMISSION':
       case 'DENY_PERMISSION':
@@ -717,6 +785,7 @@ export class TaskMonitorSettledRunEvaluationEffectHandler implements EffectHandl
                 requestId: coordinatorRunId,
                 coordinatorRunId,
                 rationale: decision.rationale,
+                ...(reviewRuntime ? { reviewRuntime } : {}),
               },
             };
           }

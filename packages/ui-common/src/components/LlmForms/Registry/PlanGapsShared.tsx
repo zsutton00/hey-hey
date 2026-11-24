@@ -495,7 +495,6 @@ const PlanGapsSearchSectionComponent: React.FC<PlanGapsSearchSectionProps> = ({
         projectId={projectId}
         allowMultiSelect={true}
         defaultEntityTypes={[entityType]}
-        hideFilters={true}
         onSelect={onSelect}
       />
     </Box>

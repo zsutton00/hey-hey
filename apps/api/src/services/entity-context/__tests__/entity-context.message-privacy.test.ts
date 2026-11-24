@@ -12,7 +12,7 @@ import { MESSAGE_EXCERPT_CHARACTERS } from '../conversation-seed-context';
  */
 
 const ORG = 'org-1';
-const PROJECT = 'project-1';
+const PROJECT = '123e4567-e89b-42d3-a456-426614174002';
 const CREATOR = 'user-creator';
 const TEAMMATE = 'user-teammate';
 const CONVERSATION = '123e4567-e89b-42d3-a456-426614174301';
@@ -163,12 +163,17 @@ const viaMcp = async (
       'x-agent-session-id': '123e4567-e89b-42d3-a456-426614174098',
     },
   } as unknown as Request;
-  const result = (await provider.getContext(
+  const result = await provider.getContext(
     { entityId: MESSAGE, entityType: 'MESSAGE', projectId: PROJECT },
     {} as never,
     request,
-  )) as { conversationContext: ConversationContext };
+  );
 
+  if (!('conversationContext' in result) || !result.conversationContext) {
+    throw new Error(
+      `Expected MCP conversation context: ${JSON.stringify(result)}`,
+    );
+  }
   return result.conversationContext;
 };
 

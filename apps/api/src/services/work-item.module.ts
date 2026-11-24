@@ -8,11 +8,13 @@ import { WorkflowModule } from './workflows/workflow.module';
 // Controllers
 import { TaskController } from '../controllers/task.controller';
 import { WorkItemRefinementController } from '../controllers/work-item-refinement.controller';
+import { TaskMonitorUnstartedLaunchConfigurationController } from '../controllers/task-monitor-unstarted-launch-configuration.controller';
 
 // Task services
 import { TaskArtifactService } from './tasks/task-artifact.service';
 import { TaskOptimizationService } from './tasks/task-optimization.service';
 import { TaskRefinementService } from './tasks/task-refinement.service';
+import { TaskMonitorUnstartedLaunchConfigurationService } from './tasks/task-monitor-unstarted-launch-configuration.service';
 
 import { InitiativeLifecycleService } from './initiatives/initiative-lifecycle.service';
 import { InitiativeOptimizationAdapterService } from './initiatives/initiative-optimization-adapter.service';
@@ -32,12 +34,17 @@ import { WorkItemStagedContentAdapter } from '../adapters/staged-content/work-it
     AuthModule,
     forwardRef(() => StagedContentModule),
   ],
-  controllers: [TaskController, WorkItemRefinementController],
+  controllers: [
+    TaskController,
+    WorkItemRefinementController,
+    TaskMonitorUnstartedLaunchConfigurationController,
+  ],
   providers: [
     // Task services
     TaskRefinementService,
     TaskOptimizationService,
     TaskArtifactService,
+    TaskMonitorUnstartedLaunchConfigurationService,
 
     // Initiative services
     InitiativeRefinementService,

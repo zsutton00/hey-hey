@@ -568,7 +568,6 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
     );
   }, [preferenceColumns, preferenceRows]);
   // Layout previews suspend every edit, groups included, until cancelled.
-  const [layoutPreviewing, setLayoutPreviewing] = useState(false);
   const handleSelectionChange = useCallback((next: WorkItemGraphSelection) => {
     setSelection((current) =>
       selectionsEqual(current, next) ? current : next,
@@ -1055,7 +1054,7 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
           groups={diagramGroups}
           selectedMembers={selectedGroupMembers}
           memberLabel={groupMemberLabel}
-          disabled={!canUpdateNode || layoutPreviewing}
+          disabled={!canUpdateNode}
           onChange={(groups) =>
             draft.revise({
               ref: draft.projected.projectedRoot.identity,
@@ -1122,7 +1121,6 @@ export const WorkItemGraphEditor: FC<WorkItemGraphEditorProps> = ({
             canCreateNode ? handleEmptyCanvasContextMenu : undefined
           }
           onSelectionChange={handleSelectionChange}
-          onLayoutPreviewChange={setLayoutPreviewing}
           onVisibleCanvasPositionChange={
             canReplaceLayout ? handleVisibleCanvasPositionChange : undefined
           }

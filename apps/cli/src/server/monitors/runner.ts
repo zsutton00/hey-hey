@@ -4,11 +4,7 @@ import {
   parseTaskMonitorDecision,
   type TaskMonitorDecisionParseResult,
 } from '../../agents/task-monitor/task-monitor-response';
-import {
-  LocalReasoningEffort,
-  LocalPromptType,
-  LocalRunProvider,
-} from '../../shared/agent-bridge-contract/contract';
+import { LocalReasoningEffort, LocalPromptType } from '../../shared/agent-bridge-contract/contract';
 import type { TaskMonitorPromptPayload, RunContextMetadata } from '@hey-hey/contracts/agent-bridge';
 import type { TaskMonitorRuntimeSelection } from '@hey-hey/contracts/api/models';
 import { coordinatorRuntimeCatalogIssue } from '../../agents/task-monitor/coordinator-runtime';
@@ -70,15 +66,12 @@ const buildContextMetadataSeed = (
 });
 
 const toTaskMonitorRunConfig = (runtime: TaskMonitorRuntimeSelection | undefined) => {
-  if (!runtime) return undefined;
-  const provider =
-    runtime.provider === 'claude'
-      ? LocalRunProvider.Claude
-      : runtime.provider === 'codex'
-        ? LocalRunProvider.Codex
-        : LocalRunProvider.Opencode;
+  if (!runtime) {
+    return undefined;
+  }
+
   return {
-    provider,
+    provider: runtime.provider,
     model: runtime.model,
     ...(runtime.reasoningEffort === undefined ? {} : { reasoningEffort: runtime.reasoningEffort }),
     ...(runtime.fastMode === undefined ? {} : { fastMode: runtime.fastMode }),

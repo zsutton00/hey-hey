@@ -4070,6 +4070,12 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: placeKey
+          in: query
+          required: false
+          description: A key from listProjectChangePlaces. Matches records with an edit in that place; the not-recorded key matches records with no recorded place. An unknown key returns an empty page.
+          schema:
+            type: string
         - name: limit
           in: query
           schema:
@@ -4098,6 +4104,73 @@ paths:
                         $ref: "../schemas/reports.yaml#/ProjectChangesPage"
         "400":
           description: Invalid filters or pagination.
+        "401":
+          description: Authentication required.
+        "403":
+          description: Project access denied.
+
+  /organizations/{organizationId}/projects/{projectId}/reports/changes/places:
+    get:
+      operationId: listProjectChangePlaces
+      summary: List the branches and worktrees that have change records
+      description: Distinct places across IMPLEMENT records, with record counts, plus a not-recorded entry when such records exist. Accepts the same filters as listProjectChanges except placeKey and paging.
+      tags: [Reports]
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agentSessionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: serviceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: featureId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: committed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: The places that would return results.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "../schemas/reports.yaml#/ProjectChangePlaces"
+        "400":
+          description: Invalid filters.
         "401":
           description: Authentication required.
         "403":
@@ -6221,6 +6294,83 @@ paths:
                 $ref: "#/components/schemas/ApiErrorResponse"
         "404":
           description: Task Monitor not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+  /organizations/{organizationId}/projects/{projectId}/work-items/{monitorId}/unstarted-launch-configuration:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: monitorId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Apply one launch configuration to every unstarted Task Monitor task
+      description: >-
+        Replaces method, provider, model, reasoning effort and Fast mode on
+        every execution-plan task whose Agent Session does not exist yet,
+        including values chosen individually. The server decides which tasks
+        are unstarted at write time and writes all of them or none. Tasks that
+        already have an Agent Session are left unchanged and reported as
+        skipped. Only node launch configuration is written; cursor, session
+        references and monitor-level settings are untouched.
+      operationId: applyTaskMonitorUnstartedLaunchConfiguration
+      tags: [Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskMonitorExecutionNodeLaunchConfiguration"
+      responses:
+        "200":
+          description: Launch configuration replaced on every unstarted task.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto"
+        "400":
+          description: Invalid launch configuration, or values the monitor kind does not allow.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "404":
+          description: Task Monitor not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "409":
+          description: The monitor has finished, or no task is unstarted.
           content:
             application/json:
               schema:
@@ -21384,6 +21534,59 @@ paths:
         "404":
           description: Agent Session not found in the route project.
 
+  /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/service-places:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: agentSessionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: reportAgentSessionServicePlaces
+      summary: Record where each Service works in an Agent Session
+      description: >-
+        Records, once per Service, whether the Service works in its main folder
+        or a worktree, and on which branch. Each Service is decided on its own:
+        an unrecorded member is recorded, an identical repeat is a no-op, a
+        different place for a recorded Service is a conflict that leaves the
+        record unchanged, and a non-member is refused. The owning user and the
+        session's bound machine are validated before anything is written.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportAgentSessionServicePlacesDto"
+      responses:
+        "200":
+          description: One outcome per submitted Service and the resulting session.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ReportAgentSessionServicePlacesResultDto"
+        "400":
+          description: Invalid report or machine does not match the session binding.
+        "401":
+          description: Unauthorized.
+        "403":
+          description: Agent Session ownership mismatch.
+        "404":
+          description: Agent Session not found in the route project.
+
   /organizations/{organizationId}/projects/{projectId}/agent-sessions/{agentSessionId}/conversation:
     parameters:
       - name: organizationId
@@ -21546,6 +21749,114 @@ paths:
           description: Unauthorized
         "403":
           description: Forbidden — selected machine or controller authority is unavailable.
+        "404":
+          description: Project not found in the requested organization.
+
+  /organizations/{organizationId}/projects/{projectId}/machines/{machineId}/service-places:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: machineId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Machine ID
+    post:
+      summary: Read the places Services can work in on a machine
+      operationId: listMachineServicePlaces
+      description: Read each requested Service's main folder branch, its registered worktrees and a short branch search on the selected machine. Nothing is checked out or created.
+      tags: [AgentSessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CliReadWorkspaceServicePlacesListRequest"
+      responses:
+        "200":
+          description: Correlated CLI read result, including typed transport failures.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ServicePlacesReadResponseDto"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden — selected machine or controller authority is unavailable.
+        "404":
+          description: Project not found in the requested organization.
+
+  /organizations/{organizationId}/projects/{projectId}/service-places/recent:
+    parameters:
+      - name: organizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+    get:
+      summary: List branches recently used by Services in this project
+      operationId: listRecentServicePlaces
+      description: For each requested Service, the distinct branches earlier sessions in this project recorded, newest first, at most 10 per Service.
+      tags: [AgentSessions]
+      parameters:
+        - name: serviceIds
+          in: query
+          required: true
+          description: Project Services to read recent branches for. Repeat the parameter for each Service.
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 20
+            uniqueItems: true
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Recently used branches per requested Service.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RecentServicePlacesDto"
+        "400":
+          description: Invalid Service list.
+        "401":
+          description: Unauthorized
         "404":
           description: Project not found in the requested organization.
 
@@ -26139,6 +26450,8 @@ components:
       description: Identifier for the staged content entity
 
   schemas:
+    AgentProviderId:
+      $ref: "../schemas/common.yaml#/AgentProviderId"
     ProvisionDemoSandboxDto:
       $ref: "../schemas/demo-sandboxes.yaml#/ProvisionDemoSandboxDto"
     DemoSandboxResponseDto:
@@ -26572,6 +26885,26 @@ components:
       $ref: "../schemas/coding-sessions.yaml#/UpdateAgentSessionDto"
     GrantAgentSessionServicesDto:
       $ref: "../schemas/coding-sessions.yaml#/GrantAgentSessionServicesDto"
+    AgentSessionServicePlaceKind:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceKind"
+    ServicePlaceChoice:
+      $ref: "../schemas/coding-sessions.yaml#/ServicePlaceChoice"
+    MainFolderServicePlaceChoice:
+      $ref: "../schemas/coding-sessions.yaml#/MainFolderServicePlaceChoice"
+    WorktreeServicePlaceChoice:
+      $ref: "../schemas/coding-sessions.yaml#/WorktreeServicePlaceChoice"
+    AgentSessionServicePlace:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlace"
+    ReportedAgentSessionServicePlace:
+      $ref: "../schemas/coding-sessions.yaml#/ReportedAgentSessionServicePlace"
+    ReportAgentSessionServicePlacesDto:
+      $ref: "../schemas/coding-sessions.yaml#/ReportAgentSessionServicePlacesDto"
+    AgentSessionServicePlaceOutcome:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceOutcome"
+    AgentSessionServicePlaceResult:
+      $ref: "../schemas/coding-sessions.yaml#/AgentSessionServicePlaceResult"
+    ReportAgentSessionServicePlacesResultDto:
+      $ref: "../schemas/coding-sessions.yaml#/ReportAgentSessionServicePlacesResultDto"
     CreateAgentSessionConversationDto:
       $ref: "../schemas/coding-sessions.yaml#/CreateAgentSessionConversationDto"
     CreateAgentSessionConversationResponseDto:
@@ -29740,6 +30073,8 @@ components:
       $ref: "../schemas/interaction-flows.yaml#/SystemMessageResponseType"
     SystemMessageData:
       $ref: "../schemas/conversations.yaml#/SystemMessageData"
+    CompactionNoticeMarker:
+      $ref: "../schemas/conversations.yaml#/CompactionNoticeMarker"
     UserMessageData:
       $ref: "../schemas/conversations.yaml#/UserMessageData"
     ExternalAgentCompletionPayload:
@@ -30114,6 +30449,18 @@ components:
       oneOf:
         - $ref: "../schemas/websockets.yaml#/CliReadRuntimeModelCatalogGetSuccessResponseDto"
         - $ref: "../schemas/websockets.yaml#/CliReadRuntimeModelCatalogGetErrorResponseDto"
+    CliReadWorkspaceServicePlacesListRequest:
+      $ref: "../schemas/websockets.yaml#/CliReadWorkspaceServicePlacesListRequest"
+    ServicePlacesReadResponseDto:
+      oneOf:
+        - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceServicePlacesListSuccessResponseDto"
+        - $ref: "../schemas/websockets.yaml#/CliReadWorkspaceServicePlacesListErrorResponseDto"
+    RecentServicePlacesDto:
+      $ref: "../schemas/coding-sessions.yaml#/RecentServicePlacesDto"
+    RecentServicePlaceBranch:
+      $ref: "../schemas/coding-sessions.yaml#/RecentServicePlaceBranch"
+    RecentServicePlaces:
+      $ref: "../schemas/coding-sessions.yaml#/RecentServicePlaces"
     CliReadRequestDto:
       $ref: "../schemas/websockets.yaml#/CliReadRequestDto"
 
@@ -30837,6 +31184,8 @@ components:
       $ref: "../schemas/work-items.yaml#/TaskMonitorExecutionNodeLaunchConfiguration"
     TaskMonitorRuntimeSelection:
       $ref: "../schemas/work-items.yaml#/TaskMonitorRuntimeSelection"
+    ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto:
+      $ref: "../schemas/work-items.yaml#/ApplyTaskMonitorUnstartedLaunchConfigurationResponseDto"
     TaskMonitorLaunchConfig:
       $ref: "../schemas/trigger-payloads.yaml#/TaskMonitorLaunchConfig"
     WorkItemGraphLayoutValue:
@@ -30912,6 +31261,8 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGuidanceBatchDto"
     WorkItemTypeDefinitionDto:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeDefinitionDto"
+    WorkItemStatusAuthoringInput:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringInput"
     WorkItemStatusAuthoringRequest:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusAuthoringRequest"
     WorkItemStatusAuthoringResponse:
@@ -30974,8 +31325,12 @@ components:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeStatus"
     WorkItemStatusMeaning:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaning"
-    WorkItemStatusCompletionBehavior:
-      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCompletionBehavior"
+    WorkItemStatusMeaningKind:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusMeaningKind"
+    WorkItemStatusBuiltInMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusBuiltInMeaning"
+    WorkItemStatusCustomMeaning:
+      $ref: "../schemas/work-item-type-definition.yaml#/WorkItemStatusCustomMeaning"
     WorkItemTypeGraphCapability:
       $ref: "../schemas/work-item-type-definition.yaml#/WorkItemTypeGraphCapability"
     WorkItemTypeGraphReadExpansion:

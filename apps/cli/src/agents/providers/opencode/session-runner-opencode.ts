@@ -4,6 +4,8 @@ import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import type { BrowserMcpMount } from '../../browser-tools/browser-mcp-access';
+import { HeyHeyToolPreApproval } from '../../hey-hey-tool-pre-approval';
+import { OpenCodeHeyHeyTools, openCodeRuleKey } from './hey-hey-tool-connector';
 import crypto from 'node:crypto';
 import {
   getOpencodeModelRef,
@@ -198,21 +200,6 @@ const resolveOpencodeModelRef = (
   return modelRef;
 };
 
-// Permission strings on opencode `permission.asked` events for MCP-backed
-// tools are prefixed with `mcp__<server>__<tool>`. Strip the platform prefix
-// so the same alwaysAllowedTools Set used by the Claude runner matches.
-const stripMcpPrefix = (toolName: string): string => {
-  const platformPrefix = `mcp__${HEYHEY_PLATFORM_MCP_NAME}__`;
-  if (toolName.startsWith(platformPrefix)) {
-    return toolName.slice(platformPrefix.length);
-  }
-  const submissionPrefix = `mcp__${SUBMISSION_TOOLS_MCP_NAME}__`;
-  if (toolName.startsWith(submissionPrefix)) {
-    return toolName.slice(submissionPrefix.length);
-  }
-  return toolName;
-};
-
 const externalDirectoryPatternTarget = (pattern: string): string | null => {
   const firstGlobIndex = pattern.search(GLOB_CHARACTER);
   if (firstGlobIndex === -1) {
@@ -241,27 +228,13 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
   private readonly pendingPermissionRequests = new Map<string, PendingOpencodePermissionRequest>();
   private readonly normalizationConfig = loadProviderEventNormalizationConfig();
 
-  private activeBrowserAllowedTools = new Set<string>();
-  private readonly alwaysAllowedTools = new Set<string>([
-    // search
-    'unified_search',
-    'get_entity_identities',
-    'task_search',
-    'search_features',
-    'plan_search',
-    'search_design_docs',
-    // context
-    'get_context',
-    'get_agent_sessions',
-    'list_services',
-    // proposals
-    'create_work_item',
-    'edit_work_item',
-    'create_design_doc',
-    'edit_design_doc',
-    'update_proposal',
-    'delete_proposal',
-  ]);
+  // Hey Hey's own tools active for the turn, approved without a prompt.
+  private heyHeyTools = new OpenCodeHeyHeyTools(HeyHeyToolPreApproval.empty);
+  // Platform tools registered with the OpenCode server; registration outlives the turn.
+  private registeredPlatformAllowedTools: readonly string[] = [];
+  private browserMounted = false;
+  // Saved Always Approve and Whitelist rules only; never Hey Hey's own tools.
+  private readonly alwaysAllowedTools = new Set<string>();
 
   // Run-scoped handle: a single opencode server is launched per Run on first
   // use and torn down via this.dispose() when the Run cleans up. We do not share
@@ -549,15 +522,16 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       platformProxy.browserMcpMount && cliBaseUrl
         ? buildBrowserToolsMcpConfig(platformProxy.browserMcpMount, cliBaseUrl)
         : null;
+    this.browserMounted = browserConfig !== null;
     if (browserConfig) {
       try {
         await this.addMcpServer(handle, browserConfig.serverName, {
           type: 'remote',
           url: browserConfig.serverEntry.url,
         });
-      } catch {
-        this.logger.warn('browser.opencode.mount_failed');
-        this.activeBrowserAllowedTools.clear();
+      } catch (error) {
+        this.logger.warn('browser.opencode.mount_failed', { error: String(error) });
+        this.browserMounted = false;
       }
     }
     const platformProxyMcpConfig =
@@ -605,6 +579,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
             ...(platformEntry.headers ? { headers: platformEntry.headers } : {}),
           });
           this.mcpRegisteredPlatformProxyUrl = platformProxyUrl;
+          this.registeredPlatformAllowedTools = mcpConfig.allowedTools;
         }
       } catch (err: unknown) {
         requestContext.log(this.logger, 'warn', 'local.runner.opencode.mcp_config.failed', {
@@ -666,6 +641,30 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
 
     this.mcpRegisteredForServer = handle;
   };
+
+  private buildHeyHeyTools(
+    agenticSessionId: string,
+    platformMcpProxyMount: PlatformMcpProxyMount | undefined,
+  ): OpenCodeHeyHeyTools {
+    const registration = this.submissionToolRegistry.getByRunId(agenticSessionId);
+    const submissionMounted =
+      registration !== null &&
+      registration.tools.length > 0 &&
+      this.localAgentEndpoint.get() !== null;
+    const preApproval = new HeyHeyToolPreApproval({
+      platformAllowedTools:
+        platformMcpProxyMount?.allowedTools ?? this.registeredPlatformAllowedTools,
+      activeSubmissionToolNames: submissionMounted
+        ? (registration.activeToolNames ?? registration.tools.map((tool) => tool.name))
+        : [],
+      browserAllowedTools: this.browserMounted ? BROWSER_ALLOWED_TOOLS : [],
+    });
+    requestContext.log(this.logger, 'debug', 'local.runner.opencode.hey_hey_pre_approval.built', {
+      sessionId: agenticSessionId,
+      tools: preApproval.sortedNames(),
+    });
+    return new OpenCodeHeyHeyTools(preApproval);
+  }
 
   private readonly replyPermission = async (
     handle: OpenCodeServerProcess,
@@ -1285,16 +1284,13 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
               return;
             }
           }
-          const baseToolName = stripMcpPrefix(permission);
-          // Auto-approve when the tool is on the allowlist or skipPermissions
-          // is set. We still emit the request so the conversation log shows
-          // the decision turn, but resolve it immediately without waiting
-          // for the user.
-          if (
-            this.alwaysAllowedTools.has(baseToolName) ||
-            this.activeBrowserAllowedTools.has(permission) ||
-            this.skipAllPermissions
-          ) {
+          // Auto-approve Hey Hey's own active tools, saved rules, or every
+          // tool when skipPermissions is set. We still emit the request so the
+          // conversation log shows the decision turn, but resolve it
+          // immediately without waiting for the user.
+          const heyHeyTool = this.heyHeyTools.qualifiedName(permission);
+          const alwaysAllowed = this.alwaysAllowedTools.has(openCodeRuleKey(permission));
+          if (heyHeyTool || alwaysAllowed || this.skipAllPermissions) {
             requestContext.log(
               this.logger,
               'info',
@@ -1302,7 +1298,11 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
               {
                 requestId,
                 toolName: permission,
-                reason: this.skipAllPermissions ? 'skip_permissions' : 'always_allowed',
+                reason: this.skipAllPermissions
+                  ? 'skip_permissions'
+                  : heyHeyTool
+                    ? 'hey_hey_pre_approved'
+                    : 'always_allowed',
               },
             );
             void this.replyPermission(handle, requestId, 'once');
@@ -1705,7 +1705,6 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
       await this.runStore.updateRunWorktreeState(session.agentic_session_id, workspace.worktree);
     }
 
-    this.activeBrowserAllowedTools = new Set(browserMcpMount ? BROWSER_ALLOWED_TOOLS : []);
     await this.runStore.updateRunStatus(session.agentic_session_id, 'running');
     try {
       const handle = await this.ensureServer(
@@ -1730,6 +1729,7 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
           ...(mcpToolUseCase ? { mcpToolUseCase } : {}),
         },
       );
+      this.heyHeyTools = this.buildHeyHeyTools(session.agentic_session_id, platformMcpProxyMount);
 
       let providerSessionMode = mode;
       let providerSessionId =
@@ -2188,13 +2188,18 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
         dispatch.decision === 'always_approve' || dispatch.decision === 'whitelist'
           ? 'always'
           : 'once';
-      const baseToolName = stripMcpPrefix(pendingPermission.permission);
+      const baseToolName = openCodeRuleKey(pendingPermission.permission);
       if (dispatch.decision === 'always_approve') {
         this.alwaysAllowedTools.add(baseToolName);
       }
       if (dispatch.decision === 'whitelist') {
         this.alwaysAllowedTools.add(baseToolName);
-        this.toolRuleStore.save(baseToolName);
+        void this.toolRuleStore.save(baseToolName).catch((error: unknown) => {
+          this.logger.warn('opencode.permission.rule_save_failed', {
+            tool: baseToolName,
+            error: String(error),
+          });
+        });
       }
     } else {
       reply = 'reject';
@@ -2206,10 +2211,10 @@ export class OpenCodeAgentSessionRunner implements AgentSessionRunner {
     // sibling pending requests for the same tool so the user isn't reprompted
     // mid-turn for a permission they already blanket-approved.
     if (dispatch.decision === 'always_approve' || dispatch.decision === 'whitelist') {
-      const baseToolName = stripMcpPrefix(pendingPermission.permission);
+      const baseToolName = openCodeRuleKey(pendingPermission.permission);
       const siblingsToApprove: PendingOpencodePermissionRequest[] = [];
       for (const [, sibling] of this.pendingPermissionRequests) {
-        if (stripMcpPrefix(sibling.permission) === baseToolName) {
+        if (openCodeRuleKey(sibling.permission) === baseToolName) {
           siblingsToApprove.push(sibling);
         }
       }

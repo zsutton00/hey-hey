@@ -1,6 +1,4 @@
 // @ts-nocheck
-import { WorkItemStatusMeaning } from './work-item-status-meaning.js';
-import { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -18,46 +16,24 @@ import { WorkItemStatusCompletionBehavior } from './work-item-status-completion-
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { WorkItemStatusCompletionBehavior } from './work-item-status-completion-behavior.js';
-// May contain unused imports in some cases
-// @ts-ignore
 import type { WorkItemStatusMeaning } from './work-item-status-meaning.js';
 
 /**
- * One ordinary status of a work-item type. `name` is the exact value stored on items and is never rewritten by a type edit.
+ * One ordinary status of a work-item type: the name the user typed plus exactly one meaning. `name` is the exact value stored on items, shown as written everywhere, and never rewritten by a type edit.
  * @export
  * @interface WorkItemTypeStatus
  */
 export interface WorkItemTypeStatus {
     /**
-     * The status name, stored verbatim on items (e.g. \"BACKLOG\" for a migrated platform status, \"Testing\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED.
+     * The status name, stored verbatim on items (e.g. \"BACKLOG\" for a platform status, \"Testing\" for a custom one). Unique within the type, and never ARCHIVED or SUPERSEDED.
      * @type {string}
      * @memberof WorkItemTypeStatus
      */
     'name': string;
-    /**
-     * Display label when it differs from `name` (preserves the labels existing statuses have always shown, e.g. ACTIVE shows \"In progress\"). Absent means `name` is shown as written.
-     * @type {string}
-     * @memberof WorkItemTypeStatus
-     */
-    'label'?: string;
     /**
      *
      * @type {WorkItemStatusMeaning}
      * @memberof WorkItemTypeStatus
      */
     'meaning': WorkItemStatusMeaning;
-    /**
-     *
-     * @type {WorkItemStatusCompletionBehavior}
-     * @memberof WorkItemTypeStatus
-     */
-    'completionBehavior'?: WorkItemStatusCompletionBehavior;
-}
-
-export namespace WorkItemTypeStatus {
-    export const MeaningEnum = WorkItemStatusMeaning;
-    export type MeaningEnum = WorkItemStatusMeaning;
-    export const CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
-    export type CompletionBehaviorEnum = WorkItemStatusCompletionBehavior;
 }

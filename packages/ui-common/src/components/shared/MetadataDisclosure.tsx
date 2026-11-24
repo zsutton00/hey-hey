@@ -12,7 +12,7 @@ import {
   useTheme,
 } from "@mui/material";
 import type { MouseEvent } from "react";
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import type { SxProps, Theme } from "@mui/material/styles";
 
 export interface MetadataDisclosureValueRow {
@@ -21,6 +21,14 @@ export interface MetadataDisclosureValueRow {
   testId?: string;
   mobileTestId?: string;
   desktopTestId?: string;
+  /** Text shown on the desktop chip when it should differ from `value`. */
+  desktopText?: string;
+  /** Marks a value that is absent; the desktop chip gets a dashed border. */
+  dashed?: boolean;
+  /** Test id for the desktop copy button; defaults to one derived from the label. */
+  copyTestId?: string;
+  /** Mobile disclosure shows a subheading when this changes between rows. */
+  group?: string;
   onCopy?: never;
 }
 
@@ -30,12 +38,19 @@ export interface MetadataDisclosureCopyRow {
   testId?: string;
   mobileTestId?: string;
   desktopTestId?: string;
+  /** Text shown on the desktop chip when it should differ from `value`. */
+  desktopText?: string;
+  /** Marks a value that is absent; the desktop chip gets a dashed border. */
+  dashed?: boolean;
+  /** Test id for the desktop copy button; defaults to one derived from the label. */
+  copyTestId?: string;
+  /** Mobile disclosure shows a subheading when this changes between rows. */
+  group?: string;
   onCopy: () => void;
 }
 
 export type MetadataDisclosureRow =
-  | MetadataDisclosureValueRow
-  | MetadataDisclosureCopyRow;
+  MetadataDisclosureValueRow | MetadataDisclosureCopyRow;
 
 export type MetadataDisclosureBreakpoint = "sm" | "md";
 export type MetadataDisclosureDesktopJustify = "flex-start" | "flex-end";
@@ -152,7 +167,9 @@ export const MetadataDisclosure = ({
               type="button"
             />
             <Tooltip
-              title={mobileDetailsOpen ? "Hide more details" : "Show more details"}
+              title={
+                mobileDetailsOpen ? "Hide more details" : "Show more details"
+              }
               arrow
             >
               <IconButton
@@ -214,32 +231,43 @@ export const MetadataDisclosure = ({
               </Typography>
               <Stack component="dl" spacing={1} sx={{ m: 0 }}>
                 {displayRows.map((row, index) => (
-                  <Box
-                    component="div"
-                    key={`${row.label}-${index}`}
-                    data-testid={row.mobileTestId ?? row.testId}
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)",
-                      gap: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    <Typography
-                      component="dt"
-                      variant="caption"
-                      color="text.secondary"
+                  <Fragment key={`${row.label}-${index}`}>
+                    {row.group !== undefined &&
+                    row.group !== displayRows[index - 1]?.group ? (
+                      <Typography
+                        component="div"
+                        variant="subtitle2"
+                        sx={{ pt: 0.5 }}
+                      >
+                        {row.group}
+                      </Typography>
+                    ) : null}
+                    <Box
+                      component="div"
+                      data-testid={row.mobileTestId ?? row.testId}
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.5fr)",
+                        gap: 1,
+                        minWidth: 0,
+                      }}
                     >
-                      {row.label}
-                    </Typography>
-                    <Typography
-                      component="dd"
-                      variant="body2"
-                      sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere" }}
-                    >
-                      {row.value}
-                    </Typography>
-                  </Box>
+                      <Typography
+                        component="dt"
+                        variant="caption"
+                        color="text.secondary"
+                      >
+                        {row.label}
+                      </Typography>
+                      <Typography
+                        component="dd"
+                        variant="body2"
+                        sx={{ m: 0, minWidth: 0, overflowWrap: "anywhere" }}
+                      >
+                        {row.value}
+                      </Typography>
+                    </Box>
+                  </Fragment>
                 ))}
               </Stack>
             </Box>
@@ -265,13 +293,17 @@ export const MetadataDisclosure = ({
               <Chip
                 aria-label={`${row.label}: ${row.value}`}
                 data-testid={row.desktopTestId ?? row.testId}
+                variant={row.dashed ? "outlined" : "filled"}
                 deleteIcon={
                   row.onCopy ? (
                     <IconButton
                       aria-label={`Copy ${row.label.toLowerCase()}`}
-                      data-testid={`${testIdPrefix}-${row.label
-                        .toLowerCase()
-                        .replace(/\s+/g, "-")}-copy`}
+                      data-testid={
+                        row.copyTestId ??
+                        `${testIdPrefix}-${row.label
+                          .toLowerCase()
+                          .replace(/\s+/g, "-")}-copy`
+                      }
                       onClick={(event) => event.stopPropagation()}
                       size="small"
                       sx={{ p: 0.25 }}
@@ -281,7 +313,7 @@ export const MetadataDisclosure = ({
                     </IconButton>
                   ) : undefined
                 }
-                label={row.value}
+                label={row.desktopText ?? row.value}
                 onDelete={
                   row.onCopy
                     ? () => {
@@ -290,7 +322,11 @@ export const MetadataDisclosure = ({
                     : undefined
                 }
                 size="small"
-                sx={{ ...chipSx, ...desktopChipVariantSx }}
+                sx={{
+                  ...chipSx,
+                  ...desktopChipVariantSx,
+                  ...(row.dashed ? { borderStyle: "dashed" } : {}),
+                }}
               />
             </Tooltip>
           ))}

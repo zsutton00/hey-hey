@@ -302,7 +302,12 @@ describe("ExternalReplyComposer new-conversation button", () => {
             provider: "codex",
             model: "gpt-5-codex",
             effort: "high",
-            worktree: "feature/current-worktree",
+            servicePlaces: [
+              {
+                serviceName: "API",
+                place: { kind: "worktree", branch: "feature/current-worktree" },
+              },
+            ],
           }}
         />
       </MemoryRouter>,
@@ -318,8 +323,8 @@ describe("ExternalReplyComposer new-conversation button", () => {
     expect(actionRow).toContainElement(screen.getByTestId("run-stream-stop"));
     expect(metadata).toHaveAttribute("data-placement", "below-composer");
     expect(
-      screen.getByTestId("agent-session-metadata-worktree"),
-    ).toHaveTextContent("feature/current-worktree");
+      screen.getByTestId("agent-session-metadata-place-worktree"),
+    ).toHaveTextContent("API: worktree feature/current-worktree");
   });
 
   it("registers the shared rich-editor nodes with Lexical", () => {

@@ -12,8 +12,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MessageType,
   SubmitTaskMonitorCommandResponseDtoStatusEnum,
+  TaskMonitorReviewMode,
   WorkStatus,
   type CreateUserMessage,
+  type TaskMonitorExecutionDefinition,
 } from "../../../api";
 import { TaskMonitorWorkspaceView } from "../TaskMonitorWorkspaceView";
 import { CapsuleScreenButtonControl } from "../../ActionsCapsule/CapsuleScreenButtonControl";
@@ -26,6 +28,8 @@ import {
   type MachineDto,
 } from "../../../api";
 import type { TaskMonitorProjectedNode } from "../useTaskMonitorProjection";
+import type { TaskMonitorTaskServicesControl } from "../taskMonitorStartReadiness";
+import { http, HttpResponse } from "msw";
 import type { ConversationFormResolver } from "../../Conversation/Components/conversationFormTypes";
 import { setCapabilityCatalogForTests } from "../../AgentSession/capabilityCatalog";
 import { TEST_CAPABILITY_CATALOG } from "../../../test/capabilityCatalogFixture";
@@ -239,6 +243,21 @@ const CapsuleScreenButtons = () => {
   ));
 };
 
+const noMissingServices: TaskMonitorTaskServicesControl = {
+  updatingTaskIds: [],
+  errorsByTaskId: {},
+  onChange: vi.fn(),
+};
+
+// Every task card reads the project's Services to name the task's own.
+beforeEach(() => {
+  globalThis.mswServer.use(
+    http.get("*/organizations/:organizationId/services", () =>
+      HttpResponse.json({ data: [] }),
+    ),
+  );
+});
+
 const workspaceElement = (
   overrides: Partial<
     React.ComponentProps<typeof TaskMonitorWorkspaceView>
@@ -260,6 +279,12 @@ const workspaceElement = (
       isSavingLaunchConfiguration={false}
       onSaveLaunchConfiguration={vi.fn()}
       onSaveCoordinatorRuntime={vi.fn()}
+      onSaveReviewRuntime={vi.fn()}
+      onSaveLaunchPolicy={vi.fn().mockResolvedValue(undefined)}
+      onApplyToUnstartedTasks={vi.fn()}
+      startMessage=""
+      onChangeStartMessage={vi.fn()}
+      taskServices={noMissingServices}
       pendingLifecycleAction={null}
       errorMessage={null}
       operationalErrorMessage={null}
@@ -269,7 +294,6 @@ const workspaceElement = (
       onSelectMachine={vi.fn()}
       onStart={vi.fn()}
       onPause={vi.fn()}
-      activePane="monitor"
       {...overrides}
     />
   </ActionsCapsuleProvider>
@@ -283,6 +307,45 @@ const renderWorkspace = (
     React.ComponentProps<typeof TaskMonitorWorkspaceView>
   > = {},
 ) => render(workspaceElement(overrides));
+
+/** The shared pane control's segment for one pane, when it is offered. */
+const paneSegment = (pane: "steps" | "monitor" | "session") =>
+  screen
+    .queryAllByTestId("pane-toggle-segment")
+    .find((segment) => segment.dataset.value === pane);
+const offeredPanes = () =>
+  screen
+    .getAllByTestId("pane-toggle-segment")
+    .map((segment) => segment.textContent);
+const pressedPanes = () =>
+  screen
+    .getAllByTestId("pane-toggle-segment")
+    .filter((segment) => segment.getAttribute("aria-pressed") === "true")
+    .map((segment) => segment.dataset.value);
+const offeredPane = (pane: "steps" | "monitor" | "session") => {
+  const segment = paneSegment(pane);
+  if (!segment) {
+    throw new Error(`The ${pane} pane is not offered.`);
+  }
+  return segment;
+};
+const clickPane = (pane: "steps" | "monitor" | "session") => {
+  fireEvent.click(offeredPane(pane));
+};
+
+/** Screens narrower than the side-by-side layout. */
+const useNarrowScreen = () => {
+  vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+    matches: query.includes("max-width"),
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+};
 
 const generatedStylesFor = (element: HTMLElement) => {
   const classNames = element.className.split(/\s+/).filter(Boolean);
@@ -322,13 +385,55 @@ describe("TaskMonitorWorkspaceView", () => {
       .mockReturnValueOnce("correlation-1")
       .mockReturnValueOnce("correlation-2");
     vi.stubGlobal("crypto", { randomUUID: randomUUIDMock });
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
   });
 
-  it("does not offer setup selection after the launch choice is saved", () => {
+  it("answers a judgment from the machine the monitor was started on, with none picked", async () => {
+    const submit = vi.fn();
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(() => ({
+      uiElements: [],
+      disabled: false,
+      isSubmitted: false,
+      submit,
+    }));
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      session: {
+        ...createSession(),
+        conversationId: "coordinator-conversation",
+        machineId: "bound-machine",
+      },
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ selectedMachineId: null });
+
+    expect(useTaskMonitorConversationFormResolverMock).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedMachineId: "bound-machine" }),
+    );
+  });
+
+  it("shows only the session in a started monitor, with no settings", () => {
     renderWorkspace();
 
+    expect(screen.queryByText("Task Monitor settings")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("task-monitor-review-mode"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("task-monitor-prestart-settings"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("task-monitor-launch-configuration"),
@@ -377,38 +482,14 @@ describe("TaskMonitorWorkspaceView", () => {
     );
   });
 
-  it.each([
-    ["steps", "task-monitor-steps-surface"],
-    ["monitor", "task-monitor-coordinator-pane"],
-    ["session", "task-monitor-inspector-pane"],
-  ] as const)(
-    "keeps %s as the active compact pane",
-    (activePane, activeSurfaceTestId) => {
-      renderWorkspace({ activePane });
-
-      for (const surfaceTestId of [
-        "task-monitor-steps-surface",
-        "task-monitor-coordinator-pane",
-        "task-monitor-inspector-pane",
-      ]) {
-        const styles = generatedStylesFor(screen.getByTestId(surfaceTestId));
-        const expectedDisplay =
-          surfaceTestId === activeSurfaceTestId
-            ? "display:flex"
-            : "display:none";
-
-        expect(styles).toContain("@media (min-width:0px)");
-        expect(styles).toContain(expectedDisplay);
-      }
-    },
-  );
-
-  it("shows Start in the Action Capsule, not in the workspace body", () => {
+  it("offers Start in the Action Capsule and on the Ready card, enabled together", () => {
     renderWorkspace({ monitorStatus: WorkStatus.Backlog });
 
     const start = lifecycleButton("Start");
+    const readyStart = screen.getByTestId("task-monitor-ready-start");
 
     expect(start).toBeEnabled();
+    expect(readyStart).toBeEnabled();
     expect(start).toHaveAttribute(
       "data-screen-key",
       expect.stringMatching(/^task-monitor-lifecycle:/),
@@ -416,6 +497,9 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(screen.getByTestId("task-monitor-workspace")).not.toContainElement(
       start,
     );
+    expect(
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toContainElement(readyStart);
     expect(screen.getByTestId("machine-picker")).toBeVisible();
   });
 
@@ -472,31 +556,26 @@ describe("TaskMonitorWorkspaceView", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it("explains how to start the coordinator before its conversation exists", () => {
-    renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+  it("submits the same Start from the Ready card as from the Action Capsule", async () => {
+    const onStart = vi.fn();
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      conversation: null,
+      project: null,
+      session: createSession(),
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ monitorStatus: WorkStatus.Backlog, onStart });
 
-    const prestartGuide = screen.getByTestId(
-      "task-monitor-coordinator-prestart",
-    );
-    expect(prestartGuide).toHaveTextContent("Ready to start");
-    expect(prestartGuide).toHaveTextContent("How it works");
-    expect(prestartGuide).toHaveTextContent(
-      "Choose a paired CLI machine, and press Start.",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "The coordinator works through the steps you've selected in order",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "Follow its live updates and reply to guide it when needed.",
-    );
-    expect(prestartGuide).toHaveTextContent(
-      "Active Session shows the session for the current step.",
-    );
-    expect(
-      screen.queryByText(
-        "The coordinator conversation could not be loaded after the monitor started.",
+    fireEvent.click(screen.getByTestId("task-monitor-ready-start"));
+
+    await waitFor(() =>
+      expect(bindGraphConversationAgentSessionMachineMock).toHaveBeenCalledWith(
+        expect.objectContaining({ machineId: "machine-1" }),
       ),
-    ).not.toBeInTheDocument();
+    );
+    await waitFor(() => expect(onStart).toHaveBeenCalledTimes(1));
   });
 
   it("keeps the selected session conversation in its owned scroll container", () => {
@@ -726,16 +805,11 @@ describe("TaskMonitorWorkspaceView", () => {
       monitorStatus: WorkStatus.Backlog,
       executionState: { status: "missing", delivery: "LIVE" },
     });
-    expect(
-      screen.queryByTestId("task-monitor-open-session"),
-    ).not.toBeInTheDocument();
+    expect(paneSegment("session")).toBeUndefined();
     expect(
       screen.queryByRole("button", { name: "Pause" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
 
     rerender(
       workspaceElement({
@@ -748,33 +822,19 @@ describe("TaskMonitorWorkspaceView", () => {
       "data-phase",
       "setup",
     );
-    expect(
-      screen.queryByTestId("task-monitor-open-session"),
-    ).not.toBeInTheDocument();
+    expect(paneSegment("session")).toBeUndefined();
     expect(lifecycleButton("Start")).toBeDisabled();
 
     rerender(workspaceElement({ executionState: retainedState("running") }));
     await waitFor(() =>
-      expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      ),
+      expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false"),
     );
     const inspector = screen.getByTestId("task-monitor-current-session");
     rerender(workspaceElement({ executionState: retainedState("attention") }));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByTestId("task-monitor-open-steps")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
+    clickPane("monitor");
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(paneSegment("steps")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("task-monitor-current-session")).toBe(inspector);
     // A new delivery of the same meaningful state must preserve manual expansion.
     rerender(
@@ -782,15 +842,9 @@ describe("TaskMonitorWorkspaceView", () => {
         executionState: { ...retainedState("attention"), revision: 9 },
       }),
     );
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    fireEvent.click(screen.getByTestId("task-monitor-close-monitor"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
+    clickPane("monitor");
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
 
     rerender(workspaceElement({ executionState: retainedState("done") }));
     await waitFor(() =>
@@ -799,10 +853,7 @@ describe("TaskMonitorWorkspaceView", () => {
         "done",
       ),
     );
-    expect(screen.getByTestId("task-monitor-open-session")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("session")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("task-monitor-result-session")).toHaveAttribute(
       "href",
       expect.stringContaining(sessionId),
@@ -828,7 +879,7 @@ describe("TaskMonitorWorkspaceView", () => {
     const { rerender } = renderWorkspace({
       executionState: retainedState("running"),
     });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     const draft = screen.getByTestId("workspace-draft");
     const inspector = screen.getByTestId("task-monitor-current-session");
     draft.focus();
@@ -879,7 +930,7 @@ describe("TaskMonitorWorkspaceView", () => {
       throw new Error("Expected retained fixture");
     }
     renderWorkspace({ executionState: { ...state, delivery: "INTERRUPTED" } });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     expect(screen.getByTestId("task-monitor-state-stale")).toBeVisible();
     expect(lifecycleButton("Start")).toBeDisabled();
   });
@@ -923,14 +974,11 @@ describe("TaskMonitorWorkspaceView", () => {
       errorMessage: null,
     });
     renderWorkspace({ executionState: retainedState("attention") });
-    fireEvent.click(screen.getByTestId("task-monitor-open-monitor"));
+    clickPane("monitor");
     const draft = screen.getByTestId("workspace-draft");
     fireEvent.change(draft, { target: { value: "Preserve this discussion" } });
     fireEvent.click(screen.getByTestId("task-monitor-reply-submit"));
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
     const message = {
       message: {
         id: "judgment-request",
@@ -959,21 +1007,252 @@ describe("TaskMonitorWorkspaceView", () => {
     await expect(form.submit({ decision: "request_changes" })).rejects.toThrow(
       "Judgment is stale",
     );
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "true");
     expect(draft).toHaveValue("Preserve this discussion");
     await act(async () => {
       await form.submit({ decision: "request_changes" });
     });
-    expect(screen.getByTestId("task-monitor-open-monitor")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(paneSegment("monitor")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("workspace-draft")).toBe(draft);
     expect(draft).toHaveValue("Preserve this discussion");
   });
+
+  it("opens a started monitor with a pending judgment on the conversation, not setup", () => {
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(() => ({
+      uiElements: [],
+      disabled: false,
+      isSubmitted: false,
+      submit: vi.fn(),
+    }));
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      session: {
+        ...createSession(),
+        conversationId: "coordinator-conversation",
+      },
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    renderWorkspace({ executionState: retainedState("attention") });
+    clickPane("monitor");
+
+    const pane = screen.getByTestId("task-monitor-coordinator-pane");
+    expect(within(pane).queryByText("Task Monitor settings")).toBeNull();
+    expect(within(pane).getByTestId("workspace-draft")).toBeInTheDocument();
+    expect(captureFormResolver).toHaveBeenCalled();
+  });
+  describe("pane control", () => {
+    const unlinked = { ...selectedNode, session: { kind: "none" as const } };
+    const gridColumns = () =>
+      generatedStylesFor(
+        screen.getByTestId("task-monitor-workspace-layout"),
+      ).match(/grid-template-columns:([^;]+);/)?.[1];
+
+    it("offers Tasks and Task Monitor before a session exists, with no pane-header controls", () => {
+      renderWorkspace({
+        monitorStatus: WorkStatus.Backlog,
+        executionState: { status: "missing", delivery: "LIVE" },
+        nodes: [unlinked],
+      });
+
+      expect(offeredPanes()).toEqual(["Tasks", "Task Monitor"]);
+      expect(pressedPanes()).toEqual(["steps", "monitor"]);
+      for (const legacy of [
+        "task-monitor-pane-navigation",
+        "task-monitor-toggle-steps",
+        "task-monitor-close-monitor",
+        "task-monitor-close-session",
+      ]) {
+        expect(screen.queryByTestId(legacy)).not.toBeInTheDocument();
+      }
+      expect(
+        screen.queryByRole("button", { name: "Dock" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Close" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByTestId("task-monitor-steps-heading"),
+      ).toHaveTextContent("Tasks");
+
+      // The last pane on screen stays on.
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(paneSegment("steps")).toHaveAttribute("aria-disabled", "true");
+      clickPane("steps");
+      expect(pressedPanes()).toEqual(["steps"]);
+    });
+
+    it("keeps the monitor docked until the first session is linked, then gives it the main area", () => {
+      const { rerender } = renderWorkspace({
+        executionState: retainedState("running"),
+        nodes: [unlinked],
+      });
+
+      expect(offeredPanes()).toEqual(["Tasks", "Task Monitor"]);
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(gridColumns()).toBe("minmax(0, 1fr) 0px 0px");
+
+      rerender(
+        workspaceElement({
+          executionState: retainedState("running"),
+          nodes: [selectedNode],
+        }),
+      );
+
+      expect(offeredPanes()).toEqual([
+        "Tasks",
+        "Task Monitor",
+        "Active Session",
+      ]);
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+      expect(gridColumns()).toBe("minmax(0, 28%) 0px minmax(0, 1fr)");
+    });
+
+    it("shows a linked session's loading and read failure inside the session pane", () => {
+      const { rerender } = renderWorkspace({
+        executionState: retainedState("running"),
+        nodes: [{ ...selectedNode, session: { kind: "loading" } }],
+      });
+
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+      expect(
+        screen.getByTestId("task-monitor-inspector-loading-session"),
+      ).toBeInTheDocument();
+      const workspace = screen.getByTestId("task-monitor-workspace");
+
+      rerender(
+        workspaceElement({
+          executionState: retainedState("running"),
+          nodes: [{ ...selectedNode, session: { kind: "failed" } }],
+        }),
+      );
+
+      expect(
+        screen.getByTestId("task-monitor-inspector-session-read-failed"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("task-monitor-workspace")).toBe(workspace);
+    });
+
+    it("switches each wide pane on its own without resetting the others", async () => {
+      const user = userEvent.setup();
+      renderWorkspace({ executionState: retainedState("running") });
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+
+      await user.click(offeredPane("monitor"));
+      expect(pressedPanes()).toEqual(["steps", "monitor", "session"]);
+      // Selecting a pane leaves keyboard focus on the control.
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      expect(paneSegment("monitor")).toHaveFocus();
+
+      clickPane("session");
+      expect(pressedPanes()).toEqual(["steps", "monitor"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps"]);
+      expect(gridColumns()).toBe("minmax(0, 1fr) 0px 0px");
+    });
+
+    it("opens pending guidance from the Capsule beside the session, and Tasks reopens the collapsed list", async () => {
+      renderWorkspace({ executionState: retainedState("attention") });
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Open Task Monitor/ }),
+      );
+
+      expect(pressedPanes()).toEqual(["monitor", "session"]);
+      expect(gridColumns()).toBe("44px minmax(0, 1fr) minmax(0, 1fr)");
+      await waitFor(() =>
+        expect(
+          screen.getByTestId("task-monitor-coordinator-pane"),
+        ).toHaveFocus(),
+      );
+
+      clickPane("steps");
+      expect(pressedPanes()).toEqual(["steps", "monitor", "session"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+    });
+
+    it("restores the task list when an opened guidance request is docked", () => {
+      renderWorkspace({ executionState: retainedState("attention") });
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["monitor", "session"]);
+
+      clickPane("monitor");
+      expect(pressedPanes()).toEqual(["steps", "session"]);
+    });
+
+    it.each([
+      ["setup", "Task Monitor", "task-monitor-coordinator-pane"],
+      ["running", "Active Session", "task-monitor-inspector-pane"],
+      ["done", "Tasks", "task-monitor-steps-surface"],
+    ] as const)(
+      "shows one pane on a narrow screen, defaulting %s to %s",
+      (phase, label, surfaceTestId) => {
+        useNarrowScreen();
+        renderWorkspace(
+          phase === "setup"
+            ? {
+                monitorStatus: WorkStatus.Backlog,
+                executionState: { status: "missing", delivery: "LIVE" },
+                nodes: [unlinked],
+              }
+            : { executionState: retainedState(phase) },
+        );
+
+        expect(
+          within(screen.getByTestId("pane-toggle-dropdown")).getByRole(
+            "combobox",
+          ),
+        ).toHaveTextContent(new RegExp(`^${label}$`));
+        for (const surface of [
+          "task-monitor-steps-surface",
+          "task-monitor-coordinator-pane",
+          "task-monitor-inspector-pane",
+        ]) {
+          const hidden = generatedStylesFor(
+            screen.getByTestId(surface),
+          ).includes("display:none");
+          expect(hidden).toBe(surface !== surfaceTestId);
+        }
+      },
+    );
+
+    it("picks one pane at a time on a narrow screen, with the same labels", async () => {
+      useNarrowScreen();
+      const user = userEvent.setup();
+      renderWorkspace({ executionState: retainedState("running") });
+      const dropdown = within(
+        screen.getByTestId("pane-toggle-dropdown"),
+      ).getByRole("combobox");
+
+      await user.click(dropdown);
+      expect(
+        screen.getAllByRole("option").map((option) => option.textContent),
+      ).toEqual(["Tasks", "Task Monitor", "Active Session"]);
+      await user.click(screen.getByRole("option", { name: "Task Monitor" }));
+
+      expect(dropdown).toHaveTextContent(/^Task Monitor$/);
+      expect(
+        generatedStylesFor(screen.getByTestId("task-monitor-coordinator-pane")),
+      ).not.toContain("display:none");
+      expect(
+        generatedStylesFor(screen.getByTestId("task-monitor-inspector-pane")),
+      ).toContain("display:none");
+
+      await user.click(dropdown);
+      await user.click(screen.getByRole("option", { name: "Tasks" }));
+      expect(dropdown).toHaveTextContent(/^Tasks$/);
+      expect(
+        screen.getByTestId("task-monitor-coordinator-pane"),
+      ).toHaveAttribute("inert");
+    });
+  });
+
   it("links available canonical reports without turning session completion into acceptance", () => {
     useReportsMock.mockReturnValue({
       isLoading: false,
@@ -1058,7 +1337,11 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     });
 
     const group = screen.getByTestId("task-monitor-coordinator-runtime");
-    expect(group).toHaveTextContent("Monitor runs on");
+    // The supervising agent's model sits in its own section, apart from Review's.
+    expect(screen.getByTestId("task-monitor-agent-section")).toContainElement(
+      group,
+    );
+    expect(group).toHaveTextContent("Runs on");
     expect(
       within(group).getByTestId(
         "task-monitor-coordinator-runtime-runtime-model-input",
@@ -1101,6 +1384,71 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
       ),
     ).toBeInTheDocument();
     expect(onSaveCoordinatorRuntime).not.toHaveBeenCalled();
+  });
+
+  const reviewDefinition = (
+    reviewRuntime?: typeof savedRuntime,
+  ): TaskMonitorExecutionDefinition => {
+    const base = createTaskMonitorDefinition();
+    return {
+      ...base,
+      launchPolicy: {
+        ...base.launchPolicy,
+        terminalSupervision: {
+          mode: TaskMonitorReviewMode.RequireReview,
+          ...(reviewRuntime ? { reviewRuntime } : {}),
+        },
+      },
+    };
+  };
+
+  it("offers Reviewer runs on only when Review is required", () => {
+    renderWorkspace({ monitorStatus: WorkStatus.Backlog });
+    expect(
+      screen.queryByTestId("task-monitor-review-runtime"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the saved Review runtime and saves a change through the update path", async () => {
+    const onSaveReviewRuntime = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      definition: reviewDefinition(savedRuntime),
+      monitorStatus: WorkStatus.Backlog,
+      onSaveReviewRuntime,
+    });
+
+    const group = screen.getByTestId("task-monitor-review-runtime");
+    expect(screen.getByTestId("task-monitor-review")).toContainElement(group);
+    expect(group).toHaveTextContent("Reviewer runs on");
+    expect(
+      within(group).getByTestId(
+        "task-monitor-review-runtime-runtime-model-input",
+      ),
+    ).toHaveValue("Sonnet 5.5");
+    expect(onSaveReviewRuntime).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-review-runtime-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        "task-monitor-review-runtime-runtime-effort-option-high",
+      ),
+    );
+    await waitFor(() =>
+      expect(onSaveReviewRuntime).toHaveBeenCalledWith({
+        ...savedRuntime,
+        reasoningEffort: "high",
+      }),
+    );
+
+    await user.click(screen.getByTestId("task-monitor-review-runtime-clear"));
+    await waitFor(() => expect(onSaveReviewRuntime).toHaveBeenCalledWith(null));
   });
 
   const chooseEffort = async (effort: string) => {
@@ -1211,25 +1559,400 @@ describe("TaskMonitorWorkspaceView Monitor runs on", () => {
     )?.models[0];
     expect(input).toHaveValue(claudeModel?.label);
   });
+});
 
-  it("shows the saved choice read-only after Start", () => {
+describe("TaskMonitorWorkspaceView setup before Start", () => {
+  const sonnet = {
+    method: "quick" as const,
+    provider: "claude" as const,
+    model: "claude-sonnet-5-5",
+    reasoningEffort: "medium" as const,
+  };
+  const unstartedNode = (
+    taskId: string,
+    position: number,
+    launchConfiguration = sonnet,
+  ): TaskMonitorProjectedNode => ({
+    position,
+    taskId,
+    dependsOnTaskIds: [],
+    launchConfiguration,
+    isCursor: position === 0,
+    task: { kind: "loaded", task: createTask(taskId, `Task ${position + 1}`) },
+    session: { kind: "none" },
+    visualStatus: "idle",
+  });
+  const startedNode: TaskMonitorProjectedNode = {
+    ...unstartedNode("33333333-3333-4333-8333-333333333333", 2),
+    session: { kind: "loaded", session: createSession() },
+    visualStatus: "active",
+  };
+  const mixedNodes = [
+    unstartedNode("11111111-1111-4111-8111-111111111111", 0),
+    unstartedNode("22222222-2222-4222-8222-222222222222", 1, {
+      ...sonnet,
+      method: "plan",
+      reasoningEffort: "low",
+    }),
+    startedNode,
+  ];
+  const withService = (
+    node: TaskMonitorProjectedNode,
+  ): TaskMonitorProjectedNode =>
+    node.task.kind === "loaded"
+      ? {
+          ...node,
+          task: {
+            kind: "loaded",
+            task: {
+              ...node.task.task,
+              serviceRelations: [
+                {
+                  id: `relation-${node.taskId}`,
+                  serviceId: "service-1",
+                  taskId: node.taskId,
+                  createdAt: "2026-11-01T00:00:00.000Z",
+                },
+              ],
+            },
+          },
+        }
+      : node;
+
+  beforeEach(() => {
+    setCapabilityCatalogForTests(TEST_CAPABILITY_CATALOG);
+    useReportsMock.mockReturnValue({
+      reports: [],
+      isLoading: false,
+      error: null,
+    });
+    useTaskMonitorCoordinatorConversationMock.mockReturnValue({
+      conversation: null,
+      project: null,
+      session: null,
+      loading: false,
+      fetched: true,
+      errorMessage: null,
+    });
+    useTaskMonitorConversationFormResolverMock.mockReturnValue(vi.fn());
+  });
+
+  const chooseEffort = async (effort: "high" | "max") => {
+    const user = userEvent.setup();
+    const group = screen.getByTestId("task-monitor-apply-unstarted");
+    await user.click(
+      within(
+        within(group).getByTestId(
+          "task-monitor-apply-unstarted-runtime-effort-select",
+        ),
+      ).getByRole("combobox"),
+    );
+    await user.click(
+      screen.getByTestId(
+        `task-monitor-apply-unstarted-runtime-effort-option-${effort}`,
+      ),
+    );
+    return user;
+  };
+
+  it("tells the user how many unstarted tasks will be replaced and writes nothing until Apply", async () => {
+    const onApplyToUnstartedTasks = vi.fn().mockResolvedValue({
+      updatedTaskIds: [mixedNodes[0]?.taskId, mixedNodes[1]?.taskId],
+      skippedTaskIds: [startedNode.taskId],
+    });
+    const onSaveLaunchConfiguration = vi.fn();
     renderWorkspace({
-      definition: {
-        ...createTaskMonitorDefinition(),
-        coordinatorRuntime: savedRuntime,
-      },
-      monitorStatus: WorkStatus.Active,
-      startPresentation: { status: "active" },
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+      onSaveLaunchConfiguration,
     });
 
-    const group = screen.getByTestId("task-monitor-coordinator-runtime");
+    const user = await chooseEffort("high");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
     expect(
-      within(group).getByTestId("task-monitor-coordinator-runtime-readonly"),
-    ).toHaveTextContent("claude · claude-sonnet-5-5 · medium");
-    expect(
-      within(group).queryByTestId(
-        "task-monitor-coordinator-runtime-runtime-model-input",
+      screen.getByTestId("task-monitor-apply-unstarted-confirm"),
+    ).toHaveTextContent(
+      "Replace session settings on 2 tasks that haven't started.",
+    );
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("task-monitor-apply-unstarted-result"),
+      ).toHaveTextContent(
+        "Updated 2 tasks. 1 task already had a session and was left unchanged.",
       ),
+    );
+    expect(onApplyToUnstartedTasks).toHaveBeenCalledTimes(1);
+    expect(onApplyToUnstartedTasks).toHaveBeenCalledWith({
+      ...sonnet,
+      reasoningEffort: "high",
+    });
+    // The bulk draft never goes through any per-task save path.
+    expect(onSaveLaunchConfiguration).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when the confirmation is cancelled", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+
+    const user = await chooseEffort("max");
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-cancel"));
+
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted-confirm"),
     ).not.toBeInTheDocument();
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("rejects a combination the machine's catalog no longer offers and sends nothing", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+
+    // The machine's catalog drops the chosen model as Apply is pressed,
+    // before the picker can reshape the draft.
+    act(() => {
+      setCapabilityCatalogForTests(
+        TEST_CAPABILITY_CATALOG.filter((row) => row.provider !== "claude"),
+      );
+      fireEvent.click(
+        screen.getByTestId("task-monitor-apply-unstarted-submit"),
+      );
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-apply-unstarted-error"),
+    ).toHaveTextContent("not available in the runtime catalog");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("rejects a confirmed Fast mode the model no longer offers instead of sending a setup without it", async () => {
+    const onApplyToUnstartedTasks = vi.fn();
+    const opusFast = {
+      ...sonnet,
+      model: "claude-opus-5-5",
+      fastMode: true,
+    };
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [
+        unstartedNode("11111111-1111-4111-8111-111111111111", 0, opusFast),
+      ],
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+
+    // The machine stops offering Fast mode for the model as Apply is pressed.
+    act(() => {
+      setCapabilityCatalogForTests(
+        TEST_CAPABILITY_CATALOG.map((row) => ({
+          ...row,
+          models: row.models.map(({ serviceTiers: _tiers, ...model }) => model),
+        })),
+      );
+      fireEvent.click(
+        screen.getByTestId("task-monitor-apply-unstarted-submit"),
+      );
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-apply-unstarted-error"),
+    ).toHaveTextContent("Fast mode choice is not supported");
+    expect(onApplyToUnstartedTasks).not.toHaveBeenCalled();
+  });
+
+  it("keeps Start unavailable until an edited worktree branch is saved", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const definition = {
+        ...createTaskMonitorDefinition(),
+        launchPolicy: {
+          ...createTaskMonitorDefinition().launchPolicy,
+          worktree: { enabled: true, branch: "feature/old" },
+        },
+      };
+      let finishSave: () => void = () => undefined;
+      const onSaveLaunchPolicy = vi.fn(
+        () => new Promise<void>((resolve) => (finishSave = resolve)),
+      );
+      const { rerender } = renderWorkspace({
+        definition,
+        monitorStatus: WorkStatus.Backlog,
+        onSaveLaunchPolicy,
+      });
+      expect(lifecycleButton("Start")).toBeEnabled();
+
+      const branchInput = screen.getByTestId(
+        "task-monitor-worktree-branch-name",
+      );
+      fireEvent.change(branchInput, { target: { value: "feature/new" } });
+
+      // Waiting to save, then saving: Start would still read the old branch.
+      expect(lifecycleButton("Start")).toBeDisabled();
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      expect(onSaveLaunchPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worktree: { enabled: true, branch: "feature/new" },
+        }),
+      );
+      expect(lifecycleButton("Start")).toBeDisabled();
+
+      finishSave();
+      rerender(
+        workspaceElement({
+          definition: {
+            ...definition,
+            launchPolicy: {
+              ...definition.launchPolicy,
+              worktree: { enabled: true, branch: "feature/new" },
+            },
+          },
+          monitorStatus: WorkStatus.Backlog,
+          onSaveLaunchPolicy,
+        }),
+      );
+      await waitFor(() => expect(lifecycleButton("Start")).toBeEnabled());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the server's rejection and reports that no task changed", async () => {
+    const onApplyToUnstartedTasks = vi
+      .fn()
+      .mockRejectedValue(new Error("Task monitor uses a disallowed method"));
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: mixedNodes,
+      onApplyToUnstartedTasks,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-open"));
+    await user.click(screen.getByTestId("task-monitor-apply-unstarted-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("task-monitor-apply-unstarted-error"),
+      ).toHaveTextContent("Task monitor uses a disallowed method"),
+    );
+  });
+
+  it("is offered while paused for tasks that have not started, and hidden once none remain", () => {
+    const { rerender } = renderWorkspace({
+      monitorStatus: WorkStatus.Active,
+      executionState: retainedState("paused"),
+      nodes: mixedNodes,
+    });
+
+    expect(screen.getByTestId("task-monitor-apply-unstarted")).toBeVisible();
+    // Guidance is sent with Start, so it is gone once started.
+    expect(
+      screen.queryByTestId("task-monitor-start-message"),
+    ).not.toBeInTheDocument();
+    rerender(
+      workspaceElement({
+        monitorStatus: WorkStatus.Active,
+        executionState: retainedState("paused"),
+        nodes: [startedNode],
+      }),
+    );
+
+    expect(
+      screen.queryByTestId("task-monitor-apply-unstarted"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves Review mode before Start, and blocks both Starts while a task has no Service", async () => {
+    const onSaveLaunchPolicy = vi.fn().mockResolvedValue(undefined);
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [withService(mixedNodes[0]), mixedNodes[1], startedNode],
+      onSaveLaunchPolicy,
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("radio", { name: /Require review/ }));
+    expect(onSaveLaunchPolicy).toHaveBeenCalledWith({
+      terminalSupervision: { mode: TaskMonitorReviewMode.RequireReview },
+    });
+
+    const missing = screen.getAllByTestId("task-monitor-task-missing-service");
+    expect(missing.map((row) => row.dataset.taskId)).toEqual([
+      mixedNodes[1].taskId,
+    ]);
+    expect(
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toHaveTextContent("Not ready to start");
+    expect(
+      screen.getByTestId("task-monitor-start-blocked-reason"),
+    ).toHaveTextContent("2. Task 2");
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeDisabled();
+  });
+
+  it("blocks both Starts while a selected task's details failed to load", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [
+        withService(mixedNodes[0]),
+        {
+          ...mixedNodes[1],
+          task: { kind: "missing" },
+          visualStatus: "errored",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByTestId("task-monitor-start-blocked-reason"),
+    ).toHaveAttribute("data-reason", "unloaded");
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeDisabled();
+  });
+
+  it("keeps the Service block while the monitor has not started, even when Start is not otherwise ready", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      startPresentation: { status: "active" },
+      nodes: [mixedNodes[0]],
+    });
+
+    expect(lifecycleButton("Start")).toBeDisabled();
+    expect(
+      screen.getByTestId("task-monitor-task-missing-service"),
+    ).toBeVisible();
+  });
+
+  it("enables both Starts once every unstarted task has its own Service", () => {
+    renderWorkspace({
+      monitorStatus: WorkStatus.Backlog,
+      nodes: [withService(mixedNodes[0]), withService(mixedNodes[1])],
+    });
+
+    expect(
+      screen.queryByTestId("task-monitor-task-missing-service"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("task-monitor-coordinator-prestart"),
+    ).toHaveTextContent("Ready to start");
+    expect(lifecycleButton("Start")).toBeEnabled();
+    expect(screen.getByTestId("task-monitor-ready-start")).toBeEnabled();
   });
 });

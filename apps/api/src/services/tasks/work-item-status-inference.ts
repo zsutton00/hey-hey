@@ -1,65 +1,53 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-import type { WorkItemTypeStatus } from '@hey-hey/contracts/api/models';
-import type { WorkItemStatusAuthoringRequest } from '@hey-hey/contracts/api/models';
-import type { WorkItemStatusAuthoringResponse } from '@hey-hey/contracts/api/models';
-import { WorkItemStatusMeaning } from '@hey-hey/contracts/api/models';
+import type {
+  WorkItemStatusAuthoringRequest,
+  WorkItemStatusAuthoringResponse,
+  WorkItemTypeStatus,
+} from '@hey-hey/contracts/api/models';
 import {
-  workItemTypeStatusSchema,
+  MISSING_MEANING_FIX,
+  workItemStatusMeaningSchema,
   workItemTypeStatusesSchema,
 } from './work-item-type-status.schema';
 
-const nameSchema = z
-  .string()
-  .min(1)
-  .refine((name) => name.trim().length > 0);
 export const statusAuthoringRequestSchema = z
   .object({
     purpose: z.string(),
-    names: z.array(nameSchema).min(1).optional(),
-    existingStatuses: z.array(workItemTypeStatusSchema).optional(),
-    finishedNames: z.array(nameSchema).optional(),
+    statuses: z
+      .array(
+        z
+          .object({
+            name: z.string().refine((name) => name.trim().length > 0),
+            meaning: workItemStatusMeaningSchema.optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .optional(),
   })
   .strict();
 
-const normalized = (name: string) =>
-  name.trim().toLowerCase().replace(/[_-]+/g, ' ');
+const custom = (text: string) => ({ kind: 'CUSTOM' as const, text });
 
 const standardStatuses: WorkItemTypeStatus[] = [
-  { name: 'BACKLOG', label: 'Backlog', meaning: 'NOT_STARTED' },
-  { name: 'REFINING', label: 'Refining', meaning: 'NOT_STARTED' },
-  { name: 'READY', label: 'Ready', meaning: 'NOT_STARTED' },
-  { name: 'ACTIVE', label: 'In progress', meaning: 'IN_PROGRESS' },
-  { name: 'BLOCKED', label: 'Blocked', meaning: 'UNFINISHED' },
-  { name: 'ON_HOLD', label: 'On Hold', meaning: 'UNFINISHED' },
-  { name: 'VERIFYING', label: 'Verifying', meaning: 'IN_PROGRESS' },
-  {
-    name: 'COMPLETED',
-    label: 'Completed',
-    meaning: 'FINISHED',
-    completionBehavior: 'COMPLETED',
-  },
-  {
-    name: 'CANCELLED',
-    label: 'Cancelled',
-    meaning: 'FINISHED',
-    completionBehavior: 'CANCELLED',
-  },
+  { name: 'BACKLOG', meaning: custom('Backlog') },
+  { name: 'REFINING', meaning: custom('Refining') },
+  { name: 'READY', meaning: custom('Ready') },
+  { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' } },
+  { name: 'BLOCKED', meaning: custom('Blocked') },
+  { name: 'ON_HOLD', meaning: custom('On hold') },
+  { name: 'VERIFYING', meaning: { kind: 'IN_PROGRESS' } },
+  { name: 'COMPLETED', meaning: { kind: 'COMPLETED' } },
+  { name: 'CANCELLED', meaning: { kind: 'CANCELLED' } },
 ];
 
-function findKnownStatus(
-  name: string,
-  candidates: readonly WorkItemTypeStatus[],
-): WorkItemTypeStatus | undefined {
-  const key = normalized(name);
-
-  return candidates.find(
-    (status) =>
-      normalized(status.name) === key ||
-      (status.label !== undefined && normalized(status.label) === key),
-  );
-}
-
+/**
+ * The single shared validator for REST status authoring and the MCP tool.
+ * Standard statuses, with their meanings, are offered only when no statuses
+ * are submitted. A submitted status without a meaning is rejected with its
+ * name and the fix, whatever the name is: no meaning is ever inferred.
+ */
 export function resolveWorkItemStatusAuthoring(
   input: WorkItemStatusAuthoringRequest,
 ): WorkItemStatusAuthoringResponse {
@@ -68,77 +56,23 @@ export function resolveWorkItemStatusAuthoring(
     throw new BadRequestException(parsed.error.message);
   }
 
-  const { existingStatuses = [], finishedNames } = parsed.data;
-  if (existingStatuses.length > 0) {
-    const validExisting =
-      workItemTypeStatusesSchema.safeParse(existingStatuses);
-    if (!validExisting.success) {
-      throw new BadRequestException(validExisting.error.message);
-    }
-  }
-
   const suggestions = standardStatuses.map((status) => status.name);
-  const defaultNames = (
-    existingStatuses.length > 0 ? existingStatuses : standardStatuses
-  ).map((status) => status.name);
-  const names = parsed.data.names ?? defaultNames;
-  const placeholders = names.map((name) => ({
-    name,
-    meaning: WorkItemStatusMeaning.Unfinished,
-  }));
-  const validNames = workItemTypeStatusesSchema.safeParse(placeholders);
-  if (!validNames.success) {
-    throw new BadRequestException(validNames.error.message);
-  }
-  if (
-    finishedNames &&
-    (new Set(finishedNames).size !== finishedNames.length ||
-      finishedNames.some((name) => !names.includes(name)))
-  ) {
+  const statuses = parsed.data.statuses ?? standardStatuses;
+
+  const missing = statuses
+    .filter((status) => status.meaning === undefined)
+    .map((status) => status.name);
+  if (missing.length > 0) {
     throw new BadRequestException(
-      'Finished selections must be distinct names from the status list.',
+      `Every status needs a meaning. Statuses without one: ${missing.join(', ')}. ` +
+        `For each, ${MISSING_MEANING_FIX}; a Custom meaning needs a short text of your own words.`,
     );
   }
 
-  // A saved meaning wins over the standard one of the same name.
-  const known = names.map(
-    (name) =>
-      findKnownStatus(name, existingStatuses) ??
-      findKnownStatus(name, standardStatuses),
-  );
-  const knownFinishedNames = (finishedNames ?? []).filter(
-    (name) => known[names.indexOf(name)],
-  );
-  if (knownFinishedNames.length > 0) {
-    throw new BadRequestException(
-      `Known statuses keep their existing meaning and cannot be listed in finishedNames: ${knownFinishedNames.join(', ')}. ` +
-        'List only new statuses that mean the work is finished.',
-    );
+  const valid = workItemTypeStatusesSchema.safeParse(statuses);
+  if (!valid.success) {
+    throw new BadRequestException(valid.error.message);
   }
 
-  const needsClarification =
-    finishedNames === undefined && known.some((status) => !status);
-  if (needsClarification) {
-    return {
-      suggestions,
-      state: 'CLARIFICATION',
-      question: 'Which of these mean the work is finished?',
-    };
-  }
-
-  const statuses: WorkItemTypeStatus[] = names.map((name, index) => {
-    const prior = known[index];
-    if (prior) {
-      return prior;
-    }
-
-    return {
-      name,
-      meaning: finishedNames?.includes(name)
-        ? WorkItemStatusMeaning.Finished
-        : WorkItemStatusMeaning.Unfinished,
-    };
-  });
-
-  return { suggestions, state: 'RESOLVED', statuses };
+  return { suggestions, statuses: valid.data };
 }

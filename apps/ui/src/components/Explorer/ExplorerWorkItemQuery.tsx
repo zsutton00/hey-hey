@@ -35,7 +35,7 @@ export interface ExplorerWorkItemQueryProps {
   onStateChange: (typeKey: string, state: ExplorerWorkItemQueryState) => void;
 }
 
-const getTypeSpecificFilters = (typeKey: string) => {
+export const getTypeSpecificFilters = (typeKey: string) => {
   switch (typeKey) {
     case WORK_ITEM_TYPE_KEYS.Goal:
       return {

@@ -32,10 +32,10 @@ const evidence = (
     type: 'STANDARD',
     status: 'ACTIVE',
     typeStatuses: [
-      { name: 'BACKLOG', meaning: 'NOT_STARTED' },
-      { name: 'ACTIVE', meaning: 'IN_PROGRESS' },
-      { name: 'COMPLETED', meaning: 'FINISHED', completionBehavior: 'COMPLETED' },
-      { name: 'CANCELLED', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+      { name: 'BACKLOG', meaning: { kind: 'CUSTOM' as const, text: 'Not started' } },
+      { name: 'ACTIVE', meaning: { kind: 'IN_PROGRESS' as const } },
+      { name: 'COMPLETED', meaning: { kind: 'COMPLETED' as const } },
+      { name: 'CANCELLED', meaning: { kind: 'CANCELLED' as const } },
     ],
     sections: [],
     featureHierarchy: [],
@@ -76,9 +76,9 @@ describe('Task Monitor coordination policy', () => {
       rationale: 'The work is done.',
     };
     const typeStatuses = [
-      { name: 'Doing', meaning: 'IN_PROGRESS' },
-      { name: 'Done', meaning: 'FINISHED' },
-      { name: 'Dropped', meaning: 'FINISHED', completionBehavior: 'CANCELLED' },
+      { name: 'Doing', meaning: { kind: 'IN_PROGRESS' as const } },
+      { name: 'Done', meaning: { kind: 'COMPLETED' as const } },
+      { name: 'Dropped', meaning: { kind: 'CANCELLED' as const } },
     ] as const;
     const withStatus = (status: string) =>
       snapshot({

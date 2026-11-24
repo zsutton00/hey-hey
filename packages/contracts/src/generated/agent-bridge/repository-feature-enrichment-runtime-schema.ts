@@ -66,7 +66,8 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           "type": "string",
           "enum": [
             "claude",
-            "codex"
+            "codex",
+            "antigravity"
           ]
         },
         "resolvedFrontierModel": {
@@ -396,7 +397,8 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "resolvedFrontierModel": {
@@ -572,7 +574,8 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "resolvedFrontierModel": {
@@ -902,7 +905,8 @@ export const repositoryFeatureEnrichmentRuntimeSchema = {
           "enum": [
             "claude",
             "codex",
-            "opencode"
+            "opencode",
+            "antigravity"
           ]
         },
         "resolvedFrontierModel": {

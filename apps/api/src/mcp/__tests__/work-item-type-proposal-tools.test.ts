@@ -1157,9 +1157,12 @@ describe('custom status wire boundaries', () => {
     const definition = {
       ...MARKETING_DEFINITION,
       statuses: [
-        { name: 'Idea', meaning: 'NOT_STARTED' },
-        { name: 'Testing', meaning: 'IN_PROGRESS' },
-        { name: 'Made', meaning: 'FINISHED' },
+        {
+          name: 'Idea',
+          meaning: { kind: 'CUSTOM' as const, text: 'Not started' },
+        },
+        { name: 'Testing', meaning: { kind: 'IN_PROGRESS' as const } },
+        { name: 'Made', meaning: { kind: 'COMPLETED' as const } },
       ],
       agentSettableStatuses: ['Testing'],
     };

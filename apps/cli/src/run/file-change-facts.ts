@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '../agents/providers/provider-config';
 import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -10,9 +11,10 @@ import {
   listGitChangedFilePaths,
   type GitFailureDetail,
 } from '../git/index';
+import { readCheckedOutPlace, type CheckedOutPlace } from '../git/worktree';
 import type { AgenticSession } from '../session/types';
 
-type FileChangeProvider = 'claude' | 'codex' | 'opencode';
+type FileChangeProvider = AgentProviderId;
 
 export interface ResolvedRunFilePath {
   serviceId: string;
@@ -39,6 +41,9 @@ export interface FileChangeEvidenceCapture {
   evidence: CanonicalFileChangeEvidence;
   source: 'git_diff' | 'provider_baseline';
   gitDiffError: GitFailureDetail | null;
+  /** Where the folder was checked out when the edit was seen; absent when git could not say. */
+  place?: CheckedOutPlace | undefined;
+  placeError?: GitFailureDetail | undefined;
 }
 
 export interface CanonicalFileChangeFact {
@@ -55,6 +60,8 @@ export interface CanonicalFileChangeFact {
   repoRelativePath: string;
   occurredAt: string;
   evidence: CanonicalFileChangeEvidence;
+  /** Branch and worktree active when the edit was recorded; absent when not recorded. */
+  place?: CheckedOutPlace | undefined;
 }
 
 export interface CanonicalFileChangeCandidate {
@@ -96,13 +103,24 @@ const evidenceSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+const placeSchema = z
+  .object({
+    kind: z.enum(['MAIN_FOLDER', 'WORKTREE']),
+    branch: z.string().nullable(),
+    worktreePath: z.string().optional(),
+  })
+  .transform(
+    ({ worktreePath, ...rest }): CheckedOutPlace =>
+      worktreePath === undefined ? rest : { ...rest, worktreePath },
+  );
+
 const factSchema = z.object({
   attributionSource: z.enum(['provider_event', 'agent_report']).optional(),
   executionRoot: z.string().optional(),
   factId: z.string().min(1),
   runId: z.string().min(1),
   turnId: z.string().min(1),
-  provider: z.enum(['claude', 'codex', 'opencode']),
+  provider: z.enum(['claude', 'codex', 'opencode', 'antigravity']),
   providerSessionId: z.string().min(1),
   providerThreadId: z.string().nullable(),
   providerTurnId: z.string().nullable(),
@@ -110,6 +128,7 @@ const factSchema = z.object({
   repoRelativePath: z.string().min(1),
   occurredAt: z.string().min(1),
   evidence: evidenceSchema,
+  place: placeSchema.optional(),
 });
 
 const persistedFactsSchema = z.object({
@@ -214,6 +233,26 @@ export const captureFileChangeEvidence = async (
   resolved: ResolvedRunFilePath,
   providerPatch: string | null,
 ): Promise<FileChangeEvidenceCapture> => {
+  const { place, placeError } = await readPlace(resolved.repositoryRoot);
+  const capture = await captureEvidence(resolved, providerPatch);
+
+  return { ...capture, place, placeError };
+};
+
+const readPlace = async (
+  folder: string,
+): Promise<{ place?: CheckedOutPlace; placeError?: GitFailureDetail }> => {
+  try {
+    return { place: await readCheckedOutPlace(folder) };
+  } catch (error) {
+    return { placeError: describeGitFailure(error) };
+  }
+};
+
+const captureEvidence = async (
+  resolved: ResolvedRunFilePath,
+  providerPatch: string | null,
+): Promise<Omit<FileChangeEvidenceCapture, 'place' | 'placeError'>> => {
   let gitDiffError: GitFailureDetail | null = null;
   try {
     const patches = await getGitDiff({

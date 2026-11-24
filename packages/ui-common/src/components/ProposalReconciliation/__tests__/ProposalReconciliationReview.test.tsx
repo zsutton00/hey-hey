@@ -57,8 +57,11 @@ vi.mock("../../../data/hooks/useWorkItemTypes", () => ({
           sections: [],
           capabilities: { supportsSupersession: true },
           statuses: [
-            { name: "BACKLOG", label: "Backlog", meaning: "NOT_STARTED" },
-            { name: "QA", label: "QA", meaning: "IN_PROGRESS" },
+            {
+              name: "BACKLOG",
+              meaning: { kind: "CUSTOM" as const, text: "Backlog" },
+            },
+            { name: "QA", meaning: { kind: "IN_PROGRESS" as const } },
           ],
         },
       },
@@ -540,15 +543,20 @@ describe("approved future recovery", () => {
     expect(screen.queryByTestId("proposal-suggestion-accept")).toBeNull();
     expect(screen.queryByTestId("proposal-suggestion-reject")).toBeNull();
   });
-  it("merges disjoint future changes explicitly before returning to review", async () => {
+  it("goes straight to ordinary review when the future and later changes touch different content", async () => {
     vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
       data: {
-        data: { ...ready, status: "RECONCILIATION_REQUIRED", overlaps: [] },
+        data: {
+          ...ready,
+          status: "CURRENT",
+          interveningProposals: [intervening],
+          mergedResult: {
+            name: "Candidate",
+            preserved: "Intervening work",
+          },
+        },
       },
     } as never);
-    vi.mocked(
-      proposalsClient.createProposalReconciliationCandidate,
-    ).mockResolvedValue({ data: { data: ready } } as never);
     render(
       <ProposalReconciliationReview
         proposal={
@@ -564,24 +572,65 @@ describe("approved future recovery", () => {
         <span>Saved comparison</span>
       </ProposalReconciliationReview>,
     );
-    expect(
-      await screen.findByTestId("proposal-three-way-review"),
-    ).toBeVisible();
-    const merge = screen.getByTestId("proposal-reconciliation-merge");
-    expect(merge).toBeEnabled();
-    fireEvent.click(merge);
-    await waitFor(() =>
-      expect(
-        proposalsClient.createProposalReconciliationCandidate,
-      ).toHaveBeenCalledWith(
-        expect.objectContaining({
-          createProposalReconciliationCandidate: { method: "MERGE" },
-        }),
-      ),
+    const notice = await screen.findByTestId(
+      "proposal-reconciliation-clean-merge",
     );
-    expect(await screen.findByText("Saved comparison")).toBeVisible();
+    expect(notice).toHaveTextContent("Change the dessert");
+    expect(notice).toHaveTextContent(/Written Sep/);
+    const history = within(notice).getByTestId(
+      "proposal-reconciliation-intervening-diff",
+    );
+    expect(history.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(history);
+    expect(history.closest("details")).toHaveAttribute("open");
+    expect(within(notice).getByText("Cake")).toBeVisible();
+    expect(within(notice).getByText("Sorbet")).toBeVisible();
+    expect(screen.getByText("Saved comparison")).toBeVisible();
     expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
-    expect(screen.queryByTestId("proposal-reconciliation-heads-up")).toBeNull();
+    expect(screen.queryByTestId("proposal-reconciliation-choices")).toBeNull();
+    expect(screen.queryByTestId("proposal-reconciliation-stages")).toBeNull();
+    expect(screen.queryByText(/already matches/)).toBeNull();
+    expect(
+      proposalsClient.createProposalReconciliationCandidate,
+    ).not.toHaveBeenCalled();
+  });
+  it("shows a verified match without conflict controls", async () => {
+    mount({ ...ready, alreadyMatches: true });
+
+    expect(await screen.findByText(/already matches/)).toBeVisible();
+    expect(screen.queryByTestId("proposal-reconciliation-choices")).toBeNull();
+    expect(screen.queryByTestId("proposal-three-way-review")).toBeNull();
+    expect(screen.queryByTestId("proposal-reconciliation-stages")).toBeNull();
+  });
+  it("never claims a match or offers Merge on a future conflict with no located overlap", async () => {
+    vi.mocked(proposalsClient.getProposalReconciliation).mockResolvedValue({
+      data: {
+        data: { ...ready, status: "RECONCILIATION_REQUIRED", overlaps: [] },
+      },
+    } as never);
+    render(
+      <ProposalReconciliationReview
+        proposal={
+          {
+            ...proposal,
+            action: "VERSIONED_UPDATE",
+            status: "APPROVED",
+            reviewedFuture: { outcome: "STAGED" },
+          } as ProposalResponseDto
+        }
+        onApply={vi.fn()}
+      >
+        <span>Saved comparison</span>
+      </ProposalReconciliationReview>,
+    );
+    const review = await screen.findByTestId("proposal-three-way-review");
+    // The differing field is shown for decision instead of a false match.
+    expect(within(review).getByRole("heading", { name: "Name" })).toBeVisible();
+    expect(review).not.toHaveTextContent(/already matches/);
+    expect(screen.queryByTestId("proposal-reconciliation-merge")).toBeNull();
+    expect(
+      screen.getByTestId("proposal-reconciliation-edit-by-hand"),
+    ).toBeVisible();
   });
   it("exposes manual resolution after earlier approval and submits the displayed bases and future revision", async () => {
     const future = {
@@ -1086,7 +1135,7 @@ describe("same-page staged recovery", () => {
     const options = within(screen.getByRole("listbox"))
       .getAllByRole("option")
       .map((option) => option.textContent);
-    expect(options).toEqual(["Backlog", "QA", "Archived"]);
+    expect(options).toEqual(["BACKLOG", "QA", "Archived"]);
   });
   it("replaces the conflict review with the editor and restores it on Cancel", async () => {
     mount(conflict);

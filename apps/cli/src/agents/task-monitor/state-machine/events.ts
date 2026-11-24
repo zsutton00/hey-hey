@@ -1,4 +1,5 @@
 import type { TaskResponseDto } from '@hey-hey/contracts/api/models';
+import type { TaskMonitorReviewRuntime } from './context';
 import type { TaskMonitorCoordinatorValidationFailure } from '@hey-hey/contracts/agent-bridge';
 import type {
   CoordinateTaskMonitorWorkEffect,
@@ -331,6 +332,8 @@ interface TaskMonitorReviewRequestCommittedEvent {
   readonly requestId: string;
   readonly coordinatorRunId: string;
   readonly rationale: string;
+  /** Saved Review runtime committed with the request, so delivery and retry send the same one. */
+  readonly reviewRuntime?: TaskMonitorReviewRuntime | undefined;
 }
 
 interface TaskMonitorReviewRequestAcceptedEvent {

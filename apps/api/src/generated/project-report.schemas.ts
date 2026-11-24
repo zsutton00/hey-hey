@@ -225,7 +225,8 @@ export const projectReportSchemas = {
             "enum": [
               "claude",
               "codex",
-              "opencode"
+              "opencode",
+              "antigravity"
             ],
             "description": "Provider selected through the existing agent launch configuration."
           },

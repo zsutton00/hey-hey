@@ -25,6 +25,7 @@ export type AgentSessionRunnerErrorCode =
   | 'RATE_LIMITED'
   | 'MISSING_CREDENTIAL'
   | 'SESSION_NOT_FOUND'
+  | 'ANTIGRAVITY_CONTAINMENT_REQUIRED'
   | 'REPO_BINDING_MISSING'
   | 'PROVIDER_SESSION_ID_MISSING'
   | 'NO_ACTIVE_SESSION'
@@ -241,7 +242,8 @@ interface StalePermissionDecisionDispatchResult {
 
 export type PermissionDecisionDispatchResult =
   | DeliveredPermissionDecisionDispatchResult
-  | StalePermissionDecisionDispatchResult;
+  | StalePermissionDecisionDispatchResult
+  | { delivered: false; outcome: 'refused'; reason: string };
 
 export interface QuestionAnswerDispatchArgs {
   requestId: string;

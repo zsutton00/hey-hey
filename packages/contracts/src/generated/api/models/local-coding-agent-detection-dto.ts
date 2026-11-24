@@ -43,6 +43,12 @@ export interface LocalCodingAgentDetectionDto {
      * @memberof LocalCodingAgentDetectionDto
      */
     'opencode': LocalCodingAgentAvailability;
+    /**
+     *
+     * @type {LocalCodingAgentAvailability}
+     * @memberof LocalCodingAgentDetectionDto
+     */
+    'antigravity'?: LocalCodingAgentAvailability;
 }
 
 export namespace LocalCodingAgentDetectionDto {
@@ -52,4 +58,6 @@ export namespace LocalCodingAgentDetectionDto {
     export type CodexEnum = LocalCodingAgentAvailability;
     export const OpencodeEnum = LocalCodingAgentAvailability;
     export type OpencodeEnum = LocalCodingAgentAvailability;
+    export const AntigravityEnum = LocalCodingAgentAvailability;
+    export type AntigravityEnum = LocalCodingAgentAvailability;
 }

@@ -1,19 +1,24 @@
+import type { ServicePlaceChoice } from '@hey-hey/contracts/api/models';
+import type { AgentProviderId } from './providers/provider-config';
+
 export type PermissionDecision = 'approve' | 'always_approve' | 'deny' | 'whitelist';
-type PermissionAgentType = 'claude' | 'codex' | 'opencode';
 
 export type PermissionCallbackType =
   | 'claude_control_response'
   | 'codex_exec_approval_response'
   | 'opencode_permission_response'
+  | 'antigravity_permission_response'
   | 'service_scope_decision';
 
 export interface PermissionDecisionRoutingInput {
   runId: string;
   sessionId: string;
   requestId: string;
-  agentType: PermissionAgentType;
+  agentType: AgentProviderId;
   decision: PermissionDecision;
   reason: string | null;
+  /** Where each newly requested Service works; only meaningful for a Service scope approval. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   idempotencyToken: string | null;
   userId?: string;
   /**
@@ -82,13 +87,34 @@ interface OpencodePermissionDecisionDispatch {
   routing: PermissionDecisionRoutingMetadata;
 }
 
+interface AntigravityPermissionDecisionDispatch {
+  agentType: 'antigravity';
+  decision: PermissionDecision;
+  callbackType: 'antigravity_permission_response';
+  callbackPayload: { kind: (typeof antigravityPermissionKinds)[PermissionDecision] };
+  routing: PermissionDecisionRoutingMetadata;
+}
+
 export type AgentPermissionDecisionDispatch =
   | ClaudePermissionDecisionDispatch
   | CodexPermissionDecisionDispatch
-  | OpencodePermissionDecisionDispatch;
+  | OpencodePermissionDecisionDispatch
+  | AntigravityPermissionDecisionDispatch;
 
 const toDenyReason = (reason: string | null): string =>
   reason && reason.trim().length > 0 ? reason : 'Denied by user.';
+
+/**
+ * Hey Hey owns remembered approvals, so every approval answers the pending call
+ * with the one-time allow. Sending allow_always would make agy stop asking, which
+ * would bypass the per-request Run-root check and ignore removed whitelist rules.
+ */
+export const antigravityPermissionKinds = {
+  approve: 'allow_once',
+  always_approve: 'allow_once',
+  whitelist: 'allow_once',
+  deny: 'reject_once',
+} as const satisfies Record<PermissionDecision, string>;
 
 export const translatePermissionDecisionToDispatch = (
   input: PermissionDecisionRoutingInput,
@@ -149,6 +175,16 @@ export const translatePermissionDecisionToDispatch = (
         reply,
         reason: input.reason,
       },
+      routing,
+    };
+  }
+
+  if (input.agentType === 'antigravity') {
+    return {
+      agentType: 'antigravity',
+      decision: input.decision,
+      callbackType: 'antigravity_permission_response',
+      callbackPayload: { kind: antigravityPermissionKinds[input.decision] },
       routing,
     };
   }

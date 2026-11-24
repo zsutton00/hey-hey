@@ -6,6 +6,7 @@ import type { ServerLogger } from '../../server/logger';
 import type { ActivePlatformToolCatalog } from './catalog';
 import type { PlatformMcpForwarder } from './forwarder';
 import type { DecisionModelResultNarrower } from '../context-trimming/context-trimmer';
+import { OwnDraftDeletionGuard, deletionLimitedToOwnDrafts } from './own-draft-deletion-guard';
 import {
   ProposalGroupFinalizationGuard,
   readMcpPayload,
@@ -210,6 +211,7 @@ export class PlatformMcpProxySession {
   private readonly hiddenEntityIds: ReadonlySet<string> | undefined;
 
   private readonly proposalGroupFinalizationGuard: ProposalGroupFinalizationGuard;
+  private readonly ownDraftDeletionGuard: OwnDraftDeletionGuard | null;
   private protocolVersion: McpProtocolVersion = '2024-11-05';
 
   constructor(
@@ -222,6 +224,9 @@ export class PlatformMcpProxySession {
       forwarder,
       runtime.context,
     );
+    this.ownDraftDeletionGuard = deletionLimitedToOwnDrafts(runtime.activeHandlerPromptType)
+      ? new OwnDraftDeletionGuard(forwarder, runtime.context, runtime.logger)
+      : null;
   }
 
   async handle(request: JsonRpcRequest): Promise<PlatformMcpProxyResult> {
@@ -485,6 +490,12 @@ export class PlatformMcpProxySession {
         turnId: this.runtime.turnId,
         promptType: this.runtime.activeHandlerPromptType,
       });
+    }
+    if (normalizedName === 'delete_proposal' && this.ownDraftDeletionGuard) {
+      const refusal = await this.ownDraftDeletionGuard.inspect(normalizedRequest);
+      if (refusal) {
+        return { statusCode: 200, body: refusal };
+      }
     }
     const startedAt = Date.now();
     this.runtime.logger?.debug('local.platform_mcp_proxy.tool_call.forwarding', {

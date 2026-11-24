@@ -1,10 +1,8 @@
-import {
-  AccountTree,
-  Autorenew,
-  Error,
-  Info,
-  Warning,
-} from "@mui/icons-material";
+import AccountTree from "@mui/icons-material/AccountTree";
+import Autorenew from "@mui/icons-material/Autorenew";
+import Error from "@mui/icons-material/Error";
+import Info from "@mui/icons-material/Info";
+import Warning from "@mui/icons-material/Warning";
 import { Stack, Typography } from "@mui/material";
 import type { CodingPlanDiscrepancy } from "../../../api";
 import { renderInlineMentions } from "../../SmarterTextAreaCard/renderInlineMentions";

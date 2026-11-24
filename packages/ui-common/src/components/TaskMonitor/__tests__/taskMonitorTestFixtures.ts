@@ -77,5 +77,6 @@ export const createSession = (): AgentSessionDto => ({
   hasUnsyncedChanges: false,
   monitoringEnabled: true,
   autoDecide: false,
+  servicePlaces: [],
   type: AgentSessionType.Coding,
 });

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { AgentProviderId } from './agent-provider-id.js';
 /* tslint:disable */
 /* eslint-disable */
 /**
@@ -14,6 +15,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { AgentProviderId } from './agent-provider-id.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AgentSessionConfig } from './agent-session-config.js';
@@ -32,6 +36,9 @@ import type { RunContextMetadata } from './run-context-metadata.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { RunCreatePayload } from './run-create-payload.js';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ServicePlaceChoice } from './service-place-choice.js';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { StagedBrowserTabReference } from './staged-browser-tab-reference.js';
@@ -112,11 +119,11 @@ export interface StartRunPromptPayload {
      */
     'config'?: AgentSessionConfig | null;
     /**
-     * Agent provider the CLI should dispatch against. Value-set mirrors the Agent Bridge runtime provider contract (the source of truth); additions there require extending this enum in lockstep.
-     * @type {string}
+     *
+     * @type {AgentProviderId}
      * @memberof StartRunPromptPayload
      */
-    'provider': StartRunPromptPayloadProviderEnum;
+    'provider': AgentProviderId;
     /**
      *
      * @type {AgentSkillSelection}
@@ -153,6 +160,12 @@ export interface StartRunPromptPayload {
      * @memberof StartRunPromptPayload
      */
     'worktree'?: StartRunWorktree;
+    /**
+     * Where each Service works, one choice per Service in `serviceIds`. When omitted every Service follows `worktree`, as before. Older CLIs ignore it.
+     * @type {Array<ServicePlaceChoice>}
+     * @memberof StartRunPromptPayload
+     */
+    'servicePlaceChoices'?: Array<ServicePlaceChoice>;
     /**
      * Canonical id of the platform agent session that owns this run. Mirrors `contextMetadata.agentSessionId` at the top level for symmetry with the context metadata\'s canonical session id.
      * @type {string}
@@ -194,23 +207,10 @@ Object.defineProperty(StartRunPromptPayloadReasoningEffortEnum, "ultra", { enume
 Object.defineProperty(StartRunPromptPayloadReasoningEffortEnum, "default", { enumerable: false, value: StartRunPromptPayloadReasoningEffortEnum["Default"] });
 
 export type StartRunPromptPayloadReasoningEffortEnum = typeof StartRunPromptPayloadReasoningEffortEnum[keyof typeof StartRunPromptPayloadReasoningEffortEnum];
-export const StartRunPromptPayloadProviderEnum = {
-    Claude: 'claude',
-    Codex: 'codex',
-    Opencode: 'opencode',
-    "claude": "claude",
-    "codex": "codex",
-    "opencode": "opencode",
-} as const;
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "claude", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Claude"] });
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "codex", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Codex"] });
-Object.defineProperty(StartRunPromptPayloadProviderEnum, "opencode", { enumerable: false, value: StartRunPromptPayloadProviderEnum["Opencode"] });
-
-export type StartRunPromptPayloadProviderEnum = typeof StartRunPromptPayloadProviderEnum[keyof typeof StartRunPromptPayloadProviderEnum];
 
 export namespace StartRunPromptPayload {
     export const ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
     export type ReasoningEffortEnum = StartRunPromptPayloadReasoningEffortEnum;
-    export const ProviderEnum = StartRunPromptPayloadProviderEnum;
-    export type ProviderEnum = StartRunPromptPayloadProviderEnum;
+    export const ProviderEnum = AgentProviderId;
+    export type ProviderEnum = AgentProviderId;
 }

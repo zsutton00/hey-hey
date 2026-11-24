@@ -1,3 +1,4 @@
+import { AntigravityAgentSessionRunner } from '../../../agents/providers/antigravity/session-runner-antigravity';
 /**
  * Run-scoped provider selection and runner ownership.
  *
@@ -108,8 +109,8 @@ export class SessionRunnerFacade {
     if (this.decidedRuns.has(run.runId)) {
       return;
     }
-    this.decidedRuns.add(run.runId);
     const providerId = resolveAgentProviderId(run.provider);
+    this.decidedRuns.add(run.runId);
     let enabled = false;
     try {
       enabled = await this.machineOptionsStore.isPreciseFileChangeTrackingEnabled();
@@ -126,7 +127,7 @@ export class SessionRunnerFacade {
       this.dependencies.logger.info('select.precise_tracking.provider_without_hooks', {
         runId: run.runId,
         provider: providerId,
-        reason: 'OpenCode has no tool hooks, so its edits stay approximate',
+        reason: 'This provider does not support precise execution capture',
       });
       return;
     }
@@ -165,7 +166,14 @@ export class SessionRunnerFacade {
     };
 
     let runner: AgentSessionRunner;
-    if (providerId === 'codex') {
+    if (providerId === 'antigravity') {
+      runner = new AntigravityAgentSessionRunner({
+        ...common,
+        ...(executionRecorder ? { executionRecorder } : {}),
+        toolRuleStore: this.dependencies.toolRuleStore,
+        logger: this.dependencies.logger.child({ component: 'runner.antigravity' }),
+      });
+    } else if (providerId === 'codex') {
       runner = new CodexAgentSessionRunner({
         ...common,
         ...(executionRecorder ? { executionRecorder } : {}),

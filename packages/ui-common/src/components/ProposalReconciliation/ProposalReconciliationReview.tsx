@@ -1,9 +1,7 @@
 import { DiffLabelsContext } from "../SuggestedContent/DiffRenderer";
-import {
-  EditOutlined,
-  HelpOutlineOutlined,
-  SmartToyOutlined,
-} from "@mui/icons-material";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import HelpOutlineOutlined from "@mui/icons-material/HelpOutlineOutlined";
+import SmartToyOutlined from "@mui/icons-material/SmartToyOutlined";
 import { ConversationCard } from "../Conversation/Card";
 import { ThreeWayReview } from "./ThreeWayReview";
 import React, {
@@ -21,12 +19,14 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Link,
   Stack,
   Stepper,
   Step,
   StepLabel,
   Typography,
 } from "@mui/material";
+import { format } from "date-fns";
 import {
   ProposalStatus,
   type ProposalResponseDto,
@@ -41,6 +41,12 @@ import { useInvalidateProposalReview } from "../../data/hooks/useInvalidatePropo
 import { isFutureProposal } from "../ProposalDispatchers/futureAsUpdate";
 import { ManualReconciliationEditor } from "./ManualReconciliationEditor";
 import { AgentFixConfirmDialog } from "./AgentFixConfirmDialog";
+import { useWorkItemTypes } from "../../data/hooks/useWorkItemTypes";
+import { ReconciliationFieldComparison } from "./ReconciliationFieldComparison";
+import {
+  reconciliationFieldLabel,
+  type ReconciliationPresentation,
+} from "./reconciliationPresentation";
 
 const choiceButtonSx = {
   border: "2px solid var(--card-main)",
@@ -53,6 +59,101 @@ const AgentConversationView = lazy(() =>
     default: module.AgentConversationView,
   })),
 );
+
+/**
+ * A future whose changes and the changes applied since touch different content.
+ * Nothing needs deciding; the reviewer sees what changed meanwhile and the merged result.
+ */
+function CleanMergeNotice({
+  proposal,
+  state,
+}: {
+  proposal: ProposalResponseDto;
+  state: ProposalReconciliationState;
+}) {
+  const paths = usePathService();
+  const registry = useWorkItemTypes(proposal.organizationId, {
+    projectId: proposal.projectId,
+  });
+  const type = state.currentBases.find(
+    (basis) => basis.entityId === proposal.targetEntityId,
+  )?.content.type;
+  const presentation: ReconciliationPresentation =
+    proposal.targetEntityType === "DESIGN_DOC"
+      ? { kind: "design-doc" }
+      : {
+          kind: "work-item",
+          definition: registry.workItemTypes.find(
+            (item) => item.definition.key === type,
+          )?.definition,
+        };
+  return (
+    <Alert severity="info" data-testid="proposal-reconciliation-clean-merge">
+      <Typography variant="body2">
+        Other changes were applied after this was written. They touch different
+        content, so Apply keeps them and adds this change. Check that anything
+        this change adds still belongs.
+      </Typography>
+      {state.writtenAt && (
+        <Typography variant="body2">
+          Written {format(new Date(state.writtenAt), "MMM d, yyyy · p")}
+        </Typography>
+      )}
+      {state.interveningProposals.length > 0 ? (
+        <Stack component="ul" spacing={0.5} sx={{ m: 0, mt: 1, pl: 2 }}>
+          {state.interveningProposals.map((entry) => (
+            <Box key={entry.proposalId} component="li">
+              <Typography variant="body2">
+                <Link
+                  href={paths.proposal({
+                    projectId: proposal.projectId,
+                    proposalId: entry.proposalId,
+                  })}
+                >
+                  {entry.title}
+                </Link>{" "}
+                · Approved{" "}
+                {format(new Date(entry.approvedAt), "MMM d, yyyy · p")}
+                {entry.approvedByName ? ` by ${entry.approvedByName}` : ""}
+              </Typography>
+              <Box component="details">
+                <Typography
+                  component="summary"
+                  variant="body2"
+                  data-testid="proposal-reconciliation-intervening-diff"
+                  aria-label={`View changes in ${entry.title}`}
+                  sx={{ cursor: "pointer" }}
+                >
+                  View changes
+                </Typography>
+                {entry.changes.length ? (
+                  entry.changes.map(({ path, before, after }) => (
+                    <Stack key={path} spacing={0.5} sx={{ py: 1 }}>
+                      <Typography variant="subtitle2">
+                        {reconciliationFieldLabel(path, presentation)}
+                      </Typography>
+                      <ReconciliationFieldComparison
+                        {...{ path, before, after, presentation }}
+                        labels={{
+                          before: "Before approval",
+                          after: "After approval",
+                        }}
+                      />
+                    </Stack>
+                  ))
+                ) : (
+                  <Typography variant="body2">
+                    This proposal has no retained comparison.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          ))}
+        </Stack>
+      ) : null}
+    </Alert>
+  );
+}
 
 export const InlineReconciliationBodyContext =
   createContext<React.ReactNode>(null);
@@ -176,6 +277,7 @@ function PendingProposalReconciliationReview({
     state?.status === "AGENT_FIX_REQUIRED";
   const staged =
     !grouped &&
+    !state?.alreadyMatches &&
     (requiresReconciliation || state?.status === "READY_FOR_REVIEW");
   const reviewOutcome = async () => {
     await invalidateReview(proposal.organizationId, proposal.projectId);
@@ -330,6 +432,14 @@ function PendingProposalReconciliationReview({
               {threeWay ? (
                 <ThreeWayReview proposal={proposal} state={state} />
               ) : null}
+              {state?.mergedResult ? (
+                <CleanMergeNotice proposal={proposal} state={state} />
+              ) : null}
+              {state?.alreadyMatches ? (
+                <Alert severity="info">
+                  The current content already matches this proposal.
+                </Alert>
+              ) : null}
               {requiresReconciliation ? (
                 <ConversationCard
                   tone={{ role: "needsAnswer" }}
@@ -341,7 +451,7 @@ function PendingProposalReconciliationReview({
                   footer={{
                     content: (
                       <Stack direction="row" spacing={1} flexWrap="wrap">
-                        {grouped || proposal.action === "VERSIONED_UPDATE" ? (
+                        {grouped ? (
                           <Button
                             variant="contained"
                             data-testid="proposal-reconciliation-merge"
@@ -431,7 +541,7 @@ function PendingProposalReconciliationReview({
                   Review replacement group
                 </Button>
               ) : null}
-              {state?.status === "READY_FOR_REVIEW" ? (
+              {state?.status === "READY_FOR_REVIEW" && !state.alreadyMatches ? (
                 <Typography
                   variant="subtitle2"
                   data-testid="proposal-reconciliation-merged-result"

@@ -140,7 +140,6 @@ export class GoalPmRoutingEnactmentService {
                 name: option.title,
                 type: 'STANDARD',
                 parentTaskId: option.parentFeatureId,
-                status: 'BACKLOG',
                 sections: [
                   { key: 'description', content: option.description, order: 0 },
                   {

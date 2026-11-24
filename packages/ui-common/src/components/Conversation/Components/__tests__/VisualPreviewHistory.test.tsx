@@ -582,7 +582,7 @@ describe("visual preview history through production form and action wiring", () 
     },
   );
 
-  it("ignores a historical preview's DRAFT copies when approving the current visual set", async () => {
+  it("moving on from the current visual submits only the typed answer and decides no visual", async () => {
     proposals = [
       {
         ...proposal("shared", ProposalAction.Create),
@@ -637,9 +637,6 @@ describe("visual preview history through production form and action wiring", () 
     expect(mocks.handleNext.mock.calls[0][0]).toEqual({
       feedback: { action: "APPROVED", payload: {} },
     });
-    expect(
-      screen.queryByTestId("plan-generation-visual-preview-approve-confirm"),
-    ).not.toBeInTheDocument();
     expect(mocks.handleApply).not.toHaveBeenCalled();
     expect(mocks.handleReject).not.toHaveBeenCalled();
   });

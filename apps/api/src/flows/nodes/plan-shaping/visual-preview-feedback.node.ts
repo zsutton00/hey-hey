@@ -22,7 +22,6 @@ import {
   validateQuestionsAction,
 } from 'src/types/flow-internal.types';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ProposalApprovalService } from 'src/services/proposal/proposal-approval.service';
 import { MutableContextHandle } from 'src/utils/mutable-context';
 import { PLAN_SHAPING_NODES } from '../../constants/node-ids';
 import {
@@ -30,6 +29,13 @@ import {
   PlanShapingVisualPreviewFeedbackPayload,
   planShapingVisualPreviewFeedbackActions,
 } from './schemas';
+import {
+  describeApprovedVisualChanges,
+  findUnapprovedEntries,
+  orderVisualEntries,
+  resolveVisualReviewPosition,
+  type VisualPreviewEntry,
+} from './visual-preview-review';
 
 /** The section holding each visual work item type's opening description. */
 const VISUAL_SUMMARY_SECTION_KEY = {
@@ -53,25 +59,19 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
     PlanShapingVisualPreviewFeedbackNode.name,
   );
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly proposalApprovalService: ProposalApprovalService,
-  ) {
+  constructor(private readonly prisma: PrismaService) {
     super();
   }
 
-  private async resolvePresentableEntries(
-    context: PlanFromDesignDocFlowContext,
-  ): Promise<
-    NonNullable<PlanFromDesignDocFlowContext['visualPreviewEntries']>
-  > {
-    return (await this.readPresentableEntries(context)).entries;
-  }
-
-  private async readPresentableEntries(
+  /**
+   * Reads the live status of every visual in the current set. Visuals are
+   * never dropped here: a rejected visual stays in place until the agent
+   * redraws it or drops it.
+   */
+  private async readLiveStatuses(
     context: PlanFromDesignDocFlowContext,
   ): Promise<{
-    entries: NonNullable<PlanFromDesignDocFlowContext['visualPreviewEntries']>;
+    entries: VisualPreviewEntry[];
     statusById: Map<string, string>;
   }> {
     const entries = context.visualPreviewEntries ?? [];
@@ -95,62 +95,7 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
         `[visual-preview-feedback] proposal identities are no longer available: ${missing.join(', ')}`,
       );
     }
-    return {
-      entries: entries.filter(
-        (entry) => statusById.get(entry.proposalId) !== 'REJECTED',
-      ),
-      statusById,
-    };
-  }
-
-  /**
-   * Approves every still-DRAFT proposal in the current visual set. Successful
-   * approvals are individual authoritative decisions and are kept even when a
-   * sibling fails, so a retry only approves the remainder.
-   */
-  private async approveRemainingDrafts(
-    context: PlanFromDesignDocFlowContext,
-    entries: NonNullable<PlanFromDesignDocFlowContext['visualPreviewEntries']>,
-    statusById: Map<string, string>,
-  ): Promise<string[]> {
-    const draftIds = entries
-      .map((entry) => entry.proposalId)
-      .filter((proposalId) => statusById.get(proposalId) === 'DRAFT');
-    const failedIds: string[] = [];
-    for (const proposalId of draftIds) {
-      try {
-        const result = await this.proposalApprovalService.approve(
-          proposalId,
-          context.core.organizationId,
-          context.core.projectId,
-          context.core.user.id,
-        );
-        if (!result.enacted) {
-          failedIds.push(proposalId);
-          this.logger.warn('Visual proposal approval was not enacted', {
-            conversationId: context.core.conversationId,
-            proposalId,
-          });
-        }
-      } catch (error) {
-        failedIds.push(proposalId);
-        this.logger.error(
-          'Visual proposal approval failed',
-          error instanceof Error ? error : new Error(String(error)),
-          {
-            conversationId: context.core.conversationId,
-            proposalId,
-            includeErrorDetails: true,
-          },
-        );
-      }
-    }
-    this.logger.log('Visual-preview remaining drafts approval finished', {
-      conversationId: context.core.conversationId,
-      draftCount: draftIds.length,
-      failedCount: failedIds.length,
-    });
-    return failedIds;
+    return { entries, statusById };
   }
 
   /**
@@ -161,11 +106,9 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
    */
   private async resolveApprovedVisuals(
     context: PlanFromDesignDocFlowContext,
-    entries: NonNullable<PlanFromDesignDocFlowContext['visualPreviewEntries']>,
+    entries: readonly VisualPreviewEntry[],
   ): Promise<PlanShapingApprovedVisual[]> {
-    const ordered = [...entries].sort(
-      (a, b) => a.presentationOrder - b.presentationOrder,
-    );
+    const ordered = orderVisualEntries(entries);
     const proposals = await this.prisma.db.proposal.findMany({
       where: {
         organizationId: context.core.organizationId,
@@ -246,36 +189,60 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
     tracker: MutableContextHandle<PlanFromDesignDocFlowContext>,
   ): Promise<NodeResult> {
     const context = tracker.getContext();
-    const entries = await this.resolvePresentableEntries(context);
-    if (entries.length === 0) {
+    const { entries, statusById } = await this.readLiveStatuses(context);
+    const setComplete = context.visualPreviewSetComplete === true;
+    if (entries.length === 0 && !setComplete) {
       throw new Error(
-        '[visual-preview-feedback] cannot execute without visual proposals',
+        '[visual-preview-feedback] no visuals and the agent has not declared the set complete',
       );
     }
-    if (entries.length !== (context.visualPreviewEntries ?? []).length) {
-      tracker.mutate((draft) => {
-        draft.visualPreviewEntries = entries;
-      });
-    }
 
+    const position = resolveVisualReviewPosition(
+      entries,
+      statusById,
+      setComplete,
+    );
+    tracker.mutate((draft) => {
+      draft.visualPreviewReviewProposalId =
+        position.kind === 'visual' ? position.review[0]?.proposalId : undefined;
+    });
+
+    const reviewingVisuals = position.kind === 'visual';
+    const reviewingSeveral = reviewingVisuals && position.review.length > 1;
     const reviewFieldId = uuidv4();
+    // Visuals under review are decided on their proposal cards; the ordered
+    // stepper appears only when the complete set is confirmed. The preview
+    // element requires at least one visual, so an empty complete set is
+    // confirmed without it.
+    const previewElements: UIElement[] =
+      reviewingVisuals || position.presented.length === 0
+        ? []
+        : [
+            {
+              id: uuidv4(),
+              type: ExtendedUIFieldType.PlanGenerationVisualPreview,
+              label: 'Complete visual plan',
+              required: false,
+              influences: [],
+              payload: {
+                responseType: 'plan_generation_visual_preview_v1',
+                entries: position.presented,
+              } satisfies PlanGenerationVisualPreviewPayload,
+            },
+          ];
     const uiElements: UIElement[] = [
-      {
-        id: uuidv4(),
-        type: ExtendedUIFieldType.PlanGenerationVisualPreview,
-        label: 'Current visual plan preview',
-        required: false,
-        influences: [],
-        payload: {
-          responseType: 'plan_generation_visual_preview_v1',
-          entries,
-        } satisfies PlanGenerationVisualPreviewPayload,
-      },
+      ...previewElements,
       {
         id: reviewFieldId,
         type: ExtendedUIFieldType.Textarea,
-        label: 'Feedback on the visual plan preview',
-        placeholder: 'What should change in the visual plan preview?',
+        label: reviewingSeveral
+          ? 'Feedback on these visuals'
+          : reviewingVisuals
+            ? 'Feedback on this visual'
+            : 'Feedback on the visual plan',
+        placeholder: reviewingVisuals
+          ? 'What should change? You can also ask about any other visual.'
+          : 'Which visuals should change, and how?',
         multiline: true,
         required: false,
         influences: [],
@@ -299,7 +266,7 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
         id: uuidv4(),
         type: SecondaryActionConfig.TypeEnum.FieldAction,
         presentation: SecondaryActionConfig.PresentationEnum.Button,
-        label: 'Approve Visual Set',
+        label: reviewingVisuals ? 'Next Visual' : 'Confirm Visual Set',
         handler: SecondaryActionHandler.PlanGenerationVisualPreviewApprove,
         fieldId: reviewFieldId,
         disabled: false,
@@ -311,16 +278,28 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
       conversationId: context.core.conversationId,
       projectId: context.core.projectId,
       entryCount: entries.length,
+      presentedCount: position.presented.length,
+      reviewKind: position.kind,
       refinementRound: context.visualPreviewRound ?? 0,
     });
 
-    const prompt =
-      'Add feedback for the visual plan preview, or approve the set before stage selection begins.';
+    const prompt = reviewingSeveral
+      ? 'Approve these visuals to move on, or say what should change and choose Continue Revising.'
+      : reviewingVisuals
+        ? "Approve this visual to move on, or say what should change, or that it isn't needed, and choose Continue Revising."
+        : entries.length === 0
+          ? 'No visuals are planned. Confirm to start stage selection, or ask for visuals.'
+          : 'Every visual is approved. Confirm the visual set to start stage selection, or ask for changes.';
+    const message = [
+      describeApprovedVisualChanges(context.visualPreviewApprovedChanges ?? []),
+      context.visualPreviewApprovalFailure,
+      prompt,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join('\n\n');
     return {
       type: NodeType.QUESTIONS,
-      message: context.visualPreviewApprovalFailure
-        ? `${context.visualPreviewApprovalFailure}\n\n${prompt}`
-        : prompt,
+      message,
       uiElements,
       data: {
         type: 'QUESTIONS',
@@ -362,73 +341,126 @@ export class PlanShapingVisualPreviewFeedbackNode extends QuestionsNodeBase<Plan
       throw error;
     }
 
-    const { entries: liveEntries, statusById } =
-      await this.readPresentableEntries(tracker.getContext());
-    if (liveEntries.length === 0) {
+    const context = tracker.getContext();
+    const { entries, statusById } = await this.readLiveStatuses(context);
+    if (entries.length === 0 && context.visualPreviewSetComplete !== true) {
       delete (userMessage.data as Partial<QuestionsActionFlowData>).action;
       this.logger.warn(
-        'Visual-preview-feedback rejected: no presentable proposals',
-        {
-          conversationId: tracker.getContext().core.conversationId,
-        },
+        'Visual-preview-feedback rejected: no visuals and the set is not complete',
+        { conversationId: context.core.conversationId },
       );
       return;
     }
-    tracker.mutate((draft) => {
-      draft.visualPreviewEntries = liveEntries;
-    });
 
     if (validated.action === PLAN_SHAPING_ACTIONS.REFINE) {
       const feedback = validated.payload.feedback.trim();
       tracker.mutate((draft) => {
         draft.visualPreviewFeedback = feedback || undefined;
         draft.visualPreviewApprovalFailure = undefined;
+        draft.visualPreviewApprovedChanges = undefined;
         draft.visualPreviewRound = (draft.visualPreviewRound ?? 0) + 1;
       });
       return;
     }
 
-    if (validated.action === PLAN_SHAPING_ACTIONS.APPROVED) {
-      const failedIds = await this.approveRemainingDrafts(
-        tracker.getContext(),
-        liveEntries,
-        statusById,
+    if (validated.action !== PLAN_SHAPING_ACTIONS.APPROVED) {
+      return;
+    }
+
+    // Moving on requires every presented visual's live APPROVED status, and
+    // every visual that is not approved is presented. The answer never
+    // approves visuals itself.
+    const reviewProposalId = context.visualPreviewReviewProposalId;
+    const unapproved = findUnapprovedEntries(entries, statusById);
+    if (unapproved.length > 0) {
+      const rejected = unapproved.filter(
+        (entry) => statusById.get(entry.proposalId) === 'REJECTED',
       );
-      if (failedIds.length > 0) {
-        delete (userMessage.data as Partial<QuestionsActionFlowData>).action;
-        tracker.mutate((draft) => {
-          draft.visualPreviewApprovalFailure = `${failedIds.length} of the remaining visual proposals could not be approved, so stage selection has not started. Approve Visual Set again to retry the proposals that are still drafts.`;
-        });
-        return;
-      }
-      const approvedVisuals = await this.resolveApprovedVisuals(
-        tracker.getContext(),
-        liveEntries,
-      );
+      delete (userMessage.data as Partial<QuestionsActionFlowData>).action;
+      tracker.mutate((draft) => {
+        const subject = unapproved.length > 1 ? 'A visual here' : 'This visual';
+        draft.visualPreviewApprovalFailure =
+          rejected.length > 0
+            ? `${subject} was rejected. Tell us what to change or that it isn't needed, and choose Continue Revising.`
+            : unapproved.length > 1
+              ? 'Approve every visual under review before moving on.'
+              : 'Approve this visual before moving on to the next one.';
+      });
+      this.logger.log('Visual-preview-feedback kept visuals under review', {
+        conversationId: context.core.conversationId,
+        unapprovedProposalIds: unapproved.map((entry) => entry.proposalId),
+        rejectedProposalIds: rejected.map((entry) => entry.proposalId),
+      });
+      return;
+    }
+
+    const advance = this.resolveAdvance(
+      reviewProposalId,
+      context.visualPreviewSetComplete === true,
+    );
+    if (advance !== 'stages') {
       tracker.mutate((draft) => {
         draft.visualPreviewApprovalFailure = undefined;
-        draft.visualPreviewAcceptedProposalIds = liveEntries.map(
-          (entry) => entry.proposalId,
-        );
-        draft.visualPreviewApprovedVisuals = approvedVisuals;
+        draft.visualPreviewApprovedChanges = undefined;
+        draft.visualPreviewAdvance = advance;
       });
-      this.logger.log('Visual-preview-feedback approved complete visual set', {
-        conversationId: tracker.getContext().core.conversationId,
-        entryCount: tracker.getContext().visualPreviewEntries?.length ?? 0,
+      this.logger.log('Visual-preview-feedback moved on', {
+        conversationId: context.core.conversationId,
+        advance,
+        reviewedProposalId: reviewProposalId,
       });
+      return;
     }
+
+    const approvedVisuals = await this.resolveApprovedVisuals(context, entries);
+    tracker.mutate((draft) => {
+      draft.visualPreviewApprovalFailure = undefined;
+      draft.visualPreviewApprovedChanges = undefined;
+      draft.visualPreviewAdvance = 'stages';
+      draft.visualPreviewAcceptedProposalIds = orderVisualEntries(entries).map(
+        (entry) => entry.proposalId,
+      );
+      draft.visualPreviewApprovedVisuals = approvedVisuals;
+    });
+    this.logger.log('Visual-preview-feedback confirmed complete visual set', {
+      conversationId: context.core.conversationId,
+      entryCount: entries.length,
+    });
+  }
+
+  /**
+   * Decides where an accepted answer moves the run once every visual is
+   * approved. The agent is asked for the next visual until it declares the
+   * set complete; the complete set is then presented once more for
+   * confirmation. Only confirming that presented complete set starts stage
+   * selection.
+   */
+  private resolveAdvance(
+    reviewProposalId: string | undefined,
+    setComplete: boolean,
+  ): NonNullable<PlanFromDesignDocFlowContext['visualPreviewAdvance']> {
+    if (!setComplete) {
+      return 'draft';
+    }
+    return reviewProposalId ? 'review' : 'stages';
   }
 
   async determineRoutingFromUserMessage(
-    _context: PlanFromDesignDocFlowContext,
+    context: PlanFromDesignDocFlowContext,
     userMessage: FlowUserMessage,
   ): Promise<string> {
     const action = (userMessage.data ?? {}) as QuestionsActionFlowData;
     if (action.action === PLAN_SHAPING_ACTIONS.REFINE) {
       return PLAN_SHAPING_NODES.VISUAL_PREVIEW;
     }
-    if (action.action === PLAN_SHAPING_ACTIONS.APPROVED) {
+    if (action.action !== PLAN_SHAPING_ACTIONS.APPROVED) {
+      return PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK;
+    }
+    if (context.visualPreviewAdvance === 'stages') {
       return PLAN_SHAPING_NODES.PHASE_BREAKDOWN;
+    }
+    if (context.visualPreviewAdvance === 'draft') {
+      return PLAN_SHAPING_NODES.VISUAL_PREVIEW;
     }
     return PLAN_SHAPING_NODES.VISUAL_PREVIEW_FEEDBACK;
   }

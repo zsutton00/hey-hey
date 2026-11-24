@@ -126,6 +126,7 @@ describe('manual future application', () => {
       dependencies: [],
     };
     db = {
+      proposalGroupMember: { findUnique: jest.fn().mockResolvedValue(null) },
       proposalReconciliationRevision: {
         findFirst: jest.fn(async () => ({ id: 'authored', bases: [] })),
       },
@@ -633,6 +634,128 @@ describe('manual future application', () => {
     ]);
     expect(state.target.status).toBe('ACTIVE');
   });
+  describe('when the future and later live changes touch different requirements', () => {
+    const requirement = (id: string, fulfilledBy: unknown[] = []) => ({
+      id,
+      statement: `${id} statement`,
+      designedBy: [],
+      fulfilledBy,
+      contracts: [],
+    });
+    const citation = { entityType: 'TASK', entityId: randomUUID() };
+    const requirements = (...records: unknown[]) => ({
+      id: randomUUID(),
+      key: 'requirements',
+      order: 1,
+      materializedMarkdown: JSON.stringify({ records }),
+      materializedProposalId: proposalId,
+    });
+    const sessionParity = requirement('session-parity');
+    const changeEvidence = requirement('change-evidence');
+
+    beforeEach(() => {
+      registry.getSectionDefinitions.mockReturnValue([
+        { key: 'description', kind: 'markdown' },
+        { key: 'requirements', kind: 'json' },
+      ]);
+      const description = state.future.baseline.content.sections[0];
+      state.future.baseline.content.sections = [
+        description,
+        requirements(sessionParity),
+      ];
+      // The future adds a requirement and keeps everything else.
+      state.future.result = {
+        ...structuredClone(state.future.baseline.content),
+        sections: [description, requirements(sessionParity, changeEvidence)],
+      };
+      state.proposal.updates.baseline = state.future.baseline;
+      state.proposal.updates.result = state.future.result;
+      // A later approved change only cited work on another requirement.
+      state.target.sections = [
+        description,
+        requirements(requirement('session-parity', [citation])),
+      ];
+    });
+
+    it('is ready to apply without reconciliation and applies both changes in one step, keeping approvals', async () => {
+      expect(await applicability()).toMatchObject({
+        canApply: true,
+        blockers: [],
+      });
+      const reviewedVersion = async () => {
+        const [basis] = await reconciliation.currentBases(db, state.proposal);
+        return basis!.version;
+      };
+      const staleVersion = await reviewedVersion();
+      state.target.sections[0] = {
+        ...state.target.sections[0],
+        materializedMarkdown: 'Another independent change after review',
+        updatedAt: new Date(timestamp.getTime() + 1),
+      };
+      expect(await apply()).toMatchObject({ blocker: 'REVIEW_CHANGED' });
+      expect(
+        await apply({
+          expectedRevision: 1,
+          reviewedBasisVersion: staleVersion,
+        }),
+      ).toMatchObject({ blocker: 'REVIEW_CHANGED' });
+      expect(enact).not.toHaveBeenCalled();
+
+      // The target write stores exactly the update Apply hands it.
+      let written: any;
+      enact.mockImplementationOnce(
+        async (_tx, _proposal, _org, _project, options) => {
+          written = options.mergedFutureUpdates.sections.find(
+            (section: { key: string }) => section.key === 'requirements',
+          );
+          state.target.name = options.mergedFutureUpdates.name;
+          state.target.sections = state.target.sections.map((section: any) =>
+            section.key === 'requirements'
+              ? {
+                  ...section,
+                  materializedMarkdown: JSON.stringify(written.content),
+                }
+              : section,
+          );
+          return {
+            proposal: state.proposal,
+            materializableEdges: [],
+            runPostCommit: jest.fn().mockResolvedValue(undefined),
+          };
+        },
+      );
+
+      expect(
+        await apply({
+          expectedRevision: 1,
+          reviewedBasisVersion: await reviewedVersion(),
+        }),
+      ).toMatchObject({ status: 'APPLIED' });
+      expect(state.target.sections[0].materializedMarkdown).toBe(
+        'Another independent change after review',
+      );
+      expect(written.content.records).toEqual([
+        requirement('session-parity', [citation]),
+        changeEvidence,
+      ]);
+      expect(state.proposal.approvalRecords).toEqual([
+        { userId, type: 'APPROVAL' },
+      ]);
+    });
+
+    it('still requires reconciliation when live content edited the same requirement differently', async () => {
+      state.target.sections = [
+        state.target.sections[0],
+        requirements(
+          { ...sessionParity, statement: 'Live wording' },
+          { ...changeEvidence, statement: 'Live evidence wording' },
+        ),
+      ];
+      expect((await applicability()).blockers).toContain('BASELINE_CHANGED');
+      expect(await apply()).toMatchObject({ blocker: 'BASELINE_CHANGED' });
+      expect(enact).not.toHaveBeenCalled();
+    });
+  });
   it('returns the same applied result on a duplicate Apply without enacting twice', async () => {
     await apply();
     await apply();
@@ -908,8 +1031,8 @@ describe('manual future application', () => {
     state.work = null;
     expect(await apply()).toMatchObject({ blocker: 'COMPLETION_INCOMPLETE' });
   });
-  it.each(['clean', 'overlap'] as const)(
-    'requires explicit reconciliation after five later approvals: %s',
+  it.each(['clean', 'overlap', 'match'] as const)(
+    'after five later approvals, reviews the clean merge, overlap or verified match: %s',
     async (kind) => {
       registry.getSectionDefinitions.mockReturnValue([
         {
@@ -932,7 +1055,7 @@ describe('manual future application', () => {
         id: randomUUID(),
         materializedProposalId: proposalId,
         key: 'requirements',
-        order: 0,
+        order: 4,
         materializedMarkdown: JSON.stringify({ records }),
       });
       state.future.result.name = 'Current';
@@ -946,6 +1069,9 @@ describe('manual future application', () => {
           kind === 'overlap' ? { ...second, statement: 'Live second' } : second,
         ]),
       ];
+      if (kind === 'match') {
+        state.target.sections = structuredClone(state.future.result.sections);
+      }
       const approvals = structuredClone(state.proposal.approvalRecords);
       const adapter = new ProposalReconciliationAdapterService(
         registry,
@@ -1005,17 +1131,67 @@ describe('manual future application', () => {
       );
       Object.assign((reconciliation as any).adapter, {
         currentFutureContent: async () => state.target,
+        renderFutureTaskSections: (
+          _project: string,
+          _type: string,
+          sections: { key: string; content: unknown }[],
+        ) => sections,
       });
       const review = await reconciliation.stateForFuture(
         db,
         state.proposal,
         state.future.baseline,
       );
-      expect(review.status).toBe('RECONCILIATION_REQUIRED');
+      if (kind === 'match') {
+        expect(review).toMatchObject({
+          status: 'CURRENT',
+          alreadyMatches: true,
+          conflictingPaths: [],
+        });
+        expect(await applicability()).toMatchObject({ canApply: true });
+        await expect(
+          reconciliation.assertApplicable(db, state.proposal),
+        ).resolves.toBeUndefined();
+        return;
+      }
       expect(review.interveningProposals).toHaveLength(5);
       expect(review.revisions[0]!.bases).toEqual([originalBasis]);
       expect(review.revisions[0]!.proposedResult).toEqual(state.future.result);
-      expect(review.overlaps.length > 0).toBe(kind === 'overlap');
+      if (kind === 'clean') {
+        expect(review.status).toBe('CURRENT');
+        expect(review.overlaps).toEqual([]);
+        expect(review.conflictingPaths).toEqual([]);
+        expect(review.mergedResult).toMatchObject({
+          sections: [
+            {
+              key: 'requirements',
+              order: 4,
+              materializedMarkdown: {
+                records: [
+                  { ...first, statement: 'Live first' },
+                  { ...second, statement: 'Proposed second' },
+                  added,
+                ],
+              },
+            },
+          ],
+        });
+        expect(
+          await service.getFutureApplicability(
+            futureId,
+            organizationId as any,
+            projectId as any,
+            userId as any,
+          ),
+        ).toMatchObject({ canApply: true, blockers: [] });
+        await expect(
+          reconciliation.assertApplicable(db, state.proposal),
+        ).resolves.toBeUndefined();
+        return;
+      }
+      expect(review.status).toBe('RECONCILIATION_REQUIRED');
+      expect(review.overlaps.length > 0).toBe(true);
+      expect(review.mergedResult).toBeUndefined();
       expect(
         await service.getFutureApplicability(
           futureId,
@@ -1050,8 +1226,9 @@ describe('manual future application', () => {
     expect(enact).not.toHaveBeenCalled();
   });
   it.each(['scalar', 'section', 'section order'])(
-    'requires reconciliation for baseline %s changes but ignores section order',
+    'requires reconciliation only when a baseline %s change overlaps the future',
     async (kind) => {
+      // The future renames the item; only a concurrent rename overlaps it.
       if (kind === 'scalar') state.target.name = 'Concurrent edit';
       if (kind === 'section')
         state.target.sections = [
@@ -1065,14 +1242,25 @@ describe('manual future application', () => {
       expect(
         await apply({
           expectedRevision: 1,
+          reviewedBasisVersion: (
+            await reconciliation.currentBases(db, state.proposal)
+          )[0]!.version,
           confirmation: { revision: 1, refinements: [] },
         }),
       ).toMatchObject(
-        kind !== 'section order'
+        kind === 'scalar'
           ? { blocker: 'BASELINE_CHANGED' }
           : { status: 'APPLIED' },
       );
-      expect(enact).toHaveBeenCalledTimes(kind !== 'section order' ? 0 : 1);
+      expect(enact).toHaveBeenCalledTimes(kind === 'scalar' ? 0 : 1);
+      if (kind === 'section') {
+        // Apply writes the rename and leaves the concurrent description edit alone.
+        const written = enact.mock.calls[0]![4].mergedFutureUpdates;
+        expect(written.name).toBe('Reviewed');
+        expect(written.sections ?? []).not.toContainEqual(
+          expect.objectContaining({ key: 'description' }),
+        );
+      }
     },
   );
   it('requires an applied selected parent baseline', async () => {
@@ -1431,6 +1619,8 @@ describe('manual future application', () => {
     expect(parseFutureApplyRequest({ expectedRevision: 1 })).toEqual({
       expectedRevision: 1,
     });
+    const reviewed = { expectedRevision: 1, reviewedBasisVersion: 'live' };
+    expect(parseFutureApplyRequest(reviewed)).toEqual(reviewed);
     for (const request of [
       {},
       { expectedRevision: 0 },

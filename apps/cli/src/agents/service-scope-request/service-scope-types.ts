@@ -1,6 +1,7 @@
 import type {
   AgentSessionServiceScopeRequest,
-  PermissionRequestAgentType,
+  AgentProviderId,
+  ServicePlaceChoice,
 } from '@hey-hey/contracts/api/models';
 import type { ResolvedServiceBinding } from '../../shared/agent-bridge-contract/contract';
 
@@ -17,9 +18,11 @@ interface ServiceScopeRequestPresentation {
 export interface ServiceScopeDecisionInput {
   requestId: string;
   sessionId: string;
-  agentType: PermissionRequestAgentType;
+  agentType: AgentProviderId;
   decision: 'approve' | 'deny';
   reason: string | null;
+  /** Where each newly requested Service works. Only valid with `approve`. */
+  servicePlaceChoices?: ServicePlaceChoice[];
   idempotencyToken: string | null;
 }
 

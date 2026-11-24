@@ -1,3 +1,5 @@
+import { AGENT_PROVIDERS } from '../../agents/providers/provider-config';
+import { tryParsePermissionRequestResponse } from '../../agents/message-mapping';
 import { describe, expect, it } from 'vitest';
 import { normalizeEvent } from '../normalize';
 import { handlePermission } from './permission';
@@ -24,7 +26,7 @@ const makeRawPermissionMinimal = (files: string[]): LocalAgentOutputEvent => ({
 });
 
 /** Full permission payload with all fields for structured AgentRequestPermission parsing. */
-const makeRawPermissionFull = (files: string[]): LocalAgentOutputEvent => ({
+const makeRawPermissionFull = (files: string[], provider = 'claude'): LocalAgentOutputEvent => ({
   runId: 'run-1',
   source: 'local',
   eventType: 'permission_request_detected',
@@ -41,7 +43,7 @@ const makeRawPermissionFull = (files: string[]): LocalAgentOutputEvent => ({
       permission_type: 'workspace_write',
       session_id: 'session-1',
       agent_id: 'claude',
-      agent_type: 'claude',
+      agent_type: provider,
       timestamp: '2025-01-01T00:00:00.000Z',
       idempotency_token: 'perm-1',
       run_id: 'run-1',
@@ -84,6 +86,17 @@ const makeAssistantPermissionSummary = (): LocalAgentOutputEvent => ({
 });
 
 describe('permission end-to-end', () => {
+  it.each(AGENT_PROVIDERS)('parses a permission request from %s', (provider) => {
+    const { payload } = makeRawPermissionFull(['src/auth.ts'], provider);
+    const result = tryParsePermissionRequestResponse(JSON.stringify(payload));
+    expect(result?.permissionRequest.agentType).toBe(provider);
+  });
+
+  it('rejects an unknown permission provider', () => {
+    const { payload } = makeRawPermissionFull(['src/auth.ts'], 'unknown');
+    expect(tryParsePermissionRequestResponse(JSON.stringify(payload))).toBeNull();
+  });
+
   it('normalizes to PermissionEvent with files', () => {
     const event = normalizeEvent(makeRawPermissionMinimal(['src/auth.ts']), 'claude');
     expect(event.kind).toBe('permission');

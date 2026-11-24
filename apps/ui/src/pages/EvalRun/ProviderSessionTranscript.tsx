@@ -22,7 +22,7 @@ import {
 
 import { formatClaudeSession } from "./claudeSessionText";
 
-const PROVIDER_IDS = ["claude", "codex", "opencode"] as const;
+const PROVIDER_IDS = ["claude", "codex", "opencode", "antigravity"] as const;
 
 /** The provider recorded on the setup, when it is one the CLI can address. */
 export const asTranscriptProviderId = (

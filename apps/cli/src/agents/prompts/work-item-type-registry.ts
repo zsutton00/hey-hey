@@ -24,8 +24,6 @@ import {
   WorkItemTypeRole,
   WorkItemTypeScalarField,
   WorkItemTypeSectionDefinitionKindEnum,
-  WorkItemStatusMeaning,
-  WorkItemStatusCompletionBehavior,
   WorkStatus,
   WorkItemConfigKind,
   TaskMonitorLaunchMethod,
@@ -479,18 +477,20 @@ const definitionShape = {
       z
         .object({
           name: z.string().min(1),
-          label: z.string().optional(),
-          meaning: z.nativeEnum(WorkItemStatusMeaning),
-          completionBehavior: z.nativeEnum(WorkItemStatusCompletionBehavior).optional(),
+          meaning: z.discriminatedUnion('kind', [
+            z.object({ kind: z.enum(['COMPLETED', 'CANCELLED', 'IN_PROGRESS']) }).strict(),
+            z
+              .object({
+                kind: z.literal('CUSTOM'),
+                text: z
+                  .string()
+                  .min(1)
+                  .refine((text) => Array.from(text).length <= 50),
+              })
+              .strict(),
+          ]),
         })
-        .transform((value): WorkItemTypeDefinitionDto['statuses'][number] => ({
-          name: value.name,
-          meaning: value.meaning,
-          ...(value.label === undefined ? {} : { label: value.label }),
-          ...(value.completionBehavior === undefined
-            ? {}
-            : { completionBehavior: value.completionBehavior }),
-        })),
+        .strict(),
     )
     .min(1),
   allowedParentTypes: z.array(z.string()).optional(),
