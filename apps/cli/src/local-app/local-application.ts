@@ -588,7 +588,7 @@ export class LocalApplication extends EventEmitter {
           provisioningSql(secrets.api, secrets.graph),
         );
         progress('Migrating the application database');
-        await this.docker.migrate(this.storage.composePath);
+        await this.docker.migrate(this.storage.composePath, { outOfOrder: true });
         progress('Starting application services');
         await this.docker.startApplication(this.storage.composePath);
         steps.push('Application services started');
