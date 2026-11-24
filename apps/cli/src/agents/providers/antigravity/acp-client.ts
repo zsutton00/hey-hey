@@ -8,6 +8,7 @@ import {
   classifyAntigravityFailure,
   sanitizeAntigravityDiagnostic,
 } from './antigravity-readiness';
+import type { ProviderProcessContainment } from '../../workspace-write-boundary';
 import type { ServerLogger } from '../../../server/logger';
 import {
   acpResultSchemas,
@@ -78,11 +79,18 @@ export class AntigravityAcpClient {
     private readonly onPermission: (request: AcpPermissionRequest) => void,
     launchArgs: string[] = [],
     executable = 'agy',
+    containment?: ProviderProcessContainment,
   ) {
-    this.child = spawn(executable, ['acp', '--process-per-session', ...launchArgs], {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const args = ['acp', '--process-per-session', ...launchArgs];
+    this.child = spawn(
+      containment?.command ?? executable,
+      containment ? [...containment.argsPrefix, executable, ...args] : args,
+      {
+        ...(containment ? { env: { ...process.env, ...containment.env } } : {}),
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
     this.child.on('spawn', () => logger.debug('antigravity.acp.spawn', { pid: this.child.pid }));
     this.child.on('error', (error) => this.close(error));
     this.child.stdin.on('error', (error) => this.close(error));
@@ -91,7 +99,8 @@ export class AntigravityAcpClient {
     });
     this.child.on('exit', (code, signal) => {
       const stderr = sanitizeAntigravityDiagnostic(this.stderrTail);
-      const cause = classifyAntigravityFailure(this.stderrTail);
+      const sandboxFailure = containment && /sandbox-exec: sandbox_apply:/i.test(stderr);
+      const cause = sandboxFailure ? null : classifyAntigravityFailure(this.stderrTail);
       logger.debug('antigravity.acp.exit', { code, signal, cause, stderr });
       this.close(
         cause

@@ -10,6 +10,7 @@ const toolFields = z.object({
   title: z.string().optional(),
   kind: z.string().optional(),
   status: z.string().optional(),
+  locations: z.array(z.object({ path: z.string() })).optional(),
   rawInput: z.unknown().optional(),
   args: z.unknown().optional(),
   rawOutput: z.unknown().optional(),

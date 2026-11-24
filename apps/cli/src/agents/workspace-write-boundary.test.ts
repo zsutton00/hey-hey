@@ -364,7 +364,7 @@ describe('RunWorkspaceWriteBoundary', () => {
     }
   });
 
-  it("leaves Antigravity's private sign-in storage unread and copies nothing into its private HOME", async () => {
+  it("leaves Antigravity's private sign-in storage unread and copies nothing into its private data directory", async () => {
     const base = await makeDirectory();
     const home = path.join(base, 'user-home');
     const antigravityFiles = [
@@ -389,7 +389,7 @@ describe('RunWorkspaceWriteBoundary', () => {
       providerStateRoot: path.join(base, 'state'),
     });
     try {
-      const privateHome = boundary.antigravityContainment().env['HOME']!;
+      const privateHome = path.resolve(home, boundary.antigravityContainment().geminiDirectory);
       expect(await fs.readdir(privateHome, { recursive: true })).toEqual([]);
       for (const relative of antigravityFiles) {
         const file = path.join(home, relative);

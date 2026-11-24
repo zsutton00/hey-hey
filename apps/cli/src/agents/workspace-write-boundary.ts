@@ -137,6 +137,12 @@ import { SandboxManager } from ${JSON.stringify(resolveSandboxRuntimeModuleUrl()
 const [settingsPath, command, ...args] = process.argv.slice(2);
 if (!settingsPath || !command) throw new Error('Sandbox launcher requires settings and a command.');
 const config = JSON.parse(await readFile(settingsPath, 'utf8'));
+if (command === 'agy' && process.platform === 'darwin') {
+  // run_command opens a pseudo-terminal, even for noninteractive commands.
+  config.allowPty = true;
+  // Go's TLS verifier consults the user's trust service on macOS.
+  config.network.allowMachLookup = ['com.apple.trustd.agent'];
+}
 await SandboxManager.initialize(config, async () => true);
 const quote = (value) => "'" + value.replaceAll("'", "'\\"'\\"'") + "'";
 const wrapped = await SandboxManager.wrapWithSandboxArgv(
@@ -284,7 +290,7 @@ export class RunWorkspaceWriteBoundary {
             'data',
           )
         : path.join(providerRuntimeDirectory, 'data');
-      // Antigravity gets a private HOME that outlives the Run's re-materialization,
+      // Antigravity gets a private data directory that outlives the Run's re-materialization,
       // so a resumed session finds its own history but nothing else of the user's.
       // Nothing is copied into it: agy's sign-in stays in agy's own storage.
       const homeDirectory = options
@@ -453,16 +459,16 @@ export class RunWorkspaceWriteBoundary {
   }
 
   /**
-   * Outer sandbox for `agy`. Its private HOME starts empty and holds nothing of the
-   * user's, so nothing it stores or is approved to do reaches past the Run roots.
+   * Outer sandbox for `agy`. Its private data directory holds the Run's history.
+   * The signed-in home remains readable for provider-owned credential lookup.
    *
    * NOTE: `/tmp` is not writable for Antigravity, as with OpenCode: only the
    * private TMPDIR is. Any `agy` tooling that writes to `/tmp` will be refused.
    * Left as is pending a product decision before release.
    */
-  public antigravityContainment(readOnlyFilesystem = false): ProviderProcessContainment {
+  public antigravityContainment(readOnlyFilesystem = false) {
     const base = readOnlyFilesystem ? this.readOnlyProcessContainment() : this.processContainment();
-    return { ...base, env: { ...base.env, HOME: this.homeDirectory } };
+    return { ...base, geminiDirectory: path.relative(os.homedir(), this.homeDirectory) };
   }
 
   public readOnlyProcessContainment(): ProviderProcessContainment {
