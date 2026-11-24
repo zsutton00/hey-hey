@@ -11,6 +11,7 @@ import {
 } from "../../AgentSession/surfaceSelectionMemory";
 import { useSurfaceSelection } from "../../AgentSession/useSurfaceSelection";
 import { SmarterTextAreaEditor } from "../../SmarterTextAreaCard/SmarterTextAreaEditor";
+import { getInputBorderSx } from "../../../contexts/ThemeContext";
 import { CodingPlanDiscrepancyCard } from "./CodingPlanDiscrepancyField";
 import { MarkdownRenderer } from "../../shared/MarkdownRenderer";
 import {
@@ -193,11 +194,11 @@ export function CodingPlanApprovalField({
             presentation={{
               contentEditableAriaLabel: "Feedback to include with approval",
               contentEditableTestId: "coding-plan-feedback",
-              containerSx: {
-                border: 1,
-                borderColor: "divider",
+              containerSx: (theme) => ({
+                border: `1px solid ${theme.palette.divider}`,
                 borderRadius: 1,
-              },
+                ...getInputBorderSx(theme, { disabled: locked }),
+              }),
               contentEditableStyle: {
                 minHeight: 100,
                 padding: 16,

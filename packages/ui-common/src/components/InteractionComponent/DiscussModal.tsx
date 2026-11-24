@@ -69,6 +69,7 @@ import { EntityIcon } from "../Entity/EntityIcon";
 import { useWorkItem } from "../../data/hooks/useWorkItem";
 import { useWorkItemTypeByKey } from "../../data/hooks/useWorkItemTypes";
 import { MarkdownRenderer } from "../shared/MarkdownRenderer";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 
 export type DiscussModalSubmitInput = GraphConversationLaunchInput;
 
@@ -617,6 +618,10 @@ export const DiscussModal: React.FC<DiscussModalProps> = ({
                     margin: "-1px",
                     marginTop: "7px",
                   },
+                  ...getInputBorderSx(theme, {
+                    disabled: isLoading,
+                    error: Boolean(validationError),
+                  }),
                 },
                 containerTestId: "discuss-modal-prompt",
                 autoFocus: true,

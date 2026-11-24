@@ -4,7 +4,7 @@ import {
   createTheme,
   ThemeProvider as MuiThemeProvider,
 } from "@mui/material/styles";
-import type { ThemeOptions } from "@mui/material/styles";
+import type { Theme, ThemeOptions } from "@mui/material/styles";
 import { alpha } from "@mui/material/styles";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -61,10 +61,85 @@ export interface MonitorMessageTone {
   border: string;
 }
 
+/** Border colors for text-entry surfaces (text areas, composers, outlined inputs). */
+export interface InputBorderPalette {
+  /** Default resting border color for text inputs and composers. */
+  default: string;
+  /** Border color when hovering an enabled text input or composer. */
+  hover: string;
+}
+
+const LIGHT_INPUT_BORDER: InputBorderPalette = {
+  default: "rgba(0, 0, 0, 0.45)",
+  hover: "rgba(0, 0, 0, 0.72)",
+};
+
+const DARK_INPUT_BORDER: InputBorderPalette = {
+  default: "#666",
+  hover: "rgba(255, 255, 255, 0.56)",
+};
+
+/**
+ * Resolves the shared input border colors from the active theme, with a safe
+ * fallback when a component is rendered under a bare MUI theme in tests.
+ */
+export const getInputBorderColors = (theme: Theme): InputBorderPalette =>
+  theme?.palette?.inputBorder ??
+  (theme?.palette?.mode === "dark" ? DARK_INPUT_BORDER : LIGHT_INPUT_BORDER);
+
+export interface InputBorderSxOptions {
+  disabled?: boolean;
+  error?: boolean;
+  /** Use an inset 1px boxShadow on focus instead of changing borderWidth. */
+  focusRing?: "inset" | "none";
+}
+
+/**
+ * Shared light-mode border sx rules (default, hover, focus-within, error,
+ * disabled) for custom text-entry containers such as rich editors and
+ * composers. Returns an empty object in dark mode so dark-mode surfaces keep
+ * their existing styling unchanged.
+ */
+export const getInputBorderSx = (
+  theme: Theme,
+  options: InputBorderSxOptions = {},
+) => {
+  if (theme?.palette?.mode === "dark") {
+    return {};
+  }
+
+  const { disabled = false, error = false, focusRing = "inset" } = options;
+  const inputBorder = getInputBorderColors(theme);
+  const errorColor = theme?.palette?.error?.main ?? "#d32f2f";
+  const primaryColor = theme?.palette?.primary?.main ?? "rgb(60, 114, 160)";
+  const disabledColor =
+    theme?.palette?.action?.disabled ?? "rgba(158, 158, 158, 0.26)";
+  const restingColor = error
+    ? errorColor
+    : disabled
+      ? disabledColor
+      : inputBorder.default;
+  const focusColor = error ? errorColor : primaryColor;
+
+  return {
+    border: `1px solid ${restingColor}`,
+    "&:hover": !disabled && !error ? { borderColor: inputBorder.hover } : {},
+    "&:focus-within": !disabled
+      ? {
+          borderColor: focusColor,
+          ...(focusRing === "inset"
+            ? { boxShadow: `inset 0 0 0 1px ${focusColor}` }
+            : {}),
+        }
+      : {},
+  };
+};
+
 // Extend the palette interface to include custom colors
 declare module "@mui/material/styles" {
   interface Palette {
     diagramGroups: DiagramGroupColorPalette;
+    inputBorder: InputBorderPalette;
     attention: Palette["primary"];
     actionable: Palette["primary"];
     interactive: Palette["primary"];
@@ -90,6 +165,7 @@ declare module "@mui/material/styles" {
 
   interface PaletteOptions {
     diagramGroups?: DiagramGroupColorPalette;
+    inputBorder?: InputBorderPalette;
     attention?: PaletteOptions["primary"];
     actionable?: PaletteOptions["primary"];
     interactive?: PaletteOptions["primary"];
@@ -241,6 +317,7 @@ export const createHeyTheme = (mode: ThemeMode) => {
     cssVariables: true,
     palette: {
       diagramGroups: DIAGRAM_GROUP_THEME_COLORS[mode],
+      inputBorder: isDark ? DARK_INPUT_BORDER : LIGHT_INPUT_BORDER,
       ...buildConversationPalette(isDark),
       mode,
       primary: {
@@ -264,7 +341,7 @@ export const createHeyTheme = (mode: ThemeMode) => {
         secondary: isDark ? "#b0b0b0" : "#616161",
         disabled: isDark ? "#666666" : "#9e9e9e",
       },
-      divider: isDark ? "#666" : "#eee",
+      divider: isDark ? "#666" : "#d4d4d4",
       // Custom interactive colors
       attention: {
         main: isDark ? "#6B6FA0" : "#434666ff",
@@ -716,6 +793,25 @@ export const createHeyTheme = (mode: ThemeMode) => {
           },
         ],
       },
+
+      // OutlinedInput border contrast in light mode (applies to TextField, Select, Autocomplete, etc.)
+      ...(!isDark
+        ? {
+            MuiOutlinedInput: {
+              styleOverrides: {
+                notchedOutline: {
+                  borderColor: LIGHT_INPUT_BORDER.default,
+                },
+                root: {
+                  "&:hover:where(:not(.Mui-disabled, .Mui-error, .Mui-focused)) .MuiOutlinedInput-notchedOutline":
+                    {
+                      borderColor: LIGHT_INPUT_BORDER.hover,
+                    },
+                },
+              },
+            },
+          }
+        : {}),
 
       // TextField styling
       MuiTextField: {

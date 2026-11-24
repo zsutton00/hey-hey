@@ -30,10 +30,12 @@ import {
   Stack,
   TextField,
   Typography,
+  useTheme,
 } from "@mui/material";
 import React, { useState } from "react";
 import { EntityIcon, EntityLinkWithPreview } from "./Entity";
 import { getEntityColors } from "../utils/entityIcons";
+import { getInputBorderSx } from "../contexts/ThemeContext";
 
 type SelectableListStatus = "accept" | "reject" | "pending";
 
@@ -188,6 +190,8 @@ export const SelectableEntityList: React.FC<SelectableEntityListProps> = ({
   onReorder,
   onAddItem,
 }) => {
+  const theme = useTheme();
+  const isLightMode = theme.palette.mode === "light";
   const [openCommentIds, setOpenCommentIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -230,12 +234,23 @@ export const SelectableEntityList: React.FC<SelectableEntityListProps> = ({
       color: "text.secondary",
       cursor: canEdit ? "text" : "default",
     },
+    ...(canEdit && isLightMode
+      ? {
+          "& .MuiInputBase-root": {
+            borderRadius: 0.75,
+            pl: 0.75,
+            pr: 2.5,
+            py: 0.25,
+            ...getInputBorderSx(theme),
+          },
+        }
+      : {}),
     position: "relative",
     "&:hover::after": canEdit
       ? {
           content: '"✎"',
           position: "absolute",
-          right: 4,
+          right: 6,
           top: 8,
           fontSize: "0.75rem",
           color: "text.secondary",
@@ -524,7 +539,24 @@ export const SelectableEntityList: React.FC<SelectableEntityListProps> = ({
                       "aria-label": "Comment",
                       tabIndex: 0,
                     }}
-                    sx={{ minWidth: 0 }}
+                    sx={{
+                      minWidth: 0,
+                      ...(isLightMode
+                        ? {
+                            "& .MuiInputBase-root": {
+                              borderRadius: 0.75,
+                              px: 0.75,
+                              py: 0.25,
+                              ...getInputBorderSx(theme, {
+                                disabled: isItemLocked,
+                              }),
+                              "&::before, &::after": {
+                                display: "none",
+                              },
+                            },
+                          }
+                        : {}),
+                    }}
                   />
                 ) : (
                   <>
@@ -562,6 +594,23 @@ export const SelectableEntityList: React.FC<SelectableEntityListProps> = ({
                           }
                           disabled={isItemLocked}
                           variant="standard"
+                          sx={
+                            isLightMode
+                              ? {
+                                  "& .MuiInputBase-root": {
+                                    borderRadius: 0.75,
+                                    px: 0.75,
+                                    py: 0.25,
+                                    ...getInputBorderSx(theme, {
+                                      disabled: isItemLocked,
+                                    }),
+                                    "&::before, &::after": {
+                                      display: "none",
+                                    },
+                                  },
+                                }
+                              : undefined
+                          }
                         />
                         <IconButton
                           size="small"

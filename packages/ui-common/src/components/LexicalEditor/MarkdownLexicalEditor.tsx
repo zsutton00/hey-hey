@@ -71,6 +71,7 @@ import { EditHistoryDiffPlugin } from "./plugins/EditHistoryDiffPlugin";
 import { FencedCodeOnEnterPlugin } from "./plugins/FencedCodeOnEnterPlugin";
 import { ListIndentationPlugin } from "./plugins/ListIndentationPlugin";
 import { MarkdownPastePlugin } from "./plugins/MarkdownPastePlugin";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 
 // Helper functions for structured logging migration
 const truncateForLogging = (
@@ -662,6 +663,7 @@ export const MarkdownLexicalEditor: React.FC<MarkdownLexicalEditorProps> = ({
                 boxShadow: `0 0 0 1px ${theme.palette.primary.main}`,
               }
             : {},
+          ...getInputBorderSx(theme, { disabled }),
           ...editorStyles,
         }}
       >

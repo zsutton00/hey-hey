@@ -1,5 +1,6 @@
 import { Stack, Typography } from "@mui/material";
 import { SmarterTextAreaEditor } from "../SmarterTextAreaCard/SmarterTextAreaEditor";
+import { getInputBorderSx } from "../../contexts/ThemeContext";
 
 /** Modal-local editing preserves canonical mentions through the shared rich-text editor. */
 export function ResolutionTextEditor({
@@ -29,12 +30,12 @@ export function ResolutionTextEditor({
         presentation={{
           contentEditableAriaLabel: label,
           contentEditableTestId: "resolution-text-editor",
-          containerSx: {
-            border: 1,
-            borderColor: "divider",
+          containerSx: (theme) => ({
+            border: `1px solid ${theme.palette.divider}`,
             borderRadius: 1,
             "&:focus-within": { borderColor: "primary.main" },
-          },
+            ...getInputBorderSx(theme, { disabled }),
+          }),
           contentEditableStyle: {
             minHeight: 140,
             padding: 14,

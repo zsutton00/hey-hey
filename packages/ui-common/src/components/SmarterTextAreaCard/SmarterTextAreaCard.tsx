@@ -29,6 +29,10 @@ import {
   BRANDED_NESTED_RULE_COLOR,
   useBrandedAppearance,
 } from "../BrandedFrame";
+import {
+  getInputBorderColors,
+  getInputBorderSx,
+} from "../../contexts/ThemeContext";
 
 type SaveStatus =
   "draft" | "saving" | "saved" | "submitting" | "sent" | "complete";
@@ -253,11 +257,8 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
           : {
               bgcolor: transparent ? "transparent" : "background.paper",
               position: "relative",
-              border: `1px solid ${
-                theme.palette.mode === "light"
-                  ? "rgb(0 0 0 / 38%)"
-                  : theme.palette.divider
-              }`,
+              border: `1px solid ${theme.palette.divider}`,
+              ...getInputBorderSx(theme, { disabled, error }),
               ...(headerText
                 ? {
                     borderTop: "none",
@@ -315,10 +316,19 @@ export const SmarterTextAreaCard: React.FC<SmarterTextAreaCardProps> = ({
             pt: 1.5,
             pb: 1.5,
             bgcolor: "background.paper",
+            ...(theme.palette.mode === "light"
+              ? {
+                  border: `1px solid ${getInputBorderColors(theme).default}`,
+                  borderTopLeftRadius: 14,
+                  borderTopRightRadius: 14,
+                }
+              : {}),
             borderBottom: `1px solid ${theme.palette.divider}`,
             ...(headerSx || {}),
             ...(isBranded
               ? {
+                  border: "none",
+                  borderRadius: 0,
                   bgcolor: BRANDED_NESTED_HEADER_FILL,
                   borderBottom: `1px solid ${BRANDED_NESTED_RULE_COLOR}`,
                 }
