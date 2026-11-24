@@ -57,3 +57,52 @@ describe('Antigravity permission choices', () => {
     expect(antigravityRuleKey('bad name!')).toBeUndefined();
   });
 });
+
+describe('Antigravity permission card details', () => {
+  it('shows the edited file and excludes the text being replaced from write targets', () => {
+    const event = mapAntigravityPermission(context, 'request', {
+      sessionId: 'session',
+      toolCall: {
+        toolCallId: 'edit',
+        kind: 'edit',
+        name: 'edit_file',
+        rawInput: {
+          Path: 'theme.ts',
+          Target: '/**\n * Resolves the shared input border colors\n */\nexport const x = 1;',
+          Replacement: 'export const x = 2;',
+        },
+        content: [
+          {
+            type: 'diff',
+            path: 'theme.ts',
+            oldText: 'export const x = 1;',
+            newText: 'export const x = 2;',
+          },
+        ],
+        locations: [{ path: 'theme.ts' }],
+      },
+      options: [allowOnce],
+    });
+    expect(event.payload).toMatchObject({
+      permission_request: { permission_type: 'file_change' },
+      enrichment_metadata: { referenced_files: ['theme.ts'] },
+    });
+  });
+
+  it('describes a project lookup by its operation and summary', () => {
+    const event = mapAntigravityPermission(context, 'lookup', {
+      sessionId: 'session',
+      toolCall: {
+        toolCallId: 'lookup',
+        kind: 'other',
+        name: 'mcp_heyhey-platform_get_context',
+        rawInput: { toolSummary: 'Read the task context' },
+      },
+      options: [allowOnce],
+    });
+    expect(event.payload).toMatchObject({
+      permission_request: { permission_type: 'mcp_heyhey-platform_get_context' },
+      enrichment_metadata: { reason: 'Read the task context' },
+    });
+  });
+});

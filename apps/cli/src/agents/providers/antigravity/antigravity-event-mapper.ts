@@ -156,6 +156,36 @@ export function antigravityRuleKey(toolName: string | undefined): string | undef
   return ToolRuleStore.isValidRuleName(key) ? key : undefined;
 }
 
+const writingKinds = new Set(['edit', 'delete', 'move']);
+
+/** A path Hey Hey read from a permission request, and the part of the request it came from. */
+export interface AntigravityWriteTarget {
+  source: string;
+  path: string;
+}
+
+export function antigravityWriteTargetSources(
+  tool: Permission['toolCall'],
+): AntigravityWriteTarget[] {
+  const targets: AntigravityWriteTarget[] = (tool.content ?? []).flatMap((entry, index) =>
+    entry.type === 'diff' ? [{ source: `content[${index}].path`, path: entry.path }] : [],
+  );
+  if (!writingKinds.has(tool.kind ?? '')) {
+    return targets;
+  }
+
+  // Only the ACP fields that name files: tool inputs are tool-specific, and their
+  // field names (edit_file's `Target` is the text being replaced) say nothing reliable.
+  (tool.locations ?? []).forEach((location, index) => {
+    targets.push({ source: `locations[${index}].path`, path: location.path });
+  });
+  return targets;
+}
+
+export function antigravityWriteTargets(tool: Permission['toolCall']): string[] {
+  return [...new Set(antigravityWriteTargetSources(tool).map((target) => target.path))];
+}
+
 export function mapAntigravityPermission(
   context: EventContext,
   requestId: string,
@@ -164,12 +194,16 @@ export function mapAntigravityPermission(
   const tool = params.toolCall;
   const action = tool.name ?? tool.kind ?? 'tool';
   const target = tool.title ?? action;
-  const commandInput =
-    tool.kind === 'execute'
-      ? commandInputSchema.safeParse(tool.rawInput ?? tool.args).data
-      : undefined;
-  const command = commandInput?.CommandLine;
-  const reason = commandInput?.toolSummary;
+  const input = commandInputSchema.safeParse(tool.rawInput ?? tool.args).data;
+  const command = tool.kind === 'execute' ? input?.CommandLine : undefined;
+  const files = antigravityWriteTargets(tool);
+  const isWrite = writingKinds.has(tool.kind ?? '') || files.length > 0;
+  const permissionType = isWrite
+    ? 'file_change'
+    : tool.kind === 'execute'
+      ? 'command_execution'
+      : action;
+  const reason = input?.toolSummary ?? (command || files.length ? undefined : target);
   const offers = (kind: string) => params.options.some((option) => option.kind === kind);
   const canApprove = offers('allow_once');
   const canRemember = canApprove && antigravityRuleKey(tool.name) !== undefined;
@@ -193,10 +227,10 @@ export function mapAntigravityPermission(
     input: tool.rawInput ?? tool.args,
   });
   return normalizeAntigravityEvent(context, 'permission_request_detected', {
-    ...(command || reason ? { enrichment_metadata: { command, reason } } : {}),
+    enrichment_metadata: { command, reason, referenced_files: files },
     permission_request: {
       id: requestId,
-      permission_type: tool.kind === 'edit' ? 'file_change' : 'command_execution',
+      permission_type: permissionType,
       action,
       target,
       fingerprint,

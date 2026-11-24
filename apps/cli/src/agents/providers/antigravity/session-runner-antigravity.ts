@@ -15,7 +15,10 @@ import { buildPlatformSystemPrompt } from '../../prompts/common';
 import { readSessionStartContext } from '../../prompts/session-start-context';
 import { buildSubmissionToolsMcpConfig } from '../../submission-tools/mcp-config';
 import type { SubmissionToolRegistry } from '../../submission-tools/registry';
-import type { RunWorkspaceWriteBoundary } from '../../workspace-write-boundary';
+import {
+  WorkspaceWriteOutsideRunError,
+  type RunWorkspaceWriteBoundary,
+} from '../../workspace-write-boundary';
 import type { ExecutionRecorder } from '../execution-recorder/execution-recorder';
 import { IsolatedProviderWorkingDirectory } from '../isolated-provider-working-directory';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
@@ -37,35 +40,24 @@ import {
   type AcpPromptContent,
 } from './acp-client';
 import type { AcpConfigOptions, AcpInboundCall, AcpPromptUsage } from './acp-schemas';
+import { z } from 'zod';
 import { AntigravityNotReadyError } from './antigravity-readiness';
 import { listAntigravitySkills } from './antigravity-skill-catalog';
+import { looksLikeHeyHeyTool, TurnToolGrant } from './turn-tool-grant';
 import { AntigravityExecutionCaptureHooks } from './execution-capture-hooks';
 import {
   antigravityRuleKey,
+  antigravityWriteTargetSources,
   mapAntigravityPermission,
   mapAntigravityUpdate,
   normalizeAntigravityEvent,
 } from './antigravity-event-mapper';
 
+/** Enough of a rejected path to tell a real path from file contents in the log. */
+const PATH_PREVIEW_CHARS = 120;
+
 type PermissionRequest = Extract<AcpInboundCall, { method: 'session/request_permission' }>;
 type PromptArgs = RunPromptArgs | ResumeArgs;
-
-// Tool kinds that change files; reads outside the Run roots stay allowed.
-const WRITING_TOOL_KINDS = new Set(['edit', 'delete', 'move']);
-const PATH_INPUT_KEY = /path|file|target|destination/i;
-
-/** Absolute or relative paths a write-capable tool call says it will change. */
-const writeTargetsOf = ({ kind, content, rawInput }: PermissionRequest['params']['toolCall']) => {
-  const diffPaths = (content ?? []).flatMap((entry) => (entry.type === 'diff' ? [entry.path] : []));
-  if (!kind || !WRITING_TOOL_KINDS.has(kind)) {
-    return diffPaths;
-  }
-  const input = rawInput && typeof rawInput === 'object' ? Object.entries(rawInput) : [];
-  const inputPaths = input.flatMap(([key, value]) =>
-    PATH_INPUT_KEY.test(key) && typeof value === 'string' ? [value] : [],
-  );
-  return [...diffPaths, ...inputPaths];
-};
 
 /** An Error's message; anything else is stringified without throwing. */
 const describeCause = (error: unknown): string => {
@@ -94,7 +86,10 @@ interface Dependencies {
 interface ActivePrompt {
   /** Chunks of the passage being streamed; flushed at a tool call or turn end. */
   passage: string[];
+  lastWriteRefusal?: string;
   skipPermissions: boolean;
+  /** Hey Hey tools this turn grants; lives and dies with the prompt, apart from remembered rules. */
+  grant: TurnToolGrant;
   phase?: 'thinking' | 'writing';
 }
 
@@ -114,7 +109,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
   private client: AntigravityAcpClient | undefined;
   private sessionId: string | null = null;
   private mountIdentity: string | undefined;
-  private agentName: string | undefined;
+  private agentPrompt: string | undefined;
   private busy = false;
   private activePrompt: ActivePrompt | undefined;
   private usage: { used: number; size: number } | undefined;
@@ -449,7 +444,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     this.configOptions = [];
     this.commands = new Set();
     this.mountIdentity = undefined;
-    this.agentName = undefined;
+    this.agentPrompt = undefined;
     this.boundary = undefined;
     this.allowedRuleKeys.clear();
     await this.executionCapture?.close();
@@ -525,9 +520,12 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         this.directory ??= await IsolatedProviderWorkingDirectory.create();
         // The Run agent file lives in the isolated launch directory, never in a repository.
         const launchDirectory = this.directory.path;
-        if (!this.agentName) {
-          await this.writeAgent(launchDirectory, fresh);
-        }
+        this.agentPrompt ??= fresh ? await this.platformPrompt(fresh) : '';
+        await this.writeAgent(
+          launchDirectory,
+          this.agentPrompt,
+          Boolean(boundary) && !readOnlyFilesystem,
+        );
         await this.executionCapture?.install(launchDirectory, hookLaunch);
         this.boundary = boundary;
         for (const rule of this.dependencies.toolRuleStore.load()) {
@@ -548,7 +546,12 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
           logger,
           (update) => this.onUpdate(update),
           (request) => this.onPermission(request),
-          ['--agent', 'heyhey-run', '--include-default-customizations=false'],
+          [
+            '--agent',
+            'heyhey-run',
+            '--include-default-customizations=false',
+            ...(containment ? ['--gemini-dir', containment.geminiDirectory] : []),
+          ],
           undefined,
           containment,
         );
@@ -609,6 +612,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         const prompt: ActivePrompt = {
           passage: [],
           skipPermissions: args.skipPermissions === true,
+          grant: this.buildGrant(args),
         };
         this.activePrompt = prompt;
         const cancel = () => {
@@ -632,6 +636,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
               'RUN_FAILED',
               `Antigravity stopped with reason ${result.stopReason}.`,
             );
+          }
+          if (prompt.lastWriteRefusal && !prompt.passage.join('').trim()) {
+            throw new AgentSessionRunnerError('RUN_FAILED', prompt.lastWriteRefusal);
           }
           this.flushPassage(sessionId, prompt, true);
         } finally {
@@ -691,6 +698,17 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     }
   }
 
+  private buildGrant(args: PromptArgs): TurnToolGrant {
+    const registration = this.dependencies.submissionToolRegistry.getByRunId(
+      args.session.agentic_session_id,
+    );
+    const mounted = registration?.tools.map((tool) => tool.name) ?? [];
+    return new TurnToolGrant({
+      platformAllowedTools: args.platformMcpProxyMount?.allowedTools,
+      activeSubmissionToolNames: registration?.activeToolNames ?? mounted,
+    });
+  }
+
   private serversFor(args: PromptArgs): AcpHttpServer[] {
     const { localAgentEndpoint, submissionToolRegistry } = this.dependencies;
     const cliBaseUrl = localAgentEndpoint.get();
@@ -726,13 +744,13 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     return servers.map(({ serverName, serverEntry }) => ({
       type: 'http',
       name: serverName,
-      url: serverEntry.url,
+      url:
+        serverName === 'heyhey-platform' ? serverEntry.url + '?catalog=compact' : serverEntry.url,
       headers: [],
     }));
   }
 
-  private async writeAgent(cwd: string, args?: RunPromptArgs): Promise<void> {
-    const prompt = args ? await this.platformPrompt(args) : '';
+  private async writeAgent(cwd: string, prompt: string, writable: boolean): Promise<void> {
     const agentDirectory = path.join(cwd, '.agents', 'agents');
     await mkdir(agentDirectory, { recursive: true });
     const agentName = 'heyhey-run';
@@ -743,6 +761,11 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         `name: ${agentName}`,
         'description: Hey Hey Run agent',
         'subagent: false',
+        ...(writable
+          ? [
+              'tools: [read_file, edit_file, write_file, run_command, manage_task, search_web, generate_image, schedule, send_message]',
+            ]
+          : []),
         'inheritMcp: false',
         'inheritCustomizations: false',
         '---',
@@ -750,7 +773,6 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       ].join('\n'),
       { mode: 0o600 },
     );
-    this.agentName = agentName;
   }
 
   private async platformPrompt(args: RunPromptArgs): Promise<string> {
@@ -926,22 +948,49 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
    * The sandbox is the boundary; this only keeps the user from being asked about,
    * or auto-approving, a write the sandbox would refuse. Approval never widens it.
    */
-  private async refusesOutsideRoots(request: PermissionRequest): Promise<boolean> {
+  private async writeRefusal(request: PermissionRequest): Promise<string | undefined> {
     const boundary = this.boundary;
     if (!boundary) {
-      return false;
+      return undefined;
     }
-    try {
-      await boundary.assertWriteTargets(writeTargetsOf(request.params.toolCall));
-      return false;
-    } catch (error) {
-      this.dependencies.logger.warn('antigravity.permission.outside_run_roots', {
-        id: request.id,
-        sessionId: request.params.sessionId,
-        error: String(error),
-      });
-      return true;
+    const tool = request.params.toolCall;
+    const targets = antigravityWriteTargetSources(tool);
+    for (const target of targets) {
+      try {
+        await boundary.resolveWriteTarget(target.path);
+      } catch (error) {
+        const code = error instanceof Error && 'code' in error ? String(error.code) : undefined;
+        const cause =
+          error instanceof WorkspaceWriteOutsideRunError
+            ? error.message
+            : `Could not verify the requested file path (${code ?? 'path resolution failed'}).`;
+        this.dependencies.logger.warn('antigravity.permission.outside_run_roots', {
+          id: request.id,
+          sessionId: request.params.sessionId,
+          error: cause,
+          errorCode: code,
+          toolCallId: tool.toolCallId,
+          toolName: tool.name,
+          toolKind: tool.kind,
+          toolTitle: tool.title,
+          inputKeys: Object.keys(
+            z.record(z.unknown()).safeParse(tool.rawInput ?? tool.args).data ?? {},
+          ),
+          contentTypes: (tool.content ?? []).map((entry) => entry.type),
+          targetSources: targets.map((candidate) => ({
+            source: candidate.source,
+            length: candidate.path.length,
+          })),
+          failedTarget: {
+            source: target.source,
+            length: target.path.length,
+            preview: target.path.slice(0, PATH_PREVIEW_CHARS),
+          },
+        });
+        return cause;
+      }
     }
+    return undefined;
   }
 
   private async handlePermission(request: PermissionRequest): Promise<void> {
@@ -952,7 +1001,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return;
     }
     this.observePromptActivity(params.sessionId, prompt);
-    if (await this.refusesOutsideRoots(request)) {
+    const refusal = await this.writeRefusal(request);
+    if (refusal) {
+      prompt.lastWriteRefusal = `Hey Hey rejected the file operation. ${refusal} Antigravity ended the turn without a final response.`;
       this.executionCapture?.denied(params.sessionId, params.toolCall.toolCallId);
       await this.client?.respondToPermission(
         id,
@@ -960,6 +1011,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       );
       return;
     }
+    delete prompt.lastWriteRefusal;
     if (prompt.skipPermissions) {
       const kind = 'allow_once';
       this.dependencies.logger.debug('antigravity.permission.automatic', {
@@ -973,8 +1025,27 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       );
       return;
     }
-    const ruleKey = antigravityRuleKey(params.toolCall.name);
     const allowOnce = params.options.find((option) => option.kind === 'allow_once');
+    const granted = prompt.grant.match(params.toolCall.name);
+    if (granted && allowOnce) {
+      this.dependencies.logger.debug('antigravity.permission.turn_granted', {
+        id,
+        tool: granted.tool,
+        server: granted.server,
+        sessionId: params.sessionId,
+      });
+      await this.client?.respondToPermission(id, allowOnce);
+      return;
+    }
+    if (looksLikeHeyHeyTool(params.toolCall.name)) {
+      this.dependencies.logger.debug('antigravity.permission.hey_hey_tool_not_granted', {
+        id,
+        tool: params.toolCall.name,
+        reason: granted ? 'no allow_once option offered' : 'not in the turn grant',
+        sessionId: params.sessionId,
+      });
+    }
+    const ruleKey = antigravityRuleKey(params.toolCall.name);
     if (ruleKey && allowOnce && this.allowedRuleKeys.has(ruleKey)) {
       this.dependencies.logger.debug('antigravity.permission.remembered', {
         id,

@@ -87,6 +87,7 @@ interface PermissionAsk {
     name?: string;
     kind?: string;
     rawInput?: Record<string, unknown>;
+    locations?: { path: string }[];
   };
   options: { optionId: string; kind: string; name: string }[];
 }
@@ -217,13 +218,14 @@ const makeRunner = (
     .spyOn(runStore, 'updateRunTokenUsage')
     .mockImplementation(() => Promise.resolve(run.session));
   const agentOutput = vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
+  const localAgentEndpoint = new LocalAgentEndpoint();
   const runner = new AntigravityAgentSessionRunner({
     agentOutputOwner: run,
     runStore,
     submissionToolRegistry: new SubmissionToolRegistry(),
     toolRuleStore,
     oauthClient: new OAuthClient(),
-    localAgentEndpoint: new LocalAgentEndpoint(),
+    localAgentEndpoint,
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -235,7 +237,7 @@ const makeRunner = (
   });
   const { launchServiceId: _launch, ...baseSession } = run.session;
   const session = { ...baseSession, provider: 'antigravity' as const, services: [] };
-  return { runner, session, recordTokens, agentOutput };
+  return { runner, session, recordTokens, agentOutput, localAgentEndpoint };
 };
 
 describe('Antigravity streamed replies', () => {
@@ -515,6 +517,9 @@ describe('Antigravity repository-bound sessions', () => {
       expect(command).toBe(process.execPath);
       expect(args).toEqual(expect.arrayContaining(['agy', 'acp']));
       expect((options as { env: Record<string, string> }).env['HOME']).toBe(process.env['HOME']);
+      expect(args).toEqual(
+        expect.arrayContaining(['--gemini-dir', boundary.antigravityContainment().geminiDirectory]),
+      );
       await expect(boundary.assertWriteTargets([path.join(base, 'elsewhere.txt')])).rejects.toThrow(
         /outside the Run workspace/,
       );
@@ -532,7 +537,12 @@ describe('Antigravity repository-bound sessions', () => {
       { optionId: 'reject-once', kind: 'reject_once', name: 'Reject' },
     ];
     const edit = (target: string, options = OPTIONS): PermissionAsk => ({
-      toolCall: { toolCallId: target, kind: 'edit', rawInput: { path: target } },
+      toolCall: {
+        toolCallId: target,
+        kind: 'edit',
+        rawInput: { Path: target, Target: 'old text', Replacement: 'new text' },
+        locations: [{ path: target }],
+      },
       options,
     });
 
@@ -596,7 +606,11 @@ describe('Antigravity repository-bound sessions', () => {
     /** Runs one skip-permissions prompt in which agy asks about each write; returns agy's answers. */
     const answersTo = async (
       asks: (service: string, base: string) => PermissionAsk[],
-      { skipPermissions = true, rules = [] }: { skipPermissions?: boolean; rules?: string[] } = {},
+      {
+        skipPermissions = true,
+        rules = [],
+        endsWithRefusal = false,
+      }: { skipPermissions?: boolean; rules?: string[]; endsWithRefusal?: boolean } = {},
     ) => {
       const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'agy-permission-')));
       const service = path.join(base, 'service');
@@ -618,12 +632,20 @@ describe('Antigravity repository-bound sessions', () => {
       await fs.writeFile(rulesPath, JSON.stringify(rules));
       const { runner, session } = makeRunner(new ToolRuleStore(rulesPath));
       try {
-        await runner.runPrompt({
+        const turn = runner.runPrompt({
           session: { ...session, workspaceBound: true },
           prompt: 'hello',
           skipPermissions,
           workspaceWriteBoundary: boundary,
         });
+        if (endsWithRefusal) {
+          await expect(turn).rejects.toMatchObject({
+            code: 'RUN_FAILED',
+            message: expect.stringContaining('outside the Run workspace'),
+          });
+        } else {
+          await turn;
+        }
         return requests.permissionResponses
           .sort((a, b) => a.id - b.id)
           .map((response) => response.result?.outcome.optionId);
@@ -635,24 +657,30 @@ describe('Antigravity repository-bound sessions', () => {
     };
 
     it('rejects a write outside the Run roots even when permissions are skipped', async () => {
-      const answers = await answersTo((_service, base) => [edit(path.join(base, 'elsewhere.txt'))]);
+      const answers = await answersTo(
+        (_service, base) => [edit(path.join(base, 'elsewhere.txt'))],
+        { endsWithRefusal: true },
+      );
 
       expect(answers).toEqual(['reject-once']);
     });
 
     it('does not let an allow-always option or a stored always-allow rule widen the roots', async () => {
       const alwaysOnly = OPTIONS.filter((option) => option.kind !== 'allow_once');
-      const answers = await answersTo((_service, base) => [
-        edit(path.join(base, 'a.txt'), alwaysOnly),
-        edit(path.join(base, 'b.txt'), alwaysOnly),
-      ]);
+      const answers = await answersTo(
+        (_service, base) => [
+          edit(path.join(base, 'a.txt'), alwaysOnly),
+          edit(path.join(base, 'b.txt'), alwaysOnly),
+        ],
+        { endsWithRefusal: true },
+      );
 
       expect(answers).toEqual(['reject-once', 'reject-once']);
     });
 
     const named = (name: string, target: string): PermissionAsk => ({
       ...edit(target),
-      toolCall: { toolCallId: target, name, kind: 'edit', rawInput: { path: target } },
+      toolCall: { ...edit(target).toolCall, name },
     });
 
     it('never lets a stored rule approve a write outside the Run roots', async () => {
@@ -739,6 +767,91 @@ describe('Antigravity repository-bound sessions', () => {
         await runner.dispose();
         await prompt;
       }
+    });
+
+    describe('Hey Hey tools the turn grants', () => {
+      const mount = {
+        runId: 'run-1',
+        turnId: 'turn-1',
+        token: 'token',
+        allowedTools: [
+          'mcp__heyhey-platform__get_context',
+          'mcp__heyhey-platform__create_work_item',
+        ],
+      };
+      const ask = (name: string): PermissionAsk => ({
+        toolCall: { toolCallId: name, name, kind: 'other' },
+        options: OPTIONS,
+      });
+
+      /** Runs a normal-approval prompt with a platform mount; returns agy's answers and any cards shown. */
+      const runGranted = async (names: string[], rules: string[] = []) => {
+        const requests = startFakeAgy({ permissionRequests: names.map(ask) });
+        const rulesPath = path.join(os.tmpdir(), `antigravity-grant-${process.pid}.json`);
+        await fs.writeFile(rulesPath, JSON.stringify(rules));
+        const { runner, session, agentOutput, localAgentEndpoint } = makeRunner(
+          new ToolRuleStore(rulesPath),
+        );
+        localAgentEndpoint.set('http://127.0.0.1:1');
+        const prompt = Promise.allSettled([
+          runner.runPrompt({ session, prompt: 'hi', platformMcpProxyMount: mount }),
+        ]);
+        try {
+          await vi.waitFor(() => {
+            const cards = agentOutput.mock.calls.filter(
+              ([output]) => output.event.eventType === 'permission_request_detected',
+            );
+            expect(cards.length + requests.permissionResponses.length).toBe(names.length);
+          });
+          const cards = agentOutput.mock.calls.filter(
+            ([output]) => output.event.eventType === 'permission_request_detected',
+          ).length;
+          return {
+            cards,
+            answers: requests.permissionResponses.map((r) => r.result?.outcome.optionId),
+          };
+        } finally {
+          await runner.dispose();
+          await prompt;
+          await fs.rm(rulesPath, { force: true });
+        }
+      };
+
+      it('answers granted calls, including the schema lookup, with the one-time allow and no card', async () => {
+        const { cards, answers } = await runGranted([
+          'mcp_heyhey-platform_describe_platform_tool',
+          'mcp_heyhey-platform_get_context',
+          'mcp_heyhey-platform_create_work_item',
+          'mcp_heyhey-platform_get_context',
+        ]);
+
+        expect(cards).toBe(0);
+        expect(answers).toEqual(['allow-once', 'allow-once', 'allow-once', 'allow-once']);
+      });
+
+      it('still asks about a Hey Hey tool outside the grant and a granted name on another server', async () => {
+        const { cards, answers } = await runGranted([
+          'mcp_heyhey-platform_edit_work_item',
+          'mcp_other-server_get_context',
+          'mcp_heyhey-browser_get_context',
+        ]);
+
+        expect(cards).toBe(3);
+        expect(answers).toEqual([]);
+      });
+
+      it('does not remember a grant as a stored rule', async () => {
+        const { cards } = await runGranted(['mcp_heyhey-platform_get_context'], []);
+
+        expect(cards).toBe(0);
+        expect(
+          JSON.parse(
+            await fs
+              .readFile(path.join(os.tmpdir(), `antigravity-grant-${process.pid}.json`), 'utf8')
+              .catch(() => '[]'),
+          ),
+        ).toEqual([]);
+      });
     });
 
     it('lets a write inside the Run roots through the pre-check', async () => {
