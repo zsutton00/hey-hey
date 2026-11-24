@@ -896,8 +896,8 @@ describe("WorkItemTypeFormPage", () => {
 
     const starts = screen
       .getAllByTestId("wit-status-start")
-      .map((cell) => cell.textContent);
-    expect(starts).toEqual(["workItemType.status.start", ""]);
+      .map((cell) => cell.getAttribute("aria-label"));
+    expect(starts).toEqual(["workItemType.status.start"]);
   });
 
   it("keeps a row's meaning when it is renamed or moved, and carries nothing else", async () => {
