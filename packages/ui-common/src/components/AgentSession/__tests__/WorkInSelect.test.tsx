@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { WorkInSelect, type WorkInSelectProps } from "../WorkInSelect";
 import { resolveChoice } from "../resolveChoice";
@@ -45,7 +45,6 @@ const renderSelect = (overrides: Partial<WorkInSelectProps> = {}) => {
     entry: readyEntry(),
     value: null,
     lockedBranch: null,
-    branchQuery: "",
     searching: false,
     searchError: null,
     disabled: false,
@@ -58,19 +57,38 @@ const renderSelect = (overrides: Partial<WorkInSelectProps> = {}) => {
   return { ...view, onChange, onBranchQueryChange };
 };
 
+const input = () => screen.getByTestId("work-in-select");
+
 const openList = () => {
-  fireEvent.mouseDown(
-    within(screen.getByTestId("work-in-select")).getByRole("combobox"),
-  );
+  fireEvent.focus(input());
+  fireEvent.mouseDown(input());
 };
 
+const typeInField = (text: string) => {
+  fireEvent.focus(input());
+  fireEvent.mouseDown(input());
+  fireEvent.change(input(), { target: { value: text } });
+};
+
+const optionBranches = () =>
+  screen
+    .queryAllByTestId("work-in-option")
+    .map((option) => `${option.dataset.branch} | ${option.dataset.tag}`);
+
 describe("WorkInSelect", () => {
-  it("defaults to the main folder's current branch", () => {
+  it("is labelled Branch or worktree, defaults to the main folder's branch and is no wider than 280px", () => {
     renderSelect();
 
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
-      "Current: main (main folder)",
-    );
+    expect(screen.getByLabelText("Branch or worktree")).toBe(input());
+    expect(input()).toHaveValue("main · main folder");
+    expect(
+      screen.getByText(
+        "Uses the main folder's current branch, or a separate worktree. Type to search.",
+      ),
+    ).toBeInTheDocument();
+    expect(input().closest(".MuiAutocomplete-root")).toHaveStyle({
+      width: "280px",
+    });
   });
 
   it("says when the main folder is detached", () => {
@@ -78,34 +96,41 @@ describe("WorkInSelect", () => {
       entry: readyEntry({ mainFolder: { path: "/repo", branch: null } }),
     });
 
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
-      "Current: detached (main folder)",
-    );
+    expect(input()).toHaveValue("detached · main folder");
   });
 
-  it("lists Current, Worktrees, Recently used here, Other branch…, New worktree… in order and marks branches with no worktree", () => {
-    renderSelect();
+  it("lists each branch once with nothing typed: Recent first, then Worktrees, no unmatched branch", () => {
+    renderSelect({
+      entry: readyEntry({ branchMatches: ["unrelated/branch"] }),
+    });
     openList();
 
-    const listbox = screen.getByRole("listbox");
-    const text = listbox.textContent ?? "";
-    const order = [
-      "Current",
-      "Worktrees",
-      "Recently used here",
-      "Other branch…",
-      "New worktree…",
-    ].map((label) => text.indexOf(label));
-
-    expect(order.every((index) => index >= 0)).toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(text).toContain("old-work (no worktree)");
+    expect(optionBranches()).toEqual([
+      "main | main folder",
+      "feature/a | worktree",
+      "old-work | new worktree",
+    ]);
+    expect(screen.getByRole("listbox")).not.toHaveTextContent(
+      "unrelated/branch",
+    );
     expect(
       screen.getByTestId("work-in-option-detached-worktree"),
     ).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Other branch…")).toBeNull();
+    expect(screen.queryByText("New worktree…")).toBeNull();
   });
 
-  it("maps each group to a choice", () => {
+  it("always offers the main folder's branch first, even when it was never recorded", () => {
+    renderSelect({ entry: readyEntry({ recentBranches: [] }) });
+    openList();
+
+    expect(optionBranches()).toEqual([
+      "main | main folder",
+      "feature/a | worktree",
+    ]);
+  });
+
+  it("maps picks to the same choices as before", () => {
     const { onChange } = renderSelect({
       value: {
         serviceId: SERVICE_ID,
@@ -116,38 +141,27 @@ describe("WorkInSelect", () => {
     });
 
     openList();
-    fireEvent.click(screen.getByTestId("work-in-option-current"));
+    fireEvent.click(screen.getAllByTestId("work-in-option")[0] as HTMLElement);
     expect(onChange).toHaveBeenLastCalledWith({
       serviceId: SERVICE_ID,
       kind: "MAIN_FOLDER",
     });
 
     openList();
-    fireEvent.click(screen.getByTestId("work-in-option-worktree"));
+    fireEvent.click(screen.getAllByTestId("work-in-option")[1] as HTMLElement);
     expect(onChange).toHaveBeenLastCalledWith({
       serviceId: SERVICE_ID,
       kind: "WORKTREE",
       branch: "feature/a",
       newBranch: false,
     });
-
-    // A recent branch the main folder has checked out stays in the main folder.
-    openList();
-    fireEvent.click(
-      screen.getAllByTestId("work-in-option-recent")[2] as HTMLElement,
-    );
-    expect(onChange).toHaveBeenLastCalledWith({
-      serviceId: SERVICE_ID,
-      kind: "MAIN_FOLDER",
-    });
   });
 
-  it("maps a recent branch with no worktree to a worktree on that branch", () => {
+  it("maps a recent branch checked out nowhere to a worktree on that branch", () => {
     const { onChange } = renderSelect();
+
     openList();
-    fireEvent.click(
-      screen.getAllByTestId("work-in-option-recent")[1] as HTMLElement,
-    );
+    fireEvent.click(screen.getAllByTestId("work-in-option")[2] as HTMLElement);
     expect(onChange).toHaveBeenLastCalledWith({
       serviceId: SERVICE_ID,
       kind: "WORKTREE",
@@ -156,31 +170,19 @@ describe("WorkInSelect", () => {
     });
   });
 
-  it("shows other branches only after typing a search", () => {
-    const { onChange, onBranchQueryChange, rerender } = renderSelect();
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-other"));
+  it("filters while typing and adds unmatched branches tagged as opening in a new worktree", () => {
+    const { onChange, onBranchQueryChange } = renderSelect({
+      entry: readyEntry({ branchMatches: ["fix/login", "feature/a"] }),
+    });
+    typeInField("F");
 
-    expect(screen.queryByTestId("work-in-search-results")).toBeNull();
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "fix" } });
-    expect(onBranchQueryChange).toHaveBeenCalledWith("fix");
+    expect(onBranchQueryChange).toHaveBeenCalledWith("F");
+    expect(optionBranches()).toEqual([
+      "feature/a | worktree",
+      "fix/login | opens in a new worktree",
+    ]);
 
-    rerender(
-      <WorkInSelect
-        serviceId={SERVICE_ID}
-        entry={readyEntry({ branchMatches: ["fix/login"] })}
-        value={null}
-        lockedBranch={null}
-        branchQuery="fix"
-        searching={false}
-        searchError={null}
-        disabled={false}
-        onBranchQueryChange={onBranchQueryChange}
-        onChange={onChange}
-      />,
-    );
-    fireEvent.click(screen.getByTestId("work-in-search-result"));
-
+    fireEvent.click(screen.getAllByTestId("work-in-option")[1] as HTMLElement);
     expect(onChange).toHaveBeenCalledWith({
       serviceId: SERVICE_ID,
       kind: "WORKTREE",
@@ -189,8 +191,30 @@ describe("WorkInSelect", () => {
     });
   });
 
-  it("notes that a branch checked out nowhere opens in its own worktree", () => {
+  it("says when nothing matches, and when the branch search failed or was cut off", () => {
+    const view = renderSelect();
+    typeInField("zzz");
+    expect(screen.getByText("No matching branches.")).toBeInTheDocument();
+    view.unmount();
+
     renderSelect({
+      searchError: "machine offline",
+      entry: readyEntry({
+        branchMatches: ["fix/login"],
+        branchMatchesTruncated: true,
+      }),
+    });
+    typeInField("fix");
+    expect(screen.getByTestId("work-in-search-error")).toHaveTextContent(
+      "Branch search failed",
+    );
+    expect(screen.getByTestId("work-in-search-note")).toHaveTextContent(
+      "Keep typing to narrow them.",
+    );
+  });
+
+  it("notes that a branch checked out nowhere opens in its own worktree and leaves the main folder alone", () => {
+    const { onChange } = renderSelect({
       value: {
         serviceId: SERVICE_ID,
         kind: "WORKTREE",
@@ -200,15 +224,23 @@ describe("WorkInSelect", () => {
     });
 
     expect(screen.getByTestId("work-in-new-worktree-note")).toHaveTextContent(
-      "opens in its own new worktree",
+      "old-work isn't checked out anywhere. It will open in its own new worktree, so your main folder stays on main.",
     );
+    expect(input()).toHaveValue("old-work · new worktree");
+
+    fireEvent.click(screen.getByTestId("work-in-open-as-worktree"));
+    expect(onChange).toHaveBeenCalledWith({
+      serviceId: SERVICE_ID,
+      kind: "WORKTREE",
+      branch: "old-work",
+      newBranch: false,
+    });
   });
 
-  it("asks for a name for a new worktree, starting from the main folder's branch", () => {
+  it("creates a new worktree from the button beside the field", () => {
     const { onChange } = renderSelect();
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-new"));
 
+    fireEvent.click(screen.getByTestId("work-in-new-worktree-button"));
     expect(screen.getByTestId("work-in-new")).toHaveTextContent(
       "Starts from main",
     );
@@ -227,7 +259,28 @@ describe("WorkInSelect", () => {
     });
   });
 
-  it("shows a Plan's branch instead of the list and cannot be changed", () => {
+  it("warns when a worktree is chosen on the branch the main folder holds", () => {
+    renderSelect({
+      value: {
+        serviceId: SERVICE_ID,
+        kind: "WORKTREE",
+        branch: "main",
+        newBranch: true,
+      },
+    });
+
+    expect(screen.getByTestId("work-in-conflict")).toBeInTheDocument();
+    expect(input()).toHaveValue("main · new worktree");
+  });
+
+  it("asks for a choice when one is required and none is made", () => {
+    renderSelect({ requireChoice: true });
+
+    expect(input()).toHaveValue("");
+    expect(input()).toHaveAttribute("placeholder", "Choose where to work");
+  });
+
+  it("shows a Plan's branch instead of the field and cannot be changed", () => {
     renderSelect({ lockedBranch: "plan/stage-1" });
 
     expect(screen.getByRole("textbox")).toHaveValue(
@@ -235,6 +288,7 @@ describe("WorkInSelect", () => {
     );
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(screen.queryByTestId("work-in-select")).toBeNull();
+    expect(screen.queryByTestId("work-in-new-worktree-button")).toBeNull();
   });
 
   it("shows a Service's read error in place", () => {
@@ -245,80 +299,6 @@ describe("WorkInSelect", () => {
     expect(screen.getByTestId("work-in-error")).toHaveTextContent(
       "Not a git repository",
     );
-  });
-
-  it("shows an empty search as no matches", () => {
-    renderSelect({ branchQuery: "zzz" });
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-other"));
-
-    expect(screen.getByTestId("work-in-search-results")).toHaveTextContent(
-      "No matching branches.",
-    );
-    expect(screen.queryByTestId("work-in-search-error")).toBeNull();
-  });
-
-  it("says when the branch search failed instead of showing an empty list", () => {
-    renderSelect({ branchQuery: "fix", searchError: "machine offline" });
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-other"));
-
-    expect(screen.getByTestId("work-in-search-error")).toHaveTextContent(
-      "Branch search failed",
-    );
-    expect(screen.queryByText("No matching branches.")).toBeNull();
-  });
-
-  it("keeps a branch picked from search a valid value without a console warning", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const error = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
-
-    renderSelect({
-      value: {
-        serviceId: SERVICE_ID,
-        kind: "WORKTREE",
-        branch: "fix/login",
-        newBranch: false,
-      },
-    });
-
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent("fix/login");
-    expect(warn).not.toHaveBeenCalled();
-    expect(error).not.toHaveBeenCalled();
-    warn.mockRestore();
-    error.mockRestore();
-  });
-
-  it("maps a search result that matches an existing worktree to that worktree", () => {
-    const { onChange } = renderSelect({
-      branchQuery: "feature",
-      entry: readyEntry({ branchMatches: ["feature/a"] }),
-    });
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-other"));
-    fireEvent.click(screen.getByTestId("work-in-search-result"));
-
-    expect(onChange).toHaveBeenCalledWith({
-      serviceId: SERVICE_ID,
-      kind: "WORKTREE",
-      branch: "feature/a",
-      newBranch: false,
-    });
-  });
-
-  it("picks a worktree from the list while the value is still the default", () => {
-    const { onChange } = renderSelect({ value: null });
-    openList();
-    fireEvent.click(screen.getByTestId("work-in-option-worktree"));
-
-    expect(onChange).toHaveBeenCalledWith({
-      serviceId: SERVICE_ID,
-      kind: "WORKTREE",
-      branch: "feature/a",
-      newBranch: false,
-    });
   });
 
   it("resolves the default to the main folder and keeps an explicit choice", () => {

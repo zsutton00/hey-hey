@@ -99,7 +99,6 @@ export const ServicesWorkIn = ({
             value={choices[serviceId] ?? null}
             requireChoice={requireChoice}
             lockedBranch={null}
-            branchQuery={branchQuery}
             searching={places.searching}
             searchError={places.searchError}
             disabled={disabled}

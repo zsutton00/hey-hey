@@ -181,6 +181,18 @@ describe("ServiceDirectoryBindingControl", () => {
     expect(
       screen.getByRole("button", { name: "Link directory" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("retries reading linked directories from Try again in the unreachable message", () => {
+    mocks.localBindings.status = "error";
+    mocks.localBindings.error = new Error("fetch failed");
+
+    render(<ServiceDirectoryBindingControl serviceId="service-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(mocks.localBindings.refetch).toHaveBeenCalledOnce();
   });
 });

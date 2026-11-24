@@ -10,9 +10,6 @@ import ChatOutlined from "@mui/icons-material/ChatOutlined";
 import ListAltOutlined from "@mui/icons-material/ListAltOutlined";
 import ScienceOutlined from "@mui/icons-material/ScienceOutlined";
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -23,8 +20,7 @@ import {
   Radio,
   Skeleton,
   Stack,
-  Switch,
-  FormControlLabel,
+  Link,
   TextField,
   Typography,
 } from "@mui/material";
@@ -394,30 +390,41 @@ const ServiceListEntry = ({
   const rowDisabled = selectionLocked || (!hasPath && !selected);
 
   return (
-    <Stack spacing={0.5} data-testid="coding-service-entry">
-      <ServiceSelectionRow
-        service={service}
-        fallbackDescription={fallbackDescription}
-        selected={selected}
-        disabled={rowDisabled}
-        selectionMode="multiple"
-        testId="coding-service-row"
-        onChange={onToggle}
-      />
+    <Stack
+      direction="row"
+      spacing={1}
+      alignItems="center"
+      useFlexGap
+      sx={{ flexWrap: "wrap" }}
+      data-testid="coding-service-entry"
+    >
+      <Box sx={{ flex: "1 1 260px", minWidth: 0 }}>
+        <ServiceSelectionRow
+          service={service}
+          fallbackDescription={fallbackDescription}
+          selected={selected}
+          disabled={rowDisabled}
+          selectionMode="multiple"
+          testId="coding-service-row"
+          onChange={onToggle}
+        />
+      </Box>
       <Stack
-        direction={{ xs: "column", sm: "row" }}
+        direction="row"
         spacing={1}
-        alignItems={{ sm: "center" }}
-        sx={{ pl: 4.5 }}
+        alignItems="center"
+        sx={{ minWidth: 0, maxWidth: "100%" }}
       >
         {hasPath ? (
           <Typography
             variant="caption"
             component="code"
             color="text.secondary"
+            noWrap
+            title={repositoryPath}
             data-testid="coding-service-path"
             data-service-id={service.id}
-            sx={{ overflowWrap: "anywhere" }}
+            sx={{ maxWidth: 260 }}
           >
             {repositoryPath}
           </Typography>
@@ -432,6 +439,7 @@ const ServiceListEntry = ({
           </Typography>
         )}
         <ServiceDirectoryBindingControl
+          inline
           serviceId={service.id}
           serviceName={service.name}
           machineId={machineId}
@@ -450,7 +458,6 @@ interface WorkInChoicesProps {
   serviceNames: ReadonlyMap<string, string>;
   lockedBranch: string | null;
   servicePlaces: ServicePlacesState;
-  branchQuery: string;
   disabled: boolean;
   sessionChoice: ServicePlaceChoice | null;
   perServiceChoices: Readonly<Record<string, ServicePlaceChoice>> | null;
@@ -466,7 +473,6 @@ const WorkInChoices = ({
   serviceNames,
   lockedBranch,
   servicePlaces,
-  branchQuery,
   disabled,
   sessionChoice,
   perServiceChoices,
@@ -501,7 +507,6 @@ const WorkInChoices = ({
     servicePlaces.status === "ready" ? servicePlaces.searchError : null;
   const sharedProps = {
     lockedBranch,
-    branchQuery,
     searching,
     searchError,
     disabled,
@@ -535,30 +540,20 @@ const WorkInChoices = ({
         />
       )}
       {lockedBranch === null ? (
-        <Accordion
-          variant="outlined"
-          disableGutters
-          data-testid="coding-work-in-advanced"
+        <Link
+          component="button"
+          type="button"
+          variant="body2"
+          underline="hover"
+          disabled={disabled}
+          onClick={() => onTogglePerService(!perService)}
+          data-testid="coding-work-in-per-service-link"
+          sx={{ alignSelf: "flex-start" }}
         >
-          <AccordionSummary>
-            <Typography variant="body2">Advanced</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={perService}
-                  disabled={disabled}
-                  onChange={(event) => onTogglePerService(event.target.checked)}
-                  data-testid="coding-work-in-per-service-toggle"
-                />
-              }
-              label={
-                <Typography variant="body2">Choose per Service</Typography>
-              }
-            />
-          </AccordionDetails>
-        </Accordion>
+          {perService
+            ? "Use one branch or worktree for every Service"
+            : "Use a different branch or worktree per Service"}
+        </Link>
       ) : null}
     </Stack>
   );
@@ -594,7 +589,6 @@ export interface AgentSetupViewProps {
   /** A Plan's branch; when set, Work in shows it and cannot be changed. */
   lockedWorktreeBranch: string | null;
   servicePlaces: ServicePlacesState;
-  branchQuery: string;
   onBranchQueryChange: (query: string) => void;
   /** The one choice for every Service; null is the default (main folder). */
   sessionPlaceChoice: ServicePlaceChoice | null;
@@ -668,7 +662,6 @@ export const AgentSetupView = ({
   repositoryPaths,
   lockedWorktreeBranch,
   servicePlaces,
-  branchQuery,
   onBranchQueryChange,
   sessionPlaceChoice,
   perServicePlaceChoices,
@@ -1072,7 +1065,6 @@ export const AgentSetupView = ({
                     serviceNames={serviceNames}
                     lockedBranch={lockedWorktreeBranch}
                     servicePlaces={servicePlaces}
-                    branchQuery={branchQuery}
                     disabled={submittingPrompt}
                     sessionChoice={sessionPlaceChoice}
                     perServiceChoices={perServicePlaceChoices}
