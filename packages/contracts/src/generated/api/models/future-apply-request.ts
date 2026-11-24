@@ -31,6 +31,12 @@ export interface FutureApplyRequest {
      */
     'expectedRevision': number;
     /**
+     * Live basis version from the reviewed reconciliation preview. Required when Apply would merge a future with intervening changes.
+     * @type {string}
+     * @memberof FutureApplyRequest
+     */
+    'reviewedBasisVersion'?: string;
+    /**
      *
      * @type {FutureApplyConfirmation}
      * @memberof FutureApplyRequest

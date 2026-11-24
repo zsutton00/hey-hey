@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import type {
   FutureApplicability,
   FutureApplyResponse,
@@ -111,6 +112,77 @@ beforeEach(() => {
 });
 
 describe("manual future application", () => {
+  it("refreshes a stale preview and only sends its new basis on another explicit Apply", async () => {
+    api.apply
+      .mockResolvedValueOnce(
+        respond({ status: "BLOCKED", future, blocker: "REVIEW_CHANGED" }),
+      )
+      .mockResolvedValueOnce(
+        respond({
+          status: "APPLIED",
+          future: { ...future, outcome: "APPLIED" },
+        }),
+      );
+    function ReviewedApplication() {
+      const [version, setVersion] = useState("reviewed");
+      return (
+        <ProposalReconciliationContext.Provider
+          value={{
+            approvalDisabled: false,
+            future: true,
+            staged: false,
+            standaloneUpdate: false,
+            submit: vi.fn(),
+            state: {
+              status: "CURRENT",
+              futureRevision: future.revision,
+              currentBases: [
+                {
+                  entityType: "TASK",
+                  entityId: future.targetEntityId,
+                  version,
+                  content: {},
+                },
+              ],
+              revisions: [],
+              conflictingPaths: [],
+              interveningProposals: [],
+              overlaps: [],
+            },
+          }}
+        >
+          <FutureApplication
+            future={future}
+            onApplied={onApplied}
+            onRefresh={async () => setVersion("refreshed")}
+          />
+        </ProposalReconciliationContext.Provider>
+      );
+    }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ReviewedApplication />
+      </QueryClientProvider>,
+    );
+
+    await start();
+    expect(
+      await screen.findByText(/Review the refreshed preview/),
+    ).toBeVisible();
+    expect(api.apply).toHaveBeenCalledTimes(1);
+    expect(api.apply.mock.lastCall?.[0].futureApplyRequest).toEqual({
+      expectedRevision: future.revision,
+      reviewedBasisVersion: "reviewed",
+    });
+
+    await start();
+    expect(await screen.findByText("✓ Applied")).toBeVisible();
+    expect(api.apply.mock.lastCall?.[0].futureApplyRequest).toEqual({
+      expectedRevision: future.revision,
+      reviewedBasisVersion: "refreshed",
+    });
+  });
+
   it("shows readiness without applying an eligible future automatically", async () => {
     mount();
     await screen.findByText(

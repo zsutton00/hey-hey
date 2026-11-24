@@ -7116,6 +7116,10 @@ export const futureApplyRequestSchema = {
       "minimum": 1,
       "description": "Approved future revision the user chose to apply."
     },
+    "reviewedBasisVersion": {
+      "type": "string",
+      "description": "Live basis version from the reviewed reconciliation preview. Required when Apply would merge a future with intervening changes."
+    },
     "confirmation": {
       "type": "object",
       "additionalProperties": false,

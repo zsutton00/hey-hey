@@ -812,7 +812,22 @@ export class ProposalApprovalService {
         }
         const baselineBlocker = existingIntent
           ? undefined
-          : await futureBaselineBlocker(db, future, this.reconciliation);
+          : await futureBaselineBlocker(
+              db,
+              future,
+              this.reconciliation,
+              request,
+            );
+        if (baselineBlocker === 'REVIEW_CHANGED') {
+          this.logger.warn(
+            'Future application blocked because its live basis was stale or missing',
+            {
+              futureId,
+              proposalId: proposal.id,
+              blocker: baselineBlocker,
+            },
+          );
+        }
         if (baselineBlocker) return blocked(baselineBlocker);
         await tx.$queryRaw`SELECT id FROM proposals WHERE organization_id = ${organizationId} AND project_id = ${projectId} AND action = 'VERSIONED_UPDATE' AND status = 'DRAFT' AND updates->>'futureId' = ${futureId} ORDER BY id FOR UPDATE`;
         const confirmation = await readFutureApplyConfirmation(db, future);

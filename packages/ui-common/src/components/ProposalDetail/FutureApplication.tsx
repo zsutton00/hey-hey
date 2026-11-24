@@ -46,6 +46,8 @@ const blockerLabels = {
   APPLIED: "This future has been applied.",
   REVISION_CHANGED:
     "The approved version changed. Review the current version before applying.",
+  REVIEW_CHANGED:
+    "Current content changed after review. Review the refreshed preview and choose Apply again.",
 } as const;
 
 function reviewedRefinementsOf(updates: unknown): string[] | undefined {
@@ -86,8 +88,10 @@ export function FutureApplication({
   const reconciliation = useContext(ProposalReconciliationContext);
   const { organizationId, projectId, id: futureId } = future;
   const [response, setResponse] = useState<FutureApplyResponse | null>(null);
-  const [confirmation, setConfirmation] =
-    useState<FutureApplyConfirmation | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    details: FutureApplyConfirmation;
+    basisVersion?: string;
+  } | null>(null);
   const [invalidated, setInvalidated] = useState<string[]>([]);
   const apply = useApplyProposalFuture();
   const cancel = useCancelProposalFuture();
@@ -114,7 +118,17 @@ export function FutureApplication({
     },
     staleTime: 0,
   });
-  const submit = async (confirmed?: FutureApplyConfirmation) => {
+  const reviewState = reconciliation?.state;
+  const reviewedBasisVersion =
+    reviewState?.futureRevision === future.revision
+      ? reviewState.currentBases.find(
+          (basis) => basis.entityId === future.targetEntityId,
+        )?.version
+      : undefined;
+  const submit = async (confirmed?: NonNullable<typeof confirmation>) => {
+    const basisVersion = confirmed
+      ? confirmed.basisVersion
+      : reviewedBasisVersion;
     setConfirmation(null);
     let appliedSuccessfully = false;
     try {
@@ -123,16 +137,17 @@ export function FutureApplication({
         projectId,
         futureId,
         futureApplyRequest: {
-          expectedRevision: confirmed?.revision ?? future.revision,
-          ...(confirmed ? { confirmation: confirmed } : {}),
+          expectedRevision: confirmed?.details.revision ?? future.revision,
+          ...(basisVersion ? { reviewedBasisVersion: basisVersion } : {}),
+          ...(confirmed ? { confirmation: confirmed.details } : {}),
         },
       });
       setResponse(result);
-      if (result.status === "CONFIRMATION_REQUIRED")
-        setConfirmation(result.confirmation ?? null);
+      if (result.status === "CONFIRMATION_REQUIRED" && result.confirmation)
+        setConfirmation({ details: result.confirmation, basisVersion });
       if (result.status === "APPLIED") {
         setInvalidated(
-          confirmed?.refinements.map((item) => item.proposalId) ?? [],
+          confirmed?.details.refinements.map((item) => item.proposalId) ?? [],
         );
         await onApplied();
         appliedSuccessfully = true;
@@ -207,7 +222,10 @@ export function FutureApplication({
     response?.status === "APPLIED" || future.outcome === "APPLIED";
   const ready =
     applicability.data?.canApply &&
-    applicability.data.revision === future.revision;
+    applicability.data.revision === future.revision &&
+    (reviewState?.futureRevision === undefined ||
+      reviewState.futureRevision === future.revision) &&
+    !reconciliation?.approvalDisabled;
   const stepped = approveStep !== undefined;
   const refresh = !applied && !ready && (
     <Button
@@ -456,8 +474,10 @@ export function FutureApplication({
         </DialogTitle>
         <DialogContent>
           <Stack spacing={1}>
-            <Typography>Approved version {confirmation?.revision}</Typography>
-            {confirmation?.refinements.map((item) => (
+            <Typography>
+              Approved version {confirmation?.details.revision}
+            </Typography>
+            {confirmation?.details.refinements.map((item) => (
               <Stack key={item.proposalId}>
                 <FutureProposalLink
                   {...{ organizationId, projectId }}

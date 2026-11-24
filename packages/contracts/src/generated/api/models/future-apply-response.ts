@@ -73,17 +73,20 @@ export const FutureApplyResponseBlockerEnum = {
     CompletionIncomplete: 'COMPLETION_INCOMPLETE',
     BaselineChanged: 'BASELINE_CHANGED',
     BaselineUnavailable: 'BASELINE_UNAVAILABLE',
+    ReviewChanged: 'REVIEW_CHANGED',
     Cancelled: 'CANCELLED',
     "REVISION_CHANGED": "REVISION_CHANGED",
     "COMPLETION_INCOMPLETE": "COMPLETION_INCOMPLETE",
     "BASELINE_CHANGED": "BASELINE_CHANGED",
     "BASELINE_UNAVAILABLE": "BASELINE_UNAVAILABLE",
+    "REVIEW_CHANGED": "REVIEW_CHANGED",
     "CANCELLED": "CANCELLED",
 } as const;
 Object.defineProperty(FutureApplyResponseBlockerEnum, "REVISION_CHANGED", { enumerable: false, value: FutureApplyResponseBlockerEnum["RevisionChanged"] });
 Object.defineProperty(FutureApplyResponseBlockerEnum, "COMPLETION_INCOMPLETE", { enumerable: false, value: FutureApplyResponseBlockerEnum["CompletionIncomplete"] });
 Object.defineProperty(FutureApplyResponseBlockerEnum, "BASELINE_CHANGED", { enumerable: false, value: FutureApplyResponseBlockerEnum["BaselineChanged"] });
 Object.defineProperty(FutureApplyResponseBlockerEnum, "BASELINE_UNAVAILABLE", { enumerable: false, value: FutureApplyResponseBlockerEnum["BaselineUnavailable"] });
+Object.defineProperty(FutureApplyResponseBlockerEnum, "REVIEW_CHANGED", { enumerable: false, value: FutureApplyResponseBlockerEnum["ReviewChanged"] });
 Object.defineProperty(FutureApplyResponseBlockerEnum, "CANCELLED", { enumerable: false, value: FutureApplyResponseBlockerEnum["Cancelled"] });
 
 export type FutureApplyResponseBlockerEnum = typeof FutureApplyResponseBlockerEnum[keyof typeof FutureApplyResponseBlockerEnum];
