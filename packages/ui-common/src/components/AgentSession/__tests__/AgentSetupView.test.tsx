@@ -138,7 +138,6 @@ const buildProps = (
   },
   lockedWorktreeBranch: null,
   servicePlaces: READY_PLACES,
-  branchQuery: "",
   onBranchQueryChange: vi.fn(),
   sessionPlaceChoice: null,
   perServicePlaceChoices: null,
@@ -608,12 +607,12 @@ describe("AgentSetupView", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Work in")).toBeDisabled();
-    expect(screen.getByLabelText("Work in")).toHaveValue(
+    expect(screen.getByLabelText("Branch or worktree")).toBeDisabled();
+    expect(screen.getByLabelText("Branch or worktree")).toHaveValue(
       "Plan branch: plan/shared-worktree",
     );
     expect(
-      screen.queryByTestId("coding-work-in-per-service-toggle"),
+      screen.queryByTestId("coding-work-in-per-service-link"),
     ).not.toBeInTheDocument();
   });
 
@@ -621,8 +620,8 @@ describe("AgentSetupView", () => {
     render(<AgentSetupView {...buildProps()} />);
 
     expect(screen.getAllByTestId("work-in")).toHaveLength(1);
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
-      "Current: dev (main folder)",
+    expect(screen.getByTestId("work-in-select")).toHaveValue(
+      "dev · main folder",
     );
     expect(
       screen.queryByRole("switch", { name: "Enable worktree" }),
@@ -650,14 +649,13 @@ describe("AgentSetupView", () => {
     ]);
   });
 
-  it("turns on per-Service choices from Advanced", async () => {
+  it("turns on per-Service choices from the link under the field", async () => {
     const user = userEvent.setup();
     const onTogglePerServicePlaces = vi.fn();
     render(<AgentSetupView {...buildProps({ onTogglePerServicePlaces })} />);
 
-    await user.click(screen.getByText("Advanced"));
     await user.click(
-      screen.getByRole("switch", { name: "Choose per Service" }),
+      screen.getByText("Use a different branch or worktree per Service"),
     );
 
     expect(onTogglePerServicePlaces).toHaveBeenCalledWith(true);

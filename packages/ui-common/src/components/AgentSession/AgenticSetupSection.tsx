@@ -215,7 +215,6 @@ export const AgenticSetupSection = ({
         repositoryPaths={setup.repositoryPaths}
         lockedWorktreeBranch={setup.lockedWorktreeBranch}
         servicePlaces={setup.servicePlaces}
-        branchQuery={setup.branchQuery}
         onBranchQueryChange={setup.setBranchQuery}
         sessionPlaceChoice={setup.sessionPlaceChoice}
         perServicePlaceChoices={setup.perServicePlaceChoices}

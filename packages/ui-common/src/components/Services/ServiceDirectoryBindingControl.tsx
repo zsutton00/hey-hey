@@ -33,6 +33,11 @@ export interface ServiceDirectoryBindingControlProps {
   showPath?: boolean;
   /** Button text while no directory is linked. */
   unboundLabel?: string;
+  /**
+   * Renders just a link-style directory action, for a Service listed on one
+   * line. The default is the stacked layout with the path and an outlined button.
+   */
+  inline?: boolean;
   onLinked?: (binding: ServiceRepoBinding) => void;
 }
 
@@ -48,6 +53,7 @@ export const ServiceDirectoryBindingControl = ({
   isBound,
   showPath = true,
   unboundLabel = "Link directory",
+  inline = false,
   onLinked,
 }: ServiceDirectoryBindingControlProps) => {
   const theme = useTheme();
@@ -102,7 +108,7 @@ export const ServiceDirectoryBindingControl = ({
       );
       await refetch().catch(() => {
         setNotice(
-          "Directory linked, but the local binding list could not be refreshed. Use Refresh to retry.",
+          "Directory linked, but the local binding list could not be refreshed.",
         );
       });
       onLinked?.(binding);
@@ -148,11 +154,28 @@ export const ServiceDirectoryBindingControl = ({
   }
 
   return (
-    <Stack spacing={1.5} data-testid="service-directory-binding-control">
+    <Stack
+      spacing={inline ? 0.5 : 1.5}
+      data-testid="service-directory-binding-control"
+    >
       {localBindings.status === "error" ? (
-        <Alert severity="warning">
+        <Alert
+          severity="warning"
+          data-testid="service-directory-binding-unreachable"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => void refresh()}
+              disabled={isLinking}
+              data-testid="service-directory-binding-try-again"
+            >
+              Try again
+            </Button>
+          }
+        >
           Could not reach the local CLI on this computer. Make sure it is
-          running, then link a directory or Refresh.
+          running, then try again or link a directory.
         </Alert>
       ) : null}
       {showPath && localBindings.status !== "error" ? (
@@ -181,8 +204,9 @@ export const ServiceDirectoryBindingControl = ({
           alignItems={{ xs: "flex-start", sm: "center" }}
         >
           <Button
-            variant="outlined"
-            startIcon={<LinkIcon />}
+            variant={inline ? "text" : "outlined"}
+            size={inline ? "small" : "medium"}
+            startIcon={inline ? undefined : <LinkIcon />}
             onClick={() => void linkDirectory()}
             disabled={isLinking}
             sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
@@ -194,14 +218,6 @@ export const ServiceDirectoryBindingControl = ({
               : hasBinding
                 ? "Update directory"
                 : unboundLabel}
-          </Button>
-          <Button
-            variant="text"
-            onClick={() => void refresh()}
-            disabled={isLinking}
-            sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
-          >
-            Refresh
           </Button>
         </Stack>
       </Box>

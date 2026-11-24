@@ -1,31 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
-  FormControl,
-  InputLabel,
-  List,
-  ListItemButton,
-  ListItemText,
-  ListSubheader,
-  MenuItem,
-  Select,
   Stack,
   TextField,
   Typography,
-  type SelectChangeEvent,
 } from "@mui/material";
 import type { ServicePlaceChoice } from "../../api";
+import {
+  MAIN_FOLDER_OPTION_KEY,
+  branchOptionKey,
+  buildPlaceOptions,
+  type PlaceOption,
+} from "./runtime/hooks/placeOptions";
 import type { ServicePlacesEntry } from "./runtime/hooks/useServicePlaces";
 
 type ReadyEntry = Extract<ServicePlacesEntry, { status: "ready" }>;
 
 /**
- * One shared Work in list for every launch surface. `value: null` means the
- * default (the main folder as it is). Callers building the launch request must
- * map each Service's value with `resolveChoice` (./resolveChoice) so the default becomes an
- * explicit MAIN_FOLDER choice.
+ * One shared Branch or worktree field for every launch surface. `value: null`
+ * means the default (the main folder as it is). Callers building the launch
+ * request must map each Service's value with `resolveChoice` (./resolveChoice)
+ * so the default becomes an explicit MAIN_FOLDER choice.
  */
 export interface WorkInSelectProps {
   serviceId: string;
@@ -34,30 +32,24 @@ export interface WorkInSelectProps {
   /** The current choice. Null means the default: the main folder as it is. */
   value: ServicePlaceChoice | null;
   /**
-   * True when nothing may be assumed for this Service: with no value the list
+   * True when nothing may be assumed for this Service: with no value the field
    * asks for a choice instead of showing the main folder.
    */
   requireChoice?: boolean;
-  /** A Plan's branch. When set it replaces the list and cannot be changed. */
+  /** A Plan's branch. When set it replaces the field and cannot be changed. */
   lockedBranch: string | null;
-  branchQuery: string;
   searching: boolean;
   /** Message from a failed branch search, or null. */
   searchError: string | null;
   disabled: boolean;
+  /** Receives the typed text so the caller can search branches while typing. */
   onBranchQueryChange: (query: string) => void;
   onChange: (choice: ServicePlaceChoice) => void;
 }
 
-type Mode = "list" | "search" | "new";
-
-const KEY_CURRENT = "current";
-const KEY_OTHER = "other";
-const KEY_NEW = "new";
-const KEY_CONFLICT = "conflict";
-const worktreeKey = (branch: string) => `worktree:${branch}`;
-const recentKey = (branch: string) => `recent:${branch}`;
-const pickedKey = (branch: string) => `picked:${branch}`;
+const FIELD_WIDTH = 280;
+const MENU_WIDTH = 340;
+const LABEL = "Branch or worktree";
 
 /**
  * A worktree on the branch the main folder has checked out. Git cannot make
@@ -69,9 +61,6 @@ export const conflictsWithMainFolder = (
   value: ServicePlaceChoice | null,
 ): boolean =>
   value?.kind === "WORKTREE" && value.branch === entry.mainFolder.branch;
-
-const currentLabel = (entry: ReadyEntry): string =>
-  `Current: ${entry.mainFolder.branch ?? "detached"} (main folder)`;
 
 const hasWorktree = (entry: ReadyEntry, branch: string): boolean =>
   entry.worktrees.some((worktree) => worktree.branch === branch);
@@ -89,44 +78,53 @@ const choiceForBranch = (
     ? { serviceId, kind: "MAIN_FOLDER" }
     : { serviceId, kind: "WORKTREE", branch, newBranch: false };
 
-const selectedKeyFor = (
-  entry: ReadyEntry,
-  value: ServicePlaceChoice | null,
-): string => {
-  if (value === null || value.kind === "MAIN_FOLDER") {
-    return KEY_CURRENT;
-  }
-  if (conflictsWithMainFolder(entry, value)) {
-    return KEY_CONFLICT;
-  }
-  if (value.newBranch) {
-    return KEY_NEW;
+const optionBranchLabel = (option: PlaceOption): string => {
+  if (option.kind === "place") {
+    return option.branch ?? "detached";
   }
 
-  if (hasWorktree(entry, value.branch)) {
-    return worktreeKey(value.branch);
-  }
-
-  return entry.recentBranches.some((recent) => recent.branch === value.branch)
-    ? recentKey(value.branch)
-    : pickedKey(value.branch);
+  return option.kind === "notice" ? option.text : "";
 };
 
-const selectedLabelFor = (
+/** The text shown in the field for a picked place, e.g. "dev · main folder". */
+const selectedText = (
   entry: ReadyEntry,
   value: ServicePlaceChoice | null,
 ): string => {
-  if (value === null || selectedKeyFor(entry, value) === KEY_CURRENT) {
-    return currentLabel(entry);
+  const mainBranch = entry.mainFolder.branch ?? "detached";
+  if (value === null || value.kind === "MAIN_FOLDER") {
+    return `${mainBranch} · main folder`;
   }
-  if (value.kind === "WORKTREE" && conflictsWithMainFolder(entry, value)) {
-    return `${value.branch} (new worktree)`;
-  }
-  if (value.kind === "WORKTREE" && value.newBranch) {
-    return `New worktree: ${value.branch}`;
+  const isExisting =
+    !value.newBranch &&
+    hasWorktree(entry, value.branch) &&
+    value.branch !== entry.mainFolder.branch;
+
+  return `${value.branch} · ${isExisting ? "worktree" : "new worktree"}`;
+};
+
+/** The option that stands for the current value, when the menu may not list it. */
+const optionForValue = (
+  entry: ReadyEntry,
+  value: ServicePlaceChoice | null,
+): PlaceOption => {
+  if (value === null || value.kind === "MAIN_FOLDER") {
+    return {
+      kind: "place",
+      key: MAIN_FOLDER_OPTION_KEY,
+      group: "Recent",
+      branch: entry.mainFolder.branch,
+      tag: "main folder",
+    };
   }
 
-  return value.kind === "WORKTREE" ? value.branch : currentLabel(entry);
+  return {
+    kind: "place",
+    key: branchOptionKey(value.branch),
+    group: "Recent",
+    branch: value.branch,
+    tag: hasWorktree(entry, value.branch) ? "worktree" : "new worktree",
+  };
 };
 
 export const WorkInSelect = ({
@@ -135,26 +133,39 @@ export const WorkInSelect = ({
   value,
   requireChoice = false,
   lockedBranch,
-  branchQuery,
   searching,
   searchError,
   disabled,
   onBranchQueryChange,
   onChange,
 }: WorkInSelectProps) => {
-  const [mode, setMode] = useState<Mode>("list");
+  const [typed, setTyped] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const readyEntry = entry.status === "ready" ? entry : null;
+
+  const menuOptions = useMemo(
+    () =>
+      readyEntry === null
+        ? []
+        : buildPlaceOptions({
+            entry: readyEntry,
+            query: typed ?? "",
+            searchError,
+          }),
+    [readyEntry, typed, searchError],
+  );
 
   if (lockedBranch !== null) {
     return (
       <TextField
         size="small"
-        fullWidth
         disabled
-        label="Work in"
+        label={LABEL}
         value={`Plan branch: ${lockedBranch}`}
         data-testid="work-in-locked"
         data-service-id={serviceId}
+        sx={{ width: FIELD_WIDTH, maxWidth: "100%" }}
       />
     );
   }
@@ -172,199 +183,222 @@ export const WorkInSelect = ({
   }
 
   const unchosen = requireChoice && value === null;
-  const selectedKey = unchosen ? "" : selectedKeyFor(entry, value);
   const conflict = conflictsWithMainFolder(entry, value);
   const pickedNewBranchNote =
     value?.kind === "WORKTREE" &&
     !value.newBranch &&
     isUncheckedOut(entry, value.branch);
+  const mainBranch = entry.mainFolder.branch;
 
-  const handleSelect = (event: SelectChangeEvent<string>): void => {
-    const key = event.target.value;
+  // The picked place may not be in the menu (a typed-only branch, a created
+  // worktree); it is added so the field always has a valid value, and is kept
+  // out of what the menu shows.
+  const selected = unchosen ? null : optionForValue(entry, value);
+  const selectedMissing =
+    selected !== null && !menuOptions.some((o) => o.key === selected.key);
+  const allOptions =
+    selected !== null && selectedMissing
+      ? [...menuOptions, selected]
+      : menuOptions;
+  const selectedOption =
+    selected === null
+      ? null
+      : (allOptions.find((o) => o.key === selected.key) ?? selected);
+  const inputText = typed ?? (unchosen ? "" : selectedText(entry, value));
 
-    if (key === KEY_OTHER) {
-      setMode("search");
+  const pick = (option: PlaceOption | null): void => {
+    if (option === null || option.kind !== "place") {
       return;
     }
-    if (key === KEY_NEW) {
-      setNewBranchName("");
-      setMode("new");
-      return;
-    }
-
-    setMode("list");
-    if (key === KEY_CURRENT) {
+    setCreating(false);
+    setTyped(null);
+    onBranchQueryChange("");
+    if (option.key === MAIN_FOLDER_OPTION_KEY || option.branch === null) {
       onChange({ serviceId, kind: "MAIN_FOLDER" });
       return;
     }
-
-    const branch = key.slice(key.indexOf(":") + 1);
-    onChange(choiceForBranch(serviceId, entry, branch));
-  };
-
-  const pickSearchMatch = (branch: string): void => {
-    setMode("list");
-    onBranchQueryChange("");
-    onChange(choiceForBranch(serviceId, entry, branch));
+    onChange(choiceForBranch(serviceId, entry, option.branch));
   };
 
   const createWorktree = (): void => {
-    const branch = newBranchName.trim();
-    setMode("list");
-    onChange({ serviceId, kind: "WORKTREE", branch, newBranch: true });
+    setCreating(false);
+    onChange({
+      serviceId,
+      kind: "WORKTREE",
+      branch: newBranchName.trim(),
+      newBranch: true,
+    });
   };
 
-  const labelId = `work-in-label-${serviceId}`;
+  const noOptionsText =
+    searchError !== null
+      ? "Branch search failed"
+      : searching
+        ? "Searching…"
+        : "No matching branches.";
 
   return (
     <Stack spacing={1} data-testid="work-in" data-service-id={serviceId}>
-      <FormControl size="small" fullWidth disabled={disabled}>
-        <InputLabel id={labelId}>Work in</InputLabel>
-        <Select
-          labelId={labelId}
-          label="Work in"
-          value={selectedKey}
-          onChange={handleSelect}
-          displayEmpty
-          renderValue={() =>
-            unchosen ? "Choose where to work" : selectedLabelFor(entry, value)
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="flex-start"
+        useFlexGap
+        sx={{ flexWrap: "wrap" }}
+      >
+        <Autocomplete<PlaceOption>
+          size="small"
+          disabled={disabled}
+          options={allOptions}
+          value={selectedOption}
+          inputValue={inputText}
+          filterOptions={(options) =>
+            options.filter((o) => !selectedMissing || o !== selected)
           }
-          data-testid="work-in-select"
+          isOptionEqualToValue={(a, b) => a.key === b.key}
+          getOptionKey={(option) => option.key}
+          getOptionLabel={(option) =>
+            option.kind === "place"
+              ? selectedText(entry, choiceFor(option, serviceId, entry))
+              : optionBranchLabel(option)
+          }
+          getOptionDisabled={(option) => option.kind !== "place"}
+          groupBy={(option) => option.group}
+          noOptionsText={noOptionsText}
+          clearIcon={null}
+          onChange={(_event, option) => pick(option)}
+          onInputChange={(_event, text, reason) => {
+            // "reset" only echoes the value's label back; the field shows it
+            // whenever nothing is being typed.
+            if (reason === "input") {
+              setTyped(text);
+              onBranchQueryChange(text);
+            }
+          }}
+          onClose={() => {
+            setTyped(null);
+            onBranchQueryChange("");
+          }}
+          selectOnFocus
+          renderOption={(props, option) => {
+            const { key, ...rest } = props as typeof props & { key: string };
+            if (option.kind === "detached") {
+              return (
+                <li
+                  key={key}
+                  {...rest}
+                  data-testid="work-in-option-detached-worktree"
+                >
+                  <Typography variant="body2" color="text.disabled">
+                    Detached worktree · no branch to choose
+                  </Typography>
+                </li>
+              );
+            }
+            if (option.kind === "notice") {
+              return (
+                <li
+                  key={key}
+                  {...rest}
+                  data-testid={
+                    option.key === "search-error"
+                      ? "work-in-search-error"
+                      : "work-in-search-note"
+                  }
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {option.text}
+                  </Typography>
+                </li>
+              );
+            }
+
+            return (
+              <li
+                key={key}
+                {...rest}
+                data-testid="work-in-option"
+                data-branch={option.branch ?? ""}
+                data-tag={option.tag}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  justifyContent="space-between"
+                  sx={{ width: "100%", minWidth: 0 }}
+                >
+                  <Typography variant="body2" noWrap>
+                    {option.branch ?? "detached"}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ flexShrink: 0 }}
+                  >
+                    {option.tag}
+                  </Typography>
+                </Stack>
+              </li>
+            );
+          }}
+          slotProps={{
+            paper: { sx: { width: MENU_WIDTH, maxWidth: "90vw" } },
+            listbox: { sx: { maxHeight: 280 } },
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={LABEL}
+              placeholder={unchosen ? "Choose where to work" : undefined}
+              helperText="Uses the main folder's current branch, or a separate worktree. Type to search."
+              slotProps={{
+                input: params.InputProps,
+                htmlInput: {
+                  ...params.inputProps,
+                  "data-testid": "work-in-select",
+                },
+              }}
+            />
+          )}
+          sx={{ width: FIELD_WIDTH, maxWidth: "100%" }}
+        />
+        <Button
+          variant="outlined"
+          disabled={disabled}
+          onClick={() => {
+            setNewBranchName("");
+            setCreating(true);
+          }}
+          data-testid="work-in-new-worktree-button"
+          sx={{ whiteSpace: "nowrap", height: 40, flexShrink: 0 }}
         >
-          <ListSubheader>Current</ListSubheader>
-          <MenuItem value={KEY_CURRENT} data-testid="work-in-option-current">
-            {currentLabel(entry)}
-          </MenuItem>
+          New worktree
+        </Button>
+      </Stack>
 
-          {entry.worktrees.length > 0 ? (
-            <ListSubheader>Worktrees</ListSubheader>
-          ) : null}
-          {entry.worktrees.map((worktree) =>
-            worktree.branch === null ? (
-              <MenuItem
-                key={worktree.worktreePath}
-                value={worktree.worktreePath}
-                disabled
-                data-testid="work-in-option-detached-worktree"
-              >
-                Detached worktree (no branch to choose)
-              </MenuItem>
-            ) : (
-              <MenuItem
-                key={worktree.worktreePath}
-                value={worktreeKey(worktree.branch)}
-                data-testid="work-in-option-worktree"
-              >
-                {worktree.branch}
-              </MenuItem>
-            ),
-          )}
-
-          {entry.recentBranches.length > 0 ? (
-            <ListSubheader>Recently used here</ListSubheader>
-          ) : null}
-          {entry.recentBranches.map((recent) => (
-            <MenuItem
-              key={recent.branch}
-              value={recentKey(recent.branch)}
-              data-testid="work-in-option-recent"
-            >
-              {isUncheckedOut(entry, recent.branch)
-                ? `${recent.branch} (no worktree)`
-                : recent.branch}
-            </MenuItem>
-          ))}
-
-          {selectedKey.startsWith("picked:") || conflict ? (
-            // Keeps a branch picked from search a valid Select value.
-            <MenuItem value={selectedKey} sx={{ display: "none" }}>
-              {selectedLabelFor(entry, value)}
-            </MenuItem>
-          ) : null}
-
-          <MenuItem value={KEY_OTHER} data-testid="work-in-option-other">
-            Other branch…
-          </MenuItem>
-          <MenuItem value={KEY_NEW} data-testid="work-in-option-new">
-            New worktree…
-          </MenuItem>
-        </Select>
-      </FormControl>
-
-      {mode === "search" ? (
-        <Box data-testid="work-in-search">
-          <TextField
-            size="small"
-            fullWidth
-            autoFocus
-            label="Search branches"
-            value={branchQuery}
-            onChange={(event) => onBranchQueryChange(event.target.value)}
-            data-testid="work-in-search-input"
-          />
-          {branchQuery.trim() === "" ? null : (
-            <List dense data-testid="work-in-search-results">
-              {entry.branchMatches.map((branch) => (
-                <ListItemButton
-                  key={branch}
-                  onClick={() => pickSearchMatch(branch)}
-                  data-testid="work-in-search-result"
-                >
-                  <ListItemText
-                    primary={branch}
-                    secondary={
-                      isUncheckedOut(entry, branch) ? "No worktree" : undefined
-                    }
-                  />
-                </ListItemButton>
-              ))}
-              {searchError !== null ? (
-                <Typography
-                  variant="body2"
-                  color="error"
-                  data-testid="work-in-search-error"
-                >
-                  Branch search failed
-                </Typography>
-              ) : null}
-              {entry.branchMatches.length === 0 &&
-              !searching &&
-              searchError === null ? (
-                <Typography variant="body2" color="text.secondary">
-                  No matching branches.
-                </Typography>
-              ) : null}
-              {entry.branchMatchesTruncated ? (
-                <Typography variant="caption" color="text.secondary">
-                  More branches match. Keep typing to narrow them.
-                </Typography>
-              ) : null}
-            </List>
-          )}
-        </Box>
-      ) : null}
-
-      {mode === "new" ? (
+      {creating ? (
         <Stack spacing={1} data-testid="work-in-new">
           <TextField
             size="small"
-            fullWidth
             autoFocus
             label="New branch name"
             value={newBranchName}
             onChange={(event) => setNewBranchName(event.target.value)}
-            helperText={`Starts from ${entry.mainFolder.branch ?? "the main folder's current commit"}.`}
+            helperText={`Starts from ${mainBranch ?? "the main folder's current commit"}.`}
             data-testid="work-in-new-input"
+            sx={{ width: FIELD_WIDTH, maxWidth: "100%" }}
           />
-          <Button
-            size="small"
-            variant="contained"
-            disabled={newBranchName.trim() === ""}
-            onClick={createWorktree}
-            data-testid="work-in-new-confirm"
-          >
-            Use new worktree
-          </Button>
+          <Box>
+            <Button
+              size="small"
+              variant="contained"
+              disabled={newBranchName.trim() === ""}
+              onClick={createWorktree}
+              data-testid="work-in-new-confirm"
+            >
+              Use new worktree
+            </Button>
+          </Box>
         </Stack>
       ) : null}
 
@@ -376,16 +410,39 @@ export const WorkInSelect = ({
         </Alert>
       ) : null}
 
-      {pickedNewBranchNote ? (
-        <Typography
-          variant="caption"
-          color="text.secondary"
+      {pickedNewBranchNote && value?.kind === "WORKTREE" ? (
+        <Stack
+          spacing={0.5}
+          alignItems="flex-start"
           data-testid="work-in-new-worktree-note"
+          sx={{ maxWidth: MENU_WIDTH }}
         >
-          This branch isn't checked out anywhere, so it opens in its own new
-          worktree. The main folder stays as it is.
-        </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {value.branch} isn't checked out anywhere. It will open in its own
+            new worktree, so your main folder stays on{" "}
+            {mainBranch ?? "its current commit"}.
+          </Typography>
+          <Button
+            size="small"
+            variant="contained"
+            disabled={disabled}
+            onClick={() => onChange(value)}
+            data-testid="work-in-open-as-worktree"
+          >
+            Open as worktree
+          </Button>
+        </Stack>
       ) : null}
     </Stack>
   );
 };
+
+/** The choice an option stands for, used to label it in the field. */
+const choiceFor = (
+  option: Extract<PlaceOption, { kind: "place" }>,
+  serviceId: string,
+  entry: ReadyEntry,
+): ServicePlaceChoice =>
+  option.key === MAIN_FOLDER_OPTION_KEY || option.branch === null
+    ? { serviceId, kind: "MAIN_FOLDER" }
+    : choiceForBranch(serviceId, entry, option.branch);

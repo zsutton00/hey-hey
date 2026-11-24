@@ -108,8 +108,8 @@ describe("AgentServiceScopeRequestField Work in readiness", () => {
     mocks.places.current = readyPlaces("main");
     view.rerender(card());
 
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
-      "feat/launch",
+    expect(screen.getByTestId("work-in-select")).toHaveValue(
+      "feat/launch · new worktree",
     );
     await userEvent.click(screen.getByTestId("agent-service-scope-approve"));
     expect(mocks.submit).toHaveBeenCalledWith(
@@ -121,11 +121,8 @@ describe("AgentServiceScopeRequestField Work in readiness", () => {
     mocks.places.current = readyPlaces("feat/launch");
     render(card());
 
-    expect(screen.getByTestId("work-in-select")).toHaveTextContent(
-      "feat/launch (new worktree)",
-    );
-    expect(screen.getByTestId("work-in-select")).not.toHaveTextContent(
-      "(main folder)",
+    expect(screen.getByTestId("work-in-select")).toHaveValue(
+      "feat/launch · new worktree",
     );
     expect(screen.getByTestId("work-in-conflict")).toBeInTheDocument();
     expect(screen.getByTestId("agent-service-scope-approve")).toBeDisabled();
