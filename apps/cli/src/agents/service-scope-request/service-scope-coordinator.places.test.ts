@@ -59,6 +59,8 @@ const makeHarness = (sessionOverrides: Partial<AgenticSession> = {}) => {
     ),
     pauseForServiceScopeRequest: vi.fn(async () => undefined),
     getServiceScopeRequest: vi.fn(() => pending),
+    isRestoredServiceScopeRequest: vi.fn(() => false),
+    serviceScopeDecisionOwner: vi.fn(() => 'person' as const),
     isServiceScopeRequestSettled: vi.fn(() => false),
     settleServiceScopeRequest: vi.fn(),
     settleServiceScopeApprovalWait: vi.fn(),

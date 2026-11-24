@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import type { ImplementReportEdit } from '@hey-hey/contracts/api/models';
+import {
+  AgentSessionServicePlaceKind,
+  type ImplementReportEdit,
+} from '@hey-hey/contracts/api/models';
 
 const range = z
   .object({ startLine: z.number().int().min(1), endLine: z.number().int().min(1) })
@@ -15,5 +18,19 @@ export const recordedEditSchema = z
     afterRanges: z.array(range),
     approximate: z.boolean(),
     versionsRecorded: z.boolean(),
+    place: z
+      .object({
+        kind: z.nativeEnum(AgentSessionServicePlaceKind),
+        branch: z.string().nullable(),
+        worktreePath: z.string().optional(),
+      })
+      .strict()
+      .transform(({ worktreePath, ...place }) =>
+        worktreePath === undefined ? place : { ...place, worktreePath },
+      )
+      .optional(),
   })
-  .strict() satisfies z.ZodType<ImplementReportEdit>;
+  .strict()
+  .transform(
+    ({ place, ...edit }): ImplementReportEdit => (place === undefined ? edit : { ...edit, place }),
+  );

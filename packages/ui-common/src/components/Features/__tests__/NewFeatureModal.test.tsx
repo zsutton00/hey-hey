@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { FeatureTag, Priority, WorkStatus } from "../../../api";
+import { FeatureTag, Priority } from "../../../api";
 import { FEATURE_TAG_PALETTE } from "../featureTagPalette";
 import { NewFeatureModal } from "../NewFeatureModal";
 
@@ -35,7 +35,7 @@ vi.mock("../../SmarterTextAreaCard/MentionPlugin", () => ({
 function getTagCombobox(container: HTMLElement): HTMLElement {
   const comboboxes = within(container).getAllByRole("combobox");
   const tagCombobox = comboboxes.find(
-    (el) => el.getAttribute("aria-labelledby") !== "priority-select-label"
+    (el) => el.getAttribute("aria-labelledby") !== "priority-select-label",
   );
   if (!tagCombobox) throw new Error("Tag combobox not found");
   return tagCombobox;
@@ -43,13 +43,7 @@ function getTagCombobox(container: HTMLElement): HTMLElement {
 
 describe("NewFeatureModal", () => {
   it("renders the FeatureTagSelector inside the dialog", () => {
-    render(
-      <NewFeatureModal
-        open
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    );
+    render(<NewFeatureModal open onClose={vi.fn()} onSubmit={vi.fn()} />);
 
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText("Untagged")).toBeInTheDocument();
@@ -57,13 +51,7 @@ describe("NewFeatureModal", () => {
   });
 
   it("keeps the create button disabled until a tag is chosen", async () => {
-    render(
-      <NewFeatureModal
-        open
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-      />
-    );
+    render(<NewFeatureModal open onClose={vi.fn()} onSubmit={vi.fn()} />);
 
     const dialog = screen.getByRole("dialog");
     const nameField = within(dialog).getByLabelText("tasks.form.title");
@@ -77,13 +65,7 @@ describe("NewFeatureModal", () => {
 
   it("submits with the chosen tag once name and tag are set", async () => {
     const onSubmit = vi.fn();
-    render(
-      <NewFeatureModal
-        open
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
-      />
-    );
+    render(<NewFeatureModal open onClose={vi.fn()} onSubmit={onSubmit} />);
 
     const dialog = screen.getByRole("dialog");
     const nameField = within(dialog).getByLabelText("tasks.form.title");
@@ -93,7 +75,7 @@ describe("NewFeatureModal", () => {
     await userEvent.click(
       screen.getByRole("option", {
         name: FEATURE_TAG_PALETTE[FeatureTag.Backend].label,
-      })
+      }),
     );
 
     const createButton = within(dialog).getByRole("button", {
@@ -107,7 +89,6 @@ describe("NewFeatureModal", () => {
       name: "My new feature",
       tag: FeatureTag.Backend,
       priority: Priority.Medium,
-      status: WorkStatus.RefiningDescription,
     });
   });
 });

@@ -1,7 +1,9 @@
+import { ThemeProvider } from "@mui/material/styles";
+import type { PropsWithChildren } from "react";
 import {
   act,
   fireEvent,
-  render,
+  render as renderWithTestingLibrary,
   screen,
   waitFor,
   within,
@@ -20,6 +22,7 @@ import {
   type OpenItemsTriagePayload,
   type OpenItemsTriageSuggestion,
 } from "../../api";
+import { createHeyTheme } from "../../contexts/ThemeContext";
 import {
   TriageApplicationCoordinator,
   type TriageApplicationPorts,
@@ -31,6 +34,14 @@ import {
 } from "../Entity/OpenItemIcon";
 import { OpenItemsTriageResults } from "./OpenItemsTriageResults";
 import { latestOpenItemsTriageResult } from "./openItemsTriageResult";
+
+const theme = createHeyTheme("light");
+const render = (element: Parameters<typeof renderWithTestingLibrary>[0]) =>
+  renderWithTestingLibrary(element, {
+    wrapper: ({ children }: PropsWithChildren) => (
+      <ThemeProvider theme={theme}>{children}</ThemeProvider>
+    ),
+  });
 
 const peek = vi.hoisted(() => ({ canHover: true }));
 vi.mock("../../hooks/useCanHover", () => ({

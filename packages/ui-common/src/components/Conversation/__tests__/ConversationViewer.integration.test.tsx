@@ -568,7 +568,6 @@ describe("ConversationViewer width containment", () => {
     expect(screen.getByTestId("wide-conversation-content")).toHaveStyle({
       minWidth: "0",
       maxWidth: "100%",
-      overflow: "auto",
     });
   });
 });

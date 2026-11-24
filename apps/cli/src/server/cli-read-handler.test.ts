@@ -138,6 +138,7 @@ const readBodiesByOperation = {
       afterRanges: [{ startLine: 1, endLine: 3 }],
       approximate: true,
       versionsRecorded: true,
+      place: { kind: 'WORKTREE', branch: 'test', worktreePath: '/tmp/repository' },
     },
   },
   'run.context_usage.get': {
@@ -2006,7 +2007,7 @@ describe('fresh controller approval binds delivered session-read inputs', () => 
         inputs: { kind: 'CLI_READ', body },
       });
       const frame = harness.frame('cli.read.request', body, conversationId);
-      expect(harness.verifier.verifyCliReadFrame(frame).ok).toBe(true);
+      expect(harness.verifier.verifyCliReadFrame(frame)).toMatchObject({ ok: true });
       const handler = createSubject(
         vi.fn().mockRejectedValue(new Error('fixture has no run')),
         verified,
@@ -2123,7 +2124,8 @@ describe('read input field coverage stays aligned with OpenAPI', () => {
       }
       if (node.enum?.length === 1) return;
       let value: string | number | boolean;
-      if (typeof sample === 'number') value = sample + 1;
+      if (node.enum) value = node.enum.find((entry: unknown) => entry !== sample);
+      else if (typeof sample === 'number') value = sample + 1;
       else if (typeof sample === 'boolean') value = !sample;
       else if (node.format === 'uuid') value = randomUUID();
       else if (node.format === 'date-time')

@@ -516,9 +516,13 @@ export const triggerMonitorCommandFrameV2Schema = z
   .strict();
 
 type CliReadOperation = CliReadEnvelopeBody['operation'];
-type ZodCompatibleInput<T> = {
-  [K in keyof T]: {} extends Pick<T, K> ? T[K] | undefined : T[K];
-};
+type ZodCompatibleInput<T> = T extends object
+  ? {
+      [K in keyof T]: {} extends Pick<T, K>
+        ? ZodCompatibleInput<T[K]> | undefined
+        : ZodCompatibleInput<T[K]>;
+    }
+  : T;
 type CliReadBodySchema<TOperation extends CliReadOperation> = z.ZodType<
   unknown,
   z.ZodTypeDef,

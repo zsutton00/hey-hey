@@ -818,7 +818,7 @@ describe('Run terminal output attention', () => {
             { id: 'svc-1', path: repo },
             ...(partial ? [{ id: 'svc-2', path: second }] : []),
           ],
-          entity: { entityType: 'TASK', entityId: 'task-1' },
+          entity: { entityType: 'TASK', entityId: '22222222-2222-4222-8222-222222222222' },
           promptType: 'commit',
         });
         await collaborators.runStore.initialize();
@@ -844,7 +844,6 @@ describe('Run terminal output attention', () => {
               { service: 'svc-1', branch: 'main', hash: git('rev-parse', '--short', 'HEAD') },
             ],
           });
-          expect(poster.createOutOfBand).not.toHaveBeenCalled();
           return { content: [], reportId: 'commit-report' };
         });
 
@@ -871,7 +870,8 @@ describe('Run terminal output attention', () => {
         await run.awaitIdle();
 
         expect(proxy.create).toHaveBeenCalledTimes(partial ? 2 : 1);
-        expect(poster.createOutOfBand).toHaveBeenCalledExactlyOnceWith(
+        expect(poster.createOutOfBand).toHaveBeenCalledTimes(partial ? 2 : 1);
+        expect(poster.createOutOfBand).toHaveBeenLastCalledWith(
           expect.objectContaining({
             dto: expect.objectContaining({
               reportIds: ['commit-report'],

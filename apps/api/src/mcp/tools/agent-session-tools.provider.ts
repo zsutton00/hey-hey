@@ -467,6 +467,10 @@ export class AgentSessionToolsProvider {
     messagesByConversation: Map<string, MessageRow[]>;
     rawRowCount: number;
   }> {
+    if (conversationIds.length === 0) {
+      return { messagesByConversation: new Map(), rawRowCount: 0 };
+    }
+
     const messages = await this.prisma.db.message.findMany({
       where: {
         conversationId: { in: conversationIds },
