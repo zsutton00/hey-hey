@@ -28,11 +28,9 @@ const SERVICE_PLACES_GROUP = "Where each Service works";
 const describePlace = (place: AgentSessionServicePlaceView): string => {
   switch (place.kind) {
     case "worktree":
-      return `worktree ${place.branch}`;
+      return place.branch;
     case "main-folder":
-      return place.branch === null
-        ? "main folder, detached"
-        : `main folder on ${place.branch}`;
+      return place.branch ?? "detached";
     case "not-recorded":
       return "Not recorded";
   }

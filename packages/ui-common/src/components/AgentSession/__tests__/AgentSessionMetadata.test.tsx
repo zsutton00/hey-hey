@@ -81,13 +81,13 @@ describe("AgentSessionMetadata", () => {
       ).toHaveTextContent("fast");
       expect(
         screen.getByTestId("agent-session-metadata-place-worktree"),
-      ).toHaveTextContent("hey-hey: worktree feature-x");
+      ).toHaveTextContent("hey-hey: feature-x");
       expect(
         screen.getByTestId("agent-session-metadata-place-main"),
-      ).toHaveTextContent("demos: main folder on dev");
+      ).toHaveTextContent("demos: dev");
       expect(
         screen.getByTestId("agent-session-metadata-place-detached"),
-      ).toHaveTextContent("docs: main folder, detached");
+      ).toHaveTextContent("docs: detached");
       expect(
         screen.getByTestId("agent-session-metadata-place-not-recorded"),
       ).toHaveTextContent("infra: Not recorded");
@@ -149,9 +149,9 @@ describe("AgentSessionMetadata", () => {
     ).toHaveTextContent("Fast modefast");
     const details = screen.getByTestId("agent-session-metadata-mobile-details");
     expect(details).toHaveTextContent("Where each Service works");
-    expect(details).toHaveTextContent("hey-heyworktree feature-x");
-    expect(details).toHaveTextContent("demosmain folder on dev");
-    expect(details).toHaveTextContent("docsmain folder, detached");
+    expect(details).toHaveTextContent("hey-heyfeature-x");
+    expect(details).toHaveTextContent("demosdev");
+    expect(details).toHaveTextContent("docsdetached");
     expect(details).toHaveTextContent("infraNot recorded");
 
     fireEvent.click(toggle);
