@@ -683,6 +683,67 @@ describe('ReportService', () => {
     );
   });
 
+  it('filters project changes by an opaque place key, binding it as a value', async () => {
+    prisma.db.$queryRaw.mockResolvedValueOnce([]);
+    prisma.db.report.findMany.mockResolvedValue([]);
+
+    await service.listProjectChanges('org-1' as OrganizationId, 'project-1', {
+      placeKey: '["WORKTREE","feature/x","/w"]',
+      limit: 10,
+      offset: 0,
+    });
+
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.values).toContain('["WORKTREE","feature/x","/w"]');
+    expect(query.sql).toContain('jsonb_array_elements');
+  });
+
+  it('lists distinct places with record counts and a not-recorded entry', async () => {
+    prisma.db.$queryRaw
+      .mockResolvedValueOnce([
+        {
+          key: '["MAIN_FOLDER","main",null]',
+          kind: 'MAIN_FOLDER',
+          branch: 'main',
+          worktreePath: null,
+          recordCount: 3n,
+        },
+        {
+          key: '["WORKTREE",null,"/w/change-place"]',
+          kind: 'WORKTREE',
+          branch: null,
+          worktreePath: '/w/change-place',
+          recordCount: 1n,
+        },
+      ])
+      .mockResolvedValueOnce([{ recordCount: 2n }]);
+
+    const result = await service.listProjectChangePlaces(
+      'org-1' as OrganizationId,
+      'project-1',
+      { serviceId: 'service-a' },
+    );
+
+    expect(result.places).toEqual([
+      {
+        key: '["MAIN_FOLDER","main",null]',
+        kind: 'MAIN_FOLDER',
+        branch: 'main',
+        recordCount: 3,
+      },
+      {
+        key: '["WORKTREE",null,"/w/change-place"]',
+        kind: 'WORKTREE',
+        branch: null,
+        worktreePath: '/w/change-place',
+        recordCount: 1,
+      },
+      { key: 'NOT_RECORDED', notRecorded: true, recordCount: 2 },
+    ]);
+    const query = prisma.db.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(query.values).toContain('service-a');
+  });
+
   const buildImplementReport = (overrides: Partial<any> = {}) => ({
     id: 'report-implement-1',
     organizationId: 'org-1',
@@ -1109,6 +1170,11 @@ describe('ReportService', () => {
           beforeRanges: [{ startLine: 2, endLine: 2 }],
           afterRanges: [{ startLine: 2, endLine: 3 }],
           approximate: false,
+          place: {
+            kind: 'WORKTREE',
+            branch: 'feature/change-place',
+            worktreePath: '/work/change-place',
+          },
           versionsRecorded: true,
         },
       ],

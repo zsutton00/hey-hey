@@ -848,6 +848,29 @@ export const controllerActionRuntimeSchema = {
               description:
                 "True when both versions of the edit were recorded, so a null object id means the file did not exist on that side. False when Hey Hey could not keep one or both versions, for example a binary file, a file git could not read, or a failed write to the repository's object store. A null object id then means the version is unknown, the ranges are empty, and the edit is always approximate.\n",
             },
+            place: {
+              type: 'object',
+              description:
+                'Where the edit was made: the branch checked out, and the worktree if any, in the folder the edit ran in, read when the edit was recorded. When an edit has no `place`, its place was not recorded (older records, or git could not be read) and readers must show it as not recorded, never guess it from the session.\n',
+              required: ['kind', 'branch'],
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['MAIN_FOLDER', 'WORKTREE'],
+                  description: 'Whether a Service works in its main folder or in a worktree.',
+                },
+                branch: {
+                  type: ['string', 'null'],
+                  description:
+                    'Branch checked out when the edit was recorded. Null means detached.',
+                },
+                worktreePath: {
+                  type: 'string',
+                  description:
+                    'Top-level folder of the worktree. Present for WORKTREE, absent for MAIN_FOLDER.',
+                },
+              },
+            },
           },
         },
         authorization: {

@@ -1640,6 +1640,30 @@ ImplementReportEdit:
         not read, or a failed write to the repository's object store. A null
         object id then means the version is unknown, the ranges are empty, and
         the edit is always approximate.
+    place:
+      $ref: "#/ImplementReportEditPlace"
+
+ImplementReportEditPlace:
+  type: object
+  description: >
+    Where the edit was made: the branch checked out, and the worktree if any,
+    in the folder the edit ran in, read when the edit was recorded. When an
+    edit has no `place`, its place was not recorded (older records, or git
+    could not be read) and readers must show it as not recorded, never guess
+    it from the session.
+  required:
+    - kind
+    - branch
+  properties:
+    kind:
+      $ref: "./coding-sessions.yaml#/AgentSessionServicePlaceKind"
+    branch:
+      type: string
+      nullable: true
+      description: Branch checked out when the edit was recorded. Null means detached.
+    worktreePath:
+      type: string
+      description: Top-level folder of the worktree. Present for WORKTREE, absent for MAIN_FOLDER.
 
 ReviewReportDisposition:
   type: string
@@ -3474,3 +3498,34 @@ ProjectChangesPage:
         $ref: "#/ProjectChangeRecord"
     hasMore:
       type: boolean
+
+ProjectChangePlace:
+  type: object
+  description: One place that has change records.
+  required: [key, recordCount]
+  properties:
+    key:
+      type: string
+      description: Opaque filter key to pass as `placeKey`. Clients must not parse it.
+    kind:
+      $ref: "./coding-sessions.yaml#/AgentSessionServicePlaceKind"
+    branch:
+      type: string
+      nullable: true
+      description: Null means detached. Absent for the not-recorded entry.
+    worktreePath:
+      type: string
+    notRecorded:
+      type: boolean
+      description: True for the entry covering records with no recorded place.
+    recordCount:
+      type: integer
+      minimum: 0
+ProjectChangePlaces:
+  type: object
+  required: [places]
+  properties:
+    places:
+      type: array
+      items:
+        $ref: "#/ProjectChangePlace"

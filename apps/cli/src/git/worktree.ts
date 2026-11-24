@@ -378,6 +378,35 @@ export async function readCheckedOutBranch(folder: string): Promise<string | nul
   }
 }
 
+export interface CheckedOutPlace {
+  kind: 'MAIN_FOLDER' | 'WORKTREE';
+  /** Null means detached HEAD. */
+  branch: string | null;
+  /** Top-level folder of the worktree; absent for the main folder. */
+  worktreePath?: string;
+}
+
+/**
+ * Reads where `folder` is checked out: the branch (null when detached) and
+ * whether it is the main folder or a linked worktree. A linked worktree's git
+ * dir differs from the repository's common git dir. Read-only; throws git's own
+ * error when the folder cannot be read.
+ */
+export async function readCheckedOutPlace(folder: string): Promise<CheckedOutPlace> {
+  const branch = await readCheckedOutBranch(folder);
+  const { stdout } = await execGit(
+    ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel'],
+    folder,
+  );
+  const [gitDir, commonDir, topLevel] = stdout.split('\n').map((line) => line.trim());
+
+  if (gitDir === undefined || commonDir === undefined || gitDir === commonDir) {
+    return { kind: 'MAIN_FOLDER', branch };
+  }
+
+  return { kind: 'WORKTREE', branch, worktreePath: topLevel ?? folder };
+}
+
 const isExitCode = (error: unknown, code: number): boolean =>
   error instanceof Error && 'code' in error && error.code === code;
 

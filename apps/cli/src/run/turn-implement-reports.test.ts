@@ -126,6 +126,7 @@ const edit = async (
     repoRelativePath: file,
     occurredAt: new Date(Date.now() + harness.facts.length).toISOString(),
     evidence: capture.evidence,
+    place: capture.place,
   });
 };
 
@@ -161,6 +162,66 @@ const HELD: HeldImplementReport = {
     { topic: 'Unedited file', choice: 'kept', location: { file: 'src/never.ts' } },
   ],
 };
+
+describe('emitTurnImplementReports edit places', () => {
+  it('records the branch and worktree active when each edit was made', async () => {
+    const mainRepo = makeRepo({ 'src/a.ts': lines('one', 'two') });
+    git(mainRepo, 'branch', '-M', 'main');
+    const worktree = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'turn-worktree-')));
+    repos.push(worktree);
+    fs.rmSync(worktree, { recursive: true });
+    git(mainRepo, 'worktree', 'add', '-q', '-b', 'feature/change-place', worktree);
+    const harness = makeHarness({ 'svc-a': mainRepo, 'svc-w': worktree });
+    const turn = makeTurn(LocalPromptType.FreeForm);
+
+    await edit(harness, turn, 'svc-a', 'src/a.ts', lines('one', 'TWO'));
+    git(mainRepo, 'checkout', '-q', '-b', 'other');
+    await edit(harness, turn, 'svc-a', 'src/b.ts', lines('new'));
+    git(mainRepo, 'checkout', '-q', '--detach');
+    await edit(harness, turn, 'svc-a', 'src/c.ts', lines('detached'));
+    await edit(harness, turn, 'svc-w', 'src/a.ts', lines('in worktree'));
+    await emit(harness, turn);
+
+    const [mainReport, worktreeReport] = persistedReports(harness).map((report) => report.payload);
+    expect(mainReport!.edits!.map((e) => e.place)).toEqual([
+      { kind: 'MAIN_FOLDER', branch: 'main' },
+      { kind: 'MAIN_FOLDER', branch: 'other' },
+      { kind: 'MAIN_FOLDER', branch: null },
+    ]);
+    expect(worktreeReport!.edits!.map((e) => e.place)).toEqual([
+      { kind: 'WORKTREE', branch: 'feature/change-place', worktreePath: worktree },
+    ]);
+  });
+
+  it('still records an edit, without a place, when git cannot be read', async () => {
+    const repo = makeRepo({ 'src/a.ts': lines('one') });
+    const harness = makeHarness({ 'svc-a': repo });
+    const turn = makeTurn(LocalPromptType.FreeForm);
+    await edit(harness, turn, 'svc-a', 'src/a.ts', lines('two'));
+    delete harness.facts[0]!.place;
+
+    const plain = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'turn-plain-')));
+    repos.push(plain);
+    fs.writeFileSync(path.join(plain, 'x.txt'), 'x');
+    const capture = await captureFileChangeEvidence(
+      {
+        serviceId: 'svc-x',
+        repositoryRoot: plain,
+        absolutePath: path.join(plain, 'x.txt'),
+        repoRelativePath: 'x.txt',
+      },
+      null,
+    );
+    expect(capture.place).toBeUndefined();
+    expect(capture.placeError).toBeDefined();
+
+    await emit(harness, turn);
+
+    const [report] = persistedReports(harness);
+    expect(report!.payload.edits).toHaveLength(1);
+    expect(report!.payload.edits![0]).not.toHaveProperty('place');
+  });
+});
 
 describe('emitTurnImplementReports', () => {
   it.each([

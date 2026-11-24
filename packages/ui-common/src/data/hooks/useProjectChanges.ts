@@ -26,6 +26,7 @@ export function useProjectChanges(params: ReportsApiListProjectChangesRequest) {
       params.taskId,
       params.featureId,
       params.committed,
+      params.placeKey,
       params.limit,
       params.offset,
     ],
