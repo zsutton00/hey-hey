@@ -60,6 +60,11 @@ export const planShapingProposedStagesHandler: UserLaunchablePromptTypeHandler<P
     providerSessionStart: 'fresh',
     reports: [],
 
+    requiredSubmission: {
+      retryPrompt:
+        'Stage review is waiting for the stage count. Check the existing stage proposals, reuse them, and call submit_proposed_stages_ready with the decided total once the stage list is complete.',
+      failureReason: 'STAGE_COUNT_MISSING',
+    },
     submissionTools: [...proposedStagesSubmissionTools],
 
     addUserMessage: (payload) => turnUserMessageBlock(payload.userMessage),

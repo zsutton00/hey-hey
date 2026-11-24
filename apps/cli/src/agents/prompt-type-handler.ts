@@ -1,4 +1,5 @@
 import type { ProceduralProvider } from '../run/runners/procedural-provider';
+import type { FailureReason } from '../run/failure-message';
 import type { ReadRestriction } from '@hey-hey/contracts/api/models';
 import type { FullEntityContextDto } from '@hey-hey/contracts/api/models';
 import type { EvalAttemptExecution } from './run-eval/eval-attempt-execution';
@@ -815,6 +816,12 @@ export interface PromptTypeHandler<TPayload> {
    * completion message must not exist when the handler contract is invalid.
    */
   validateCompletion?(event: AssistantCompleteEvent, payload?: unknown): CompletionValidationResult;
+
+  /** Retry once in the same turn when none of the handler's submission tools completed it. */
+  requiredSubmission?: {
+    retryPrompt: string;
+    failureReason: FailureReason;
+  };
 
   /**
    * Coding completions require current-Turn validated tool reporting.

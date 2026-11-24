@@ -706,6 +706,12 @@ const readTriggerParentMessageId = (input: InternalRunPromptRequest): string | n
   return stamped === undefined ? null : stamped;
 };
 
+class MissingSubmissionError extends Error {
+  constructor(readonly reason: FailureReason) {
+    super(reason);
+  }
+}
+
 export class Run {
   private readonly attachmentContentReader = new RunAttachmentContentReader();
   private readonly machineOptionsStore = new MachineOptionsStore();
@@ -4807,6 +4813,7 @@ export class Run {
    */
   async completeCompletionCorrection(turn: Turn): Promise<void> {
     await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
+    await this.recoverRequiredSubmission(turn);
     const correction = turn.completionCorrection;
     if (!correction.hasPendingRejection) return;
     let prompt =
@@ -4837,6 +4844,44 @@ export class Run {
       attempts: correction.attemptCount,
     });
     await this.dispatcher.dispatch(event, this, Symbol('exhausted_completion'));
+  }
+
+  private async recoverRequiredSubmission(turn: Turn): Promise<void> {
+    const requirement = turn.handler.requiredSubmission;
+    if (!requirement) {
+      return;
+    }
+
+    const needsSubmission = () =>
+      this.activeTurn === turn &&
+      !turn.abortSignal.aborted &&
+      !turn.completionPublicationFailed &&
+      !this._submittedTurnIds.has(turn.turnId);
+
+    if (!needsSubmission()) {
+      return;
+    }
+
+    const context = {
+      reason: requirement.failureReason,
+      runId: this.runId,
+      turnId: turn.turnId,
+      externalAgentNodeId: turn.externalAgentNodeId,
+      triggerMessageId: turn.triggerMessageId,
+    };
+    this.logger.warn('local.run.required_submission.missing', context);
+    try {
+      await turn.runner.continueTurn?.(requirement.retryPrompt, turn.abortSignal, {
+        reportingRepair: false,
+      });
+    } catch (error) {
+      this.logger.warn('local.run.required_submission.retry_failed', { ...context, error });
+    }
+    await this.drainInFlightDispatch(IN_FLIGHT_DISPATCH_DRAIN_TIMEOUT_MS);
+    if (needsSubmission()) {
+      this.logger.error('local.run.required_submission.still_missing', context);
+      throw new MissingSubmissionError(requirement.failureReason);
+    }
   }
 
   async completeChangedFileReporting(turn: Turn): Promise<void> {
@@ -4889,6 +4934,9 @@ export class Run {
   }
 
   private failureReasonFor(error: unknown, fallback: FailureReason): FailureReason {
+    if (error instanceof MissingSubmissionError) {
+      return error.reason;
+    }
     if (error instanceof RunAttachmentNotFoundError) {
       return 'ATTACHMENT_NOT_FOUND';
     }
