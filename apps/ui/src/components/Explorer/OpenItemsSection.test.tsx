@@ -974,13 +974,15 @@ describe("OpenItemsSection", () => {
       "aria-current",
       "page",
     );
-    await userEvent.click(
-      screen.getByTestId(`open-item-preview-task-${entityId}`),
-    );
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityType: "task",
-      entityId,
-    });
+    expect(
+      screen.queryByTestId(`open-item-preview-task-${entityId}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`open-item-close-task-${entityId}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(`open-item-interaction-${entityId}`),
+    ).toHaveAttribute("data-entity-type", "TASK");
     expect(screen.getByTestId("location")).toHaveTextContent("/current-page");
     expect(readOpenItemsTestCache("project-1").items).toHaveLength(2);
   });
@@ -2345,11 +2347,11 @@ describe("OpenItemsSection", () => {
       screen.getByTestId("open-item-task-bbc04762-4810-53b6-a5a9-7075c179551f"),
     ).toHaveAttribute("data-active", "false");
     expect(
-      screen.getByRole("button", { name: "Preview Task Two" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Remove Task Two" }),
+      screen.queryByRole("button", { name: "Preview Task Two" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Task Two from Open" }),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -3071,15 +3073,12 @@ describe("OpenItemsSection", () => {
       );
     });
 
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Preview Ship the goal" }),
-      );
-    });
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityId: "6f00a8d2-918f-5fbc-8ed3-82fa8a6d725e",
-      entityType: "goal",
-    });
+    expect(
+      screen.queryByRole("button", { name: "Preview Ship the goal" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Ship the goal from Open" }),
+    ).toBeInTheDocument();
   });
 
   it("renders pinned indicators and wires state-dependent pin actions", async () => {
@@ -3681,7 +3680,16 @@ describe("OpenItemsSection", () => {
     });
   });
 
-  it("opens inline preview without changing the current route", async () => {
+  it("replaces the inline preview button with a keyboard-reachable close button that removes only that entry without navigating or touching recently viewed state", async () => {
+    const recentlyViewedRecord = JSON.stringify({
+      events: [
+        {
+          id: "f92326ba-4259-550c-893e-9e11f70c56ee",
+          entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+        },
+      ],
+    });
+    localStorage.setItem("recently-viewed:test", recentlyViewedRecord);
     localStorage.setItem(
       "open-items:v1:project-1",
       JSON.stringify({
@@ -3691,10 +3699,15 @@ describe("OpenItemsSection", () => {
             entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
             entityType: "task",
           },
+          {
+            entityId: "bbc04762-4810-53b6-a5a9-7075c179551f",
+            entityType: "task",
+          },
         ],
       }),
     );
 
+    const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={["/projects/project-1"]}>
         <OpenItemsProvider
@@ -3716,25 +3729,37 @@ describe("OpenItemsSection", () => {
       ),
     );
 
-    await act(async () => {
-      fireEvent.click(
-        await screen.findByRole("button", {
-          name: "Preview Investigate preview",
-        }),
-      );
-    });
+    expect(
+      screen.queryByTestId(
+        "open-item-preview-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+      ),
+    ).not.toBeInTheDocument();
 
-    expect(openPreviewMock).toHaveBeenCalledTimes(1);
-    expect(openPreviewMock).toHaveBeenCalledWith({
-      entityId: "e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
-      entityType: "task",
+    const closeButton = screen.getByRole("button", {
+      name: "Remove Investigate preview from Open",
     });
+    expect(closeButton).toHaveAttribute(
+      "data-testid",
+      "open-item-close-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+    );
+    closeButton.focus();
+    expect(closeButton).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      screen.queryByTestId(
+        "open-item-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("open-item-task-bbc04762-4810-53b6-a5a9-7075c179551f"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/projects/project-1",
     );
-    expect(
-      screen.getByTestId("open-item-task-e8a970e8-3ee8-5d4f-a62e-d273e23779ab"),
-    ).toBeInTheDocument();
+    expect(localStorage.getItem("recently-viewed:test")).toBe(
+      recentlyViewedRecord,
+    );
   });
 
   it("removes an inline open item without navigating or touching recently viewed state", async () => {
@@ -3802,7 +3827,10 @@ describe("OpenItemsSection", () => {
     );
   });
 
-  it.each([{ entryPoint: "context menu", buttonName: "Remove from Open" }])(
+  it.each([
+    { entryPoint: "context menu", buttonName: "Remove from Open" },
+    { entryPoint: "inline close", buttonName: /^Remove .* from Open$/ },
+  ])(
     "preserves pinned descendants when removing a branch from the $entryPoint control",
     async ({ entryPoint, buttonName }) => {
       localStorage.setItem(
@@ -5090,7 +5118,12 @@ describe("OpenItemsSection", () => {
       "/projects/project-1/plans/8013eea4-4c54-5f6a-ae42-d9188e822bf7",
     );
     expect(
-      screen.getByRole("button", { name: "Preview Ship the importer" }),
+      screen.queryByRole("button", { name: "Preview Ship the importer" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Remove Ship the importer from Open",
+      }),
     ).toBeInTheDocument();
     expect(usePlanMock).not.toHaveBeenCalled();
   });

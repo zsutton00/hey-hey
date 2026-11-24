@@ -54,7 +54,6 @@ import {
 import {
   useCurrentCanonicalPage,
   useDndContextSafe,
-  usePreviewHost,
   useTheme,
 } from "@hey-hey/ui-common/context";
 import {
@@ -67,10 +66,10 @@ import {
 import { useCanHover } from "@hey-hey/ui-common/hooks";
 import { WebPathService } from "@hey-hey/ui-common/services";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import StarIcon from "@mui/icons-material/Star";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   Box,
   Button,
@@ -511,6 +510,7 @@ type OpenItemRowProps = {
   workItemTypeDefinitions: ReadonlyMap<string, WorkItemTypeDefinitionDto>;
   workItemTypeSources: ReadonlyMap<string, WorkItemTypeEffectiveSource>;
   onToggleChildren: (itemKey: string) => void;
+  allowClose?: boolean;
 };
 
 const renderAgentSessionLifecycleSignal = (
@@ -573,12 +573,12 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
   workItemTypeDefinitions,
   workItemTypeSources,
   onToggleChildren,
+  allowClose = true,
 }) => {
   const selected = selectedItems.some((entry) =>
     matchesOpenItemIdentity(entry, item),
   );
   const canHover = useCanHover();
-  const previewHost = usePreviewHost();
   const {
     remove,
     removeOthers,
@@ -655,21 +655,18 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
     }
   }, [item.entityId, item.entityType, noteDraft, setWhyOpen]);
 
-  const handlePreview = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      previewHost.openPreview({
-        entityId: item.entityId,
-        entityType: item.entityType,
-      });
-    },
-    [item.entityId, item.entityType, previewHost],
-  );
-
   const removeOpenItem = useCallback(() => {
     remove(item.entityId, item.entityType);
   }, [item.entityId, item.entityType, remove]);
+
+  const handleClose = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeOpenItem();
+    },
+    [removeOpenItem],
+  );
 
   const handleRemoveFromOpen = useCallback(() => {
     removeOpenItem();
@@ -1068,21 +1065,32 @@ const OpenItemRowContent: React.FC<OpenItemRowProps> = ({
               />
             ) : null}
           </Box>
-          <Stack direction="row" spacing={0.25} sx={{ flexShrink: 0, pr: 0.5 }}>
-            <IconButton
-              aria-label={`Preview ${accessibleLabel}`}
-              data-testid={`open-item-preview-${item.entityType}-${item.entityId}`}
-              onClick={handlePreview}
-              size="small"
-              sx={{
-                color: "text.secondary",
-                height: 28,
-                width: 28,
-              }}
+          {allowClose ? (
+            <Stack
+              direction="row"
+              spacing={0.25}
+              sx={{ flexShrink: 0, pr: 0.5 }}
             >
-              <VisibilityOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Stack>
+              <IconButton
+                aria-label={`Remove ${accessibleLabel} from Open`}
+                data-testid={`open-item-close-${item.entityType}-${item.entityId}`}
+                onClick={handleClose}
+                size="small"
+                sx={{
+                  color: "text.secondary",
+                  height: 24,
+                  width: 24,
+                  p: 0.25,
+                  "&:hover": {
+                    color: "text.primary",
+                    bgcolor: "action.hover",
+                  },
+                }}
+              >
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Stack>
+          ) : null}
         </Box>
       </OpenItemInteractionComponent>
       <Dialog
@@ -1585,9 +1593,15 @@ export const OpenItemsSection: React.FC<{
     if (!renameTarget || !renameDraft.trim()) return;
     if (await renameGroup(renameTarget.id, renameDraft)) setRenameTarget(null);
   }, [renameDraft, renameGroup, renameTarget]);
-  const renderRow = (item: OpenItem, depth: number, sourceIndex: number) => (
+  const renderRow = (
+    item: OpenItem,
+    depth: number,
+    sourceIndex: number,
+    options?: { allowClose?: boolean },
+  ) => (
     <React.Fragment key={`${item.entityType}:${item.entityId}`}>
       <OpenItemRow
+        allowClose={options?.allowClose ?? true}
         starred={isStarred(
           item.entityType === "goal"
             ? EntityType.Task
@@ -1660,7 +1674,7 @@ export const OpenItemsSection: React.FC<{
           }
           depth={depth}
           renderItem={(child, childDepth) =>
-            renderRow(child, childDepth, sourceIndex)
+            renderRow(child, childDepth, sourceIndex, { allowClose: false })
           }
         />
       )}
