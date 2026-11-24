@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.5.0
+
+### Google Antigravity and Gemini
+
+- Added Google Antigravity as a provider for chat and coding sessions. Choose Gemini models and thinking levels and run with your own Google sign-in and Gemini subscription through the Antigravity CLI (`agy`).
+- Added multi-turn sessions with resume, cancel, plan mode, questions, and tool approvals. The session shows context, token usage and quota where Antigravity reports them.
+- Added precise tool and file-change tracking for supported Antigravity tools when enabled. Antigravity sessions use the same workspace write restrictions as other coding providers.
+
+### Agent sessions and Service workspaces
+
+- Added a **Work in** picker for each Service. Use its current folder, pick an existing worktree or branch, or create a new worktree. A single session can use different locations for different Services.
+- Added the workspace choice to Discuss and to requests for additional Service access. Session details show the location actually used for each Service.
+- Added branch and worktree information to the Changes page for each recorded edit, based on where the edit happened.
+- Added **Compact** to the Context modal for the current Run on supported providers. Follow-up messages wait while compaction completes.
+
+### Private conversations
+
+- Updated how private conversations and coding sessions appear to teammates. Conversations are private by default, so only the creator can read the transcript or find its messages in search. Teammates can still see session details and reports they have access to. Message previews follow the same privacy rules.
+
+### Additional changes
+
+- Added automatic permission decisions for monitored coding sessions on Claude, Codex, and OpenCode. The monitor can also decide Service access and Review file-scope requests. Requests that need a person can be answered from the Task Monitor workspace or the coding session.
+- Updated plan-stage automation to open directly in the Task Monitor workspace. Apply launch settings in bulk to tasks that have yet to start, and choose separate providers and models for coordination and review.
+- Added live Task Monitor status to Open Items, with monitors grouped under their plans.
+- Fixed launching automation again on the same plan and retrying when an agent misses a plan-stage submission.
+- Updated web work item and conversation reads to use GraphQL. Open views share live updates and conversation history loads in pages. Existing REST integrations and writes remain supported.
+- Updated plan shaping so the visual design agent proposes Mockups and Diagrams, revises or drops them as the conversation changes, and asks you to confirm the complete set before tasks are drafted.
+- Added a **Parts of the system** section to change walkthroughs. Reviewers can see what each part does, how it connects to the others, and jump to linked Diagram elements.
+- Added cancellation for approved future revisions that have yet to be applied. Non-overlapping edits can be merged and reviewed on the same proposal before Apply.
+- Fixed Plan completion so you can review applicable future revisions before leaving for the project review. Fixed commit reports appearing separately from their completion messages.
+- Updated Feature Sync to propose required updates to project knowledge for review, including Contract edits. Agents now raise discrepancies in project knowledge as uncertainties you can act on.
+- Added Explorer tabs to Search. Browse the feature tree, filter within a work item type, and return to the tab you last used.
+- Updated Open Items triage to show a before-and-after preview with available suggestions selected. Change the selection to see the impact, then apply the selected suggestions in one step.
+- Updated work item statuses to show the exact saved name. Each status carries one meaning chosen from Completed, Cancelled, In progress, or your own description. New items start in the first status configured for their type.
+- Fixed diagram fitting and saved positions, improved light-mode input contrast, and stabilized artifact previews.
+- Updated the API database schema for Service work locations and status meanings. Apply the release's Flyway migrations before starting the updated API.
+- Updated the CLI to 4.6.0. After publication, install it with `npm install -g @hey-hey/cli@4.6.0`. The package's release manifest pins the images used by `heyhey local`.
+
+Hosted availability follows a separate deployment schedule.
+
 ## v1.4.0
 
 ### Work item types and statuses
