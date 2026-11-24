@@ -8,9 +8,13 @@ import type { RunStore } from '../../../run-store/run-store';
 import type { LocalAgentEndpoint } from '../../../server/local-base-url';
 import type { ServerLogger } from '../../../server/logger';
 import type { LocalContextData } from '../../../shared/agent-bridge-contract/contract';
-import { buildBrowserToolsMcpConfig } from '../../browser-tools/mcp-config';
+import { BROWSER_ALLOWED_TOOLS, buildBrowserToolsMcpConfig } from '../../browser-tools/mcp-config';
+import { HeyHeyToolPreApproval } from '../../hey-hey-tool-pre-approval';
 import { resolveHintPromptAccess } from '../../mcp-server-config';
-import { buildPlatformMcpProxyMcpConfig } from '../../platform-mcp-proxy/mcp-config';
+import {
+  buildPlatformMcpProxyMcpConfig,
+  type PlatformMcpProxyConfig,
+} from '../../platform-mcp-proxy/mcp-config';
 import { buildPlatformSystemPrompt } from '../../prompts/common';
 import { readSessionStartContext } from '../../prompts/session-start-context';
 import { buildSubmissionToolsMcpConfig } from '../../submission-tools/mcp-config';
@@ -43,7 +47,7 @@ import type { AcpConfigOptions, AcpInboundCall, AcpPromptUsage } from './acp-sch
 import { z } from 'zod';
 import { AntigravityNotReadyError } from './antigravity-readiness';
 import { listAntigravitySkills } from './antigravity-skill-catalog';
-import { looksLikeHeyHeyTool, TurnToolGrant } from './turn-tool-grant';
+import { AntigravityHeyHeyTools, looksLikeHeyHeyTool } from './hey-hey-tool-connector';
 import { AntigravityExecutionCaptureHooks } from './execution-capture-hooks';
 import {
   antigravityRuleKey,
@@ -88,8 +92,8 @@ interface ActivePrompt {
   passage: string[];
   lastWriteRefusal?: string;
   skipPermissions: boolean;
-  /** Hey Hey tools this turn grants; lives and dies with the prompt, apart from remembered rules. */
-  grant: TurnToolGrant;
+  /** Hey Hey tools pre-approved for this turn; lives and dies with the prompt, apart from remembered rules. */
+  heyHeyTools: AntigravityHeyHeyTools;
   phase?: 'thinking' | 'writing';
 }
 
@@ -612,7 +616,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
         const prompt: ActivePrompt = {
           passage: [],
           skipPermissions: args.skipPermissions === true,
-          grant: this.buildGrant(args),
+          heyHeyTools: this.buildHeyHeyTools(args),
         };
         this.activePrompt = prompt;
         const cancel = () => {
@@ -698,14 +702,30 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     }
   }
 
-  private buildGrant(args: PromptArgs): TurnToolGrant {
+  private buildHeyHeyTools(args: PromptArgs): AntigravityHeyHeyTools {
     const registration = this.dependencies.submissionToolRegistry.getByRunId(
       args.session.agentic_session_id,
     );
     const mounted = registration?.tools.map((tool) => tool.name) ?? [];
-    return new TurnToolGrant({
-      platformAllowedTools: args.platformMcpProxyMount?.allowedTools,
-      activeSubmissionToolNames: registration?.activeToolNames ?? mounted,
+    return new AntigravityHeyHeyTools(
+      new HeyHeyToolPreApproval({
+        platformAllowedTools: this.platformServer(args)?.allowedTools,
+        activeSubmissionToolNames: registration?.activeToolNames ?? mounted,
+        browserAllowedTools: args.browserMcpMount ? BROWSER_ALLOWED_TOOLS : undefined,
+      }),
+    );
+  }
+
+  /** Antigravity mounts the platform server on the compact catalog; approval and mounting share it. */
+  private platformServer(args: PromptArgs): PlatformMcpProxyConfig | undefined {
+    const cliBaseUrl = this.dependencies.localAgentEndpoint.get();
+    if (!args.platformMcpProxyMount || !cliBaseUrl) {
+      return undefined;
+    }
+    return buildPlatformMcpProxyMcpConfig({
+      mount: args.platformMcpProxyMount,
+      cliBaseUrl,
+      compact: true,
     });
   }
 
@@ -724,10 +744,9 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return [];
     }
     const servers = [];
-    if (args.platformMcpProxyMount) {
-      servers.push(
-        buildPlatformMcpProxyMcpConfig({ mount: args.platformMcpProxyMount, cliBaseUrl }),
-      );
+    const platform = this.platformServer(args);
+    if (platform) {
+      servers.push(platform);
     }
     if (registration && submissionTools.length > 0) {
       servers.push(
@@ -744,8 +763,7 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
     return servers.map(({ serverName, serverEntry }) => ({
       type: 'http',
       name: serverName,
-      url:
-        serverName === 'heyhey-platform' ? serverEntry.url + '?catalog=compact' : serverEntry.url,
+      url: serverEntry.url,
       headers: [],
     }));
   }
@@ -1026,22 +1044,22 @@ export class AntigravityAgentSessionRunner implements AgentSessionRunner {
       return;
     }
     const allowOnce = params.options.find((option) => option.kind === 'allow_once');
-    const granted = prompt.grant.match(params.toolCall.name);
-    if (granted && allowOnce) {
-      this.dependencies.logger.debug('antigravity.permission.turn_granted', {
+    const qualifiedToolName = prompt.heyHeyTools.qualifiedName(params.toolCall.name);
+    if (qualifiedToolName && allowOnce) {
+      this.dependencies.logger.debug('antigravity.permission.automatic', {
         id,
-        tool: granted.tool,
-        server: granted.server,
+        reason: 'hey_hey_pre_approved',
+        tool: qualifiedToolName,
         sessionId: params.sessionId,
       });
       await this.client?.respondToPermission(id, allowOnce);
       return;
     }
     if (looksLikeHeyHeyTool(params.toolCall.name)) {
-      this.dependencies.logger.debug('antigravity.permission.hey_hey_tool_not_granted', {
+      this.dependencies.logger.debug('antigravity.permission.hey_hey_tool_not_pre_approved', {
         id,
         tool: params.toolCall.name,
-        reason: granted ? 'no allow_once option offered' : 'not in the turn grant',
+        reason: qualifiedToolName ? 'no allow_once option offered' : 'not active for this turn',
         sessionId: params.sessionId,
       });
     }

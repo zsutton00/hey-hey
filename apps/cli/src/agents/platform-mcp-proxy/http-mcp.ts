@@ -2,9 +2,21 @@ import type { Request, Response } from 'express';
 import type { ServerLogger } from '../../server/logger';
 import { RunRegistry } from '../../run/run-registry';
 import { PlatformMcpForwarder } from './forwarder';
-import type { JsonRpcRequest, JsonValue } from './session';
+import type { JsonObject, JsonRpcRequest, JsonValue } from './session';
 import type { OAuthClient } from '../../auth/index';
-import { childPlatformMcpProxies } from './child-proxy-registry';
+import { PLATFORM_SCHEMA_LOOKUP_TOOL } from './mcp-config';
+import { childPlatformMcpProxies, type ChildPlatformMcpProxy } from './child-proxy-registry';
+
+const describeTool = PLATFORM_SCHEMA_LOOKUP_TOOL;
+const compactTool = (name: string, description: string, parameter: string): JsonObject => ({
+  name,
+  description,
+  inputSchema: {
+    type: 'object',
+    properties: { [parameter]: { type: 'string' } },
+    required: [parameter],
+  },
+});
 
 const failure = (
   id: string | number | null,
@@ -38,6 +50,7 @@ const parseRequest = (value: JsonValue): JsonRpcRequest | null => {
 };
 
 export class PlatformMcpProxyHttpController {
+  private readonly catalogs = new WeakMap<ChildPlatformMcpProxy, Map<string, JsonObject>>();
   private readonly forwarder: PlatformMcpForwarder;
 
   public constructor(
@@ -92,7 +105,83 @@ export class PlatformMcpProxyHttpController {
     });
 
     try {
+      const compact = req.query['catalog'] === 'compact';
+      const params = request.params;
+      const args = params?.['arguments'];
+      if (compact && request.method === 'tools/call' && args && isJsonObject(args)) {
+        if (params?.['name'] === describeTool) {
+          const name = args['name'];
+          const schema = typeof name === 'string' && this.catalogs.get(proxy)?.get(name);
+          if (!schema) {
+            this.logger.warn('local.platform_mcp_proxy.unknown_tool_description', {
+              runId,
+              turnId,
+            });
+            res.json(failure(request.id, -32602, 'Tool absent from this turn catalog'));
+            return;
+          }
+          res.json({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: { content: [{ type: 'text', text: JSON.stringify(schema) }] },
+          });
+          return;
+        }
+        if (typeof args['argumentsJson'] === 'string') {
+          let decoded: JsonValue;
+          try {
+            decoded = JSON.parse(args['argumentsJson']);
+          } catch (error) {
+            this.logger.warn('local.platform_mcp_proxy.invalid_arguments_json', {
+              runId,
+              turnId,
+              cause: error instanceof Error ? error.name : 'invalid_json',
+            });
+            res.json(failure(request.id, -32602, 'argumentsJson must contain valid JSON'));
+            return;
+          }
+          if (!decoded || !isJsonObject(decoded)) {
+            this.logger.warn('local.platform_mcp_proxy.invalid_tool_arguments', { runId, turnId });
+            res.json(failure(request.id, -32602, 'argumentsJson must encode an object'));
+            return;
+          }
+          request.params = { ...params, arguments: decoded };
+        }
+      }
       const result = await proxy.handleJsonRpc(request, this.forwarder);
+      if (compact && request.method === 'tools/list' && result.body && 'result' in result.body) {
+        const payload = result.body.result;
+        if (payload && isJsonObject(payload) && Array.isArray(payload['tools'])) {
+          const catalog = this.catalogs.get(proxy) ?? new Map<string, JsonObject>();
+          if (!request.params?.['cursor']) {
+            catalog.clear();
+          }
+          this.catalogs.set(proxy, catalog);
+          const listed = payload['tools'].flatMap((tool) => {
+            if (!tool || !isJsonObject(tool) || typeof tool['name'] !== 'string') {
+              return [];
+            }
+            catalog.set(tool['name'], tool);
+            return [
+              compactTool(
+                tool['name'],
+                'Call describe_platform_tool for the arguments, then pass them as JSON.',
+                'argumentsJson',
+              ),
+            ];
+          });
+          if (!request.params?.['cursor'] && listed.length) {
+            listed.push(
+              compactTool(
+                describeTool,
+                'Return the full description and input schema for a named Hey Hey tool.',
+                'name',
+              ),
+            );
+          }
+          payload['tools'] = listed;
+        }
+      }
       if (result.body === undefined) {
         res.status(result.statusCode).end();
         return;

@@ -5,6 +5,7 @@ import { describeGroupedPermissionRequest, isGroupedPermissionTool } from './per
 import { formatPermissionInputSummary, summarizePermissionInput } from './permission-input-summary';
 import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
+import { HeyHeyToolPreApproval, isHeyHeyQualifiedToolName } from '../../hey-hey-tool-pre-approval';
 import { buildBrowserToolsMcpConfig, BROWSER_ALLOWED_TOOLS } from '../../browser-tools/mcp-config';
 import { researchHandler } from '../../research/research.handler';
 import crypto from 'node:crypto';
@@ -250,6 +251,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
   // tracks mcp-server-config exactly, instead of drifting from the static
   // `this.alwaysAllowedTools` baseline below.
   private activeAllowedToolNames = new Set<string>();
+  // Hey Hey's own tools active for the session, approved without a prompt.
+  // Captured at mint beside `activeAllowedToolNames` and kept across a resume.
+  private heyHeyPreApproval = HeyHeyToolPreApproval.empty;
   private mintedUserMcpConfig: ClaudeUserMcpConfig | null = null;
   private readonly pendingPermissionRequests = new Map<string, PendingClaudePermissionRequest>();
   // Cards that already have a decision. A request that arrives afterwards opens
@@ -600,33 +604,30 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // platform-stripped base — keeps a deliberately-withheld twin gated: e.g.
       // phase-breakdown excludes the platform `create_report` so the agent must
       // use the pass-through wrapper, and that exclusion still raises a prompt.
+      const heyHeyPreApproved = this.heyHeyPreApproval.has(toolName);
       const sessionPreApproved =
-        this.activeAllowedToolNames.has(toolName) ||
+        (!isHeyHeyQualifiedToolName(toolName) && this.activeAllowedToolNames.has(toolName)) ||
         isMintedUserMcpTool(toolName, this.mintedUserMcpConfig?.serverNames ?? []);
       const alwaysAllowed = this.alwaysAllowedTools.has(baseToolName);
-      if (alwaysAllowed || sessionPreApproved || this.skipAllPermissions) {
+      if (alwaysAllowed || heyHeyPreApproved || sessionPreApproved || this.skipAllPermissions) {
+        const reason = this.skipAllPermissions
+          ? 'skip_permissions'
+          : heyHeyPreApproved
+            ? 'hey_hey_pre_approved'
+            : sessionPreApproved
+              ? 'session_allowlisted'
+              : 'always_allowed';
         requestContext.log(
           this.logger,
           'info',
           'local.runner.claude.permission_request.auto_approved',
-          {
-            toolName,
-            reason: this.skipAllPermissions
-              ? 'skip_permissions'
-              : sessionPreApproved
-                ? 'session_allowlisted'
-                : 'always_allowed',
-          },
+          { toolName, reason },
         );
         await this.persistAutomaticPermissionDecision({
           toolName,
           toolInput: toolInputRecord,
           decision: 'allow',
-          reason: this.skipAllPermissions
-            ? 'skip_permissions'
-            : sessionPreApproved
-              ? 'session_allowlisted'
-              : 'always_allowed',
+          reason,
         });
         return { behavior: 'allow', updatedInput: toolInputRecord ?? {} };
       }
@@ -1821,6 +1822,9 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       }
       let mcpServers: Record<string, unknown> | undefined;
       let allowedTools: string[] | undefined;
+      let platformAllowedTools: readonly string[] | undefined;
+      let activeSubmissionToolNames: readonly string[] | undefined;
+      let browserAllowedTools: readonly string[] | undefined;
       const researchBuiltinTools = repositoryResearch
         ? resolveClaudeRepositoryResearchTools(repositoryResearch.delegation)
         : undefined;
@@ -1859,6 +1863,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
           }
           mcpServers = mcpConfig.mcpServers;
           allowedTools = mcpConfig.allowedTools;
+          platformAllowedTools = mcpConfig.allowedTools;
           const serverEntries = Object.keys(mcpServers);
           requestContext.log(this.logger, 'debug', 'local.runner.claude.mcp_config.built', {
             runId,
@@ -1922,6 +1927,8 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             [submissionConfig.serverName]: submissionConfig.serverEntry,
           };
           allowedTools = [...(allowedTools ?? []), ...submissionConfig.allowedTools];
+          activeSubmissionToolNames =
+            runRegistration.activeToolNames ?? runRegistration.tools.map((tool) => tool.name);
           requestContext.log(
             this.logger,
             'debug',
@@ -1956,6 +1963,7 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
             [browserConfig.serverName]: browserConfig.serverEntry,
           };
           allowedTools = [...(allowedTools ?? []), ...browserConfig.allowedTools];
+          browserAllowedTools = browserConfig.allowedTools;
         }
       }
 
@@ -2032,6 +2040,15 @@ export class ClaudeAgentSessionRunner implements AgentSessionRunner {
       // retaining the prior value is correct.
       if (!hasExistingSession) {
         this.activeAllowedToolNames = new Set(allowedTools ?? []);
+        this.heyHeyPreApproval = new HeyHeyToolPreApproval({
+          platformAllowedTools,
+          activeSubmissionToolNames,
+          browserAllowedTools,
+        });
+        requestContext.log(this.logger, 'debug', 'local.runner.claude.hey_hey_pre_approval.built', {
+          runId,
+          tools: this.heyHeyPreApproval.sortedNames(),
+        });
       }
 
       // Read the project's active work-item type definitions once per run,

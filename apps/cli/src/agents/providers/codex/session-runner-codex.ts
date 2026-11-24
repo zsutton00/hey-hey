@@ -7,6 +7,12 @@ import { RunAttachmentStore } from '../../../server/run-attachment-store';
 import { RunAttachmentContentReader } from '../run-attachment-content-reader';
 import { withoutCodexInputEcho } from './codex-input-echo';
 import {
+  HEY_HEY_SUBMISSION_SERVER,
+  HeyHeyToolPreApproval,
+  isHeyHeyMcpServer,
+  qualifyHeyHeyToolName,
+} from '../../hey-hey-tool-pre-approval';
+import {
   buildBrowserToolsMcpConfig,
   BROWSER_ALLOWED_TOOLS,
   BROWSER_MCP_SERVER_NAME,
@@ -112,11 +118,6 @@ const CODEX_MCP_APPROVAL_KIND_TOOL_CALL = 'mcp_tool_call';
 const CODEX_MCP_TOOL_NAME_KEY = 'tool_name';
 const CODEX_MCP_PERSIST_KEY = 'persist';
 const CODEX_MCP_PERSIST_ALWAYS = 'always';
-const HEYHEY_MCP_SERVER_NAMES = new Set([
-  'heyhey-platform',
-  'heyhey-submission-tools',
-  BROWSER_MCP_SERVER_NAME,
-]);
 const CONTEXT_USAGE_RESUME_TIMEOUT_MS = 60_000;
 
 export const resolveCodexPlatformPromptDeliveryMode = (
@@ -365,7 +366,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
   // and sends the matching JSON-RPC ClientResponse via this.client.submitClientResponse.
   private readonly pendingPermissionRequests = new Map<string, PendingCodexPermissionRequest>();
   private readonly alwaysApprovedPermissionTypes = new Set<CodexAutoApprovablePermissionType>();
-  private activeAllowedMcpToolNames = new Set<string>();
+  private heyHeyPreApproval = HeyHeyToolPreApproval.empty;
   private activeMcpSurfaceContext: ActiveMcpSurfaceContext = {
     activeToolSetSource: 'not_initialized',
     mountedHeyHeyServerNames: [],
@@ -565,7 +566,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     return (
       qualifiedToolName !== null &&
       (approvalKind === CODEX_MCP_APPROVAL_KIND_TOOL_CALL || approvalKind === null) &&
-      this.activeAllowedMcpToolNames.has(qualifiedToolName)
+      this.heyHeyPreApproval.has(qualifiedToolName)
     );
   };
 
@@ -576,13 +577,10 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       return null;
     }
     const tool = readMcpElicitationTool(request);
-    if (tool.serverName === null || !HEYHEY_MCP_SERVER_NAMES.has(tool.serverName)) {
+    if (tool.serverName === null || !isHeyHeyMcpServer(tool.serverName)) {
       return null;
     }
-    if (
-      tool.qualifiedToolName !== null &&
-      this.activeAllowedMcpToolNames.has(tool.qualifiedToolName)
-    ) {
+    if (tool.qualifiedToolName !== null && this.heyHeyPreApproval.has(tool.qualifiedToolName)) {
       return null;
     }
 
@@ -622,7 +620,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
     mountedSubmissionToolNames: string[];
     activeSubmissionToolNames: string[];
   } => {
-    const activeAllowedTools = Array.from(this.activeAllowedMcpToolNames).sort();
+    const activeAllowedTools = this.heyHeyPreApproval.sortedNames();
     return {
       activeAllowedToolCount: activeAllowedTools.length,
       activeHeyHeyPlatformAllowedTools: activeAllowedTools.filter((toolName) =>
@@ -633,7 +631,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       ),
       requestedToolAllowed:
         requestedQualifiedToolName !== null &&
-        this.activeAllowedMcpToolNames.has(requestedQualifiedToolName),
+        this.heyHeyPreApproval.has(requestedQualifiedToolName),
       activeToolSetSource: this.activeMcpSurfaceContext.activeToolSetSource,
       mountedHeyHeyServerNames: this.activeMcpSurfaceContext.mountedHeyHeyServerNames,
       mountedSubmissionToolNames: this.activeMcpSurfaceContext.mountedSubmissionToolNames,
@@ -1526,10 +1524,9 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             this.submitMcpElicitationResponse(request.id, {
               action: 'accept',
               content: null,
-              _meta:
-                serverName !== null && HEYHEY_MCP_SERVER_NAMES.has(serverName)
-                  ? null
-                  : { [CODEX_MCP_PERSIST_KEY]: CODEX_MCP_PERSIST_ALWAYS },
+              _meta: isHeyHeyMcpServer(serverName)
+                ? null
+                : { [CODEX_MCP_PERSIST_KEY]: CODEX_MCP_PERSIST_ALWAYS },
             });
             persistAutomaticDecision('allow');
           } catch (error) {
@@ -1736,7 +1733,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       }
 
       let platformMcpConfig: CodexConfigOverrides | null = null;
-      const allowedMcpToolNames = new Set<string>();
+      let platformAllowedTools: readonly string[] | undefined;
       const cliBaseUrl = this.localAgentEndpoint.get();
       if (session.inert && (!platformMcpProxyMount || !cliBaseUrl)) {
         throw new Error('Inert execution requires the scoped platform MCP proxy.');
@@ -1772,9 +1769,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             | PlatformMcpServerEntry
             | undefined;
           platformMcpConfig = platformEntry ? toCodexPlatformMcpConfig(platformEntry) : null;
-          for (const toolName of mcpConfig.allowedTools) {
-            allowedMcpToolNames.add(toolName);
-          }
+          platformAllowedTools = mcpConfig.allowedTools;
           if (platformMcpConfig) {
             requestContext.log(this.logger, 'debug', 'local.runner.codex.mcp_config.built', {
               runId,
@@ -1847,9 +1842,6 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             },
           },
         };
-        for (const toolName of activeSubmissionToolNames) {
-          allowedMcpToolNames.add(`mcp__${submissionConfig.serverName}__${toolName}`);
-        }
         requestContext.log(this.logger, 'debug', 'local.runner.codex.submission_tools.attached', {
           runId,
           sessionId: session.agentic_session_id,
@@ -1858,8 +1850,8 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
           toolCount: runRegistration.tools.length,
           mountedTools: mountedSubmissionToolNames,
           activeTools: activeSubmissionToolNames,
-          allowedTools: activeSubmissionToolNames.map(
-            (toolName) => `mcp__${submissionConfig.serverName}__${toolName}`,
+          allowedTools: activeSubmissionToolNames.map((toolName) =>
+            qualifyHeyHeyToolName(HEY_HEY_SUBMISSION_SERVER, toolName),
           ),
         });
       } else if (runRegistration && cliBaseUrl === null) {
@@ -1880,7 +1872,6 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       }
 
       this.emitLocalStatus('Sending prompt to codex...');
-      this.activeAllowedMcpToolNames = allowedMcpToolNames;
       this.activeMcpSurfaceContext = {
         activeToolSetSource: 'codex_prompt_mcp_config',
         mountedHeyHeyServerNames: [
@@ -1907,8 +1898,11 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
             },
           }
         : null;
-      if (browserConfig)
-        for (const name of browserConfig.allowedTools) allowedMcpToolNames.add(name);
+      this.heyHeyPreApproval = new HeyHeyToolPreApproval({
+        platformAllowedTools,
+        activeSubmissionToolNames: submissionToolsConfig ? activeSubmissionToolNames : [],
+        browserAllowedTools: browserConfig?.allowedTools,
+      });
       const mcpConfig = mergeCodexMcpConfigs([
         platformMcpConfig,
         submissionToolsConfig,
@@ -2599,7 +2593,7 @@ export class CodexAgentSessionRunner implements AgentSessionRunner {
       pendingPermission.kind === 'mcp_elicitation' &&
       (dispatch.decision === 'always_approve' || dispatch.decision === 'whitelist') &&
       (pendingPermission.mcpServerName === null ||
-        !HEYHEY_MCP_SERVER_NAMES.has(pendingPermission.mcpServerName));
+        !isHeyHeyMcpServer(pendingPermission.mcpServerName));
     const codexCommandDecision =
       dispatch.decision === 'deny'
         ? 'decline'

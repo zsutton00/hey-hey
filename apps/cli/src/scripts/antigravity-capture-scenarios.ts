@@ -13,3 +13,6 @@ export const SCENARIOS = [
   'write-outside',
   'hook-relay',
 ] as const;
+
+/** Scenarios the script can run that have no recorded capture yet; move each into SCENARIOS once captured. */
+export const UNCAPTURED_SCENARIOS = ['mcp-browser'] as const;

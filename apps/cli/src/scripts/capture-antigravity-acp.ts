@@ -42,19 +42,21 @@ import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { OAuthClient } from '../auth/index';
 import { buildMcpServerConfig } from '../agents/mcp-server-config';
-import { SCENARIOS } from './antigravity-capture-scenarios';
+import { SCENARIOS, UNCAPTURED_SCENARIOS } from './antigravity-capture-scenarios';
 
-type ScenarioName = (typeof SCENARIOS)[number];
+const RUNNABLE_SCENARIOS = [...SCENARIOS, ...UNCAPTURED_SCENARIOS] as const;
+
+type ScenarioName = (typeof RUNNABLE_SCENARIOS)[number];
 
 const isScenarioName = (value: string): value is ScenarioName =>
-  (SCENARIOS as readonly string[]).includes(value);
+  (RUNNABLE_SCENARIOS as readonly string[]).includes(value);
 
 /** `.tmp/` is gitignored in this repo; resolved against the cwd (apps/cli under pnpm). */
 const DEFAULT_OUT = '.tmp/antigravity-capture';
 
 const HELP = `Usage: tsx src/scripts/capture-antigravity-acp.ts --out <dir> --scenario <name>... [options]
 
-Scenarios: ${SCENARIOS.join(', ')}  (or --scenario all)
+Scenarios: ${RUNNABLE_SCENARIOS.join(', ')}  (or --scenario all)
 
 Options:
   --out <dir>                 Transcript directory (default: ${DEFAULT_OUT}, which is gitignored).
@@ -139,7 +141,7 @@ function parseOptions(argv: string[]): Options {
   if (requested.length === 0) {
     throw new Error('at least one --scenario is required');
   }
-  const names = requested.includes('all') ? [...SCENARIOS] : requested;
+  const names = requested.includes('all') ? [...RUNNABLE_SCENARIOS] : requested;
   const scenarios = names.map((name) => {
     if (!isScenarioName(name)) {
       throw new Error(`Unknown scenario: ${name}`);
@@ -848,6 +850,34 @@ const mcpTools: ScenarioFn = (ctx) =>
     );
   });
 
+/**
+ * Real permission requests for browser and submission tools: two turns in one session, then a
+ * fresh session. Needs --browser-mcp-url and --submission-mcp-url.
+ */
+const mcpBrowser: ScenarioFn = async (ctx) => {
+  await withConnection(ctx, async (conn) => {
+    const sessionId = await newSession(conn, ctx);
+    ctx.observations['firstTurn'] = await prompt(
+      conn,
+      sessionId,
+      `Call the MCP tool "navigate" from the heyhey-browser server with url "about:blank", then call "${ctx.opts.submissionTool}" from the heyhey-submission-tools server, and report both results.`,
+    );
+    ctx.observations['laterTurn'] = await prompt(
+      conn,
+      sessionId,
+      'Now call the MCP tool "snapshot" from the heyhey-browser server and report the result.',
+    );
+  });
+  await withConnection(ctx, async (conn) => {
+    const sessionId = await newSession(conn, ctx);
+    ctx.observations['freshSessionTurn'] = await prompt(
+      conn,
+      sessionId,
+      'Call the MCP tool "snapshot" from the heyhey-browser server and report the result.',
+    );
+  });
+};
+
 /** ACP defines no per-turn tool subset; try `_meta` on session/new and the prompt and record what happens. */
 const mcpSubset: ScenarioFn = (ctx) =>
   withConnection(ctx, async (conn) => {
@@ -972,6 +1002,7 @@ const SCENARIO_FNS: Record<ScenarioName, ScenarioFn> = {
   plan,
   'mcp-tools': mcpTools,
   'mcp-subset': mcpSubset,
+  'mcp-browser': mcpBrowser,
   'write-outside': writeOutside,
   'hook-relay': hookRelay,
 };
@@ -1077,7 +1108,7 @@ interface McpBuildResult {
   error: string | null;
 }
 
-const MCP_REQUIRED_SCENARIOS: readonly ScenarioName[] = ['mcp-tools', 'mcp-subset'];
+const MCP_REQUIRED_SCENARIOS: readonly ScenarioName[] = ['mcp-tools', 'mcp-subset', 'mcp-browser'];
 
 async function tryBuildAcpMcpServers(opts: Options): Promise<McpBuildResult> {
   try {

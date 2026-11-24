@@ -85,6 +85,7 @@ interface PermissionAsk {
   toolCall: {
     toolCallId: string;
     name?: string;
+    title?: string;
     kind?: string;
     rawInput?: Record<string, unknown>;
     locations?: { path: string }[];
@@ -124,6 +125,8 @@ const startFakeAgy = (
       child.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
     const asks = options.permissionRequests ?? [];
     let promptId: number | undefined;
+    // Each prompt asks every permission request again, so later turns can be exercised.
+    let answeredBeforePrompt = 0;
     child.stdin.on('data', (chunk: Buffer) => {
       for (const line of chunk.toString().split('\n').filter(Boolean)) {
         handle(JSON.parse(line));
@@ -132,7 +135,10 @@ const startFakeAgy = (
     const handle = (request: Frame & PermissionResponse) => {
       if (request.id >= PERMISSION_ID_BASE) {
         permissionResponses.push(request);
-        if (permissionResponses.length === asks.length && promptId !== undefined) {
+        if (
+          permissionResponses.length - answeredBeforePrompt === asks.length &&
+          promptId !== undefined
+        ) {
           reply(promptId, { stopReason: 'end_turn' });
         }
         return;
@@ -174,11 +180,12 @@ const startFakeAgy = (
         case 'session/prompt':
           if (asks.length > 0 && !JSON.stringify(request.params?.prompt).includes('/compact')) {
             promptId = request.id;
+            answeredBeforePrompt = permissionResponses.length;
             asks.forEach((ask, index) =>
               child.stdout.write(
                 JSON.stringify({
                   jsonrpc: '2.0',
-                  id: PERMISSION_ID_BASE + index,
+                  id: PERMISSION_ID_BASE + answeredBeforePrompt + index,
                   method: 'session/request_permission',
                   params: { sessionId: recorded.created.sessionId, ...ask },
                 }) + '\n',
@@ -219,10 +226,11 @@ const makeRunner = (
     .mockImplementation(() => Promise.resolve(run.session));
   const agentOutput = vi.spyOn(run, 'onAgentOutput').mockImplementation(() => {});
   const localAgentEndpoint = new LocalAgentEndpoint();
+  const submissionToolRegistry = new SubmissionToolRegistry();
   const runner = new AntigravityAgentSessionRunner({
     agentOutputOwner: run,
     runStore,
-    submissionToolRegistry: new SubmissionToolRegistry(),
+    submissionToolRegistry,
     toolRuleStore,
     oauthClient: new OAuthClient(),
     localAgentEndpoint,
@@ -237,7 +245,15 @@ const makeRunner = (
   });
   const { launchServiceId: _launch, ...baseSession } = run.session;
   const session = { ...baseSession, provider: 'antigravity' as const, services: [] };
-  return { runner, session, recordTokens, agentOutput, localAgentEndpoint };
+  return {
+    runner,
+    session,
+    run,
+    recordTokens,
+    agentOutput,
+    localAgentEndpoint,
+    submissionToolRegistry,
+  };
 };
 
 describe('Antigravity streamed replies', () => {
@@ -769,7 +785,7 @@ describe('Antigravity repository-bound sessions', () => {
       }
     });
 
-    describe('Hey Hey tools the turn grants', () => {
+    describe('Hey Hey tools pre-approved for the turn', () => {
       const mount = {
         runId: 'run-1',
         turnId: 'turn-1',
@@ -779,78 +795,151 @@ describe('Antigravity repository-bound sessions', () => {
           'mcp__heyhey-platform__create_work_item',
         ],
       };
-      const ask = (name: string): PermissionAsk => ({
-        toolCall: { toolCallId: name, name, kind: 'other' },
-        options: OPTIONS,
-      });
+      const browserMcpMount = {
+        token: 'browser-token',
+        runId: 'run-1',
+        turnId: 'turn-1',
+        projectId: 'project-1',
+      };
+      // agy's real `session/request_permission` for a Hey Hey MCP tool, from the mcp-subset capture.
+      const captured = (() => {
+        const frame = readFileSync(
+          'src/agent-runtime/node/__fixtures__/antigravity/mcp-subset.ndjson',
+          'utf8',
+        )
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line).frame)
+          .find((candidate) => candidate.method === 'session/request_permission');
+        if (!frame) {
+          throw new Error('mcp-subset recording has no session/request_permission');
+        }
+        const { sessionId: _sessionId, ...ask } = frame.params;
+        return ask as PermissionAsk;
+      })();
+      // Other tools reuse the captured request with agy's `mcp_<server>_<tool>` name and title.
+      // No capture yet holds a browser or submission call; see the mcp-browser capture scenario.
+      const allowOnce = captured.options.find((option) => option.kind === 'allow_once')?.optionId;
+      const ask = (name: string): PermissionAsk => {
+        if (name === captured.toolCall.name) {
+          return captured;
+        }
+        return {
+          ...captured,
+          toolCall: {
+            ...captured.toolCall,
+            toolCallId: name,
+            name,
+            title: `Run ${name}`,
+            kind: name === 'run_command' ? 'execute' : 'other',
+          },
+        };
+      };
+      const rulesPath = path.join(os.tmpdir(), `antigravity-grant-${process.pid}.json`);
+      const storedRules = async () => JSON.parse(await fs.readFile(rulesPath, 'utf8'));
 
-      /** Runs a normal-approval prompt with a platform mount; returns agy's answers and any cards shown. */
-      const runGranted = async (names: string[], rules: string[] = []) => {
+      /**
+       * Runs `turns` prompts in one session with platform, submission and browser mounted. Each
+       * prompt asks for every name. Stops after the first turn that shows a card.
+       */
+      const runGranted = async (names: string[], turns = 1) => {
         const requests = startFakeAgy({ permissionRequests: names.map(ask) });
-        const rulesPath = path.join(os.tmpdir(), `antigravity-grant-${process.pid}.json`);
-        await fs.writeFile(rulesPath, JSON.stringify(rules));
-        const { runner, session, agentOutput, localAgentEndpoint } = makeRunner(
-          new ToolRuleStore(rulesPath),
-        );
+        const { runner, session, run, agentOutput, localAgentEndpoint, submissionToolRegistry } =
+          makeRunner(new ToolRuleStore(rulesPath));
         localAgentEndpoint.set('http://127.0.0.1:1');
-        const prompt = Promise.allSettled([
-          runner.runPrompt({ session, prompt: 'hi', platformMcpProxyMount: mount }),
-        ]);
-        try {
-          await vi.waitFor(() => {
-            const cards = agentOutput.mock.calls.filter(
-              ([output]) => output.event.eventType === 'permission_request_detected',
-            );
-            expect(cards.length + requests.permissionResponses.length).toBe(names.length);
-          });
-          const cards = agentOutput.mock.calls.filter(
+        submissionToolRegistry.register({
+          runId: session.agentic_session_id,
+          projectId: run.projectId,
+          organizationId: run.organizationId,
+          conversationId: run.conversationId,
+          externalAgentNodeId: null,
+          triggerMessageId: null,
+          tools: [
+            {
+              kind: 'pass_through',
+              name: 'report_changed_files',
+              description: 'Report changed files.',
+              inputSchema: { type: 'object' },
+              execute: vi.fn(),
+            },
+          ],
+        });
+        const countCards = () =>
+          agentOutput.mock.calls.filter(
             ([output]) => output.event.eventType === 'permission_request_detected',
           ).length;
+        const pending: Promise<unknown>[] = [];
+        try {
+          for (let turn = 1; turn <= turns; turn += 1) {
+            const prompt = runner.runPrompt({
+              session,
+              prompt: `turn ${turn}`,
+              platformMcpProxyMount: mount,
+              browserMcpMount,
+            });
+            pending.push(prompt.catch(() => undefined));
+            await vi.waitFor(() => {
+              expect(countCards() + requests.permissionResponses.length).toBe(names.length * turn);
+            });
+            if (countCards() > 0) {
+              break;
+            }
+            await prompt;
+          }
           return {
-            cards,
+            cards: countCards(),
             answers: requests.permissionResponses.map((r) => r.result?.outcome.optionId),
           };
         } finally {
           await runner.dispose();
-          await prompt;
-          await fs.rm(rulesPath, { force: true });
+          await Promise.all(pending);
         }
       };
 
-      it('answers granted calls, including the schema lookup, with the one-time allow and no card', async () => {
-        const { cards, answers } = await runGranted([
+      beforeEach(async () => {
+        await fs.writeFile(rulesPath, '[]');
+        return () => fs.rm(rulesPath, { force: true });
+      });
+
+      it('answers platform, submission and browser calls on this and a later turn with the one-time allow and no card', async () => {
+        const names = [
+          'mcp_heyhey-browser_navigate',
+          'mcp_heyhey-browser_snapshot',
           'mcp_heyhey-platform_describe_platform_tool',
           'mcp_heyhey-platform_get_context',
           'mcp_heyhey-platform_create_work_item',
-          'mcp_heyhey-platform_get_context',
-        ]);
+          'mcp_heyhey-submission-tools_report_changed_files',
+        ];
+
+        const { cards, answers } = await runGranted(names, 2);
 
         expect(cards).toBe(0);
-        expect(answers).toEqual(['allow-once', 'allow-once', 'allow-once', 'allow-once']);
+        expect(answers).toEqual(Array(names.length * 2).fill(allowOnce));
       });
 
-      it('still asks about a Hey Hey tool outside the grant and a granted name on another server', async () => {
+      it('still asks about a Hey Hey tool outside the active set, another server, and a shell command', async () => {
         const { cards, answers } = await runGranted([
           'mcp_heyhey-platform_edit_work_item',
           'mcp_other-server_get_context',
           'mcp_heyhey-browser_get_context',
+          'run_command',
         ]);
 
-        expect(cards).toBe(3);
+        expect(cards).toBe(4);
         expect(answers).toEqual([]);
       });
 
-      it('does not remember a grant as a stored rule', async () => {
-        const { cards } = await runGranted(['mcp_heyhey-platform_get_context'], []);
+      it('answers again without a card in a new session and never stores a rule', async () => {
+        const names = ['mcp_heyhey-platform_get_context', 'mcp_heyhey-browser_snapshot'];
 
-        expect(cards).toBe(0);
-        expect(
-          JSON.parse(
-            await fs
-              .readFile(path.join(os.tmpdir(), `antigravity-grant-${process.pid}.json`), 'utf8')
-              .catch(() => '[]'),
-          ),
-        ).toEqual([]);
+        const first = await runGranted(names);
+        const rulesAfterFirst = await storedRules();
+        const second = await runGranted(names);
+
+        expect([first.cards, second.cards]).toEqual([0, 0]);
+        expect(second.answers).toEqual([allowOnce, allowOnce]);
+        expect(rulesAfterFirst).toEqual([]);
+        expect(await storedRules()).toEqual([]);
       });
     });
 
