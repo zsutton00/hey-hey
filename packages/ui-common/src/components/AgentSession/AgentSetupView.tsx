@@ -67,6 +67,8 @@ import type { MachineResolutionMode } from "./runtime/coding/useMachineResolutio
 import type { AgentBridgeRecoveryState } from "./agentBridgeRecoveryState";
 import { ServiceDirectoryBindingControl } from "../Services/ServiceDirectoryBindingControl";
 
+const TASK_CONTEXT_HEIGHT_LIMIT_PX = 400;
+
 interface SessionMethodOption {
   value: AgentSessionMethod;
   label: string;
@@ -757,6 +759,7 @@ export const AgentSetupView = ({
           task={taskData}
           defaultExpanded
           collapseOnEscape={false}
+          bodyHeightLimit={TASK_CONTEXT_HEIGHT_LIMIT_PX}
         />
       ) : null}
 

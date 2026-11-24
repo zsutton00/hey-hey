@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   Box,
+  Button,
   Collapse,
   IconButton,
   Paper,
@@ -23,14 +24,43 @@ interface TaskPreviewCardProps {
   task: WorkItemResponseDto;
   defaultExpanded?: boolean;
   collapseOnEscape: boolean;
+  /**
+   * Caps the rendered body height in px. Taller content is clipped with an
+   * expand control instead of scrolling inside the card.
+   */
+  bodyHeightLimit?: number;
 }
 
 export const TaskPreviewCard = ({
   task,
   defaultExpanded = true,
   collapseOnEscape,
+  bodyHeightLimit,
 }: TaskPreviewCardProps) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [showFull, setShowFull] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const contentId = useId();
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (bodyHeightLimit === undefined || !content) {
+      return;
+    }
+
+    const measure = () =>
+      setOverflowing(content.scrollHeight > bodyHeightLimit);
+    measure();
+
+    const observer = globalThis.ResizeObserver
+      ? new ResizeObserver(measure)
+      : undefined;
+    observer?.observe(content);
+    return () => observer?.disconnect();
+  }, [bodyHeightLimit, expanded]);
+
+  const clipped = bodyHeightLimit !== undefined && overflowing && !showFull;
 
   useEffect(() => {
     if (!collapseOnEscape || !expanded) {
@@ -106,15 +136,24 @@ export const TaskPreviewCard = ({
         <Box
           maxWidth="1200px"
           data-testid="task-preview-card-body"
-          sx={{
-            // Keep the whole card within two-thirds of the viewport: the
-            // header and padding take ~5rem, the body scrolls in the rest.
-            // Once the body reaches its end, the wheel scrolls the page.
-            maxHeight: "calc(66.667dvh - 5rem)",
-            overflowY: "auto",
-          }}
+          sx={
+            bodyHeightLimit === undefined
+              ? {
+                  // Keep the whole card within two-thirds of the viewport: the
+                  // header and padding take ~5rem, the body scrolls in the
+                  // rest. Once the body reaches its end, the wheel scrolls the
+                  // page.
+                  maxHeight: "calc(66.667dvh - 5rem)",
+                  overflowY: "auto",
+                }
+              : {
+                  position: "relative",
+                  maxHeight: clipped ? bodyHeightLimit : undefined,
+                  overflow: clipped ? "hidden" : "visible",
+                }
+          }
         >
-          <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+          <Stack ref={contentRef} id={contentId} spacing={1.5} sx={{ mt: 1.5 }}>
             {description ? (
               <Stack spacing={0.5}>
                 <Typography variant="caption" color="text.secondary">
@@ -137,7 +176,34 @@ export const TaskPreviewCard = ({
               </Stack>
             ) : null}
           </Stack>
+          {clipped ? (
+            <Box
+              aria-hidden
+              data-testid="task-preview-card-fade"
+              sx={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 48,
+                pointerEvents: "none",
+                background: (theme) =>
+                  `linear-gradient(to bottom, transparent, ${theme.palette.background.paper})`,
+              }}
+            />
+          ) : null}
         </Box>
+        {bodyHeightLimit !== undefined && overflowing ? (
+          <Button
+            size="small"
+            aria-expanded={showFull}
+            aria-controls={contentId}
+            onClick={() => setShowFull((prev) => !prev)}
+            sx={{ mt: 1 }}
+          >
+            {showFull ? "Show less" : "Show full task"}
+          </Button>
+        ) : null}
       </Collapse>
     </Paper>
   );
