@@ -504,9 +504,10 @@ export class ProposalReconciliationService {
           },
         )
       : undefined;
+    const compareMergeInputs = reviewedResult !== undefined && !graph;
     const differingPaths = differingContentKeys(
-      graph ? reviewedContent(reviewed) : reviewed.content,
-      graph ? reviewedContent(actual) : actual.content,
+      compareMergeInputs ? reviewed.content : reviewedContent(reviewed),
+      compareMergeInputs ? actual.content : reviewedContent(actual),
     );
     const decision: ReconciliationDecision = {
       kind: differingPaths.length ? 'REQUIRED' : 'NOT_REQUIRED',
@@ -1702,13 +1703,19 @@ export class ProposalReconciliationService {
       merged.candidate as Prisma.JsonObject;
     const contentBySection = candidate.sections as Prisma.JsonObject;
     const orderBySection = sectionOrder as Record<string, number>;
-    const sections = Object.keys(contentBySection)
-      .map((key) => ({
-        key,
-        content: contentBySection[key],
-        order: orderBySection[key],
-      }))
-      .sort((left, right) => left.order - right.order);
+    const sections = Object.entries(contentBySection).map(([key, content]) => {
+      const order = orderBySection[key];
+      if (order === undefined) {
+        this.logger.warn(
+          `Merged future ${proposal.id} is missing the order for section ${key}.`,
+        );
+        throw new ConflictException(
+          'These changes require manual reconciliation or Agent fix.',
+        );
+      }
+      return { key, content, order };
+    });
+    sections.sort((left, right) => left.order - right.order);
     const rendered =
       'type' in live
         ? this.adapter.renderFutureTaskSections(

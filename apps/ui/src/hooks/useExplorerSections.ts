@@ -27,7 +27,7 @@ export interface ExplorerSections {
  */
 export function useExplorerSections(
   organizationId: string,
-  projectId: string,
+  projectId: string | undefined,
   enabled = true,
 ): ExplorerSections {
   const { workItemTypes, isLoading, isReady } = useWorkItemTypes(

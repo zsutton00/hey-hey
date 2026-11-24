@@ -154,15 +154,19 @@ describe("WorkItemTypeCollectionPage", () => {
     expect(screen.getByRole("heading", { name: "Bugs" })).toBeInTheDocument();
   });
 
-  it("shows the type's declared statuses with In Progress first and an unfiltered All tab last", () => {
+  it("shows exact status names with ACTIVE first and the All tab last", () => {
     renderPage();
 
     const labels = screen
       .getAllByTestId("entity-collection-status-tab")
       .map((tab) => tab.textContent);
-    expect(labels[0]).toBe("In progress");
-    expect(labels).toHaveLength(customDefinition.statuses.length + 2);
-    expect(labels.at(-1)).toBe("All");
+    expect(labels).toEqual([
+      "ACTIVE",
+      "COMPLETED",
+      "BACKLOG",
+      "Archived",
+      "All",
+    ]);
   });
 
   it("gives the collection search a type-specific placeholder", () => {

@@ -5,6 +5,7 @@ import {
 } from "../../api";
 import { useCallback } from "react";
 import { apiClient } from "../../clients/client";
+import { toOpenApiConversationId } from "../../clients/contractIdentifierAdapters";
 import { useAgentSession } from "./useAgentSession";
 import { useControllerAuthorizedAction } from "./useControllerAuthorizedAction";
 import { useUserPairedMachines } from "./useUserPairedMachines";
@@ -52,7 +53,7 @@ export const useCompactRun = (
           body: {
             kind: "compact_run",
             agentSessionId,
-            conversationId,
+            conversationId: toOpenApiConversationId(conversationId),
             runId: agentSessionId,
           },
         },
