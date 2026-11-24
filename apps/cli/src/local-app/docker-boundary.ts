@@ -430,8 +430,9 @@ export class DockerBoundary {
     );
   }
   /**
-   * `outOfOrder` is for dev mode only: a checkout ahead of the installed release
-   * can carry migrations dated before ones the release already applied.
+   * Local installations, installed and dev, migrate out of order: one local
+   * database can be migrated by several releases and checkouts, so a migration
+   * may be dated before one already applied. Callers choose; the default is strict.
    */
   async migrate(path: string, { outOfOrder = false } = {}): Promise<void> {
     await this.compose(path, [
